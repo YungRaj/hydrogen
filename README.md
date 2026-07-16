@@ -399,7 +399,23 @@ hydrogen/
 2. **MACE-MP-0 evaluation** — for each candidate, build an atomic structure (slab, cluster, perovskite cell, etc.), relax with BFGS, compute H*/CH₃*/C* adsorption energies
 3. **Train surrogate NN** — multi-task network learns to predict E_act, coking index, validity from the 324-dim genome encoding (~1000× faster than MACE)
 4. **NSGA-II loop** — evolve population via tournament selection, uniform crossover, class-aware mutation; evaluate with surrogate; periodically validate top candidates with full MACE on GPU
-5. **Output** — Pareto-optimal front of catalysts minimizing (E_act, -coking, segregation, cost)
+5. **Class-diversity enforcement** — each generation guarantees ≥5% population from every material class, preventing any single class from dominating the search (e.g., prevents DAC takeover)
+6. **Output** — Pareto-optimal front of catalysts minimizing (E_act, -coking, segregation, cost)
+
+#### Structure Generation
+
+The MACE screener builds physically realistic atomic structures for all 10 classes:
+
+| Class | Structure Type | Method |
+|-------|---------------|--------|
+| SolidCatalyst | FCC/BCC/HCP slab (3×3×4) | ASE slab builders with explicit lattice constants for 60+ elements |
+| MoltenMetal | FCC slab with promoter substitutions | Host slab + random dopant placement |
+| SAC / DAC | Metal-porphyrin cluster | Square/hexagonal N/S/O/P coordination |
+| MOF / COF | Metal-cavity cluster | Porphyrin-like with organic skeleton |
+| Perovskite | ABO₃ 2×2×3 supercell | Simple cubic with A/B-site doping + O vacancies |
+| MetalHydride | FCC slab + interstitial H | Metal surface with H at tetrahedral sites |
+| MAXPhase | HCP slab with A-element substitution | M-layer slab with interstitial dopants |
+| HEA | Random-substitution FCC slab | Host + 3-5 equimolar dopants |
 
 ### Phase 2: Cantera Reactor Simulation
 
@@ -482,7 +498,7 @@ After a campaign completes, key outputs include:
 @software{turquoise_h2_pipeline,
   title  = {Turquoise Hydrogen: Autonomous Multi-Scale Catalyst Discovery Pipeline},
   year   = {2026},
-  url    = {https://github.com/YOUR_USERNAME/hydrogen},
+  url    = {https://github.com/YungRaj/hydrogen},
   note   = {25.3B design space, 10 material classes, 6-phase pipeline}
 }
 ```

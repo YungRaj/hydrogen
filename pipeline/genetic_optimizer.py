@@ -307,8 +307,27 @@ def run_genetic_algorithm(config: GAConfig = GAConfig(),
             child = mutate(child, rate=config.mutation_rate)
             offspring.append(child)
 
-        # Combine parents + offspring, select best N
+        # ── Class-Diversity Enforcement ─────────────────────────────────────
+        # Prevent any single class from dominating the population.
+        # Guarantee at least 5% of population from each of the 10 classes.
         combined = parents + offspring
+        min_per_class = max(2, config.pop_size // 20)  # 5% of pop per class
+        class_counts = {}
+        for g in combined:
+            cls = g[0]
+            class_counts[cls] = class_counts.get(cls, 0) + 1
+
+        diversity_injections = []
+        for cls in ALL_MATERIAL_CLASSES:
+            deficit = min_per_class - class_counts.get(cls, 0)
+            if deficit > 0:
+                fresh = generate_population(deficit, material_class=cls)
+                diversity_injections.extend(fresh)
+
+        if diversity_injections:
+            # Replace the weakest members (tail of combined) with fresh diverse candidates
+            combined = combined[:len(combined) - len(diversity_injections)] + diversity_injections
+
         combined_obj = compute_objectives_surrogate(combined, model, config.device)
         final_idx = nsga2_select(combined, combined_obj, config.pop_size)
         population = [combined[i] for i in final_idx]

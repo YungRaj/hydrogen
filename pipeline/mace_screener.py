@@ -53,7 +53,37 @@ def generate_alloy_slab(host: str, facet: str, strain: float,
         'bcc110': bcc110, 'hcp0001': hcp0001,
     }
     builder = builders.get(facet, fcc111)
-    slab = builder(host, size=size, vacuum=vacuum)
+
+    # Explicit lattice constants (Å) — ASE can't guess these for many elements
+    LATTICE_CONSTANTS = {
+        # FCC metals
+        'Ni': 3.52, 'Cu': 3.61, 'Ag': 4.09, 'Au': 4.08, 'Al': 4.05,
+        'Pd': 3.89, 'Pt': 3.92, 'Rh': 3.80, 'Ir': 3.84, 'Pb': 4.95,
+        'Ca': 5.58, 'Sr': 6.08, 'Ce': 5.16, 'Yb': 5.49, 'Th': 5.08,
+        # BCC metals
+        'Fe': 2.87, 'Cr': 2.88, 'V': 3.03, 'Nb': 3.30, 'Mo': 3.15,
+        'W': 3.16, 'Ta': 3.30, 'Na': 4.29, 'K': 5.33, 'Ba': 5.02,
+        'Li': 3.51, 'Cs': 6.14, 'Rb': 5.59,
+        # HCP metals (using equivalent FCC a)
+        'Ti': 2.95, 'Zr': 3.23, 'Hf': 3.19, 'Co': 2.51, 'Ru': 2.71,
+        'Os': 2.74, 'Re': 2.76, 'Sc': 3.31, 'Y': 3.65, 'La': 3.75,
+        'Mg': 3.21, 'Zn': 2.66, 'Cd': 2.98,
+        # Non-standard / semimetals (use nearest FCC equivalent)
+        'Sn': 5.83, 'In': 4.60, 'Ga': 4.52, 'Sb': 4.31, 'Bi': 4.75,
+        'Ge': 5.66, 'Si': 5.43, 'Te': 4.45, 'Se': 4.36, 'As': 4.13,
+        'Mn': 3.50, 'Pr': 5.16, 'Nd': 5.08, 'Gd': 3.63, 'Tb': 3.60,
+        'Dy': 3.59, 'Ho': 3.58, 'Er': 3.56, 'Tm': 3.54, 'Lu': 3.50,
+        'Sm': 3.62, 'Eu': 4.58, 'Tl': 3.46, 'Po': 3.35,
+    }
+
+    a = LATTICE_CONSTANTS.get(host, 3.60)  # default 3.60 Å if unknown
+    try:
+        slab = builder(host, size=size, vacuum=vacuum, a=a)
+    except Exception:
+        # Fallback: use Ni as host template, then substitute
+        slab = fcc111('Ni', size=size, vacuum=vacuum, a=a)
+        for atom in slab:
+            atom.symbol = host
 
     # Identify surface atoms (top layer by z-coordinate)
     z_coords = slab.positions[:, 2]
