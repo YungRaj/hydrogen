@@ -1,0 +1,59 @@
+# Byte-compiled / optimized
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+*.egg-info/
+*.egg
+dist/
+build/
+
+# Virtual environments
+.venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# ─── Project-Specific ───────────────────────────────────────────────────────────
+
+# Generated mechanism files (recreated by pipeline)
+mechanisms/
+
+# Generated results (recreated by pipeline)
+results/
+
+# QE scratch / temp output
+quantum_espresso/tmp/
+
+# QE pseudopotential files (large binaries — download separately)
+quantum_espresso/pseudo/*.UPF
+
+# Logs
+*.log
+
+# Large data artifacts
+*.csv
+*.pkl
+*.h5
+*.hdf5
+*.npy
+*.npz
+*.pt
+*.pth
+*.ckpt
+
+# Images / plots (generated output)
+*.png
+*.jpg
+*.svg

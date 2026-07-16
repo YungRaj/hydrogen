@@ -1,0 +1,23 @@
+# ─── Core (all environments) ────────────────────────────────────────────────────
+numpy>=1.24
+scipy>=1.10
+
+# ─── Phase 1: MACE Screening + Genetic Algorithm (deepmd-env) ──────────────────
+torch>=2.0
+mace-torch>=0.3
+ase>=3.22
+pandas>=2.0
+
+# ─── Phase 2: Reactor Simulation (cp2k-env) ────────────────────────────────────
+cantera>=3.0
+
+# ─── Phase 3: DFT Validation (qe-env) ──────────────────────────────────────────
+# Quantum ESPRESSO pw.x — install via conda or system package manager
+# conda install -c conda-forge qe
+
+# ─── Phase 4: Quantum Chemistry (quantum-env) ──────────────────────────────────
+# NVIDIA CUDA-Q — see https://nvidia.github.io/cuda-quantum/latest/install.html
+# pip install cuda-quantum
+
+# ─── Phase 5: Fuel Cell Modeling (battery-env) ──────────────────────────────────
+# Uses core dependencies only (numpy, scipy)
