@@ -1,121 +1,489 @@
-# Turquoise Hydrogen Pipeline
+# Turquoise Hydrogen — Autonomous Multi-Scale Catalyst Discovery
 
-**Autonomous multi-scale catalyst discovery and system optimization for turquoise hydrogen production via methane pyrolysis (NTEC) and PEM fuel cell energy conversion.**
+A GPU-accelerated computational pipeline for autonomous catalyst discovery targeting **turquoise hydrogen production** (methane pyrolysis via NTEC) and **PEM fuel cell** energy conversion. Explores a **25.3-billion-configuration** design space across 10 material classes using equivariant graph neural networks, genetic optimization, reactor-scale simulation, density functional theory, and variational quantum chemistry.
 
-This pipeline integrates GPU-accelerated atomistic screening, reactor-scale microkinetic simulation, high-fidelity DFT validation, quantum chemistry, and techno-economic analysis into a closed-loop materials discovery workflow.
+---
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Architecture](#architecture)
+- [Design Space](#design-space)
+- [Simulation Software Stack](#simulation-software-stack)
+- [Pipeline Modules](#pipeline-modules)
+- [Physical Models](#physical-models)
+- [Environment Setup](#environment-setup)
+- [Usage](#usage)
+- [Project Structure](#project-structure)
+- [Hardware Requirements](#hardware-requirements)
+- [How It Works — Phase by Phase](#how-it-works--phase-by-phase)
+- [Monitoring a Running Campaign](#monitoring-a-running-campaign)
+- [Outputs & Results](#outputs--results)
+- [Citation](#citation)
+- [License](#license)
+
+---
+
+## Overview
+
+The pipeline answers two questions end-to-end:
+
+1. **Which catalyst best cracks methane into hydrogen + solid carbon** at high yield, low coking, and low cost?
+2. **Which cathode catalyst + membrane + stack design** converts that hydrogen into maximum electrical power?
+
+It does this autonomously across six phases:
+
+```
+Methane (CH₄) ──→ Phase 1-4: Catalyst Discovery ──→ H₂ + C(s)
+                                                       │
+                                                       ▼
+                               Phase 5-6: Fuel Cell Optimization ──→ Electricity
+```
 
 ---
 
 ## Architecture
 
 ```
-Phase 1                Phase 2              Phase 3           Phase 4
-MACE-MP-0 Screening ─→ Cantera Reactor ──→ Quantum ESPRESSO ─→ CUDA-Q VQE
-+ NSGA-II Genetic       MMBCR / PFR /       Bulk SCF / Slab     Transition State
-  Algorithm             Fluidized Bed        Relaxation          Refinement
-       │                                                              │
-       │                                                              │
-       ▼                                                              ▼
-Phase 5                                                       Phase 6
-PEMFC Cathode Screening ─→ Single-Cell ─→ Stack Scaling ─→ Report Generation
-ORR Overpotential           Polarization     TEA               Markdown + JSON
+Phase 1: SCREENING + OPTIMIZATION            Phase 2: REACTOR SIMULATION
+┌─────────────────────────────────┐          ┌──────────────────────────┐
+│  25.3B Design Space             │          │  Cantera 3.2             │
+│  ↓                              │          │  ├─ MMBCR (bubble col.)  │
+│  MACE-MP-0 (3 GPUs, 6 workers) │──Top-K──→│  ├─ PFR (plug flow)     │
+│  ↓                              │          │  └─ Fluidized bed        │
+│  Surrogate NN (PyTorch)         │          │  TST + BEP kinetics      │
+│  ↓                              │          └──────────────────────────┘
+│  NSGA-II (4-objective Pareto)   │                    │
+└─────────────────────────────────┘                    ▼
+           │                              Phase 3: DFT VALIDATION
+           │                              ┌──────────────────────────┐
+           │                              │  Quantum ESPRESSO pw.x   │
+           │                              │  ├─ Bulk SCF / vc-relax  │
+           │                              │  ├─ Slab relaxation      │
+           │                              │  └─ Adsorption energies  │
+           │                              └──────────────────────────┘
+           │                                           │
+           │                              Phase 4: QUANTUM CHEMISTRY
+           │                              ┌──────────────────────────┐
+           │                              │  CUDA-Q / cuQuantum      │
+           │                              │  VQE transition states   │
+           │                              │  ├─ C-H bond splitting   │
+           │                              │  └─ O-O bond activation  │
+           │                              └──────────────────────────┘
+           │
+           ▼
+Phase 5: FUEL CELL                        Phase 6: REPORTING
+┌─────────────────────────────────┐      ┌──────────────────────────┐
+│  ORR cathode screening (MACE)   │      │  Auto-generated Markdown │
+│  ├─ 137+ PGM-free candidates   │      │  + JSON pipeline state   │
+│  ├─ Butler-Volmer kinetics      │──→   │  Pareto front analysis   │
+│  ├─ 1D PEMFC polarization       │      │  Champion catalyst cards │
+│  └─ N-cell stack + BOP + TEA    │      └──────────────────────────┘
+└─────────────────────────────────┘
 ```
 
-## Modules
+---
 
-| Module | Description |
-|--------|-------------|
-| `pipeline/catalyst_spaces.py` | 107M-config chemical design space (alloys, SACs, DACs, MOFs, COFs) |
-| `pipeline/mace_screener.py` | Multi-GPU MACE-MP-0 adsorption energy & barrier screening |
-| `pipeline/surrogate_model.py` | Multi-task PyTorch surrogate for GA acceleration |
-| `pipeline/genetic_optimizer.py` | NSGA-II multi-objective optimization (E_act, coking, cost) |
-| `pipeline/reactor_mechanisms.py` | Cantera 3.x YAML mechanism generator (TST + BEP) |
-| `pipeline/reactor_models.py` | MMBCR, PFR, and fluidized bed reactor simulators |
-| `pipeline/dft_validator.py` | Quantum ESPRESSO structural relaxation & SCF |
-| `pipeline/dft_fuel_cell.py` | ORR intermediate DFT (CHE method) |
-| `pipeline/vqe_transition_state.py` | CUDA-Q VQE for C-H/O-O transition states |
-| `pipeline/fuel_cell_cathode_screener.py` | MACE-based ORR cathode screening (137 candidates) |
-| `pipeline/pemfc_model.py` | 1D through-MEA PEMFC polarization model |
-| `pipeline/fuel_cell_stack.py` | N-cell stack scaling with BOP & techno-economics |
-| `pipeline/orchestrator.py` | Master controller for all 6 phases |
-| `pipeline/report_generator.py` | Auto-generated Markdown + JSON reports |
+## Design Space
 
-## Quick Start
+**25,296,914,418** (25.3 billion) unique catalyst configurations across 10 material classes:
 
-### 1. Environment Setup
+| Class | Configs | Description |
+|-------|--------:|-------------|
+| **SolidCatalyst** | 25,055,084,160 | 35 metals × 50 supports × 12 facets × 67 dopants (oxides, carbides, nitrides, zeolites, sulfides) |
+| **HEA** | 240,018,240 | 4–6 component high-entropy alloys from 35 elements (C(35,4)+C(35,5)+C(35,6) combos) |
+| **MetalHydride** | 796,068 | Alanates, borohydrides, amides, intermetallic AB₅/AB₂/AB with 13 additives |
+| **Perovskite** | 449,280 | ABO₃ oxides — 16 A-site × 27 B-site with dopant fractions and defect types |
+| **MoltenMetal** | 168,480 | 13 low-melting hosts × 53 promoters × 16 concentrations × 15 temperatures |
+| **DAC** | 164,268 | 37² dual-atom metal pairs × 12 coordination environments × 9 substrates |
+| **MOF** | 103,428 | 35 metal nodes × 17 organic linkers × 13 cavity types × 13 pore sizes |
+| **COF** | 75,036 | 36 metals × 12 covalent linkages (imine, triazine, boroxine, etc.) |
+| **MAXPhase** | 49,140 | M_{n+1}AX_n layered ternary carbides/nitrides (14 M × 13 A × 2 X × 3 n) |
+| **SAC** | 6,318 | 37 single-atom metals × 18 N/S/O/P coordinations × 9 substrates |
 
-```bash
-# Primary environment (MACE + PyTorch + ASE)
-conda env create -f environment.yml
-conda activate hydrogen-pipeline
+Each genome encodes into a **324-dimensional** feature vector for the surrogate neural network.
 
-# Additional environments for specific phases:
-# Phase 2: conda install -c cantera cantera
-# Phase 3: conda install -c conda-forge qe
-# Phase 4: pip install cuda-quantum
-```
+---
 
-### 2. Download Pseudopotentials (Phase 3 only)
+## Simulation Software Stack
 
-```bash
-mkdir -p quantum_espresso/pseudo
-cd quantum_espresso/pseudo
-# Download from https://www.quantum-espresso.org/pseudopotentials/
-# Required: PBE RRKJUS PSL pseudopotentials for elements in PSEUDO_MAP
-```
+### GPU-Accelerated Engines
 
-### 3. Run the Pipeline
+| Software | Version | Role | Phase |
+|----------|---------|------|-------|
+| **MACE-MP-0** | 0.3.16 | Equivariant GNN interatomic potential — relaxation, adsorption energies, barriers | 1, 5 |
+| **PyTorch** | 2.11.0 | Multi-GPU MACE inference + surrogate NN training/prediction | 1, 5 |
+| **CUDA-Q** | 0.12.0 | Variational Quantum Eigensolver on GPU quantum simulator | 4 |
+| **cuQuantum** | 26.6.0 | Accelerated statevector simulation backend for CUDA-Q | 4 |
+| **Cantera** | 3.2.0 | Chemical kinetics — reactor ODEs with custom YAML mechanisms | 2 |
+| **Quantum ESPRESSO** | 7.x | Plane-wave DFT (pw.x) — SCF, relaxation, electronic structure | 3 |
 
-```bash
-# Quick test (50 generations, reduced population)
-python -m pipeline.orchestrator --quick --no-dft --no-vqe
+### Scientific Libraries
 
-# Full production run
-python -m pipeline.orchestrator
+| Library | Version | Role |
+|---------|---------|------|
+| **ASE** | 3.29.0 | Atomic structure generation (slabs, clusters, perovskites, hydrides) |
+| **NumPy** | 2.2.6 | Vectorized computation, NSGA-II, feature encoding |
+| **SciPy** | 1.15.2 | Electrode kinetics, Nernst equation, ODE integration |
+| **Pandas** | 2.3.3 | Screening database I/O, population tracking |
 
-# Single phase
-python -m pipeline.orchestrator --phase 2
+### Custom Models (Pure Python/PyTorch)
 
-# Phase range
-python -m pipeline.orchestrator --start 1 --end 3
-```
+| Module | Physics |
+|--------|---------|
+| `surrogate_model.py` | Multi-task NN predicting E_act, coking, validity (~1000× faster than MACE) |
+| `genetic_optimizer.py` | NSGA-II with crowding distance — 4-objective Pareto optimization |
+| `pemfc_model.py` | 1D through-MEA PEM fuel cell (Tafel + Ohmic + mass transport losses) |
+| `fuel_cell_stack.py` | N-cell stack scaling with balance-of-plant and $/kW techno-economics |
+| `reactor_mechanisms.py` | TST/BEP mechanism generator producing Cantera 3.x-compliant YAML |
 
-### 4. Results
+---
 
-Output is written to `results/`:
-- `results/screening/` — GA population databases (CSV)
-- `results/reactor/` — Cantera simulation results
-- `results/dft/` — QE input/output files
-- `results/vqe/` — VQE energetics (JSON)
-- `results/fuel_cell/` — Cathode screening + PEMFC curves
-- `results/reports/` — Auto-generated pipeline report
+## Pipeline Modules
 
-## Hardware Requirements
+| Module | Lines | Description |
+|--------|------:|-------------|
+| `catalyst_spaces.py` | 790 | 10-class design space definitions, genome generators, crossover/mutation, feature encoding |
+| `mace_screener.py` | 662 | Multi-GPU parallelized MACE-MP-0 screening — structure generation, adsorption energies, coking index |
+| `reactor_models.py` | 452 | Cantera reactor simulations — MMBCR, PFR, fluidized bed with custom surface kinetics |
+| `genetic_optimizer.py` | 416 | NSGA-II GA — surrogate-accelerated 4-objective optimization |
+| `dft_validator.py` | 416 | Quantum ESPRESSO input generation & parsing for champion catalysts |
+| `utils.py` | 385 | Shared constants, BEP correlations, Arrhenius rates, I/O utilities |
+| `reactor_mechanisms.py` | 302 | Cantera YAML mechanism generator with TST pre-exponentials |
+| `report_generator.py` | 287 | Auto-generated Markdown + JSON pipeline reports |
+| `fuel_cell_cathode_screener.py` | 285 | MACE-based ORR cathode screening (137+ PGM-free candidates) |
+| `pemfc_model.py` | 275 | 1D PEMFC polarization curves — OCV, Tafel, Ohmic, mass transport |
+| `vqe_transition_state.py` | 244 | CUDA-Q VQE for C-H and O-O transition state refinement |
+| `dft_fuel_cell.py` | 232 | CHE-method ORR intermediate DFT validation |
+| `fuel_cell_stack.py` | 205 | Stack scaling, BOP parasitic loads, $/kW cost model |
+| `surrogate_model.py` | 174 | Multi-task PyTorch neural network (valid/dE/E_act/coking heads) |
 
-- **GPU**: NVIDIA GPU with ≥16 GB VRAM (Blackwell recommended)
-- **RAM**: ≥32 GB system memory
-- **Storage**: ≥50 GB for full screening campaigns
+**Total: 5,507 lines of production code across 15 modules.**
 
-## Key Physical Models
+---
+
+## Physical Models
+
+### Methane Pyrolysis Descriptors
+
+| Descriptor | Definition | Target |
+|-----------|-----------|--------|
+| **E_act** (activation barrier) | BEP correlation: `0.75 × ΔE_split + 0.95` eV | < 0.8 eV |
+| **ΔE_H** (H* adsorption) | `E(slab+H) - E(slab) - 0.5×E(H₂)` | -0.3 to -0.5 eV |
+| **ΔE_C** (C* adsorption) | `E(slab+C) - E(slab) - E(C)` | > -4.0 eV (resist coking) |
+| **Coking index** | `ΔE_C - 2×ΔE_H` | Positive = resistant |
+| **Segregation energy** | `E_clean - E_swapped` (dopant→surface preference) | Negative = stable |
+
+### Reactor Kinetics
 
 | Model | Implementation |
 |-------|---------------|
-| **C-H activation barrier** | BEP correlation calibrated on TM surfaces |
-| **Surface kinetics** | Transition State Theory (TST) pre-exponentials |
-| **ORR overpotential** | Computational Hydrogen Electrode (4e⁻ pathway) |
-| **Electrode kinetics** | Butler-Volmer equation |
-| **Reactor mass transport** | Cantera 3.x IdealGasReactor + ReactorSurface |
-| **PEMFC losses** | Nernst OCV + Tafel + Ohmic + mass transport |
+| Rate constants | Arrhenius: `k = A × exp(-E_act / k_B T)`, A from TST |
+| Surface reactions | Cantera `ReactorSurface` with custom YAML mechanism |
+| Solid carbon | Modeled as `C_graphite` gas-phase tracer species |
+| Reactor types | MMBCR (molten metal bubble column), PFR, fluidized bed |
+
+### Fuel Cell Models
+
+| Model | Implementation |
+|-------|---------------|
+| ORR overpotential | Computational Hydrogen Electrode (4e⁻ pathway) |
+| Cell voltage | `V = E_Nernst - η_act - η_ohm - η_mass` |
+| Activation loss | Tafel: `η = (RT/αF) × ln(j/j₀)` |
+| Ohmic loss | `η = j × (t_mem / σ_mem)` |
+| Mass transport | `η = -c × ln(1 - j/j_L)` |
+| Stack power | `P_net = n_cells × V × j × A_cell - P_BOP` |
+
+---
+
+## Environment Setup
+
+The pipeline requires **5 separate conda environments** due to incompatible dependency trees. Each environment serves specific phases.
+
+### Prerequisites
+
+- **OS**: Linux (Ubuntu 22.04+ recommended)
+- **GPU**: NVIDIA GPU with CUDA 12+ (≥16 GB VRAM)
+- **Conda**: Miniconda or Anaconda
+
+### Environment 1: `deepmd-env` — MACE + PyTorch (Phases 1, 5)
+
+```bash
+conda create -n deepmd-env python=3.10 -y
+conda activate deepmd-env
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+pip install mace-torch ase pandas scipy numpy
+```
+
+### Environment 2: `cp2k-env` — Cantera (Phase 2)
+
+```bash
+conda create -n cp2k-env python=3.12 -y
+conda activate cp2k-env
+conda install -c cantera cantera -y
+pip install numpy scipy
+```
+
+### Environment 3: `qe-env` — Quantum ESPRESSO (Phase 3)
+
+```bash
+conda create -n qe-env python=3.10 -y
+conda activate qe-env
+conda install -c conda-forge qe -y
+pip install numpy scipy
+```
+
+**Pseudopotentials** — download PBE RRKJUS PSL files:
+```bash
+mkdir -p quantum_espresso/pseudo && cd quantum_espresso/pseudo
+# Download from https://www.quantum-espresso.org/pseudopotentials/
+# Required elements: H, C, N, O, B, S, P, F, Na, Mg, Al, Si,
+# Ti, V, Cr, Mn, Fe, Co, Ni, Cu, Zn, Ga, Ge, Mo, Ru, Rh, Pd,
+# Ag, In, Sn, Sb, W, Pt, Au, Pb, Bi, La, Ce, Zr, Y, Nb, Te
+```
+
+### Environment 4: `quantum-env` — CUDA-Q (Phase 4)
+
+```bash
+conda create -n quantum-env python=3.10 -y
+conda activate quantum-env
+pip install cuda-quantum cuquantum-cu12 numpy scipy
+```
+
+### Environment 5: `battery-env` — Lightweight (Phase 6, utilities)
+
+```bash
+conda create -n battery-env python=3.10 -y
+conda activate battery-env
+pip install numpy scipy pandas
+```
+
+### Verify Installation
+
+```bash
+# Test all environments
+conda run -n deepmd-env python -c "import torch, mace, ase; print('deepmd-env OK')"
+conda run -n cp2k-env python -c "import cantera; print(f'cp2k-env OK: Cantera {cantera.__version__}')"
+conda run -n qe-env bash -c "which pw.x && echo 'qe-env OK'"
+conda run -n quantum-env python -c "import cudaq; print('quantum-env OK')"
+conda run -n battery-env python -c "import numpy, scipy; print('battery-env OK')"
+```
+
+---
+
+## Usage
+
+### Quick Test (5 min)
+
+```bash
+conda run -n deepmd-env python -m pipeline.orchestrator --quick --no-dft --no-vqe
+```
+
+This runs 50 generations with 100 population, validating the full pipeline end-to-end.
+
+### Production Campaign (48 hours)
+
+```bash
+# Launch GPU-saturated campaign across all GPUs
+nohup conda run -n deepmd-env python -u run_production_campaign.py \
+  --pop 1000 \
+  --gens 3000 \
+  --mace-batch 500 \
+  --mace-per-round 500 \
+  --mace-interval 5 \
+  --hours 48 \
+  --top-k 200 \
+  > results/campaign.log 2>&1 &
+```
+
+**Key parameters:**
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--pop` | 1000 | GA population size per generation |
+| `--gens` | 3000 | Total GA generations |
+| `--mace-batch` | 500 | Initial MACE screening batch size |
+| `--mace-per-round` | 500 | MACE evaluations per validation round |
+| `--mace-interval` | 5 | Generations between MACE validation rounds |
+| `--hours` | 48 | Maximum wall-clock time |
+| `--top-k` | 200 | Top-K catalysts forwarded to reactor simulation |
+| `--no-dft` | false | Skip Quantum ESPRESSO phase |
+| `--no-vqe` | false | Skip CUDA-Q VQE phase |
+
+### Single Phase Execution
+
+```bash
+# Run only Phase 2 (reactor simulation)
+conda run -n deepmd-env python -m pipeline.orchestrator --phase 2
+
+# Run Phases 1-3
+conda run -n deepmd-env python -m pipeline.orchestrator --start 1 --end 3
+```
+
+### Standalone Module Testing
+
+```bash
+# Test design space
+conda run -n battery-env python -m pipeline.catalyst_spaces
+
+# Test MACE screening (20 random candidates)
+conda run -n deepmd-env python -m pipeline.mace_screener
+
+# Test DFT input generation (no pw.x execution)
+conda run -n battery-env python -m pipeline.dft_validator
+
+# Test PEMFC model
+conda run -n battery-env python -m pipeline.pemfc_model
+```
+
+---
+
+## Project Structure
+
+```
+hydrogen/
+├── README.md                      # This file
+├── LICENSE                        # MIT license
+├── requirements.txt               # Python dependencies
+├── environment.yml                # Conda environment spec
+├── run_production_campaign.py     # Production launcher (GPU-saturated)
+│
+├── pipeline/                      # Core pipeline package (15 modules)
+│   ├── __init__.py
+│   ├── catalyst_spaces.py         # 25.3B design space definitions
+│   ├── mace_screener.py           # Multi-GPU MACE-MP-0 screening
+│   ├── surrogate_model.py         # Multi-task PyTorch surrogate NN
+│   ├── genetic_optimizer.py       # NSGA-II 4-objective GA
+│   ├── reactor_mechanisms.py      # Cantera YAML mechanism generator
+│   ├── reactor_models.py          # MMBCR / PFR / fluidized bed
+│   ├── dft_validator.py           # Quantum ESPRESSO DFT validation
+│   ├── dft_fuel_cell.py           # ORR intermediate DFT (CHE)
+│   ├── vqe_transition_state.py    # CUDA-Q VQE transition states
+│   ├── fuel_cell_cathode_screener.py  # ORR cathode screening
+│   ├── pemfc_model.py             # 1D PEMFC polarization model
+│   ├── fuel_cell_stack.py         # Stack scaling + TEA
+│   ├── report_generator.py        # Auto-report generation
+│   └── utils.py                   # Constants, helpers, I/O
+│
+├── quantum_espresso/              # QE pseudopotentials (gitignored)
+│   └── pseudo/                    # .UPF files (download separately)
+│
+├── mechanisms/                    # Generated Cantera YAML (gitignored)
+└── results/                       # Pipeline outputs (gitignored)
+    ├── screening/                 # GA databases, MACE CSVs
+    ├── reactor/                   # Cantera simulation results
+    ├── dft/                       # QE input/output files
+    ├── vqe/                       # VQE energetics (JSON)
+    ├── fuel_cell/                 # Cathode screening + PEMFC curves
+    └── reports/                   # Auto-generated pipeline report
+```
+
+---
+
+## Hardware Requirements
+
+| Component | Minimum | Recommended |
+|-----------|---------|-------------|
+| **GPU** | 1× NVIDIA GPU, 16 GB VRAM | 3× GPUs (e.g., RTX 5090 + 2× Blackwell) |
+| **RAM** | 32 GB | 64+ GB |
+| **Storage** | 50 GB | 200+ GB (for full DFT campaigns) |
+| **CPU** | 8 cores | 32+ cores (for Cantera multi-process) |
+
+---
+
+## How It Works — Phase by Phase
+
+### Phase 1: MACE Screening + Genetic Optimization
+
+1. **Generate initial population** — random genomes from all 10 material classes
+2. **MACE-MP-0 evaluation** — for each candidate, build an atomic structure (slab, cluster, perovskite cell, etc.), relax with BFGS, compute H*/CH₃*/C* adsorption energies
+3. **Train surrogate NN** — multi-task network learns to predict E_act, coking index, validity from the 324-dim genome encoding (~1000× faster than MACE)
+4. **NSGA-II loop** — evolve population via tournament selection, uniform crossover, class-aware mutation; evaluate with surrogate; periodically validate top candidates with full MACE on GPU
+5. **Output** — Pareto-optimal front of catalysts minimizing (E_act, -coking, segregation, cost)
+
+### Phase 2: Cantera Reactor Simulation
+
+For each top-K catalyst from Phase 1:
+1. Generate a Cantera YAML mechanism with TST-derived rate constants calibrated to the catalyst's E_act
+2. Simulate three reactor types (MMBCR, PFR, fluidized bed) across 5 temperatures (800–1200 K)
+3. Record CH₄ conversion, H₂ selectivity, carbon yield, residence time
+
+### Phase 3: DFT Validation (Quantum ESPRESSO)
+
+For the top 10 champion catalysts:
+1. Generate QE input files (SCF / relax) with proper pseudopotentials
+2. Run `pw.x` for bulk optimization and slab relaxation
+3. Parse converged total energies, forces, electronic structure
+
+### Phase 4: VQE Quantum Chemistry (CUDA-Q)
+
+For the top 3–5 champions:
+1. Build molecular Hamiltonians for C-H and O-O bond-breaking transition states
+2. Run VQE with hardware-efficient ansätze on the NVIDIA GPU quantum simulator
+3. Extract refined activation barriers beyond DFT accuracy
+
+### Phase 5: Fuel Cell Modeling
+
+1. **Cathode screening** — evaluate 137+ PGM-free ORR catalysts using MACE
+2. **PEMFC polarization** — 1D model: Nernst OCV → Tafel activation → Ohmic → mass transport
+3. **Membrane sweep** — test Nafion 211/212, Gore-Select, Aquivion across operating conditions
+4. **Stack scaling** — 300–400 cell stack with balance-of-plant, gravimetric/volumetric power density, $/kW
+
+### Phase 6: Report Generation
+
+Auto-generates a comprehensive Markdown report with:
+- Champion catalyst cards (genome, E_act, coking index, cost)
+- Reactor performance tables
+- PEMFC polarization data
+- Stack-level techno-economics
+
+---
+
+## Monitoring a Running Campaign
+
+```bash
+# GPU utilization
+nvidia-smi --query-gpu=utilization.gpu,memory.used --format=csv -l 5
+
+# GA evolution progress
+tail -f results/screening/genetic_optimizer.log
+
+# MACE screening throughput
+tail -f results/screening/mace_screening.log
+
+# Campaign stdout
+tail -f results/campaign.log
+
+# Check pipeline state
+python -c "import json; print(json.dumps(json.load(open('pipeline_state.json')), indent=2))"
+```
+
+---
+
+## Outputs & Results
+
+After a campaign completes, key outputs include:
+
+| File | Contents |
+|------|----------|
+| `results/screening/ga_full_database.csv` | Complete screening database (all MACE-evaluated candidates) |
+| `results/screening/ga_mace_gen*.csv` | Per-round MACE validation results |
+| `results/reports/pipeline_report.md` | Auto-generated comprehensive report |
+| `pipeline_state.json` | Machine-readable pipeline state with timing and metrics |
+| `results/reactor/*.json` | Cantera simulation results per catalyst |
+| `results/dft/*/` | QE input/output files per catalyst |
+| `results/fuel_cell/` | Cathode screening + PEMFC polarization data |
+
+---
 
 ## Citation
 
-If you use this code in your research, please cite:
-
 ```bibtex
 @software{turquoise_h2_pipeline,
-  title = {Turquoise Hydrogen Pipeline: Autonomous Multi-Scale Catalyst Discovery},
-  year = {2026},
-  url = {https://github.com/YOUR_USERNAME/hydrogen}
+  title  = {Turquoise Hydrogen: Autonomous Multi-Scale Catalyst Discovery Pipeline},
+  year   = {2026},
+  url    = {https://github.com/YOUR_USERNAME/hydrogen},
+  note   = {25.3B design space, 10 material classes, 6-phase pipeline}
 }
 ```
 

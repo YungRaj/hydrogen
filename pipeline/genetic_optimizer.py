@@ -199,6 +199,20 @@ def _extract_elements_from_genome(genome: tuple) -> List[str]:
     elif mat_class in ('MOF', 'COF'):
         if genome[1] != 'None':
             elements.append(genome[1])
+    elif mat_class == 'Perovskite':
+        elements.extend([genome[1], genome[2]])
+        if genome[3] != 'None':
+            elements.append(genome[3])
+    elif mat_class == 'MetalHydride':
+        elements.append(genome[1])
+        if genome[3] != 'None':
+            elements.append(genome[3])
+    elif mat_class == 'MAXPhase':
+        elements.extend([genome[1], genome[2]])
+        if genome[5] != 'None':
+            elements.append(genome[5])
+    elif mat_class == 'HEA':
+        elements.extend(list(genome[1]))
     return [e for e in elements if e != 'None']
 
 

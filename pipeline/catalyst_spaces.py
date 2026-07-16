@@ -33,18 +33,37 @@ from pipeline.utils import (
 # For bubble column reactors. The host metal must be liquid at operating temperature.
 # A catalytic promoter (transition metal) dissolves into the melt at low concentration.
 
-MOLTEN_HOSTS = ['Sn', 'Bi', 'In', 'Ga', 'Pb', 'Sb', 'Te']
+MOLTEN_HOSTS = [
+    # Classic low-melting hosts
+    'Sn', 'Bi', 'In', 'Ga', 'Pb', 'Sb', 'Te',
+    # Extended hosts (higher melting but viable at elevated T)
+    'Zn', 'Al', 'Ag', 'Au', 'Cd', 'Tl',
+]
 
 MOLTEN_PROMOTERS = [
-    'Ni', 'Cu', 'Fe', 'Co', 'Mn', 'Pd', 'Pt', 'Ru', 'Rh',
-    'Mo', 'W', 'V', 'Cr', 'Ti', 'Zr', 'Nb', 'La', 'Ce',
+    # 3d transition metals
+    'Ti', 'V', 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu', 'Zn',
+    # 4d transition metals
+    'Y', 'Zr', 'Nb', 'Mo', 'Ru', 'Rh', 'Pd', 'Ag',
+    # 5d transition metals
+    'Hf', 'Ta', 'W', 'Re', 'Os', 'Ir', 'Pt', 'Au',
+    # Rare earth metals
+    'La', 'Ce', 'Pr', 'Nd', 'Sm', 'Gd', 'Dy', 'Er', 'Yb',
+    # Post-transition metals & metalloids
+    'Al', 'Ga', 'Ge', 'Se', 'Cd', 'In', 'Sn', 'Sb', 'Te', 'Tl', 'Pb', 'Bi',
+    # Light elements
+    'Li', 'Na', 'K', 'Mg', 'Ca', 'Sr', 'Ba',
     'None',  # Pure molten metal (no promoter)
 ]
 
-MOLTEN_PROMOTER_AT_PCT = [0.0, 1.0, 2.0, 5.0, 10.0, 15.0, 20.0, 25.0, 30.0]
+MOLTEN_PROMOTER_AT_PCT = [
+    0.0, 0.1, 0.5, 1.0, 2.0, 3.0, 5.0, 7.5,
+    10.0, 12.5, 15.0, 20.0, 25.0, 30.0, 40.0, 50.0,
+]
 
 MOLTEN_TEMPERATURES_K = [
-    700, 750, 800, 850, 900, 950, 1000, 1050, 1100, 1150, 1200
+    600, 650, 700, 750, 800, 850, 900, 950,
+    1000, 1050, 1100, 1150, 1200, 1250, 1300,
 ]
 
 
@@ -83,24 +102,58 @@ def validate_molten_metal(genome: tuple) -> bool:
 # ═══════════════════════════════════════════════════════════════════════════════
 # For packed-bed and fluidized-bed reactors.
 
-SOLID_ACTIVE_METALS = ['Ni', 'Fe', 'Co', 'Cu', 'Mo', 'W', 'Mn', 'V', 'Cr']
+SOLID_ACTIVE_METALS = [
+    # 3d TMs
+    'Ti', 'V', 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu', 'Zn',
+    # 4d TMs
+    'Y', 'Zr', 'Nb', 'Mo', 'Ru', 'Rh', 'Pd', 'Ag',
+    # 5d TMs
+    'Hf', 'Ta', 'W', 'Re', 'Os', 'Ir', 'Pt', 'Au',
+    # Rare earths
+    'La', 'Ce', 'Pr', 'Nd', 'Sm', 'Gd',
+    # Post-transition metals
+    'Al', 'Ga', 'In', 'Sn', 'Sb', 'Bi', 'Pb',
+]
 
 SOLID_SUPPORTS = [
+    # Oxides
     'Al2O3', 'SiO2', 'MgO', 'CeO2', 'TiO2', 'ZrO2',
-    'Carbon',  # Activated carbon / carbon black
-    'Graphene',
+    'Fe2O3', 'Cr2O3', 'V2O5', 'Nb2O5', 'La2O3', 'Y2O3',
+    'WO3', 'MoO3', 'SnO2', 'Bi2O3', 'BaO', 'SrTiO3',
+    # Mixed oxides
+    'CeZrO2', 'MgAl2O4', 'BaTiO3', 'LaAlO3',
+    # Carbon-based
+    'Carbon', 'Graphene', 'CNT', 'Graphite', 'Diamond',
+    'Fullerene', 'CarbonNitride',
+    # Nitrides / Carbides / Borides
+    'BN', 'Si3N4', 'AlN', 'TiN', 'WC', 'SiC', 'MoC', 'TiC', 'TaC',
+    'TiB2', 'ZrB2', 'HfB2',
+    # Sulfides / Phosphides
+    'MoS2', 'WS2', 'NiP', 'FeP', 'CoP',
+    # Zeolites
+    'ZSM5', 'Beta', 'Mordenite', 'Y_zeolite', 'SAPO34',
 ]
 
-SOLID_FACETS = ['fcc111', 'fcc100', 'bcc110', 'hcp0001']
+SOLID_FACETS = [
+    'fcc111', 'fcc100', 'fcc110', 'fcc211', 'fcc311',
+    'bcc110', 'bcc100', 'bcc111', 'bcc211',
+    'hcp0001', 'hcp1010', 'hcp1120',
+]
 
 SOLID_DOPANTS = [
-    'Li', 'Na', 'Mg', 'Ca', 'Sc', 'Ti', 'V', 'Cr', 'Mn', 'Fe', 'Co', 'Ni',
-    'Cu', 'Zn', 'Y', 'Zr', 'Nb', 'Mo', 'Ru', 'Rh', 'Pd', 'Ag', 'In', 'Sn',
-    'Sb', 'Hf', 'Ta', 'W', 'Re', 'Ir', 'Pt', 'Au', 'Pb', 'Bi', 'B', 'C',
-    'Si', 'Ge', 'P', 'S', 'Ga', 'Al', 'La', 'Ce',
+    # All accessible dopants in the periodic table
+    'Li', 'Be', 'B', 'C', 'N', 'O', 'F',
+    'Na', 'Mg', 'Al', 'Si', 'P', 'S', 'Cl',
+    'K', 'Ca', 'Sc', 'Ti', 'V', 'Cr', 'Mn', 'Fe', 'Co', 'Ni',
+    'Cu', 'Zn', 'Ga', 'Ge', 'As', 'Se', 'Br',
+    'Rb', 'Sr', 'Y', 'Zr', 'Nb', 'Mo', 'Ru', 'Rh', 'Pd', 'Ag',
+    'Cd', 'In', 'Sn', 'Sb', 'Te', 'I',
+    'Cs', 'Ba', 'La', 'Ce', 'Pr', 'Nd', 'Sm', 'Eu', 'Gd',
+    'Hf', 'Ta', 'W', 'Re', 'Os', 'Ir', 'Pt', 'Au',
+    'Tl', 'Pb', 'Bi',
 ]
 
-SOLID_STRAIN_RANGE = (-0.08, 0.08)  # ±8%
+SOLID_STRAIN_RANGE = (-0.10, 0.10)  # ±10%
 
 
 def generate_solid_catalyst_genome() -> tuple:
@@ -121,14 +174,26 @@ def generate_solid_catalyst_genome() -> tuple:
 # ═══════════════════════════════════════════════════════════════════════════════
 # Metal atoms atomically dispersed in nitrogen-doped carbon matrices.
 
-SAC_METALS = ['Fe', 'Co', 'Ni', 'Cu', 'Mn', 'Mo', 'W', 'Ru', 'Rh', 'V', 'Cr', 'Zn', 'Sn', 'In']
+SAC_METALS = [
+    # All viable single-atom metals
+    'Sc', 'Ti', 'V', 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu', 'Zn',
+    'Y', 'Zr', 'Nb', 'Mo', 'Ru', 'Rh', 'Pd', 'Ag',
+    'Hf', 'Ta', 'W', 'Re', 'Os', 'Ir', 'Pt', 'Au',
+    'La', 'Ce', 'Pr', 'Nd', 'Sm', 'Gd',
+    'Al', 'Ga', 'In', 'Sn', 'Sb', 'Bi', 'Pb',
+]
 
 SAC_COORDINATIONS = [
     'N4', 'N3C', 'N2C2', 'N3B', 'N3S', 'N3P', 'N2S2', 'N2O2',
-    'N3O', 'N4_pyridine', 'N4_pyrrole',
+    'N3O', 'N4_pyridine', 'N4_pyrrole', 'N2P2', 'N2Se2',
+    'O4', 'S4', 'N2B2', 'C4', 'N3Se',
 ]
 
-SAC_SUBSTRATES = ['N-graphene', 'N-CNT', 'N-carbon_black']
+SAC_SUBSTRATES = [
+    'N-graphene', 'N-CNT', 'N-carbon_black',
+    'N-graphdiyne', 'N-porous_carbon', 'N-mesoporous_carbon',
+    'BN_sheet', 'MoS2_sheet', 'Phosphorene',
+]
 
 
 def generate_sac_genome() -> tuple:
@@ -139,10 +204,13 @@ def generate_sac_genome() -> tuple:
     return ('SAC', metal, coord, substrate)
 
 
-DAC_METALS_1 = ['Fe', 'Co', 'Ni', 'Cu', 'Mn', 'Mo', 'W']
-DAC_METALS_2 = ['Fe', 'Co', 'Ni', 'Cu', 'Mn', 'Zn', 'Sn', 'In', 'V', 'Cr']
+DAC_METALS_1 = SAC_METALS  # Full metal set for dual-atom site 1
+DAC_METALS_2 = SAC_METALS  # Full metal set for dual-atom site 2
 
-DAC_COORDINATIONS = ['N6', 'N8', 'N4C2', 'N3SN3', 'N4N4']
+DAC_COORDINATIONS = [
+    'N6', 'N8', 'N4C2', 'N3SN3', 'N4N4', 'N6C2', 'N4S2',
+    'N4O2', 'N4P2', 'N2S2N2', 'N3BN3', 'C4N4',
+]
 
 
 def generate_dac_genome() -> tuple:
@@ -158,15 +226,30 @@ def generate_dac_genome() -> tuple:
 # D. METAL-ORGANIC FRAMEWORKS (MOFs) & COVALENT ORGANIC FRAMEWORKS (COFs)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-MOF_METAL_NODES = ['Fe', 'Co', 'Ni', 'Mn', 'Cu', 'Zn', 'Zr', 'Ti', 'V', 'Cr', 'Mo']
+MOF_METAL_NODES = [
+    'Fe', 'Co', 'Ni', 'Mn', 'Cu', 'Zn', 'Zr', 'Ti', 'V', 'Cr', 'Mo',
+    'Al', 'Ga', 'In', 'Sn', 'Hf', 'W', 'Ru', 'Rh', 'Pd', 'Pt',
+    'La', 'Ce', 'Pr', 'Nd', 'Y', 'Sc', 'Cd', 'Pb', 'Bi', 'Ag', 'Au',
+    'Mg', 'Ca', 'Sr', 'Ba',
+]
 
-MOF_LINKERS = ['BDC', 'BTC', 'Porphyrin', 'Phthalocyanine', 'NDC', 'BPDC', 'Pyrazole']
+MOF_LINKERS = [
+    'BDC', 'BTC', 'Porphyrin', 'Phthalocyanine', 'NDC', 'BPDC', 'Pyrazole',
+    'Imidazolate', 'Triazolate', 'Tetrazolate', 'Oxalate', 'Fumarate',
+    'DOBDC', 'TCPP', 'HHTP', 'HITP', 'BTB',
+]
 
-MOF_CAVITIES = ['N4', 'N2S2', 'N2O2', 'O4', 'N3S', 'N3P', 'N2P2']
+MOF_CAVITIES = [
+    'N4', 'N2S2', 'N2O2', 'O4', 'N3S', 'N3P', 'N2P2',
+    'O6', 'S4', 'N6', 'N4O2', 'N2Se2', 'P4',
+]
 
-MOF_PORE_SIZES = [8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0, 22.0, 25.0]
+MOF_PORE_SIZES = [4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0, 22.0, 25.0, 30.0, 40.0]
 
-COF_LINKAGES = ['Imine', 'Triazine', 'Boroxine', 'Phenazine', 'Olefin', 'Azine']
+COF_LINKAGES = [
+    'Imine', 'Triazine', 'Boroxine', 'Phenazine', 'Olefin', 'Azine',
+    'Hydrazone', 'Squaraine', 'Beta_ketoenamine', 'Dioxin', 'Amide', 'Imide',
+]
 
 
 def generate_mof_genome() -> tuple:
@@ -188,19 +271,130 @@ def generate_cof_genome() -> tuple:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# E. PEROVSKITE CATALYSTS (ABO₃)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+PEROVSKITE_A_SITE = [
+    'La', 'Sr', 'Ba', 'Ca', 'Pr', 'Nd', 'Sm', 'Gd', 'Y', 'Ce',
+    'K', 'Na', 'Li', 'Bi', 'Pb', 'Ag',
+]
+PEROVSKITE_B_SITE = [
+    'Ti', 'V', 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu', 'Zn',
+    'Zr', 'Nb', 'Mo', 'Ru', 'Rh', 'Pd',
+    'Hf', 'Ta', 'W', 'Re', 'Ir', 'Pt',
+    'Al', 'Ga', 'In', 'Sn', 'Sb',
+]
+PEROVSKITE_DOPANT_FRAC = [0.0, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.50]
+PEROVSKITE_DEFECTS = ['none', 'A_vacancy', 'B_vacancy', 'O_vacancy', 'A_excess']
+
+def generate_perovskite_genome() -> tuple:
+    A = random.choice(PEROVSKITE_A_SITE)
+    B = random.choice(PEROVSKITE_B_SITE)
+    dopant = random.choice(PEROVSKITE_B_SITE + ['None'])
+    frac = random.choice(PEROVSKITE_DOPANT_FRAC) if dopant != 'None' else 0.0
+    defect = random.choice(PEROVSKITE_DEFECTS)
+    return ('Perovskite', A, B, dopant, frac, defect)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# F. METAL HYDRIDES (for H₂ storage & catalytic decomposition)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+HYDRIDE_METALS = [
+    # Simple hydrides
+    'Li', 'Na', 'K', 'Mg', 'Ca', 'Sr', 'Ba', 'Al', 'Ti', 'Zr', 'Hf',
+    'V', 'Nb', 'Ta', 'La', 'Ce', 'Pr', 'Nd', 'Y', 'Sc',
+    # Intermetallic hydrides
+    'Fe', 'Co', 'Ni', 'Cu', 'Mn', 'Pd', 'Pt',
+]
+HYDRIDE_TYPES = [
+    'simple', 'complex_alanate', 'complex_borohydride', 'complex_amide',
+    'intermetallic_AB5', 'intermetallic_AB2', 'intermetallic_AB',
+    'intermetallic_A2B', 'perovskite_hydride',
+]
+HYDRIDE_SECOND_METAL = HYDRIDE_METALS + ['None']
+HYDRIDE_ADDITIVES = [
+    'None', 'TiCl3', 'TiF3', 'VCl3', 'NbF5', 'ZrCl4', 'CeO2',
+    'MgO', 'Carbon', 'Graphene', 'CNT', 'TiO2', 'Fe2O3',
+]
+
+def generate_hydride_genome() -> tuple:
+    metal = random.choice(HYDRIDE_METALS)
+    h_type = random.choice(HYDRIDE_TYPES)
+    second = random.choice(HYDRIDE_SECOND_METAL)
+    additive = random.choice(HYDRIDE_ADDITIVES)
+    temp = random.choice([300, 350, 400, 450, 500, 550, 600, 700, 800])
+    return ('MetalHydride', metal, h_type, second, additive, temp)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# G. MAX PHASES (M_{n+1}AX_n) — layered ternary carbides/nitrides
+# ═══════════════════════════════════════════════════════════════════════════════
+
+MAX_M_ELEMENTS = [
+    'Ti', 'V', 'Cr', 'Zr', 'Nb', 'Mo', 'Hf', 'Ta', 'W',
+    'Sc', 'Mn', 'Fe', 'Co', 'Ni',
+]
+MAX_A_ELEMENTS = [
+    'Al', 'Si', 'P', 'S', 'Ga', 'Ge', 'As', 'Cd', 'In', 'Sn',
+    'Tl', 'Pb', 'Bi',
+]
+MAX_X_ELEMENTS = ['C', 'N']  # carbide or nitride
+MAX_N_VALUES = [1, 2, 3]  # n in M_{n+1}AX_n → 211, 312, 413 phases
+
+def generate_max_genome() -> tuple:
+    M = random.choice(MAX_M_ELEMENTS)
+    A = random.choice(MAX_A_ELEMENTS)
+    X = random.choice(MAX_X_ELEMENTS)
+    n = random.choice(MAX_N_VALUES)
+    dopant = random.choice(MAX_M_ELEMENTS + ['None'])
+    facet = random.choice(['basal_0001', 'edge_1010', 'edge_1120'])
+    return ('MAXPhase', M, A, X, n, dopant, facet)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# H. HIGH-ENTROPY ALLOYS (HEAs) — 4-6 component equimolar alloys
+# ═══════════════════════════════════════════════════════════════════════════════
+
+HEA_ELEMENTS = [
+    'Ti', 'V', 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu', 'Zn',
+    'Zr', 'Nb', 'Mo', 'Ru', 'Rh', 'Pd', 'Ag',
+    'Hf', 'Ta', 'W', 'Re', 'Os', 'Ir', 'Pt', 'Au',
+    'Al', 'Si', 'Ga', 'Ge', 'Sn', 'Sb', 'Bi',
+    'La', 'Ce', 'Y', 'Sc',
+]
+HEA_STRUCTURES = ['fcc', 'bcc', 'hcp', 'fcc_bcc_dual', 'amorphous']
+
+def generate_hea_genome() -> tuple:
+    n_components = random.randint(4, 6)
+    components = tuple(sorted(random.sample(HEA_ELEMENTS, n_components)))
+    structure = random.choice(HEA_STRUCTURES)
+    facet = random.choice(['111', '100', '110', '211'])
+    temp = random.choice([800, 900, 1000, 1100, 1200, 1300])
+    return ('HEA', components, structure, facet, temp)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # UNIFIED INTERFACE
 # ═══════════════════════════════════════════════════════════════════════════════
 
-ALL_MATERIAL_CLASSES = ['MoltenMetal', 'SolidCatalyst', 'SAC', 'DAC', 'MOF', 'COF']
+ALL_MATERIAL_CLASSES = [
+    'MoltenMetal', 'SolidCatalyst', 'SAC', 'DAC',
+    'MOF', 'COF', 'Perovskite', 'MetalHydride', 'MAXPhase', 'HEA',
+]
 
-# Weights for random generation — bias toward industrially relevant classes
+# Weights for random generation — balanced across all classes
 CLASS_WEIGHTS = {
-    'MoltenMetal': 0.30,     # Primary focus for turquoise H₂
-    'SolidCatalyst': 0.30,   # Well-established technology
-    'SAC': 0.15,             # Emerging, high potential
+    'MoltenMetal': 0.15,     # Primary focus for turquoise H₂
+    'SolidCatalyst': 0.15,   # Well-established technology
+    'SAC': 0.12,             # Emerging, high potential
     'DAC': 0.10,             # Cutting-edge
-    'MOF': 0.10,             # Exploratory
-    'COF': 0.05,             # Exploratory
+    'MOF': 0.10,             # Porous frameworks
+    'COF': 0.08,             # Covalent frameworks
+    'Perovskite': 0.10,      # ABO₃ oxides
+    'MetalHydride': 0.08,    # H₂ storage & decomposition
+    'MAXPhase': 0.06,        # Layered ternary ceramics
+    'HEA': 0.06,             # High-entropy alloys
 }
 
 GENERATORS = {
@@ -210,6 +404,10 @@ GENERATORS = {
     'DAC': generate_dac_genome,
     'MOF': generate_mof_genome,
     'COF': generate_cof_genome,
+    'Perovskite': generate_perovskite_genome,
+    'MetalHydride': generate_hydride_genome,
+    'MAXPhase': generate_max_genome,
+    'HEA': generate_hea_genome,
 }
 
 
@@ -465,6 +663,59 @@ def mutate(genome: tuple, rate: float = 0.2) -> tuple:
         elif gene_idx == 4:
             genes[4] = random.choice(MOF_PORE_SIZES)
 
+    elif mat_class == 'Perovskite':
+        gene_idx = random.randint(1, 5)
+        if gene_idx == 1:
+            genes[1] = random.choice(PEROVSKITE_A_SITE)
+        elif gene_idx == 2:
+            genes[2] = random.choice(PEROVSKITE_B_SITE)
+        elif gene_idx == 3:
+            genes[3] = random.choice(PEROVSKITE_B_SITE + ['None'])
+        elif gene_idx == 4:
+            genes[4] = random.choice(PEROVSKITE_DOPANT_FRAC)
+        elif gene_idx == 5:
+            genes[5] = random.choice(PEROVSKITE_DEFECTS)
+
+    elif mat_class == 'MetalHydride':
+        gene_idx = random.randint(1, 5)
+        if gene_idx == 1:
+            genes[1] = random.choice(HYDRIDE_METALS)
+        elif gene_idx == 2:
+            genes[2] = random.choice(HYDRIDE_TYPES)
+        elif gene_idx == 3:
+            genes[3] = random.choice(HYDRIDE_SECOND_METAL)
+        elif gene_idx == 4:
+            genes[4] = random.choice(HYDRIDE_ADDITIVES)
+        elif gene_idx == 5:
+            genes[5] = random.choice([300, 350, 400, 450, 500, 550, 600, 700, 800])
+
+    elif mat_class == 'MAXPhase':
+        gene_idx = random.randint(1, 6)
+        if gene_idx == 1:
+            genes[1] = random.choice(MAX_M_ELEMENTS)
+        elif gene_idx == 2:
+            genes[2] = random.choice(MAX_A_ELEMENTS)
+        elif gene_idx == 3:
+            genes[3] = random.choice(MAX_X_ELEMENTS)
+        elif gene_idx == 4:
+            genes[4] = random.choice(MAX_N_VALUES)
+        elif gene_idx == 5:
+            genes[5] = random.choice(MAX_M_ELEMENTS + ['None'])
+        elif gene_idx == 6:
+            genes[6] = random.choice(['basal_0001', 'edge_1010', 'edge_1120'])
+
+    elif mat_class == 'HEA':
+        gene_idx = random.randint(1, 4)
+        if gene_idx == 1:
+            n = random.randint(4, 6)
+            genes[1] = tuple(sorted(random.sample(HEA_ELEMENTS, n)))
+        elif gene_idx == 2:
+            genes[2] = random.choice(HEA_STRUCTURES)
+        elif gene_idx == 3:
+            genes[3] = random.choice(['111', '100', '110', '211'])
+        elif gene_idx == 4:
+            genes[4] = random.choice([800, 900, 1000, 1100, 1200, 1300])
+
     return tuple(genes)
 
 
@@ -474,6 +725,7 @@ def mutate(genome: tuple, rate: float = 0.2) -> tuple:
 
 def estimate_design_space_size() -> Dict[str, int]:
     """Estimate the combinatorial size of each material class."""
+    from math import comb
     sizes = {
         'MoltenMetal': (
             len(MOLTEN_HOSTS) * len(MOLTEN_PROMOTERS) *
@@ -481,7 +733,7 @@ def estimate_design_space_size() -> Dict[str, int]:
         ),
         'SolidCatalyst': (
             len(SOLID_ACTIVE_METALS) * len(SOLID_SUPPORTS) *
-            len(SOLID_FACETS) * 16 *  # strain discretized to 16 bins
+            len(SOLID_FACETS) * 20 *  # strain discretized to 20 bins
             (len(SOLID_DOPANTS) ** 2) * 4 * 3  # dopant combos × subs × vacs
         ),
         'SAC': len(SAC_METALS) * len(SAC_COORDINATIONS) * len(SAC_SUBSTRATES),
@@ -496,6 +748,26 @@ def estimate_design_space_size() -> Dict[str, int]:
         'COF': (
             (len(MOF_METAL_NODES) + 1) * len(COF_LINKAGES) *
             len(MOF_CAVITIES) * len(MOF_PORE_SIZES)
+        ),
+        'Perovskite': (
+            len(PEROVSKITE_A_SITE) * len(PEROVSKITE_B_SITE) *
+            (len(PEROVSKITE_B_SITE) + 1) * len(PEROVSKITE_DOPANT_FRAC) *
+            len(PEROVSKITE_DEFECTS)
+        ),
+        'MetalHydride': (
+            len(HYDRIDE_METALS) * len(HYDRIDE_TYPES) *
+            len(HYDRIDE_SECOND_METAL) * len(HYDRIDE_ADDITIVES) * 9  # 9 temps
+        ),
+        'MAXPhase': (
+            len(MAX_M_ELEMENTS) * len(MAX_A_ELEMENTS) *
+            len(MAX_X_ELEMENTS) * len(MAX_N_VALUES) *
+            (len(MAX_M_ELEMENTS) + 1) * 3  # dopant + facets
+        ),
+        'HEA': (
+            # C(35,4) + C(35,5) + C(35,6) component combos × structure × facet × temp
+            (comb(len(HEA_ELEMENTS), 4) + comb(len(HEA_ELEMENTS), 5) +
+             comb(len(HEA_ELEMENTS), 6)) *
+            len(HEA_STRUCTURES) * 4 * 6
         ),
     }
     sizes['TOTAL'] = sum(sizes.values())

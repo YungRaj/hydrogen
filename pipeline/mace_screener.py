@@ -178,13 +178,16 @@ def generate_structure(genome: tuple) -> Tuple[Atoms, list, str]:
 
     if mat_class == 'SolidCatalyst':
         _, metal, support, facet, strain, dopants, n_sub, n_vac = genome
-        slab, top_idx = generate_alloy_slab(metal, facet, strain, dopants, n_sub, n_vac)
+        # Map extended facets to available builders
+        facet_key = facet.split('_')[0] if '_' in facet else facet
+        if facet_key not in ('fcc111', 'fcc100', 'bcc110', 'hcp0001'):
+            facet_key = 'fcc111'  # default fallback
+        slab, top_idx = generate_alloy_slab(metal, facet_key, strain, dopants, n_sub, n_vac)
         return slab, top_idx, mat_class
 
     elif mat_class == 'MoltenMetal':
-        # Model as a surface slab of the host metal with promoter substitutions
         _, host, promoter, at_pct, temp = genome
-        n_sub = max(1, int(at_pct / 100.0 * 36))  # 36 atoms in 3×3×4 slab
+        n_sub = max(1, int(at_pct / 100.0 * 36))
         dopants = (promoter,) if promoter != 'None' else ()
         slab, top_idx = generate_alloy_slab(host, 'fcc111', 0.0, dopants, n_sub, 0)
         return slab, top_idx, mat_class
@@ -196,7 +199,6 @@ def generate_structure(genome: tuple) -> Tuple[Atoms, list, str]:
         else:
             _, m1, m2, coord, substrate = genome
             cluster = generate_porphyrin_cluster(m1, coord)
-            # Add second metal adjacent to first
             pos = cluster[0].position.copy()
             pos[0] += 2.5
             cluster.append(Atom(m2, position=pos))
@@ -207,8 +209,96 @@ def generate_structure(genome: tuple) -> Tuple[Atoms, list, str]:
         cluster = generate_porphyrin_cluster(metal, cavity)
         return cluster, [0], mat_class
 
+    elif mat_class == 'Perovskite':
+        # ABO₃ perovskite — simple cubic unit cell replicated as slab
+        _, A, B, dopant, frac, defect = genome
+        slab = _generate_perovskite_slab(A, B, dopant, frac, defect)
+        z = slab.positions[:, 2]
+        top_idx = list(np.where(z > z.max() - 3.0)[0])
+        return slab, top_idx, mat_class
+
+    elif mat_class == 'MetalHydride':
+        # Metal hydride — metal + H in bulk-like slab
+        _, metal, h_type, second, additive, temp = genome
+        slab = _generate_hydride_slab(metal, second)
+        z = slab.positions[:, 2]
+        top_idx = list(np.where(z > z.max() - 3.0)[0])
+        return slab, top_idx, mat_class
+
+    elif mat_class == 'MAXPhase':
+        # M_{n+1}AX_n layered structure — model as M-slab with A/X interstitials
+        _, M, A, X, n_val, dopant, facet = genome
+        slab, top_idx = generate_alloy_slab(
+            M, 'hcp0001', 0.0,
+            (A,) if A != 'None' else (), 2, 0,
+            size=(3, 3, 3)
+        )
+        return slab, top_idx, mat_class
+
+    elif mat_class == 'HEA':
+        # High-entropy alloy — random substitution FCC slab
+        _, components, structure, facet_str, temp = genome
+        host = components[0]
+        dopants = components[1:]
+        facet_map = {'111': 'fcc111', '100': 'fcc100', '110': 'bcc110', '211': 'fcc111'}
+        facet_key = facet_map.get(facet_str, 'fcc111')
+        n_sub = min(len(dopants), 6)
+        slab, top_idx = generate_alloy_slab(host, facet_key, 0.0, dopants, n_sub, 0)
+        return slab, top_idx, mat_class
+
     else:
         raise ValueError(f"Unknown material class: {mat_class}")
+
+
+def _generate_perovskite_slab(A: str, B: str, dopant: str,
+                               frac: float, defect: str) -> Atoms:
+    """Generate a simple ABO₃ perovskite slab for MACE evaluation."""
+    a = 3.9  # approx perovskite lattice constant (Å)
+    # 2×2×3 supercell → 12 ABO₃ units
+    atoms = Atoms()
+    for ix in range(2):
+        for iy in range(2):
+            for iz in range(3):
+                base = np.array([ix * a, iy * a, iz * a])
+                # A-site (corner)
+                site_A = A
+                if dopant != 'None' and random.random() < frac:
+                    site_A = dopant
+                atoms.append(Atom(site_A, position=base))
+                # B-site (body center)
+                atoms.append(Atom(B, position=base + np.array([a/2, a/2, a/2])))
+                # O-sites (face centers)
+                atoms.append(Atom('O', position=base + np.array([a/2, a/2, 0])))
+                atoms.append(Atom('O', position=base + np.array([a/2, 0, a/2])))
+                atoms.append(Atom('O', position=base + np.array([0, a/2, a/2])))
+
+    cell = [2*a, 2*a, 3*a + 12.0]  # vacuum in z
+    atoms.set_cell(cell)
+    atoms.pbc = True
+    # Fix bottom layer
+    z = atoms.positions[:, 2]
+    atoms.set_constraint(FixAtoms(mask=z < z.min() + 2.0))
+    return atoms
+
+
+def _generate_hydride_slab(metal: str, second: str) -> Atoms:
+    """Generate a metal-hydride slab: metal FCC + interstitial H."""
+    slab = fcc111(metal, size=(3, 3, 3), vacuum=12.0)
+    # Insert H atoms at tetrahedral interstitial sites in top layer
+    z = slab.positions[:, 2]
+    top_z = z.max()
+    for atom in slab:
+        if atom.position[2] > top_z - 2.5:
+            h_pos = atom.position.copy()
+            h_pos[2] += 1.0  # H above metal
+            slab.append(Atom('H', position=h_pos))
+    if second != 'None' and second != metal:
+        # Substitute 2 surface atoms with second metal
+        indices = [i for i in range(len(slab)) if slab[i].symbol == metal and slab[i].position[2] > top_z - 2.5]
+        for i in indices[:2]:
+            slab[i].symbol = second
+    slab.set_constraint(FixAtoms(mask=z < z.min() + 3.0))
+    return slab
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -424,6 +514,20 @@ def _extract_elements(genome: tuple) -> List[str]:
     elif mat_class in ('MOF', 'COF'):
         if genome[1] != 'None':
             elements.append(genome[1])
+    elif mat_class == 'Perovskite':
+        elements.extend([genome[1], genome[2]])
+        if genome[3] != 'None':
+            elements.append(genome[3])
+    elif mat_class == 'MetalHydride':
+        elements.append(genome[1])
+        if genome[3] != 'None':
+            elements.append(genome[3])
+    elif mat_class == 'MAXPhase':
+        elements.extend([genome[1], genome[2]])
+        if genome[5] != 'None':
+            elements.append(genome[5])
+    elif mat_class == 'HEA':
+        elements.extend(list(genome[1]))
     return [e for e in elements if e != 'None']
 
 
