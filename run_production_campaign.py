@@ -115,33 +115,77 @@ def main():
     save_json(pipeline_state, "pipeline_state.json")
     print(f"\n  Phase 1: {time.time()-t1:.0f}s | Evaluated: {len(screening_db):,}")
 
-    # ─── Phase 5: Fuel Cell ──────────────────────────────────────────────────
+    # ─── Phase 5: Fuel Cell ORR GA (SAME 25.3B DESIGN SPACE) ─────────────────
     if time.time() < t_deadline:
-        print_banner("PHASE 5: FUEL CELL + PEMFC STACK")
-        from pipeline.fuel_cell_cathode_screener import run_cathode_screening
-        from pipeline.pemfc_model import sweep_membranes
-        from pipeline.fuel_cell_stack import StackConfig, model_stack
+        print_banner("PHASE 5: FUEL CELL ORR — GA + MACE (25.3B DESIGN SPACE)")
         t5 = time.time()
 
-        cathode_df = run_cathode_screening()
-        valid_c = cathode_df[cathode_df['valid'] == True].copy()
-        top_c = valid_c.nsmallest(30, 'orr_overpotential_V') if 'orr_overpotential_V' in valid_c.columns else valid_c.head(30)
+        remaining_hours = (t_deadline - time.time()) / 3600
+        # Allocate 60% of remaining time to FC screening, 40% to PEMFC/stack
+        fc_gens = max(100, int(args.gens * 0.5))  # Half the gens of methane
+        print(f"  Remaining time: {remaining_hours:.1f}h")
+        print(f"  FC-GA: {fc_gens} generations, pop={args.pop}")
+        print(f"  Same 25.3B design space, ORR-specific objectives")
 
-        pemfc_results = []
-        for _, row in top_c.iterrows():
-            mem = sweep_membranes(row['name'], row.get('orr_overpotential_V', 0.4))
-            pemfc_results.extend(mem)
-        if pemfc_results:
-            best = max(pemfc_results, key=lambda r: r.get('peak_power_W_cm2', 0))
-            stack = model_stack(StackConfig(n_cells=400,
-                cell_voltage_V=best.get('peak_voltage_V', 0.65),
-                current_density_A_cm2=best.get('peak_current_A_cm2', 1.5)))
-            pipeline_state['phase5'] = {
-                'best_power': best.get('peak_power_W_cm2', 0),
-                'stack_kW': stack.get('net_power_kW', 0),
-                'elapsed_s': time.time() - t5,
-            }
+        from pipeline.fc_genetic_optimizer import run_fc_genetic_algorithm, FCGAConfig
+
+        fc_config = FCGAConfig(
+            pop_size=args.pop,
+            n_generations=fc_gens,
+            initial_mace_samples=args.mace_batch,
+            mace_eval_interval=args.mace_interval,
+            mace_eval_top_k=args.mace_per_round,
+            surrogate_retrain_interval=args.mace_interval,
+            mutation_rate=0.35,
+            crossover_rate=0.7,
+            seed=args.seed + 1000,  # different seed for diversity
+        )
+
+        fc_pareto, fc_screening_db = run_fc_genetic_algorithm(fc_config)
+
+        fc_valid = fc_screening_db[fc_screening_db['valid'] == True].copy()
+        if 'orr_overpotential_V' in fc_valid.columns:
+            top_fc = fc_valid.nsmallest(30, 'orr_overpotential_V')
+        else:
+            top_fc = fc_valid.head(30)
+
+        pipeline_state['phase5_ga'] = {
+            'pareto_size': len(fc_pareto),
+            'total_evaluated': len(fc_screening_db),
+            'valid_count': len(fc_valid),
+            'elapsed_s': time.time() - t5,
+        }
+        if len(fc_valid) > 0 and 'orr_overpotential_V' in fc_valid.columns:
+            pipeline_state['phase5_ga']['best_overpotential_V'] = float(fc_valid['orr_overpotential_V'].min())
+
+        # ─── PEMFC Stack Modeling on top ORR catalysts ────────────────────
+        if time.time() < t_deadline and len(top_fc) > 0:
+            print_banner("PHASE 5B: PEMFC STACK MODELING")
+            from pipeline.pemfc_model import sweep_membranes
+            from pipeline.fuel_cell_stack import StackConfig, model_stack
+
+            pemfc_results = []
+            for _, row in top_fc.iterrows():
+                name = row.get('name', str(row.get('genome', ''))[:30])
+                eta = row.get('orr_overpotential_V', 0.4)
+                mem = sweep_membranes(name, eta)
+                pemfc_results.extend(mem)
+
+            if pemfc_results:
+                best = max(pemfc_results, key=lambda r: r.get('peak_power_W_cm2', 0))
+                stack = model_stack(StackConfig(n_cells=400,
+                    cell_voltage_V=best.get('peak_voltage_V', 0.65),
+                    current_density_A_cm2=best.get('peak_current_A_cm2', 1.5)))
+                pipeline_state['phase5_stack'] = {
+                    'best_power_W_cm2': best.get('peak_power_W_cm2', 0),
+                    'best_catalyst': best.get('catalyst', 'unknown'),
+                    'best_membrane': best.get('membrane', 'unknown'),
+                    'stack_net_kW': stack.get('net_power_kW', 0),
+                    'stack_efficiency': stack.get('efficiency', 0),
+                }
+
         save_json(pipeline_state, "pipeline_state.json")
+        print(f"\n  Phase 5: {time.time()-t5:.0f}s | FC catalysts evaluated: {len(fc_screening_db):,}")
 
     # ─── Phase 6: Report ─────────────────────────────────────────────────────
     print_banner("PHASE 6: REPORT")
@@ -151,9 +195,13 @@ def main():
     save_json(pipeline_state, "pipeline_state.json")
 
     total = time.time() - t_start
+    h2_eval = pipeline_state.get('phase1', {}).get('total_evaluated', 0)
+    fc_eval = pipeline_state.get('phase5_ga', {}).get('total_evaluated', 0)
     print("\n" + "=" * 80)
-    print(f"  CAMPAIGN v2 COMPLETE: {total:.0f}s ({total/3600:.2f} hours)")
-    print(f"  Catalysts evaluated: {pipeline_state.get('phase1', {}).get('total_evaluated', '?'):,}")
+    print(f"  DUAL-CAMPAIGN COMPLETE: {total:.0f}s ({total/3600:.2f} hours)")
+    print(f"  H₂ Production catalysts evaluated: {h2_eval:,}")
+    print(f"  Fuel Cell catalysts evaluated:      {fc_eval:,}")
+    print(f"  Total catalysts screened:           {h2_eval + fc_eval:,}")
     print("=" * 80)
 
 
