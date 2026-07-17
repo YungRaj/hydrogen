@@ -39,3 +39,4 @@ models/*.pt
 models/*.ckpt
 CRASH
 input_tmp.in
+.hf_token

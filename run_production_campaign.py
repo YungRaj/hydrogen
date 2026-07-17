@@ -63,6 +63,25 @@ def main():
     print(f"  Estimated surrogate evaluations: {args.pop * args.gens:,}")
     print("=" * 80)
 
+    # ─── HuggingFace Token (for OC20 surface models) ─────────────────────────
+    hf_token = os.environ.get('HF_TOKEN', '')
+    token_file = Path(__file__).parent / '.hf_token'
+    if not hf_token and token_file.exists():
+        hf_token = token_file.read_text().strip()
+    if not hf_token and sys.stdin.isatty():
+        print("\n  ⚡ HuggingFace token needed for OC20 surface models (eSen/UMA)")
+        print("    Get one at: https://huggingface.co/settings/tokens")
+        hf_token = input("  Enter HF token (or press Enter to skip): ").strip()
+    if hf_token:
+        os.environ['HF_TOKEN'] = hf_token
+        # Save for future runs
+        if not token_file.exists():
+            token_file.write_text(hf_token)
+            token_file.chmod(0o600)
+        print(f"  ✓ HuggingFace token loaded (surface models enabled)")
+    else:
+        print(f"  ⚠ No HF token — using MACE-MP-0 (bulk model) only")
+
     # ─── Design space ────────────────────────────────────────────────────────
     from pipeline.catalyst_spaces import estimate_design_space_size, ALL_MATERIAL_CLASSES
     from pipeline.utils import print_banner, save_json, load_json

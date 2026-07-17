@@ -170,19 +170,35 @@ def build_calibration_table(elements: List[str] = None,
 # TIER 2b: EQUIFORMERV2 / eSen (OC20/OC22 surface-trained GNN)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def get_ocp_calculator(model_name: str = 'EquiformerV2-31M-S2EF-OC20-All+MD',
+def _ensure_hf_token():
+    """Load HuggingFace token from .hf_token file or env var."""
+    if os.environ.get('HF_TOKEN'):
+        return True
+    token_file = Path(__file__).parent.parent / '.hf_token'
+    if token_file.exists():
+        token = token_file.read_text().strip()
+        if token:
+            os.environ['HF_TOKEN'] = token
+            return True
+    return False
+
+
+def get_ocp_calculator(model_name: str = 'esen-sm-conserving-all-oc25',
                        device: str = 'cuda:0') -> Optional[Calculator]:
     """
-    Load an OC20-trained surface catalysis GNN calculator.
+    Load an OC20/OC25-trained surface catalysis GNN calculator.
 
-    Requires:
-      - fairchem-core installed
-      - For UMA/eSen models: HuggingFace token (HF_TOKEN env var)
-        Accept license at: https://huggingface.co/facebook/UMA
+    Available models (fairchem v2, require HF_TOKEN):
+      - esen-sm-conserving-all-oc25  (recommended — energy-conserving)
+      - esen-md-direct-all-oc25      (faster, MD-optimized)
+      - uma-s-1p1                    (Universal Model for Atoms)
+      - uma-m-1p1                    (larger UMA)
 
-    Falls back to local checkpoint if available.
+    Falls back to local EquiformerV2-31M checkpoint if available.
     """
-    # Try 1: fairchem v2 API (UMA/eSen — gated, needs HF_TOKEN)
+    _ensure_hf_token()
+
+    # Try 1: fairchem v2 API (eSen/UMA — gated, needs HF_TOKEN)
     try:
         from fairchem.core.calculate.pretrained_mlip import get_predict_unit
         from fairchem.core import FAIRChemCalculator
