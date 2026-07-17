@@ -178,20 +178,66 @@ def validate_orr_catalyst(catalyst_name: str, genome: tuple,
         if E_ads:
             result[f'E_{ads_name}_eV'] = E_ads * Ry_to_eV
 
+    # ── 4b. Gas-phase references (H₂O and H₂) ─────────────────────────────────
+    h2_elements = ['H', 'H']
+    h2_positions = [(cell/2, cell/2, cell/2 - 0.37), (cell/2, cell/2, cell/2 + 0.37)]
+    h2_input = generate_slab_scf_input(
+        h2_elements, h2_positions, cell_params,
+        calc_name=f"fc_{catalyst_name}_h2", ecutwfc=40.0, kpoints=(1, 1, 1)
+    )
+    h2_in = calc_dir / f"{catalyst_name}_h2.in"
+    h2_out = calc_dir / f"{catalyst_name}_h2.out"
+    with open(h2_in, 'w') as f:
+        f.write(h2_input)
+
+    h2o_elements = ['O', 'H', 'H']
+    h2o_positions = [
+        (cell/2, cell/2, cell/2),
+        (cell/2 + 0.757, cell/2 + 0.586, cell/2),
+        (cell/2 - 0.757, cell/2 + 0.586, cell/2)
+    ]
+    h2o_input = generate_slab_scf_input(
+        h2o_elements, h2o_positions, cell_params,
+        calc_name=f"fc_{catalyst_name}_h2o", ecutwfc=40.0, kpoints=(1, 1, 1)
+    )
+    h2o_in = calc_dir / f"{catalyst_name}_h2o.in"
+    h2o_out = calc_dir / f"{catalyst_name}_h2o.out"
+    with open(h2o_in, 'w') as f:
+        f.write(h2o_input)
+
+    if run_dft:
+        logger.info(f"  Running gas-phase reference H₂...")
+        _run_pw(h2_in, h2_out, calc_dir)
+        logger.info(f"  Running gas-phase reference H₂O...")
+        _run_pw(h2o_in, h2o_out, calc_dir)
+
+    E_h2_Ry = parse_total_energy(str(h2_out))
+    E_h2o_Ry = parse_total_energy(str(h2o_out))
+
+    if E_h2_Ry and E_h2o_Ry:
+        E_h2_eV = E_h2_Ry * Ry_to_eV
+        E_h2o_eV = E_h2o_Ry * Ry_to_eV
+        result['E_H2_eV'] = E_h2_eV
+        result['E_H2O_eV'] = E_h2o_eV
+    else:
+        # Fallbacks for non-run or missing outputs
+        E_h2_eV = -31.8
+        E_h2o_eV = -432.6
+        result['E_H2_eV_fallback'] = E_h2_eV
+        result['E_H2O_eV_fallback'] = E_h2o_eV
+
     # ── 5. Free energy diagram ──────────────────────────────────────────────
     if E_clean_eV and all(result.get(f'E_{a}_eV') for a in ['OH', 'O', 'OOH']):
         # Reference energies: H₂O(g) and H₂(g)
         # Using standard CHE: dG_OH = E(slab+OH) - E(slab) - (E_H2O - 0.5*E_H2) + corrections
-        # Simplified: use computed DFT energies with CHE corrections
         E_OH = result['E_OH_eV']
         E_O = result['E_O_eV']
         E_OOH = result['E_OOH_eV']
 
         # Adsorption free energies (relative to H₂O and H₂ references)
-        # Using the simplified CHE: dG_X = E(slab+X) - E(slab) - ref + corrections
-        dG_OH = (E_OH - E_clean_eV) + ZPE_CORRECTIONS_eV['OH*'] - TS_CORRECTIONS_eV['OH*']
-        dG_O = (E_O - E_clean_eV) + ZPE_CORRECTIONS_eV['O*'] - TS_CORRECTIONS_eV['O*']
-        dG_OOH = (E_OOH - E_clean_eV) + ZPE_CORRECTIONS_eV['OOH*'] - TS_CORRECTIONS_eV['OOH*']
+        dG_OH = (E_OH - E_clean_eV) - (E_h2o_eV - 0.5 * E_h2_eV) + ZPE_CORRECTIONS_eV['OH*'] - TS_CORRECTIONS_eV['OH*']
+        dG_O = (E_O - E_clean_eV) - (E_h2o_eV - E_h2_eV) + ZPE_CORRECTIONS_eV['O*'] - TS_CORRECTIONS_eV['O*']
+        dG_OOH = (E_OOH - E_clean_eV) - (2 * E_h2o_eV - 1.5 * E_h2_eV) + ZPE_CORRECTIONS_eV['OOH*'] - TS_CORRECTIONS_eV['OOH*']
 
         result['dG_OH_eV'] = float(dG_OH)
         result['dG_O_eV'] = float(dG_O)

@@ -105,7 +105,7 @@ def generate_fc_catalyst_list() -> List[Dict]:
 # META ESEN-SM-BASED ORR DESCRIPTOR SCREENING
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def screen_orr_candidate(candidate: Dict, calc) -> Dict:
+def screen_orr_candidate(candidate: Dict, calc, e_h2o: float, e_h2: float) -> Dict:
     """
     Screen a single ORR cathode candidate using Meta eSen-SM.
     
@@ -146,9 +146,9 @@ def screen_orr_candidate(candidate: Dict, calc) -> Dict:
         BFGS(slab_oh, logfile=None).run(fmax=0.08, steps=80)
         e_oh = slab_oh.get_potential_energy()
 
-        # Reference: E(H₂O) - 0.5*E(H₂) (pre-computed)
+        # Reference: E(H₂O) - 0.5*E(H₂)
         # Using standard CHE offset
-        dG_OH = (e_oh - e_clean) + 0.35 - 0.07  # + ZPE - TS corrections
+        dG_OH = (e_oh - e_clean) - (e_h2o - 0.5 * e_h2) + 0.35 - 0.07  # + ZPE - TS corrections
 
         # ── O* ──────────────────────────────────────────────────────────────
         slab_o = structure.copy()
@@ -157,7 +157,7 @@ def screen_orr_candidate(candidate: Dict, calc) -> Dict:
         slab_o.calc = calc
         BFGS(slab_o, logfile=None).run(fmax=0.08, steps=80)
         e_o = slab_o.get_potential_energy()
-        dG_O = (e_o - e_clean) + 0.05 - 0.00
+        dG_O = (e_o - e_clean) - (e_h2o - e_h2) + 0.05 - 0.00
 
         # ── OOH* ────────────────────────────────────────────────────────────
         slab_ooh = structure.copy()
@@ -170,7 +170,7 @@ def screen_orr_candidate(candidate: Dict, calc) -> Dict:
         slab_ooh.calc = calc
         BFGS(slab_ooh, logfile=None).run(fmax=0.08, steps=80)
         e_ooh = slab_ooh.get_potential_energy()
-        dG_OOH = (e_ooh - e_clean) + 0.40 - 0.10
+        dG_OOH = (e_ooh - e_clean) - (2 * e_h2o - 1.5 * e_h2) + 0.40 - 0.10
 
         # ── ORR Overpotential ───────────────────────────────────────────────
         eta, rds = orr_overpotential(dG_OH, dG_O, dG_OOH)
@@ -225,6 +225,14 @@ def run_cathode_screening(workers_per_gpu: int = 2) -> 'pd.DataFrame':
         from pipeline.surface_calculator import get_ocp_calculator
         device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
         calc = get_ocp_calculator(model_name='esen-sm-conserving-all-oc25', device=device)
+        if calc is None:
+            raise RuntimeError("get_ocp_calculator returned None")
+
+        # Pre-compute gas-phase references
+        from pipeline.fc_screener import compute_water_ref, compute_h2_ref
+        e_h2o = compute_water_ref(calc)
+        e_h2 = compute_h2_ref(calc)
+        logger.info(f"Pre-computed gas-phase references: E(H₂O)={e_h2o:.3f} eV, E(H₂)={e_h2:.3f} eV")
     except Exception as e:
         logger.warning(f"Meta model not available ({e}). Generating mock results.")
         results = [_mock_orr_result(c) for c in candidates]
@@ -234,7 +242,7 @@ def run_cathode_screening(workers_per_gpu: int = 2) -> 'pd.DataFrame':
 
     results = []
     for i, candidate in enumerate(candidates):
-        result = screen_orr_candidate(candidate, calc)
+        result = screen_orr_candidate(candidate, calc, e_h2o, e_h2)
         results.append(result)
 
         if (i + 1) % 20 == 0:
