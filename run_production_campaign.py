@@ -120,7 +120,7 @@ def main():
         print_banner("PHASE 2: CANTERA REACTOR SIMULATION")
         t2 = time.time()
         try:
-            from pipeline.reactor_mechanisms import generate_mechanism
+            from pipeline.reactor_mechanisms import write_full_mechanism
             from pipeline.reactor_models import run_reactor_sweep
 
             reactor_results = []
@@ -131,7 +131,7 @@ def main():
                 print(f"  Reactor sim {i+1}/{n_reactor}: E_act={e_act:.3f} eV")
                 try:
                     # Generate Cantera YAML mechanism from E_act
-                    mech_file = generate_mechanism(cat_name, e_act)
+                    mech_file = write_full_mechanism(cat_name, e_act)
                     sweep = run_reactor_sweep(cat_name, str(mech_file))
                     best_conv = max(r.get('CH4_conversion', 0) for r in sweep) if sweep else 0
                     reactor_results.append({
