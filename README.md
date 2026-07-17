@@ -1,6 +1,6 @@
 # Turquoise Hydrogen — Autonomous Multi-Scale Catalyst Discovery
 
-A GPU-accelerated computational pipeline for autonomous catalyst discovery targeting **turquoise hydrogen production** (methane pyrolysis via NTEC) and **PEM fuel cell** energy conversion. Explores a **25.3-billion-configuration** design space across 10 material classes using equivariant graph neural networks, genetic optimization, reactor-scale simulation, density functional theory, and variational quantum chemistry.
+A GPU-accelerated computational pipeline for autonomous catalyst discovery targeting **turquoise hydrogen production** (methane pyrolysis via NTEC) and **PEM fuel cell** energy conversion. Explores a **25.3-billion-configuration** design space across 10 material classes using Meta's FAIR Chemistry equivariant graph neural networks, genetic optimization, reactor-scale simulation, density functional theory, and variational quantum chemistry.
 
 ---
 
@@ -13,6 +13,7 @@ A GPU-accelerated computational pipeline for autonomous catalyst discovery targe
 - [Pipeline Modules](#pipeline-modules)
 - [Physical Models](#physical-models)
 - [Environment Setup](#environment-setup)
+- [HuggingFace Token & Meta Models Setup](#huggingface-token--meta-models-setup)
 - [Usage](#usage)
 - [Project Structure](#project-structure)
 - [Hardware Requirements](#hardware-requirements)
@@ -48,33 +49,34 @@ Methane (CH₄) ──→ Phase 1-4: Catalyst Discovery ──→ H₂ + C(s)
 Phase 1: SCREENING + OPTIMIZATION            Phase 2: REACTOR SIMULATION
 ┌─────────────────────────────────┐          ┌──────────────────────────┐
 │  25.3B Design Space             │          │  Cantera 3.2             │
-│  ↓                              │          │  ├─ MMBCR (bubble col.)  │
-│  MACE-MP-0 (3 GPUs, 6 workers) │──Top-K──→│  ├─ PFR (plug flow)     │
-│  ↓                              │          │  └─ Fluidized bed        │
-│  Surrogate NN (PyTorch)         │          │  TST + BEP kinetics      │
-│  ↓                              │          └──────────────────────────┘
-│  NSGA-II (4-objective Pareto)   │                    │
-└─────────────────────────────────┘                    ▼
-           │                              Phase 3: DFT VALIDATION
-           │                              ┌──────────────────────────┐
-           │                              │  Quantum ESPRESSO pw.x   │
-           │                              │  ├─ Bulk SCF / vc-relax  │
-           │                              │  ├─ Slab relaxation      │
-           │                              │  └─ Adsorption energies  │
-           │                              └──────────────────────────┘
-           │                                           │
-           │                              Phase 4: QUANTUM CHEMISTRY
-           │                              ┌──────────────────────────┐
-           │                              │  CUDA-Q / cuQuantum      │
-           │                              │  VQE transition states   │
-           │                              │  ├─ C-H bond splitting   │
-           │                              │  └─ O-O bond activation  │
-           │                              └──────────────────────────┘
+│  │                              │          │  ├─ MMBCR (bubble col.)  │
+│  ▼                              │          │  ├─ PFR (plug flow)     │
+│  eSen-SM (3 GPUs, 6 workers)    │──Top-K──→│  ├─ Fluidized bed        │
+│  │                              │          │  └─ TST + BEP kinetics   │
+│  ▼                              │          └──────────────────────────┘
+│  Surrogate NN (PyTorch)         │                    │
+│  │                              │                    ▼
+│  ▼                              │          Phase 3: DFT VALIDATION
+│  NSGA-II (4-objective Pareto)   │          ┌──────────────────────────┐
+└─────────────────────────────────┘          │  Quantum ESPRESSO pw.x   │
+           │                                 │  ├─ Bulk SCF / vc-relax  │
+           │                                 │  ├─ Slab relaxation      │
+           │                                 │  └─ Adsorption energies  │
+           │                                 └──────────────────────────┘
+           │                                              │
+           │                                              ▼
+           │                                 Phase 4: QUANTUM CHEMISTRY
+           │                                 ┌──────────────────────────┐
+           │                                 │  CUDA-Q / cuQuantum      │
+           │                                 │  VQE transition states   │
+           │                                 │  ├─ C-H bond splitting   │
+           │                                 │  └─ O-O bond activation  │
+           │                                 └──────────────────────────┘
            │
            ▼
 Phase 5: FUEL CELL                        Phase 6: REPORTING
 ┌─────────────────────────────────┐      ┌──────────────────────────┐
-│  ORR cathode screening (MACE)   │      │  Auto-generated Markdown │
+│  ORR cathode screening (eSen)   │      │  Auto-generated Markdown │
 │  ├─ 137+ PGM-free candidates   │      │  + JSON pipeline state   │
 │  ├─ Butler-Volmer kinetics      │──→   │  Pareto front analysis   │
 │  ├─ 1D PEMFC polarization       │      │  Champion catalyst cards │
@@ -111,8 +113,8 @@ Each genome encodes into a **324-dimensional** feature vector for the surrogate 
 
 | Software | Version | Role | Phase |
 |----------|---------|------|-------|
-| **MACE-MP-0** | 0.3.16 | Equivariant GNN interatomic potential — relaxation, adsorption energies, barriers | 1, 5 |
-| **PyTorch** | 2.11.0 | Multi-GPU MACE inference + surrogate NN training/prediction | 1, 5 |
+| **Meta eSen-SM** | OC25 | Equivariant GNN surface-catalysis potential — slab relaxation, adsorption energies, barriers | 1, 5 |
+| **PyTorch** | 2.11.0 | Multi-GPU GNN inference + surrogate NN training/prediction | 1, 5 |
 | **CUDA-Q** | 0.12.0 | Variational Quantum Eigensolver on GPU quantum simulator | 4 |
 | **cuQuantum** | 26.6.0 | Accelerated statevector simulation backend for CUDA-Q | 4 |
 | **Cantera** | 3.2.0 | Chemical kinetics — reactor ODEs with custom YAML mechanisms | 2 |
@@ -123,6 +125,7 @@ Each genome encodes into a **324-dimensional** feature vector for the surrogate 
 | Library | Version | Role |
 |---------|---------|------|
 | **ASE** | 3.29.0 | Atomic structure generation (slabs, clusters, perovskites, hydrides) |
+| **fairchem-core**| 2.x | Meta's FAIR Chemistry machine learning interatomic potentials framework |
 | **NumPy** | 2.2.6 | Vectorized computation, NSGA-II, feature encoding |
 | **SciPy** | 1.15.2 | Electrode kinetics, Nernst equation, ODE integration |
 | **Pandas** | 2.3.3 | Screening database I/O, population tracking |
@@ -131,7 +134,7 @@ Each genome encodes into a **324-dimensional** feature vector for the surrogate 
 
 | Module | Physics |
 |--------|---------|
-| `surrogate_model.py` | Multi-task NN predicting E_act, coking, validity (~1000× faster than MACE) |
+| `surrogate_model.py` | Multi-task NN predicting E_act, coking, validity (~1000× faster than eSen-SM) |
 | `genetic_optimizer.py` | NSGA-II with crowding distance — 4-objective Pareto optimization |
 | `pemfc_model.py` | 1D through-MEA PEM fuel cell (Tafel + Ohmic + mass transport losses) |
 | `fuel_cell_stack.py` | N-cell stack scaling with balance-of-plant and $/kW techno-economics |
@@ -144,21 +147,19 @@ Each genome encodes into a **324-dimensional** feature vector for the surrogate 
 | Module | Lines | Description |
 |--------|------:|-------------|
 | `catalyst_spaces.py` | 790 | 10-class design space definitions, genome generators, crossover/mutation, feature encoding |
-| `mace_screener.py` | 662 | Multi-GPU parallelized MACE-MP-0 screening — structure generation, adsorption energies, coking index |
+| `surface_screener.py` | 662 | Multi-GPU parallelized Meta eSen-SM screening — slab generation, adsorption energies, coking index |
 | `reactor_models.py` | 452 | Cantera reactor simulations — MMBCR, PFR, fluidized bed with custom surface kinetics |
 | `genetic_optimizer.py` | 416 | NSGA-II GA — surrogate-accelerated 4-objective optimization |
 | `dft_validator.py` | 416 | Quantum ESPRESSO input generation & parsing for champion catalysts |
 | `utils.py` | 385 | Shared constants, BEP correlations, Arrhenius rates, I/O utilities |
 | `reactor_mechanisms.py` | 302 | Cantera YAML mechanism generator with TST pre-exponentials |
 | `report_generator.py` | 287 | Auto-generated Markdown + JSON pipeline reports |
-| `fuel_cell_cathode_screener.py` | 285 | MACE-based ORR cathode screening (137+ PGM-free candidates) |
+| `fc_screener.py` | 285 | Meta eSen-SM-based ORR cathode screening (137+ PGM-free candidates) |
 | `pemfc_model.py` | 275 | 1D PEMFC polarization curves — OCV, Tafel, Ohmic, mass transport |
 | `vqe_transition_state.py` | 244 | CUDA-Q VQE for C-H and O-O transition state refinement |
 | `dft_fuel_cell.py` | 232 | CHE-method ORR intermediate DFT validation |
 | `fuel_cell_stack.py` | 205 | Stack scaling, BOP parasitic loads, $/kW cost model |
 | `surrogate_model.py` | 174 | Multi-task PyTorch neural network (valid/dE/E_act/coking heads) |
-
-**Total: 5,507 lines of production code across 15 modules.**
 
 ---
 
@@ -206,13 +207,15 @@ The pipeline requires **5 separate conda environments** due to incompatible depe
 - **GPU**: NVIDIA GPU with CUDA 12+ (≥16 GB VRAM)
 - **Conda**: Miniconda or Anaconda
 
-### Environment 1: `deepmd-env` — MACE + PyTorch (Phases 1, 5)
+### Environment 1: `fairchem-env` — Meta GNN + PyTorch (Phases 1, 5)
+
+This environment is used for the high-throughput GNN screening and active learning loops.
 
 ```bash
-conda create -n deepmd-env python=3.10 -y
-conda activate deepmd-env
+conda create -n fairchem-env python=3.10 -y
+conda activate fairchem-env
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
-pip install mace-torch ase pandas scipy numpy
+pip install fairchem-core ase pandas scipy numpy
 ```
 
 ### Environment 2: `cp2k-env` — Cantera (Phase 2)
@@ -262,7 +265,7 @@ pip install numpy scipy pandas
 
 ```bash
 # Test all environments
-conda run -n deepmd-env python -c "import torch, mace, ase; print('deepmd-env OK')"
+conda run -n fairchem-env python -c "import torch, fairchem.core, ase; print('fairchem-env OK')"
 conda run -n cp2k-env python -c "import cantera; print(f'cp2k-env OK: Cantera {cantera.__version__}')"
 conda run -n qe-env bash -c "which pw.x && echo 'qe-env OK'"
 conda run -n quantum-env python -c "import cudaq; print('quantum-env OK')"
@@ -271,21 +274,55 @@ conda run -n battery-env python -c "import numpy, scipy; print('battery-env OK')
 
 ---
 
+## HuggingFace Token & Meta Models Setup
+
+The pipeline relies on Meta's FAIR Chemistry **eSen (EquiformerV2 Energy-Conserving)** model (`esen-sm-conserving-all-oc25`) for surface-catalysis energy evaluations. This model is hosted as a gated repository on HuggingFace Hub.
+
+### Configuration Instructions
+
+1. **Accept License Terms**: 
+   Visit the model card on Hugging Face (e.g. [Meta FAIR Chemistry](https://huggingface.co/collections/facebook/fair-chemistry-671a556d11d0445a6c382218)) and request access to the gated checkpoints by agreeing to the academic use terms.
+
+2. **Obtain HuggingFace Token**:
+   Generate a **Read** access token from your HuggingFace account at: [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens).
+
+3. **Deploy Token to Workspace**:
+   Create a file named `.hf_token` in the root of the project repository containing ONLY your token:
+   ```bash
+   echo "hf_your_token_here" > /home/ilhanraja/.gemini/antigravity/scratch/hydrogen/.hf_token
+   chmod 600 /home/ilhanraja/.gemini/antigravity/scratch/hydrogen/.hf_token
+   ```
+   Alternatively, you can export it to your environment:
+   ```bash
+   export HF_TOKEN="hf_your_token_here"
+   ```
+
+---
+
 ## Usage
 
 ### Quick Test (5 min)
 
 ```bash
-conda run -n deepmd-env python -m pipeline.orchestrator --quick --no-dft --no-vqe
+conda run -n fairchem-env python -m pipeline.orchestrator --quick --no-dft --no-vqe
 ```
 
 This runs 50 generations with 100 population, validating the full pipeline end-to-end.
 
 ### Production Campaign (48 hours)
 
+To run a production-scale campaign, set OpenMP/MKL environment variables to prevent CPU thread over-subscription thrashing, and launch the campaign background script:
+
 ```bash
+# Set OpenMP and MKL thread limits to 1 to avoid multiprocessing CPU bottlenecking
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export VECLIB_MAXIMUM_THREADS=1
+export NUMEXPR_NUM_THREADS=1
+
 # Launch GPU-saturated campaign across all GPUs
-nohup conda run -n deepmd-env python -u run_production_campaign.py \
+nohup /home/ilhanraja/miniconda3/envs/fairchem-env/bin/python -u run_production_campaign.py \
   --pop 1000 \
   --gens 3000 \
   --mace-batch 500 \
@@ -293,7 +330,7 @@ nohup conda run -n deepmd-env python -u run_production_campaign.py \
   --mace-interval 5 \
   --hours 48 \
   --top-k 200 \
-  > results/campaign.log 2>&1 &
+  > results/campaign_v6.log 2>&1 &
 ```
 
 **Key parameters:**
@@ -302,9 +339,9 @@ nohup conda run -n deepmd-env python -u run_production_campaign.py \
 |-----------|---------|-------------|
 | `--pop` | 1000 | GA population size per generation |
 | `--gens` | 3000 | Total GA generations |
-| `--mace-batch` | 500 | Initial MACE screening batch size |
-| `--mace-per-round` | 500 | MACE evaluations per validation round |
-| `--mace-interval` | 5 | Generations between MACE validation rounds |
+| `--mace-batch` | 500 | Initial GNN screening batch size |
+| `--mace-per-round` | 500 | GNN evaluations per validation round |
+| `--mace-interval` | 5 | Generations between GNN validation rounds |
 | `--hours` | 48 | Maximum wall-clock time |
 | `--top-k` | 200 | Top-K catalysts forwarded to reactor simulation |
 | `--no-dft` | false | Skip Quantum ESPRESSO phase |
@@ -314,10 +351,10 @@ nohup conda run -n deepmd-env python -u run_production_campaign.py \
 
 ```bash
 # Run only Phase 2 (reactor simulation)
-conda run -n deepmd-env python -m pipeline.orchestrator --phase 2
+conda run -n cp2k-env python -m pipeline.orchestrator --phase 2
 
 # Run Phases 1-3
-conda run -n deepmd-env python -m pipeline.orchestrator --start 1 --end 3
+conda run -n fairchem-env python -m pipeline.orchestrator --start 1 --end 3
 ```
 
 ### Standalone Module Testing
@@ -326,8 +363,8 @@ conda run -n deepmd-env python -m pipeline.orchestrator --start 1 --end 3
 # Test design space
 conda run -n battery-env python -m pipeline.catalyst_spaces
 
-# Test MACE screening (20 random candidates)
-conda run -n deepmd-env python -m pipeline.mace_screener
+# Test eSen screening (20 random candidates)
+conda run -n fairchem-env python -m pipeline.surface_screener
 
 # Test DFT input generation (no pw.x execution)
 conda run -n battery-env python -m pipeline.dft_validator
@@ -347,11 +384,12 @@ hydrogen/
 ├── requirements.txt               # Python dependencies
 ├── environment.yml                # Conda environment spec
 ├── run_production_campaign.py     # Production launcher (GPU-saturated)
+├── .hf_token                      # HuggingFace token (chmod 600, gitignored)
 │
-├── pipeline/                      # Core pipeline package (15 modules)
+├── pipeline/                      # Core pipeline package
 │   ├── __init__.py
 │   ├── catalyst_spaces.py         # 25.3B design space definitions
-│   ├── mace_screener.py           # Multi-GPU MACE-MP-0 screening
+│   ├── surface_screener.py        # Multi-GPU Meta eSen screening (methane pyrolysis)
 │   ├── surrogate_model.py         # Multi-task PyTorch surrogate NN
 │   ├── genetic_optimizer.py       # NSGA-II 4-objective GA
 │   ├── reactor_mechanisms.py      # Cantera YAML mechanism generator
@@ -359,7 +397,7 @@ hydrogen/
 │   ├── dft_validator.py           # Quantum ESPRESSO DFT validation
 │   ├── dft_fuel_cell.py           # ORR intermediate DFT (CHE)
 │   ├── vqe_transition_state.py    # CUDA-Q VQE transition states
-│   ├── fuel_cell_cathode_screener.py  # ORR cathode screening
+│   ├── fc_screener.py             # Meta eSen screening (ORR fuel cell)
 │   ├── pemfc_model.py             # 1D PEMFC polarization model
 │   ├── fuel_cell_stack.py         # Stack scaling + TEA
 │   ├── report_generator.py        # Auto-report generation
@@ -370,7 +408,7 @@ hydrogen/
 │
 ├── mechanisms/                    # Generated Cantera YAML (gitignored)
 └── results/                       # Pipeline outputs (gitignored)
-    ├── screening/                 # GA databases, MACE CSVs
+    ├── screening/                 # GA databases, GNN CSVs
     ├── reactor/                   # Cantera simulation results
     ├── dft/                       # QE input/output files
     ├── vqe/                       # VQE energetics (JSON)
@@ -393,25 +431,25 @@ hydrogen/
 
 ## How It Works — Phase by Phase
 
-### Phase 1: MACE Screening + Genetic Optimization
+### Phase 1: Meta eSen Screening + Genetic Optimization
 
 1. **Generate initial population** — random genomes from all 10 material classes
-2. **MACE-MP-0 evaluation** — for each candidate, build an atomic structure (slab, cluster, perovskite cell, etc.), relax with BFGS, compute H*/CH₃*/C* adsorption energies
-3. **Train surrogate NN** — multi-task network learns to predict E_act, coking index, validity from the 324-dim genome encoding (~1000× faster than MACE)
-4. **NSGA-II loop** — evolve population via tournament selection, uniform crossover, class-aware mutation; evaluate with surrogate; periodically validate top candidates with full MACE on GPU
-5. **Class-diversity enforcement** — each generation guarantees ≥5% population from every material class, preventing any single class from dominating the search (e.g., prevents DAC takeover)
+2. **eSen-SM evaluation** — for each candidate, build an atomic slab or cluster, enforce periodic boundary conditions (`pbc=True`), relax with BFGS, compute H*/CH₃*/C* adsorption energies
+3. **Train surrogate NN** — multi-task network learns to predict E_act, coking index, validity from the 324-dim genome encoding (~1000× faster than eSen-SM)
+4. **NSGA-II loop** — evolve population via tournament selection, uniform crossover, class-aware mutation; evaluate with surrogate; periodically validate top candidates with full eSen-SM on GPU
+5. **Class-diversity enforcement** — each generation guarantees ≥5% population from every material class, preventing any single class from dominating the front
 6. **Output** — Pareto-optimal front of catalysts minimizing (E_act, -coking, segregation, cost)
 
 #### Structure Generation
 
-The MACE screener builds physically realistic atomic structures for all 10 classes:
+The eSen screener builds physically realistic, periodic atomic structures for all 10 classes:
 
 | Class | Structure Type | Method |
 |-------|---------------|--------|
 | SolidCatalyst | FCC/BCC/HCP slab (3×3×4) | ASE slab builders with explicit lattice constants for 60+ elements |
 | MoltenMetal | FCC slab with promoter substitutions | Host slab + random dopant placement |
-| SAC / DAC | Metal-porphyrin cluster | Square/hexagonal N/S/O/P coordination |
-| MOF / COF | Metal-cavity cluster | Porphyrin-like with organic skeleton |
+| SAC / DAC | Metal-porphyrin cluster (periodic) | Square/hexagonal N/S/O/P coordination |
+| MOF / COF | Metal-cavity cluster (periodic) | Porphyrin-like with organic skeleton |
 | Perovskite | ABO₃ 2×2×3 supercell | Simple cubic with A/B-site doping + O vacancies |
 | MetalHydride | FCC slab + interstitial H | Metal surface with H at tetrahedral sites |
 | MAXPhase | HCP slab with A-element substitution | M-layer slab with interstitial dopants |
@@ -440,7 +478,7 @@ For the top 3–5 champions:
 
 ### Phase 5: Fuel Cell Modeling
 
-1. **Cathode screening** — evaluate 137+ PGM-free ORR catalysts using MACE
+1. **Cathode screening** — evaluate 137+ PGM-free ORR catalysts using Meta's eSen-SM surface model
 2. **PEMFC polarization** — 1D model: Nernst OCV → Tafel activation → Ohmic → mass transport
 3. **Membrane sweep** — test Nafion 211/212, Gore-Select, Aquivion across operating conditions
 4. **Stack scaling** — 300–400 cell stack with balance-of-plant, gravimetric/volumetric power density, $/kW
@@ -464,11 +502,11 @@ nvidia-smi --query-gpu=utilization.gpu,memory.used --format=csv -l 5
 # GA evolution progress
 tail -f results/screening/genetic_optimizer.log
 
-# MACE screening throughput
-tail -f results/screening/mace_screening.log
+# eSen screening throughput
+tail -f results/screening/surface_screening.log
 
 # Campaign stdout
-tail -f results/campaign.log
+tail -f results/campaign_v6.log
 
 # Check pipeline state
 python -c "import json; print(json.dumps(json.load(open('pipeline_state.json')), indent=2))"
@@ -482,8 +520,8 @@ After a campaign completes, key outputs include:
 
 | File | Contents |
 |------|----------|
-| `results/screening/ga_full_database.csv` | Complete screening database (all MACE-evaluated candidates) |
-| `results/screening/ga_mace_gen*.csv` | Per-round MACE validation results |
+| `results/screening/ga_full_database.csv` | Complete screening database (all eSen-evaluated candidates) |
+| `results/screening/ga_surface_gen*.csv` | Per-round GNN validation results |
 | `results/reports/pipeline_report.md` | Auto-generated comprehensive report |
 | `pipeline_state.json` | Machine-readable pipeline state with timing and metrics |
 | `results/reactor/*.json` | Cantera simulation results per catalyst |

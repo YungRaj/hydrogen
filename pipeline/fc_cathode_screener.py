@@ -1,6 +1,5 @@
-#!/usr/bin/env python3
 """
-MACE-MP-0 High-Throughput Screening for PEMFC Cathode Catalysts.
+Meta eSen-SM High-Throughput Screening for PEMFC Cathode Catalysts.
 
 Screens ORR catalyst candidates across multiple material classes:
   - Pt-alloys (Pt₃M: M = Co, Ni, Fe, Cu, Y, Sc, La)
@@ -103,19 +102,19 @@ def generate_fc_catalyst_list() -> List[Dict]:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# MACE-BASED ORR DESCRIPTOR SCREENING
+# META ESEN-SM-BASED ORR DESCRIPTOR SCREENING
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def screen_orr_candidate(candidate: Dict, calc) -> Dict:
     """
-    Screen a single ORR cathode candidate using MACE-MP-0.
+    Screen a single ORR cathode candidate using Meta eSen-SM.
     
     Computes adsorption energies for OH*, O*, OOH* and derives
     the theoretical ORR overpotential.
     """
     from ase import Atoms, Atom
     from ase.optimize import BFGS
-    from pipeline.mace_screener import generate_structure
+    from pipeline.surface_screener import generate_structure
 
     result = {
         'name': candidate['name'],
@@ -221,13 +220,13 @@ def run_cathode_screening(workers_per_gpu: int = 2) -> 'pd.DataFrame':
     candidates = generate_fc_catalyst_list()
     logger.info(f"Screening {len(candidates)} cathode candidates...")
 
-    # Load MACE
+    # Load Meta eSen-SM
     try:
-        from mace.calculators import mace_mp
+        from pipeline.surface_calculator import get_ocp_calculator
         device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-        calc = mace_mp(model="medium", device=device)
-    except ImportError:
-        logger.warning("MACE not available. Generating mock results.")
+        calc = get_ocp_calculator(model_name='esen-sm-conserving-all-oc25', device=device)
+    except Exception as e:
+        logger.warning(f"Meta model not available ({e}). Generating mock results.")
         results = [_mock_orr_result(c) for c in candidates]
         df = pd.DataFrame(results)
         save_screening_db(df, "cathode_screening.csv", subdir="fuel_cell")
@@ -262,7 +261,7 @@ def run_cathode_screening(workers_per_gpu: int = 2) -> 'pd.DataFrame':
 
 
 def _mock_orr_result(candidate: Dict) -> Dict:
-    """Mock ORR result for testing without MACE."""
+    """Mock ORR result for testing without Meta eSen-SM."""
     eta = np.random.uniform(0.25, 0.80)
     return {
         'name': candidate['name'],

@@ -295,7 +295,7 @@ def run_fc_genetic_algorithm(config: FCGAConfig, existing_db=None):
     else:
         logger.info(f"Generating {config.initial_mace_samples} initial ORR MACE samples...")
         initial_pop = generate_population(config.initial_mace_samples)
-        from pipeline.fc_mace_screener import run_orr_screening
+        from pipeline.fc_screener import run_orr_screening
         all_mace_results = run_orr_screening(
             initial_pop, db_filename="fc_initial_screening.csv", workers_per_gpu=2
         )
@@ -366,7 +366,7 @@ def run_fc_genetic_algorithm(config: FCGAConfig, existing_db=None):
                     break
             top_genomes = [population[i] for i in top_indices[:config.mace_eval_top_k]]
 
-            from pipeline.fc_mace_screener import run_orr_screening
+            from pipeline.fc_screener import run_orr_screening
             mace_df = run_orr_screening(
                 top_genomes, db_filename=f"fc_mace_gen{gen}.csv", workers_per_gpu=2
             )

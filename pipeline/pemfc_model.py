@@ -240,7 +240,7 @@ def simulate_pemfc(config: PEMFCConfig) -> Dict:
 def sweep_membranes(cathode_name: str, orr_eta: float, membranes: List[Dict] = None) -> List[Dict]:
     """Sweep membrane types for a given cathode catalyst."""
     if membranes is None:
-        from pipeline.fuel_cell_cathode_screener import MEMBRANE_TYPES
+        from pipeline.fc_cathode_screener import MEMBRANE_TYPES
         membranes = MEMBRANE_TYPES
 
     results = []

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Multi-GPU MACE-MP-0 Screening for ORR Fuel Cell Cathode Catalysts.
+Multi-GPU Meta eSen-SM Screening for ORR Fuel Cell Cathode Catalysts.
 
 For each catalyst candidate from the 25.3B design space, computes:
   1. ΔG_OH* — hydroxyl adsorption free energy
@@ -33,9 +33,9 @@ from pipeline.utils import (
     save_screening_db, orr_overpotential, abundance_cost_penalty,
     check_element_safety, is_valid_for_application,
 )
-from pipeline.mace_screener import generate_structure
+from pipeline.surface_screener import generate_structure
 
-logger = setup_logger('fc_mace_screener', 'fuel_cell/fc_mace_screening.log')
+logger = setup_logger('fc_screener', 'fuel_cell/fc_screening.log')
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -92,7 +92,7 @@ def compute_h2_ref(calc) -> float:
 
 def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> dict:
     """
-    Evaluate a single catalyst candidate for ORR activity using MACE-MP-0.
+    Evaluate a single catalyst candidate for ORR activity using Meta eSen-SM.
 
     Computes adsorption free energies for OH*, O*, OOH* intermediates
     and derives the theoretical ORR overpotential via the CHE method.
@@ -106,6 +106,7 @@ def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> di
 
     try:
         structure, active_idx, _ = generate_structure(genome)
+        structure.pbc = True  # eSen requires PBC set to True in all dimensions
 
         # 1. Relax clean surface
         structure.calc = calc
@@ -239,10 +240,23 @@ def _extract_elements(genome: tuple) -> List[str]:
 
 def orr_worker(worker_id: int, gpu_id: int, task_queue: mp.Queue,
                result_queue: mp.Queue):
-    """Worker process: loads MACE on assigned GPU, evaluates ORR candidates."""
+    """Worker process: loads Meta eSen on assigned GPU, evaluates ORR candidates."""
     try:
-        from mace.calculators import mace_mp
-        calc = mace_mp(model="medium", device=f"cuda:{gpu_id}")
+        import os
+        os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu_id)
+        os.environ['OMP_NUM_THREADS'] = '1'
+        os.environ['MKL_NUM_THREADS'] = '1'
+        os.environ['OPENBLAS_NUM_THREADS'] = '1'
+        os.environ['VECLIB_MAXIMUM_THREADS'] = '1'
+        os.environ['NUMEXPR_NUM_THREADS'] = '1'
+        
+        # Limit CPU threads to prevent multiprocessing CPU over-subscription thrashing
+        import torch
+        torch.set_num_threads(1)
+        torch.set_num_interop_threads(1)
+        
+        from pipeline.surface_calculator import get_ocp_calculator
+        calc = get_ocp_calculator(model_name='esen-sm-conserving-all-oc25', device='cuda')
 
         e_h2o = compute_water_ref(calc)
         e_h2 = compute_h2_ref(calc)
@@ -272,19 +286,19 @@ def orr_worker(worker_id: int, gpu_id: int, task_queue: mp.Queue,
 # MAIN ORR SCREENING ENGINE
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def run_orr_screening(genomes: List[tuple], db_filename: str = "fc_mace_screening.csv",
+def run_orr_screening(genomes: List[tuple], db_filename: str = "fc_screening.csv",
                       workers_per_gpu: int = 2) -> 'pd.DataFrame':
     """
-    Run parallel MACE ORR screening on a list of catalyst genomes.
+    Run parallel Meta eSen-SM ORR screening on a list of catalyst genomes.
 
-    Same interface as mace_screener.run_screening but evaluates
+    Same interface as surface_screener.run_screening but evaluates
     OH*, O*, OOH* for fuel cell cathode applications.
     """
     import pandas as pd
 
     mp.set_start_method('spawn', force=True)
 
-    print_banner("MACE-MP-0 ORR CATHODE CATALYST SCREENING")
+    print_banner("META ESEN-SM ORR CATHODE CATALYST SCREENING")
     logger.info(f"ORR screening {len(genomes)} candidates...")
 
     device_count = torch.cuda.device_count()

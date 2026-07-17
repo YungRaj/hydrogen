@@ -273,7 +273,7 @@ def run_genetic_algorithm(config: GAConfig = GAConfig(),
     else:
         logger.info(f"Generating {config.initial_mace_samples} initial MACE samples...")
         initial_pop = generate_population(config.initial_mace_samples)
-        from pipeline.mace_screener import run_screening
+        from pipeline.surface_screener import run_screening
         all_mace_results = run_screening(initial_pop, db_filename="ga_initial_screening.csv",
                                          workers_per_gpu=2)
 
@@ -346,7 +346,7 @@ def run_genetic_algorithm(config: GAConfig = GAConfig(),
         if (gen + 1) % config.mace_eval_interval == 0:
             logger.info(f"  Gen {gen+1}: Running MACE validation on top {config.mace_eval_top_k}...")
             pareto_genomes = [population[i] for i in fronts[0][:config.mace_eval_top_k]]
-            from pipeline.mace_screener import run_screening
+            from pipeline.surface_screener import run_screening
             mace_df = run_screening(
                 pareto_genomes,
                 db_filename=f"ga_mace_gen{gen+1}.csv",

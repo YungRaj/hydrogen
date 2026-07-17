@@ -95,8 +95,8 @@ def main():
     t_deadline = t_start + args.hours * 3600
     pipeline_state = {}
 
-    # ─── Phase 1: GA + MACE ──────────────────────────────────────────────────
-    print_banner("PHASE 1: GPU-ACCELERATED MACE + NSGA-II")
+    # ─── Phase 1: GA + META ESEN-SM ──────────────────────────────────────────
+    print_banner("PHASE 1: GPU-ACCELERATED META ESEN-SM + NSGA-II")
     t1 = time.time()
 
     from pipeline.genetic_optimizer import run_genetic_algorithm, GAConfig
@@ -239,7 +239,7 @@ def main():
 
     # ─── Phase 5: Fuel Cell ORR GA (SAME 25.3B DESIGN SPACE) ─────────────────
     if time.time() < t_deadline:
-        print_banner("PHASE 5: FUEL CELL ORR — GA + MACE (25.3B DESIGN SPACE)")
+        print_banner("PHASE 5: FUEL CELL ORR — GA + META ESEN-SM (25.3B DESIGN SPACE)")
         t5 = time.time()
 
         remaining_hours = (t_deadline - time.time()) / 3600

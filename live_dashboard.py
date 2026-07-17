@@ -26,7 +26,7 @@ from datetime import datetime, timedelta
 BASE = Path(__file__).parent
 SCREENING = BASE / "results" / "screening"
 GA_LOG = SCREENING / "genetic_optimizer.log"
-MACE_LOG = SCREENING / "mace_screening.log"
+MACE_LOG = SCREENING / "surface_screening.log"
 
 
 def clear():
@@ -85,7 +85,7 @@ def parse_ga_log():
                         'elapsed_s': float(elapsed),
                         'timestamp': timestamp,
                     })
-                elif 'Running MACE' in line:
+                elif 'Running MACE' in line or 'Running GNN' in line or 'Running eSen' in line or 'Running META' in line:
                     timestamp = line.split(']')[0].strip('[')
                     entries.append({'type': 'mace', 'timestamp': timestamp})
                 elif 'Retraining surrogate' in line:
@@ -241,11 +241,11 @@ def main():
 
             print(colorize("  └─────────────────────────────────────────────────────────┘", '93'))
 
-            # ─── MACE Screening ──────────────────────────────────────────
+            # ─── GNN/eSen Screening ──────────────────────────────────────
             mace = parse_mace_log()
             total_eval, n_files, class_counts = count_csvs()
 
-            print(colorize("\n  ┌─ MACE SCREENING ──────────────────────────────────────────┐", '92'))
+            print(colorize("\n  ┌─ GNN/ESEN SCREENING ──────────────────────────────────────┐", '92'))
             print(f"  │ Total evaluated: {colorize(f'{total_eval:>6,}', '1')} across {n_files} rounds")
             if 'rate' in mace:
                 print(f"  │ Current round:   {mace.get('done', '?')}/{mace.get('total', '?')}  "

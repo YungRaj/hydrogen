@@ -379,7 +379,7 @@ def _generate_alloy_input(genome: tuple, name: str) -> str:
 
 def _generate_cluster_input(genome: tuple, name: str) -> str:
     """Generate QE input for a molecular cluster (SAC/MOF)."""
-    from pipeline.mace_screener import generate_porphyrin_cluster
+    from pipeline.surface_screener import generate_porphyrin_cluster
 
     mat_class = genome[0]
     if mat_class == 'SAC':

@@ -26,7 +26,7 @@ from pipeline.dft_validator import (
     generate_slab_scf_input, parse_total_energy, parse_convergence, PW_X,
     PSEUDO_MAP, ATOMIC_MASSES_QE,
 )
-from pipeline.mace_screener import generate_porphyrin_cluster
+from pipeline.surface_screener import generate_porphyrin_cluster
 
 logger = setup_logger('dft_fuel_cell', 'dft/dft_fuel_cell.log')
 
@@ -113,7 +113,7 @@ def validate_orr_catalyst(catalyst_name: str, genome: tuple,
         cluster = generate_porphyrin_cluster(metal, coord)
     else:
         # Alloy catalyst — build from genome
-        from pipeline.mace_screener import generate_structure
+        from pipeline.surface_screener import generate_structure
         cluster, _, _ = generate_structure(genome)
 
     base_elements = [a.symbol for a in cluster if a.symbol != 'X']

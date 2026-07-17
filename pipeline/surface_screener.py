@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Multi-GPU Parallelized MACE-MP-0 Catalyst Screening Engine.
+Multi-GPU Parallelized Meta eSen-SM Catalyst Screening Engine.
 
 For each catalyst candidate, computes:
   1. Relaxed surface energy
@@ -37,7 +37,7 @@ from pipeline.utils import (
     CRUSTAL_ABUNDANCE_PPM, MELTING_POINT_K,
 )
 
-logger = setup_logger('mace_screener', 'screening/mace_screening.log')
+logger = setup_logger('surface_screener', 'screening/surface_screening.log')
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -361,7 +361,7 @@ def _generate_hydride_slab(metal: str, second: str) -> Atoms:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def compute_reference_energies(calc) -> Dict[str, float]:
-    """Compute gas-phase reference energies using MACE."""
+    """Compute gas-phase reference energies using Meta eSen-SM."""
     refs = {}
 
     # H₂
@@ -391,19 +391,16 @@ def compute_reference_energies(calc) -> Dict[str, float]:
     BFGS(ch3, logfile=None).run(fmax=0.05)
     refs['CH3'] = ch3.get_potential_energy()
 
-    # Isolated C
-    c_ref = Atoms('C', positions=[[5, 5, 5]])
-    c_ref.set_cell([10, 10, 10])
-    c_ref.pbc = True
-    c_ref.calc = calc
-    refs['C'] = c_ref.get_potential_energy()
+    # Isolated C reference calculated thermodynamically: CH4 - 2*H2
+    # This avoids zero-edge errors for single-atom systems in fairchem/eSen.
+    refs['C'] = refs['CH4'] - 2.0 * refs['H2']
 
     return refs
 
 
 def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
     """
-    Evaluate a single catalyst candidate using MACE-MP-0.
+    Evaluate a single catalyst candidate using Meta eSen-SM.
     
     Returns a dictionary with all computed descriptors.
     """
@@ -416,6 +413,7 @@ def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
 
     try:
         structure, active_idx, _ = generate_structure(genome)
+        structure.pbc = True  # eSen requires PBC set to True in all dimensions
 
         # 1. Relax clean surface/cluster
         structure.calc = calc
@@ -510,7 +508,7 @@ def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
         result['pyrolysis_viable'] = is_valid_for_application(mat_class, 'pyrolysis')
 
         # 11. Physical sanity filters
-        # MACE-MP-0 can produce unphysical energies on exotic structures.
+        # Meta model can produce unphysical energies on exotic structures.
         # Valid adsorption energies for surface chemistry: |ΔE| < 10 eV
         SANE_LIMIT = 10.0  # eV
         for key in ('dE_H', 'dE_CH3', 'dE_C', 'dE_split'):
@@ -617,10 +615,23 @@ def _extract_elements(genome: tuple) -> List[str]:
 
 def eval_worker(worker_id: int, gpu_id: int, task_queue: mp.Queue,
                 result_queue: mp.Queue):
-    """Worker process: loads MACE on assigned GPU and evaluates candidates."""
+    """Worker process: loads Meta eSen on assigned GPU and evaluates candidates."""
     try:
-        from mace.calculators import mace_mp
-        calc = mace_mp(model="medium", device=f"cuda:{gpu_id}")
+        import os
+        os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu_id)
+        os.environ['OMP_NUM_THREADS'] = '1'
+        os.environ['MKL_NUM_THREADS'] = '1'
+        os.environ['OPENBLAS_NUM_THREADS'] = '1'
+        os.environ['VECLIB_MAXIMUM_THREADS'] = '1'
+        os.environ['NUMEXPR_NUM_THREADS'] = '1'
+        
+        # Limit CPU threads to prevent multiprocessing CPU over-subscription thrashing
+        import torch
+        torch.set_num_threads(1)
+        torch.set_num_interop_threads(1)
+        
+        from pipeline.surface_calculator import get_ocp_calculator
+        calc = get_ocp_calculator(model_name='esen-sm-conserving-all-oc25', device='cuda')
 
         # Compute reference energies on this worker's calculator
         refs = compute_reference_energies(calc)
@@ -652,10 +663,10 @@ def eval_worker(worker_id: int, gpu_id: int, task_queue: mp.Queue,
 # MAIN SCREENING ENGINE
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def run_screening(genomes: List[tuple], db_filename: str = "mace_screening.csv",
+def run_screening(genomes: List[tuple], db_filename: str = "surface_screening.csv",
                   workers_per_gpu: int = 4) -> 'pd.DataFrame':
     """
-    Run parallel MACE screening on a list of catalyst genomes.
+    Run parallel Meta eSen-SM screening on a list of catalyst genomes.
     
     Args:
         genomes: List of catalyst genome tuples
@@ -669,7 +680,7 @@ def run_screening(genomes: List[tuple], db_filename: str = "mace_screening.csv",
 
     mp.set_start_method('spawn', force=True)
 
-    print_banner("MACE-MP-0 HIGH-THROUGHPUT CATALYST SCREENING")
+    print_banner("META ESEN-SM SURFACE CATALYST SCREENING")
     logger.info(f"Screening {len(genomes)} catalyst candidates...")
 
     device_count = torch.cuda.device_count()

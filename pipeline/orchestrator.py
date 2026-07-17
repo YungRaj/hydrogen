@@ -88,11 +88,11 @@ def run_pipeline(config: PipelineConfig = PipelineConfig(),
     # PHASE 1: CATALYST SCREENING & GENETIC OPTIMIZATION
     # ═════════════════════════════════════════════════════════════════════════
     if start_phase <= 1 <= end_phase:
-        print_banner("PHASE 1: MACE SCREENING & GENETIC OPTIMIZATION")
+        print_banner("PHASE 1: META ESEN SCREENING & GENETIC OPTIMIZATION")
         t1 = time.time()
 
         from pipeline.catalyst_spaces import generate_population, estimate_design_space_size
-        from pipeline.mace_screener import run_screening
+        from pipeline.surface_screener import run_screening
         from pipeline.genetic_optimizer import run_genetic_algorithm, GAConfig
 
         # Report design space
@@ -270,7 +270,7 @@ def run_pipeline(config: PipelineConfig = PipelineConfig(),
         print_banner("PHASE 5: FUEL CELL CATHODE SCREENING & PEMFC MODEL")
         t5 = time.time()
 
-        from pipeline.fuel_cell_cathode_screener import run_cathode_screening, MEMBRANE_TYPES
+        from pipeline.fc_cathode_screener import run_cathode_screening, MEMBRANE_TYPES
         from pipeline.pemfc_model import PEMFCConfig, simulate_pemfc, sweep_membranes
         from pipeline.fuel_cell_stack import StackConfig, model_stack
 
