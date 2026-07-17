@@ -33,6 +33,7 @@ from pipeline.utils import (
     BASE_DIR, SCREENING_DIR, setup_logger, print_banner,
     k_B_eV, bep_activation_energy, arrhenius_rate,
     abundance_cost_penalty, save_screening_db,
+    check_element_safety, is_valid_for_application,
     CRUSTAL_ABUNDANCE_PPM, MELTING_POINT_K,
 )
 
@@ -470,7 +471,7 @@ def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
         result['dE_split'] = dE_split
 
         # 6. Activation barrier (BEP correlation)
-        E_act = bep_activation_energy(dE_split)
+        E_act = bep_activation_energy(dE_split, material_class=mat_class)
         result['E_act'] = E_act
 
         # 7. Coking resistance index
@@ -497,6 +498,16 @@ def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
         # 10. Extract element list for cost scoring
         elements = _extract_elements(genome)
         result['cost_penalty'] = abundance_cost_penalty(elements)
+
+        # 10b. Safety check — reject toxic/radioactive elements
+        is_safe, safety_reason = check_element_safety(elements)
+        if not is_safe:
+            result['valid'] = False
+            result['error'] = safety_reason
+            return result
+
+        # 10c. Application feasibility flag
+        result['pyrolysis_viable'] = is_valid_for_application(mat_class, 'pyrolysis')
 
         # 11. Physical sanity filters
         # MACE-MP-0 can produce unphysical energies on exotic structures.

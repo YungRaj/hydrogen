@@ -31,6 +31,7 @@ from ase.optimize import BFGS
 from pipeline.utils import (
     BASE_DIR, FUEL_CELL_DIR, setup_logger, print_banner,
     save_screening_db, orr_overpotential, abundance_cost_penalty,
+    check_element_safety, is_valid_for_application,
 )
 from pipeline.mace_screener import generate_structure
 
@@ -168,6 +169,16 @@ def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> di
 
         # 7. Cost
         result['cost_penalty'] = abundance_cost_penalty(elements)
+
+        # 7b. Safety check
+        is_safe, safety_reason = check_element_safety(elements)
+        if not is_safe:
+            result['valid'] = False
+            result['error'] = safety_reason
+            return result
+
+        # 7c. Application feasibility flag
+        result['fc_viable'] = is_valid_for_application(mat_class, 'fuel_cell')
 
         # 8. Stability estimate (binding strength of active metal)
         result['binding_strength'] = float(abs(dG_OH) + abs(dG_O))

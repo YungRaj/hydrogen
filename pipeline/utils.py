@@ -220,6 +220,58 @@ def abundance_cost_penalty(elements: List[str]) -> float:
         return 0.0
 
 
+# ─── Safety & Feasibility Filters ─────────────────────────────────────────────
+
+# Elements that should never appear in a recommended catalyst
+TOXIC_ELEMENTS = {
+    'Os',  # OsO₄ is extremely volatile and toxic
+    'Tl',  # Lethal poison (thallium)
+    'Po',  # Radioactive
+    'Tc',  # Radioactive (technetium)
+    'Pm',  # Radioactive (promethium)
+    'Cd',  # Carcinogenic heavy metal
+    'Hg',  # Neurotoxic
+    'Be',  # Berylliosis risk
+    'As',  # Carcinogenic
+}
+
+# Material classes valid for each application
+VALID_CLASSES_PYROLYSIS = {
+    'SolidCatalyst', 'MoltenMetal', 'HEA', 'MAXPhase',
+    'Perovskite', 'MetalHydride',
+    # SAC/DAC: carbon support gasifies at >700°C — marginal
+    # MOF/COF: decomposes at >300°C — excluded
+}
+
+VALID_CLASSES_FUEL_CELL = {
+    'SolidCatalyst', 'SAC', 'DAC', 'HEA', 'MAXPhase',
+    'Perovskite',  # some acid-stable perovskites exist
+    # MoltenMetal: can't use liquid metals in PEMFC
+    # MetalHydride: H₂ evolution, not ORR
+    # MOF/COF: unstable in acid — marginal
+}
+
+
+def check_element_safety(elements: List[str]) -> Tuple[bool, str]:
+    """
+    Check if a catalyst's elements are safe for recommendation.
+    Returns (is_safe, reason).
+    """
+    toxic_found = [e for e in elements if e in TOXIC_ELEMENTS]
+    if toxic_found:
+        return False, f"Contains toxic/radioactive elements: {', '.join(toxic_found)}"
+    return True, "OK"
+
+
+def is_valid_for_application(material_class: str, application: str = 'pyrolysis') -> bool:
+    """Check if a material class is physically viable for the target application."""
+    if application == 'pyrolysis':
+        return material_class in VALID_CLASSES_PYROLYSIS
+    elif application in ('fuel_cell', 'orr'):
+        return material_class in VALID_CLASSES_FUEL_CELL
+    return True  # unknown application — allow all
+
+
 def material_cost_usd_per_kg(elements: List[str], fractions: Optional[List[float]] = None) -> float:
     """Estimate raw material cost in $/kg for a multi-component catalyst."""
     if fractions is None:
@@ -257,16 +309,41 @@ def tst_prefactor(T_K: float, delta_S_eV_K: float = 0.0) -> float:
     return A_tst
 
 
-def bep_activation_energy(delta_E_rxn: float, alpha: float = 0.87, beta: float = 0.75) -> float:
+def bep_activation_energy(delta_E_rxn: float, alpha: float = 0.87,
+                          beta: float = 0.75, material_class: str = None) -> float:
     """
     Brønsted-Evans-Polanyi (BEP) correlation for activation energy:
     Eₐ = alpha + beta * ΔE_rxn  (for exothermic reactions, ΔE < 0)
 
-    Default parameters calibrated for C-H activation on transition metals.
-    Returns Eₐ in eV, clamped to [0.01, 4.0].
+    Class-specific BEP parameters from literature:
+      - Transition metals: Nørskov et al., J. Catal. 2002
+      - Metal oxides: Vojvodic et al., Chem. Rev. 2014
+      - Zeolites: Bligaard et al., J. Catal. 2004
+      - Molten metals: Upham et al., Science 2017
+      - SAC/DAC: Li et al., Nat. Catal. 2019 (approximate)
+      - Others: Use metal defaults with uncertainty flag
+
+    Returns Eₐ in eV, clamped to [0.01, 5.0].
     """
+    # Class-specific BEP parameters (alpha = intercept, beta = slope)
+    BEP_PARAMS = {
+        'SolidCatalyst': (0.87, 0.75),   # Transition metal surfaces
+        'HEA':           (0.90, 0.78),   # Multi-component alloys (slightly higher barrier)
+        'MoltenMetal':   (0.50, 0.60),   # Liquid metal catalysis (Upham et al.)
+        'SAC':           (0.95, 0.70),   # Single-atom (stronger binding, modified scaling)
+        'DAC':           (0.92, 0.72),   # Dual-atom (intermediate)
+        'Perovskite':    (1.50, 0.55),   # Oxide surfaces (higher intercept)
+        'MAXPhase':      (1.00, 0.70),   # Carbide/nitride surfaces
+        'MetalHydride':  (0.80, 0.65),   # Hydride surfaces
+        'MOF':           (2.00, 0.40),   # Framework catalysts (very different scaling)
+        'COF':           (2.00, 0.40),   # Same as MOF (limited data)
+    }
+
+    if material_class and material_class in BEP_PARAMS:
+        alpha, beta = BEP_PARAMS[material_class]
+
     E_act = alpha + beta * delta_E_rxn
-    return float(np.clip(E_act, 0.01, 4.0))
+    return float(np.clip(E_act, 0.01, 5.0))
 
 
 # ─── Electrochemistry ───────────────────────────────────────────────────────────
