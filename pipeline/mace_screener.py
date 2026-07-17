@@ -313,21 +313,45 @@ def _generate_perovskite_slab(A: str, B: str, dopant: str,
 
 def _generate_hydride_slab(metal: str, second: str) -> Atoms:
     """Generate a metal-hydride slab: metal FCC + interstitial H."""
-    slab = fcc111(metal, size=(3, 3, 3), vacuum=12.0)
-    # Insert H atoms at tetrahedral interstitial sites in top layer
+    # Use explicit lattice constant (same table as generate_alloy_slab)
+    LATTICE_CONSTANTS = {
+        'Ni': 3.52, 'Cu': 3.61, 'Ag': 4.09, 'Au': 4.08, 'Al': 4.05,
+        'Pd': 3.89, 'Pt': 3.92, 'Fe': 2.87, 'Ti': 2.95, 'Zr': 3.23,
+        'Mg': 3.21, 'Ca': 5.58, 'Na': 4.29, 'Li': 3.51, 'La': 3.75,
+        'Ce': 5.16, 'V': 3.03, 'Mn': 3.50, 'Co': 2.51, 'Zn': 2.66,
+        'Sn': 5.83, 'In': 4.60, 'Sb': 4.31, 'Bi': 4.75,
+    }
+    a = LATTICE_CONSTANTS.get(metal, 3.60)
+
+    try:
+        slab = fcc111(metal, size=(3, 3, 3), vacuum=12.0, a=a)
+    except Exception:
+        slab = fcc111('Ni', size=(3, 3, 3), vacuum=12.0, a=a)
+        for atom in slab:
+            atom.symbol = metal
+
+    # Collect H positions first, then add (don't iterate while appending)
     z = slab.positions[:, 2]
     top_z = z.max()
+    h_positions = []
     for atom in slab:
         if atom.position[2] > top_z - 2.5:
             h_pos = atom.position.copy()
-            h_pos[2] += 1.0  # H above metal
-            slab.append(Atom('H', position=h_pos))
+            h_pos[2] += 1.0
+            h_positions.append(h_pos)
+    for h_pos in h_positions:
+        slab.append(Atom('H', position=h_pos))
+
+    # Substitute surface atoms with second metal
     if second != 'None' and second != metal:
-        # Substitute 2 surface atoms with second metal
-        indices = [i for i in range(len(slab)) if slab[i].symbol == metal and slab[i].position[2] > top_z - 2.5]
+        indices = [i for i in range(len(slab))
+                   if slab[i].symbol == metal and slab[i].position[2] > top_z - 2.5]
         for i in indices[:2]:
             slab[i].symbol = second
-    slab.set_constraint(FixAtoms(mask=z < z.min() + 3.0))
+
+    # Recompute z after adding H and set constraints
+    z_all = slab.positions[:, 2]
+    slab.set_constraint(FixAtoms(mask=z_all < z_all.min() + 3.0))
     return slab
 
 
@@ -473,6 +497,21 @@ def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
         # 10. Extract element list for cost scoring
         elements = _extract_elements(genome)
         result['cost_penalty'] = abundance_cost_penalty(elements)
+
+        # 11. Physical sanity filters
+        # MACE-MP-0 can produce unphysical energies on exotic structures.
+        # Valid adsorption energies for surface chemistry: |ΔE| < 10 eV
+        SANE_LIMIT = 10.0  # eV
+        for key in ('dE_H', 'dE_CH3', 'dE_C', 'dE_split'):
+            val = result.get(key, 0)
+            if abs(val) > SANE_LIMIT:
+                result['valid'] = False
+                result['error'] = f'Unphysical {key}={val:.2f} eV (|val|>{SANE_LIMIT})'
+                return result
+
+        # Clamp derived values to physical ranges
+        result['E_act'] = max(0.01, min(result.get('E_act', 5.0), 5.0))
+        result['coking_index'] = max(-20.0, min(result.get('coking_index', 0), 20.0))
 
         result['valid'] = True
 

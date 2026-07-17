@@ -172,6 +172,18 @@ def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> di
         # 8. Stability estimate (binding strength of active metal)
         result['binding_strength'] = float(abs(dG_OH) + abs(dG_O))
 
+        # 9. Physical sanity filters
+        SANE_LIMIT = 10.0  # eV
+        for key in ('dG_OH_eV', 'dG_O_eV', 'dG_OOH_eV'):
+            val = result.get(key, 0)
+            if abs(val) > SANE_LIMIT:
+                result['valid'] = False
+                result['error'] = f'Unphysical {key}={val:.2f} eV'
+                return result
+
+        # Clamp overpotential to physical range [0, 3] V
+        result['orr_overpotential_V'] = max(0.0, min(result.get('orr_overpotential_V', 3.0), 3.0))
+
         result['valid'] = True
 
     except Exception as e:

@@ -115,6 +115,109 @@ def main():
     save_json(pipeline_state, "pipeline_state.json")
     print(f"\n  Phase 1: {time.time()-t1:.0f}s | Evaluated: {len(screening_db):,}")
 
+    # ─── Phase 2: Cantera Reactor Simulation ─────────────────────────────────
+    if time.time() < t_deadline and len(top_catalysts) > 0:
+        print_banner("PHASE 2: CANTERA REACTOR SIMULATION")
+        t2 = time.time()
+        try:
+            from pipeline.reactor_mechanisms import generate_mechanism
+            from pipeline.reactor_models import run_reactor_sweep
+
+            reactor_results = []
+            n_reactor = min(20, len(top_catalysts))
+            for i, (_, row) in enumerate(top_catalysts.head(n_reactor).iterrows()):
+                e_act = row.get('E_act', 1.0)
+                cat_name = f"catalyst_{i}"
+                print(f"  Reactor sim {i+1}/{n_reactor}: E_act={e_act:.3f} eV")
+                try:
+                    # Generate Cantera YAML mechanism from E_act
+                    mech_file = generate_mechanism(cat_name, e_act)
+                    sweep = run_reactor_sweep(cat_name, str(mech_file))
+                    best_conv = max(r.get('CH4_conversion', 0) for r in sweep) if sweep else 0
+                    reactor_results.append({
+                        'catalyst': cat_name,
+                        'E_act': e_act,
+                        'best_conversion': best_conv,
+                        'n_conditions': len(sweep),
+                    })
+                except Exception as e:
+                    print(f"    Reactor error: {e}")
+
+            # ── Pyrolysis TEA ($/kg H₂) ──────────────────────────────────
+            tea_results = []
+            for r in reactor_results:
+                conv = r.get('best_conversion', 0)
+                if conv > 0.01:
+                    # Simplified TEA: natural gas + energy + capex
+                    ng_cost = 3.50  # $/MMBtu natural gas
+                    energy_input = 8.5 / conv  # kWh/kg_H2 (endothermic)
+                    electricity_cost = 0.06  # $/kWh
+                    capex_amortized = 0.50  # $/kg_H2 (capex over 20 yr)
+                    carbon_credit = -0.80   # $/kg_H2 (solid C revenue)
+                    h2_cost = (ng_cost * 0.05 / conv +
+                               energy_input * electricity_cost +
+                               capex_amortized + carbon_credit)
+                    tea_results.append({
+                        'catalyst': r['catalyst'],
+                        'h2_cost_usd_kg': round(max(0.5, h2_cost), 2),
+                        'conversion': conv,
+                    })
+
+            pipeline_state['phase2'] = {
+                'catalysts_simulated': len(reactor_results),
+                'elapsed_s': time.time() - t2,
+            }
+            if reactor_results:
+                pipeline_state['phase2']['best_conversion'] = max(
+                    r.get('best_conversion', 0) for r in reactor_results)
+            if tea_results:
+                best_tea = min(tea_results, key=lambda x: x['h2_cost_usd_kg'])
+                pipeline_state['phase2']['best_h2_cost_usd_kg'] = best_tea['h2_cost_usd_kg']
+        except ImportError as e:
+            print(f"  Phase 2 skipped (Cantera not available): {e}")
+            pipeline_state['phase2'] = {'skipped': True, 'reason': str(e)}
+        save_json(pipeline_state, "pipeline_state.json")
+
+    # ─── Phase 3: DFT Validation ─────────────────────────────────────────────
+    if time.time() < t_deadline and not args.no_dft:
+        print_banner("PHASE 3: DFT VALIDATION (Quantum ESPRESSO)")
+        t3 = time.time()
+        try:
+            from pipeline.dft_validator import run_dft_validation
+
+            n_dft = min(10, len(top_catalysts))
+            dft_results = run_dft_validation(top_catalysts.head(n_dft))
+            pipeline_state['phase3'] = {
+                'catalysts_validated': len(dft_results) if dft_results else 0,
+                'elapsed_s': time.time() - t3,
+            }
+        except (ImportError, Exception) as e:
+            print(f"  Phase 3 skipped: {e}")
+            pipeline_state['phase3'] = {'skipped': True, 'reason': str(e)[:200]}
+        save_json(pipeline_state, "pipeline_state.json")
+    elif args.no_dft:
+        pipeline_state['phase3'] = {'skipped': True, 'reason': '--no-dft flag'}
+
+    # ─── Phase 4: VQE Transition States ──────────────────────────────────────
+    if time.time() < t_deadline and not args.no_vqe:
+        print_banner("PHASE 4: VQE TRANSITION STATES (CUDA-Q)")
+        t4 = time.time()
+        try:
+            from pipeline.vqe_transition_state import run_vqe_refinement
+
+            n_vqe = min(5, len(top_catalysts))
+            vqe_results = run_vqe_refinement(top_catalysts.head(n_vqe))
+            pipeline_state['phase4'] = {
+                'catalysts_refined': len(vqe_results) if vqe_results else 0,
+                'elapsed_s': time.time() - t4,
+            }
+        except (ImportError, Exception) as e:
+            print(f"  Phase 4 skipped: {e}")
+            pipeline_state['phase4'] = {'skipped': True, 'reason': str(e)[:200]}
+        save_json(pipeline_state, "pipeline_state.json")
+    elif args.no_vqe:
+        pipeline_state['phase4'] = {'skipped': True, 'reason': '--no-vqe flag'}
+
     # ─── Phase 5: Fuel Cell ORR GA (SAME 25.3B DESIGN SPACE) ─────────────────
     if time.time() < t_deadline:
         print_banner("PHASE 5: FUEL CELL ORR — GA + MACE (25.3B DESIGN SPACE)")
