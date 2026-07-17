@@ -33,3 +33,9 @@ Thumbs.db
 .conda/
 venv/
 .env/
+
+# Large model checkpoints
+models/*.pt
+models/*.ckpt
+CRASH
+input_tmp.in
