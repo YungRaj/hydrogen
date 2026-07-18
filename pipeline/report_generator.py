@@ -115,8 +115,8 @@ def generate_full_report(pipeline_state: Dict = None) -> Path:
 
     p1 = ps.get('phase1', {})
     p2 = ps.get('phase2', {})
-    p5_ga = ps.get('phase5_ga', {})
-    p5_stack = ps.get('phase5_stack', {})
+    # FC results may come from orchestrator ('phase5') or campaign ('phase5_ga'/'phase5_stack')
+    p5 = {**ps.get('phase5', {}), **ps.get('phase5_ga', {}), **ps.get('phase5_stack', {})}
 
     r(f"| Metric | Value |")
     r(f"|--------|-------|")
@@ -127,10 +127,10 @@ def generate_full_report(pipeline_state: Dict = None) -> Path:
     r(f"| Best coking resistance | {p1.get('best_coking', 'N/A')} |")
     r(f"| Reactor simulations | {p2.get('catalysts_simulated', 'N/A')} |")
     r(f"| Best CH₄ conversion | {p2.get('best_conversion', 'N/A'):.1%} |" if isinstance(p2.get('best_conversion'), (int, float)) else f"| Best CH₄ conversion | N/A |")
-    r(f"| FC catalysts evaluated | {p5_ga.get('total_evaluated', 'N/A'):,} |" if isinstance(p5_ga.get('total_evaluated'), (int, float)) else f"| FC catalysts evaluated | N/A |")
-    r(f"| Best PEMFC power density | {p5_stack.get('best_power_W_cm2', 'N/A')} W/cm² |" if isinstance(p5_stack.get('best_power_W_cm2'), (int, float)) else f"| Best PEMFC power density | N/A |")
-    r(f"| Best PEMFC efficiency | {p5_stack.get('best_efficiency', 'N/A'):.1%} |" if isinstance(p5_stack.get('best_efficiency'), (int, float)) else f"| Best PEMFC efficiency | N/A |")
-    r(f"| Min ORR overpotential | {p5_stack.get('min_overpotential_V', 'N/A')} V |" if isinstance(p5_stack.get('min_overpotential_V'), (int, float)) else f"| Min ORR overpotential | N/A |")
+    r(f"| FC catalysts evaluated | {p5.get('total_evaluated', p5.get('n_cathodes_screened', 'N/A')):,} |" if isinstance(p5.get('total_evaluated', p5.get('n_cathodes_screened')), (int, float)) else f"| FC catalysts evaluated | N/A |")
+    r(f"| Best PEMFC power density | {p5.get('best_power_W_cm2', 'N/A')} W/cm² |" if isinstance(p5.get('best_power_W_cm2'), (int, float)) else f"| Best PEMFC power density | N/A |")
+    r(f"| Best PEMFC efficiency | {p5.get('best_efficiency', 'N/A'):.1%} |" if isinstance(p5.get('best_efficiency'), (int, float)) else f"| Best PEMFC efficiency | N/A |")
+    r(f"| Min ORR overpotential | {p5.get('min_overpotential_V', 'N/A')} V |" if isinstance(p5.get('min_overpotential_V'), (int, float)) else f"| Min ORR overpotential | N/A |")
     r("")
 
     # ─── Phase 1: Catalyst Screening ────────────────────────────────────────
