@@ -92,14 +92,15 @@ class ORRCatalystSurrogate(torch.nn.Module):
 
 
 def _fenton_from_genome(genome: tuple) -> float:
-    """Compute Fenton stability score from genome elements."""
+    """Compute Fenton stability score from genome elements.
+    
+    Matches FENTON_RISK table from fc_screener.py.
+    Higher score = more stable (less radical degradation risk).
+    """
+    # Canonical Fenton risk weights (from literature on radical generation in acid)
+    FENTON_RISK = {'Fe': 3, 'Cu': 2, 'Co': 1, 'Mn': 1, 'Cr': 1, 'V': 1}
     elements = _extract_elements_from_genome(genome)
-    fenton_risk = 0
-    for e in elements:
-        if e == 'Fe':
-            fenton_risk += 3
-        elif e in ('Cu', 'Co'):
-            fenton_risk += 1
+    fenton_risk = sum(FENTON_RISK.get(e, 0) for e in elements)
     return float(max(0, 10 - fenton_risk))
 
 
