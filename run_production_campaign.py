@@ -41,10 +41,13 @@ def main():
                         help='Top-K for reactor simulation (default: 200)')
     parser.add_argument('--no-dft', action='store_true')
     parser.add_argument('--no-vqe', action='store_true')
+    parser.add_argument('--mode', type=str, choices=['ntec', 'thermocatalytic'], default='ntec',
+                        help='Pyrolysis screening mode (default: ntec)')
     parser.add_argument('--seed', type=int, default=42)
     args = parser.parse_args()
 
     # ─── Environment ─────────────────────────────────────────────────────────
+    os.environ['PYROLYSIS_MODE'] = args.mode
     import torch
     n_gpus = torch.cuda.device_count()
     gpu_names = [torch.cuda.get_device_name(i) for i in range(n_gpus)]
@@ -56,6 +59,7 @@ def main():
     for i in range(n_gpus):
         print(f"  GPU[{i}] {gpu_names[i]} — {gpu_mem[i]:.1f} GB")
     print(f"  CPUs: {os.cpu_count()} cores")
+    print(f"  Mode: {args.mode.upper()}")
     print(f"  Pop: {args.pop} | Gens: {args.gens}")
     print(f"  MACE: {args.mace_per_round}/round every {args.mace_interval} gens")
     total_mace = args.mace_batch + args.mace_per_round * (args.gens // args.mace_interval)
@@ -142,6 +146,12 @@ def main():
             from pipeline.reactor_mechanisms import write_full_mechanism
             from pipeline.reactor_models import run_reactor_sweep
 
+            reactor_temps = (
+                [773.15, 800.0, 900.0, 1000.0]
+                if args.mode == "ntec"
+                else [1000.0, 1100.0, 1200.0, 1300.0]
+            )
+
             reactor_results = []
             n_reactor = min(20, len(top_catalysts))
             for i, (_, row) in enumerate(top_catalysts.head(n_reactor).iterrows()):
@@ -151,7 +161,7 @@ def main():
                 try:
                     # Generate Cantera YAML mechanism from E_act
                     mech_file = write_full_mechanism(cat_name, e_act)
-                    sweep = run_reactor_sweep(cat_name, str(mech_file))
+                    sweep = run_reactor_sweep(cat_name, str(mech_file), temperatures=reactor_temps)
                     best_conv = max(r.get('CH4_conversion', 0) for r in sweep) if sweep else 0
                     reactor_results.append({
                         'catalyst': cat_name,
@@ -254,7 +264,7 @@ def main():
 
         remaining_hours = (t_deadline - time.time()) / 3600
         # Allocate 60% of remaining time to FC screening, 40% to PEMFC/stack
-        fc_gens = max(100, int(args.gens * 0.5))  # Half the gens of methane
+        fc_gens = max(1, int(args.gens * 0.5))  # Half the gens of methane
         print(f"  Remaining time: {remaining_hours:.1f}h")
         print(f"  FC-GA: {fc_gens} generations, pop={args.pop}")
         print(f"  Same 25.3B design space, ORR-specific objectives")

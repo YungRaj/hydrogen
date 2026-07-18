@@ -60,6 +60,7 @@ class PipelineConfig:
     run_dft: bool = True                 # Actually execute pw.x
     run_vqe: bool = True                 # Actually execute CUDA-Q
     quick_mode: bool = False             # Reduced parameters for testing
+    pyrolysis_mode: str = 'ntec'         # 'ntec' or 'thermocatalytic'
     seed: int = 42
 
 
@@ -71,7 +72,16 @@ def run_pipeline(config: PipelineConfig = PipelineConfig(),
     t_total = time.time()
     print_banner("TURQUOISE HYDROGEN → FUEL CELL: MULTI-SCALE PIPELINE")
     logger.info(f"Starting pipeline: phases {start_phase}–{end_phase}")
-    logger.info(f"Configuration: quick_mode={config.quick_mode}")
+    logger.info(f"Configuration: quick_mode={config.quick_mode}, pyrolysis_mode={config.pyrolysis_mode}")
+
+    # Propagate pyrolysis mode to env
+    os.environ['PYROLYSIS_MODE'] = config.pyrolysis_mode
+
+    # Configure default sweep temperatures based on pyrolysis mode
+    if config.pyrolysis_mode == 'ntec':
+        config.reactor_temperatures = (773.15, 800.0, 900.0, 1000.0)
+    else:
+        config.reactor_temperatures = (1000.0, 1100.0, 1200.0, 1300.0)
 
     if config.quick_mode:
         config.initial_mace_samples = 50
@@ -370,12 +380,14 @@ if __name__ == '__main__':
     parser.add_argument('--quick', action='store_true', help='Quick mode (reduced parameters)')
     parser.add_argument('--no-dft', action='store_true', help='Skip DFT execution')
     parser.add_argument('--no-vqe', action='store_true', help='Skip VQE execution')
+    parser.add_argument('--mode', type=str, choices=['ntec', 'thermocatalytic'], default='ntec', help='Pyrolysis mode')
     args = parser.parse_args()
 
     config = PipelineConfig(
         quick_mode=args.quick,
         run_dft=not args.no_dft,
         run_vqe=not args.no_vqe,
+        pyrolysis_mode=args.mode,
     )
 
     if args.phase:

@@ -510,6 +510,15 @@ def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
 
         # 7. Coking resistance index
         coking_index = dE_C - 2.0 * dE_H  # positive = resistant
+        
+        # Apply liquid-metal coking resistance bonus for NTEC mode
+        py_mode = os.environ.get('PYROLYSIS_MODE', 'ntec')
+        if py_mode == 'ntec':
+            from pipeline.genetic_optimizer import _extract_elements_from_genome
+            elements = _extract_elements_from_genome(genome)
+            if any(e in {'Ga', 'In', 'Sn', 'Bi'} for e in elements):
+                coking_index += 3.0
+            
         result['coking_index'] = coking_index
 
         # 8. Stability metric

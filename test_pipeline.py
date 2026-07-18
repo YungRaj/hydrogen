@@ -447,6 +447,50 @@ def test_tafel_all_classes():
         assert cls in TAFEL_SLOPE_BY_CLASS, f"TAFEL_SLOPE missing: {cls}"
 
 
+def test_pyrolysis_mode_coking_bonus():
+    import os
+    from pipeline.genetic_optimizer import compute_objectives_surrogate, GAConfig
+    from pipeline.surrogate_model import CatalystSurrogate
+
+    # Mock surrogate and population
+    model = CatalystSurrogate()
+    # We want a genome with Ga/In/Sn/Bi (e.g. MoltenMetal with Sb/Ga) and one without (e.g. SolidCatalyst with Fe)
+    pop = [
+        ('MoltenMetal', 'Ga', 'None', 0.0, 1000),  # low-melting metal Ga
+        ('SolidCatalyst', 'Fe', 'None', 'fcc111', 0.0, ['Fe'], 0, 0),  # non-liquid Fe
+    ]
+
+    from unittest.mock import patch
+    with patch('pipeline.genetic_optimizer.predict_batch') as mock_predict:
+        mock_predict.return_value = {
+            'valid_prob': np.array([1.0, 1.0]),
+            'E_act': np.array([0.5, 0.6]),
+            'coking_index': np.array([1.0, 2.0]),
+            'segregation_energy': np.array([-0.1, -0.2]),
+        }
+
+        # Test under NTEC mode
+        os.environ['PYROLYSIS_MODE'] = 'ntec'
+        objs_ntec = compute_objectives_surrogate(pop, model, device='cpu')
+
+        # Test under thermocatalytic mode
+        os.environ['PYROLYSIS_MODE'] = 'thermocatalytic'
+        objs_thermo = compute_objectives_surrogate(pop, model, device='cpu')
+
+    # Reset environment
+    if 'PYROLYSIS_MODE' in os.environ:
+        del os.environ['PYROLYSIS_MODE']
+
+    # For Ga molten metal candidate, NTEC coking index objective (index 1) should be lower (more negative = better coking resistance)
+    # Since obj2 = -(coking_index + bonus), objs_ntec[0, 1] = objs_thermo[0, 1] - 3.0
+    diff_ga = objs_ntec[0, 1] - objs_thermo[0, 1]
+    assert np.isclose(diff_ga, -3.0), f"Liquid metal Ga coking bonus not applied correctly, got diff: {diff_ga}"
+
+    # For Fe catalyst, there should be no bonus, so diff should be 0.0
+    diff_fe = objs_ntec[1, 1] - objs_thermo[1, 1]
+    assert np.isclose(diff_fe, 0.0), f"Non-liquid metal Fe coking bonus applied incorrectly, got diff: {diff_fe}"
+
+
 def test_cathode_sac_genome_5tuple():
     from pipeline.fc_cathode_screener import generate_fc_catalyst_list
     candidates = generate_fc_catalyst_list()
@@ -527,6 +571,7 @@ if __name__ == '__main__':
     test("OOD confidence all 14 classes", test_ood_confidence_all_classes)
     test("Tafel slope all 14 classes", test_tafel_all_classes)
     test("Cathode SAC genomes 5-tuple", test_cathode_sac_genome_5tuple)
+    test("Pyrolysis mode coking bonus", test_pyrolysis_mode_coking_bonus)
 
     elapsed = time.time() - t0
     print(f"\n{'=' * 60}")

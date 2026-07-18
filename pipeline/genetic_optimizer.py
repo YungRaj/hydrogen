@@ -164,7 +164,13 @@ def compute_objectives_surrogate(population: List[tuple],
     obj1 = preds['E_act'].copy()
 
     # Objective 2: Coking resistance (maximize → negate for minimization)
-    obj2 = -preds['coking_index']
+    coking = preds['coking_index'].copy()
+    py_mode = os.environ.get('PYROLYSIS_MODE', 'ntec')
+    if py_mode == 'ntec':
+        for i, g in enumerate(population):
+            if any(e in {'Ga', 'In', 'Sn', 'Bi'} for e in _extract_elements_from_genome(g)):
+                coking[i] += 3.0
+    obj2 = -coking
 
     # Objective 3: Stability (minimize segregation energy — more negative = more stable)
     obj3 = preds['segregation_energy']  # already: negative = good
