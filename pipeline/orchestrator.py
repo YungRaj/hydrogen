@@ -77,11 +77,8 @@ def run_pipeline(config: PipelineConfig = PipelineConfig(),
     # Propagate pyrolysis mode to env
     os.environ['PYROLYSIS_MODE'] = config.pyrolysis_mode
 
-    # Configure default sweep temperatures based on pyrolysis mode
-    if config.pyrolysis_mode == 'ntec':
-        config.reactor_temperatures = (773.15, 800.0, 900.0, 1000.0)
-    else:
-        config.reactor_temperatures = (1000.0, 1100.0, 1200.0, 1300.0)
+    # Configure default sweep temperatures (500°C / 773.15 K to 1300 K) for both modes
+    config.reactor_temperatures = (773.15, 900.0, 1100.0, 1300.0)
 
     if config.quick_mode:
         config.initial_mace_samples = 50

@@ -146,11 +146,7 @@ def main():
             from pipeline.reactor_mechanisms import write_full_mechanism
             from pipeline.reactor_models import run_reactor_sweep
 
-            reactor_temps = (
-                [773.15, 800.0, 900.0, 1000.0]
-                if args.mode == "ntec"
-                else [1000.0, 1100.0, 1200.0, 1300.0]
-            )
+            reactor_temps = [773.15, 900.0, 1100.0, 1300.0]
 
             reactor_results = []
             n_reactor = min(20, len(top_catalysts))

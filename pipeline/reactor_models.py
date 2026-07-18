@@ -420,12 +420,7 @@ def run_reactor_sweep(catalyst_name: str, mechanism_file: str,
     Sweep operating conditions for a catalyst across temperatures and reactor types.
     """
     if temperatures is None:
-        import os
-        mode = os.environ.get('PYROLYSIS_MODE', 'ntec')
-        if mode == 'ntec':
-            temperatures = [773.15, 800.0, 900.0, 1000.0]
-        else:
-            temperatures = [1000.0, 1100.0, 1200.0, 1300.0]
+        temperatures = [773.15, 900.0, 1100.0, 1300.0]
     if reactor_types is None:
         reactor_types = ['MMBCR', 'PFR', 'Fluidized']
 

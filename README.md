@@ -43,18 +43,14 @@ Methane (CH₄) ──→ Phase 1-4: Catalyst Discovery ──→ H₂ + C(s)
 
 ### Turquoise Hydrogen Regimes: NTEC vs. Thermocatalytic Pyrolysis
 
-Methane splitting (pyrolysis) traditionally requires extremely high temperatures (up to 1300 K) due to the high activation barrier of the C-H bond. This pipeline supports dual-mode screening to optimize for both traditional and emergent pyrolysis reactors:
+Methane splitting (pyrolysis) traditionally requires high temperatures due to the high activation barrier of the C-H bond. This pipeline supports dual-mode screening to optimize for both regimes over a shared sweep range of **500°C (773.15 K) to 1300 K** (using points `[773.15, 900.0, 1100.0, 1300.0] K`):
 
 * **Nanotribo-Mechano-Electrochemical (NTEC) Pyrolysis (Default):**
-  - **Concept:** Low-temperature non-equilibrium methane conversion (**500°C / 773.15 K** to **1000 K**).
-  - **Mechanism:** Employs mechanical fluidization or shearing forces to create local triboelectric fields, facilitating C-H bond activation at lower thermal thresholds.
-  - **Reactor Sweeps:** Simulates sweep temperatures at `[773.15, 800.0, 900.0, 1000.0] K`.
+  - **Mechanism:** Employs mechanical fluidization or shearing forces to create local triboelectric fields, facilitating C-H bond activation.
   - **Coking Resistance:** Applies a `+3.0` coking index bonus for liquid-metal hosts (`Ga`, `In`, `Sn`, `Bi`), simulating the mechanical shear-induced carbon separation characteristics of molten metal columns.
 
 * **Thermocatalytic Pyrolysis:**
-  - **Concept:** Traditional thermal pyrolysis operating at high temperatures (**1000 K** to **1300 K**).
   - **Mechanism:** Standard thermochemical activation where carbon splitting is driven purely by bulk temperature and traditional solid/alloy surface kinetics.
-  - **Reactor Sweeps:** Simulates sweep temperatures at `[1000.0, 1100.0, 1200.0, 1300.0] K`.
   - **Coking Resistance:** No mechanical coking bonuses are applied, focusing the optimization on high-temperature phase stability and traditional activation barriers.
 
 ---
@@ -374,16 +370,12 @@ nohup /home/ilhanraja/miniconda3/envs/fairchem-env/bin/python -u run_production_
 
 ### Pyrolysis Modes: NTEC vs. Thermocatalytic
 
-The pipeline supports dual-mode screening of methane conversion mechanisms, toggled via the `--mode` flag:
+The pipeline supports dual-mode screening of methane conversion mechanisms, toggled via the `--mode` flag. Both modes sweep the same temperature range from **500°C (773.15 K) to 1300 K** (`[773.15, 900.0, 1100.0, 1300.0] K`):
 
 1. **NTEC Mode (Default):**
-   * **Target Range:** Low-temperature non-equilibrium conversion (**500°C / 773.15 K** to **1000 K**).
-   * **Reactor Sweeps:** Sweeps at `[773.15, 800.0, 900.0, 1000.0] K`.
    * **Catalyst Physics:** Applies a `+3.0` coking resistance index bonus for liquid-metal hosts (`Ga`, `In`, `Sn`, `Bi`), simulating mechanical shear-induced carbon separation under acoustic/shearing fields.
 
 2. **Thermocatalytic Mode:**
-   * **Target Range:** High-temperature thermal conversion (**1000 K** to **1300 K**).
-   * **Reactor Sweeps:** Sweeps at `[1000.0, 1100.0, 1200.0, 1300.0] K`.
    * **Catalyst Physics:** Standard thermal cracking without mechanical shear bonuses, prioritizing materials with high thermal stability and low activation energy.
 
 ### Single Phase Execution
