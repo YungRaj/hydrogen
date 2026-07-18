@@ -25,6 +25,43 @@ logger = setup_logger('pemfc_model', 'fuel_cell/pemfc_simulation.log')
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# CLASS-SPECIFIC TAFEL SLOPES (mV/decade)
+# ═══════════════════════════════════════════════════════════════════════════════
+# The Tafel slope reflects the ORR mechanism, which differs fundamentally
+# between catalyst classes. Using a single value distorts power rankings.
+# Sources: Nørskov et al. (2004), Jaouen et al. (2025), DOE AMR 2026.
+
+TAFEL_SLOPE_BY_CLASS = {
+    # PGM and PGM-derivative classes
+    'SolidCatalyst': 65.0,     # Pt-group nanoparticles, direct 4e⁻
+    'HEA': 70.0,               # Multi-metallic, mixed mechanism
+    'CoreShell': 63.0,         # Strained Pt shell, enhanced 4e⁻
+    'Intermetallic': 62.0,     # Ordered alloy, optimized d-band
+
+    # PGM-free single/dual atom
+    'SAC': 78.0,               # M-N₄ sites, 2+2e⁻ at low density → 4e⁻ at high
+    'DAC': 72.0,               # Dual sites facilitate 4e⁻ pathway
+    'SAA': 66.0,               # Single-atom alloy, near-PGM mechanism
+
+    # Oxide/framework classes
+    'Perovskite': 110.0,       # Bulk oxygen diffusion mechanism
+    'Spinel': 105.0,           # AB₂O₄, peroxide-mediated
+    'MOF': 85.0,               # Metal-organic, variable mechanism
+    'COF': 90.0,               # Covalent-organic, limited active sites
+
+    # Carbon-based
+    'MetalFreeCarbon': 130.0,  # Intrinsic N-doped carbon, surface-mediated 2e⁻
+
+    # Not typically used as ORR cathodes but included for completeness
+    'MoltenMetal': 70.0,       # N/A for ORR, default
+    'MetalHydride': 70.0,      # N/A for ORR, default
+    'MAXPhase': 85.0,          # Carbide surface sites
+    'MXene': 80.0,             # 2D carbide, functionalized surface
+}
+
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # PEMFC CELL CONFIGURATION
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -241,11 +278,18 @@ def simulate_pemfc(config: PEMFCConfig) -> Dict:
     return result
 
 
-def sweep_membranes(cathode_name: str, orr_eta: float, membranes: List[Dict] = None) -> List[Dict]:
-    """Sweep membrane types for a given cathode catalyst."""
+def sweep_membranes(cathode_name: str, orr_eta: float, membranes: List[Dict] = None,
+                    material_class: str = None) -> List[Dict]:
+    """Sweep membrane types for a given cathode catalyst.
+    
+    If material_class is provided, uses the class-specific Tafel slope
+    from TAFEL_SLOPE_BY_CLASS instead of the default 70 mV/dec.
+    """
     if membranes is None:
         from pipeline.fc_cathode_screener import MEMBRANE_TYPES
         membranes = MEMBRANE_TYPES
+
+    tafel = TAFEL_SLOPE_BY_CLASS.get(material_class, 70.0) if material_class else 70.0
 
     results = []
     for mem in membranes:
@@ -255,13 +299,16 @@ def sweep_membranes(cathode_name: str, orr_eta: float, membranes: List[Dict] = N
             membrane_thickness_m=mem['thickness_um'] * 1e-6,
             membrane_conductivity_S_m=mem['conductivity_S_cm'] * 100.0,
             orr_overpotential_V=orr_eta,
+            orr_tafel_slope_mV_dec=tafel,
         )
         result = simulate_pemfc(config)
         result['membrane_cost_usd_cm2'] = mem['cost_usd_cm2']
         result['power_per_dollar'] = result['peak_power_W_cm2'] / mem['cost_usd_cm2']
+        result['material_class'] = material_class or 'unknown'
         results.append(result)
 
     return results
+
 
 
 if __name__ == '__main__':

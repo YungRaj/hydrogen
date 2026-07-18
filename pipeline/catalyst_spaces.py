@@ -189,9 +189,25 @@ SAC_METALS = _safe([
 ])
 
 SAC_COORDINATIONS = [
+    # In-plane coordination environments
     'N4', 'N3C', 'N2C2', 'N3B', 'N3S', 'N3P', 'N2S2', 'N2O2',
     'N3O', 'N4_pyridine', 'N4_pyrrole', 'N2P2', 'N2Se2',
     'O4', 'S4', 'N2B2', 'C4', 'N3Se',
+]
+
+# Axial ligand variants — 2026 "dual-modulation" breakthrough
+# (Jaouen et al., July 2026: in-plane + axial coordination decoration)
+# Axial ligands modify the d-band center and spin state of the metal center
+SAC_AXIAL_LIGANDS = [
+    'none',       # bare M-Nx (standard)
+    'OH',         # hydroxyl — E₁/₂ = 0.91V for Fe-N4-OH (2026 record)
+    'O2',         # superoxo — stabilizes high-spin Fe³⁺
+    'Cl',         # chloride — from pyrolysis precursor
+    'NH3',        # amino — from ammonia treatment
+    'CO',         # carbonyl — from CO₂ activation
+    'H2O',        # aqua — operando coordination
+    'pyridine',   # N-heterocycle — second coordination shell effect
+    'imidazole',  # histidine-like — biomimetic coordination
 ]
 
 SAC_SUBSTRATES = [
@@ -202,11 +218,15 @@ SAC_SUBSTRATES = [
 
 
 def generate_sac_genome() -> tuple:
-    """Generate a random SAC genome."""
+    """Generate a random SAC genome.
+    
+    Genome: ('SAC', metal, coordination, substrate, axial_ligand)
+    """
     metal = random.choice(SAC_METALS)
     coord = random.choice(SAC_COORDINATIONS)
     substrate = random.choice(SAC_SUBSTRATES)
-    return ('SAC', metal, coord, substrate)
+    axial = random.choice(SAC_AXIAL_LIGANDS)
+    return ('SAC', metal, coord, substrate, axial)
 
 
 DAC_METALS_1 = SAC_METALS  # Full metal set for dual-atom site 1
@@ -381,26 +401,127 @@ def generate_hea_genome() -> tuple:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# I. SPINEL OXIDES (AB₂O₄) — bifunctional ORR/OER, earth-abundant
+# ═══════════════════════════════════════════════════════════════════════════════
+
+SPINEL_A_METALS = _safe(['Co', 'Mn', 'Ni', 'Fe', 'Cu', 'Zn', 'Mg', 'Li'])
+SPINEL_B_METALS = _safe(['Co', 'Mn', 'Fe', 'Cr', 'Al', 'Ti', 'V', 'Ni', 'Cu'])
+SPINEL_DOPANTS = _safe(['Ce', 'La', 'Y', 'Nb', 'Mo', 'W', 'Zr', 'None'])
+SPINEL_MORPHOLOGIES = ['nanoparticle', 'nanorod', 'nanosheet', 'mesoporous', 'hollow_sphere']
+SPINEL_SUPPORT_CARBONS = ['N-graphene', 'N-CNT', 'carbon_black', 'graphene_oxide', 'none']
+
+def generate_spinel_genome() -> tuple:
+    """Generate a random Spinel (AB₂O₄) genome.
+    
+    Genome: ('Spinel', A_metal, B_metal, dopant, morphology, support)
+    """
+    A = random.choice(SPINEL_A_METALS)
+    B = random.choice(SPINEL_B_METALS)
+    dopant = random.choice(SPINEL_DOPANTS)
+    morph = random.choice(SPINEL_MORPHOLOGIES)
+    support = random.choice(SPINEL_SUPPORT_CARBONS)
+    return ('Spinel', A, B, dopant, morph, support)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# J. MXENES (Mn+1XnTx) — 2D carbides/nitrides with surface terminations
+# ═══════════════════════════════════════════════════════════════════════════════
+
+MXENE_M_ELEMENTS = _safe(['Ti', 'V', 'Cr', 'Mo', 'Nb', 'Ta', 'Zr', 'Hf', 'W', 'Mn'])
+MXENE_X_ELEMENTS = ['C', 'N', 'CN']  # carbide, nitride, carbonitride
+MXENE_TERMINATIONS = ['OH', 'O', 'F', 'Cl', 'S', 'mixed_OH_O', 'mixed_OH_F', 'bare']
+MXENE_N_VALUES = [1, 2, 3]  # M2X, M3X2, M4X3
+MXENE_SAC_METALS = _safe(['Fe', 'Co', 'Ni', 'Cu', 'Mn', 'Pt', 'Pd', 'Ru', 'None'])
+
+def generate_mxene_genome() -> tuple:
+    """Generate a random MXene genome.
+    
+    Genome: ('MXene', M_element, X_element, n, termination, sac_metal)
+    MXenes are 2D sheets derived from MAX phases with distinct surface chemistry.
+    Optionally decorated with single-atom metal sites.
+    """
+    M = random.choice(MXENE_M_ELEMENTS)
+    X = random.choice(MXENE_X_ELEMENTS)
+    n = random.choice(MXENE_N_VALUES)
+    term = random.choice(MXENE_TERMINATIONS)
+    sac = random.choice(MXENE_SAC_METALS)
+    return ('MXene', M, X, n, term, sac)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# K. SINGLE-ATOM ALLOYS (SAAs) — trace PGM in abundant host
+# ═══════════════════════════════════════════════════════════════════════════════
+
+SAA_TRACE_METALS = _safe(['Pt', 'Pd', 'Rh', 'Ir', 'Ru', 'Au', 'Ag'])  # dispersed single atoms
+SAA_HOST_METALS = _safe(['Cu', 'Ni', 'Co', 'Fe', 'Ag', 'Au', 'Sn', 'In', 'Ga', 'Al'])
+SAA_FACETS = ['111', '100', '110', '211']
+SAA_LOADINGS_PPM = [100, 500, 1000, 2000, 5000, 10000]  # trace metal loading
+
+def generate_saa_genome() -> tuple:
+    """Generate a random Single-Atom Alloy genome.
+    
+    Genome: ('SAA', trace_metal, host_metal, facet, loading_ppm)
+    SAAs disperse isolated atoms of one metal in a host of another.
+    Distinct from SACs (which use N-carbon supports).
+    """
+    trace = random.choice(SAA_TRACE_METALS)
+    host = random.choice(SAA_HOST_METALS)
+    facet = random.choice(SAA_FACETS)
+    loading = random.choice(SAA_LOADINGS_PPM)
+    return ('SAA', trace, host, facet, loading)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# L. METAL-FREE N-CARBON — zero metal cost, intrinsic ORR activity
+# ═══════════════════════════════════════════════════════════════════════════════
+
+MFC_N_TYPES = ['pyridinic', 'pyrrolic', 'graphitic', 'oxidized', 'mixed_pyridinic_graphitic']
+MFC_N_FRACTIONS = [0.01, 0.02, 0.04, 0.06, 0.08, 0.10, 0.15, 0.20]
+MFC_DEFECT_TYPES = ['none', 'Stone_Wales', 'divacancy', 'edge_zigzag', 'edge_armchair', 'pentagon_heptagon']
+MFC_SUBSTRATES = ['graphene', 'CNT', 'graphdiyne', 'porous_carbon', 'carbon_black', 'graphene_nanoribbon']
+MFC_DOPANTS = ['B', 'S', 'P', 'F', 'none']  # co-dopants with nitrogen
+
+def generate_mfc_genome() -> tuple:
+    """Generate a random Metal-Free N-Carbon genome.
+    
+    Genome: ('MetalFreeCarbon', n_type, n_fraction, defect, substrate, co_dopant)
+    Pure N-doped carbon without any metal center — zero catalyst cost.
+    """
+    n_type = random.choice(MFC_N_TYPES)
+    n_frac = random.choice(MFC_N_FRACTIONS)
+    defect = random.choice(MFC_DEFECT_TYPES)
+    substrate = random.choice(MFC_SUBSTRATES)
+    co_dop = random.choice(MFC_DOPANTS)
+    return ('MetalFreeCarbon', n_type, n_frac, defect, substrate, co_dop)
+
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # UNIFIED INTERFACE
 # ═══════════════════════════════════════════════════════════════════════════════
 
 ALL_MATERIAL_CLASSES = [
     'MoltenMetal', 'SolidCatalyst', 'SAC', 'DAC',
     'MOF', 'COF', 'Perovskite', 'MetalHydride', 'MAXPhase', 'HEA',
+    'Spinel', 'MXene', 'SAA', 'MetalFreeCarbon',
 ]
 
 # Weights for random generation — balanced across all classes
 CLASS_WEIGHTS = {
-    'MoltenMetal': 0.15,     # Primary focus for turquoise H₂
-    'SolidCatalyst': 0.15,   # Well-established technology
-    'SAC': 0.12,             # Emerging, high potential
-    'DAC': 0.10,             # Cutting-edge
-    'MOF': 0.10,             # Porous frameworks
-    'COF': 0.08,             # Covalent frameworks
-    'Perovskite': 0.10,      # ABO₃ oxides
-    'MetalHydride': 0.08,    # H₂ storage & decomposition
-    'MAXPhase': 0.06,        # Layered ternary ceramics
-    'HEA': 0.06,             # High-entropy alloys
+    'MoltenMetal': 0.12,       # Primary focus for turquoise H₂
+    'SolidCatalyst': 0.10,     # Well-established technology
+    'SAC': 0.12,               # 2026 breakthrough class (with axial ligands)
+    'DAC': 0.08,               # Cutting-edge dual-atom
+    'MOF': 0.06,               # Porous frameworks
+    'COF': 0.05,               # Covalent frameworks
+    'Perovskite': 0.06,        # ABO₃ oxides
+    'MetalHydride': 0.05,      # H₂ storage & decomposition
+    'MAXPhase': 0.04,          # Layered ternary ceramics
+    'HEA': 0.06,               # High-entropy alloys
+    'Spinel': 0.08,            # AB₂O₄ bifunctional — proven ORR/OER
+    'MXene': 0.06,             # 2D carbides — high surface area
+    'SAA': 0.06,               # Single-atom alloys — ultra-low PGM
+    'MetalFreeCarbon': 0.06,   # Zero-cost metal-free ORR
 }
 
 GENERATORS = {
@@ -414,6 +535,10 @@ GENERATORS = {
     'MetalHydride': generate_hydride_genome,
     'MAXPhase': generate_max_genome,
     'HEA': generate_hea_genome,
+    'Spinel': generate_spinel_genome,
+    'MXene': generate_mxene_genome,
+    'SAA': generate_saa_genome,
+    'MetalFreeCarbon': generate_mfc_genome,
 }
 
 
@@ -448,7 +573,9 @@ _ALL_METALS = sorted(set(
     SAC_METALS + DAC_METALS_1 + DAC_METALS_2 + MOF_METAL_NODES +
     PEROVSKITE_A_SITE + PEROVSKITE_B_SITE +
     HYDRIDE_METALS + MAX_M_ELEMENTS + MAX_A_ELEMENTS +
-    HEA_ELEMENTS + ['None']
+    HEA_ELEMENTS + SPINEL_A_METALS + SPINEL_B_METALS +
+    MXENE_M_ELEMENTS + MXENE_SAC_METALS +
+    SAA_TRACE_METALS + SAA_HOST_METALS + ['None']
 ))
 _METAL_IDX = {m: i for i, m in enumerate(_ALL_METALS)}
 
@@ -460,7 +587,11 @@ _ALL_FACETS_LINKERS = sorted(set(
 ))
 _FACET_LINKER_IDX = {f: i for i, f in enumerate(_ALL_FACETS_LINKERS)}
 
-_ALL_COORDS = sorted(set(SAC_COORDINATIONS + DAC_COORDINATIONS + MOF_CAVITIES))
+_ALL_COORDS = sorted(set(
+    SAC_COORDINATIONS + DAC_COORDINATIONS + MOF_CAVITIES +
+    SAC_AXIAL_LIGANDS + MXENE_TERMINATIONS +
+    MFC_N_TYPES + MFC_DEFECT_TYPES + SPINEL_MORPHOLOGIES
+))
 _COORD_IDX = {c: i for i, c in enumerate(_ALL_COORDS)}
 
 _ALL_DOPANTS = sorted(set(SOLID_DOPANTS))
@@ -535,13 +666,19 @@ def encode_genome(genome: tuple) -> np.ndarray:
         cont[3] = n_vac / 2.0
 
     elif mat_class == 'SAC':
-        _, metal, coord, substrate = genome
+        metal = genome[1]
+        coord = genome[2]
+        substrate = genome[3]
+        axial = genome[4] if len(genome) > 4 else 'none'
         if metal in _METAL_IDX:
             metal1_vec[_METAL_IDX[metal]] = 1.0
         if coord in _COORD_IDX:
             coord_vec[_COORD_IDX[coord]] = 1.0
         if substrate in _SUPPORT_IDX:
             support_vec[_SUPPORT_IDX[substrate]] = 1.0
+        # Encode axial ligand as a second coordination feature
+        if axial in _COORD_IDX:
+            coord_vec[_COORD_IDX[axial]] = 0.5  # half weight to distinguish from in-plane
 
     elif mat_class == 'DAC':
         _, m1, m2, coord, substrate = genome
@@ -621,6 +758,53 @@ def encode_genome(genome: tuple) -> np.ndarray:
         cont[1] = _hea_facet_map.get(facet, 0.0)
         cont[3] = (temp - 900.0) / 400.0  # normalized temperature
 
+    elif mat_class == 'Spinel':
+        _, A, B, dopant, morph, support = genome
+        if A in _METAL_IDX:
+            metal1_vec[_METAL_IDX[A]] = 1.0
+        if B in _METAL_IDX:
+            metal2_vec[_METAL_IDX[B]] = 1.0
+        if dopant in _DOPANT_IDX:
+            dop_vec[_DOPANT_IDX[dopant]] = 1.0
+        if morph in _COORD_IDX:
+            coord_vec[_COORD_IDX[morph]] = 1.0
+        if support in _SUPPORT_IDX:
+            support_vec[_SUPPORT_IDX[support]] = 1.0
+
+    elif mat_class == 'MXene':
+        _, M, X, n, term, sac_metal = genome
+        if M in _METAL_IDX:
+            metal1_vec[_METAL_IDX[M]] = 1.0
+        if sac_metal in _METAL_IDX:
+            metal2_vec[_METAL_IDX[sac_metal]] = 1.0
+        if term in _COORD_IDX:
+            coord_vec[_COORD_IDX[term]] = 1.0
+        cont[0] = 1.0 if X == 'N' else (0.5 if X == 'CN' else 0.0)
+        cont[1] = n / 3.0
+
+    elif mat_class == 'SAA':
+        _, trace, host, facet, loading = genome
+        if trace in _METAL_IDX:
+            metal1_vec[_METAL_IDX[trace]] = 1.0
+        if host in _METAL_IDX:
+            metal2_vec[_METAL_IDX[host]] = 1.0
+        _saa_facet_map = {'111': 0.0, '100': 0.33, '110': 0.67, '211': 1.0}
+        cont[0] = _saa_facet_map.get(facet, 0.0)
+        cont[1] = loading / 10000.0  # normalized loading
+
+    elif mat_class == 'MetalFreeCarbon':
+        _, n_type, n_frac, defect, substrate, co_dop = genome
+        # No metal encoding — this is the point
+        if n_type in _COORD_IDX:
+            coord_vec[_COORD_IDX[n_type]] = 1.0
+        if defect in _COORD_IDX:
+            coord_vec[_COORD_IDX[defect]] = 0.5
+        if substrate in _SUPPORT_IDX:
+            support_vec[_SUPPORT_IDX[substrate]] = 1.0
+        cont[0] = n_frac / 0.20  # normalized N fraction
+        _codop_map = {'B': 0.2, 'S': 0.4, 'P': 0.6, 'F': 0.8, 'none': 0.0}
+        cont[1] = _codop_map.get(co_dop, 0.0)
+
     return np.concatenate([
         cls_vec, metal1_vec, metal2_vec, support_vec,
         facet_vec, coord_vec, dop_vec, cont
@@ -698,13 +882,18 @@ def mutate(genome: tuple, rate: float = 0.2) -> tuple:
             genes[7] = random.randint(0, 2)
 
     elif mat_class == 'SAC':
-        gene_idx = random.randint(1, 3)
+        gene_idx = random.randint(1, 4)
         if gene_idx == 1:
             genes[1] = random.choice(SAC_METALS)
         elif gene_idx == 2:
             genes[2] = random.choice(SAC_COORDINATIONS)
         elif gene_idx == 3:
             genes[3] = random.choice(SAC_SUBSTRATES)
+        elif gene_idx == 4:
+            if len(genes) > 4:
+                genes[4] = random.choice(SAC_AXIAL_LIGANDS)
+            else:
+                genes.append(random.choice(SAC_AXIAL_LIGANDS))
 
     elif mat_class == 'DAC':
         gene_idx = random.randint(1, 4)
@@ -781,6 +970,56 @@ def mutate(genome: tuple, rate: float = 0.2) -> tuple:
         elif gene_idx == 4:
             genes[4] = random.choice([800, 900, 1000, 1100, 1200, 1300])
 
+    elif mat_class == 'Spinel':
+        gene_idx = random.randint(1, 5)
+        if gene_idx == 1:
+            genes[1] = random.choice(SPINEL_A_METALS)
+        elif gene_idx == 2:
+            genes[2] = random.choice(SPINEL_B_METALS)
+        elif gene_idx == 3:
+            genes[3] = random.choice(SPINEL_DOPANTS)
+        elif gene_idx == 4:
+            genes[4] = random.choice(SPINEL_MORPHOLOGIES)
+        elif gene_idx == 5:
+            genes[5] = random.choice(SPINEL_SUPPORT_CARBONS)
+
+    elif mat_class == 'MXene':
+        gene_idx = random.randint(1, 5)
+        if gene_idx == 1:
+            genes[1] = random.choice(MXENE_M_ELEMENTS)
+        elif gene_idx == 2:
+            genes[2] = random.choice(MXENE_X_ELEMENTS)
+        elif gene_idx == 3:
+            genes[3] = random.choice(MXENE_N_VALUES)
+        elif gene_idx == 4:
+            genes[4] = random.choice(MXENE_TERMINATIONS)
+        elif gene_idx == 5:
+            genes[5] = random.choice(MXENE_SAC_METALS)
+
+    elif mat_class == 'SAA':
+        gene_idx = random.randint(1, 4)
+        if gene_idx == 1:
+            genes[1] = random.choice(SAA_TRACE_METALS)
+        elif gene_idx == 2:
+            genes[2] = random.choice(SAA_HOST_METALS)
+        elif gene_idx == 3:
+            genes[3] = random.choice(SAA_FACETS)
+        elif gene_idx == 4:
+            genes[4] = random.choice(SAA_LOADINGS_PPM)
+
+    elif mat_class == 'MetalFreeCarbon':
+        gene_idx = random.randint(1, 5)
+        if gene_idx == 1:
+            genes[1] = random.choice(MFC_N_TYPES)
+        elif gene_idx == 2:
+            genes[2] = random.choice(MFC_N_FRACTIONS)
+        elif gene_idx == 3:
+            genes[3] = random.choice(MFC_DEFECT_TYPES)
+        elif gene_idx == 4:
+            genes[4] = random.choice(MFC_SUBSTRATES)
+        elif gene_idx == 5:
+            genes[5] = random.choice(MFC_DOPANTS)
+
     return tuple(genes)
 
 
@@ -801,7 +1040,10 @@ def estimate_design_space_size() -> Dict[str, int]:
             len(SOLID_FACETS) * 20 *  # strain discretized to 20 bins
             (len(SOLID_DOPANTS) ** 2) * 4 * 3  # dopant combos × subs × vacs
         ),
-        'SAC': len(SAC_METALS) * len(SAC_COORDINATIONS) * len(SAC_SUBSTRATES),
+        'SAC': (
+            len(SAC_METALS) * len(SAC_COORDINATIONS) *
+            len(SAC_SUBSTRATES) * len(SAC_AXIAL_LIGANDS)
+        ),
         'DAC': (
             len(DAC_METALS_1) * len(DAC_METALS_2) *
             len(DAC_COORDINATIONS) * len(SAC_SUBSTRATES)
@@ -833,6 +1075,25 @@ def estimate_design_space_size() -> Dict[str, int]:
             (comb(len(HEA_ELEMENTS), 4) + comb(len(HEA_ELEMENTS), 5) +
              comb(len(HEA_ELEMENTS), 6)) *
             len(HEA_STRUCTURES) * 4 * 6
+        ),
+        'Spinel': (
+            len(SPINEL_A_METALS) * len(SPINEL_B_METALS) *
+            len(SPINEL_DOPANTS) * len(SPINEL_MORPHOLOGIES) *
+            len(SPINEL_SUPPORT_CARBONS)
+        ),
+        'MXene': (
+            len(MXENE_M_ELEMENTS) * len(MXENE_X_ELEMENTS) *
+            len(MXENE_N_VALUES) * len(MXENE_TERMINATIONS) *
+            len(MXENE_SAC_METALS)
+        ),
+        'SAA': (
+            len(SAA_TRACE_METALS) * len(SAA_HOST_METALS) *
+            len(SAA_FACETS) * len(SAA_LOADINGS_PPM)
+        ),
+        'MetalFreeCarbon': (
+            len(MFC_N_TYPES) * len(MFC_N_FRACTIONS) *
+            len(MFC_DEFECT_TYPES) * len(MFC_SUBSTRATES) *
+            len(MFC_DOPANTS)
         ),
     }
     sizes['TOTAL'] = sum(sizes.values())
