@@ -30,7 +30,7 @@ from pipeline.catalyst_spaces import (
     generate_population, crossover, mutate, encode_genome, encode_population,
     ALL_MATERIAL_CLASSES, FEATURE_DIM,
 )
-from pipeline.surrogate_model import CatalystSurrogate, train_surrogate, predict_batch
+import torch
 
 logger = setup_logger('fc_genetic_optimizer', 'fuel_cell/fc_genetic_optimizer.log')
 
@@ -51,12 +51,61 @@ class FCGAConfig:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# ORR-SPECIFIC OBJECTIVES
+# ORR-SPECIFIC OBJECTIVES & SURROGATE DEFINITIONS
 # ═══════════════════════════════════════════════════════════════════════════════
+
+class ORRCatalystSurrogate(torch.nn.Module):
+    """
+    Custom surrogate neural network for Fuel Cell ORR catalyst property prediction.
+    Shared backbone → validity, ORR overpotential, and binding stability heads.
+    """
+    def __init__(self, input_dim: int = FEATURE_DIM, hidden_dims: tuple = (512, 256, 128)):
+        super().__init__()
+        import torch.nn as nn
+        layers = []
+        prev_dim = input_dim
+        for h_dim in hidden_dims:
+            layers.extend([
+                nn.Linear(prev_dim, h_dim),
+                nn.BatchNorm1d(h_dim),
+                nn.GELU(),
+                nn.Dropout(0.1),
+            ])
+            prev_dim = h_dim
+        self.backbone = nn.Sequential(*layers)
+        self.head_valid = nn.Sequential(
+            nn.Linear(prev_dim, 32), nn.GELU(), nn.Linear(32, 1)
+        )
+        self.head_orr_eta = nn.Sequential(
+            nn.Linear(prev_dim, 32), nn.GELU(), nn.Linear(32, 1)
+        )
+        self.head_binding = nn.Sequential(
+            nn.Linear(prev_dim, 32), nn.GELU(), nn.Linear(32, 1)
+        )
+
+    def forward(self, x: torch.Tensor):
+        features = self.backbone(x)
+        valid_logit = self.head_valid(features)
+        orr_eta = self.head_orr_eta(features)
+        binding = self.head_binding(features)
+        return valid_logit, orr_eta, binding
+
+
+def _fenton_from_genome(genome: tuple) -> float:
+    """Compute Fenton stability score from genome elements."""
+    elements = _extract_elements_from_genome(genome)
+    fenton_risk = 0
+    for e in elements:
+        if e == 'Fe':
+            fenton_risk += 3
+        elif e in ('Cu', 'Co'):
+            fenton_risk += 1
+    return float(max(0, 10 - fenton_risk))
+
 
 def compute_orr_objectives_surrogate(population: List[tuple], model, device: str) -> np.ndarray:
     """
-    Compute 4 ORR objectives for a population using the surrogate NN.
+    Compute 4 ORR objectives for a population using the ORR surrogate NN.
 
     Objectives (all minimized):
       0: ORR overpotential (η) — lower is better
@@ -72,21 +121,19 @@ def compute_orr_objectives_surrogate(population: List[tuple], model, device: str
 
     model.eval()
     with torch.no_grad():
-        preds = model(X)
+        valid_logit, pred_eta, pred_binding = model(X)
 
     n = len(population)
     objectives = np.zeros((n, 4))
 
-    # The surrogate outputs: [valid_prob, dG_OH, orr_eta, fenton_stability]
-    p_valid = torch.sigmoid(preds[:, 0]).cpu().numpy()
-    pred_eta = preds[:, 1].cpu().numpy()
-    pred_fenton = preds[:, 2].cpu().numpy()
-    pred_binding = preds[:, 3].cpu().numpy()
+    p_valid = torch.sigmoid(valid_logit).cpu().numpy().flatten()
+    pred_eta = pred_eta.cpu().numpy().flatten()
+    pred_binding = pred_binding.cpu().numpy().flatten()
 
     for i in range(n):
         if p_valid[i] > 0.3:
             objectives[i, 0] = pred_eta[i]         # minimize overpotential
-            objectives[i, 1] = -pred_fenton[i]      # minimize -fenton (maximize stability)
+            objectives[i, 1] = -_fenton_from_genome(population[i]) # minimize -fenton (maximize stability)
             objectives[i, 2] = _cost_from_genome(population[i])
             objectives[i, 3] = -pred_binding[i]     # minimize -binding (maximize durability)
         else:
@@ -224,8 +271,10 @@ def nsga2_select(population, objectives, n_select):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def _train_orr_surrogate(db: pd.DataFrame, device: str):
-    """Train surrogate NN from ORR MACE screening data."""
+    """Train ORR surrogate NN from ORR MACE screening data."""
     import torch
+    import torch.nn as nn
+    from torch.utils.data import DataLoader, TensorDataset
 
     valid_mask = db['valid'] == True
     valid_db = db[valid_mask].copy()
@@ -244,7 +293,7 @@ def _train_orr_surrogate(db: pd.DataFrame, device: str):
             genomes.append(None)
 
     features = []
-    targets = []  # [valid, orr_eta, fenton, binding]
+    targets = []  # [valid, orr_eta, binding]
 
     for i, g in enumerate(genomes):
         if g is None:
@@ -254,21 +303,54 @@ def _train_orr_surrogate(db: pd.DataFrame, device: str):
             row = db.iloc[i]
             valid = 1.0 if row.get('valid', False) else 0.0
             eta = float(row.get('orr_overpotential_V', 5.0)) if valid else 5.0
-            fenton = float(row.get('fenton_stability', 5.0)) if valid else 0.0
             binding = float(row.get('binding_strength', 0.0)) if valid else 0.0
             features.append(feat)
-            targets.append([valid, eta, fenton, binding])
+            targets.append([valid, eta, binding])
         except Exception:
             continue
 
     if len(features) < 20:
         return None
 
-    X = torch.FloatTensor(np.array(features)).to(device)
-    Y = torch.FloatTensor(np.array(targets)).to(device)
+    X = np.array(features)
+    Y = np.array(targets)
 
-    model = CatalystSurrogate(input_dim=FEATURE_DIM, output_dim=4).to(device)
-    model = train_surrogate(model, X, Y, epochs=200, lr=1e-3)
+    # Train ORR surrogate
+    model = ORRCatalystSurrogate(input_dim=FEATURE_DIM).to(device)
+
+    X_t = torch.tensor(X, dtype=torch.float32).to(device)
+    y_val_t = torch.tensor(Y[:, 0], dtype=torch.float32).unsqueeze(1).to(device)
+    y_eta_t = torch.tensor(Y[:, 1], dtype=torch.float32).unsqueeze(1).to(device)
+    y_bind_t = torch.tensor(Y[:, 2], dtype=torch.float32).unsqueeze(1).to(device)
+
+    dataset = TensorDataset(X_t, y_val_t, y_eta_t, y_bind_t)
+    loader = DataLoader(dataset, batch_size=256, shuffle=True)
+
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-4)
+    bce_loss = nn.BCEWithLogitsLoss()
+    mse_loss = nn.MSELoss()
+
+    model.train()
+    for epoch in range(100):
+        for batch in loader:
+            bX, bV, bE, bB = batch
+            optimizer.zero_grad()
+            valid_logit, pred_eta, pred_binding = model(bX)
+
+            loss_v = bce_loss(valid_logit, bV)
+            mask = (bV > 0.5).squeeze()
+            if mask.sum() > 0:
+                # Limit slicing indexing issues by checking dimension
+                loss_e = mse_loss(pred_eta.squeeze(-1)[mask], bE.squeeze(-1)[mask])
+                loss_b = mse_loss(pred_binding.squeeze(-1)[mask], bB.squeeze(-1)[mask])
+                loss = loss_v + 2.0 * (loss_e + loss_b)
+            else:
+                loss = loss_v
+
+            loss.backward()
+            optimizer.step()
+
+    model.eval()
     logger.info(f"ORR surrogate trained on {len(features)} samples")
     return model
 
