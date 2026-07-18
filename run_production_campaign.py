@@ -26,18 +26,18 @@ def main():
     parser = argparse.ArgumentParser(
         description='GPU-Saturated Turquoise H₂ Catalyst Discovery v2'
     )
-    parser.add_argument('--pop', type=int, default=1000,
-                        help='GA population (default: 1000)')
-    parser.add_argument('--gens', type=int, default=3000,
-                        help='Total generations (default: 3000)')
+    parser.add_argument('--pop', type=int, default=2000,
+                        help='GA population size (default: 2000)')
+    parser.add_argument('--gens', type=int, default=0,
+                        help='Total generations. 0 = unlimited (default: 0)')
     parser.add_argument('--mace-batch', type=int, default=500,
                         help='Initial MACE batch (default: 500)')
     parser.add_argument('--mace-per-round', type=int, default=500,
                         help='MACE evaluations per validation round (default: 500)')
     parser.add_argument('--mace-interval', type=int, default=5,
                         help='Generations between MACE rounds (default: 5)')
-    parser.add_argument('--hours', type=float, default=48.0,
-                        help='Max wall-clock hours (default: 48)')
+    parser.add_argument('--hours', type=float, default=0,
+                        help='Max wall-clock hours. 0 = unlimited (default: 0)')
     parser.add_argument('--top-k', type=int, default=200,
                         help='Top-K for reactor simulation (default: 200)')
     parser.add_argument('--no-dft', action='store_true')
@@ -97,7 +97,11 @@ def main():
         print(f"    {cls:20s}: {sizes[cls]:>15,}")
 
     t_start = time.time()
-    t_deadline = t_start + args.hours * 3600
+    t_deadline = t_start + args.hours * 3600 if args.hours > 0 else float('inf')
+
+    # Unlimited mode: 0 means "no cap"
+    if args.gens == 0:
+        args.gens = 1_000_000_000  # effectively unlimited
 
     # ─── Campaign Provenance (reproducibility metadata) ──────────────────
     def _get_git_sha():
@@ -291,10 +295,11 @@ def main():
         print_banner("PHASE 5: FUEL CELL ORR — GA + META ESEN-SM (25.3B DESIGN SPACE)")
         t5 = time.time()
 
-        remaining_hours = (t_deadline - time.time()) / 3600
+        remaining_hours = (t_deadline - time.time()) / 3600 if t_deadline != float('inf') else float('inf')
         # Allocate 60% of remaining time to FC screening, 40% to PEMFC/stack
         fc_gens = max(1, int(args.gens * 0.5))  # Half the gens of methane
-        print(f"  Remaining time: {remaining_hours:.1f}h")
+        time_str = f"{remaining_hours:.1f}h" if remaining_hours != float('inf') else "unlimited"
+        print(f"  Remaining time: {time_str}")
         print(f"  FC-GA: {fc_gens} generations, pop={args.pop}")
         print(f"  Same 25.3B design space, ORR-specific objectives")
 
