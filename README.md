@@ -354,6 +354,21 @@ nohup /home/ilhanraja/miniconda3/envs/fairchem-env/bin/python -u run_production_
 | `--top-k` | 200 | Top-K catalysts forwarded to reactor simulation |
 | `--no-dft` | false | Skip Quantum ESPRESSO phase |
 | `--no-vqe` | false | Skip CUDA-Q VQE phase |
+| `--mode` | `ntec` | Pyrolysis mode: `ntec` (nanotriboelectric) or `thermocatalytic` |
+
+### Pyrolysis Modes: NTEC vs. Thermocatalytic
+
+The pipeline supports dual-mode screening of methane conversion mechanisms, toggled via the `--mode` flag:
+
+1. **NTEC Mode (Default):**
+   * **Target Range:** Low-temperature non-equilibrium conversion (**500°C / 773.15 K** to **1000 K**).
+   * **Reactor Sweeps:** Sweeps at `[773.15, 800.0, 900.0, 1000.0] K`.
+   * **Catalyst Physics:** Applies a `+3.0` coking resistance index bonus for liquid-metal hosts (`Ga`, `In`, `Sn`, `Bi`), simulating mechanical shear-induced carbon separation under acoustic/shearing fields.
+
+2. **Thermocatalytic Mode:**
+   * **Target Range:** High-temperature thermal conversion (**1000 K** to **1300 K**).
+   * **Reactor Sweeps:** Sweeps at `[1000.0, 1100.0, 1200.0, 1300.0] K`.
+   * **Catalyst Physics:** Standard thermal cracking without mechanical shear bonuses, prioritizing materials with high thermal stability and low activation energy.
 
 ### Single Phase Execution
 
