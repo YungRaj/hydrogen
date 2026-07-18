@@ -385,6 +385,44 @@ def test_ood_nsga2_integration():
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# 13. EXHAUSTIVE COVERAGE — NO CLASS GETS PRUNED
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def test_all_elements_in_abundance_table():
+    from pipeline.catalyst_spaces import generate_random_genome
+    from pipeline.fc_genetic_optimizer import _extract_elements_from_genome
+    from pipeline.utils import CRUSTAL_ABUNDANCE_PPM
+    missing = set()
+    for _ in range(3000):
+        g = generate_random_genome()
+        for e in _extract_elements_from_genome(g):
+            if e not in CRUSTAL_ABUNDANCE_PPM:
+                missing.add(e)
+    assert not missing, f"Elements missing from CRUSTAL_ABUNDANCE: {sorted(missing)}"
+
+
+def test_all_elements_in_price_table():
+    from pipeline.catalyst_spaces import generate_random_genome
+    from pipeline.fc_genetic_optimizer import _extract_elements_from_genome
+    from pipeline.utils import METAL_PRICE_USD_KG
+    missing = set()
+    for _ in range(3000):
+        g = generate_random_genome()
+        for e in _extract_elements_from_genome(g):
+            if e not in METAL_PRICE_USD_KG:
+                missing.add(e)
+    assert not missing, f"Elements missing from METAL_PRICE_USD_KG: {sorted(missing)}"
+
+
+def test_all_classes_viable_both_applications():
+    from pipeline.catalyst_spaces import ALL_MATERIAL_CLASSES
+    from pipeline.utils import VALID_CLASSES_PYROLYSIS, VALID_CLASSES_FUEL_CELL
+    for cls in ALL_MATERIAL_CLASSES:
+        assert cls in VALID_CLASSES_PYROLYSIS, f"{cls} excluded from pyrolysis"
+        assert cls in VALID_CLASSES_FUEL_CELL, f"{cls} excluded from fuel cell"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # RUN ALL
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -446,6 +484,11 @@ if __name__ == '__main__':
     test("Low confidence for OOD classes", test_ood_low_confidence_ood)
     test("Penalty scales objectives", test_ood_penalty_scales_objectives)
     test("Confidence in NSGA-II", test_ood_nsga2_integration)
+
+    print("\n── Exhaustive Coverage ──")
+    test("All elements in abundance table", test_all_elements_in_abundance_table)
+    test("All elements in price table", test_all_elements_in_price_table)
+    test("All 14 classes viable both apps", test_all_classes_viable_both_applications)
 
     elapsed = time.time() - t0
     print(f"\n{'=' * 60}")

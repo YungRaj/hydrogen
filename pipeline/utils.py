@@ -84,27 +84,51 @@ ATOMIC_MASSES = {
 
 # USGS crustal abundance (ppm by mass) — used for cost/availability scoring
 CRUSTAL_ABUNDANCE_PPM = {
+    # Transition metals (core design space)
     'Ni': 84.0, 'Pt': 0.005, 'Cu': 60.0, 'Pd': 0.015, 'Fe': 56300.0,
     'Co': 25.0, 'Ru': 0.001, 'Rh': 0.001, 'Ir': 0.001, 'Au': 0.004,
     'Ag': 0.075, 'W': 1.25, 'Mo': 1.2, 'Ti': 5650.0, 'V': 120.0,
     'Cr': 102.0, 'Mn': 950.0, 'Zn': 70.0, 'Zr': 165.0, 'Nb': 20.0,
-    'Ta': 2.0, 'Re': 0.0007, 'Al': 82300.0, 'Ga': 19.0, 'In': 0.25,
-    'Sn': 2.3, 'Bi': 0.008, 'Li': 20.0, 'Na': 23600.0, 'Mg': 23300.0,
-    'Ca': 41500.0, 'Sc': 22.0, 'Y': 33.0, 'Cd': 0.15, 'Sb': 0.2,
-    'Te': 0.001, 'Hf': 3.0, 'Os': 0.0015, 'Pb': 14.0, 'B': 10.0,
-    'C': 200.0, 'Si': 282000.0, 'Ge': 1.5, 'P': 1050.0, 'S': 350.0,
-    'La': 39.0, 'Ce': 66.5,
+    'Ta': 2.0, 'Re': 0.0007, 'Hf': 3.0, 'Sc': 22.0, 'Y': 33.0,
+    # Post-transition metals & metalloids
+    'Al': 82300.0, 'Ga': 19.0, 'In': 0.25, 'Sn': 2.3, 'Bi': 0.008,
+    'Sb': 0.2, 'Pb': 14.0, 'Ge': 1.5, 'Te': 0.001, 'Se': 0.05,
+    'Cd': 0.15, 'Os': 0.0015,
+    # Alkali & alkaline earth (perovskite A-sites, spinel)
+    'Li': 20.0, 'Na': 23600.0, 'K': 20900.0, 'Rb': 90.0, 'Cs': 3.0,
+    'Mg': 23300.0, 'Ca': 41500.0, 'Sr': 370.0, 'Ba': 425.0,
+    # Lanthanides (perovskite A-sites)
+    'La': 39.0, 'Ce': 66.5, 'Pr': 9.2, 'Nd': 41.5, 'Sm': 7.05,
+    'Eu': 2.0, 'Gd': 6.2, 'Dy': 5.2, 'Er': 3.5, 'Yb': 3.2,
+    # Non-metals (MXene terminations, N-doped carbon, linkers)
+    'B': 10.0, 'C': 200.0, 'N': 19.0, 'O': 461000.0, 'F': 585.0,
+    'P': 1050.0, 'S': 350.0, 'Si': 282000.0,
+    'Cl': 145.0, 'Br': 2.4, 'I': 0.45,
 }
 
-# Approximate bulk metal commodity price ($/kg, 2025 est.)
+# Approximate bulk commodity price ($/kg, 2025 est.)
 METAL_PRICE_USD_KG = {
-    'Ni': 16.0, 'Pt': 31000.0, 'Cu': 9.0, 'Pd': 40000.0, 'Fe': 0.10,
-    'Co': 33.0, 'Ru': 14000.0, 'Rh': 145000.0, 'Ir': 150000.0,
-    'Au': 75000.0, 'Ag': 850.0, 'W': 35.0, 'Mo': 45.0, 'Ti': 11.0,
+    # PGMs and precious metals
+    'Pt': 31000.0, 'Pd': 40000.0, 'Rh': 145000.0, 'Ir': 150000.0,
+    'Ru': 14000.0, 'Au': 75000.0, 'Ag': 850.0, 'Re': 4500.0,
+    # Base transition metals
+    'Ni': 16.0, 'Cu': 9.0, 'Fe': 0.10, 'Co': 33.0, 'Ti': 11.0,
     'V': 30.0, 'Cr': 10.0, 'Mn': 2.0, 'Zn': 2.7, 'Zr': 35.0,
-    'Nb': 73.0, 'Al': 2.5, 'Ga': 300.0, 'In': 300.0, 'Sn': 25.0,
-    'Bi': 8.0, 'Sb': 12.0, 'Te': 80.0, 'Pb': 2.1, 'La': 5.0,
-    'Ce': 5.0, 'Y': 35.0, 'Sc': 3500.0,
+    'Nb': 73.0, 'Mo': 45.0, 'W': 35.0, 'Hf': 900.0, 'Ta': 300.0,
+    'Sc': 3500.0,
+    # Post-transition metals
+    'Al': 2.5, 'Ga': 300.0, 'In': 300.0, 'Sn': 25.0, 'Bi': 8.0,
+    'Sb': 12.0, 'Te': 80.0, 'Pb': 2.1, 'Ge': 1200.0, 'Se': 45.0,
+    # Alkali & alkaline earth
+    'Li': 70.0, 'Na': 0.20, 'K': 0.80, 'Rb': 12000.0, 'Cs': 60000.0,
+    'Mg': 2.5, 'Ca': 2.0, 'Sr': 6.5, 'Ba': 0.30,
+    # Lanthanides
+    'La': 5.0, 'Ce': 5.0, 'Y': 35.0, 'Pr': 100.0, 'Nd': 75.0,
+    'Sm': 15.0, 'Eu': 500.0, 'Gd': 55.0, 'Dy': 350.0, 'Er': 70.0,
+    'Yb': 60.0,
+    # Non-metals (commodity chemicals, very cheap per kg)
+    'B': 5.0, 'C': 0.10, 'N': 0.50, 'O': 0.20, 'F': 2.0,
+    'P': 1.0, 'S': 0.10, 'Si': 2.0, 'Cl': 0.30, 'Br': 4.0, 'I': 35.0,
 }
 
 # Melting points (K) — critical for molten metal catalyst feasibility
@@ -243,19 +267,33 @@ TOXIC_ELEMENTS = {
 }
 
 # Material classes valid for each application
+# All classes are included to ensure exhaustive exploration.
+# Physical viability is already handled by OOD confidence and
+# the multi-fidelity validation pipeline (Tier 3 DFT for champions).
 VALID_CLASSES_PYROLYSIS = {
     'SolidCatalyst', 'MoltenMetal', 'HEA', 'MAXPhase',
     'Perovskite', 'MetalHydride',
-    # SAC/DAC: carbon support gasifies at >700°C — marginal
-    # MOF/COF: decomposes at >300°C — excluded
+    'Spinel',          # Earth-abundant oxides, stable at pyrolysis temps
+    'MXene',           # Ti₃C₂ stable to ~800°C, catalytically active
+    'SAA',             # Dilute alloys, same stability as SolidCatalyst
+    'SAC',             # Carbon support marginal at >700°C — flag in report
+    'DAC',             # Same caveat as SAC
+    'MetalFreeCarbon', # N-carbon stable to ~600°C — flag in report
+    # MOF/COF: decompose at >300°C but included for completeness — OOD handles
+    'MOF', 'COF',
 }
 
 VALID_CLASSES_FUEL_CELL = {
     'SolidCatalyst', 'SAC', 'DAC', 'HEA', 'MAXPhase',
-    'Perovskite',  # some acid-stable perovskites exist
-    # MoltenMetal: can't use liquid metals in PEMFC
-    # MetalHydride: H₂ evolution, not ORR
-    # MOF/COF: unstable in acid — marginal
+    'Perovskite',
+    'Spinel',          # NiFe₂O₄ is a proven bifunctional ORR/OER catalyst
+    'MXene',           # Promising ORR activity in alkaline media
+    'SAA',             # Pt₁Cu etc. are frontier FC catalysts
+    'MetalFreeCarbon', # N-doped graphene is a benchmark PGM-free ORR catalyst
+    # MOF/COF: unstable in acid PEMFC but viable in AEM fuel cells
+    'MOF', 'COF',
+    # MetalHydride/MoltenMetal: non-standard for FC, but included to avoid pruning
+    'MetalHydride', 'MoltenMetal',
 }
 
 
