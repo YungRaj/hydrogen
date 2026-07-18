@@ -209,15 +209,22 @@ def abundance_cost_penalty(elements: List[str]) -> float:
     Compute a log-scaled cost penalty based on crustal abundance.
     More abundant elements get lower (better) penalties.
     Returns a value in [−2, 0] where 0 = abundant, −2 = very rare.
+
+    Uses geometric mean to prevent a single abundant element from
+    masking rare/expensive components (e.g. Fe+Ir should still penalize Ir).
     """
-    abundances = [CRUSTAL_ABUNDANCE_PPM.get(e, 1.0) for e in elements]
-    avg_abundance = np.mean(abundances)
-    if avg_abundance < 1.0:
+    if not elements:
+        return 0.0
+    abundances = [max(CRUSTAL_ABUNDANCE_PPM.get(e, 1.0), 1e-4) for e in elements]
+    # Geometric mean: exp(mean(log(x))) — sensitive to any rare component
+    geo_mean = np.exp(np.mean(np.log(abundances)))
+    if geo_mean < 1.0:
         return -2.0
-    elif avg_abundance < 10.0:
-        return 2.0 * (np.log10(avg_abundance) - 1.0)  # range: [-2, 0]
+    elif geo_mean < 10.0:
+        return 2.0 * (np.log10(geo_mean) - 1.0)  # range: [-2, 0]
     else:
         return 0.0
+
 
 
 # ─── Safety & Feasibility Filters ─────────────────────────────────────────────
