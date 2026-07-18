@@ -82,11 +82,13 @@ def cathode_activation_loss(j: float, j0_cathode: float,
                               tafel_slope_V: float) -> float:
     """
     Cathode activation overpotential using Tafel equation.
-    η_act = b * ln(j / j0)   for j > j0
+    η_act = (b / ln10) * ln(j / j0)   for j > j0
+    where b is the Tafel slope in V/decade.
     """
     if j <= 0 or j0_cathode <= 0:
         return 0.0
-    return tafel_slope_V * np.log(max(j / j0_cathode, 1.0))
+    b_natural = tafel_slope_V / np.log(10.0)  # convert V/decade → V for use with ln
+    return b_natural * np.log(max(j / j0_cathode, 1.0))
 
 
 def anode_activation_loss(j: float, j0_anode: float, T_K: float) -> float:
