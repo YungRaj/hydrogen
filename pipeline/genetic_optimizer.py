@@ -213,6 +213,16 @@ def _extract_elements_from_genome(genome: tuple) -> List[str]:
             elements.append(genome[5])
     elif mat_class == 'HEA':
         elements.extend(list(genome[1]))
+    elif mat_class == 'Spinel':
+        elements.extend([genome[1], genome[2]])
+        if genome[3] != 'None': elements.append(genome[3])
+    elif mat_class == 'MXene':
+        elements.append(genome[1])
+        if genome[5] != 'None': elements.append(genome[5])
+    elif mat_class == 'SAA':
+        elements.extend([genome[1], genome[2]])
+    elif mat_class == 'MetalFreeCarbon':
+        pass  # no metals
     return [e for e in elements if e != 'None']
 
 
