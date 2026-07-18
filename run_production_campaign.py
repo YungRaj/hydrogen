@@ -202,12 +202,19 @@ def main():
         print_banner("PHASE 3: DFT VALIDATION (Quantum ESPRESSO)")
         t3 = time.time()
         try:
-            from pipeline.dft_validator import run_dft_validation
+            from pipeline.dft_validator import validate_catalyst
 
             n_dft = min(10, len(top_catalysts))
-            dft_results = run_dft_validation(top_catalysts.head(n_dft))
+            dft_results = []
+            for idx, (_, row) in enumerate(top_catalysts.head(n_dft).iterrows()):
+                try:
+                    genome = eval(row['genome'])
+                    result = validate_catalyst(f"campaign_cat_{idx}", genome, run_dft=True)
+                    dft_results.append(result)
+                except Exception as e:
+                    print(f"    DFT failed for cat_{idx}: {e}")
             pipeline_state['phase3'] = {
-                'catalysts_validated': len(dft_results) if dft_results else 0,
+                'catalysts_validated': len(dft_results),
                 'elapsed_s': time.time() - t3,
             }
         except (ImportError, Exception) as e:
@@ -222,12 +229,15 @@ def main():
         print_banner("PHASE 4: VQE TRANSITION STATES (CUDA-Q)")
         t4 = time.time()
         try:
-            from pipeline.vqe_transition_state import run_vqe_refinement
+            from pipeline.vqe_transition_state import validate_transition_state
 
             n_vqe = min(5, len(top_catalysts))
-            vqe_results = run_vqe_refinement(top_catalysts.head(n_vqe))
+            vqe_results = []
+            for i in range(n_vqe):
+                result = validate_transition_state(f"champion_{i}", "CH_split", target='nvidia')
+                vqe_results.append(result)
             pipeline_state['phase4'] = {
-                'catalysts_refined': len(vqe_results) if vqe_results else 0,
+                'catalysts_refined': len(vqe_results),
                 'elapsed_s': time.time() - t4,
             }
         except (ImportError, Exception) as e:

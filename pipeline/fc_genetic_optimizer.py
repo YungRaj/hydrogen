@@ -143,10 +143,15 @@ def compute_orr_objectives_surrogate(population: List[tuple], model, device: str
 
 
 def _cost_from_genome(genome: tuple) -> float:
-    """Compute cost penalty from genome elements."""
+    """Compute cost penalty from genome elements.
+    
+    abundance_cost_penalty() returns [-2, 0] where 0 = abundant, -2 = rare.
+    Since NSGA-II minimizes all objectives, we negate so that:
+      abundant → 0 (good)    rare → +2 (bad, penalized)
+    """
     from pipeline.utils import abundance_cost_penalty
     elements = _extract_elements_from_genome(genome)
-    return abundance_cost_penalty(elements)
+    return -abundance_cost_penalty(elements)
 
 
 def _extract_elements_from_genome(genome: tuple) -> List[str]:
