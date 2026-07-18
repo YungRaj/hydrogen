@@ -17,6 +17,7 @@ Usage:
 
 import os
 import sys
+import ast
 import time
 import json
 import argparse
@@ -222,7 +223,7 @@ def run_pipeline(config: PipelineConfig = PipelineConfig(),
             top_dft = top_catalysts.head(config.top_k_dft)
             for idx, row in top_dft.iterrows():
                 try:
-                    genome = eval(row['genome'])
+                    genome = ast.literal_eval(row['genome'])
                     cat_name = f"dft_cat_{idx}"
                     result = validate_catalyst(cat_name, genome, run_dft=config.run_dft)
                     dft_results.append(result)

@@ -40,7 +40,7 @@ class CatalystSurrogate(nn.Module):
         for h_dim in hidden_dims:
             layers.extend([
                 nn.Linear(prev_dim, h_dim),
-                nn.BatchNorm1d(h_dim),
+                nn.LayerNorm(h_dim),  # LayerNorm: stable with small batches (< 32 samples)
                 nn.GELU(),
                 nn.Dropout(0.1),
             ])

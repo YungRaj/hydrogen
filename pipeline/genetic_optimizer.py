@@ -16,6 +16,7 @@ Implements NSGA-II selection with crowding distance for diverse Pareto fronts.
 """
 
 import os
+import ast
 import time
 import random
 import numpy as np
@@ -427,7 +428,7 @@ def _train_surrogate_from_db(df: pd.DataFrame, device: str) -> CatalystSurrogate
     genomes = []
     for _, row in df.iterrows():
         try:
-            g = eval(row['genome'])
+            g = ast.literal_eval(row['genome'])
             genomes.append(g)
         except Exception:
             genomes.append(('SolidCatalyst', 'Ni', 'Al2O3', 'fcc111', 0.0, (), 0, 0))

@@ -14,6 +14,7 @@ import os
 import sys
 import time
 import json
+import ast
 import argparse
 import subprocess
 from pathlib import Path
@@ -97,7 +98,37 @@ def main():
 
     t_start = time.time()
     t_deadline = t_start + args.hours * 3600
-    pipeline_state = {}
+
+    # ─── Campaign Provenance (reproducibility metadata) ──────────────────
+    def _get_git_sha():
+        try:
+            return subprocess.check_output(
+                ['git', 'rev-parse', '--short', 'HEAD'],
+                cwd=str(Path(__file__).parent), stderr=subprocess.DEVNULL
+            ).decode().strip()
+        except Exception:
+            return 'unknown'
+
+    def _get_conda_env():
+        try:
+            return subprocess.check_output(
+                ['conda', 'list', '--export'],
+                stderr=subprocess.DEVNULL
+            ).decode()[:2000]  # truncate for readability
+        except Exception:
+            return 'unavailable'
+
+    pipeline_state = {
+        'provenance': {
+            'timestamp': time.strftime('%Y-%m-%dT%H:%M:%S%z'),
+            'git_sha': _get_git_sha(),
+            'cli_args': vars(args),
+            'n_gpus': n_gpus,
+            'gpu_names': gpu_names,
+            'conda_env_snapshot': _get_conda_env(),
+        }
+    }
+    save_json(pipeline_state, "pipeline_state.json")
 
     # ─── Phase 1: GA + META ESEN-SM ──────────────────────────────────────────
     print_banner("PHASE 1: GPU-ACCELERATED META ESEN-SM + NSGA-II")
@@ -157,7 +188,9 @@ def main():
                 try:
                     # Generate Cantera YAML mechanism from E_act
                     mech_file = write_full_mechanism(cat_name, e_act)
-                    sweep = run_reactor_sweep(cat_name, str(mech_file), temperatures=reactor_temps)
+                    sweep = run_reactor_sweep(cat_name, str(mech_file),
+                                              temperatures=reactor_temps,
+                                              catalyst_E_act_eV=e_act)
                     best_conv = max(r.get('CH4_conversion', 0) for r in sweep) if sweep else 0
                     reactor_results.append({
                         'catalyst': cat_name,
@@ -214,7 +247,7 @@ def main():
             dft_results = []
             for idx, (_, row) in enumerate(top_catalysts.head(n_dft).iterrows()):
                 try:
-                    genome = eval(row['genome'])
+                    genome = ast.literal_eval(row['genome'])
                     result = validate_catalyst(f"campaign_cat_{idx}", genome, run_dft=True)
                     dft_results.append(result)
                 except Exception as e:

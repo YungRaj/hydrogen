@@ -72,6 +72,7 @@ class ReactorConfig:
     mechanism_file: str = ''
     catalyst_name: str = 'test'
     max_residence_time_s: float = 60.0
+    catalyst_E_act_eV: float = 0.8   # Catalyst activation barrier (used by mock when Cantera unavailable)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -360,13 +361,17 @@ def simulate_fluidized_bed(config: ReactorConfig) -> Dict:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def _mock_reactor_result(config: ReactorConfig, reactor_type: str) -> Dict:
-    """Generate realistic mock results when Cantera is not available."""
+    """Generate realistic mock results when Cantera is not available.
+
+    Uses the catalyst-specific E_act from config (not a hardcoded value)
+    so that mock results still differentiate between catalysts.
+    """
     logger.warning(f"Cantera not available. Generating mock {reactor_type} results.")
 
-    # Physics-based estimate using Arrhenius kinetics
-    # Assume E_act ~ 0.8 eV for a decent catalyst
-    E_act = 0.8  # eV
-    k = 1e13 * np.exp(-E_act / (8.617e-5 * config.T_inlet_K))
+    # Physics-based estimate using Arrhenius kinetics with actual catalyst E_act
+    E_act = config.catalyst_E_act_eV
+    k_B_eV = 8.617e-5  # Boltzmann constant in eV/K
+    k = 1e13 * np.exp(-E_act / (k_B_eV * config.T_inlet_K))
 
     if reactor_type == 'MMBCR':
         tau = config.column_height_m / config.gas_velocity_m_s
@@ -382,6 +387,7 @@ def _mock_reactor_result(config: ReactorConfig, reactor_type: str) -> Dict:
         'reactor_type': reactor_type,
         'catalyst_name': config.catalyst_name,
         'T_K': config.T_inlet_K,
+        'catalyst_E_act_eV': E_act,
         'residence_time_s': tau,
         'CH4_conversion': conversion,
         'H2_selectivity': 0.95,
@@ -415,9 +421,15 @@ def simulate_reactor(config: ReactorConfig) -> Dict:
 
 def run_reactor_sweep(catalyst_name: str, mechanism_file: str,
                       temperatures: List[float] = None,
-                      reactor_types: List[str] = None) -> List[Dict]:
+                      reactor_types: List[str] = None,
+                      catalyst_E_act_eV: float = 0.8) -> List[Dict]:
     """
     Sweep operating conditions for a catalyst across temperatures and reactor types.
+
+    Args:
+        catalyst_E_act_eV: Activation barrier in eV. Passed through to ReactorConfig
+            so that mock results (when Cantera is unavailable) still differentiate
+            between catalysts.
     """
     if temperatures is None:
         temperatures = [773.15, 900.0, 1100.0, 1300.0]
@@ -432,6 +444,7 @@ def run_reactor_sweep(catalyst_name: str, mechanism_file: str,
                 reactor_type=rt,
                 mechanism_file=str(mechanism_file),
                 catalyst_name=catalyst_name,
+                catalyst_E_act_eV=catalyst_E_act_eV,
             )
             result = simulate_reactor(config)
             results.append(result)

@@ -14,6 +14,7 @@ but trains a separate surrogate NN and evaluates ORR descriptors.
 
 import os
 import sys
+import ast
 import time
 import random
 import logging
@@ -311,7 +312,7 @@ def _train_orr_surrogate(db: pd.DataFrame, device: str):
     genomes = []
     for _, row in db.iterrows():
         try:
-            g = eval(row['genome'])
+            g = ast.literal_eval(row['genome'])
             genomes.append(g)
         except Exception:
             genomes.append(None)
