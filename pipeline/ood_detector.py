@@ -81,6 +81,8 @@ _TIER1_ELEMENTS = {
 _TIER2_ELEMENTS = {
     'La', 'Ce', 'Pr', 'Nd', 'Sm', 'Ca', 'Sr', 'Ba', 'Mg', 'Li',
     'Na', 'K', 'Pb', 'Te', 'Se', 'Cd',
+    'Rb', 'Cs',  # Alkali metals in some OC22 oxides
+    'Eu', 'Gd', 'Dy', 'Er', 'Yb',  # Rare earths in OC22 oxide surfaces
 }
 
 # Element coverage score
