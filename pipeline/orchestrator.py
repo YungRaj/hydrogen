@@ -4,7 +4,7 @@ Master Pipeline Orchestrator.
 
 Coordinates all 6 phases of the turquoise hydrogen → fuel cell pipeline:
 
-  Phase 1: MACE Screening → Genetic Optimization → Pareto Front
+  Phase 1: Fairchem Screening → Genetic Optimization → Pareto Front
   Phase 2: Cantera Reactor Simulation (top catalysts × 3 reactor types)
   Phase 3: DFT Validation (top catalysts)
   Phase 4: VQE Transition State (top 3 catalysts)
@@ -42,10 +42,10 @@ logger = setup_logger('orchestrator', 'pipeline_orchestrator.log')
 class PipelineConfig:
     """Pipeline-level configuration."""
     # Phase 1: Screening
-    initial_mace_samples: int = 500       # Initial MACE evaluations
-    ga_pop_size: int = 500                # GA population size
-    ga_generations: int = 200             # GA generations
-    top_k_reactor: int = 50              # Top K catalysts → reactor simulation
+    initial_fairchem_samples: int = 500       # Initial Fairchem evaluations
+    ga_pop_size: int = 500                    # GA population size
+    ga_generations: int = 200                 # GA generations
+    top_k_reactor: int = 50                  # Top K catalysts → reactor simulation
     top_k_dft: int = 10                  # Top K → DFT validation
     top_k_vqe: int = 3                   # Top K → VQE
 
@@ -82,7 +82,7 @@ def run_pipeline(config: PipelineConfig = PipelineConfig(),
     config.reactor_temperatures = (773.15, 900.0, 1100.0, 1300.0)
 
     if config.quick_mode:
-        config.initial_mace_samples = 50
+        config.initial_fairchem_samples = 50
         config.ga_pop_size = 100
         config.ga_generations = 50
         config.top_k_reactor = 10
@@ -114,8 +114,8 @@ def run_pipeline(config: PipelineConfig = PipelineConfig(),
         ga_config = GAConfig(
             pop_size=config.ga_pop_size,
             n_generations=config.ga_generations,
-            initial_mace_samples=config.initial_mace_samples,
-            mace_eval_interval=max(1, config.ga_generations // 4),
+            initial_fairchem_samples=config.initial_fairchem_samples,
+            fairchem_eval_interval=max(1, config.ga_generations // 4),
             surrogate_retrain_interval=max(1, config.ga_generations // 4),
             seed=config.seed,
         )

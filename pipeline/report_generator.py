@@ -120,7 +120,7 @@ def generate_full_report(pipeline_state: Dict = None) -> Path:
 
     r(f"| Metric | Value |")
     r(f"|--------|-------|")
-    r(f"| Catalysts evaluated (MACE) | {p1.get('total_evaluated', 'N/A'):,} |" if isinstance(p1.get('total_evaluated'), (int, float)) else "| Catalysts evaluated (MACE) | N/A |")
+    r(f"| Catalysts evaluated (Fairchem) | {p1.get('total_evaluated', 'N/A'):,} |" if isinstance(p1.get('total_evaluated'), (int, float)) else "| Catalysts evaluated (Fairchem) | N/A |")
     r(f"| Valid candidates | {p1.get('valid_count', 'N/A'):,} |" if isinstance(p1.get('valid_count'), (int, float)) else "| Valid candidates | N/A |")
     r(f"| Pareto front size | {p1.get('pareto_size', 'N/A')} |")
     r(f"| Best activation barrier | {p1.get('best_E_act', 'N/A')} eV |")
@@ -270,7 +270,7 @@ def generate_full_report(pipeline_state: Dict = None) -> Path:
         phase_data = ps.get(phase_key, {})
         elapsed = phase_data.get('elapsed_s', 0)
         phase_name = {
-            'phase1': 'MACE Screening + GA',
+            'phase1': 'Fairchem Screening + GA',
             'phase2': 'Reactor Simulation',
             'phase3': 'DFT Validation',
             'phase4': 'VQE Quantum',

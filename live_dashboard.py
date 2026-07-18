@@ -5,7 +5,7 @@ Live Dashboard — Real-time monitoring of the catalyst discovery campaign.
 Refreshes every 5 seconds showing:
   - GPU utilization per device
   - GA generation progress + best metrics
-  - MACE screening throughput
+  - Fairchem screening throughput
   - Material class distribution
   - Pareto front summary
 
@@ -26,7 +26,7 @@ from datetime import datetime, timedelta
 BASE = Path(__file__).parent
 SCREENING = BASE / "results" / "screening"
 GA_LOG = SCREENING / "genetic_optimizer.log"
-MACE_LOG = SCREENING / "surface_screening.log"
+FAIRCHEM_LOG = SCREENING / "surface_screening.log"
 
 
 def clear():
@@ -85,7 +85,7 @@ def parse_ga_log():
                         'elapsed_s': float(elapsed),
                         'timestamp': timestamp,
                     })
-                elif 'Running MACE' in line or 'Running GNN' in line or 'Running eSen' in line or 'Running META' in line:
+                elif 'Running Fairchem' in line or 'Running MACE' in line or 'Running GNN' in line or 'Running eSen' in line or 'Running META' in line:
                     timestamp = line.split(']')[0].strip('[')
                     entries.append({'type': 'mace', 'timestamp': timestamp})
                 elif 'Retraining surrogate' in line:
@@ -96,13 +96,13 @@ def parse_ga_log():
     return entries
 
 
-def parse_mace_log():
-    """Parse the MACE log for throughput info."""
-    if not MACE_LOG.exists():
+def parse_fairchem_log():
+    """Parse the Fairchem log for throughput info."""
+    if not FAIRCHEM_LOG.exists():
         return {}
     info = {}
     try:
-        with open(MACE_LOG) as f:
+        with open(FAIRCHEM_LOG) as f:
             lines = f.readlines()
         for line in reversed(lines):
             if 'Progress:' in line and 'candidates/sec' in line:
@@ -127,7 +127,7 @@ def parse_mace_log():
 
 
 def count_csvs():
-    """Count total MACE evaluations from CSV files."""
+    """Count total Fairchem evaluations from CSV files."""
     total = 0
     n_files = 0
     class_counts = {}
@@ -242,15 +242,15 @@ def main():
             print(colorize("  └─────────────────────────────────────────────────────────┘", '93'))
 
             # ─── GNN/eSen Screening ──────────────────────────────────────
-            mace = parse_mace_log()
+            fairchem = parse_fairchem_log()
             total_eval, n_files, class_counts = count_csvs()
 
             print(colorize("\n  ┌─ GNN/ESEN SCREENING ──────────────────────────────────────┐", '92'))
             print(f"  │ Total evaluated: {colorize(f'{total_eval:>6,}', '1')} across {n_files} rounds")
-            if 'rate' in mace:
-                print(f"  │ Current round:   {mace.get('done', '?')}/{mace.get('total', '?')}  "
-                      f"({mace['rate']:.1f} cand/sec, {mace.get('valid', '?')} valid)")
-            elif mace.get('status') == 'complete':
+            if 'rate' in fairchem:
+                print(f"  │ Current round:   {fairchem.get('done', '?')}/{fairchem.get('total', '?')}  "
+                      f"({fairchem['rate']:.1f} cand/sec, {fairchem.get('valid', '?')} valid)")
+            elif fairchem.get('status') == 'complete':
                 print(f"  │ Status:          {colorize('Round complete', '92')}")
             print(colorize("  └─────────────────────────────────────────────────────────┘", '92'))
 

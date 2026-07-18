@@ -4,9 +4,9 @@ GPU-SATURATED PRODUCTION CAMPAIGN v2
 
 Key changes from v1:
   - Smaller GA population (1000) for faster NSGA-II O(N²) sort
-  - MACE validation every 5 generations (not 50) to keep GPUs hot
-  - Larger MACE batch (500 per round) for better GPU saturation
-  - 3000 generations × 500 MACE/round = 300,000 MACE evaluations
+  - Fairchem validation every 5 generations (not 50) to keep GPUs hot
+  - Larger Fairchem batch (500 per round) for better GPU saturation
+  - 3000 generations × 500 Fairchem/round = 300,000 Fairchem evaluations
   - All 10 material classes with 25.3B design space
 """
 
@@ -30,12 +30,12 @@ def main():
                         help='GA population size (default: 2000)')
     parser.add_argument('--gens', type=int, default=0,
                         help='Total generations. 0 = unlimited (default: 0)')
-    parser.add_argument('--mace-batch', type=int, default=500,
-                        help='Initial MACE batch (default: 500)')
-    parser.add_argument('--mace-per-round', type=int, default=500,
-                        help='MACE evaluations per validation round (default: 500)')
-    parser.add_argument('--mace-interval', type=int, default=5,
-                        help='Generations between MACE rounds (default: 5)')
+    parser.add_argument('--fairchem-batch', type=int, default=500,
+                        help='Initial Fairchem batch (default: 500)')
+    parser.add_argument('--fairchem-per-round', type=int, default=500,
+                        help='Fairchem evaluations per validation round (default: 500)')
+    parser.add_argument('--fairchem-interval', type=int, default=5,
+                        help='Generations between Fairchem rounds (default: 5)')
     parser.add_argument('--hours', type=float, default=0,
                         help='Max wall-clock hours. 0 = unlimited (default: 0)')
     parser.add_argument('--top-k', type=int, default=200,
@@ -62,9 +62,9 @@ def main():
     print(f"  CPUs: {os.cpu_count()} cores")
     print(f"  Mode: {args.mode.upper()}")
     print(f"  Pop: {args.pop} | Gens: {args.gens}")
-    print(f"  MACE: {args.mace_per_round}/round every {args.mace_interval} gens")
-    total_mace = args.mace_batch + args.mace_per_round * (args.gens // args.mace_interval)
-    print(f"  Estimated total MACE evaluations: {total_mace:,}")
+    print(f"  Fairchem: {args.fairchem_per_round}/round every {args.fairchem_interval} gens")
+    total_fairchem = args.fairchem_batch + args.fairchem_per_round * (args.gens // args.fairchem_interval)
+    print(f"  Estimated total Fairchem evaluations: {total_fairchem:,}")
     print(f"  Estimated surrogate evaluations: {args.pop * args.gens:,}")
     print("=" * 80)
 
@@ -143,10 +143,10 @@ def main():
     ga_config = GAConfig(
         pop_size=args.pop,
         n_generations=args.gens,
-        initial_mace_samples=args.mace_batch,
-        mace_eval_interval=args.mace_interval,
-        mace_eval_top_k=args.mace_per_round,
-        surrogate_retrain_interval=args.mace_interval,
+        initial_fairchem_samples=args.fairchem_batch,
+        fairchem_eval_interval=args.fairchem_interval,
+        fairchem_eval_top_k=args.fairchem_per_round,
+        surrogate_retrain_interval=args.fairchem_interval,
         mutation_rate=0.35,
         crossover_rate=0.7,
         seed=args.seed,
@@ -166,7 +166,7 @@ def main():
         'valid_count': len(valid_db),
         'top_catalysts_count': len(top_catalysts),
         'elapsed_s': time.time() - t1,
-        'total_mace_target': total_mace,
+        'total_fairchem_target': total_fairchem,
     }
     if len(valid_db) > 0 and 'E_act' in valid_db.columns:
         pipeline_state['phase1']['best_E_act'] = float(valid_db['E_act'].min())
@@ -308,10 +308,10 @@ def main():
         fc_config = FCGAConfig(
             pop_size=args.pop,
             n_generations=fc_gens,
-            initial_mace_samples=args.mace_batch,
-            mace_eval_interval=args.mace_interval,
-            mace_eval_top_k=args.mace_per_round,
-            surrogate_retrain_interval=args.mace_interval,
+            initial_fairchem_samples=args.fairchem_batch,
+            fairchem_eval_interval=args.fairchem_interval,
+            fairchem_eval_top_k=args.fairchem_per_round,
+            surrogate_retrain_interval=args.fairchem_interval,
             mutation_rate=0.35,
             crossover_rate=0.7,
             seed=args.seed + 1000,  # different seed for diversity

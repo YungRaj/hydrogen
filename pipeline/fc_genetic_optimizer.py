@@ -41,13 +41,13 @@ class FCGAConfig:
     """Configuration for fuel cell ORR genetic algorithm."""
     pop_size: int = 1000
     n_generations: int = 3000
-    initial_mace_samples: int = 500
-    mace_eval_interval: int = 5
-    mace_eval_top_k: int = 500
+    initial_fairchem_samples: int = 500
+    fairchem_eval_interval: int = 5
+    fairchem_eval_top_k: int = 500
     surrogate_retrain_interval: int = 5
     mutation_rate: float = 0.35
     crossover_rate: float = 0.7
-    explore_interval: int = 3           # Run exploration shots every N MACE intervals
+    explore_interval: int = 3           # Run exploration shots every N Fairchem intervals
     explore_per_class: int = 5          # Random GNN evaluations per class during exploration
     device: str = 'cuda'
     seed: int = 42
@@ -397,25 +397,25 @@ def run_fc_genetic_algorithm(config: FCGAConfig, existing_db=None):
 
     logger.info(f"ORR FC-GA: Population={config.pop_size}, Gens={config.n_generations}")
 
-    # ── Phase A: Initial MACE ORR Screening ─────────────────────────────────
+    # ── Phase A: Initial Fairchem ORR Screening ─────────────────────────────
     if existing_db is not None and len(existing_db) > 50:
         logger.info(f"Using existing ORR database: {len(existing_db)} entries")
-        all_mace_results = existing_db
+        all_fairchem_results = existing_db
     else:
-        logger.info(f"Generating {config.initial_mace_samples} initial ORR MACE samples...")
-        initial_pop = generate_population(config.initial_mace_samples)
+        logger.info(f"Generating {config.initial_fairchem_samples} initial ORR Fairchem samples...")
+        initial_pop = generate_population(config.initial_fairchem_samples)
         from pipeline.fc_screener import run_orr_screening
-        all_mace_results = run_orr_screening(
+        all_fairchem_results = run_orr_screening(
             initial_pop, db_filename="fc_initial_screening.csv", workers_per_gpu=2
         )
 
     # ── Phase B: Train ORR Surrogate ────────────────────────────────────────
-    model = _train_orr_surrogate(all_mace_results, config.device)
+    model = _train_orr_surrogate(all_fairchem_results, config.device)
 
     # ── Phase C: Evolutionary Loop ──────────────────────────────────────────
     population = generate_population(config.pop_size)
     fronts = [[]]  # Initialize for logging before first sort
-    mace_round = 0  # tracks MACE rounds for exploration scheduling
+    fairchem_round = 0  # tracks Fairchem rounds for exploration scheduling
 
     for gen in range(1, config.n_generations + 1):
         t_gen = time.time()
@@ -465,27 +465,27 @@ def run_fc_genetic_algorithm(config: FCGAConfig, existing_db=None):
         population = [combined[i] for i in final_idx]
         final_obj = combined_obj[final_idx]
 
-        # ── Periodic MACE ORR Validation ────────────────────────────────
-        if gen % config.mace_eval_interval == 0 or gen == 1:
-            mace_round += 1
-            logger.info(f"  Gen {gen}: Running MACE ORR validation on top {config.mace_eval_top_k}...")
+        # ── Periodic Fairchem ORR Validation ────────────────────────────
+        if gen % config.fairchem_eval_interval == 0 or gen == 1:
+            fairchem_round += 1
+            logger.info(f"  Gen {gen}: Running Fairchem ORR validation on top {config.fairchem_eval_top_k}...")
 
             fronts = fast_non_dominated_sort(final_obj)
             top_indices = []
             for front in fronts:
                 top_indices.extend(front)
-                if len(top_indices) >= config.mace_eval_top_k:
+                if len(top_indices) >= config.fairchem_eval_top_k:
                     break
-            top_genomes = [population[i] for i in top_indices[:config.mace_eval_top_k]]
+            top_genomes = [population[i] for i in top_indices[:config.fairchem_eval_top_k]]
 
             from pipeline.fc_screener import run_orr_screening
-            mace_df = run_orr_screening(
-                top_genomes, db_filename=f"fc_mace_gen{gen}.csv", workers_per_gpu=2
+            fairchem_df = run_orr_screening(
+                top_genomes, db_filename=f"fc_fairchem_gen{gen}.csv", workers_per_gpu=2
             )
-            all_mace_results = pd.concat([all_mace_results, mace_df], ignore_index=True)
+            all_fairchem_results = pd.concat([all_fairchem_results, fairchem_df], ignore_index=True)
 
             # ── Exploration Shots: probe EVERY class with real GNN ───────
-            if mace_round % config.explore_interval == 0:
+            if fairchem_round % config.explore_interval == 0:
                 explore_genomes = []
                 for cls in ALL_MATERIAL_CLASSES:
                     explore_genomes.extend(
@@ -501,7 +501,7 @@ def run_fc_genetic_algorithm(config: FCGAConfig, existing_db=None):
                     db_filename=f"fc_explore_gen{gen}.csv",
                     workers_per_gpu=2
                 )
-                all_mace_results = pd.concat([all_mace_results, explore_df], ignore_index=True)
+                all_fairchem_results = pd.concat([all_fairchem_results, explore_df], ignore_index=True)
 
                 # Inject promising exploration candidates into population
                 if 'orr_overpotential' in explore_df.columns:
@@ -524,8 +524,8 @@ def run_fc_genetic_algorithm(config: FCGAConfig, existing_db=None):
 
         # ── Retrain Surrogate ───────────────────────────────────────────
         if gen % config.surrogate_retrain_interval == 0:
-            logger.info(f"  Gen {gen}: Retraining ORR surrogate on {len(all_mace_results)} samples...")
-            model = _train_orr_surrogate(all_mace_results, config.device)
+            logger.info(f"  Gen {gen}: Retraining ORR surrogate on {len(all_fairchem_results)} samples...")
+            model = _train_orr_surrogate(all_fairchem_results, config.device)
 
         # ── Logging ─────────────────────────────────────────────────────
         if gen % 10 == 0 or gen == 1:
@@ -546,4 +546,4 @@ def run_fc_genetic_algorithm(config: FCGAConfig, existing_db=None):
     fronts = fast_non_dominated_sort(final_objectives)
     pareto_genomes = [population[i] for i in fronts[0]]
 
-    return pareto_genomes, all_mace_results
+    return pareto_genomes, all_fairchem_results
