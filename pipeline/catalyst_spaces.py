@@ -556,6 +556,63 @@ def encode_genome(genome: tuple) -> np.ndarray:
             coord_vec[_COORD_IDX[cavity]] = 1.0
         cont[1] = pore / 25.0  # normalized pore size
 
+    elif mat_class == 'Perovskite':
+        _, A, B, dopant, frac, defect = genome
+        if A in _METAL_IDX:
+            metal1_vec[_METAL_IDX[A]] = 1.0
+        if B in _METAL_IDX:
+            metal2_vec[_METAL_IDX[B]] = 1.0
+        if dopant in _METAL_IDX:
+            dop_vec[_DOPANT_IDX[dopant]] = 1.0 if dopant in _DOPANT_IDX else 0.0
+        cont[0] = frac / 0.50  # normalized dopant fraction
+        # Encode defect type as continuous
+        _defect_map = {'none': 0.0, 'A_vacancy': 0.2, 'B_vacancy': 0.4,
+                       'O_vacancy': 0.6, 'A_excess': 0.8}
+        cont[1] = _defect_map.get(defect, 0.0)
+
+    elif mat_class == 'MetalHydride':
+        _, metal, h_type, second, additive, temp = genome
+        if metal in _METAL_IDX:
+            metal1_vec[_METAL_IDX[metal]] = 1.0
+        if second in _METAL_IDX:
+            metal2_vec[_METAL_IDX[second]] = 1.0
+        # Encode hydride type as normalized index
+        _hydride_types = [
+            'simple', 'complex_alanate', 'complex_borohydride', 'complex_amide',
+            'intermetallic_AB5', 'intermetallic_AB2', 'intermetallic_AB',
+            'intermetallic_A2B', 'perovskite_hydride',
+        ]
+        cont[0] = _hydride_types.index(h_type) / len(_hydride_types) if h_type in _hydride_types else 0.0
+        cont[3] = (temp - 400.0) / 400.0  # normalized temperature
+
+    elif mat_class == 'MAXPhase':
+        _, M, A, X, n, dopant, facet = genome
+        if M in _METAL_IDX:
+            metal1_vec[_METAL_IDX[M]] = 1.0
+        if A in _METAL_IDX:
+            metal2_vec[_METAL_IDX[A]] = 1.0
+        if dopant in _DOPANT_IDX:
+            dop_vec[_DOPANT_IDX[dopant]] = 1.0
+        cont[0] = 1.0 if X == 'N' else 0.0  # carbide vs nitride
+        cont[1] = n / 3.0  # normalized phase order
+        # Encode facet
+        _max_facet_map = {'basal_0001': 0.0, 'edge_1010': 0.5, 'edge_1120': 1.0}
+        cont[2] = _max_facet_map.get(facet, 0.0)
+
+    elif mat_class == 'HEA':
+        _, components, structure, facet, temp = genome
+        # Multi-hot encode all component elements
+        for comp in components:
+            if comp in _METAL_IDX:
+                metal1_vec[_METAL_IDX[comp]] = 1.0
+        # Encode structure as normalized index
+        _hea_structs = ['fcc', 'bcc', 'hcp', 'fcc_bcc_dual', 'amorphous']
+        cont[0] = _hea_structs.index(structure) / len(_hea_structs) if structure in _hea_structs else 0.0
+        # Encode facet
+        _hea_facet_map = {'111': 0.0, '100': 0.33, '110': 0.67, '211': 1.0}
+        cont[1] = _hea_facet_map.get(facet, 0.0)
+        cont[3] = (temp - 900.0) / 400.0  # normalized temperature
+
     return np.concatenate([
         cls_vec, metal1_vec, metal2_vec, support_vec,
         facet_vec, coord_vec, dop_vec, cont
