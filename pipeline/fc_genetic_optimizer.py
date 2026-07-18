@@ -47,6 +47,8 @@ class FCGAConfig:
     surrogate_retrain_interval: int = 5
     mutation_rate: float = 0.35
     crossover_rate: float = 0.7
+    explore_interval: int = 3           # Run exploration shots every N MACE intervals
+    explore_per_class: int = 5          # Random GNN evaluations per class during exploration
     device: str = 'cuda'
     seed: int = 42
 
@@ -413,6 +415,7 @@ def run_fc_genetic_algorithm(config: FCGAConfig, existing_db=None):
     # ── Phase C: Evolutionary Loop ──────────────────────────────────────────
     population = generate_population(config.pop_size)
     fronts = [[]]  # Initialize for logging before first sort
+    mace_round = 0  # tracks MACE rounds for exploration scheduling
 
     for gen in range(1, config.n_generations + 1):
         t_gen = time.time()
@@ -464,6 +467,7 @@ def run_fc_genetic_algorithm(config: FCGAConfig, existing_db=None):
 
         # ── Periodic MACE ORR Validation ────────────────────────────────
         if gen % config.mace_eval_interval == 0 or gen == 1:
+            mace_round += 1
             logger.info(f"  Gen {gen}: Running MACE ORR validation on top {config.mace_eval_top_k}...")
 
             fronts = fast_non_dominated_sort(final_obj)
@@ -479,6 +483,44 @@ def run_fc_genetic_algorithm(config: FCGAConfig, existing_db=None):
                 top_genomes, db_filename=f"fc_mace_gen{gen}.csv", workers_per_gpu=2
             )
             all_mace_results = pd.concat([all_mace_results, mace_df], ignore_index=True)
+
+            # ── Exploration Shots: probe EVERY class with real GNN ───────
+            if mace_round % config.explore_interval == 0:
+                explore_genomes = []
+                for cls in ALL_MATERIAL_CLASSES:
+                    explore_genomes.extend(
+                        generate_population(config.explore_per_class, material_class=cls)
+                    )
+                n_explore = len(explore_genomes)
+                logger.info(
+                    f"  Gen {gen}: EXPLORATION — evaluating {n_explore} random "
+                    f"candidates across all 14 classes with real GNN (ORR)..."
+                )
+                explore_df = run_orr_screening(
+                    explore_genomes,
+                    db_filename=f"fc_explore_gen{gen}.csv",
+                    workers_per_gpu=2
+                )
+                all_mace_results = pd.concat([all_mace_results, explore_df], ignore_index=True)
+
+                # Inject promising exploration candidates into population
+                if 'orr_overpotential' in explore_df.columns:
+                    good_explores = explore_df[
+                        (explore_df['valid'] == True) &
+                        (explore_df['orr_overpotential'] < explore_df['orr_overpotential'].quantile(0.3))
+                    ]
+                    if len(good_explores) > 0:
+                        logger.info(
+                            f"    Found {len(good_explores)} promising ORR exploration "
+                            f"candidates — injecting into population"
+                        )
+                        for _, row in good_explores.iterrows():
+                            try:
+                                g = ast.literal_eval(row['genome'])
+                                replace_idx = random.randint(0, len(population) - 1)
+                                population[replace_idx] = g
+                            except Exception:
+                                pass
 
         # ── Retrain Surrogate ───────────────────────────────────────────
         if gen % config.surrogate_retrain_interval == 0:

@@ -260,6 +260,8 @@ class GAConfig:
     crossover_rate: float = 0.7
     tournament_size: int = 5
     initial_mace_samples: int = 200     # Initial MACE samples for surrogate training
+    explore_interval: int = 3           # Run exploration shots every N MACE intervals
+    explore_per_class: int = 5          # Random GNN evaluations per class during exploration
     device: str = 'cuda:0'
     seed: int = 42
 
@@ -312,6 +314,7 @@ def run_genetic_algorithm(config: GAConfig = GAConfig(),
     population = generate_population(config.pop_size)
     best_e_act_history = []
     pareto_front_history = []
+    mace_round = 0  # tracks MACE validation rounds for exploration scheduling
 
     for gen in range(config.n_generations):
         t_gen = time.time()
@@ -372,6 +375,7 @@ def run_genetic_algorithm(config: GAConfig = GAConfig(),
 
         # ── Periodic MACE Validation ────────────────────────────────────────
         if (gen + 1) % config.mace_eval_interval == 0:
+            mace_round += 1
             logger.info(f"  Gen {gen+1}: Running MACE validation on top {config.mace_eval_top_k}...")
             pareto_genomes = [population[i] for i in fronts[0][:config.mace_eval_top_k]]
             from pipeline.surface_screener import run_screening
@@ -381,6 +385,53 @@ def run_genetic_algorithm(config: GAConfig = GAConfig(),
                 workers_per_gpu=2
             )
             all_mace_results = pd.concat([all_mace_results, mace_df], ignore_index=True)
+
+            # ── Exploration Shots: probe EVERY class with real GNN ───────────
+            # Every explore_interval MACE rounds, randomly sample candidates
+            # from ALL 14 material classes — including ones the surrogate
+            # currently thinks are bad. This prevents the GA from being blind
+            # to gems hiding in classes the GNN initially misjudged.
+            if mace_round % config.explore_interval == 0:
+                explore_genomes = []
+                for cls in ALL_MATERIAL_CLASSES:
+                    explore_genomes.extend(
+                        generate_population(config.explore_per_class, material_class=cls)
+                    )
+                n_explore = len(explore_genomes)
+                logger.info(
+                    f"  Gen {gen+1}: EXPLORATION — evaluating {n_explore} random "
+                    f"candidates across all 14 classes with real GNN..."
+                )
+                explore_df = run_screening(
+                    explore_genomes,
+                    db_filename=f"ga_explore_gen{gen+1}.csv",
+                    workers_per_gpu=2
+                )
+                all_mace_results = pd.concat([all_mace_results, explore_df], ignore_index=True)
+
+                # Inject any surprisingly good exploration candidates into population
+                if 'E_act' in explore_df.columns:
+                    good_explores = explore_df[
+                        (explore_df['valid'] == True) &
+                        (explore_df['E_act'] < explore_df['E_act'].quantile(0.3))
+                    ]
+                    if len(good_explores) > 0:
+                        logger.info(
+                            f"    Found {len(good_explores)} promising exploration "
+                            f"candidates — injecting into population"
+                        )
+                        for _, row in good_explores.iterrows():
+                            try:
+                                g = ast.literal_eval(row['genome'])
+                                # Replace a random non-Pareto member
+                                replace_idx = random.randint(
+                                    len(fronts[0]), len(population) - 1
+                                ) if len(fronts[0]) < len(population) else random.randint(
+                                    0, len(population) - 1
+                                )
+                                population[replace_idx] = g
+                            except Exception:
+                                pass
 
         # ── Periodic Surrogate Retraining ───────────────────────────────────
         if (gen + 1) % config.surrogate_retrain_interval == 0:
