@@ -30,7 +30,7 @@ A GPU-accelerated computational pipeline for autonomous catalyst discovery targe
 The pipeline answers two questions end-to-end:
 
 1. **Which catalyst best cracks methane into hydrogen + solid carbon** at high yield, low coking, and low cost?
-2. **Which cathode catalyst + membrane + stack design** converts that hydrogen into maximum electrical power?
+2. **Which cathode catalyst + membrane + stack design** converts that hydrogen with the highest efficiency and least overvoltage, while maximizing output electrical power?
 
 It does this autonomously across six phases:
 
@@ -478,10 +478,10 @@ For the top 3–5 champions:
 
 ### Phase 5: Fuel Cell Modeling
 
-1. **Cathode screening** — evaluate 137+ PGM-free ORR catalysts using Meta's eSen-SM surface model
+1. **Cathode screening** — evaluate 137+ PGM-free ORR catalysts using Meta's eSen-SM surface model, optimizing for highest efficiency and least overvoltage first and foremost, while maximizing output electrical power.
 2. **PEMFC polarization** — 1D model: Nernst OCV → Tafel activation → Ohmic → mass transport
 3. **Membrane sweep** — test Nafion 211/212, Gore-Select, Aquivion across operating conditions
-4. **Stack scaling** — 300–400 cell stack with balance-of-plant, gravimetric/volumetric power density, $/kW
+4. **Stack scaling** — 300–400 cell stack with balance-of-plant, gravimetric/volumetric power density, $/kW, optimized for system efficiency
 
 ### Phase 6: Report Generation
 

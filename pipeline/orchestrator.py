@@ -296,7 +296,15 @@ def run_pipeline(config: PipelineConfig = PipelineConfig(),
 
         # Stack model for the best catalyst + membrane combo
         if pemfc_results:
-            best_pemfc = max(pemfc_results, key=lambda r: r.get('peak_power_W_cm2', 0))
+            # Optimize for highest efficiency and least overvoltage first and foremost,
+            # while maximizing peak power output as much as possible.
+            def fc_composite_score(r):
+                eff = r.get('efficiency_at_rated', 0.0)
+                power = r.get('peak_power_W_cm2', 0.0)
+                eta = max(r.get('orr_overpotential_V', 0.4), 0.01)
+                return (eff * power) / eta
+
+            best_pemfc = max(pemfc_results, key=fc_composite_score)
             stack_config = StackConfig(
                 n_cells=config.fc_stack_cells,
                 cell_voltage_V=best_pemfc.get('peak_voltage_V', 0.65),
@@ -315,6 +323,12 @@ def run_pipeline(config: PipelineConfig = PipelineConfig(),
         if pemfc_results:
             pipeline_state['phase5']['best_power_W_cm2'] = max(
                 r.get('peak_power_W_cm2', 0) for r in pemfc_results
+            )
+            pipeline_state['phase5']['best_efficiency'] = max(
+                r.get('efficiency_at_rated', 0) for r in pemfc_results
+            )
+            pipeline_state['phase5']['min_overpotential_V'] = min(
+                r.get('orr_overpotential_V', 1.0) for r in pemfc_results
             )
         save_json(pipeline_state, "pipeline_state.json")
         logger.info(f"Phase 5 complete: {time.time()-t5:.0f}s")

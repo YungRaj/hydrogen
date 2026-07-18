@@ -157,9 +157,11 @@ def simulate_pemfc(config: PEMFCConfig) -> Dict:
     OCV = nernst_voltage(config.T_K, P_H2, P_O2)
 
     # Cathode exchange current density (from ORR overpotential)
-    # j0_cathode = j_ref * exp(-η_ref * F / RT)
+    # j0_cathode = j_ref * exp(-η_ref / b_natural)
+    # where j_ref = 1e-3 A/cm² is the reference current density at which the overpotential was evaluated.
     tafel_slope = config.orr_tafel_slope_mV_dec * 1e-3  # V/decade → V
-    j0_cathode = 1e-8 * config.cathode_roughness_factor  # A/cm² base
+    b_natural = tafel_slope / np.log(10.0)
+    j0_cathode = 1e-3 * np.exp(-config.orr_overpotential_V / b_natural) * config.cathode_roughness_factor
 
     # Anode exchange current density
     j0_anode = config.hor_exchange_current_A_cm2

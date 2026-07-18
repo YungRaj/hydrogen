@@ -128,6 +128,8 @@ def generate_full_report(pipeline_state: Dict = None) -> Path:
     r(f"| Best CH₄ conversion | {p2.get('best_conversion', 'N/A'):.1%} |" if isinstance(p2.get('best_conversion'), (int, float)) else f"| Best CH₄ conversion | N/A |")
     r(f"| Cathode catalysts screened | {p5.get('n_cathodes_screened', 'N/A')} |")
     r(f"| Best PEMFC power density | {p5.get('best_power_W_cm2', 'N/A')} W/cm² |" if isinstance(p5.get('best_power_W_cm2'), (int, float)) else f"| Best PEMFC power density | N/A |")
+    r(f"| Best PEMFC efficiency | {p5.get('best_efficiency', 'N/A'):.1%} |" if isinstance(p5.get('best_efficiency'), (int, float)) else f"| Best PEMFC efficiency | N/A |")
+    r(f"| Min ORR overpotential | {p5.get('min_overpotential_V', 'N/A')} V |" if isinstance(p5.get('min_overpotential_V'), (int, float)) else f"| Min ORR overpotential | N/A |")
     r("")
 
     # ─── Phase 1: Catalyst Screening ────────────────────────────────────────
@@ -210,14 +212,21 @@ def generate_full_report(pipeline_state: Dict = None) -> Path:
     stack_results = [r_ for r_ in data['fuel_cell'] if 'n_cells' in r_]
 
     if pemfc_results:
+        # Sort by the new composite efficiency-overvoltage-power score
+        def fc_composite_score(r):
+            eff = r.get('efficiency_at_rated', 0.0)
+            power = r.get('peak_power_W_cm2', 0.0)
+            eta = max(r.get('orr_overpotential_V', 0.4), 0.01)
+            return (eff * power) / eta
+
         r("### Single-Cell Performance\n")
-        r("| Cathode | Membrane | Peak Power (W/cm²) | OCV (V) | η (V) | Efficiency |")
-        r("|---------|----------|---------------------|---------|-------|-----------|")
-        sorted_pemfc = sorted(pemfc_results, key=lambda x: x.get('peak_power_W_cm2', 0), reverse=True)
+        r("| Cathode | Membrane | Peak Power (W/cm²) | OCV (V) | η (V) | Efficiency (Rated) |")
+        r("|---------|----------|---------------------|---------|-------|--------------------|")
+        sorted_pemfc = sorted(pemfc_results, key=fc_composite_score, reverse=True)
         for res in sorted_pemfc[:15]:
             r(f"| {res.get('cathode_catalyst', '?')} | {res.get('membrane', '?')} | "
               f"{res.get('peak_power_W_cm2', 0):.4f} | {res.get('OCV_V', 0):.3f} | "
-              f"{res.get('orr_overpotential_V', '?')} | {res.get('efficiency_at_peak', 0):.1%} |")
+              f"{res.get('orr_overpotential_V', '?')} | {res.get('efficiency_at_rated', 0):.1%} |")
         r("")
 
     if stack_results:

@@ -294,12 +294,22 @@ def main():
                 pemfc_results.extend(mem)
 
             if pemfc_results:
-                best = max(pemfc_results, key=lambda r: r.get('peak_power_W_cm2', 0))
+                # Optimize for highest efficiency and least overvoltage first and foremost,
+                # while maximizing peak power output as much as possible.
+                def fc_composite_score(r):
+                    eff = r.get('efficiency_at_rated', 0.0)
+                    power = r.get('peak_power_W_cm2', 0.0)
+                    eta = max(r.get('orr_overpotential_V', 0.4), 0.01)
+                    return (eff * power) / eta
+
+                best = max(pemfc_results, key=fc_composite_score)
                 stack = model_stack(StackConfig(n_cells=400,
                     cell_voltage_V=best.get('peak_voltage_V', 0.65),
                     current_density_A_cm2=best.get('peak_current_A_cm2', 1.5)))
                 pipeline_state['phase5_stack'] = {
                     'best_power_W_cm2': best.get('peak_power_W_cm2', 0),
+                    'best_efficiency': best.get('efficiency_at_rated', 0),
+                    'min_overpotential_V': best.get('orr_overpotential_V', 1.0),
                     'best_catalyst': best.get('catalyst', 'unknown'),
                     'best_membrane': best.get('membrane', 'unknown'),
                     'stack_net_kW': stack.get('net_power_kW', 0),
