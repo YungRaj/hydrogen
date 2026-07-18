@@ -289,9 +289,10 @@ def run_pipeline(config: PipelineConfig = PipelineConfig(),
             cat_name = row['name']
             eta = row.get('orr_overpotential_V', 0.4)
             pgm = row.get('pgm_loading_mg_cm2', 0.0)
+            mat_cls = row.get('material_class', None)
 
             # Sweep membranes
-            mem_results = sweep_membranes(cat_name, eta)
+            mem_results = sweep_membranes(cat_name, eta, material_class=mat_cls)
             pemfc_results.extend(mem_results)
 
         # Stack model for the best catalyst + membrane combo

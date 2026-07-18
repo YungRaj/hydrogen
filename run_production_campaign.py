@@ -300,7 +300,8 @@ def main():
             for _, row in top_fc.iterrows():
                 name = row.get('name', str(row.get('genome', ''))[:30])
                 eta = row.get('orr_overpotential_V', 0.4)
-                mem = sweep_membranes(name, eta)
+                mat_cls = row.get('material_class', None)
+                mem = sweep_membranes(name, eta, material_class=mat_cls)
                 pemfc_results.extend(mem)
 
             if pemfc_results:

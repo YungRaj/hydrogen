@@ -225,7 +225,10 @@ def generate_structure(genome: tuple) -> Tuple[Atoms, list, str]:
 
     elif mat_class in ('SAC', 'DAC'):
         if mat_class == 'SAC':
-            _, metal, coord, substrate = genome
+            metal = genome[1]
+            coord = genome[2]
+            substrate = genome[3]
+            # axial ligand is genome[4] but not used in structure generation
             cluster = generate_porphyrin_cluster(metal, coord)
         else:
             _, m1, m2, coord, substrate = genome
@@ -276,6 +279,39 @@ def generate_structure(genome: tuple) -> Tuple[Atoms, list, str]:
         n_sub = min(len(dopants), 6)
         slab, top_idx = generate_alloy_slab(host, facet_key, 0.0, dopants, n_sub, 0)
         return slab, top_idx, mat_class
+
+    elif mat_class == 'Spinel':
+        # AB₂O₄ spinel — model as B-metal oxide slab
+        _, A, B, dopant, morph, support = genome
+        slab = _generate_perovskite_slab(A, B, dopant if dopant != 'None' else 'None', 0.1, 'none')
+        z = slab.positions[:, 2]
+        top_idx = list(np.where(z > z.max() - 3.0)[0])
+        return slab, top_idx, mat_class
+
+    elif mat_class == 'MXene':
+        # 2D MXene — model as M-carbide/nitride slab
+        _, M, X_elem, n_val, term, sac_metal = genome
+        slab, top_idx = generate_alloy_slab(
+            M, 'hcp0001', 0.0,
+            (sac_metal,) if sac_metal != 'None' else (), 1, 0,
+            size=(3, 3, 2)
+        )
+        return slab, top_idx, mat_class
+
+    elif mat_class == 'SAA':
+        # Single-atom alloy — host metal slab with trace substitution
+        _, trace, host, facet_str, loading = genome
+        facet_map = {'111': 'fcc111', '100': 'fcc100', '110': 'bcc110', '211': 'fcc111'}
+        facet_key = facet_map.get(facet_str, 'fcc111')
+        slab, top_idx = generate_alloy_slab(host, facet_key, 0.0, (trace,), 1, 0)
+        return slab, top_idx, mat_class
+
+    elif mat_class == 'MetalFreeCarbon':
+        # Metal-free N-doped carbon — model as N-graphene cluster
+        _, n_type, n_frac, defect, substrate, co_dop = genome
+        # Use porphyrin-like N4 cluster without a metal center
+        cluster = generate_porphyrin_cluster('N', 'N4')
+        return cluster, [0], mat_class
 
     else:
         raise ValueError(f"Unknown material class: {mat_class}")
