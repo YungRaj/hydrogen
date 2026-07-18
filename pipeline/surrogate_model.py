@@ -105,7 +105,7 @@ def train_surrogate(X: np.ndarray, y_valid: np.ndarray,
     y_act_t = torch.tensor(y_e_act, dtype=torch.float32).unsqueeze(1).to(device)
 
     dataset = TensorDataset(X_t, y_val_t, y_de_t, y_cok_t, y_seg_t, y_act_t)
-    loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=True)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)

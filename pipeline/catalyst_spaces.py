@@ -562,8 +562,8 @@ def encode_genome(genome: tuple) -> np.ndarray:
             metal1_vec[_METAL_IDX[A]] = 1.0
         if B in _METAL_IDX:
             metal2_vec[_METAL_IDX[B]] = 1.0
-        if dopant in _METAL_IDX:
-            dop_vec[_DOPANT_IDX[dopant]] = 1.0 if dopant in _DOPANT_IDX else 0.0
+        if dopant in _DOPANT_IDX:
+            dop_vec[_DOPANT_IDX[dopant]] = 1.0
         cont[0] = frac / 0.50  # normalized dopant fraction
         # Encode defect type as continuous
         _defect_map = {'none': 0.0, 'A_vacancy': 0.2, 'B_vacancy': 0.4,
