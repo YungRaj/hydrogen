@@ -310,10 +310,10 @@ def main():
                     'best_power_W_cm2': best.get('peak_power_W_cm2', 0),
                     'best_efficiency': best.get('efficiency_at_rated', 0),
                     'min_overpotential_V': best.get('orr_overpotential_V', 1.0),
-                    'best_catalyst': best.get('catalyst', 'unknown'),
+                    'best_catalyst': best.get('cathode_catalyst', 'unknown'),
                     'best_membrane': best.get('membrane', 'unknown'),
                     'stack_net_kW': stack.get('net_power_kW', 0),
-                    'stack_efficiency': stack.get('efficiency', 0),
+                    'stack_efficiency': stack.get('system_efficiency', 0),
                 }
 
         save_json(pipeline_state, "pipeline_state.json")

@@ -324,7 +324,7 @@ def _train_orr_surrogate(db: pd.DataFrame, device: str):
     y_bind_t = torch.tensor(Y[:, 2], dtype=torch.float32).unsqueeze(1).to(device)
 
     dataset = TensorDataset(X_t, y_val_t, y_eta_t, y_bind_t)
-    loader = DataLoader(dataset, batch_size=256, shuffle=True)
+    loader = DataLoader(dataset, batch_size=256, shuffle=True, drop_last=True)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-4)
     bce_loss = nn.BCEWithLogitsLoss()
@@ -387,6 +387,7 @@ def run_fc_genetic_algorithm(config: FCGAConfig, existing_db=None):
 
     # ── Phase C: Evolutionary Loop ──────────────────────────────────────────
     population = generate_population(config.pop_size)
+    fronts = [[]]  # Initialize for logging before first sort
 
     for gen in range(1, config.n_generations + 1):
         t_gen = time.time()
@@ -462,7 +463,7 @@ def run_fc_genetic_algorithm(config: FCGAConfig, existing_db=None):
         # ── Logging ─────────────────────────────────────────────────────
         if gen % 10 == 0 or gen == 1:
             best_eta = final_obj[:, 0].min()
-            pareto = len(fronts[0]) if 'fronts' in dir() else 0
+            pareto = len(fronts[0]) if fronts else 0
             n_unique = len(set(str(g) for g in population))
             elapsed = time.time() - t_gen
             logger.info(

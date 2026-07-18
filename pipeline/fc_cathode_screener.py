@@ -125,6 +125,7 @@ def screen_orr_candidate(candidate: Dict, calc, e_h2o: float, e_h2: float) -> Di
     try:
         genome = candidate['genome']
         structure, active_idx, mat_class = generate_structure(genome)
+        structure.pbc = True  # eSen requires PBC set to True in all dimensions
 
         # Relax clean structure
         structure.calc = calc
@@ -181,6 +182,7 @@ def screen_orr_candidate(candidate: Dict, calc, e_h2o: float, e_h2: float) -> Di
             'dG_OOH_eV': float(dG_OOH),
             'orr_overpotential_V': float(eta),
             'rate_determining_step': rds,
+            'binding_strength': float(abs(dG_OH) + abs(dG_O)),
             'valid': True,
         })
 
