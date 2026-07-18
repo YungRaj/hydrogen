@@ -440,7 +440,9 @@ def generate_population(pop_size: int, material_class: Optional[str] = None) -> 
 _ALL_METALS = sorted(set(
     MOLTEN_HOSTS + MOLTEN_PROMOTERS + SOLID_ACTIVE_METALS +
     SAC_METALS + DAC_METALS_1 + DAC_METALS_2 + MOF_METAL_NODES +
-    ['None']
+    PEROVSKITE_A_SITE + PEROVSKITE_B_SITE +
+    HYDRIDE_METALS + MAX_M_ELEMENTS + MAX_A_ELEMENTS +
+    HEA_ELEMENTS + ['None']
 ))
 _METAL_IDX = {m: i for i, m in enumerate(_ALL_METALS)}
 
