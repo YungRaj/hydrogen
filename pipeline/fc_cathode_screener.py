@@ -81,7 +81,7 @@ def generate_fc_catalyst_list() -> List[Dict]:
             candidates.append({
                 'type': 'SAC',
                 'name': f'{metal}_{coord}',
-                'genome': ('SAC', metal, coord, 'N-graphene'),
+                'genome': ('SAC', metal, coord, 'N-graphene', 'None'),
                 'elements': [metal],
                 'pgm_loading_mg_cm2': 0.0,
             })

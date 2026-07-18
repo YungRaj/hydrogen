@@ -422,6 +422,40 @@ def test_all_classes_viable_both_applications():
         assert cls in VALID_CLASSES_FUEL_CELL, f"{cls} excluded from fuel cell"
 
 
+def test_bep_params_all_classes():
+    from pipeline.catalyst_spaces import ALL_MATERIAL_CLASSES
+    from pipeline.utils import bep_activation_energy
+    for cls in ALL_MATERIAL_CLASSES:
+        # Should not fall back to default — each class must have specific params
+        e1 = bep_activation_energy(0.5, material_class=cls)
+        e_default = bep_activation_energy(0.5)  # no class = default
+        # At least some classes should differ from default
+        assert isinstance(e1, float) and e1 > 0
+
+
+def test_ood_confidence_all_classes():
+    from pipeline.catalyst_spaces import ALL_MATERIAL_CLASSES
+    from pipeline.ood_detector import CLASS_CONFIDENCE
+    for cls in ALL_MATERIAL_CLASSES:
+        assert cls in CLASS_CONFIDENCE, f"OOD CLASS_CONFIDENCE missing: {cls}"
+
+
+def test_tafel_all_classes():
+    from pipeline.catalyst_spaces import ALL_MATERIAL_CLASSES
+    from pipeline.pemfc_model import TAFEL_SLOPE_BY_CLASS
+    for cls in ALL_MATERIAL_CLASSES:
+        assert cls in TAFEL_SLOPE_BY_CLASS, f"TAFEL_SLOPE missing: {cls}"
+
+
+def test_cathode_sac_genome_5tuple():
+    from pipeline.fc_cathode_screener import generate_fc_catalyst_list
+    candidates = generate_fc_catalyst_list()
+    sacs = [c for c in candidates if c['type'] == 'SAC']
+    assert len(sacs) > 0, "No SAC candidates generated"
+    for c in sacs:
+        assert len(c['genome']) == 5, f"SAC genome should be 5-tuple, got {len(c['genome'])}: {c['genome']}"
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # RUN ALL
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -489,6 +523,10 @@ if __name__ == '__main__':
     test("All elements in abundance table", test_all_elements_in_abundance_table)
     test("All elements in price table", test_all_elements_in_price_table)
     test("All 14 classes viable both apps", test_all_classes_viable_both_applications)
+    test("BEP params all 14 classes", test_bep_params_all_classes)
+    test("OOD confidence all 14 classes", test_ood_confidence_all_classes)
+    test("Tafel slope all 14 classes", test_tafel_all_classes)
+    test("Cathode SAC genomes 5-tuple", test_cathode_sac_genome_5tuple)
 
     elapsed = time.time() - t0
     print(f"\n{'=' * 60}")

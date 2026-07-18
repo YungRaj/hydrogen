@@ -50,6 +50,7 @@ CLASS_CONFIDENCE = {
     'Spinel':          0.60,  # OC22 has metal oxides but spinels are sparse
     'Perovskite':      0.55,  # Some ABO₃ in OC22, not comprehensive
     'MXene':           0.50,  # Ti/Mo carbides partially in OC20
+    'MAXPhase':        0.55,  # Carbide surfaces partially in OC20, similar to MXene
     'MoltenMetal':     0.45,  # Modeled as solid slab — liquid structure missing
     'SAC':             0.40,  # Fe-N₄/graphene partially in OC20, but
                               # axial ligand effects are NOT in training

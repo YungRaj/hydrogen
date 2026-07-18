@@ -382,6 +382,10 @@ def bep_activation_energy(delta_E_rxn: float, alpha: float = 0.87,
         'MetalHydride':  (0.80, 0.65),   # Hydride surfaces
         'MOF':           (2.00, 0.40),   # Framework catalysts (very different scaling)
         'COF':           (2.00, 0.40),   # Same as MOF (limited data)
+        'Spinel':        (1.40, 0.58),   # Mixed oxide surfaces (Vojvodic et al.)
+        'MXene':         (1.05, 0.68),   # Transition metal carbide surfaces
+        'SAA':           (0.85, 0.76),   # Near-pure host metal with trace dopant
+        'MetalFreeCarbon': (2.20, 0.35), # N-doped carbon (limited BEP data, high intercept)
     }
 
     if material_class and material_class in BEP_PARAMS:

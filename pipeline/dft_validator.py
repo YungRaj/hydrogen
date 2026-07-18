@@ -291,8 +291,25 @@ def validate_catalyst(catalyst_name: str, genome: tuple,
     elif mat_class in ('SAC', 'DAC', 'MOF', 'COF'):
         input_text = _generate_cluster_input(genome, catalyst_name)
     else:
-        logger.warning(f"Unknown material class: {mat_class}")
-        return result
+        # All other classes (Perovskite, HEA, MAXPhase, MetalHydride,
+        # Spinel, MXene, SAA, MetalFreeCarbon): build structure from genome
+        # and use the alloy slab DFT pathway
+        from pipeline.surface_screener import generate_structure
+        try:
+            structure, _, _ = generate_structure(genome)
+            elements = [a.symbol for a in structure if a.symbol != 'X']
+            positions = [tuple(a.position) for a in structure if a.symbol != 'X']
+            cell_size = 15.0
+            cell_params = [[cell_size, 0, 0], [0, cell_size, 0], [0, 0, cell_size]]
+            from pipeline.dft_fuel_cell import generate_slab_scf_input
+            input_text = generate_slab_scf_input(
+                elements, positions, cell_params,
+                calc_name=catalyst_name, ecutwfc=40.0, kpoints=(1, 1, 1)
+            )
+        except Exception as e:
+            logger.warning(f"Structure generation failed for {mat_class}: {e}")
+            result['error'] = str(e)[:200]
+            return result
 
     # Write input file
     input_file = calc_dir / f"{catalyst_name}.in"
