@@ -1,6 +1,6 @@
 # Turquoise Hydrogen — Autonomous Multi-Scale Catalyst Discovery
 
-A GPU-accelerated computational pipeline for autonomous catalyst discovery targeting **turquoise hydrogen production** (methane pyrolysis via NTEC) and **PEM fuel cell** energy conversion. Explores a **25.3-billion-configuration** design space across 10 material classes using Meta's FAIR Chemistry equivariant graph neural networks, genetic optimization, reactor-scale simulation, density functional theory, and variational quantum chemistry.
+A GPU-accelerated computational pipeline for autonomous catalyst discovery targeting **turquoise hydrogen production** (methane pyrolysis via NTEC) and **PEM fuel cell** energy conversion. Explores a **21.1-billion-configuration** design space across 14 material classes using Meta's FAIR Chemistry equivariant graph neural networks, genetic optimization, reactor-scale simulation, density functional theory, and variational quantum chemistry.
 
 ---
 
@@ -48,7 +48,7 @@ Methane (CH₄) ──→ Phase 1-4: Catalyst Discovery ──→ H₂ + C(s)
 ```
 Phase 1: SCREENING + OPTIMIZATION            Phase 2: REACTOR SIMULATION
 ┌─────────────────────────────────┐          ┌──────────────────────────┐
-│  25.3B Design Space             │          │  Cantera 3.2             │
+│  21.1B Design Space             │          │  Cantera 3.2             │
 │  │                              │          │  ├─ MMBCR (bubble col.)  │
 │  ▼                              │          │  ├─ PFR (plug flow)     │
 │  eSen-SM (3 GPUs, 6 workers)    │──Top-K──→│  ├─ Fluidized bed        │
@@ -88,22 +88,26 @@ Phase 5: FUEL CELL                        Phase 6: REPORTING
 
 ## Design Space
 
-**25,296,914,418** (25.3 billion) unique catalyst configurations across 10 material classes:
+**21,092,645,031** (21.1 billion) unique catalyst configurations across 14 material classes:
 
 | Class | Configs | Description |
 |-------|--------:|-------------|
-| **SolidCatalyst** | 25,055,084,160 | 35 metals × 50 supports × 12 facets × 67 dopants (oxides, carbides, nitrides, zeolites, sulfides) |
-| **HEA** | 240,018,240 | 4–6 component high-entropy alloys from 35 elements (C(35,4)+C(35,5)+C(35,6) combos) |
+| **SolidCatalyst** | 20,890,448,640 | 35 active metals × 50 supports × 12 facets × 67 dopants with strain configurations |
+| **HEA** | 200,344,320 | 4–6 component high-entropy alloys from 35 elements |
 | **MetalHydride** | 796,068 | Alanates, borohydrides, amides, intermetallic AB₅/AB₂/AB with 13 additives |
 | **Perovskite** | 449,280 | ABO₃ oxides — 16 A-site × 27 B-site with dopant fractions and defect types |
-| **MoltenMetal** | 168,480 | 13 low-melting hosts × 53 promoters × 16 concentrations × 15 temperatures |
-| **DAC** | 164,268 | 37² dual-atom metal pairs × 12 coordination environments × 9 substrates |
-| **MOF** | 103,428 | 35 metal nodes × 17 organic linkers × 13 cavity types × 13 pore sizes |
-| **COF** | 75,036 | 36 metals × 12 covalent linkages (imine, triazine, boroxine, etc.) |
-| **MAXPhase** | 49,140 | M_{n+1}AX_n layered ternary carbides/nitrides (14 M × 13 A × 2 X × 3 n) |
-| **SAC** | 6,318 | 37 single-atom metals × 18 N/S/O/P coordinations × 9 substrates |
+| **DAC** | 155,952 | Dual-atom metal pairs (37² combinations) × 12 coordination environments × 9 substrates |
+| **MoltenMetal** | 134,640 | 13 low-melting hosts × 53 promoters × 16 concentrations × 15 temperatures |
+| **MOF** | 112,047 | 35 metal nodes × 17 organic linkers × 13 cavity types × 13 pore sizes |
+| **COF** | 81,120 | 36 metals × 12 covalent linkages (imine, triazine, boroxine, etc.) |
+| **SAC** | 55,404 | 37 single-atom metals × 18 coordinations × 9 substrates × axial ligands |
+| **MAXPhase** | 37,800 | M_{n+1}AX_n layered ternary ceramics (14 M × 13 A × 2 X × 3 n) |
+| **Spinel** | 14,400 | AB₂O₄ spinel oxides (Ni, Co, Fe, Mn, Zn, Mg) × dopants × morphology × carbon supports |
+| **MetalFreeCarbon** | 7,200 | Nitrogen-doped carbon (pyridinic, pyrrolic, graphitic) × defects × co-dopant (B, S, P, F) |
+| **MXene** | 6,480 | M_{n+1}X_n carbides/nitrides (M elements × X elements × terminations × single-atom metals) |
+| **SAA** | 1,680 | Single-atom alloys (dilute trace metals in molten metal host) × facets × loadings |
 
-Each genome encodes into a **324-dimensional** feature vector for the surrogate neural network.
+Each genome encodes into a **353-dimensional** feature vector for the surrogate neural network.
 
 ---
 
@@ -146,20 +150,24 @@ Each genome encodes into a **324-dimensional** feature vector for the surrogate 
 
 | Module | Lines | Description |
 |--------|------:|-------------|
-| `catalyst_spaces.py` | 790 | 10-class design space definitions, genome generators, crossover/mutation, feature encoding |
-| `surface_screener.py` | 662 | Multi-GPU parallelized Meta eSen-SM screening — slab generation, adsorption energies, coking index |
-| `reactor_models.py` | 452 | Cantera reactor simulations — MMBCR, PFR, fluidized bed with custom surface kinetics |
-| `genetic_optimizer.py` | 416 | NSGA-II GA — surrogate-accelerated 4-objective optimization |
-| `dft_validator.py` | 416 | Quantum ESPRESSO input generation & parsing for champion catalysts |
-| `utils.py` | 385 | Shared constants, BEP correlations, Arrhenius rates, I/O utilities |
+| `catalyst_spaces.py` | 1116 | 14-class design space definitions, genome generators, crossover/mutation, feature encoding |
+| `surface_screener.py` | 814 | Multi-GPU parallelized Meta eSen-SM screening (slab relaxation, adsorption energies, coking index) |
+| `fc_genetic_optimizer.py` | 506 | NSGA-II GA for fuel cell active learning and PEMFC stack search |
+| `genetic_optimizer.py` | 462 | NSGA-II GA for methane pyrolysis catalyst discovery |
+| `reactor_models.py` | 457 | Cantera reactor simulations — MMBCR, PFR, fluidized bed with custom surface kinetics |
+| `dft_validator.py` | 433 | Quantum ESPRESSO input generation & parsing for champion catalysts |
+| `orchestrator.py` | 396 | Core pipeline orchestrator managing phases and configurations |
+| `fc_screener.py` | 374 | Meta eSen-SM-based ORR cathode screening (137+ PGM-free candidates) |
+| `pemfc_model.py` | 326 | 1D PEMFC polarization model (OCV, Tafel, Ohmic, mass transport) |
 | `reactor_mechanisms.py` | 302 | Cantera YAML mechanism generator with TST pre-exponentials |
-| `report_generator.py` | 287 | Auto-generated Markdown + JSON pipeline reports |
-| `fc_screener.py` | 285 | Meta eSen-SM-based ORR cathode screening (137+ PGM-free candidates) |
-| `pemfc_model.py` | 275 | 1D PEMFC polarization curves — OCV, Tafel, Ohmic, mass transport |
-| `vqe_transition_state.py` | 244 | CUDA-Q VQE for C-H and O-O transition state refinement |
-| `dft_fuel_cell.py` | 232 | CHE-method ORR intermediate DFT validation |
+| `fc_cathode_screener.py` | 297 | Generates, builds structures, and encodes cathode candidates |
+| `report_generator.py` | 297 | Auto-generated Markdown + JSON pipeline reports |
+| `dft_fuel_cell.py` | 278 | CHE-method ORR intermediate DFT validation |
+| `vqe_transition_state.py` | 244 | CUDA-Q VQE transition states for C-H and O-O bond activation |
+| `ood_detector.py` | 229 | Out-of-Distribution detector for training confidence scaling |
 | `fuel_cell_stack.py` | 205 | Stack scaling, BOP parasitic loads, $/kW cost model |
 | `surrogate_model.py` | 174 | Multi-task PyTorch neural network (valid/dE/E_act/coking heads) |
+| `utils.py` | 511 | Constants, BEP correlations, Arrhenius rates, abundance costs, safety checks |
 
 ---
 
@@ -433,16 +441,16 @@ hydrogen/
 
 ### Phase 1: Meta eSen Screening + Genetic Optimization
 
-1. **Generate initial population** — random genomes from all 10 material classes
+1. **Generate initial population** — random genomes from all 14 material classes
 2. **eSen-SM evaluation** — for each candidate, build an atomic slab or cluster, enforce periodic boundary conditions (`pbc=True`), relax with BFGS, compute H*/CH₃*/C* adsorption energies
-3. **Train surrogate NN** — multi-task network learns to predict E_act, coking index, validity from the 324-dim genome encoding (~1000× faster than eSen-SM)
+3. **Train surrogate NN** — multi-task network learns to predict E_act, coking index, validity from the 353-dim genome encoding (~1000× faster than eSen-SM)
 4. **NSGA-II loop** — evolve population via tournament selection, uniform crossover, class-aware mutation; evaluate with surrogate; periodically validate top candidates with full eSen-SM on GPU
 5. **Class-diversity enforcement** — each generation guarantees ≥5% population from every material class, preventing any single class from dominating the front
 6. **Output** — Pareto-optimal front of catalysts minimizing (E_act, -coking, segregation, cost)
 
 #### Structure Generation
 
-The eSen screener builds physically realistic, periodic atomic structures for all 10 classes:
+The eSen screener builds physically realistic, periodic atomic structures for all 14 classes:
 
 | Class | Structure Type | Method |
 |-------|---------------|--------|
@@ -454,6 +462,10 @@ The eSen screener builds physically realistic, periodic atomic structures for al
 | MetalHydride | FCC slab + interstitial H | Metal surface with H at tetrahedral sites |
 | MAXPhase | HCP slab with A-element substitution | M-layer slab with interstitial dopants |
 | HEA | Random-substitution FCC slab | Host + 3-5 equimolar dopants |
+| Spinel | AB₂O₄ spinel slab (2×2×1) | Spinel lattice creation with A/B-site placement |
+| MXene | HCP slab with terminations | M-element slab layer + OH/O/F termination |
+| SAA | Host slab with isolated trace metal | Single trace atom substituted at surface |
+| MetalFreeCarbon| N-doped carbon structures | Graphene/CNT base with vacancy/nitrogen doping |
 
 ### Phase 2: Cantera Reactor Simulation
 
@@ -537,7 +549,7 @@ After a campaign completes, key outputs include:
   title  = {Turquoise Hydrogen: Autonomous Multi-Scale Catalyst Discovery Pipeline},
   year   = {2026},
   url    = {https://github.com/YungRaj/hydrogen},
-  note   = {25.3B design space, 10 material classes, 6-phase pipeline}
+  note   = {21.1B design space, 14 material classes, 6-phase pipeline}
 }
 ```
 
