@@ -324,6 +324,67 @@ def test_mutation_preserves_class():
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# 12. OOD CONFIDENCE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def test_ood_high_confidence_metals():
+    from pipeline.catalyst_spaces import generate_random_genome
+    from pipeline.ood_detector import compute_model_confidence
+    from pipeline.fc_genetic_optimizer import _extract_elements_from_genome
+    # Metal slabs should have high confidence (>0.7)
+    for cls in ['SolidCatalyst', 'HEA', 'SAA']:
+        for _ in range(10):
+            g = generate_random_genome(cls)
+            elements = _extract_elements_from_genome(g)
+            conf = compute_model_confidence(g, elements)
+            assert conf > 0.6, f"{cls}: confidence {conf:.2f} too low (expected >0.6)"
+
+
+def test_ood_low_confidence_ood():
+    from pipeline.catalyst_spaces import generate_random_genome
+    from pipeline.ood_detector import compute_model_confidence
+    from pipeline.fc_genetic_optimizer import _extract_elements_from_genome
+    # OOD classes should have low confidence (<0.5)
+    for cls in ['MOF', 'COF', 'MetalFreeCarbon']:
+        for _ in range(10):
+            g = generate_random_genome(cls)
+            elements = _extract_elements_from_genome(g)
+            conf = compute_model_confidence(g, elements)
+            assert conf < 0.5, f"{cls}: confidence {conf:.2f} too high (expected <0.5)"
+
+
+def test_ood_penalty_scales_objectives():
+    from pipeline.ood_detector import confidence_penalty
+    # High confidence → penalty near 0.0 (no shift)
+    assert abs(confidence_penalty(1.0) - 0.0) < 0.01, "conf=1.0 should give penalty=0.0"
+    # Low confidence → penalty > 0.5 (significant shift)
+    assert confidence_penalty(0.2) > 0.5, "conf=0.2 should give penalty>0.5"
+    # Zero confidence → maximum penalty = 1.0
+    assert abs(confidence_penalty(0.0) - 1.0) < 0.01, "conf=0.0 should give penalty=1.0"
+
+
+def test_ood_nsga2_integration():
+    from pipeline.catalyst_spaces import generate_random_genome, FEATURE_DIM
+    from pipeline.fc_genetic_optimizer import (
+        ORRCatalystSurrogate, compute_orr_objectives_surrogate
+    )
+    model = ORRCatalystSurrogate(input_dim=FEATURE_DIM); model.eval()
+    # Generate OOD and in-distribution populations
+    in_dist = [generate_random_genome('SolidCatalyst') for _ in range(50)]
+    ood = [generate_random_genome('MetalFreeCarbon') for _ in range(50)]
+    obj_in = compute_orr_objectives_surrogate(in_dist, model, 'cpu')
+    obj_ood = compute_orr_objectives_surrogate(ood, model, 'cpu')
+    # OOD overpotentials (obj[:, 0]) should be inflated by penalty
+    mean_in = obj_in[:, 0].mean()
+    mean_ood = obj_ood[:, 0].mean()
+    # OOD should have higher (worse) mean overpotential after penalty
+    # (MetalFreeCarbon conf ~0.15 → penalty ~2.7×)
+    assert mean_ood > mean_in, (
+        f"OOD penalty not working: mean_in={mean_in:.3f}, mean_ood={mean_ood:.3f}"
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # RUN ALL
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -379,6 +440,12 @@ if __name__ == '__main__':
     print("\n── Crossover & Mutation ──")
     test("Crossover preserves class", test_crossover_preserves_class)
     test("Mutation preserves class", test_mutation_preserves_class)
+
+    print("\n── OOD Confidence ──")
+    test("High confidence for metals", test_ood_high_confidence_metals)
+    test("Low confidence for OOD classes", test_ood_low_confidence_ood)
+    test("Penalty scales objectives", test_ood_penalty_scales_objectives)
+    test("Confidence in NSGA-II", test_ood_nsga2_integration)
 
     elapsed = time.time() - t0
     print(f"\n{'=' * 60}")

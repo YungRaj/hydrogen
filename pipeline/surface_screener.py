@@ -558,6 +558,12 @@ def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
         result['E_act'] = max(0.01, min(result.get('E_act', 5.0), 5.0))
         result['coking_index'] = max(-20.0, min(result.get('coking_index', 0), 20.0))
 
+        # 12. OOD confidence — how much we trust this prediction
+        from pipeline.ood_detector import compute_model_confidence
+        conf = compute_model_confidence(genome, elements)
+        result['model_confidence'] = float(conf)
+        result['needs_dft_validation'] = conf < 0.5
+
         result['valid'] = True
 
     except Exception as e:

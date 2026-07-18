@@ -150,13 +150,18 @@ def compute_objectives_surrogate(population: List[tuple],
     Compute 4 objectives using the surrogate model.
     All objectives are MINIMIZED (negate what should be maximized).
     
+    E_act is scaled by OOD confidence penalty to discount predictions
+    from material classes outside the eSen-SM training distribution.
+    
     Returns: (N, 4) array
     """
+    from pipeline.ood_detector import compute_model_confidence, confidence_penalty
+
     X = encode_population(population)
     preds = predict_batch(model, X, device=device)
 
-    # Objective 1: E_act (minimize)
-    obj1 = preds['E_act']
+    # Objective 1: E_act (minimize) × confidence penalty
+    obj1 = preds['E_act'].copy()
 
     # Objective 2: Coking resistance (maximize → negate for minimization)
     obj2 = -preds['coking_index']
@@ -170,6 +175,12 @@ def compute_objectives_surrogate(population: List[tuple],
         for g in population
     ])
     obj4 = -cost_penalties  # abundance_cost_penalty returns [-2, 0]; negate so abundant → small
+
+    # Apply OOD confidence penalty to E_act
+    for i, g in enumerate(population):
+        elements = _extract_elements_from_genome(g)
+        conf = compute_model_confidence(g, elements)
+        obj1[i] += confidence_penalty(conf)  # additive OOD penalty
 
     objectives = np.column_stack([obj1, obj2, obj3, obj4])
 

@@ -196,6 +196,12 @@ def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> di
         # Clamp overpotential to physical range [0, 3] V
         result['orr_overpotential_V'] = max(0.0, min(result.get('orr_overpotential_V', 3.0), 3.0))
 
+        # 10. OOD confidence — how much we trust this prediction
+        from pipeline.ood_detector import compute_model_confidence
+        conf = compute_model_confidence(genome, elements)
+        result['model_confidence'] = float(conf)
+        result['needs_dft_validation'] = conf < 0.5
+
         result['valid'] = True
 
     except Exception as e:

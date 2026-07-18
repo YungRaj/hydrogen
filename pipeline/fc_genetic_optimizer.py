@@ -109,13 +109,17 @@ def compute_orr_objectives_surrogate(population: List[tuple], model, device: str
     Compute 4 ORR objectives for a population using the ORR surrogate NN.
 
     Objectives (all minimized):
-      0: ORR overpotential (η) — lower is better
+      0: ORR overpotential (η) × confidence_penalty — lower is better
       1: -Fenton stability — lower (more negative) = more stable
       2: Cost penalty — lower is cheaper
       3: -Binding strength — lower (more negative) = more durable
 
-    For candidates the surrogate predicts as invalid, assign penalty values.
+    The overpotential is scaled by an OOD confidence penalty so that
+    predictions from material classes outside the eSen-SM training
+    distribution (MOFs, MetalFreeCarbon, etc.) are discounted.
     """
+    from pipeline.ood_detector import compute_model_confidence, confidence_penalty
+
     features = encode_population(population)
     import torch
     X = torch.FloatTensor(features).to(device)
@@ -133,10 +137,14 @@ def compute_orr_objectives_surrogate(population: List[tuple], model, device: str
 
     for i in range(n):
         if p_valid[i] > 0.3:
-            objectives[i, 0] = pred_eta[i]         # minimize overpotential
-            objectives[i, 1] = -_fenton_from_genome(population[i]) # minimize -fenton (maximize stability)
+            elements = _extract_elements_from_genome(population[i])
+            conf = compute_model_confidence(population[i], elements)
+            penalty = confidence_penalty(conf)
+
+            objectives[i, 0] = pred_eta[i] + penalty   # additive OOD penalty
+            objectives[i, 1] = -_fenton_from_genome(population[i])
             objectives[i, 2] = _cost_from_genome(population[i])
-            objectives[i, 3] = -pred_binding[i]     # minimize -binding (maximize durability)
+            objectives[i, 3] = -pred_binding[i]
         else:
             objectives[i, :] = [5.0, 0.0, 100.0, 0.0]  # penalty
 
