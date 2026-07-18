@@ -4,6 +4,13 @@ A GPU-accelerated computational pipeline for autonomous catalyst discovery targe
 
 ---
 
+### 📖 References & Deep-Dives
+
+* 🔬 **[Turquoise Hydrogen Reference Guide](TURQUOISE_HYDROGEN.md)**: Exhaustive literature review of thermocatalytic and nanotribo-mechano-electrochemical (NTEC) methane splitting.
+* ⚡ **[Fuel Cell ORR & MEA Guide](FUEL_CELL.md)**: Comprehensive description of state-of-the-art catalysts, MEA designs, and large-scale PEMFC stack configurations.
+
+---
+
 ## Table of Contents
 
 - [Overview](#overview)
@@ -494,7 +501,7 @@ The eSen screener builds physically realistic, periodic atomic structures for al
 
 For each top-K catalyst from Phase 1:
 1. Generate a Cantera YAML mechanism with TST-derived rate constants calibrated to the catalyst's E_act
-2. Simulate three reactor types (MMBCR, PFR, fluidized bed) across 5 temperatures (800–1200 K)
+2. Simulate three reactor types (MMBCR, PFR, fluidized bed) across the standardized 4 temperatures (500°C to 1300 K / 773.15–1300 K)
 3. Record CH₄ conversion, H₂ selectivity, carbon yield, residence time
 
 ### Phase 3: DFT Validation (Quantum ESPRESSO)
