@@ -119,8 +119,8 @@ def generate_full_report(pipeline_state: Dict = None) -> Path:
 
     r(f"| Metric | Value |")
     r(f"|--------|-------|")
-    r(f"| Catalysts evaluated (MACE) | {p1.get('total_evaluated', 'N/A'):,} |")
-    r(f"| Valid candidates | {p1.get('valid_count', 'N/A'):,} |")
+    r(f"| Catalysts evaluated (MACE) | {p1.get('total_evaluated', 'N/A'):,} |" if isinstance(p1.get('total_evaluated'), (int, float)) else "| Catalysts evaluated (MACE) | N/A |")
+    r(f"| Valid candidates | {p1.get('valid_count', 'N/A'):,} |" if isinstance(p1.get('valid_count'), (int, float)) else "| Valid candidates | N/A |")
     r(f"| Pareto front size | {p1.get('pareto_size', 'N/A')} |")
     r(f"| Best activation barrier | {p1.get('best_E_act', 'N/A')} eV |")
     r(f"| Best coking resistance | {p1.get('best_coking', 'N/A')} eV |")
