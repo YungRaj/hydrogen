@@ -307,7 +307,7 @@ def main():
                 # Optimize for highest efficiency and least overvoltage first and foremost,
                 # while maximizing peak power output as much as possible.
                 def fc_composite_score(r):
-                    eff = r.get('efficiency_at_rated', 0.0)
+                    eff = r.get('efficiency_at_peak', 0.0)
                     power = r.get('peak_power_W_cm2', 0.0)
                     eta = max(r.get('orr_overpotential_V', 0.4), 0.01)
                     return (eff * power) / eta
@@ -318,7 +318,7 @@ def main():
                     current_density_A_cm2=best.get('peak_current_A_cm2', 1.5)))
                 pipeline_state['phase5_stack'] = {
                     'best_power_W_cm2': best.get('peak_power_W_cm2', 0),
-                    'best_efficiency': best.get('efficiency_at_rated', 0),
+                    'best_efficiency': best.get('efficiency_at_peak', 0),
                     'min_overpotential_V': best.get('orr_overpotential_V', 1.0),
                     'best_catalyst': best.get('cathode_catalyst', 'unknown'),
                     'best_membrane': best.get('membrane', 'unknown'),

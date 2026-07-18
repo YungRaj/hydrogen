@@ -214,7 +214,7 @@ def generate_full_report(pipeline_state: Dict = None) -> Path:
     if pemfc_results:
         # Sort by the new composite efficiency-overvoltage-power score
         def fc_composite_score(r):
-            eff = r.get('efficiency_at_rated', 0.0)
+            eff = r.get('efficiency_at_peak', 0.0)
             power = r.get('peak_power_W_cm2', 0.0)
             eta = max(r.get('orr_overpotential_V', 0.4), 0.01)
             return (eff * power) / eta
@@ -226,7 +226,7 @@ def generate_full_report(pipeline_state: Dict = None) -> Path:
         for res in sorted_pemfc[:15]:
             r(f"| {res.get('cathode_catalyst', '?')} | {res.get('membrane', '?')} | "
               f"{res.get('peak_power_W_cm2', 0):.4f} | {res.get('OCV_V', 0):.3f} | "
-              f"{res.get('orr_overpotential_V', '?')} | {res.get('efficiency_at_rated', 0):.1%} |")
+              f"{res.get('orr_overpotential_V', '?')} | {res.get('efficiency_at_peak', 0):.1%} |")
         r("")
 
     if stack_results:

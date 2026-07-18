@@ -273,17 +273,20 @@ def run_cathode_screening(workers_per_gpu: int = 2) -> 'pd.DataFrame':
 def _mock_orr_result(candidate: Dict) -> Dict:
     """Mock ORR result for testing without Meta eSen-SM."""
     eta = np.random.uniform(0.25, 0.80)
+    dG_OH = np.random.uniform(-1.0, 1.0)
+    dG_O = np.random.uniform(-2.0, 2.0)
     return {
         'name': candidate['name'],
         'type': candidate['type'],
-        'dG_OH_eV': np.random.uniform(-1.0, 1.0),
-        'dG_O_eV': np.random.uniform(-2.0, 2.0),
+        'dG_OH_eV': dG_OH,
+        'dG_O_eV': dG_O,
         'dG_OOH_eV': np.random.uniform(3.0, 4.5),
         'orr_overpotential_V': eta,
         'rate_determining_step': 'step_3_OH',
         'fenton_stability': np.random.randint(5, 10),
         'cost_penalty': abundance_cost_penalty(candidate['elements']),
         'pgm_loading_mg_cm2': candidate.get('pgm_loading_mg_cm2', 0.0),
+        'binding_strength': float(abs(dG_OH) + abs(dG_O)),
         'valid': True,
         'mock': True,
     }

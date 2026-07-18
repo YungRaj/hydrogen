@@ -299,7 +299,7 @@ def run_pipeline(config: PipelineConfig = PipelineConfig(),
             # Optimize for highest efficiency and least overvoltage first and foremost,
             # while maximizing peak power output as much as possible.
             def fc_composite_score(r):
-                eff = r.get('efficiency_at_rated', 0.0)
+                eff = r.get('efficiency_at_peak', 0.0)
                 power = r.get('peak_power_W_cm2', 0.0)
                 eta = max(r.get('orr_overpotential_V', 0.4), 0.01)
                 return (eff * power) / eta
@@ -325,7 +325,7 @@ def run_pipeline(config: PipelineConfig = PipelineConfig(),
                 r.get('peak_power_W_cm2', 0) for r in pemfc_results
             )
             pipeline_state['phase5']['best_efficiency'] = max(
-                r.get('efficiency_at_rated', 0) for r in pemfc_results
+                r.get('efficiency_at_peak', 0) for r in pemfc_results
             )
             pipeline_state['phase5']['min_overpotential_V'] = min(
                 r.get('orr_overpotential_V', 1.0) for r in pemfc_results
