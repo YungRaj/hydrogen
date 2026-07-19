@@ -5,6 +5,8 @@ pipeline_state.json
 
 # Quantum ESPRESSO pseudopotentials (download separately)
 quantum_espresso/pseudo/*.UPF
+quantum_espresso/sssp/**/*.UPF
+quantum_espresso/sssp/**/*.upf
 
 # Python
 __pycache__/

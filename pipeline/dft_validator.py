@@ -111,10 +111,16 @@ def generate_bulk_scf_input(elements: List[str], positions_frac: List[Tuple],
     nat = len(positions_frac)
     ntyp = len(set(elements))
 
+    from pipeline.qe_workflows import verify_sssp, SSSP_DIR
+    sssp = verify_sssp(elements)
+    if not sssp['valid']:
+        raise RuntimeError(f"SSSP verification failed: {sssp['errors']}")
+    ecutwfc = max(float(ecutwfc), sssp['ecutwfc_Ry'])
+    ecutrho = max(float(ecutrho), sssp['ecutrho_Ry'])
     species_block = ""
     unique_elements = sorted(set(elements))
     for elem in unique_elements:
-        pseudo = PSEUDO_MAP.get(elem, f"{elem}.pbe-rrkjus_psl.1.0.0.UPF")
+        pseudo = sssp['records'][elem]['filename']
         mass = ATOMIC_MASSES_QE.get(elem, 50.0)
         species_block += f"  {elem}  {mass:.3f}  {pseudo}\n"
 
@@ -126,7 +132,7 @@ def generate_bulk_scf_input(elements: List[str], positions_frac: List[Tuple],
   calculation = 'scf'
   prefix = '{calc_name}'
   outdir = './tmp'
-  pseudo_dir = '{QE_PSEUDO_DIR}'
+  pseudo_dir = '{SSSP_DIR}'
   tprnfor = .true.
   tstress = .true.
   verbosity = 'high'
@@ -166,10 +172,16 @@ def generate_slab_scf_input(elements: List[str], positions_ang: List[Tuple],
     nat = len(positions_ang)
     ntyp = len(set(elements))
 
+    from pipeline.qe_workflows import verify_sssp, SSSP_DIR
+    sssp = verify_sssp(elements)
+    if not sssp['valid']:
+        raise RuntimeError(f"SSSP verification failed: {sssp['errors']}")
+    ecutwfc = max(float(ecutwfc), sssp['ecutwfc_Ry'])
+    ecutrho = sssp['ecutrho_Ry']
     species_block = ""
     unique_elements = sorted(set(elements))
     for elem in unique_elements:
-        pseudo = PSEUDO_MAP.get(elem, f"{elem}.pbe-rrkjus_psl.1.0.0.UPF")
+        pseudo = sssp['records'][elem]['filename']
         mass = ATOMIC_MASSES_QE.get(elem, 50.0)
         species_block += f"  {elem}  {mass:.3f}  {pseudo}\n"
 
@@ -185,7 +197,7 @@ def generate_slab_scf_input(elements: List[str], positions_ang: List[Tuple],
   calculation = 'relax'
   prefix = '{calc_name}'
   outdir = './tmp'
-  pseudo_dir = '{QE_PSEUDO_DIR}'
+  pseudo_dir = '{SSSP_DIR}'
   tprnfor = .true.
   forc_conv_thr = 1.0d-3
 /
@@ -194,10 +206,11 @@ def generate_slab_scf_input(elements: List[str], positions_ang: List[Tuple],
   nat = {nat}
   ntyp = {ntyp}
   ecutwfc = {ecutwfc}
-  ecutrho = {ecutwfc * 8}
+  ecutrho = {ecutrho}
   occupations = 'smearing'
   smearing = 'mv'
   degauss = 0.02
+  nspin = 2
 /
 &ELECTRONS
   mixing_beta = 0.3

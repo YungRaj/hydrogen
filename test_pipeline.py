@@ -229,6 +229,39 @@ def test_adaptive_validation_policy():
             assert conn.execute("SELECT COUNT(*) FROM experimental_slate").fetchone()[0] == 5
 
 
+def test_sssp_and_candidate_neb_workflow():
+    import tempfile
+    from pathlib import Path
+    from ase.build import fcc111
+    from pipeline.qe_workflows import (verify_sssp, methane_dissociation_images,
+                                       write_qe_neb_input)
+    encoded_elements = "Ag Al Au B Ba Bi Br C Ca Ce Cl Co Cr Cs Cu Dy Er Eu F Fe Ga Gd Ge Hf I In Ir K La Li Mg Mn Mo N Na Nb Nd Ni O P Pb Pd Pr Pt Rb Re Rh Ru S Sb Sc Se Si Sm Sn Sr Ta Te Ti V W Y Yb Zn Zr".split()
+    verified = verify_sssp(encoded_elements)
+    assert verified['valid'], verified['errors']
+    slab = fcc111('Ni', size=(2, 2, 3), vacuum=10.0)
+    images = methane_dissociation_images(slab, active_index=len(slab)-1, n_images=5)
+    with tempfile.TemporaryDirectory() as tmp:
+        result = write_qe_neb_input(images, str(Path(tmp) / 'ni_ch4.neb.in'), 'ni_ch4')
+        text = Path(result['path']).read_text()
+        assert "CI_scheme='auto'" in text and 'nspin=2' in text
+        assert result['n_images'] == 5
+
+
+def test_orr_multisite_and_corrections():
+    from ase.build import fcc111
+    from pipeline.orr_workflows import (ORRCorrections, enumerate_surface_sites,
+                                        apply_orr_corrections, select_lowest_site)
+    slab = fcc111('Pt', size=(2, 2, 3), vacuum=8.0)
+    sites = enumerate_surface_sites(slab)
+    assert any(x['kind'] == 'atop' for x in sites)
+    corrected = apply_orr_corrections(1.0, 2.0, 3.5,
+        ORRCorrections(electrode_potential_V=0.8, source_id='protocol:test'))
+    assert corrected['dG_OH_eV'] < 1.0
+    best = select_lowest_site([{'site_id': 'b', 'converged': True, 'E': -1},
+                               {'site_id': 'a', 'converged': True, 'E': -2}], 'E')
+    assert best['site_id'] == 'a'
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 5. ELEMENT EXTRACTORS (4 copies must agree)
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -916,6 +949,8 @@ if __name__ == '__main__':
     test("Novelty time-split benchmark", test_novelty_time_split_benchmark)
     test("Six-point status fails closed", test_six_point_status_fails_closed)
     test("Adaptive validation policy", test_adaptive_validation_policy)
+    test("SSSP and candidate NEB workflow", test_sssp_and_candidate_neb_workflow)
+    test("ORR multisite and corrections", test_orr_multisite_and_corrections)
 
     print("\n── Element Extractors ──")
     test("4 extractors consistent", test_element_extractors_consistent)
