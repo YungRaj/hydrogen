@@ -1100,6 +1100,167 @@ def estimate_design_space_size() -> Dict[str, int]:
     return sizes
 
 
+def generate_hierarchical_htvs_pool(pool_size: int, scorer=None) -> List[tuple]:
+    """
+    Generate a deterministic, non-random pool of catalyst candidates using hierarchical screening.
+    
+    1. Exhaustively builds grids for small classes and core configurations for large classes.
+    2. Screens the cores with the scorer callback (if provided).
+    3. Expands the best-performing cores with local modifications (dopants, strain, defects).
+    4. Selects and returns the best candidates.
+    """
+    # A. Generate core configurations deterministically
+    cores = []
+
+    # 1. MoltenMetal (stride to ~5000)
+    for host in MOLTEN_HOSTS:
+        for promoter in MOLTEN_PROMOTERS[::2]:
+            for at_pct in MOLTEN_PROMOTER_AT_PCT[::2]:
+                for temp in MOLTEN_TEMPERATURES_K[::2]:
+                    cores.append(('MoltenMetal', host, promoter, at_pct, temp))
+
+    # 2. SAC (100% exhaustive: 6,318)
+    for metal in SAC_METALS:
+        for coord in SAC_COORDINATIONS:
+            for substrate in SAC_SUBSTRATES:
+                for axial in SAC_AXIAL_LIGANDS:
+                    cores.append(('SAC', metal, coord, substrate, axial))
+
+    # 3. DAC (strided to ~10,000)
+    for m1 in DAC_METALS_1[::2]:
+        for m2 in DAC_METALS_2[::2]:
+            for coord in DAC_COORDINATIONS[::2]:
+                for substrate in SAC_SUBSTRATES:
+                    cores.append(('DAC', m1, m2, coord, substrate))
+
+    # 4. MOF (strided to ~5,000)
+    for metal in MOF_METAL_NODES[::2]:
+        for linker in MOF_LINKERS[::2]:
+            for cavity in MOF_CAVITIES[::2]:
+                for pore in MOF_PORE_SIZES[::2]:
+                    cores.append(('MOF', metal, linker, cavity, pore))
+
+    # 5. COF (strided to ~5,000)
+    for metal in (MOF_METAL_NODES + ['None'])[::2]:
+        for linkage in COF_LINKAGES[::2]:
+            for cavity in MOF_CAVITIES[::2]:
+                for pore in MOF_PORE_SIZES[::2]:
+                    cores.append(('COF', metal, linkage, cavity, pore))
+
+    # 6. Perovskite (strided to ~3,000)
+    for A in PEROVSKITE_A_SITE[::2]:
+        for B in PEROVSKITE_B_SITE[::2]:
+            for dopant in (PEROVSKITE_B_SITE + ['None'])[::2]:
+                cores.append(('Perovskite', A, B, dopant, 0.0, 'none'))
+
+    # 7. MetalHydride (strided to ~5,000)
+    for metal in HYDRIDE_METALS[::2]:
+        for h_type in HYDRIDE_TYPES[::2]:
+            for second in HYDRIDE_SECOND_METAL[::2]:
+                cores.append(('MetalHydride', metal, h_type, second, 'None', 500))
+
+    # 8. MAXPhase (100% exhaustive: 49,140)
+    for M in MAX_M_ELEMENTS:
+        for A in MAX_A_ELEMENTS:
+            for X in MAX_X_ELEMENTS:
+                for N in MAX_N_VALUES:
+                    cores.append(('MAXPhase', M, A, X, N, 'None', '0001'))
+
+    # 9. HEA (strided to ~10,000)
+    from itertools import combinations
+    n_elements = len(HEA_ELEMENTS)
+    step = max(1, n_elements // 10)
+    subset_elements = [HEA_ELEMENTS[i] for i in range(0, n_elements, step)]
+    for combi in combinations(subset_elements, 4):
+        for struct in HEA_STRUCTURES[:2]:
+            for facet in ['111']:
+                cores.append(('HEA', tuple(sorted(combi)), struct, facet, 1000))
+
+    # 10. Spinel (100% exhaustive: 14,400)
+    for A in SPINEL_A_METALS:
+        for B in SPINEL_B_METALS:
+            for dopant in SPINEL_DOPANTS:
+                for morph in SPINEL_MORPHOLOGIES:
+                    for support in SPINEL_SUPPORT_CARBONS:
+                        cores.append(('Spinel', A, B, dopant, morph, support))
+
+    # 11. MXene (100% exhaustive: 2,400)
+    for M in MXENE_M_ELEMENTS:
+        for X in MXENE_X_ELEMENTS:
+            for N in MXENE_N_VALUES:
+                for term in MXENE_TERMINATIONS:
+                    for sac in MXENE_SAC_METALS:
+                        cores.append(('MXene', M, X, N, term, sac))
+
+    # 12. SAA (100% exhaustive: 1,500)
+    for trace in SAA_TRACE_METALS:
+        for host in SAA_HOST_METALS:
+            for facet in SAA_FACETS:
+                for loading in SAA_LOADINGS_PPM:
+                    cores.append(('SAA', trace, host, facet, loading))
+
+    # 13. MetalFreeCarbon (100% exhaustive: 1,575)
+    for n_type in MFC_N_TYPES:
+        for n_frac in MFC_N_FRACTIONS:
+            for defect in MFC_DEFECT_TYPES:
+                for substrate in MFC_SUBSTRATES:
+                    for dopant in MFC_DOPANTS:
+                        cores.append(('MetalFreeCarbon', n_type, n_frac, defect, substrate, dopant))
+
+    # 14. SolidCatalyst Cores (all 25,800 combinations)
+    for metal in SOLID_ACTIVE_METALS:
+        for support in SOLID_SUPPORTS:
+            for facet in SOLID_FACETS:
+                cores.append(('SolidCatalyst', metal, support, facet, 0.0, (), 1, 0))
+
+    if scorer is None:
+        step = max(1, len(cores) // pool_size)
+        return cores[::step][:pool_size]
+
+    # B. Screen cores to select the most promising ones
+    acquisition_scores = scorer(cores)
+    best_indices = np.argsort(acquisition_scores)
+
+    # C. Perform neighborhood expansion for the top cores
+    expanded_pool = []
+    solid_expanded_count = 0
+    common_dopants = ['B', 'N', 'O', 'P', 'S', 'F', 'Cl', 'Si', 'Al']
+
+    for idx in best_indices:
+        g = cores[idx]
+        mat_class = g[0]
+        if mat_class == 'SolidCatalyst':
+            _, metal, support, facet, _, _, _, _ = g
+            for strain in [-0.05, 0.05]:
+                for vac in [0, 1]:
+                    expanded_pool.append(('SolidCatalyst', metal, support, facet, strain, (), 1, vac))
+                    for d in common_dopants:
+                        expanded_pool.append(('SolidCatalyst', metal, support, facet, strain, (d,), 1, vac))
+            solid_expanded_count += 1
+            if solid_expanded_count > 500:
+                pass
+        elif mat_class == 'Perovskite':
+            _, A, B, _, _, _ = g
+            for dopant in PEROVSKITE_B_SITE[:3]:
+                for frac in [0.05, 0.1]:
+                    for defect in PEROVSKITE_DEFECTS:
+                        expanded_pool.append(('Perovskite', A, B, dopant, frac, defect))
+        elif mat_class == 'MetalHydride':
+            _, metal, h_type, second, _, _ = g
+            for additive in HYDRIDE_ADDITIVES[1:4]:
+                for temp in [400, 600]:
+                    expanded_pool.append(('MetalHydride', metal, h_type, second, additive, temp))
+        else:
+            expanded_pool.append(g)
+
+    full_pool = list(set(cores + expanded_pool))
+
+    # D. Final screen of the combined pool
+    scores = scorer(full_pool)
+    best_full_indices = np.argsort(scores)[:pool_size]
+    return [full_pool[i] for i in best_full_indices]
+
+
 if __name__ == '__main__':
     print("=" * 70)
     print("  CATALYST DESIGN SPACE SUMMARY")

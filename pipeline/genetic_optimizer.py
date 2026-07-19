@@ -31,7 +31,7 @@ from pipeline.utils import (
 )
 from pipeline.catalyst_spaces import (
     generate_population, crossover, mutate, encode_genome, encode_population,
-    ALL_MATERIAL_CLASSES, FEATURE_DIM,
+    ALL_MATERIAL_CLASSES, FEATURE_DIM, generate_hierarchical_htvs_pool,
 )
 from pipeline.surrogate_model import CatalystSurrogate, train_surrogate, predict_batch, SurrogateEnsemble, train_ensemble, predict_ensemble
 
@@ -272,25 +272,7 @@ class GAConfig:
     seed: int = 42
 
 
-def generate_htvs_pool(pool_size: int = 20000) -> List[tuple]:
-    """Generate a highly diverse, stratified pool of genomes across all classes."""
-    pool = set()
-    attempts = 0
-    per_class = max(100, pool_size // len(ALL_MATERIAL_CLASSES))
-    for cls in ALL_MATERIAL_CLASSES:
-        cls_pool_size = 0
-        while cls_pool_size < per_class and attempts < pool_size * 10:
-            attempts += 1
-            g = generate_population(1, material_class=cls)[0]
-            if g not in pool:
-                pool.add(g)
-                cls_pool_size += 1
-    # Fill remaining to reach pool_size
-    while len(pool) < pool_size and attempts < pool_size * 20:
-        attempts += 1
-        g = generate_population(1)[0]
-        pool.add(g)
-    return list(pool)
+
 
 
 def tournament_select(population: List[tuple], objectives: np.ndarray,
@@ -331,7 +313,10 @@ def run_genetic_algorithm(config: GAConfig = GAConfig(),
 
     # ── Phase C: Evolutionary Loop ──────────────────────────────────────────
     logger.info(f"Generating HTVS pool of {config.htvs_pool_size} candidates for initial seeding...")
-    htvs_pool = generate_htvs_pool(config.htvs_pool_size)
+    htvs_pool = generate_hierarchical_htvs_pool(
+        config.htvs_pool_size,
+        scorer=lambda pop: compute_objectives_surrogate(pop, model, config.device)[:, 0]
+    )
     htvs_obj = compute_objectives_surrogate(htvs_pool, model, config.device)
 
     logger.info(f"Selecting top {config.pop_size} Pareto-optimal seeds using acquisition LCB/UCB values...")
@@ -454,7 +439,10 @@ def run_genetic_algorithm(config: GAConfig = GAConfig(),
         # ── Periodic HTVS Global Reinjection ────────────────────────────────
         if (gen + 1) % config.reinjection_interval == 0:
             logger.info(f"  Gen {gen+1}: Global HTVS — screening 10,000 fresh candidates...")
-            reinject_pool = generate_htvs_pool(10000)
+            reinject_pool = generate_hierarchical_htvs_pool(
+                10000,
+                scorer=lambda pop: compute_objectives_surrogate(pop, model, config.device)[:, 0]
+            )
             reinject_obj = compute_objectives_surrogate(reinject_pool, model, config.device)
 
             n_inject = max(10, config.pop_size // 10)

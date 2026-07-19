@@ -29,9 +29,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from pipeline.utils import setup_logger, save_json, BASE_DIR
 from pipeline.catalyst_spaces import (
     generate_population, crossover, mutate, encode_genome, encode_population,
-    ALL_MATERIAL_CLASSES, FEATURE_DIM,
+    ALL_MATERIAL_CLASSES, FEATURE_DIM, generate_hierarchical_htvs_pool,
 )
-from pipeline.genetic_optimizer import generate_htvs_pool
 import torch
 
 logger = setup_logger('fc_genetic_optimizer', 'fuel_cell/fc_genetic_optimizer.log')
@@ -427,7 +426,10 @@ def run_fc_genetic_algorithm(config: FCGAConfig, existing_db=None):
     # ── Phase C: Evolutionary Loop ──────────────────────────────────────────
     if model is not None:
         logger.info(f"Generating HTVS pool of {config.htvs_pool_size} candidates for initial seeding...")
-        htvs_pool = generate_htvs_pool(config.htvs_pool_size)
+        htvs_pool = generate_hierarchical_htvs_pool(
+            config.htvs_pool_size,
+            scorer=lambda pop: compute_orr_objectives_surrogate(pop, model, config.device)[:, 0]
+        )
         htvs_obj = compute_orr_objectives_surrogate(htvs_pool, model, config.device)
         logger.info(f"Selecting top {config.pop_size} Pareto-optimal seeds using acquisition LCB/UCB values...")
         seed_idx = nsga2_select(htvs_pool, htvs_obj, config.pop_size)
@@ -546,7 +548,10 @@ def run_fc_genetic_algorithm(config: FCGAConfig, existing_db=None):
         # ── Periodic HTVS Global Reinjection ────────────────────────────────
         if model is not None and gen % config.reinjection_interval == 0:
             logger.info(f"  Gen {gen}: Global HTVS — screening 10,000 fresh candidates...")
-            reinject_pool = generate_htvs_pool(10000)
+            reinject_pool = generate_hierarchical_htvs_pool(
+                10000,
+                scorer=lambda pop: compute_orr_objectives_surrogate(pop, model, config.device)[:, 0]
+            )
             reinject_obj = compute_orr_objectives_surrogate(reinject_pool, model, config.device)
 
             n_inject = max(10, config.pop_size // 10)

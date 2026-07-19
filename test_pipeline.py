@@ -500,6 +500,17 @@ def test_cathode_sac_genome_5tuple():
         assert len(c['genome']) == 5, f"SAC genome should be 5-tuple, got {len(c['genome'])}: {c['genome']}"
 
 
+def test_deterministic_hierarchical_pool():
+    from pipeline.catalyst_spaces import generate_hierarchical_htvs_pool
+    # Test fallback behavior when model is None
+    pool = generate_hierarchical_htvs_pool(pool_size=100, scorer=None)
+    assert len(pool) == 100, f"Expected pool size 100, got {len(pool)}"
+    # Check that genomes are generated and valid
+    for g in pool:
+        assert isinstance(g, tuple), "Genome must be a tuple"
+        assert len(g) >= 2, "Genome must have at least class name and one parameter"
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # RUN ALL
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -572,6 +583,7 @@ if __name__ == '__main__':
     test("Tafel slope all 14 classes", test_tafel_all_classes)
     test("Cathode SAC genomes 5-tuple", test_cathode_sac_genome_5tuple)
     test("Pyrolysis mode coking bonus", test_pyrolysis_mode_coking_bonus)
+    test("Deterministic hierarchical HTVS pool", test_deterministic_hierarchical_pool)
 
     elapsed = time.time() - t0
     print(f"\n{'=' * 60}")
