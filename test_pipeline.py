@@ -38,7 +38,7 @@ def test(name, fn):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def test_all_14_classes_generate():
-    from pipeline.catalyst_spaces import ALL_MATERIAL_CLASSES, generate_random_genome
+    from pipeline.common.catalyst_spaces import ALL_MATERIAL_CLASSES, generate_random_genome
     pop = [generate_random_genome() for _ in range(3000)]
     classes_seen = set(g[0] for g in pop)
     assert len(ALL_MATERIAL_CLASSES) == 14, f"Expected 14 classes, got {len(ALL_MATERIAL_CLASSES)}"
@@ -46,8 +46,8 @@ def test_all_14_classes_generate():
 
 
 def test_no_toxic_elements():
-    from pipeline.catalyst_spaces import generate_random_genome
-    from pipeline.utils import TOXIC_ELEMENTS
+    from pipeline.common.catalyst_spaces import generate_random_genome
+    from pipeline.common.utils import TOXIC_ELEMENTS
     pop = [generate_random_genome() for _ in range(2000)]
     for g in pop:
         for field in g[1:]:
@@ -56,7 +56,7 @@ def test_no_toxic_elements():
 
 
 def test_sac_has_axial_ligand():
-    from pipeline.catalyst_spaces import generate_random_genome, SAC_AXIAL_LIGANDS
+    from pipeline.common.catalyst_spaces import generate_random_genome, SAC_AXIAL_LIGANDS
     sacs = [generate_random_genome('SAC') for _ in range(100)]
     assert all(len(g) == 5 for g in sacs), "SAC genome should have 5 fields"
     axials = set(g[4] for g in sacs)
@@ -64,7 +64,7 @@ def test_sac_has_axial_ligand():
 
 
 def test_class_weights_sum_to_1():
-    from pipeline.catalyst_spaces import CLASS_WEIGHTS
+    from pipeline.common.catalyst_spaces import CLASS_WEIGHTS
     total = sum(CLASS_WEIGHTS.values())
     assert abs(total - 1.0) < 0.01, f"Class weights sum to {total}, expected ~1.0"
 
@@ -74,7 +74,7 @@ def test_class_weights_sum_to_1():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def test_encode_all_classes_no_nan():
-    from pipeline.catalyst_spaces import ALL_MATERIAL_CLASSES, generate_random_genome, encode_genome, FEATURE_DIM
+    from pipeline.common.catalyst_spaces import ALL_MATERIAL_CLASSES, generate_random_genome, encode_genome, FEATURE_DIM
     for cls in ALL_MATERIAL_CLASSES:
         for _ in range(50):
             g = generate_random_genome(cls)
@@ -84,7 +84,7 @@ def test_encode_all_classes_no_nan():
 
 
 def test_feature_dim_matches_components():
-    from pipeline.catalyst_spaces import (
+    from pipeline.common.catalyst_spaces import (
         FEATURE_DIM, N_CLASSES, N_METALS, N_SUPPORTS, N_FACETS,
         N_COORDS, N_DOPANTS, N_CONTINUOUS
     )
@@ -97,8 +97,8 @@ def test_feature_dim_matches_components():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def test_ch4_surrogate_no_nan():
-    from pipeline.catalyst_spaces import generate_random_genome, encode_genome, FEATURE_DIM
-    from pipeline.surrogate_model import CatalystSurrogate
+    from pipeline.common.catalyst_spaces import generate_random_genome, encode_genome, FEATURE_DIM
+    from pipeline.screening.surrogate_model import CatalystSurrogate
     model = CatalystSurrogate(input_dim=FEATURE_DIM)
     model.eval()
     pop = [generate_random_genome() for _ in range(500)]
@@ -110,8 +110,8 @@ def test_ch4_surrogate_no_nan():
 
 
 def test_orr_surrogate_no_nan():
-    from pipeline.catalyst_spaces import generate_random_genome, encode_genome, FEATURE_DIM
-    from pipeline.fc_genetic_optimizer import ORRCatalystSurrogate
+    from pipeline.common.catalyst_spaces import generate_random_genome, encode_genome, FEATURE_DIM
+    from pipeline.screening.fc_genetic_optimizer import ORRCatalystSurrogate
     model = ORRCatalystSurrogate(input_dim=FEATURE_DIM)
     model.eval()
     pop = [generate_random_genome() for _ in range(500)]
@@ -127,8 +127,8 @@ def test_orr_surrogate_no_nan():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def test_nsga2_sorts_correctly():
-    from pipeline.catalyst_spaces import generate_random_genome, FEATURE_DIM
-    from pipeline.fc_genetic_optimizer import (
+    from pipeline.common.catalyst_spaces import generate_random_genome, FEATURE_DIM
+    from pipeline.screening.fc_genetic_optimizer import (
         ORRCatalystSurrogate, compute_orr_objectives_surrogate, fast_non_dominated_sort
     )
     model = ORRCatalystSurrogate(input_dim=FEATURE_DIM)
@@ -142,8 +142,8 @@ def test_nsga2_sorts_correctly():
 
 
 def test_cost_and_fenton_ranges():
-    from pipeline.catalyst_spaces import ALL_MATERIAL_CLASSES, generate_random_genome
-    from pipeline.fc_genetic_optimizer import _cost_from_genome, _fenton_from_genome
+    from pipeline.common.catalyst_spaces import ALL_MATERIAL_CLASSES, generate_random_genome
+    from pipeline.screening.fc_genetic_optimizer import _cost_from_genome, _fenton_from_genome
     for cls in ALL_MATERIAL_CLASSES:
         for _ in range(20):
             g = generate_random_genome(cls)
@@ -154,8 +154,8 @@ def test_cost_and_fenton_ranges():
 
 
 def test_metalfreecarbon_zero_cost():
-    from pipeline.catalyst_spaces import generate_random_genome
-    from pipeline.fc_genetic_optimizer import _cost_from_genome
+    from pipeline.common.catalyst_spaces import generate_random_genome
+    from pipeline.screening.fc_genetic_optimizer import _cost_from_genome
     for _ in range(20):
         g = generate_random_genome('MetalFreeCarbon')
         c = _cost_from_genome(g)
@@ -163,14 +163,14 @@ def test_metalfreecarbon_zero_cost():
 
 
 def test_pemfc_application_scope():
-    from pipeline.application_scope import pemfc_cathode_scope
+    from pipeline.common.application_scope import pemfc_cathode_scope
     assert pemfc_cathode_scope(('SAC', 'Fe'))['status'] == 'candidate'
     assert pemfc_cathode_scope(('MoltenMetal', 'Ga'))['status'] == 'out_of_scope'
     assert pemfc_cathode_scope(('MetalHydride', 'La'))['status'] == 'out_of_scope'
 
 
 def test_novelty_time_split_benchmark():
-    from pipeline.novelty_benchmark import time_split_recovery
+    from pipeline.evidence.novelty_benchmark import time_split_recovery
     known = ('SAC', 'Fe', 'N4', 'N-graphene', 'OH')
     held_out = [{'genome': known, 'publication_year': 2025,
                  'source_id': 'doi:test', 'citation': 'Test et al.'}]
@@ -184,7 +184,7 @@ def test_pilot_benchmark_deduplicates_candidates():
     import tempfile
     from pathlib import Path
     import pandas as pd
-    from pipeline.pilot_benchmark import PilotSpec, load_legacy_outcomes
+    from pipeline.evidence.pilot_benchmark import PilotSpec, load_legacy_outcomes
     rows = [
         {'genome': repr(('SAC', 'Fe', 'N4', 'N-graphene', 'none')),
          'valid': True, 'score': value} for value in (0.4, 0.6)
@@ -202,8 +202,8 @@ def test_pilot_benchmark_deduplicates_candidates():
 
 def test_small_data_rankers_preserve_continuous_targets():
     import pandas as pd
-    from pipeline.indexed_space import deterministic_tree_probes
-    from pipeline.small_data_ranker import fit_tree_ranker
+    from pipeline.search.indexed_space import deterministic_tree_probes
+    from pipeline.screening.small_data_ranker import fit_tree_ranker
     genomes = deterministic_tree_probes(24)
     pyro = pd.DataFrame({'genome': [repr(g) for g in genomes], 'valid': True,
                          'E_act': np.linspace(0.1, 2.0, len(genomes))})
@@ -221,7 +221,7 @@ def test_small_data_rankers_preserve_continuous_targets():
 
 def test_six_point_status_fails_closed():
     import tempfile
-    from pipeline.campaign_status import assess_campaign
+    from pipeline.evidence.campaign_status import assess_campaign
     with tempfile.TemporaryDirectory() as tmp:
         result = assess_campaign(tmp)
         assert not result['ready']
@@ -234,7 +234,7 @@ def test_six_point_status_fails_closed():
 def test_adaptive_validation_policy():
     import tempfile
     from pathlib import Path
-    from pipeline.adaptive_validation import (
+    from pipeline.search.adaptive_validation import (
         allocate_validation_batch, experimental_slate, record_validation,
         regional_calibration, priority_adjustment, persist_experimental_slate)
     candidates = [
@@ -260,7 +260,7 @@ def test_adaptive_validation_policy():
         record_validation(db, 'test', candidates[0], 0.2, 1.2, 'dft', False,
                           {'source_id': 'calc:1'})
         stats = regional_calibration(db, 'test')
-        region = '|'.join(__import__('pipeline.discovery', fromlist=['discovery_region']).discovery_region(candidates[0]))
+        region = '|'.join(__import__('pipeline.search.discovery', fromlist=['discovery_region']).discovery_region(candidates[0]))
         assert stats[region]['mae'] == 1.0 and stats[region]['productivity'] == 0.0
         assert priority_adjustment(db, 'test', [candidates[0]]) < 0.5
         # A new region in the same class inherits class-level disagreement
@@ -278,7 +278,7 @@ def test_sssp_and_candidate_neb_workflow():
     import tempfile
     from pathlib import Path
     from ase.build import fcc111
-    from pipeline.qe_workflows import (verify_sssp, methane_dissociation_images,
+    from pipeline.validation.qe_workflows import (verify_sssp, methane_dissociation_images,
                                        write_qe_neb_input)
     encoded_elements = "Ag Al Au B Ba Bi Br C Ca Ce Cl Co Cr Cs Cu Dy Er Eu F Fe Ga Gd Ge Hf I In Ir K La Li Mg Mn Mo N Na Nb Nd Ni O P Pb Pd Pr Pt Rb Re Rh Ru S Sb Sc Se Si Sm Sn Sr Ta Te Ti V W Y Yb Zn Zr".split()
     verified = verify_sssp(encoded_elements)
@@ -294,7 +294,7 @@ def test_sssp_and_candidate_neb_workflow():
 
 def test_orr_multisite_and_corrections():
     from ase.build import fcc111
-    from pipeline.orr_workflows import (ORRCorrections, enumerate_surface_sites,
+    from pipeline.validation.orr_workflows import (ORRCorrections, enumerate_surface_sites,
                                         apply_orr_corrections, select_lowest_site)
     slab = fcc111('Pt', size=(2, 2, 3), vacuum=8.0)
     sites = enumerate_surface_sites(slab)
@@ -312,11 +312,11 @@ def test_orr_multisite_and_corrections():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def test_element_extractors_consistent():
-    from pipeline.catalyst_spaces import ALL_MATERIAL_CLASSES, generate_random_genome
-    from pipeline.fc_genetic_optimizer import _extract_elements_from_genome as fc_extract
-    from pipeline.genetic_optimizer import _extract_elements_from_genome as methane_extract
-    from pipeline.surface_screener import _extract_elements as screener_extract
-    from pipeline.fc_screener import _extract_elements as fc_screener_extract
+    from pipeline.common.catalyst_spaces import ALL_MATERIAL_CLASSES, generate_random_genome
+    from pipeline.screening.fc_genetic_optimizer import _extract_elements_from_genome as fc_extract
+    from pipeline.screening.genetic_optimizer import _extract_elements_from_genome as methane_extract
+    from pipeline.screening.surface_screener import _extract_elements as screener_extract
+    from pipeline.screening.fc_screener import _extract_elements as fc_screener_extract
     for cls in ALL_MATERIAL_CLASSES:
         for _ in range(20):
             g = generate_random_genome(cls)
@@ -338,8 +338,8 @@ def test_element_extractors_consistent():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def test_structure_generation_all_classes():
-    from pipeline.catalyst_spaces import ALL_MATERIAL_CLASSES, generate_random_genome
-    from pipeline.surface_screener import generate_structure
+    from pipeline.common.catalyst_spaces import ALL_MATERIAL_CLASSES, generate_random_genome
+    from pipeline.screening.surface_screener import generate_structure
     for cls in ALL_MATERIAL_CLASSES:
         for _ in range(20):
             g = generate_random_genome(cls)
@@ -354,14 +354,14 @@ def test_structure_generation_all_classes():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def test_tafel_covers_all_classes():
-    from pipeline.catalyst_spaces import ALL_MATERIAL_CLASSES
-    from pipeline.pemfc_model import TAFEL_SLOPE_BY_CLASS
+    from pipeline.common.catalyst_spaces import ALL_MATERIAL_CLASSES
+    from pipeline.process.pemfc_model import TAFEL_SLOPE_BY_CLASS
     for cls in ALL_MATERIAL_CLASSES:
         assert cls in TAFEL_SLOPE_BY_CLASS, f"Missing Tafel slope for {cls}"
 
 
 def test_pemfc_power_monotonic_with_eta():
-    from pipeline.pemfc_model import simulate_pemfc, PEMFCConfig
+    from pipeline.process.pemfc_model import simulate_pemfc, PEMFCConfig
     etas = [0.25, 0.30, 0.35, 0.40, 0.50, 0.60, 0.80]
     results = [simulate_pemfc(PEMFCConfig(orr_overpotential_V=e)) for e in etas]
     powers = [r['peak_power_W_cm2'] for r in results]
@@ -370,7 +370,7 @@ def test_pemfc_power_monotonic_with_eta():
 
 
 def test_tafel_slope_affects_power():
-    from pipeline.pemfc_model import simulate_pemfc, PEMFCConfig
+    from pipeline.process.pemfc_model import simulate_pemfc, PEMFCConfig
     r_low = simulate_pemfc(PEMFCConfig(orr_overpotential_V=0.35, orr_tafel_slope_mV_dec=65))
     r_high = simulate_pemfc(PEMFCConfig(orr_overpotential_V=0.35, orr_tafel_slope_mV_dec=130))
     assert r_low['peak_power_W_cm2'] > r_high['peak_power_W_cm2'], \
@@ -378,7 +378,7 @@ def test_tafel_slope_affects_power():
 
 
 def test_pemfc_efficiency_in_range():
-    from pipeline.pemfc_model import simulate_pemfc, PEMFCConfig
+    from pipeline.process.pemfc_model import simulate_pemfc, PEMFCConfig
     r = simulate_pemfc(PEMFCConfig(orr_overpotential_V=0.35))
     eff = r['efficiency_at_peak']
     assert 0.10 < eff < 0.60, f"Efficiency {eff} out of physical range"
@@ -389,7 +389,7 @@ def test_pemfc_efficiency_in_range():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def test_stack_model():
-    from pipeline.fuel_cell_stack import model_stack, StackConfig
+    from pipeline.process.fuel_cell_stack import model_stack, StackConfig
     stack = model_stack(StackConfig(cell_voltage_V=0.65, current_density_A_cm2=1.5))
     assert stack['net_power_kW'] > 0, f"Negative net power: {stack['net_power_kW']}"
     assert 0 < stack['system_efficiency'] < 1, f"Efficiency out of range: {stack['system_efficiency']}"
@@ -401,13 +401,13 @@ def test_stack_model():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def test_orr_overpotential_ideal():
-    from pipeline.utils import orr_overpotential
+    from pipeline.common.utils import orr_overpotential
     eta, rds = orr_overpotential(1.23, 2.46, 3.69)
     assert abs(eta) < 0.001, f"Ideal overpotential should be ~0, got {eta}"
 
 
 def test_abundance_cost_penalty():
-    from pipeline.utils import abundance_cost_penalty
+    from pipeline.common.utils import abundance_cost_penalty
     assert abundance_cost_penalty(['Fe']) == 0.0, "Fe should be zero cost"
     assert abundance_cost_penalty(['Ir']) == -2.0, "Ir should be max penalty"
     assert abundance_cost_penalty(['Fe', 'Ir']) < 0, "Geo mean should catch Ir"
@@ -419,7 +419,7 @@ def test_abundance_cost_penalty():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def test_report_campaign_path():
-    from pipeline.report_generator import generate_full_report
+    from pipeline.evidence.report_generator import generate_full_report
     path = generate_full_report({
         'phase5_ga': {'total_evaluated': 1000},
         'phase5_stack': {'best_power_W_cm2': 1.35, 'best_efficiency': 0.31, 'min_overpotential_V': 0.32},
@@ -430,7 +430,7 @@ def test_report_campaign_path():
 
 
 def test_report_orchestrator_path():
-    from pipeline.report_generator import generate_full_report
+    from pipeline.evidence.report_generator import generate_full_report
     path = generate_full_report({
         'phase5': {'n_cathodes_screened': 137, 'best_power_W_cm2': 1.2,
                    'best_efficiency': 0.28, 'min_overpotential_V': 0.35},
@@ -441,7 +441,7 @@ def test_report_orchestrator_path():
 
 
 def test_report_empty_no_crash():
-    from pipeline.report_generator import generate_full_report
+    from pipeline.evidence.report_generator import generate_full_report
     path = generate_full_report({})
     assert os.path.exists(path)
 
@@ -451,7 +451,7 @@ def test_report_empty_no_crash():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def test_crossover_preserves_class():
-    from pipeline.catalyst_spaces import generate_random_genome, crossover
+    from pipeline.common.catalyst_spaces import generate_random_genome, crossover
     for _ in range(100):
         p1 = generate_random_genome('SAC')
         p2 = generate_random_genome('SAC')
@@ -460,7 +460,7 @@ def test_crossover_preserves_class():
 
 
 def test_mutation_preserves_class():
-    from pipeline.catalyst_spaces import ALL_MATERIAL_CLASSES, generate_random_genome, mutate
+    from pipeline.common.catalyst_spaces import ALL_MATERIAL_CLASSES, generate_random_genome, mutate
     for cls in ALL_MATERIAL_CLASSES:
         for _ in range(20):
             g = generate_random_genome(cls)
@@ -473,9 +473,9 @@ def test_mutation_preserves_class():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def test_ood_high_confidence_metals():
-    from pipeline.catalyst_spaces import generate_random_genome
-    from pipeline.ood_detector import compute_model_confidence
-    from pipeline.fc_genetic_optimizer import _extract_elements_from_genome
+    from pipeline.common.catalyst_spaces import generate_random_genome
+    from pipeline.common.ood_detector import compute_model_confidence
+    from pipeline.screening.fc_genetic_optimizer import _extract_elements_from_genome
     # Metal slabs should have high confidence (>0.7)
     for cls in ['SolidCatalyst', 'HEA', 'SAA']:
         for _ in range(10):
@@ -486,9 +486,9 @@ def test_ood_high_confidence_metals():
 
 
 def test_ood_low_confidence_ood():
-    from pipeline.catalyst_spaces import generate_random_genome
-    from pipeline.ood_detector import compute_model_confidence
-    from pipeline.fc_genetic_optimizer import _extract_elements_from_genome
+    from pipeline.common.catalyst_spaces import generate_random_genome
+    from pipeline.common.ood_detector import compute_model_confidence
+    from pipeline.screening.fc_genetic_optimizer import _extract_elements_from_genome
     # OOD classes should have low confidence (<0.5)
     for cls in ['MOF', 'COF', 'MetalFreeCarbon']:
         for _ in range(10):
@@ -499,7 +499,7 @@ def test_ood_low_confidence_ood():
 
 
 def test_ood_penalty_scales_objectives():
-    from pipeline.ood_detector import confidence_penalty
+    from pipeline.common.ood_detector import confidence_penalty
     # High confidence → penalty near 0.0 (no shift)
     assert abs(confidence_penalty(1.0) - 0.0) < 0.01, "conf=1.0 should give penalty=0.0"
     # Low confidence → penalty > 0.5 (significant shift)
@@ -509,8 +509,8 @@ def test_ood_penalty_scales_objectives():
 
 
 def test_ood_nsga2_integration():
-    from pipeline.catalyst_spaces import generate_random_genome, FEATURE_DIM
-    from pipeline.fc_genetic_optimizer import (
+    from pipeline.common.catalyst_spaces import generate_random_genome, FEATURE_DIM
+    from pipeline.screening.fc_genetic_optimizer import (
         ORRCatalystSurrogate, compute_orr_objectives_surrogate
     )
     model = ORRCatalystSurrogate(input_dim=FEATURE_DIM); model.eval()
@@ -534,9 +534,9 @@ def test_ood_nsga2_integration():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def test_all_elements_in_abundance_table():
-    from pipeline.catalyst_spaces import generate_random_genome
-    from pipeline.fc_genetic_optimizer import _extract_elements_from_genome
-    from pipeline.utils import CRUSTAL_ABUNDANCE_PPM
+    from pipeline.common.catalyst_spaces import generate_random_genome
+    from pipeline.screening.fc_genetic_optimizer import _extract_elements_from_genome
+    from pipeline.common.utils import CRUSTAL_ABUNDANCE_PPM
     missing = set()
     for _ in range(3000):
         g = generate_random_genome()
@@ -547,9 +547,9 @@ def test_all_elements_in_abundance_table():
 
 
 def test_all_elements_in_price_table():
-    from pipeline.catalyst_spaces import generate_random_genome
-    from pipeline.fc_genetic_optimizer import _extract_elements_from_genome
-    from pipeline.utils import METAL_PRICE_USD_KG
+    from pipeline.common.catalyst_spaces import generate_random_genome
+    from pipeline.screening.fc_genetic_optimizer import _extract_elements_from_genome
+    from pipeline.common.utils import METAL_PRICE_USD_KG
     missing = set()
     for _ in range(3000):
         g = generate_random_genome()
@@ -560,16 +560,16 @@ def test_all_elements_in_price_table():
 
 
 def test_all_classes_viable_both_applications():
-    from pipeline.catalyst_spaces import ALL_MATERIAL_CLASSES
-    from pipeline.utils import VALID_CLASSES_PYROLYSIS, VALID_CLASSES_FUEL_CELL
+    from pipeline.common.catalyst_spaces import ALL_MATERIAL_CLASSES
+    from pipeline.common.utils import VALID_CLASSES_PYROLYSIS, VALID_CLASSES_FUEL_CELL
     for cls in ALL_MATERIAL_CLASSES:
         assert cls in VALID_CLASSES_PYROLYSIS, f"{cls} excluded from pyrolysis"
         assert cls in VALID_CLASSES_FUEL_CELL, f"{cls} excluded from fuel cell"
 
 
 def test_bep_params_all_classes():
-    from pipeline.catalyst_spaces import ALL_MATERIAL_CLASSES
-    from pipeline.utils import bep_activation_energy
+    from pipeline.common.catalyst_spaces import ALL_MATERIAL_CLASSES
+    from pipeline.common.utils import bep_activation_energy
     for cls in ALL_MATERIAL_CLASSES:
         # Should not fall back to default — each class must have specific params
         e1 = bep_activation_energy(0.5, material_class=cls)
@@ -579,23 +579,23 @@ def test_bep_params_all_classes():
 
 
 def test_ood_confidence_all_classes():
-    from pipeline.catalyst_spaces import ALL_MATERIAL_CLASSES
-    from pipeline.ood_detector import CLASS_CONFIDENCE
+    from pipeline.common.catalyst_spaces import ALL_MATERIAL_CLASSES
+    from pipeline.common.ood_detector import CLASS_CONFIDENCE
     for cls in ALL_MATERIAL_CLASSES:
         assert cls in CLASS_CONFIDENCE, f"OOD CLASS_CONFIDENCE missing: {cls}"
 
 
 def test_tafel_all_classes():
-    from pipeline.catalyst_spaces import ALL_MATERIAL_CLASSES
-    from pipeline.pemfc_model import TAFEL_SLOPE_BY_CLASS
+    from pipeline.common.catalyst_spaces import ALL_MATERIAL_CLASSES
+    from pipeline.process.pemfc_model import TAFEL_SLOPE_BY_CLASS
     for cls in ALL_MATERIAL_CLASSES:
         assert cls in TAFEL_SLOPE_BY_CLASS, f"TAFEL_SLOPE missing: {cls}"
 
 
 def test_pyrolysis_mode_coking_bonus():
     import os
-    from pipeline.genetic_optimizer import compute_objectives_surrogate, GAConfig
-    from pipeline.surrogate_model import CatalystSurrogate
+    from pipeline.screening.genetic_optimizer import compute_objectives_surrogate, GAConfig
+    from pipeline.screening.surrogate_model import CatalystSurrogate
 
     # Mock surrogate and population
     model = CatalystSurrogate()
@@ -606,7 +606,7 @@ def test_pyrolysis_mode_coking_bonus():
     ]
 
     from unittest.mock import patch
-    with patch('pipeline.genetic_optimizer.predict_batch') as mock_predict:
+    with patch('pipeline.screening.genetic_optimizer.predict_batch') as mock_predict:
         mock_predict.return_value = {
             'valid_prob': np.array([1.0, 1.0]),
             'E_act': np.array([0.5, 0.6]),
@@ -664,7 +664,7 @@ def test_pyrolysis_mode_coking_bonus():
 
 
 def test_cathode_sac_genome_5tuple():
-    from pipeline.fc_cathode_screener import generate_fc_catalyst_list
+    from pipeline.screening.fc_cathode_screener import generate_fc_catalyst_list
     candidates = generate_fc_catalyst_list()
     sacs = [c for c in candidates if c['type'] == 'SAC']
     assert len(sacs) > 0, "No SAC candidates generated"
@@ -673,7 +673,7 @@ def test_cathode_sac_genome_5tuple():
 
 
 def test_deterministic_hierarchical_pool():
-    from pipeline.catalyst_spaces import generate_hierarchical_htvs_pool
+    from pipeline.common.catalyst_spaces import generate_hierarchical_htvs_pool
     # Test fallback behavior when model is None
     pool = generate_hierarchical_htvs_pool(pool_size=100, scorer=None)
     assert len(pool) == 100, f"Expected pool size 100, got {len(pool)}"
@@ -684,8 +684,8 @@ def test_deterministic_hierarchical_pool():
 
 
 def test_hierarchical_rounds_cover_complementary_cells():
-    from pipeline.catalyst_spaces import generate_hierarchical_htvs_pool
-    from pipeline.discovery import candidate_id
+    from pipeline.common.catalyst_spaces import generate_hierarchical_htvs_pool
+    from pipeline.search.discovery import candidate_id
     first = generate_hierarchical_htvs_pool(500, campaign_round=0)
     second = generate_hierarchical_htvs_pool(500, campaign_round=1)
     ids_first = {candidate_id(g) for g in first}
@@ -696,7 +696,7 @@ def test_hierarchical_rounds_cover_complementary_cells():
 
 
 def test_discovery_batch_prioritizes_unseen_regions():
-    from pipeline.discovery import discovery_region, select_discovery_batch
+    from pipeline.search.discovery import discovery_region, select_discovery_batch
     candidates = [
         ('SAC', 'Fe', 'N4', 'N-graphene', 'none'),
         ('SAC', 'Co', 'N4', 'N-graphene', 'none'),
@@ -712,7 +712,7 @@ def test_discovery_batch_prioritizes_unseen_regions():
 
 
 def test_candidate_ids_are_canonical():
-    from pipeline.discovery import candidate_id
+    from pipeline.search.discovery import candidate_id
     a = ('SolidCatalyst', 'Ni', 'Al2O3', 'fcc111', 0.01, ('B', 'N'), 2, 0)
     b = ('SolidCatalyst', 'Ni', 'Al2O3', 'fcc111', 0.0100000001, ('N', 'B'), 2, 0)
     assert candidate_id(a) == candidate_id(b), "Equivalent dopant permutations need one candidate ID"
@@ -720,7 +720,7 @@ def test_candidate_ids_are_canonical():
 
 def test_discovery_metadata_is_persistable():
     import pandas as pd
-    from pipeline.discovery import add_discovery_metadata
+    from pipeline.search.discovery import add_discovery_metadata
     genome = ('SAC', 'Fe', 'N4', 'N-graphene', 'OH')
     out = add_discovery_metadata(pd.DataFrame({'genome': [str(genome)]}))
     assert out.loc[0, 'candidate_id']
@@ -728,9 +728,9 @@ def test_discovery_metadata_is_persistable():
 
 
 def test_indexed_space_boundaries_and_classes():
-    from pipeline.indexed_space import (CLASS_OFFSETS, CLASS_ORDER, CLASS_SIZES,
+    from pipeline.search.indexed_space import (CLASS_OFFSETS, CLASS_ORDER, CLASS_SIZES,
                                         TOTAL_SIZE, candidate_at, candidate_at_class)
-    from pipeline.catalyst_spaces import estimate_design_space_size
+    from pipeline.common.catalyst_spaces import estimate_design_space_size
     assert TOTAL_SIZE == estimate_design_space_size()['TOTAL']
     for cls in CLASS_ORDER:
         assert candidate_at(CLASS_OFFSETS[cls])[0] == cls
@@ -738,7 +738,7 @@ def test_indexed_space_boundaries_and_classes():
 
 
 def test_indexed_worker_shards_are_disjoint():
-    from pipeline.indexed_space import iter_shard
+    from pipeline.search.indexed_space import iter_shard
     a = {i for i, _ in iter_shard(0, 101, 0, 3)}
     b = {i for i, _ in iter_shard(0, 101, 1, 3)}
     c = {i for i, _ in iter_shard(0, 101, 2, 3)}
@@ -749,7 +749,7 @@ def test_indexed_worker_shards_are_disjoint():
 def test_streaming_scan_resumes_without_rescoring():
     import tempfile
     from pathlib import Path
-    from pipeline.exhaustive_search import ScanConfig, run_streaming_scan
+    from pipeline.search.exhaustive_search import ScanConfig, run_streaming_scan
     calls = []
     def scorer(genomes):
         calls.append(len(genomes))
@@ -768,8 +768,8 @@ def test_streaming_scan_resumes_without_rescoring():
 def test_branch_search_resolves_without_surrogate_pruning():
     import tempfile
     from pathlib import Path
-    from pipeline.branch_search import BranchConfig, run_branch_and_bound
-    from pipeline.indexed_space import CLASS_SIZES
+    from pipeline.search.branch_search import BranchConfig, run_branch_and_bound
+    from pipeline.search.indexed_space import CLASS_SIZES
     def deliberately_bad_scorer(genomes):
         # A poor probe is not permission to remove its branch.
         return np.column_stack([np.full(len(genomes), 99.0),
@@ -787,7 +787,7 @@ def test_branch_search_resolves_without_surrogate_pruning():
 
 
 def test_branch_probes_are_deterministic_low_discrepancy():
-    from pipeline.branch_search import _probe_indices
+    from pipeline.search.branch_search import _probe_indices
     first = _probe_indices(100, 10100, 9)
     second = _probe_indices(100, 10100, 9)
     assert first == second and len(first) == 9
@@ -799,7 +799,7 @@ def test_branch_probes_are_deterministic_low_discrepancy():
 def test_branch_finite_budget_preserves_class_floor():
     import tempfile
     from pathlib import Path
-    from pipeline.branch_search import BranchConfig, run_branch_and_bound
+    from pipeline.search.branch_search import BranchConfig, run_branch_and_bound
     def biased_scorer(genomes):
         primary = np.array([0.0 if genome[0] == 'SAA' else 100.0 for genome in genomes])
         return np.column_stack([primary, np.zeros((len(genomes), 3))])
@@ -818,7 +818,7 @@ def test_branch_certificate_detects_incomplete_and_gaps():
     import sqlite3
     import tempfile
     from pathlib import Path
-    from pipeline.branch_search import BranchConfig, run_branch_and_bound, verify_branch_coverage
+    from pipeline.search.branch_search import BranchConfig, run_branch_and_bound, verify_branch_coverage
     def scorer(genomes):
         return np.zeros((len(genomes), 4))
     with tempfile.TemporaryDirectory() as tmp:
@@ -846,7 +846,7 @@ def test_branch_certificate_detects_incomplete_and_gaps():
 def test_branch_rejects_population_mismatch():
     import tempfile
     from pathlib import Path
-    from pipeline.branch_search import BranchConfig, run_branch_and_bound
+    from pipeline.search.branch_search import BranchConfig, run_branch_and_bound
     def scorer(genomes):
         return np.zeros((len(genomes), 4))
     with tempfile.TemporaryDirectory() as tmp:
@@ -862,8 +862,8 @@ def test_branch_rejects_population_mismatch():
 
 
 def test_tree_calibration_probes_cover_all_classes_deterministically():
-    from pipeline.indexed_space import deterministic_tree_probes
-    from pipeline.catalyst_spaces import ALL_MATERIAL_CLASSES
+    from pipeline.search.indexed_space import deterministic_tree_probes
+    from pipeline.common.catalyst_spaces import ALL_MATERIAL_CLASSES
     first = deterministic_tree_probes(100)
     second = deterministic_tree_probes(100)
     assert first == second
@@ -901,8 +901,8 @@ def test_readme_matches_branch_only_contract():
 
 
 def test_retired_ga_entry_points_are_blocked():
-    from pipeline.genetic_optimizer import run_genetic_algorithm
-    from pipeline.fc_genetic_optimizer import run_fc_genetic_algorithm, FCGAConfig
+    from pipeline.screening.genetic_optimizer import run_genetic_algorithm
+    from pipeline.screening.fc_genetic_optimizer import run_fc_genetic_algorithm, FCGAConfig
     for fn, args in ((run_genetic_algorithm, ()),
                      (run_fc_genetic_algorithm, (FCGAConfig(),))):
         try:
@@ -914,7 +914,7 @@ def test_retired_ga_entry_points_are_blocked():
 
 
 def test_industrial_viability_gates_fail_closed():
-    from pipeline.viability import evaluate_turquoise, evaluate_fuel_cell
+    from pipeline.validation.viability import evaluate_turquoise, evaluate_fuel_cell
     assert evaluate_turquoise({})['status'] == 'unknown'
     good_h2 = evaluate_turquoise({
         'temperature_K': 1000, 'H2_selectivity': 0.98, 'CH4_conversion': 0.8,
@@ -933,7 +933,7 @@ def test_industrial_viability_gates_fail_closed():
 def test_prior_art_registry_tracks_exact_and_region_novelty():
     import tempfile
     from pathlib import Path
-    from pipeline.prior_art import PriorArtRegistry
+    from pipeline.evidence.prior_art import PriorArtRegistry
     known = ('SAC', 'Fe', 'N4', 'N-graphene', 'OH')
     related = ('SAC', 'Fe', 'N4', 'N-graphene', 'none')
     unseen = ('MoltenMetal', 'Bi', 'Ni', 10.0, 1000)
@@ -949,8 +949,8 @@ def test_multiobjective_archive_preserves_conflicting_winners():
     import sqlite3
     import tempfile
     from pathlib import Path
-    from pipeline.exhaustive_search import ScanConfig, run_streaming_scan
-    from pipeline.indexed_space import CLASS_OFFSETS
+    from pipeline.search.exhaustive_search import ScanConfig, run_streaming_scan
+    from pipeline.search.indexed_space import CLASS_OFFSETS
     with tempfile.TemporaryDirectory() as tmp:
         db = str(Path(tmp) / 'multi.sqlite')
         start = CLASS_OFFSETS['SAC']
@@ -975,9 +975,9 @@ def test_final_campaign_readiness_fails_closed():
     import json
     import tempfile
     from pathlib import Path
-    from pipeline.indexed_space import TOTAL_SIZE
-    from pipeline.prior_art import PriorArtRegistry
-    from pipeline.readiness import campaign_readiness
+    from pipeline.search.indexed_space import TOTAL_SIZE
+    from pipeline.evidence.prior_art import PriorArtRegistry
+    from pipeline.evidence.readiness import campaign_readiness
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         cert = root / 'coverage.json'

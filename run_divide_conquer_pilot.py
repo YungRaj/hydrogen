@@ -15,12 +15,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from pipeline.application_scope import pemfc_cathode_scope
-from pipeline.branch_search import _probe_indices
-from pipeline.catalyst_spaces import encode_population
-from pipeline.discovery import candidate_id
-from pipeline.indexed_space import CLASS_ORDER, CLASS_SIZES, candidate_at_class
-from pipeline.pilot_benchmark import default_specs, load_legacy_outcomes
+from pipeline.common.application_scope import pemfc_cathode_scope
+from pipeline.search.branch_search import _probe_indices
+from pipeline.common.catalyst_spaces import encode_population
+from pipeline.search.discovery import candidate_id
+from pipeline.search.indexed_space import CLASS_ORDER, CLASS_SIZES, candidate_at_class
+from pipeline.evidence.pilot_benchmark import default_specs, load_legacy_outcomes
 
 
 ROUND = os.environ.get("PILOT_ROUND", "v2")
@@ -82,13 +82,13 @@ def _training_frame(application: str) -> pd.DataFrame:
 
 def prepare(per_class: int = 4, extra_slots: int = 6) -> None:
     import torch
-    from pipeline.adaptive_validation import allocate_validation_batch
-    from pipeline.genetic_optimizer import (_train_ensemble_from_db,
+    from pipeline.search.adaptive_validation import allocate_validation_batch
+    from pipeline.screening.genetic_optimizer import (_train_ensemble_from_db,
                                             compute_objectives_surrogate)
-    from pipeline.fc_genetic_optimizer import (_train_orr_ensemble_from_db,
+    from pipeline.screening.fc_genetic_optimizer import (_train_orr_ensemble_from_db,
                                                compute_orr_objectives_surrogate,
                                                ORRSurrogateEnsemble)
-    from pipeline.surrogate_model import SurrogateEnsemble, predict_ensemble
+    from pipeline.screening.surrogate_model import SurrogateEnsemble, predict_ensemble
 
     ROOT.mkdir(parents=True, exist_ok=True)
     pool = _pool(per_class)
@@ -204,11 +204,11 @@ def evaluate(application: str) -> None:
     pool = [ast.literal_eval(raw) for raw, cid in zip(record["pool"], record["candidate_ids"])
             if cid in allowed]
     if application == "turquoise_hydrogen":
-        from pipeline.surface_screener import run_screening
+        from pipeline.screening.surface_screener import run_screening
         frame = run_screening(pool, db_filename=f"pilot/divide_conquer_{ROUND}_pyrolysis.csv",
                               workers_per_gpu=1)
     else:
-        from pipeline.fc_screener import run_orr_screening
+        from pipeline.screening.fc_screener import run_orr_screening
         frame = run_orr_screening(pool, db_filename=f"pilot/divide_conquer_{ROUND}_orr.csv",
                                   workers_per_gpu=1)
     print(f"{application}: evaluated={len(frame)}, valid={int(frame.valid.eq(True).sum())}")

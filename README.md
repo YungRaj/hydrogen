@@ -55,23 +55,25 @@ The repository has one production launcher and one current pilot launcher:
 
 | Goal | Start here | Supporting code |
 |------|------------|-----------------|
-| Run or resume a discovery campaign | `run_production_campaign.py` | `pipeline/orchestrator.py`, `pipeline/branch_search.py` |
-| Reproduce the locked divide-and-conquer pilot | `run_divide_conquer_pilot.py` | `pipeline/pilot_benchmark.py`, `pipeline/small_data_ranker.py` |
+| Run or resume a discovery campaign | `run_production_campaign.py` | `pipeline/orchestrator.py`, `pipeline/search/branch_search.py` |
+| Reproduce the locked divide-and-conquer pilot | `run_divide_conquer_pilot.py` | `pipeline/evidence/pilot_benchmark.py`, `pipeline/screening/small_data_ranker.py` |
 | Check scientific and implementation invariants | `test_pipeline.py`, `audit_pipeline.py` | readiness and claim gates under `pipeline/` |
 | Monitor an active local run | `live_dashboard.py` | generated state under `results/` |
 
-Inside `pipeline/`, the main code paths are grouped conceptually as follows:
+Inside `pipeline/`, source is grouped by responsibility:
 
-- **Search:** `indexed_space.py`, `exhaustive_search.py`, `branch_search.py`,
+- **`search/`:** `indexed_space.py`, `exhaustive_search.py`, `branch_search.py`,
   `discovery.py`, and `adaptive_validation.py`.
-- **Candidate scoring:** `surface_screener.py`, `fc_screener.py`,
+- **`screening/`:** `surface_screener.py`, `fc_screener.py`,
   `surrogate_model.py`, and `small_data_ranker.py`.
-- **High-fidelity validation:** `qe_workflows.py`, `orr_workflows.py`,
+- **`validation/`:** `qe_workflows.py`, `orr_workflows.py`,
   `dft_validator.py`, and `dft_fuel_cell.py`.
-- **System models:** `reactor_models.py`, `ntec_model.py`, `pemfc_model.py`,
+- **`process/`:** `reactor_models.py`, `ntec_model.py`, `pemfc_model.py`,
   and `fuel_cell_stack.py`.
-- **Evidence and release gates:** `prior_art.py`, `novelty_benchmark.py`,
+- **`evidence/`:** `prior_art.py`, `novelty_benchmark.py`,
   `readiness.py`, `campaign_status.py`, and `report_generator.py`.
+- **`common/`:** design-space definitions, scope rules, confidence policy,
+  physical constants, paths, logging, and shared helpers.
 
 Generated outputs, downloaded model weights, pseudopotentials, mechanisms, and
 Python caches are intentionally ignored. They are runtime assets, not source.
@@ -84,7 +86,7 @@ Methane splitting (pyrolysis) traditionally requires high temperatures due to th
   - **Mechanism:** Employs mechanical fluidization or shearing forces to create local triboelectric fields, facilitating C-H bond activation.
   - **Coking Resistance:** NTEC assistance is zero unless measured operating
     inputs and explicit paired NTEC/control effect measurements are supplied.
-    The bounded transfer model in `pipeline/ntec_model.py` remains modeled
+    The bounded transfer model in `pipeline/process/ntec_model.py` remains modeled
     evidence for a new catalyst, not candidate-specific validation.
 
 * **Thermocatalytic Pyrolysis:**
@@ -193,36 +195,25 @@ Each genome encodes into a **353-dimensional** feature vector for the surrogate 
 
 | Module | Physics |
 |--------|---------|
-| `surrogate_model.py` | Multi-task NN predicting E_act, coking, validity (~1000× faster than eSen-SM) |
-| `branch_search.py` | Persistent deterministic branch subdivision, priority, and coverage certification |
-| `pemfc_model.py` | 1D through-MEA PEM fuel cell (Tafel + Ohmic + mass transport losses) |
-| `fuel_cell_stack.py` | N-cell stack scaling with balance-of-plant and $/kW techno-economics |
-| `reactor_mechanisms.py` | TST/BEP mechanism generator producing Cantera 3.x-compliant YAML |
+| `screening/surrogate_model.py` | Multi-task NN predicting E_act, coking, validity (~1000× faster than eSen-SM) |
+| `search/branch_search.py` | Persistent deterministic branch subdivision, priority, and coverage certification |
+| `process/pemfc_model.py` | 1D through-MEA PEM fuel cell (Tafel + Ohmic + mass transport losses) |
+| `process/fuel_cell_stack.py` | N-cell stack scaling with balance-of-plant and $/kW techno-economics |
+| `process/reactor_mechanisms.py` | TST/BEP mechanism generator producing Cantera 3.x-compliant YAML |
 
 ---
 
 ## Pipeline Modules
 
-| Module | Lines | Description |
-|--------|------:|-------------|
-| `catalyst_spaces.py` | 1116 | 14-class encoded design definitions and feature encoding |
-| `surface_screener.py` | 814 | Multi-GPU parallelized Meta eSen-SM screening (slab relaxation, adsorption energies, coking index) |
-| `fc_genetic_optimizer.py` | — | ORR surrogate objectives and branch-discovery orchestration |
-| `genetic_optimizer.py` | — | Methane surrogate objectives and branch-discovery orchestration |
-| `reactor_models.py` | 457 | Cantera reactor simulations — MMBCR, PFR, fluidized bed with custom surface kinetics |
-| `dft_validator.py` | 433 | Quantum ESPRESSO input generation & parsing for champion catalysts |
-| `orchestrator.py` | 396 | Core pipeline orchestrator managing phases and configurations |
-| `fc_screener.py` | 374 | Meta eSen-SM-based ORR cathode screening (137+ PGM-free candidates) |
-| `pemfc_model.py` | 326 | 1D PEMFC polarization model (OCV, Tafel, Ohmic, mass transport) |
-| `reactor_mechanisms.py` | 302 | Cantera YAML mechanism generator with TST pre-exponentials |
-| `fc_cathode_screener.py` | 297 | Generates, builds structures, and encodes cathode candidates |
-| `report_generator.py` | 297 | Auto-generated Markdown + JSON pipeline reports |
-| `dft_fuel_cell.py` | 278 | CHE-method ORR intermediate DFT validation |
-| `vqe_transition_state.py` | 244 | CUDA-Q VQE transition states for C-H and O-O bond activation |
-| `ood_detector.py` | 229 | Out-of-Distribution detector for training confidence scaling |
-| `fuel_cell_stack.py` | 205 | Stack scaling, BOP parasitic loads, $/kW cost model |
-| `surrogate_model.py` | 174 | Multi-task PyTorch neural network (valid/dE/E_act/coking heads) |
-| `utils.py` | 511 | Constants, BEP correlations, Arrhenius rates, abundance costs, safety checks |
+| Area | Modules | Responsibility |
+|------|---------|----------------|
+| `common/` | `catalyst_spaces`, `application_scope`, `ood_detector`, `utils` | Shared design space, policies, constants, paths, and helpers |
+| `search/` | `indexed_space`, `exhaustive_search`, `branch_search`, `discovery`, `adaptive_validation` | Deterministic coverage and multi-fidelity acquisition |
+| `screening/` | surface and fuel-cell screeners, surrogate/ranker modules, application objective orchestrators | Candidate construction and low-cost ranking |
+| `validation/` | QE/NEB, ORR, DFT, VQE, and viability modules | High-fidelity calculations and fail-closed checks |
+| `process/` | reactor, NTEC, PEMFC, and stack modules | Reactor-to-electricity system modeling |
+| `evidence/` | prior art, benchmarks, readiness, status, and reporting | Scientific evidence and claim control |
+| package root | `orchestrator.py` | End-to-end phase coordination |
 
 ---
 
@@ -466,16 +457,16 @@ conda run -n fairchem-env python -m pipeline.orchestrator --start 1 --end 3
 
 ```bash
 # Test design space
-conda run -n battery-env python -m pipeline.catalyst_spaces
+conda run -n battery-env python -m pipeline.common.catalyst_spaces
 
 # Test eSen screening with deterministic tree probes
-conda run -n fairchem-env python -m pipeline.surface_screener
+conda run -n fairchem-env python -m pipeline.screening.surface_screener
 
 # Test DFT input generation (no pw.x execution)
-conda run -n battery-env python -m pipeline.dft_validator
+conda run -n battery-env python -m pipeline.validation.dft_validator
 
 # Test PEMFC model
-conda run -n battery-env python -m pipeline.pemfc_model
+conda run -n battery-env python -m pipeline.process.pemfc_model
 ```
 
 ---
@@ -493,24 +484,38 @@ hydrogen/
 │
 ├── pipeline/                      # Core pipeline package
 │   ├── __init__.py
-│   ├── catalyst_spaces.py         # 21.1B encoded design-space definitions
-│   ├── indexed_space.py           # O(1) global candidate addressing + shards
-│   ├── exhaustive_search.py       # Resumable bounded-memory population scan
-│   ├── branch_search.py           # Persistent divide-and-conquer + certificate
-│   ├── discovery.py               # Canonical IDs + novelty/coverage acquisition
-│   ├── surface_screener.py        # Multi-GPU Meta eSen screening (methane pyrolysis)
-│   ├── surrogate_model.py         # Multi-task PyTorch surrogate NN
-│   ├── genetic_optimizer.py       # Methane objectives + branch orchestration
-│   ├── reactor_mechanisms.py      # Cantera YAML mechanism generator
-│   ├── reactor_models.py          # MMBCR / PFR / fluidized bed
-│   ├── dft_validator.py           # Quantum ESPRESSO DFT validation
-│   ├── dft_fuel_cell.py           # ORR intermediate DFT (CHE)
-│   ├── vqe_transition_state.py    # CUDA-Q VQE transition states
-│   ├── fc_screener.py             # Meta eSen screening (ORR fuel cell)
-│   ├── pemfc_model.py             # 1D PEMFC polarization model
-│   ├── fuel_cell_stack.py         # Stack scaling + TEA
-│   ├── report_generator.py        # Auto-report generation
-│   └── utils.py                   # Constants, helpers, I/O
+│   ├── orchestrator.py            # End-to-end phase coordination
+│   ├── common/                    # Cross-cutting definitions and helpers
+│   │   ├── catalyst_spaces.py     # 21.1B encoded design space
+│   │   ├── application_scope.py   # Application admissibility rules
+│   │   ├── ood_detector.py        # Confidence policy
+│   │   └── utils.py               # Constants, paths, logging, and I/O
+│   ├── search/                    # Coverage-guided traversal and acquisition
+│   │   ├── indexed_space.py       # O(1) candidate addressing and shards
+│   │   ├── exhaustive_search.py   # Resumable bounded-memory scans
+│   │   ├── branch_search.py       # Divide-and-conquer and certificates
+│   │   ├── discovery.py           # Canonical IDs and diverse champions
+│   │   └── adaptive_validation.py # Validation-budget allocation
+│   ├── screening/                 # Structures, surrogates, and ranking
+│   │   ├── surface_screener.py    # Turquoise-hydrogen eSen screening
+│   │   ├── fc_screener.py         # ORR eSen screening
+│   │   ├── surrogate_model.py     # Multi-task surrogate model
+│   │   └── small_data_ranker.py   # Application-specific tree rankers
+│   ├── validation/                # High-fidelity scientific checks
+│   │   ├── qe_workflows.py        # Candidate-specific QE/NEB workflows
+│   │   ├── orr_workflows.py       # ORR sites, corrections, and CHE
+│   │   ├── dft_validator.py       # Pyrolysis DFT validation
+│   │   └── dft_fuel_cell.py       # Fuel-cell DFT validation
+│   ├── process/                   # Reactor-to-electricity models
+│   │   ├── reactor_models.py      # MMBCR, PFR, and fluidized bed
+│   │   ├── ntec_model.py          # Paired-control NTEC transfer model
+│   │   ├── pemfc_model.py         # 1D PEMFC polarization
+│   │   └── fuel_cell_stack.py     # Stack scaling and TEA
+│   └── evidence/                  # Prior art, benchmarks, and claim gates
+│       ├── prior_art.py
+│       ├── novelty_benchmark.py
+│       ├── readiness.py
+│       └── report_generator.py
 │
 ├── quantum_espresso/              # QE pseudopotentials (gitignored)
 │   └── pseudo/                    # .UPF files (download separately)
@@ -597,7 +602,7 @@ infrastructure. The reproducible pilot entry point is
 are versioned under `results/pilot/`, `results/screening/pilot/`, and
 `results/fuel_cell/pilot/`. Earlier exploratory launchers were removed after
 their useful logic was incorporated into this runner and
-`pipeline/pilot_benchmark.py`.
+`pipeline/evidence/pilot_benchmark.py`.
 
 ### Phase 1: Deterministic Branch-and-Bound Discovery
 
@@ -612,7 +617,8 @@ their useful logic was incorporated into this runner and
 7. **Retain every objective's winners** — bounded global archives and per-region champions prevent a primary-objective ranking from discarding selectivity, stability, cost, or uncertainty extremes
 8. **Output a coverage certificate** — exact terminal population, gap/overlap checks, scan cursors, pruning proofs, canonical candidate IDs, and application-specific champions
 
-Expensive validation is allocated adaptively by `pipeline/adaptive_validation.py`.
+Expensive validation is allocated adaptively by
+`pipeline/search/adaptive_validation.py`.
 Each represented material class receives a fixed quota first. Remaining slots
 combine expected improvement, ensemble uncertainty, regional calibration error,
 and observed productivity. Paired surrogate/Fairchem/DFT/experimental results are
@@ -634,14 +640,14 @@ novelty; registry completeness and chemical identity resolution still require
 curated external data.
 
 External novelty claims additionally require a prospective/time-split recovery
-benchmark (`pipeline.novelty_benchmark.time_split_recovery`): candidates reported
+benchmark (`pipeline.evidence.novelty_benchmark.time_split_recovery`): candidates reported
 after the training cutoff are hidden, ranked blindly, and scored by exact and
 chemistry-region recall at K. Missing publication year, source ID, or citation
 invalidates the benchmark.
 
 #### Six-point scientific status
 
-`pipeline.campaign_status.assess_campaign()` reports one fail-closed status for
+`pipeline.evidence.campaign_status.assess_campaign()` reports one fail-closed status for
 complete search, validated champions, calibrated NTEC, validated reactor,
 validated PEMFC, and defensible novelty. A production run is not scientifically
 ready until all six are true.

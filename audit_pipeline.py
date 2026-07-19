@@ -28,7 +28,7 @@ def check(name, condition, detail=""):
         print(f"  ❌ {name}: {detail}")
 
 
-from pipeline.catalyst_spaces import (
+from pipeline.common.catalyst_spaces import (
     ALL_MATERIAL_CLASSES, generate_random_genome,
     GENERATORS, encode_genome, FEATURE_DIM,
     crossover, mutate, CLASS_WEIGHTS,
@@ -52,19 +52,19 @@ check("CLASS_WEIGHTS covers all classes",
       f"Missing: {[c for c in ALL_14 if c not in CLASS_WEIGHTS]}")
 
 # 1c. TAFEL_SLOPE_BY_CLASS
-from pipeline.pemfc_model import TAFEL_SLOPE_BY_CLASS
+from pipeline.process.pemfc_model import TAFEL_SLOPE_BY_CLASS
 check("TAFEL_SLOPE covers all classes",
       all(c in TAFEL_SLOPE_BY_CLASS for c in ALL_14),
       f"Missing: {[c for c in ALL_14 if c not in TAFEL_SLOPE_BY_CLASS]}")
 
 # 1d. OOD CLASS_CONFIDENCE
-from pipeline.ood_detector import CLASS_CONFIDENCE
+from pipeline.common.ood_detector import CLASS_CONFIDENCE
 check("OOD CLASS_CONFIDENCE covers all classes",
       all(c in CLASS_CONFIDENCE for c in ALL_14),
       f"Missing: {[c for c in ALL_14 if c not in CLASS_CONFIDENCE]}")
 
 # 1e. BEP_PARAMS (embedded in function — extract programmatically)
-from pipeline.utils import bep_activation_energy
+from pipeline.common.utils import bep_activation_energy
 # Test that each class produces a DIFFERENT result than default
 default_e = bep_activation_energy(0.5)
 bep_missing = []
@@ -79,7 +79,7 @@ check("BEP_PARAMS handles all classes",
       f"Failed: {bep_missing}")
 
 # 1f. VALID_CLASSES sets
-from pipeline.utils import VALID_CLASSES_PYROLYSIS, VALID_CLASSES_FUEL_CELL
+from pipeline.common.utils import VALID_CLASSES_PYROLYSIS, VALID_CLASSES_FUEL_CELL
 check("VALID_CLASSES_PYROLYSIS covers all",
       all(c in VALID_CLASSES_PYROLYSIS for c in ALL_14),
       f"Missing: {[c for c in ALL_14 if c not in VALID_CLASSES_PYROLYSIS]}")
@@ -93,9 +93,9 @@ check("VALID_CLASSES_FUEL_CELL covers all",
 # ═══════════════════════════════════════════════════════════════════════════════
 print("\n═══ ELEMENT TABLE COVERAGE ═══")
 
-from pipeline.utils import CRUSTAL_ABUNDANCE_PPM, METAL_PRICE_USD_KG
-from pipeline.fc_genetic_optimizer import _extract_elements_from_genome
-from pipeline.ood_detector import _ELEMENT_COVERAGE
+from pipeline.common.utils import CRUSTAL_ABUNDANCE_PPM, METAL_PRICE_USD_KG
+from pipeline.screening.fc_genetic_optimizer import _extract_elements_from_genome
+from pipeline.common.ood_detector import _ELEMENT_COVERAGE
 
 # Generate many genomes and collect all possible elements
 all_elements = set()
@@ -138,10 +138,10 @@ check("All metals in OOD _ELEMENT_COVERAGE",
 # ═══════════════════════════════════════════════════════════════════════════════
 print("\n═══ ELEMENT EXTRACTOR CONSISTENCY ═══")
 
-from pipeline.fc_genetic_optimizer import _extract_elements_from_genome as fc_ga_extract
-from pipeline.fc_screener import _extract_elements as fc_screen_extract
-from pipeline.surface_screener import _extract_elements as surf_extract
-from pipeline.genetic_optimizer import _extract_elements_from_genome as ch4_ga_extract
+from pipeline.screening.fc_genetic_optimizer import _extract_elements_from_genome as fc_ga_extract
+from pipeline.screening.fc_screener import _extract_elements as fc_screen_extract
+from pipeline.screening.surface_screener import _extract_elements as surf_extract
+from pipeline.screening.genetic_optimizer import _extract_elements_from_genome as ch4_ga_extract
 
 extractor_failures = []
 for cls in ALL_14:
@@ -169,7 +169,7 @@ check("4 element extractors consistent (700 genomes)",
 # ═══════════════════════════════════════════════════════════════════════════════
 print("\n═══ STRUCTURE GENERATION ═══")
 
-from pipeline.surface_screener import generate_structure
+from pipeline.screening.surface_screener import generate_structure
 
 struct_failures = []
 for cls in ALL_14:
@@ -248,9 +248,9 @@ check(f"Crossover & mutation (840 ops, class preserved)",
 print("\n═══ SURROGATE PREDICTIONS ═══")
 
 import torch
-from pipeline.genetic_optimizer import CatalystSurrogate, predict_batch
-from pipeline.fc_genetic_optimizer import ORRCatalystSurrogate
-from pipeline.catalyst_spaces import encode_population
+from pipeline.screening.genetic_optimizer import CatalystSurrogate, predict_batch
+from pipeline.screening.fc_genetic_optimizer import ORRCatalystSurrogate
+from pipeline.common.catalyst_spaces import encode_population
 
 # CH4 surrogate
 ch4_model = CatalystSurrogate(input_dim=FEATURE_DIM)
@@ -292,8 +292,8 @@ check("ORR surrogate: no NaN (280 preds)",
 # ═══════════════════════════════════════════════════════════════════════════════
 print("\n═══ NSGA-II OBJECTIVES ═══")
 
-from pipeline.fc_genetic_optimizer import compute_orr_objectives_surrogate
-from pipeline.genetic_optimizer import compute_objectives_surrogate
+from pipeline.screening.fc_genetic_optimizer import compute_orr_objectives_surrogate
+from pipeline.screening.genetic_optimizer import compute_objectives_surrogate
 
 # ORR objectives
 orr_obj_failures = []
@@ -335,7 +335,7 @@ check("CH4 NSGA-II objectives (280 candidates, no NaN)",
 # ═══════════════════════════════════════════════════════════════════════════════
 print("\n═══ OOD CONFIDENCE ═══")
 
-from pipeline.ood_detector import compute_model_confidence, confidence_penalty
+from pipeline.common.ood_detector import compute_model_confidence, confidence_penalty
 
 ood_failures = []
 for cls in ALL_14:
@@ -362,8 +362,8 @@ check("OOD confidence (280 genomes, all in range)",
 # ═══════════════════════════════════════════════════════════════════════════════
 print("\n═══ COST & FENTON SCORING ═══")
 
-from pipeline.utils import abundance_cost_penalty
-from pipeline.fc_genetic_optimizer import _fenton_from_genome, _cost_from_genome
+from pipeline.common.utils import abundance_cost_penalty
+from pipeline.screening.fc_genetic_optimizer import _fenton_from_genome, _cost_from_genome
 
 cost_fenton_failures = []
 for cls in ALL_14:
@@ -391,7 +391,7 @@ check("Cost & Fenton scoring (700 genomes, no NaN)",
 # ═══════════════════════════════════════════════════════════════════════════════
 print("\n═══ PEMFC MODEL ═══")
 
-from pipeline.pemfc_model import sweep_membranes
+from pipeline.process.pemfc_model import sweep_membranes
 
 pemfc_failures = []
 for cls in ALL_14:
@@ -418,7 +418,7 @@ check("PEMFC model (all 14 classes produce power)",
 # ═══════════════════════════════════════════════════════════════════════════════
 print("\n═══ FC CATHODE SCREENER ═══")
 
-from pipeline.fc_cathode_screener import generate_fc_catalyst_list
+from pipeline.screening.fc_cathode_screener import generate_fc_catalyst_list
 
 candidates = generate_fc_catalyst_list()
 cathode_failures = []
@@ -457,7 +457,7 @@ print("\n═══ STATIC CODE ANALYSIS ═══")
 
 import glob
 
-pipeline_files = glob.glob("pipeline/*.py")
+pipeline_files = glob.glob("pipeline/**/*.py", recursive=True)
 class_names_in_code = set()
 string_pattern = re.compile(r"'(MoltenMetal|SolidCatalyst|SAC|DAC|MOF|COF|Perovskite|MetalHydride|MAXPhase|HEA|Spinel|MXene|SAA|MetalFreeCarbon)'")
 

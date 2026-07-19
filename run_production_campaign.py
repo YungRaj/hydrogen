@@ -69,7 +69,7 @@ def main():
         if qe_binary.is_file():
             os.environ['PW_X'] = str(qe_binary)
 
-    from pipeline.prior_art import PriorArtRegistry
+    from pipeline.evidence.prior_art import PriorArtRegistry
     prior_registry = PriorArtRegistry(args.prior_art_db)
     for prior_csv in args.prior_art_csv:
         prior_registry.import_csv(prior_csv)
@@ -119,8 +119,8 @@ def main():
         print(f"  ⚠ No HF token — using MACE-MP-0 (bulk model) only")
 
     # ─── Design space ────────────────────────────────────────────────────────
-    from pipeline.catalyst_spaces import estimate_design_space_size, ALL_MATERIAL_CLASSES
-    from pipeline.utils import print_banner, save_json, load_json
+    from pipeline.common.catalyst_spaces import estimate_design_space_size, ALL_MATERIAL_CLASSES
+    from pipeline.common.utils import print_banner, save_json, load_json
 
     sizes = estimate_design_space_size()
     if args.expected_space_size != sizes['TOTAL']:
@@ -171,7 +171,7 @@ def main():
     print_banner("PHASE 1: DETERMINISTIC BRANCH-AND-BOUND + META ESEN-SM")
     t1 = time.time()
 
-    from pipeline.genetic_optimizer import run_branch_discovery, BranchDiscoveryConfig
+    from pipeline.screening.genetic_optimizer import run_branch_discovery, BranchDiscoveryConfig
 
     branch_config = BranchDiscoveryConfig(
         initial_fairchem_samples=args.calibration_probes,
@@ -221,8 +221,8 @@ def main():
         print_banner("PHASE 2: CANTERA REACTOR SIMULATION")
         t2 = time.time()
         try:
-            from pipeline.reactor_mechanisms import write_full_mechanism
-            from pipeline.reactor_models import run_reactor_sweep
+            from pipeline.process.reactor_mechanisms import write_full_mechanism
+            from pipeline.process.reactor_models import run_reactor_sweep
 
             reactor_temps = [773.15, 900.0, 1100.0, 1300.0]
 
@@ -278,7 +278,7 @@ def main():
                 'catalysts_simulated': len(reactor_results),
                 'elapsed_s': time.time() - t2,
             }
-            from pipeline.viability import evaluate_turquoise
+            from pipeline.validation.viability import evaluate_turquoise
             viability = [evaluate_turquoise(r) for r in reactor_results]
             pipeline_state['phase2']['industrial_viability'] = {
                 'pass': sum(v['status'] == 'pass' for v in viability),
@@ -301,7 +301,7 @@ def main():
         print_banner("PHASE 3: DFT VALIDATION (Quantum ESPRESSO)")
         t3 = time.time()
         try:
-            from pipeline.dft_validator import validate_catalyst
+            from pipeline.validation.dft_validator import validate_catalyst
 
             n_dft = min(10, len(top_catalysts))
             dft_results = []
@@ -336,7 +336,7 @@ def main():
                 # module's mock fallback as campaign validation.
                 name = f"champion_{i}"
                 code = (
-                    "import json; from pipeline.vqe_transition_state import "
+                    "import json; from pipeline.validation.vqe_transition_state import "
                     "validate_transition_state; r=validate_transition_state("
                     f"{name!r}, 'CH_split', target='nvidia'); print(json.dumps(r))"
                 )
@@ -378,7 +378,7 @@ def main():
         print(f"  FC search: deterministic branch-and-bound")
         print(f"  Same 21.1B encoded design space, ORR-specific objectives")
 
-        from pipeline.fc_genetic_optimizer import run_fc_branch_discovery, FCBranchDiscoveryConfig
+        from pipeline.screening.fc_genetic_optimizer import run_fc_branch_discovery, FCBranchDiscoveryConfig
 
         fc_config = FCBranchDiscoveryConfig(
             initial_fairchem_samples=args.calibration_probes,
@@ -416,8 +416,8 @@ def main():
         # ─── PEMFC Stack Modeling on top ORR catalysts ────────────────────
         if time.time() < t_deadline and len(top_fc) > 0:
             print_banner("PHASE 5B: PEMFC STACK MODELING")
-            from pipeline.pemfc_model import sweep_membranes
-            from pipeline.fuel_cell_stack import StackConfig, model_stack
+            from pipeline.process.pemfc_model import sweep_membranes
+            from pipeline.process.fuel_cell_stack import StackConfig, model_stack
 
             pemfc_results = []
             for _, row in top_fc.iterrows():
@@ -449,7 +449,7 @@ def main():
                     'stack_net_kW': stack.get('net_power_kW', 0),
                     'stack_efficiency': stack.get('system_efficiency', 0),
                 }
-                from pipeline.viability import evaluate_fuel_cell
+                from pipeline.validation.viability import evaluate_fuel_cell
                 viability_record = dict(best)
                 viability_record['system_efficiency'] = stack.get('system_efficiency', 0)
                 pipeline_state['phase5_stack']['industrial_viability'] = evaluate_fuel_cell(viability_record)
@@ -459,7 +459,7 @@ def main():
 
     # ─── Phase 6: Report ─────────────────────────────────────────────────────
     print_banner("PHASE 6: REPORT")
-    from pipeline.report_generator import generate_full_report
+    from pipeline.evidence.report_generator import generate_full_report
     pipeline_state = load_json("pipeline_state.json") or pipeline_state
     generate_full_report(pipeline_state)
     save_json(pipeline_state, "pipeline_state.json")
@@ -474,7 +474,7 @@ def main():
     print(f"  Total catalysts screened:           {h2_eval + fc_eval:,}")
     print("=" * 80)
 
-    from pipeline.readiness import campaign_readiness
+    from pipeline.evidence.readiness import campaign_readiness
     h2_ready = campaign_readiness(
         'results/screening/turquoise_hydrogen_coverage_certificate.json', args.prior_art_db,
         evidence_manifest=args.evidence_manifest if args.final_campaign else None,
@@ -485,7 +485,7 @@ def main():
         application='fuel_cell')
     readiness = {'turquoise_hydrogen': h2_ready, 'fuel_cell': fc_ready,
                  'ready': h2_ready['ready'] and fc_ready['ready']}
-    from pipeline.campaign_status import assess_campaign
+    from pipeline.evidence.campaign_status import assess_campaign
     readiness['six_point_status'] = assess_campaign('results', pyrolysis_mode=args.mode)
     readiness['ready'] = readiness['ready'] and readiness['six_point_status']['ready']
     save_json(readiness, 'campaign_readiness.json')

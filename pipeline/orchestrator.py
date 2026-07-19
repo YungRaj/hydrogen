@@ -27,7 +27,7 @@ from typing import Dict, List, Optional
 from dataclasses import dataclass
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from pipeline.utils import (
+from pipeline.common.utils import (
     BASE_DIR, RESULTS_DIR, SCREENING_DIR, REACTOR_DIR, DFT_DIR, VQE_DIR,
     FUEL_CELL_DIR, REPORTS_DIR, MECHANISMS_DIR,
     ENV_MACE, ENV_BATTERY, ENV_CANTERA, ENV_QE, ENV_QUANTUM,
@@ -98,8 +98,8 @@ def run_pipeline(config: PipelineConfig = PipelineConfig(),
         print_banner("PHASE 1: DETERMINISTIC BRANCH-AND-BOUND DISCOVERY")
         t1 = time.time()
 
-        from pipeline.catalyst_spaces import estimate_design_space_size
-        from pipeline.genetic_optimizer import run_branch_discovery, BranchDiscoveryConfig
+        from pipeline.common.catalyst_spaces import estimate_design_space_size
+        from pipeline.screening.genetic_optimizer import run_branch_discovery, BranchDiscoveryConfig
 
         # Report design space
         sizes = estimate_design_space_size()
@@ -144,8 +144,8 @@ def run_pipeline(config: PipelineConfig = PipelineConfig(),
         print_banner("PHASE 2: CANTERA REACTOR SIMULATION")
         t2 = time.time()
 
-        from pipeline.reactor_mechanisms import write_full_mechanism, write_gri30_subset
-        from pipeline.reactor_models import run_reactor_sweep
+        from pipeline.process.reactor_mechanisms import write_full_mechanism, write_gri30_subset
+        from pipeline.process.reactor_models import run_reactor_sweep
 
         # Write gas-phase mechanism
         write_gri30_subset()
@@ -211,7 +211,7 @@ def run_pipeline(config: PipelineConfig = PipelineConfig(),
         print_banner("PHASE 3: DFT VALIDATION")
         t3 = time.time()
 
-        from pipeline.dft_validator import validate_catalyst
+        from pipeline.validation.dft_validator import validate_catalyst
 
         dft_results = []
         if 'top_catalysts' in dir() and top_catalysts is not None:
@@ -250,7 +250,7 @@ def run_pipeline(config: PipelineConfig = PipelineConfig(),
         print_banner("PHASE 4: CUDA-Q VQE TRANSITION STATE")
         t4 = time.time()
 
-        from pipeline.vqe_transition_state import validate_transition_state
+        from pipeline.validation.vqe_transition_state import validate_transition_state
 
         vqe_results = []
         target = 'nvidia' if config.run_vqe else 'default'
@@ -273,9 +273,9 @@ def run_pipeline(config: PipelineConfig = PipelineConfig(),
         print_banner("PHASE 5: FUEL CELL CATHODE SCREENING & PEMFC MODEL")
         t5 = time.time()
 
-        from pipeline.fc_cathode_screener import run_cathode_screening, MEMBRANE_TYPES
-        from pipeline.pemfc_model import PEMFCConfig, simulate_pemfc, sweep_membranes
-        from pipeline.fuel_cell_stack import StackConfig, model_stack
+        from pipeline.screening.fc_cathode_screener import run_cathode_screening, MEMBRANE_TYPES
+        from pipeline.process.pemfc_model import PEMFCConfig, simulate_pemfc, sweep_membranes
+        from pipeline.process.fuel_cell_stack import StackConfig, model_stack
 
         # Screen cathode catalysts
         cathode_df = run_cathode_screening()
@@ -344,7 +344,7 @@ def run_pipeline(config: PipelineConfig = PipelineConfig(),
         print_banner("PHASE 6: REPORT GENERATION")
         t6 = time.time()
 
-        from pipeline.report_generator import generate_full_report
+        from pipeline.evidence.report_generator import generate_full_report
         report_path = generate_full_report(pipeline_state)
 
         pipeline_state['phase6'] = {
