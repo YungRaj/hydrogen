@@ -26,6 +26,8 @@ def main():
                         help='Deterministic binary-tree probes used to calibrate the surrogate')
     parser.add_argument('--validation-batch', type=int, default=500,
                         help='Branch/archive champions sent to the atomistic model')
+    parser.add_argument('--min-validation-per-class', type=int, default=2,
+                        help='Reserved atomistic validation quota per represented class')
     parser.add_argument('--hours', type=float, default=0,
                         help='Max wall-clock hours. 0 = unlimited (default: 0)')
     parser.add_argument('--top-k', type=int, default=200,
@@ -175,6 +177,7 @@ def main():
         # One wall-clock budget covers the entire dual-application campaign.
         max_runtime_s=None if args.hours == 0 else max(0.0, t_deadline - time.time()),
         prior_art_db=args.prior_art_db,
+        min_validation_per_class=args.min_validation_per_class,
     )
 
     pareto_genomes, screening_db = run_branch_discovery(branch_config)
@@ -377,6 +380,7 @@ def main():
             expected_space_size=args.expected_space_size,
             max_runtime_s=None if args.hours == 0 else max(0.0, t_deadline - time.time()),
             prior_art_db=args.prior_art_db,
+            min_validation_per_class=args.min_validation_per_class,
         )
 
         fc_pareto, fc_screening_db = run_fc_branch_discovery(fc_config)

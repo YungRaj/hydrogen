@@ -34,7 +34,7 @@ from pipeline.catalyst_spaces import (
     ALL_MATERIAL_CLASSES, FEATURE_DIM, generate_hierarchical_htvs_pool,
 )
 from pipeline.surrogate_model import CatalystSurrogate, train_surrogate, predict_batch, SurrogateEnsemble, train_ensemble, predict_ensemble
-from pipeline.discovery import select_discovery_batch, coverage_summary, add_discovery_metadata
+from pipeline.discovery import select_discovery_batch, coverage_summary, add_discovery_metadata, candidate_id
 
 logger = setup_logger('genetic_optimizer', 'screening/genetic_optimizer.log')
 
@@ -302,6 +302,7 @@ class BranchDiscoveryConfig:
     expected_space_size: Optional[int] = None
     max_runtime_s: Optional[float] = None
     prior_art_db: Optional[str] = None
+    min_validation_per_class: int = 1
 
 
 
@@ -348,16 +349,34 @@ def run_branch_discovery(config: BranchDiscoveryConfig = BranchDiscoveryConfig()
     objectives = compute_objectives_surrogate(archive, model, config.device)
     fronts = fast_non_dominated_sort(objectives)
     champions = [archive[i] for i in fronts[0]]
-    validate_idx = select_discovery_batch(
+    from pipeline.adaptive_validation import (allocate_validation_batch,
+                                               experimental_slate,
+                                               persist_experimental_slate,
+                                               record_screening_frame)
+    uncertainty = None
+    from pipeline.surrogate_model import SurrogateEnsemble, predict_ensemble
+    if isinstance(model, SurrogateEnsemble):
+        uncertainty = predict_ensemble(model, encode_population(archive),
+                                       device=config.device)['E_act_std']
+    validate_idx = allocate_validation_batch(
         archive, objectives, min(config.fairchem_eval_top_k, len(archive)),
-        evaluated=[],
-    )
+        config.exhaustive_db, 'turquoise_hydrogen',
+        min_per_class=config.min_validation_per_class,
+        uncertainties=uncertainty)
     validated = run_screening([archive[i] for i in validate_idx],
                               db_filename='branch_champions.csv', workers_per_gpu=2)
+    predictions = {candidate_id(archive[i]): float(objectives[i, 0]) for i in validate_idx}
+    record_screening_frame(config.exhaustive_db, 'turquoise_hydrogen', predictions,
+                           validated, 'E_act', 'fairchem', 0.8)
     evidence = pd.concat([evidence, validated], ignore_index=True)
     if config.prior_art_db:
         from pipeline.prior_art import annotate_prior_art
         evidence = annotate_prior_art(evidence, config.prior_art_db)
+    slate_idx = experimental_slate(archive, objectives,
+                                   min(config.fairchem_eval_top_k, len(archive)))
+    persist_experimental_slate(config.exhaustive_db, 'turquoise_hydrogen',
+                               archive, objectives, slate_idx)
+    evidence.attrs['experimental_slate'] = [archive[i] for i in slate_idx]
     return champions, add_discovery_metadata(evidence)
 
 

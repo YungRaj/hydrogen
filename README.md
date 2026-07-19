@@ -395,6 +395,7 @@ nohup /home/ilhanraja/miniconda3/envs/fairchem-env/bin/python -u run_production_
 |-----------|---------|-------------|
 | `--calibration-probes` | 500 | Deterministic binary-tree points used for initial surrogate evidence |
 | `--validation-batch` | 500 | Global and regional champions sent to the atomistic model |
+| `--min-validation-per-class` | 2 | Fixed validation quota reserved for every represented material class before adaptive allocation |
 | `--branch-leaf-size` | 1,000,000 | Maximum indexed population per exhaustively streamed terminal leaf |
 | `--branch-max-leaves` | 0 | Staged leaf limit; zero continues until the tree is complete |
 | `--hours` | 0 | Campaign-wide wall-clock limit shared by both applications; zero is unlimited |
@@ -516,6 +517,14 @@ hydrogen/
 6. **Retain global and regional champions** — unfamiliar chemistry regions remain represented even when familiar chemistry dominates the global scores
 7. **Retain every objective's winners** — bounded global archives and per-region champions prevent a primary-objective ranking from discarding selectivity, stability, cost, or uncertainty extremes
 8. **Output a coverage certificate** — exact terminal population, gap/overlap checks, scan cursors, pruning proofs, canonical candidate IDs, and application-specific champions
+
+Expensive validation is allocated adaptively by `pipeline/adaptive_validation.py`.
+Each represented material class receives a fixed quota first. Remaining slots
+combine expected improvement, ensemble uncertainty, regional calibration error,
+and observed productivity. Paired surrogate/Fairchem/DFT/experimental results are
+stored by chemistry region in SQLite. Large disagreement moves a region earlier;
+repeated low productivity moves it later but never prunes it. A separate
+`experimental_slate` table preserves one champion per region before repeats.
 
 #### What “novel” means
 

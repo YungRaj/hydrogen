@@ -189,6 +189,46 @@ def test_six_point_status_fails_closed():
         assert len(result['missing']) == 6
 
 
+def test_adaptive_validation_policy():
+    import tempfile
+    from pathlib import Path
+    from pipeline.adaptive_validation import (
+        allocate_validation_batch, experimental_slate, record_validation,
+        regional_calibration, priority_adjustment, persist_experimental_slate)
+    candidates = [
+        ('SAC', 'Fe', 'N4', 'N-graphene', 'OH'),
+        ('SAC', 'Co', 'N4', 'N-graphene', 'OH'),
+        ('MoltenMetal', 'Ga', 'Sn', 10, 1000),
+        ('MoltenMetal', 'Bi', 'Ni', 10, 1000),
+        ('MXene', 'Ti', 'C', 2, 'O', 'Fe'),
+    ]
+    objectives = np.array([[0.2, 1], [0.3, 1], [0.4, 1], [0.5, 1], [0.6, 1]])
+    with tempfile.TemporaryDirectory() as tmp:
+        db = str(Path(tmp) / 'adaptive.sqlite')
+        selected = allocate_validation_batch(candidates, objectives, 3, db, 'test',
+                                             min_per_class=1,
+                                             uncertainties=[0, 0, 0, 1, 0])
+        assert {candidates[i][0] for i in selected} == {'SAC', 'MoltenMetal', 'MXene'}
+        try:
+            allocate_validation_batch(candidates, objectives, 2, db, 'test', min_per_class=1)
+        except ValueError as exc:
+            assert 'cannot satisfy class quota' in str(exc)
+        else:
+            raise AssertionError('undersized class quota budget must fail closed')
+        record_validation(db, 'test', candidates[0], 0.2, 1.2, 'dft', False,
+                          {'source_id': 'calc:1'})
+        stats = regional_calibration(db, 'test')
+        region = '|'.join(__import__('pipeline.discovery', fromlist=['discovery_region']).discovery_region(candidates[0]))
+        assert stats[region]['mae'] == 1.0 and stats[region]['productivity'] == 0.0
+        assert priority_adjustment(db, 'test', [candidates[0]]) < 0.5
+        slate = experimental_slate(candidates, objectives, 5)
+        assert len(slate) == 5 and len(set(slate)) == 5
+        persist_experimental_slate(db, 'test', candidates, objectives, slate)
+        import sqlite3
+        with sqlite3.connect(db) as conn:
+            assert conn.execute("SELECT COUNT(*) FROM experimental_slate").fetchone()[0] == 5
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 5. ELEMENT EXTRACTORS (4 copies must agree)
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -875,6 +915,7 @@ if __name__ == '__main__':
     test("PEMFC application scope", test_pemfc_application_scope)
     test("Novelty time-split benchmark", test_novelty_time_split_benchmark)
     test("Six-point status fails closed", test_six_point_status_fails_closed)
+    test("Adaptive validation policy", test_adaptive_validation_policy)
 
     print("\n── Element Extractors ──")
     test("4 extractors consistent", test_element_extractors_consistent)

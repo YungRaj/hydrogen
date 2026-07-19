@@ -67,7 +67,8 @@ def _probe_indices(start: int, stop: int, count: int) -> List[int]:
 
 
 def _node_priority(material_class: str, start: int, stop: int,
-                   scorer: Callable[[List[tuple]], np.ndarray], probe_count: int):
+                   scorer: Callable[[List[tuple]], np.ndarray], probe_count: int,
+                   database: str = None, application: str = None):
     probes = []
     for index in _probe_indices(start, stop, max(2, probe_count)):
         genome = candidate_at(index)
@@ -87,6 +88,9 @@ def _node_priority(material_class: str, start: int, stop: int,
     ood_bonus = 1.0 - CLASS_CONFIDENCE.get(material_class, 0.5)
     size_bonus = 0.01 * math.log10(max(1, stop - start))
     priority = best - 0.5 * spread - 0.2 * ood_bonus - size_bonus
+    if database and application:
+        from pipeline.adaptive_validation import priority_adjustment
+        priority += priority_adjustment(database, application, probes)
     return priority, best, spread
 
 
@@ -99,7 +103,8 @@ def _insert_node(conn, cfg, material_class, start, stop, depth, scorer,
     if exists:
         return node_id
     priority, best, spread = _node_priority(
-        material_class, start, stop, scorer, cfg.probe_count)
+        material_class, start, stop, scorer, cfg.probe_count,
+        cfg.database, cfg.application)
     conn.execute("INSERT INTO branch_nodes VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (
         cfg.application, node_id, material_class, start, stop, depth, 'pending',
         priority, best, spread, parent_id, None, time.time()))

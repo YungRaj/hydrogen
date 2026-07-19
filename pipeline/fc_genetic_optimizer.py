@@ -31,7 +31,7 @@ from pipeline.catalyst_spaces import (
     generate_population, crossover, mutate, encode_genome, encode_population,
     ALL_MATERIAL_CLASSES, FEATURE_DIM, generate_hierarchical_htvs_pool,
 )
-from pipeline.discovery import select_discovery_batch, coverage_summary, add_discovery_metadata
+from pipeline.discovery import select_discovery_batch, coverage_summary, add_discovery_metadata, candidate_id
 import torch
 
 logger = setup_logger('fc_genetic_optimizer', 'fuel_cell/fc_genetic_optimizer.log')
@@ -84,6 +84,7 @@ class FCBranchDiscoveryConfig:
     expected_space_size: Optional[int] = None
     max_runtime_s: Optional[float] = None
     prior_art_db: Optional[str] = None
+    min_validation_per_class: int = 1
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -463,14 +464,39 @@ def run_fc_branch_discovery(config: FCBranchDiscoveryConfig, existing_db=None):
     objectives = compute_orr_objectives_surrogate(archive, model, config.device)
     fronts = fast_non_dominated_sort(objectives)
     champions = [archive[i] for i in fronts[0]]
-    validate_idx = select_discovery_batch(
-        archive, objectives, min(config.fairchem_eval_top_k, len(archive)), evaluated=[])
+    from pipeline.adaptive_validation import (allocate_validation_batch,
+                                               experimental_slate,
+                                               persist_experimental_slate,
+                                               record_screening_frame)
+    uncertainty = None
+    if isinstance(model, ORRSurrogateEnsemble):
+        X_unc = torch.FloatTensor(encode_population(archive)).to(config.device)
+        eta_members = []
+        for member in model.models:
+            member.eval()
+            with torch.no_grad():
+                _, eta_member, _ = member(X_unc)
+            eta_members.append(eta_member.cpu().numpy().flatten())
+        uncertainty = np.column_stack(eta_members).std(axis=1)
+    validate_idx = allocate_validation_batch(
+        archive, objectives, min(config.fairchem_eval_top_k, len(archive)),
+        config.exhaustive_db, 'fuel_cell_orr',
+        min_per_class=config.min_validation_per_class,
+        uncertainties=uncertainty)
     validated = run_orr_screening(
         [archive[i] for i in validate_idx], db_filename='fc_branch_champions.csv', workers_per_gpu=2)
+    predictions = {candidate_id(archive[i]): float(objectives[i, 0]) for i in validate_idx}
+    record_screening_frame(config.exhaustive_db, 'fuel_cell_orr', predictions,
+                           validated, 'orr_overpotential_V', 'fairchem', 0.40)
     evidence = pd.concat([evidence, validated], ignore_index=True)
     if config.prior_art_db:
         from pipeline.prior_art import annotate_prior_art
         evidence = annotate_prior_art(evidence, config.prior_art_db)
+    slate_idx = experimental_slate(archive, objectives,
+                                   min(config.fairchem_eval_top_k, len(archive)))
+    persist_experimental_slate(config.exhaustive_db, 'fuel_cell_orr',
+                               archive, objectives, slate_idx)
+    evidence.attrs['experimental_slate'] = [archive[i] for i in slate_idx]
     return champions, add_discovery_metadata(evidence)
 
 def run_fc_genetic_algorithm(config: FCGAConfig, existing_db=None):
