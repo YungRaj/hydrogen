@@ -33,7 +33,7 @@ from pipeline.catalyst_spaces import (
     generate_population, crossover, mutate, encode_genome, encode_population,
     ALL_MATERIAL_CLASSES, FEATURE_DIM,
 )
-from pipeline.surrogate_model import CatalystSurrogate, train_surrogate, predict_batch
+from pipeline.surrogate_model import CatalystSurrogate, train_surrogate, predict_batch, SurrogateEnsemble, train_ensemble, predict_ensemble
 
 logger = setup_logger('genetic_optimizer', 'screening/genetic_optimizer.log')
 
@@ -49,38 +49,25 @@ def dominates(obj_a: np.ndarray, obj_b: np.ndarray) -> bool:
 
 def fast_non_dominated_sort(objectives: np.ndarray) -> List[List[int]]:
     """
-    NSGA-II fast non-dominated sort.
-    
-    Args:
-        objectives: (N, M) array where each row is an M-objective vector.
-                    All objectives are MINIMIZED.
-    Returns:
-        List of fronts, where each front is a list of indices.
+    NSGA-II fast non-dominated sort using vectorized Pareto front extraction.
     """
-    N = len(objectives)
-    domination_count = np.zeros(N, dtype=int)  # how many solutions dominate i
-    dominated_set = [[] for _ in range(N)]      # set of solutions i dominates
-
-    for i in range(N):
-        for j in range(i + 1, N):
-            if dominates(objectives[i], objectives[j]):
-                dominated_set[i].append(j)
-                domination_count[j] += 1
-            elif dominates(objectives[j], objectives[i]):
-                dominated_set[j].append(i)
-                domination_count[i] += 1
-
+    n = len(objectives)
+    remaining_indices = np.arange(n)
     fronts = []
-    current_front = [i for i in range(N) if domination_count[i] == 0]
-    while current_front:
-        fronts.append(current_front)
-        next_front = []
-        for i in current_front:
-            for j in dominated_set[i]:
-                domination_count[j] -= 1
-                if domination_count[j] == 0:
-                    next_front.append(j)
-        current_front = next_front
+
+    while len(remaining_indices) > 0:
+        sub_objs = objectives[remaining_indices]
+        is_efficient = np.ones(len(sub_objs), dtype=bool)
+        for i in range(len(sub_objs)):
+            if is_efficient[i]:
+                dominated = np.all(sub_objs[i] <= sub_objs, axis=1) & np.any(sub_objs[i] < sub_objs, axis=1)
+                is_efficient[dominated] = False
+
+        front_sub_idx = np.where(is_efficient)[0]
+        front_global_idx = remaining_indices[front_sub_idx].tolist()
+        fronts.append(front_global_idx)
+
+        remaining_indices = np.delete(remaining_indices, front_sub_idx)
 
     return fronts
 
@@ -145,11 +132,14 @@ def nsga2_select(population: List[tuple], objectives: np.ndarray,
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def compute_objectives_surrogate(population: List[tuple],
-                                  model: CatalystSurrogate,
+                                  model: object,
                                   device: str = 'cuda:0') -> np.ndarray:
     """
-    Compute 4 objectives using the surrogate model.
+    Compute 4 objectives using the surrogate model or surrogate ensemble.
     All objectives are MINIMIZED (negate what should be maximized).
+    
+    If model is a SurrogateEnsemble, uses LCB (for E_act and segregation energy)
+    and UCB (for coking resistance index) with kappa = 1.0 to drive active learning.
     
     E_act is scaled by OOD confidence penalty to discount predictions
     from material classes outside the eSen-SM training distribution.
@@ -159,13 +149,26 @@ def compute_objectives_surrogate(population: List[tuple],
     from pipeline.ood_detector import compute_model_confidence, confidence_penalty
 
     X = encode_population(population)
-    preds = predict_batch(model, X, device=device)
+    
+    if isinstance(model, SurrogateEnsemble):
+        preds = predict_ensemble(model, X, device=device)
+        kappa = 1.0
+        e_act_pred = preds['E_act'] - kappa * preds['E_act_std']
+        coking_pred = preds['coking_index'] + kappa * preds['coking_index_std']
+        seg_pred = preds['segregation_energy'] - kappa * preds['segregation_energy_std']
+        valid_prob = preds['valid_prob']
+    else:
+        preds = predict_batch(model, X, device=device)
+        e_act_pred = preds['E_act']
+        coking_pred = preds['coking_index']
+        seg_pred = preds['segregation_energy']
+        valid_prob = preds['valid_prob']
 
     # Objective 1: E_act (minimize) × confidence penalty
-    obj1 = preds['E_act'].copy()
+    obj1 = e_act_pred.copy()
 
     # Objective 2: Coking resistance (maximize → negate for minimization)
-    coking = preds['coking_index'].copy()
+    coking = coking_pred.copy()
     py_mode = os.environ.get('PYROLYSIS_MODE', 'ntec')
     if py_mode == 'ntec':
         for i, g in enumerate(population):
@@ -174,7 +177,7 @@ def compute_objectives_surrogate(population: List[tuple],
     obj2 = -coking
 
     # Objective 3: Stability (minimize segregation energy — more negative = more stable)
-    obj3 = preds['segregation_energy']  # already: negative = good
+    obj3 = seg_pred.copy()  # already: negative = good
 
     # Objective 4: Material cost (minimize)
     cost_penalties = np.array([
@@ -192,7 +195,7 @@ def compute_objectives_surrogate(population: List[tuple],
     objectives = np.column_stack([obj1, obj2, obj3, obj4])
 
     # Penalty for invalid candidates (push them to worst-case objectives)
-    invalid_mask = preds['valid_prob'] < 0.5
+    invalid_mask = valid_prob < 0.5
     objectives[invalid_mask] = [5.0, 0.0, 1.0, 3.0]  # worst-case values
 
     return objectives
@@ -262,15 +265,38 @@ class GAConfig:
     initial_fairchem_samples: int = 200     # Initial Fairchem samples for surrogate training
     explore_interval: int = 3               # Run exploration shots every N Fairchem intervals
     explore_per_class: int = 5              # Random GNN evaluations per class during exploration
+    n_models: int = 3                       # Number of models in surrogate ensemble
+    htvs_pool_size: int = 20000             # Initial high-throughput virtual screening pool size
+    reinjection_interval: int = 20          # Periodically reinject top candidates from new pool
     device: str = 'cuda:0'
     seed: int = 42
+
+
+def generate_htvs_pool(pool_size: int = 20000) -> List[tuple]:
+    """Generate a highly diverse, stratified pool of genomes across all classes."""
+    pool = set()
+    attempts = 0
+    per_class = max(100, pool_size // len(ALL_MATERIAL_CLASSES))
+    for cls in ALL_MATERIAL_CLASSES:
+        cls_pool_size = 0
+        while cls_pool_size < per_class and attempts < pool_size * 10:
+            attempts += 1
+            g = generate_population(1, material_class=cls)[0]
+            if g not in pool:
+                pool.add(g)
+                cls_pool_size += 1
+    # Fill remaining to reach pool_size
+    while len(pool) < pool_size and attempts < pool_size * 20:
+        attempts += 1
+        g = generate_population(1)[0]
+        pool.add(g)
+    return list(pool)
 
 
 def tournament_select(population: List[tuple], objectives: np.ndarray,
                       tournament_size: int = 5) -> int:
     """Tournament selection: pick the best from a random subset."""
     candidates = random.sample(range(len(population)), min(tournament_size, len(population)))
-    # Prefer lower Pareto rank → select by first-objective dominance
     best = candidates[0]
     for c in candidates[1:]:
         if dominates(objectives[c], objectives[best]):
@@ -282,13 +308,6 @@ def run_genetic_algorithm(config: GAConfig = GAConfig(),
                           existing_db: Optional[pd.DataFrame] = None) -> Tuple[List[tuple], pd.DataFrame]:
     """
     Execute the NSGA-II genetic algorithm for catalyst discovery.
-    
-    Args:
-        config: GA configuration
-        existing_db: Existing Fairchem screening results to seed surrogate
-        
-    Returns:
-        (pareto_front_genomes, full_screening_database)
     """
     random.seed(config.seed)
     np.random.seed(config.seed)
@@ -307,14 +326,21 @@ def run_genetic_algorithm(config: GAConfig = GAConfig(),
         all_fairchem_results = run_screening(initial_pop, db_filename="ga_initial_screening.csv",
                                              workers_per_gpu=2)
 
-    # ── Phase B: Train Initial Surrogate ────────────────────────────────────
-    model = _train_surrogate_from_db(all_fairchem_results, config.device)
+    # ── Phase B: Train Initial Surrogate Ensemble ───────────────────────────
+    model = _train_ensemble_from_db(all_fairchem_results, config.device, n_models=config.n_models)
 
     # ── Phase C: Evolutionary Loop ──────────────────────────────────────────
-    population = generate_population(config.pop_size)
+    logger.info(f"Generating HTVS pool of {config.htvs_pool_size} candidates for initial seeding...")
+    htvs_pool = generate_htvs_pool(config.htvs_pool_size)
+    htvs_obj = compute_objectives_surrogate(htvs_pool, model, config.device)
+
+    logger.info(f"Selecting top {config.pop_size} Pareto-optimal seeds using acquisition LCB/UCB values...")
+    seed_idx = nsga2_select(htvs_pool, htvs_obj, config.pop_size)
+    population = [htvs_pool[i] for i in seed_idx]
+
     best_e_act_history = []
     pareto_front_history = []
-    fairchem_round = 0  # tracks Fairchem validation rounds for exploration scheduling
+    fairchem_round = 0
 
     for gen in range(config.n_generations):
         t_gen = time.time()
@@ -339,10 +365,8 @@ def run_genetic_algorithm(config: GAConfig = GAConfig(),
             offspring.append(child)
 
         # ── Class-Diversity Enforcement ─────────────────────────────────────
-        # Prevent any single class from dominating the population.
-        # Guarantee at least 5% of population from each of the 10 classes.
         combined = parents + offspring
-        min_per_class = max(2, config.pop_size // 20)  # 5% of pop per class
+        min_per_class = max(2, config.pop_size // 20)
         class_counts = {}
         for g in combined:
             cls = g[0]
@@ -356,7 +380,6 @@ def run_genetic_algorithm(config: GAConfig = GAConfig(),
                 diversity_injections.extend(fresh)
 
         if diversity_injections:
-            # Replace the weakest members (tail of combined) with fresh diverse candidates
             combined = combined[:len(combined) - len(diversity_injections)] + diversity_injections
 
         combined_obj = compute_objectives_surrogate(combined, model, config.device)
@@ -387,10 +410,6 @@ def run_genetic_algorithm(config: GAConfig = GAConfig(),
             all_fairchem_results = pd.concat([all_fairchem_results, fairchem_df], ignore_index=True)
 
             # ── Exploration Shots: probe EVERY class with real GNN ───────────
-            # Every explore_interval Fairchem rounds, randomly sample candidates
-            # from ALL 14 material classes — including ones the surrogate
-            # currently thinks are bad. This prevents the GA from being blind
-            # to gems hiding in classes the GNN initially misjudged.
             if fairchem_round % config.explore_interval == 0:
                 explore_genomes = []
                 for cls in ALL_MATERIAL_CLASSES:
@@ -423,7 +442,6 @@ def run_genetic_algorithm(config: GAConfig = GAConfig(),
                         for _, row in good_explores.iterrows():
                             try:
                                 g = ast.literal_eval(row['genome'])
-                                # Replace a random non-Pareto member
                                 replace_idx = random.randint(
                                     len(fronts[0]), len(population) - 1
                                 ) if len(fronts[0]) < len(population) else random.randint(
@@ -433,10 +451,27 @@ def run_genetic_algorithm(config: GAConfig = GAConfig(),
                             except Exception:
                                 pass
 
+        # ── Periodic HTVS Global Reinjection ────────────────────────────────
+        if (gen + 1) % config.reinjection_interval == 0:
+            logger.info(f"  Gen {gen+1}: Global HTVS — screening 10,000 fresh candidates...")
+            reinject_pool = generate_htvs_pool(10000)
+            reinject_obj = compute_objectives_surrogate(reinject_pool, model, config.device)
+
+            n_inject = max(10, config.pop_size // 10)
+            inject_idx = nsga2_select(reinject_pool, reinject_obj, n_inject)
+            inject_genomes = [reinject_pool[i] for i in inject_idx]
+
+            # Merge with current population and select the top pop_size
+            combined_pop = population + inject_genomes
+            combined_obj = compute_objectives_surrogate(combined_pop, model, config.device)
+            keep_idx = nsga2_select(combined_pop, combined_obj, config.pop_size)
+            population = [combined_pop[i] for i in keep_idx]
+            final_obj = combined_obj[keep_idx]
+
         # ── Periodic Surrogate Retraining ───────────────────────────────────
         if (gen + 1) % config.surrogate_retrain_interval == 0:
-            logger.info(f"  Gen {gen+1}: Retraining surrogate on {len(all_fairchem_results)} samples...")
-            model = _train_surrogate_from_db(all_fairchem_results, config.device)
+            logger.info(f"  Gen {gen+1}: Retraining surrogate ensemble on {len(all_fairchem_results)} samples...")
+            model = _train_ensemble_from_db(all_fairchem_results, config.device, n_models=config.n_models)
 
         # Logging
         if (gen + 1) % 10 == 0 or gen == 0:
@@ -463,17 +498,15 @@ def run_genetic_algorithm(config: GAConfig = GAConfig(),
     return pareto_genomes, all_fairchem_results
 
 
-def _train_surrogate_from_db(df: pd.DataFrame, device: str) -> CatalystSurrogate:
-    """Train surrogate from a Fairchem screening database DataFrame."""
+def _train_ensemble_from_db(df: pd.DataFrame, device: str, n_models: int = 3) -> SurrogateEnsemble:
+    """Train surrogate ensemble from a Fairchem screening database DataFrame."""
     valid_df = df.dropna(subset=['E_act', 'coking_index', 'segregation_energy', 'dE_split'])
 
     if len(valid_df) < 10:
-        logger.warning(f"Only {len(valid_df)} valid samples. Surrogate quality may be low.")
-        # Fill with defaults for training
-        if len(valid_df) == 0:
-            # Return untrained model
-            model = CatalystSurrogate().to(device)
-            return model
+        logger.warning(f"Only {len(valid_df)} valid samples. Ensemble quality may be low.")
+        # Return untrained ensemble
+        ensemble = SurrogateEnsemble(n_models=n_models).to(device)
+        return ensemble
 
     # Parse genomes from string representation
     genomes = []
@@ -492,12 +525,12 @@ def _train_surrogate_from_db(df: pd.DataFrame, device: str) -> CatalystSurrogate
     y_seg = df.get('segregation_energy', pd.Series(np.zeros(len(df)))).fillna(0.0).values
     y_e_act = df.get('E_act', pd.Series(np.ones(len(df)))).fillna(1.0).values
 
-    model = train_surrogate(
+    ensemble = train_ensemble(
         X, y_valid, y_de_split, y_coking, y_seg, y_e_act,
-        epochs=30, batch_size=min(2048, len(X)),
+        n_models=n_models, epochs=30, batch_size=min(2048, len(X)),
         device=device
     )
-    return model
+    return ensemble
 
 
 if __name__ == '__main__':

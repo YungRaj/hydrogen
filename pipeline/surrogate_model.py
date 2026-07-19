@@ -75,27 +75,12 @@ class CatalystSurrogate(nn.Module):
         return valid_logit, de_split, coking, seg, e_act
 
 
-def train_surrogate(X: np.ndarray, y_valid: np.ndarray,
-                    y_de_split: np.ndarray, y_coking: np.ndarray,
-                    y_seg: np.ndarray, y_e_act: np.ndarray,
-                    epochs: int = 30, batch_size: int = 2048,
-                    lr: float = 0.003, device: str = 'cuda:0') -> CatalystSurrogate:
-    """
-    Train the surrogate model on MACE screening data.
-    
-    Args:
-        X: Feature matrix (N, FEATURE_DIM)
-        y_valid: Validity labels (N,) — 1.0 if MACE succeeded
-        y_de_split: C-H splitting energy (N,)
-        y_coking: Coking resistance index (N,)
-        y_seg: Segregation/binding energy (N,)
-        y_e_act: Activation barrier (N,)
-        
-    Returns:
-        Trained CatalystSurrogate model
-    """
-    model = CatalystSurrogate(input_dim=X.shape[1]).to(device)
-
+def _train_model_inplace(model: CatalystSurrogate, X: np.ndarray, y_valid: np.ndarray,
+                         y_de_split: np.ndarray, y_coking: np.ndarray,
+                         y_seg: np.ndarray, y_e_act: np.ndarray,
+                         epochs: int = 30, batch_size: int = 2048,
+                         lr: float = 0.003, device: str = 'cuda:0'):
+    """In-place training of a single CatalystSurrogate model."""
     # Convert to tensors
     X_t = torch.tensor(X, dtype=torch.float32).to(device)
     y_val_t = torch.tensor(y_valid, dtype=torch.float32).unsqueeze(1).to(device)
@@ -105,7 +90,7 @@ def train_surrogate(X: np.ndarray, y_valid: np.ndarray,
     y_act_t = torch.tensor(y_e_act, dtype=torch.float32).unsqueeze(1).to(device)
 
     dataset = TensorDataset(X_t, y_val_t, y_de_t, y_cok_t, y_seg_t, y_act_t)
-    loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=True)
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=False)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
@@ -149,6 +134,19 @@ def train_surrogate(X: np.ndarray, y_valid: np.ndarray,
 
     model.eval()
     logger.info("Surrogate training complete.")
+
+
+def train_surrogate(X: np.ndarray, y_valid: np.ndarray,
+                    y_de_split: np.ndarray, y_coking: np.ndarray,
+                    y_seg: np.ndarray, y_e_act: np.ndarray,
+                    epochs: int = 30, batch_size: int = 2048,
+                    lr: float = 0.003, device: str = 'cuda:0') -> CatalystSurrogate:
+    """
+    Train the surrogate model on Fairchem screening data.
+    """
+    model = CatalystSurrogate(input_dim=X.shape[1]).to(device)
+    _train_model_inplace(model, X, y_valid, y_de_split, y_coking, y_seg, y_e_act,
+                         epochs=epochs, batch_size=batch_size, lr=lr, device=device)
     return model
 
 
@@ -157,8 +155,6 @@ def predict_batch(model: CatalystSurrogate, X: np.ndarray,
                   device: str = 'cuda:0') -> dict:
     """
     Predict catalyst properties for a batch of feature vectors.
-    
-    Returns dict with numpy arrays for each property.
     """
     model.eval()
     X_t = torch.tensor(X, dtype=torch.float32).to(device)
@@ -172,3 +168,65 @@ def predict_batch(model: CatalystSurrogate, X: np.ndarray,
         'segregation_energy': seg.cpu().numpy().flatten(),
         'E_act': e_act.cpu().numpy().flatten(),
     }
+
+
+class SurrogateEnsemble(nn.Module):
+    """
+    Ensemble of CatalystSurrogate models for epistemic uncertainty estimation.
+    """
+    def __init__(self, n_models: int = 3, input_dim: int = FEATURE_DIM):
+        super().__init__()
+        self.models = nn.ModuleList([
+            CatalystSurrogate(input_dim=input_dim)
+            for _ in range(n_models)
+        ])
+
+
+def train_ensemble(X: np.ndarray, y_valid: np.ndarray,
+                   y_de_split: np.ndarray, y_coking: np.ndarray,
+                   y_seg: np.ndarray, y_e_act: np.ndarray,
+                   n_models: int = 3, epochs: int = 30, batch_size: int = 2048,
+                   lr: float = 0.003, device: str = 'cuda:0') -> SurrogateEnsemble:
+    """Train an ensemble of surrogate models on bootstrapped subsets."""
+    ensemble = SurrogateEnsemble(n_models=n_models, input_dim=X.shape[1]).to(device)
+    n_samples = len(X)
+
+    for i, model in enumerate(ensemble.models):
+        logger.info(f"Training ensemble member {i+1}/{n_models}...")
+        # Bootstrap sampling
+        if n_samples > 10:
+            indices = np.random.choice(n_samples, n_samples, replace=True)
+            X_b = X[indices]
+            y_valid_b = y_valid[indices]
+            y_de_split_b = y_de_split[indices]
+            y_coking_b = y_coking[indices]
+            y_seg_b = y_seg[indices]
+            y_e_act_b = y_e_act[indices]
+        else:
+            X_b, y_valid_b, y_de_split_b, y_coking_b, y_seg_b, y_e_act_b = X, y_valid, y_de_split, y_coking, y_seg, y_e_act
+
+        _train_model_inplace(model, X_b, y_valid_b, y_de_split_b, y_coking_b, y_seg_b, y_e_act_b,
+                             epochs=epochs, batch_size=batch_size, lr=lr, device=device)
+
+    return ensemble
+
+
+@torch.no_grad()
+def predict_ensemble(ensemble: SurrogateEnsemble, X: np.ndarray,
+                     device: str = 'cuda:0') -> dict:
+    """
+    Predict properties using the ensemble, returning both mean and standard deviation.
+    """
+    preds_list = []
+    for model in ensemble.models:
+        preds = predict_batch(model, X, device=device)
+        preds_list.append(preds)
+
+    keys = ['valid_prob', 'de_split', 'coking_index', 'segregation_energy', 'E_act']
+    results = {}
+    for k in keys:
+        arr = np.column_stack([p[k] for p in preds_list])  # (N, M)
+        results[k] = arr.mean(axis=1)
+        results[k + '_std'] = arr.std(axis=1)
+
+    return results
