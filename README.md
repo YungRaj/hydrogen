@@ -507,11 +507,69 @@ hydrogen/
 
 ## How It Works — Phase by Phase
 
+### Methodology: coverage-guided scientific fuzzing
+
+The discovery engine can be understood as **coverage-guided, physics-constrained
+fuzzing for catalysts**. A candidate genome is the input; the turquoise-hydrogen
+reactor or PEM fuel-cell pathway is the target; and progressively more expensive
+models are feedback oracles. Unlike a software fuzzer, success is not a crash.
+The objective is a physically admissible, synthesizable candidate with unusually
+strong hydrogen-production or fuel-cell performance.
+
+The feedback loop is deterministic and auditable:
+
+1. Map every encoded catalyst to a stable global index and canonical identity.
+2. Divide each material-class range recursively and probe it with a deterministic
+   low-discrepancy sequence.
+3. Reject only candidates that fail explicit hard physical constraints. Model
+   uncertainty, unfamiliar chemistry, or a poor surrogate score never proves
+   that a branch is empty.
+4. Rank admissible branches with robust quantiles, predicted performance,
+   uncertainty, and measured surrogate/high-fidelity disagreement.
+5. Preserve global, per-objective, per-class, and chemistry-region champions so
+   one familiar family cannot erase unusual candidates.
+6. Send selected candidates through increasingly expensive eSen/OC25, DFT/NEB,
+   reactor, ORR, MEA, and experimental checks.
+7. Feed paired predictions and observations back into regional and class-level
+   calibration, then resume from the persistent search tree.
+
+Discovery and calibration use separate ledgers. The discovery slate exploits the
+best reproducible ranking. A fixed class-coverage slate and additional
+uncertainty/disagreement selections deliberately investigate poorly calibrated
+regions. Coverage calculations are not relabeled as discovery hits, and failures
+remain useful feedback.
+
+Random sampling and transparent chemistry heuristics are evaluation controls,
+not production search strategies. A locked pilot fixes its candidate pool,
+training digest, selection slate, budget, random seed, and number of random trials
+before hidden outcomes are calculated. Invalid selected candidates consume budget
+and count as misses.
+
+Prospective computational pilots currently support approximately **1.8×
+enrichment over equal-budget random sampling** for the validated application-
+specific rankers:
+
+- Turquoise hydrogen: 9/20 top-quintile hits versus 5.00/20 random mean
+  (1.80×; above the 95% random bound).
+- Fuel-cell ORR: 7/18 hits versus 3.75/18 random mean
+  (1.87×; above the 95% random bound).
+
+These successes occurred in separate locked rounds. They demonstrate
+computational enrichment, not a universal 1.8× guarantee or experimental catalyst
+performance. Other rounds exposed model drift, establishing a release criterion:
+a challenger should not replace an incumbent without new locked validation.
+Persistent automatic model promotion is not yet treated as completed scientific
+infrastructure. The pilot runners and result manifests are
+`run_pilot_benchmark.py`, `run_prospective_pilot.py`, and
+`run_divide_conquer_pilot.py` under `results/pilot/`.
+
 ### Phase 1: Deterministic Branch-and-Bound Discovery
 
 1. **Calibrate at deterministic tree probes** — recursively bisected probe points from all 14 class roots establish initial model evidence; these probes do not count as population coverage
 2. **eSen-SM evaluation** — for each candidate, build an atomic slab or cluster, enforce periodic boundary conditions (`pbc=True`), relax with BFGS, compute H*/CH₃*/C* adsorption energies
-3. **Train surrogate NN** — multi-task network learns to predict E_act, coking index, validity from the 353-dim genome encoding (~1000× faster than eSen-SM)
+3. **Train deterministic small-data rankers** — turquoise hydrogen ranks the
+   continuous activation barrier; ORR predicts OH/O/OOH adsorption energies and
+   derives an unclipped CHE overpotential so saturated labels cannot erase order
 4. **Divide all class ranges recursively** — deterministic surrogate probes prioritize child branches but never authorize pruning
 5. **Resolve every terminal branch** — a branch is either exhaustively streamed or hard-pruned only after every member fails conservative feasibility rules
 6. **Retain global and regional champions** — unfamiliar chemistry regions remain represented even when familiar chemistry dominates the global scores
@@ -577,12 +635,18 @@ uncertain, novel, and populous regions first while retaining exhaustive coverage
 ```bash
 python run_production_campaign.py \
   --branch-leaf-size 1000000 \
-  --branch-probes 9
+  --branch-probes 9 \
+  --branch-class-floor 1 \
+  --branch-exploration-interval 4
 ```
 
 The tree begins with one root for each of the 14 material classes and recursively
-bisects class-local indexed ranges. Deterministic surrogate probes establish the
-processing priority of each child. Probe predictions **never authorize pruning**.
+bisects class-local indexed ranges. Deterministic low-discrepancy surrogate probes
+establish a robust quantile priority for each child. A class floor gives every
+chemistry family a finite-budget opportunity; every fourth resolved leaf then
+returns to the least-covered family before exploitation resumes. On restart,
+stale pending priorities are recalculated using accumulated regional or
+class-level validation disagreement. Probe predictions **never authorize pruning**.
 A branch is removed only when every encoded member has been checked against the
 conservative hard-feasibility rules and all fail. Every other leaf is passed to
 the exhaustive streaming scanner.

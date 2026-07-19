@@ -1,6 +1,7 @@
 # ─── Core (all environments) ────────────────────────────────────────────────────
 numpy>=1.24
 scipy>=1.10
+scikit-learn>=1.7,<2
 
 # ─── Phase 1: MACE Screening + Genetic Algorithm (deepmd-env) ──────────────────
 torch>=2.0

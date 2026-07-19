@@ -180,6 +180,45 @@ def test_novelty_time_split_benchmark():
     assert not malformed['valid']
 
 
+def test_pilot_benchmark_deduplicates_candidates():
+    import tempfile
+    from pathlib import Path
+    import pandas as pd
+    from pipeline.pilot_benchmark import PilotSpec, load_legacy_outcomes
+    rows = [
+        {'genome': repr(('SAC', 'Fe', 'N4', 'N-graphene', 'none')),
+         'valid': True, 'score': value} for value in (0.4, 0.6)
+    ]
+    rows.append({'genome': repr(('SAC', 'Co', 'N4', 'N-graphene', 'none')),
+                 'valid': True, 'score': 0.8})
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / 'legacy.csv'
+        pd.DataFrame(rows).to_csv(path, index=False)
+        data = load_legacy_outcomes(PilotSpec('fuel_cell_orr', (str(path),), 'score'))
+    assert len(data) == 2
+    assert sorted(data.score.tolist()) == [0.5, 0.8]
+    assert data.candidate_id.nunique() == 2
+
+
+def test_small_data_rankers_preserve_continuous_targets():
+    import pandas as pd
+    from pipeline.indexed_space import deterministic_tree_probes
+    from pipeline.small_data_ranker import fit_tree_ranker
+    genomes = deterministic_tree_probes(24)
+    pyro = pd.DataFrame({'genome': [repr(g) for g in genomes], 'valid': True,
+                         'E_act': np.linspace(0.1, 2.0, len(genomes))})
+    ranker = fit_tree_ranker(pyro, 'turquoise_hydrogen')
+    mean, uncertainty = ranker.predict(genomes[:5])
+    assert np.all(np.isfinite(mean)) and np.all(uncertainty >= 0)
+    orr = pd.DataFrame({'genome': [repr(g) for g in genomes], 'valid': True,
+                        'dG_OH_eV': np.linspace(-1, 1, len(genomes)),
+                        'dG_O_eV': np.linspace(-2, 2, len(genomes)),
+                        'dG_OOH_eV': np.linspace(3, 5, len(genomes))})
+    ranker = fit_tree_ranker(orr, 'fuel_cell_orr')
+    mean, _ = ranker.predict(genomes[:5])
+    assert np.all(np.isfinite(mean)) and len(set(mean.tolist())) > 1
+
+
 def test_six_point_status_fails_closed():
     import tempfile
     from pipeline.campaign_status import assess_campaign
@@ -221,6 +260,9 @@ def test_adaptive_validation_policy():
         region = '|'.join(__import__('pipeline.discovery', fromlist=['discovery_region']).discovery_region(candidates[0]))
         assert stats[region]['mae'] == 1.0 and stats[region]['productivity'] == 0.0
         assert priority_adjustment(db, 'test', [candidates[0]]) < 0.5
+        # A new region in the same class inherits class-level disagreement
+        # until it accumulates its own calibration evidence.
+        assert priority_adjustment(db, 'test', [candidates[1]]) < 0.0
         slate = experimental_slate(candidates, objectives, 5)
         assert len(slate) == 5 and len(set(slate)) == 5
         persist_experimental_slate(db, 'test', candidates, objectives, slate)
@@ -727,6 +769,34 @@ def test_branch_search_resolves_without_surrogate_pruning():
         assert result['node_status_counts'].get('pruned', 0) == 0
 
 
+def test_branch_probes_are_deterministic_low_discrepancy():
+    from pipeline.branch_search import _probe_indices
+    first = _probe_indices(100, 10100, 9)
+    second = _probe_indices(100, 10100, 9)
+    assert first == second and len(first) == 9
+    assert first[0] == 100 and first[-1] == 10099
+    gaps = np.diff(first)
+    assert len(set(gaps.tolist())) > 1, 'probes regressed to alias-prone uniform spacing'
+
+
+def test_branch_finite_budget_preserves_class_floor():
+    import tempfile
+    from pathlib import Path
+    from pipeline.branch_search import BranchConfig, run_branch_and_bound
+    def biased_scorer(genomes):
+        primary = np.array([0.0 if genome[0] == 'SAA' else 100.0 for genome in genomes])
+        return np.column_stack([primary, np.zeros((len(genomes), 3))])
+    with tempfile.TemporaryDirectory() as tmp:
+        result = run_branch_and_bound(BranchConfig(
+            application='finite_budget_classes', database=str(Path(tmp) / 'branch.sqlite'),
+            leaf_size=1000, scan_batch_size=512, max_leaves=2,
+            material_classes=('SAA', 'MXene'), min_resolved_leaves_per_class=1,
+        ), biased_scorer)
+        resolved = result['resolved_terminal_nodes_by_class']
+        assert resolved['SAA'] >= 1 and resolved['MXene'] >= 1
+        assert result['scheduling_decisions']['class_floor'] > 0
+
+
 def test_branch_certificate_detects_incomplete_and_gaps():
     import sqlite3
     import tempfile
@@ -947,6 +1017,8 @@ if __name__ == '__main__':
     test("MetalFreeCarbon cost = 0", test_metalfreecarbon_zero_cost)
     test("PEMFC application scope", test_pemfc_application_scope)
     test("Novelty time-split benchmark", test_novelty_time_split_benchmark)
+    test("Pilot benchmark candidate deduplication", test_pilot_benchmark_deduplicates_candidates)
+    test("Small-data rankers preserve continuous targets", test_small_data_rankers_preserve_continuous_targets)
     test("Six-point status fails closed", test_six_point_status_fails_closed)
     test("Adaptive validation policy", test_adaptive_validation_policy)
     test("SSSP and candidate NEB workflow", test_sssp_and_candidate_neb_workflow)
@@ -998,6 +1070,8 @@ if __name__ == '__main__':
     test("Indexed worker shards", test_indexed_worker_shards_are_disjoint)
     test("Streaming scan resumes", test_streaming_scan_resumes_without_rescoring)
     test("Branch search never surrogate-prunes", test_branch_search_resolves_without_surrogate_pruning)
+    test("Branch probes use low-discrepancy schedule", test_branch_probes_are_deterministic_low_discrepancy)
+    test("Branch finite budget preserves class floor", test_branch_finite_budget_preserves_class_floor)
     test("Branch certificate detects gaps", test_branch_certificate_detects_incomplete_and_gaps)
     test("Branch rejects population mismatch", test_branch_rejects_population_mismatch)
     test("Tree probes deterministic across 14 classes", test_tree_calibration_probes_cover_all_classes_deterministically)

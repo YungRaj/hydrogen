@@ -303,6 +303,9 @@ class BranchDiscoveryConfig:
     max_runtime_s: Optional[float] = None
     prior_art_db: Optional[str] = None
     min_validation_per_class: int = 1
+    min_resolved_leaves_per_class: int = 1
+    branch_exploration_interval: int = 4
+    refresh_pending_priorities: int = 10_000
 
 
 
@@ -332,7 +335,9 @@ def run_branch_discovery(config: BranchDiscoveryConfig = BranchDiscoveryConfig()
     else:
         probes = deterministic_tree_probes(config.initial_fairchem_samples)
         evidence = run_screening(probes, db_filename='branch_calibration.csv', workers_per_gpu=2)
-    model = _train_ensemble_from_db(evidence, config.device, n_models=config.n_models)
+    from pipeline.small_data_ranker import fit_tree_ranker, turquoise_tree_objectives
+    model = fit_tree_ranker(evidence, 'turquoise_hydrogen')
+    score_population = lambda pop: turquoise_tree_objectives(pop, model)
     summary = run_branch_and_bound(BranchConfig(
         application='turquoise_hydrogen', database=config.exhaustive_db,
         leaf_size=config.branch_leaf_size, probe_count=config.branch_probe_count,
@@ -341,23 +346,22 @@ def run_branch_discovery(config: BranchDiscoveryConfig = BranchDiscoveryConfig()
         expected_population=config.expected_space_size,
         certificate_path=str(SCREENING_DIR / 'turquoise_hydrogen_coverage_certificate.json'),
         max_runtime_s=config.max_runtime_s,
-    ), lambda pop: compute_objectives_surrogate(pop, model, config.device))
+        min_resolved_leaves_per_class=config.min_resolved_leaves_per_class,
+        exploration_interval=config.branch_exploration_interval,
+        refresh_pending_priorities=config.refresh_pending_priorities,
+    ), score_population)
     logger.info(f"Branch discovery: {summary}")
     archive = load_archive_genomes(config.exhaustive_db, 'turquoise_hydrogen', config.htvs_pool_size)
     if not archive:
         return [], add_discovery_metadata(evidence)
-    objectives = compute_objectives_surrogate(archive, model, config.device)
+    objectives = score_population(archive)
     fronts = fast_non_dominated_sort(objectives)
     champions = [archive[i] for i in fronts[0]]
     from pipeline.adaptive_validation import (allocate_validation_batch,
                                                experimental_slate,
                                                persist_experimental_slate,
                                                record_screening_frame)
-    uncertainty = None
-    from pipeline.surrogate_model import SurrogateEnsemble, predict_ensemble
-    if isinstance(model, SurrogateEnsemble):
-        uncertainty = predict_ensemble(model, encode_population(archive),
-                                       device=config.device)['E_act_std']
+    _, uncertainty = model.predict(archive)
     validate_idx = allocate_validation_batch(
         archive, objectives, min(config.fairchem_eval_top_k, len(archive)),
         config.exhaustive_db, 'turquoise_hydrogen',

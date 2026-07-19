@@ -43,6 +43,12 @@ def main():
     parser.add_argument('--branch-probes', type=int, default=9)
     parser.add_argument('--branch-max-leaves', type=int, default=0,
                         help='Process at most this many leaves per run; 0 continues until complete')
+    parser.add_argument('--branch-class-floor', type=int, default=1,
+                        help='Resolve at least this many leaves per class before pure exploitation')
+    parser.add_argument('--branch-exploration-interval', type=int, default=4,
+                        help='After class floors, reserve every Nth leaf for the least-covered class')
+    parser.add_argument('--branch-priority-refresh', type=int, default=10000,
+                        help='Re-score up to this many pending nodes when resuming')
     parser.add_argument('--expected-space-size', type=int, default=21_092_645_031,
                         help='Fail if the indexed population denominator differs')
     parser.add_argument('--prior-art-db', default='results/prior_art.sqlite')
@@ -178,6 +184,9 @@ def main():
         max_runtime_s=None if args.hours == 0 else max(0.0, t_deadline - time.time()),
         prior_art_db=args.prior_art_db,
         min_validation_per_class=args.min_validation_per_class,
+        min_resolved_leaves_per_class=args.branch_class_floor,
+        branch_exploration_interval=args.branch_exploration_interval,
+        refresh_pending_priorities=args.branch_priority_refresh,
     )
 
     pareto_genomes, screening_db = run_branch_discovery(branch_config)
@@ -381,6 +390,9 @@ def main():
             max_runtime_s=None if args.hours == 0 else max(0.0, t_deadline - time.time()),
             prior_art_db=args.prior_art_db,
             min_validation_per_class=args.min_validation_per_class,
+            min_resolved_leaves_per_class=args.branch_class_floor,
+            branch_exploration_interval=args.branch_exploration_interval,
+            refresh_pending_priorities=args.branch_priority_refresh,
         )
 
         fc_pareto, fc_screening_db = run_fc_branch_discovery(fc_config)

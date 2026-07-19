@@ -59,10 +59,27 @@ def regional_calibration(database: str, application: str) -> dict:
             for region, n, mae, bias, productivity, best in rows}
 
 
+def class_calibration(database: str, application: str) -> dict:
+    """Aggregate calibration when an exact chemistry region is still unseen."""
+    with _connect(database) as conn:
+        rows = conn.execute("""SELECT material_class, COUNT(*), AVG(absolute_error),
+            AVG(observed-predicted), AVG(productive), MIN(observed) FROM validation_observations
+            WHERE application=? GROUP BY material_class""", (application,)).fetchall()
+    return {material_class: {'n': int(n), 'mae': float(mae), 'bias': float(bias),
+                             'productivity': float(productivity), 'best_observed': float(best)}
+            for material_class, n, mae, bias, productivity, best in rows}
+
+
+def _calibration_for(genome: tuple, regional: dict, by_class: dict) -> dict:
+    """Use the most local available calibration without inventing evidence."""
+    return regional.get('|'.join(discovery_region(genome)), by_class.get(genome[0], {}))
+
+
 def priority_adjustment(database: str, application: str, genomes: Sequence[tuple]) -> float:
     """Lower disagreement priority; defer repeatedly unproductive regions."""
     stats = regional_calibration(database, application)
-    matched = [stats.get('|'.join(discovery_region(g))) for g in genomes]
+    classes = class_calibration(database, application)
+    matched = [_calibration_for(g, stats, classes) for g in genomes]
     matched = [x for x in matched if x]
     if not matched:
         return 0.0
@@ -89,16 +106,16 @@ def allocate_validation_batch(candidates: Sequence[tuple], objectives: np.ndarra
     if np.ptp(uncertainty) > 0:
         uncertainty = (uncertainty - uncertainty.min()) / np.ptp(uncertainty)
     stats = regional_calibration(database, application)
-    error = np.array([stats.get('|'.join(discovery_region(g)), {}).get('mae', 0.0)
-                      for g in candidates])
+    classes = class_calibration(database, application)
+    candidate_stats = [_calibration_for(g, stats, classes) for g in candidates]
+    error = np.array([item.get('mae', 0.0) for item in candidate_stats])
     if np.ptp(error) > 0:
         error = (error - error.min()) / np.ptp(error)
-    productivity = np.array([stats.get('|'.join(discovery_region(g)), {}).get(
-        'productivity', 0.5) for g in candidates])
+    productivity = np.array([item.get('productivity', 0.5) for item in candidate_stats])
     primary = objectives[:, 0]
     improvement = np.array([
-        max(stats.get('|'.join(discovery_region(g)), {}).get('best_observed', primary[i]) - primary[i], 0.0)
-        for i, g in enumerate(candidates)])
+        max(candidate_stats[i].get('best_observed', primary[i]) - primary[i], 0.0)
+        for i in range(len(candidates))])
     if np.ptp(improvement) > 0:
         improvement = (improvement - improvement.min()) / np.ptp(improvement)
     else:

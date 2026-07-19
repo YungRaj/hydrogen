@@ -85,6 +85,9 @@ class FCBranchDiscoveryConfig:
     max_runtime_s: Optional[float] = None
     prior_art_db: Optional[str] = None
     min_validation_per_class: int = 1
+    min_resolved_leaves_per_class: int = 1
+    branch_exploration_interval: int = 4
+    refresh_pending_priorities: int = 10_000
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -445,9 +448,9 @@ def run_fc_branch_discovery(config: FCBranchDiscoveryConfig, existing_db=None):
         probes = deterministic_tree_probes(config.initial_fairchem_samples)
         evidence = run_orr_screening(
             probes, db_filename='fc_branch_calibration.csv', workers_per_gpu=2)
-    model = _train_orr_ensemble_from_db(evidence, config.device, n_models=config.n_models)
-    if model is None:
-        raise RuntimeError('ORR branch discovery requires valid calibration evidence')
+    from pipeline.small_data_ranker import fit_tree_ranker, orr_tree_objectives
+    model = fit_tree_ranker(evidence, 'fuel_cell_orr')
+    score_population = lambda pop: orr_tree_objectives(pop, model)
     summary = run_branch_and_bound(BranchConfig(
         application='fuel_cell_orr', database=config.exhaustive_db,
         leaf_size=config.branch_leaf_size, probe_count=config.branch_probe_count,
@@ -456,28 +459,22 @@ def run_fc_branch_discovery(config: FCBranchDiscoveryConfig, existing_db=None):
         expected_population=config.expected_space_size,
         certificate_path=str(BASE_DIR / 'results' / 'fuel_cell' / 'coverage_certificate.json'),
         max_runtime_s=config.max_runtime_s,
-    ), lambda pop: compute_orr_objectives_surrogate(pop, model, config.device))
+        min_resolved_leaves_per_class=config.min_resolved_leaves_per_class,
+        exploration_interval=config.branch_exploration_interval,
+        refresh_pending_priorities=config.refresh_pending_priorities,
+    ), score_population)
     logger.info(f"ORR branch discovery: {summary}")
     archive = load_archive_genomes(config.exhaustive_db, 'fuel_cell_orr', config.htvs_pool_size)
     if not archive:
         return [], add_discovery_metadata(evidence)
-    objectives = compute_orr_objectives_surrogate(archive, model, config.device)
+    objectives = score_population(archive)
     fronts = fast_non_dominated_sort(objectives)
     champions = [archive[i] for i in fronts[0]]
     from pipeline.adaptive_validation import (allocate_validation_batch,
                                                experimental_slate,
                                                persist_experimental_slate,
                                                record_screening_frame)
-    uncertainty = None
-    if isinstance(model, ORRSurrogateEnsemble):
-        X_unc = torch.FloatTensor(encode_population(archive)).to(config.device)
-        eta_members = []
-        for member in model.models:
-            member.eval()
-            with torch.no_grad():
-                _, eta_member, _ = member(X_unc)
-            eta_members.append(eta_member.cpu().numpy().flatten())
-        uncertainty = np.column_stack(eta_members).std(axis=1)
+    _, uncertainty = model.predict(archive)
     validate_idx = allocate_validation_batch(
         archive, objectives, min(config.fairchem_eval_top_k, len(archive)),
         config.exhaustive_db, 'fuel_cell_orr',

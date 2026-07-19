@@ -1,0 +1,74 @@
+{
+  "results": [
+    {
+      "application": "turquoise_hydrogen",
+      "pool": 56,
+      "valid": 49,
+      "budget": 20,
+      "hit_cutoff": 0.12399774312953067,
+      "hits": 2,
+      "hit_rate": 0.1,
+      "random_mean_hits": 3.5673,
+      "random_mean_hit_rate": 0.178365,
+      "random_hits_95pct": [
+        1.0,
+        6.0
+      ],
+      "coverage_matched_random_mean_hits": 3.57032,
+      "coverage_matched_random_95pct": [
+        1.0,
+        6.0
+      ],
+      "enrichment_vs_coverage_matched_random": 0.5601738779717224,
+      "beats_coverage_matched_random_95pct": false,
+      "enrichment_vs_random": 0.5606481092142517,
+      "beats_random_95pct": false,
+      "spearman_rank_correlation": -0.19318321147061632,
+      "unique_outcomes": 41,
+      "largest_tie": 9,
+      "primary_only_diagnostic_hits": 2,
+      "primary_only_diagnostic_enrichment": 0.5606481092142517
+    },
+    {
+      "application": "fuel_cell_orr",
+      "pool": 48,
+      "valid": 46,
+      "budget": 18,
+      "hit_cutoff": 1.4674547251462904,
+      "hits": 7,
+      "hit_rate": 0.3888888888888889,
+      "random_mean_hits": 3.7515,
+      "random_mean_hit_rate": 0.20841666666666667,
+      "random_hits_95pct": [
+        1.0,
+        6.0
+      ],
+      "coverage_matched_random_mean_hits": 3.75018,
+      "coverage_matched_random_95pct": [
+        1.0,
+        6.0
+      ],
+      "enrichment_vs_coverage_matched_random": 1.8665770709672602,
+      "beats_coverage_matched_random_95pct": true,
+      "enrichment_vs_random": 1.8659202985472478,
+      "beats_random_95pct": true,
+      "spearman_rank_correlation": 0.2570992000893132,
+      "unique_outcomes": 25,
+      "largest_tie": 22,
+      "primary_only_diagnostic_hits": 7,
+      "primary_only_diagnostic_enrichment": 1.8659202985472478
+    }
+  ],
+  "combined": {
+    "selected": 38,
+    "hits": 9,
+    "hit_rate": 0.23684210526315788,
+    "random_mean_hits": 7.3188,
+    "random_hits_95pct": [
+      4.0,
+      11.0
+    ],
+    "enrichment_vs_random": 1.2297097884899164,
+    "beats_random_95pct": false
+  }
+}

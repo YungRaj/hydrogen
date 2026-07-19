@@ -686,7 +686,9 @@ def eval_worker(worker_id: int, gpu_id: int, task_queue: mp.Queue,
     """Worker process: loads Meta eSen on assigned GPU and evaluates candidates."""
     try:
         import os
-        os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu_id)
+        # Respect a launcher-level GPU mask (for concurrent campaigns). When no
+        # mask exists, assign this worker to its scheduler-selected device.
+        os.environ.setdefault('CUDA_VISIBLE_DEVICES', str(gpu_id))
         os.environ['OMP_NUM_THREADS'] = '1'
         os.environ['MKL_NUM_THREADS'] = '1'
         os.environ['OPENBLAS_NUM_THREADS'] = '1'
