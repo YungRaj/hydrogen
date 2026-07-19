@@ -14,6 +14,7 @@ A GPU-accelerated computational pipeline for autonomous catalyst discovery targe
 ## Table of Contents
 
 - [Overview](#overview)
+- [Where to Start](#where-to-start)
 - [Architecture](#architecture)
 - [Design Space](#design-space)
 - [Simulation Software Stack](#simulation-software-stack)
@@ -47,6 +48,33 @@ Methane (CH₄) ──→ Phase 1-4: Catalyst Discovery ──→ H₂ + C(s)
                                                        ▼
                                Phase 5-6: Fuel Cell Optimization ──→ Electricity
 ```
+
+## Where to Start
+
+The repository has one production launcher and one current pilot launcher:
+
+| Goal | Start here | Supporting code |
+|------|------------|-----------------|
+| Run or resume a discovery campaign | `run_production_campaign.py` | `pipeline/orchestrator.py`, `pipeline/branch_search.py` |
+| Reproduce the locked divide-and-conquer pilot | `run_divide_conquer_pilot.py` | `pipeline/pilot_benchmark.py`, `pipeline/small_data_ranker.py` |
+| Check scientific and implementation invariants | `test_pipeline.py`, `audit_pipeline.py` | readiness and claim gates under `pipeline/` |
+| Monitor an active local run | `live_dashboard.py` | generated state under `results/` |
+
+Inside `pipeline/`, the main code paths are grouped conceptually as follows:
+
+- **Search:** `indexed_space.py`, `exhaustive_search.py`, `branch_search.py`,
+  `discovery.py`, and `adaptive_validation.py`.
+- **Candidate scoring:** `surface_screener.py`, `fc_screener.py`,
+  `surrogate_model.py`, and `small_data_ranker.py`.
+- **High-fidelity validation:** `qe_workflows.py`, `orr_workflows.py`,
+  `dft_validator.py`, and `dft_fuel_cell.py`.
+- **System models:** `reactor_models.py`, `ntec_model.py`, `pemfc_model.py`,
+  and `fuel_cell_stack.py`.
+- **Evidence and release gates:** `prior_art.py`, `novelty_benchmark.py`,
+  `readiness.py`, `campaign_status.py`, and `report_generator.py`.
+
+Generated outputs, downloaded model weights, pseudopotentials, mechanisms, and
+Python caches are intentionally ignored. They are runtime assets, not source.
 
 ### Turquoise Hydrogen Regimes: NTEC vs. Thermocatalytic Pyrolysis
 
@@ -559,9 +587,12 @@ computational enrichment, not a universal 1.8× guarantee or experimental cataly
 performance. Other rounds exposed model drift, establishing a release criterion:
 a challenger should not replace an incumbent without new locked validation.
 Persistent automatic model promotion is not yet treated as completed scientific
-infrastructure. The pilot runners and result manifests are
-`run_pilot_benchmark.py`, `run_prospective_pilot.py`, and
-`run_divide_conquer_pilot.py` under `results/pilot/`.
+infrastructure. The reproducible pilot entry point is
+`run_divide_conquer_pilot.py`; its locked result manifests and raw selections
+are versioned under `results/pilot/`, `results/screening/pilot/`, and
+`results/fuel_cell/pilot/`. Earlier exploratory launchers were removed after
+their useful logic was incorporated into this runner and
+`pipeline/pilot_benchmark.py`.
 
 ### Phase 1: Deterministic Branch-and-Bound Discovery
 
