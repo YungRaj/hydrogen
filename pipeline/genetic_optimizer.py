@@ -172,9 +172,11 @@ def compute_objectives_surrogate(population: List[tuple],
     coking = coking_pred.copy()
     py_mode = os.environ.get('PYROLYSIS_MODE', 'ntec')
     if py_mode == 'ntec':
+        from pipeline.ntec_model import conditions_from_environment, ntec_assistance
+        assistance = ntec_assistance(conditions_from_environment())
         for i, g in enumerate(population):
             if any(e in {'Ga', 'In', 'Sn', 'Bi'} for e in _extract_elements_from_genome(g)):
-                coking[i] += 3.0
+                coking[i] += assistance['coking_bonus']
     obj2 = -coking
 
     # Objective 3: Stability (minimize segregation energy — more negative = more stable)

@@ -1,0 +1,12 @@
+{
+  "converged_dft_count": 0,
+  "converged_orr_dft_count": 0,
+  "ntec_control_pair_count": 0,
+  "measured_reactor_count": 0,
+  "measured_deactivation_count": 0,
+  "measured_mea_count": 0,
+  "measured_durability_count": 0,
+  "hydrogen_impurity_test_count": 0,
+  "time_split_benchmark_count": 0,
+  "curated_prior_art_sources": 0
+}

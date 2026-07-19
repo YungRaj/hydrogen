@@ -108,6 +108,10 @@ def generate_full_report(pipeline_state: Dict = None) -> Path:
     r(f"\n**Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     r(f"**Pipeline Version**: 2.0.0")
     r("")
+    r("> **Evidence status:** screening values are hypotheses. Mock results and "
+      "unconverged calculations are excluded from validated claims; catalyst "
+      "performance requires experimental confirmation.")
+    r("")
 
     # ─── Executive Summary ──────────────────────────────────────────────────
     r("## Executive Summary\n")
@@ -172,39 +176,50 @@ def generate_full_report(pipeline_state: Dict = None) -> Path:
     # ─── Phase 2: Reactor Simulation ────────────────────────────────────────
     r("## Phase 2: Reactor-Scale Simulation\n")
 
-    if data['reactor']:
+    real_reactor = [x for x in data['reactor'] if not x.get('mock', False)]
+    if real_reactor:
         r("| Catalyst | Reactor | T (K) | CH₄ Conv. | H₂ Select. | τ (s) |")
         r("|----------|---------|-------|-----------|------------|-------|")
-        for res in sorted(data['reactor'], key=lambda x: x.get('CH4_conversion', 0), reverse=True)[:20]:
+        for res in sorted(real_reactor, key=lambda x: x.get('CH4_conversion', 0), reverse=True)[:20]:
             r(f"| {res.get('catalyst_name', '?')} | {res.get('reactor_type', '?')} | "
               f"{res.get('T_K', '?')} | {res.get('CH4_conversion', 0):.1%} | "
               f"{res.get('H2_selectivity', 'N/A')} | {res.get('residence_time_s', '?'):.1f} |")
         r("")
+    if len(real_reactor) != len(data['reactor']):
+        r(f"Excluded {len(data['reactor']) - len(real_reactor)} mock reactor records from performance claims.\n")
 
     # ─── Phase 3: DFT Validation ───────────────────────────────────────────
     r("## Phase 3: DFT Validation (Quantum ESPRESSO)\n")
 
-    if data['dft']:
+    converged_dft = [x for x in data['dft'] if x.get('converged') is True]
+    if converged_dft:
         r("| Catalyst | Material Class | Energy (eV) | Converged | Max Force |")
         r("|----------|----------------|-------------|-----------|-----------|")
-        for res in data['dft']:
+        for res in converged_dft:
             if 'orr_overpotential_V' not in res:  # pyrolysis DFT results
                 r(f"| {res.get('catalyst_name', '?')} | {res.get('material_class', '?')} | "
                   f"{res.get('dft_energy_eV', 'N/A')} | {res.get('converged', '?')} | "
                   f"{res.get('max_force_Ry_bohr', 'N/A')} |")
         r("")
+    if data['dft'] and not converged_dft:
+        r("No converged DFT validation is available; no DFT-validated champion is claimed.\n")
 
     # ─── Phase 4: VQE Results ──────────────────────────────────────────────
     r("## Phase 4: Quantum VQE Transition States\n")
 
-    if data['vqe']:
+    real_vqe = [x for x in data['vqe'] if not x.get('mock', False) and
+                x.get('catalyst_specific_hamiltonian') is True and
+                x.get('benchmarked') is True]
+    if real_vqe:
         r("| Catalyst | Reaction | Energy (Ha) | Energy (eV) | Qubits | Layers |")
         r("|----------|----------|-------------|-------------|--------|--------|")
-        for res in data['vqe']:
+        for res in real_vqe:
             r(f"| {res.get('catalyst_name', '?')} | {res.get('reaction_type', '?')} | "
               f"{res.get('energy_Ha', 0):.6f} | {res.get('energy_eV', 0):.4f} | "
               f"{res.get('n_qubits', '?')} | {res.get('n_layers', '?')} |")
         r("")
+    if data['vqe'] and not real_vqe:
+        r("No catalyst-specific, benchmarked quantum result is available; toy VQE energies are not validation.\n")
 
     # ─── Phase 5: Fuel Cell Results ────────────────────────────────────────
     r("## Phase 5: PEMFC Fuel Cell Performance\n")

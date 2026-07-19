@@ -515,9 +515,13 @@ def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
         py_mode = os.environ.get('PYROLYSIS_MODE', 'ntec')
         if py_mode == 'ntec':
             from pipeline.genetic_optimizer import _extract_elements_from_genome
+            from pipeline.ntec_model import conditions_from_environment, ntec_assistance
+            assistance = ntec_assistance(conditions_from_environment())
             elements = _extract_elements_from_genome(genome)
             if any(e in {'Ga', 'In', 'Sn', 'Bi'} for e in elements):
-                coking_index += 3.0
+                coking_index += assistance['coking_bonus']
+                result['ntec_evidence_status'] = assistance['status']
+                result['ntec_assistance'] = assistance
             
         result['coking_index'] = coking_index
 
@@ -565,13 +569,16 @@ def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
 
         # Clamp derived values to physical ranges
         result['E_act'] = max(0.01, min(result.get('E_act', 5.0), 5.0))
+        result['E_act_censored'] = result['E_act'] in (0.01, 5.0)
+        if result['E_act_censored']:
+            result['needs_dft_validation'] = True
         result['coking_index'] = max(-20.0, min(result.get('coking_index', 0), 20.0))
 
         # 12. OOD confidence — how much we trust this prediction
         from pipeline.ood_detector import compute_model_confidence
         conf = compute_model_confidence(genome, elements)
         result['model_confidence'] = float(conf)
-        result['needs_dft_validation'] = conf < 0.5
+        result['needs_dft_validation'] = result.get('needs_dft_validation', False) or conf < 0.5
 
         result['valid'] = True
 

@@ -18,6 +18,7 @@ class TurquoiseHydrogenBounds:
     min_ch4_conversion: float = 0.70
     max_deactivation_fraction_per_h: float = 0.01
     max_coke_fraction: float = 0.05
+    max_net_energy_kWh_kg_h2: float = 15.0
 
 
 @dataclass(frozen=True)
@@ -26,6 +27,7 @@ class FuelCellBounds:
     min_peak_power_W_cm2: float = 1.00
     min_system_efficiency: float = 0.40
     max_voltage_degradation_uV_h: float = 10.0
+    min_measured_hours: float = 100.0
 
 
 def _number(record: Mapping, names):
@@ -54,6 +56,9 @@ def evaluate_turquoise(record: Mapping,
                          None, bounds.max_deactivation_fraction_per_h),
         'coke': (_number(record, ('coke_fraction', 'coke_deposition_fraction')),
                  None, bounds.max_coke_fraction),
+        'net_energy': (_number(record, ('net_energy_kWh_kg_h2',)),
+                       None, bounds.max_net_energy_kWh_kg_h2),
+        'experimental_reactor': (_number(record, ('measured_reactor',)), 1.0, None),
     }
     return _evaluate(checks, asdict(bounds))
 
@@ -69,6 +74,8 @@ def evaluate_fuel_cell(record: Mapping,
                               bounds.min_system_efficiency, None),
         'voltage_degradation': (_number(record, ('voltage_degradation_uV_h',)),
                                 None, bounds.max_voltage_degradation_uV_h),
+        'measured_hours': (_number(record, ('measured_hours',)), bounds.min_measured_hours, None),
+        'experimental_mea': (_number(record, ('measured_mea',)), 1.0, None),
     }
     return _evaluate(checks, asdict(bounds))
 

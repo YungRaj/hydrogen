@@ -34,6 +34,8 @@ def main():
     parser.add_argument('--no-vqe', action='store_true')
     parser.add_argument('--mode', type=str, choices=['ntec', 'thermocatalytic'], default='ntec',
                         help='Pyrolysis screening mode (default: ntec)')
+    parser.add_argument('--ntec-conditions-json', default='',
+                        help='JSON with measured shear, field, mechanical power, detachment and source')
     parser.add_argument('--scan-batch-size', type=int, default=65536)
     parser.add_argument('--branch-leaf-size', type=int, default=1_000_000)
     parser.add_argument('--branch-probes', type=int, default=9)
@@ -46,6 +48,8 @@ def main():
                         help='CSV registry to import; repeat for multiple sources')
     parser.add_argument('--final-campaign', action='store_true',
                         help='Fail closed unless coverage and prior-art readiness requirements pass')
+    parser.add_argument('--evidence-manifest', default='results/evidence_manifest.json',
+                        help='Measured/validated evidence counts required by --final-campaign')
     args = parser.parse_args()
 
     # The campaign runs under fairchem-env, while Quantum ESPRESSO is installed
@@ -63,6 +67,8 @@ def main():
 
     # ─── Environment ─────────────────────────────────────────────────────────
     os.environ['PYROLYSIS_MODE'] = args.mode
+    if args.ntec_conditions_json:
+        os.environ['NTEC_CONDITIONS_JSON'] = args.ntec_conditions_json
     import torch
     n_gpus = torch.cuda.device_count()
     gpu_names = [torch.cuda.get_device_name(i) for i in range(n_gpus)]
@@ -174,8 +180,13 @@ def main():
     pareto_genomes, screening_db = run_branch_discovery(branch_config)
 
     valid_db = screening_db[screening_db['valid'] == True].copy()
+    ranking_db = valid_db
+    if 'E_act_censored' in ranking_db.columns:
+        uncensored = ranking_db[ranking_db['E_act_censored'] != True]
+        if len(uncensored):
+            ranking_db = uncensored
     if 'E_act' in valid_db.columns:
-        top_catalysts = valid_db.nsmallest(args.top_k, 'E_act')
+        top_catalysts = ranking_db.nsmallest(args.top_k, 'E_act')
     else:
         top_catalysts = valid_db.head(args.top_k)
 
@@ -214,6 +225,8 @@ def main():
                     sweep = run_reactor_sweep(cat_name, str(mech_file),
                                               temperatures=reactor_temps,
                                               catalyst_E_act_eV=e_act)
+                    if any(result.get('mock') for result in sweep):
+                        raise RuntimeError('mock reactor output is forbidden in production')
                     best_condition = max(sweep, key=lambda r: r.get('CH4_conversion', 0)) if sweep else {}
                     best_conv = best_condition.get('CH4_conversion', 0)
                     reactor_results.append({
@@ -325,6 +338,9 @@ def main():
                 result = json.loads(result_path.read_text())
                 if result.get('mock'):
                     raise RuntimeError(f"CUDA-Q returned mock evidence for {name}")
+                if not result.get('catalyst_specific_hamiltonian') or not result.get('benchmarked'):
+                    raise RuntimeError(
+                        f"CUDA-Q result for {name} is not catalyst-specific benchmarked evidence")
                 vqe_results.append(result)
             pipeline_state['phase4'] = {
                 'catalysts_refined': len(vqe_results),
@@ -443,11 +459,18 @@ def main():
 
     from pipeline.readiness import campaign_readiness
     h2_ready = campaign_readiness(
-        'results/screening/turquoise_hydrogen_coverage_certificate.json', args.prior_art_db)
+        'results/screening/turquoise_hydrogen_coverage_certificate.json', args.prior_art_db,
+        evidence_manifest=args.evidence_manifest if args.final_campaign else None,
+        application='turquoise_hydrogen')
     fc_ready = campaign_readiness(
-        'results/fuel_cell/coverage_certificate.json', args.prior_art_db)
+        'results/fuel_cell/coverage_certificate.json', args.prior_art_db,
+        evidence_manifest=args.evidence_manifest if args.final_campaign else None,
+        application='fuel_cell')
     readiness = {'turquoise_hydrogen': h2_ready, 'fuel_cell': fc_ready,
                  'ready': h2_ready['ready'] and fc_ready['ready']}
+    from pipeline.campaign_status import assess_campaign
+    readiness['six_point_status'] = assess_campaign('results')
+    readiness['ready'] = readiness['ready'] and readiness['six_point_status']['ready']
     save_json(readiness, 'campaign_readiness.json')
     if args.final_campaign and not readiness['ready']:
         raise SystemExit(f"Final campaign readiness failed: {readiness}")

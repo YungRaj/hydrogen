@@ -248,13 +248,15 @@ def parse_forces(output_file: str) -> Optional[float]:
 
 
 def parse_convergence(output_file: str) -> bool:
-    """Check if QE calculation converged."""
+    """Require clean QE termination and electronic convergence."""
     if not os.path.exists(output_file):
         return False
     with open(output_file, 'r') as f:
         content = f.read()
-    return "convergence has been achieved" in content.lower() or \
-           "JOB DONE" in content
+    lower = content.lower()
+    fatal = ('error in routine', 'convergence not achieved', 'stopping ...')
+    return ('job done' in lower and 'convergence has been achieved' in lower and
+            not any(token in lower for token in fatal))
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

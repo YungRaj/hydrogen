@@ -187,7 +187,9 @@ def compute_orr_objectives_surrogate(population: List[tuple], model, device: str
     objectives = np.zeros((n, 4))
 
     for i in range(n):
-        if p_valid[i] > 0.3:
+        from pipeline.application_scope import pemfc_cathode_scope
+        in_scope = pemfc_cathode_scope(population[i])['status'] == 'candidate'
+        if p_valid[i] > 0.3 and in_scope:
             elements = _extract_elements_from_genome(population[i])
             conf = compute_model_confidence(population[i], elements)
             penalty = confidence_penalty(conf)

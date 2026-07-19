@@ -181,6 +181,9 @@ def run_vqe(hamiltonian_terms: list, n_qubits: int = 4,
         'n_params': n_params,
         'max_iter': max_iter,
         'target': target,
+        'evidence_level': 'toy_hamiltonian',
+        'catalyst_specific_hamiltonian': False,
+        'benchmarked': False,
     }
 
 
@@ -200,6 +203,9 @@ def _mock_vqe_result(hamiltonian_terms: list) -> Dict:
         'n_qubits': 4,
         'n_layers': 2,
         'mock': True,
+        'evidence_level': 'mock',
+        'catalyst_specific_hamiltonian': False,
+        'benchmarked': False,
     }
 
 

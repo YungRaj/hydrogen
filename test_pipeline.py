@@ -162,6 +162,33 @@ def test_metalfreecarbon_zero_cost():
         assert c == 0.0, f"MetalFreeCarbon cost should be 0, got {c}"
 
 
+def test_pemfc_application_scope():
+    from pipeline.application_scope import pemfc_cathode_scope
+    assert pemfc_cathode_scope(('SAC', 'Fe'))['status'] == 'candidate'
+    assert pemfc_cathode_scope(('MoltenMetal', 'Ga'))['status'] == 'out_of_scope'
+    assert pemfc_cathode_scope(('MetalHydride', 'La'))['status'] == 'out_of_scope'
+
+
+def test_novelty_time_split_benchmark():
+    from pipeline.novelty_benchmark import time_split_recovery
+    known = ('SAC', 'Fe', 'N4', 'N-graphene', 'OH')
+    held_out = [{'genome': known, 'publication_year': 2025,
+                 'source_id': 'doi:test', 'citation': 'Test et al.'}]
+    result = time_split_recovery([known], held_out, k=1)
+    assert result['valid'] and result['exact_recall_at_k'] == 1.0
+    malformed = time_split_recovery([known], [{'genome': known}], k=1)
+    assert not malformed['valid']
+
+
+def test_six_point_status_fails_closed():
+    import tempfile
+    from pipeline.campaign_status import assess_campaign
+    with tempfile.TemporaryDirectory() as tmp:
+        result = assess_campaign(tmp)
+        assert not result['ready']
+        assert len(result['missing']) == 6
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 5. ELEMENT EXTRACTORS (4 copies must agree)
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -469,8 +496,18 @@ def test_pyrolysis_mode_coking_bonus():
             'segregation_energy': np.array([-0.1, -0.2]),
         }
 
-        # Test under NTEC mode
+        # NTEC without measured operating evidence must not create a bonus.
         os.environ['PYROLYSIS_MODE'] = 'ntec'
+        os.environ.pop('NTEC_CONDITIONS_JSON', None)
+        objs_unknown = compute_objectives_surrogate(pop, model, device='cpu')
+
+        # A fully specified, sourced upper-bound condition activates the model.
+        import json
+        os.environ['NTEC_CONDITIONS_JSON'] = json.dumps({
+            'shear_rate_s': 1e4, 'interfacial_field_V_m': 1e8,
+            'mechanical_power_W_kg': 1e3, 'carbon_detachment_fraction': 1.0,
+            'field_measurement_source': 'test:paired-control',
+        })
         objs_ntec = compute_objectives_surrogate(pop, model, device='cpu')
 
         # Test under thermocatalytic mode
@@ -480,11 +517,14 @@ def test_pyrolysis_mode_coking_bonus():
     # Reset environment
     if 'PYROLYSIS_MODE' in os.environ:
         del os.environ['PYROLYSIS_MODE']
+    os.environ.pop('NTEC_CONDITIONS_JSON', None)
 
     # For Ga molten metal candidate, NTEC coking index objective (index 1) should be lower (more negative = better coking resistance)
     # Since obj2 = -(coking_index + bonus), objs_ntec[0, 1] = objs_thermo[0, 1] - 3.0
     diff_ga = objs_ntec[0, 1] - objs_thermo[0, 1]
     assert np.isclose(diff_ga, -3.0), f"Liquid metal Ga coking bonus not applied correctly, got diff: {diff_ga}"
+    assert np.isclose(objs_unknown[0, 1], objs_thermo[0, 1]), \
+        "NTEC without measured inputs must receive zero bonus"
 
     # For Fe catalyst, there should be no bonus, so diff should be 0.0
     diff_fe = objs_ntec[1, 1] - objs_thermo[1, 1]
@@ -718,12 +758,14 @@ def test_industrial_viability_gates_fail_closed():
     assert evaluate_turquoise({})['status'] == 'unknown'
     good_h2 = evaluate_turquoise({
         'temperature_K': 1000, 'H2_selectivity': 0.98, 'CH4_conversion': 0.8,
-        'deactivation_fraction_per_h': 0.005, 'coke_fraction': 0.02})
+        'deactivation_fraction_per_h': 0.005, 'coke_fraction': 0.02,
+        'net_energy_kWh_kg_h2': 12.0, 'measured_reactor': 1})
     assert good_h2['status'] == 'pass'
     assert evaluate_turquoise({'H2_selectivity': 0.8})['status'] == 'fail'
     good_fc = evaluate_fuel_cell({
         'orr_overpotential_V': 0.3, 'peak_power_W_cm2': 1.2,
-        'system_efficiency': 0.5, 'voltage_degradation_uV_h': 5})
+        'system_efficiency': 0.5, 'voltage_degradation_uV_h': 5,
+        'measured_hours': 500, 'measured_mea': 1})
     assert good_fc['status'] == 'pass'
     assert evaluate_fuel_cell({'orr_overpotential_V': 0.6})['status'] == 'fail'
 
@@ -789,6 +831,18 @@ def test_final_campaign_readiness_fails_closed():
         PriorArtRegistry(str(prior)).add(
             ('SAC', 'Fe', 'N4', 'N-graphene', 'OH'), 'literature', 'doi:test')
         assert campaign_readiness(str(cert), str(prior))['ready']
+        manifest = root / 'evidence.json'
+        gated = campaign_readiness(str(cert), str(prior),
+                                   evidence_manifest=str(manifest),
+                                   application='turquoise_hydrogen')
+        assert not gated['ready'] and 'evidence_manifest_missing' in gated['failures']
+        manifest.write_text(json.dumps({
+            'converged_dft_count': 1, 'measured_reactor_count': 1,
+            'measured_deactivation_count': 1, 'ntec_control_pair_count': 1,
+        }))
+        assert campaign_readiness(str(cert), str(prior),
+                                  evidence_manifest=str(manifest),
+                                  application='turquoise_hydrogen')['ready']
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -818,6 +872,9 @@ if __name__ == '__main__':
     test("Pareto sorting is correct", test_nsga2_sorts_correctly)
     test("Cost & Fenton in range", test_cost_and_fenton_ranges)
     test("MetalFreeCarbon cost = 0", test_metalfreecarbon_zero_cost)
+    test("PEMFC application scope", test_pemfc_application_scope)
+    test("Novelty time-split benchmark", test_novelty_time_split_benchmark)
+    test("Six-point status fails closed", test_six_point_status_fails_closed)
 
     print("\n── Element Extractors ──")
     test("4 extractors consistent", test_element_extractors_consistent)

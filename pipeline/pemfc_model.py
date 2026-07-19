@@ -84,12 +84,19 @@ class PEMFCConfig:
     cathode_catalyst: str = 'Pt/C'
     cathode_loading_mg_cm2: float = 0.1  # Pt loading
     cathode_roughness_factor: float = 100.0  # ECSA multiplier
+    catalyst_layer_thickness_m: float = 10e-6
+    catalyst_layer_oxygen_resistance_s_m: float = 20.0
+    ionomer_fraction: float = 0.30
     orr_overpotential_V: float = 0.35   # From DFT screening
     orr_tafel_slope_mV_dec: float = 70.0  # Tafel slope
 
     anode_catalyst: str = 'Pt/C'
     anode_loading_mg_cm2: float = 0.05
     hor_exchange_current_A_cm2: float = 0.5  # HOR is fast on Pt
+    hydrogen_purity: float = 0.99997
+    co_ppm: float = 0.0
+    sulfur_ppb: float = 0.0
+    voltage_degradation_uV_h: float | None = None
 
     # GDL properties
     gdl_thickness_m: float = 200e-6     # 200 μm
@@ -200,16 +207,27 @@ def simulate_pemfc(config: PEMFCConfig) -> Dict:
     # where j_ref = 1e-3 A/cm² is the reference current density at which the overpotential was evaluated.
     tafel_slope = config.orr_tafel_slope_mV_dec * 1e-3  # V/decade → V
     b_natural = tafel_slope / np.log(10.0)
+    if not 0 < config.hydrogen_purity <= 1 or config.co_ppm < 0 or config.sulfur_ppb < 0:
+        raise ValueError('invalid hydrogen impurity specification')
     j0_cathode = 1e-3 * np.exp(-config.orr_overpotential_V / b_natural) * config.cathode_roughness_factor
 
     # Anode exchange current density
-    j0_anode = config.hor_exchange_current_A_cm2
+    # Reversible empirical poisoning factor; prospective claims still require
+    # the impurity tests enforced by campaign readiness.
+    impurity_factor = config.hydrogen_purity * np.exp(-0.08 * config.co_ppm -
+                                                       0.002 * config.sulfur_ppb)
+    j0_anode = config.hor_exchange_current_A_cm2 * impurity_factor
 
     # Ohmic resistance
     R_membrane = config.membrane_thickness_m / config.membrane_conductivity_S_m * 1e4  # Ω·cm²
     R_electronic = 0.005  # Ω·cm² (bipolar plates, GDL)
     R_contact = 0.01  # Ω·cm² (contact resistance)
     R_total = R_membrane + R_electronic + R_contact
+    # Catalyst-layer oxygen resistance converted to an area-specific term.
+    R_cl = (config.catalyst_layer_oxygen_resistance_s_m *
+            config.catalyst_layer_thickness_m * 1e-2 /
+            max(config.ionomer_fraction * (1 - config.ionomer_fraction), 1e-3))
+    R_total += R_cl
 
     # Limiting current
     j_L = compute_limiting_current(config)
@@ -256,6 +274,11 @@ def simulate_pemfc(config: PEMFCConfig) -> Dict:
         'peak_current_A_cm2': float(peak_current),
         'peak_voltage_V': float(peak_voltage),
         'efficiency_at_peak': float(efficiency_peak),
+        'hydrogen_impurity_factor': float(impurity_factor),
+        'catalyst_layer_resistance_ohm_cm2': float(R_cl),
+        'voltage_degradation_uV_h': config.voltage_degradation_uV_h,
+        'evidence_level': 'modeled',
+        'requires_mea_validation': True,
         'rated_power_W_cm2': float(rated_power),
         'rated_current_A_cm2': float(rated_current),
         'efficiency_at_rated': float(efficiency_rated),

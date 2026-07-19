@@ -54,7 +54,7 @@ Methane splitting (pyrolysis) traditionally requires high temperatures due to th
 
 * **Nanotribo-Mechano-Electrochemical (NTEC) Pyrolysis (Default):**
   - **Mechanism:** Employs mechanical fluidization or shearing forces to create local triboelectric fields, facilitating C-H bond activation.
-  - **Coking Resistance:** Applies a `+3.0` coking index bonus for liquid-metal hosts (`Ga`, `In`, `Sn`, `Bi`), simulating the mechanical shear-induced carbon separation characteristics of molten metal columns.
+  - **Coking Resistance:** NTEC assistance is zero unless measured operating inputs (field, shear, mechanical power, carbon detachment, and source) are supplied. The bounded model in `pipeline/ntec_model.py` is a hypothesis requiring paired NTEC/control calibration, not validation evidence.
 
 * **Thermocatalytic Pyrolysis:**
   - **Mechanism:** Standard thermochemical activation where carbon splitting is driven purely by bulk temperature and traditional solid/alloy surface kinetics.
@@ -207,6 +207,10 @@ Each genome encodes into a **353-dimensional** feature vector for the surrogate 
 | **Coking index** | `ΔE_C - 2×ΔE_H` | Positive = resistant |
 | **Segregation energy** | `E_clean - E_swapped` (dopant→surface preference) | Negative = stable |
 
+Activation barriers at the numerical bounds (0.01 or 5.0 eV) are marked
+`E_act_censored`, require DFT/NEB validation, and are excluded from champion
+ranking whenever an uncensored candidate is available.
+
 ### Reactor Kinetics
 
 | Model | Implementation |
@@ -226,6 +230,11 @@ Each genome encodes into a **353-dimensional** feature vector for the surrogate 
 | Ohmic loss | `η = j × (t_mem / σ_mem)` |
 | Mass transport | `η = -c × ln(1 - j/j_L)` |
 | Stack power | `P_net = n_cells × V × j × A_cell - P_BOP` |
+
+The shared encoded space is not automatically a shared physical application
+space. `MetalHydride` and `MoltenMetal` genomes are excluded from direct PEMFC
+cathode ranking unless a future genome explicitly defines a solid, stable
+catalyst-layer realization.
 
 ---
 
@@ -393,16 +402,18 @@ nohup /home/ilhanraja/miniconda3/envs/fairchem-env/bin/python -u run_production_
 | `--prior-art-db` | `results/prior_art.sqlite` | Persistent literature/patent/experimental identity registry |
 | `--prior-art-csv` | — | Import a registry CSV (repeatable; requires a `genome` column) |
 | `--final-campaign` | false | Exit nonzero unless both coverage certificates are complete and prior art is populated |
+| `--evidence-manifest` | `results/evidence_manifest.json` | Counts of converged calculations and measured reactor/MEA/durability/NTEC-control evidence required in final mode |
 | `--no-dft` | false | Skip Quantum ESPRESSO phase |
 | `--no-vqe` | false | Skip CUDA-Q VQE phase |
 | `--mode` | `ntec` | Pyrolysis mode: `ntec` (nanotriboelectric) or `thermocatalytic` |
+| `--ntec-conditions-json` | — | Measured NTEC inputs; absent inputs receive no numerical assistance |
 
 ### Pyrolysis Modes: NTEC vs. Thermocatalytic
 
 The pipeline supports dual-mode screening of methane conversion mechanisms, toggled via the `--mode` flag. Both modes sweep the same temperature range from **500°C (773.15 K) to 1300 K** (`[773.15, 900.0, 1100.0, 1300.0] K`):
 
 1. **NTEC Mode (Default):**
-   * **Catalyst Physics:** Applies a `+3.0` coking resistance index bonus for liquid-metal hosts (`Ga`, `In`, `Sn`, `Bi`), simulating mechanical shear-induced carbon separation under acoustic/shearing fields.
+   * **Catalyst Physics:** Uses explicit NTEC operating inputs. Missing inputs yield zero assistance and `unknown` evidence status.
 
 2. **Thermocatalytic Mode:**
    * **Catalyst Physics:** Standard thermal cracking without mechanical shear bonuses, prioritizing materials with high thermal stability and low activation energy.
@@ -519,6 +530,19 @@ claims. `unseen` means absent from the supplied registry, not proof of worldwide
 novelty; registry completeness and chemical identity resolution still require
 curated external data.
 
+External novelty claims additionally require a prospective/time-split recovery
+benchmark (`pipeline.novelty_benchmark.time_split_recovery`): candidates reported
+after the training cutoff are hidden, ranked blindly, and scored by exact and
+chemistry-region recall at K. Missing publication year, source ID, or citation
+invalidates the benchmark.
+
+#### Six-point scientific status
+
+`pipeline.campaign_status.assess_campaign()` reports one fail-closed status for
+complete search, validated champions, calibrated NTEC, validated reactor,
+validated PEMFC, and defensible novelty. A production run is not scientifically
+ready until all six are true.
+
 #### Coverage and exhaustiveness
 
 The finite genome space is traversed through persistent binary subdivision and
@@ -571,6 +595,10 @@ It writes `results/campaign_readiness.json` and exits nonzero if either applicat
 lacks a complete, denominator-matched coverage certificate or the prior-art
 registry is empty. A complete computational certificate still does not substitute
 for reactor, stack, durability, synthesis, safety, or experimental validation.
+Copy `evidence_manifest.example.json` to `results/evidence_manifest.json` and
+update its counts only from traceable records. Final mode remains nonzero until
+all six scientific criteria pass. Current four-qubit VQE Hamiltonians are labeled
+toy models and are not accepted as catalyst evidence.
 
 Each invocation also regenerates an application-specific coverage certificate:
 

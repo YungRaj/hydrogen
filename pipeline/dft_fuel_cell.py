@@ -252,6 +252,17 @@ def validate_orr_catalyst(catalyst_name: str, genome: tuple,
     else:
         logger.warning("  Cannot compute overpotential: missing DFT energies")
 
+    required_outputs = [clean_out, h2_out, h2o_out] + [
+        calc_dir / f"{catalyst_name}_{name}.out" for name in ('OH', 'O', 'OOH')]
+    result['converged'] = bool(run_dft and all(
+        parse_convergence(str(path)) for path in required_outputs))
+    result['evidence_level'] = 'converged_dft' if result['converged'] else 'incomplete'
+    if not result['converged']:
+        # Fallback molecular energies may aid input-generation smoke tests but
+        # can never establish an ORR champion.
+        result.pop('orr_overpotential_V', None)
+        result.pop('limiting_potential_V', None)
+
     save_json(result, f"fc_{catalyst_name}_orr.json", subdir="dft")
     return result
 
