@@ -5,7 +5,7 @@ Multi-Fidelity Surface Catalysis Calculator.
 Replaces the single bulk MACE-MP-0 model with a tiered approach:
 
   Tier 1 (Screening): MACE-MP-0 — fast (~2s/candidate), bulk-trained
-                       Used for initial GA screening of 25.3B space
+                       Used for screening the 21.1B encoded space
 
   Tier 2 (Validation): Catalysis-Hub lookup + EquiformerV2 (OC20)
                         Real DFT surface energies from 100k+ reactions

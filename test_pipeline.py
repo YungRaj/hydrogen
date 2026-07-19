@@ -511,6 +511,286 @@ def test_deterministic_hierarchical_pool():
         assert len(g) >= 2, "Genome must have at least class name and one parameter"
 
 
+def test_hierarchical_rounds_cover_complementary_cells():
+    from pipeline.catalyst_spaces import generate_hierarchical_htvs_pool
+    from pipeline.discovery import candidate_id
+    first = generate_hierarchical_htvs_pool(500, campaign_round=0)
+    second = generate_hierarchical_htvs_pool(500, campaign_round=1)
+    ids_first = {candidate_id(g) for g in first}
+    ids_second = {candidate_id(g) for g in second}
+    assert ids_first != ids_second, "Campaign rounds must not regenerate the same fixed-stride pool"
+    assert len(ids_first) == len(first), "Round 0 contains duplicate canonical candidates"
+    assert len(ids_second) == len(second), "Round 1 contains duplicate canonical candidates"
+
+
+def test_discovery_batch_prioritizes_unseen_regions():
+    from pipeline.discovery import discovery_region, select_discovery_batch
+    candidates = [
+        ('SAC', 'Fe', 'N4', 'N-graphene', 'none'),
+        ('SAC', 'Co', 'N4', 'N-graphene', 'none'),
+        ('SAC', 'Ni', 'N3C', 'N-CNT', 'OH'),
+        ('MoltenMetal', 'Bi', 'Ni', 10.0, 1000),
+    ]
+    objectives = np.array([[0.10, 0, 0, 0], [0.11, 0, 0, 0],
+                           [0.30, 0, 0, 0], [0.25, 0, 0, 0]])
+    selected = select_discovery_batch(candidates, objectives, 3, evaluated=[candidates[0]])
+    regions = {discovery_region(candidates[i]) for i in selected}
+    assert len(selected) == 3
+    assert len(regions) == 3, "Discovery acquisition collapsed into an already-covered chemistry region"
+
+
+def test_candidate_ids_are_canonical():
+    from pipeline.discovery import candidate_id
+    a = ('SolidCatalyst', 'Ni', 'Al2O3', 'fcc111', 0.01, ('B', 'N'), 2, 0)
+    b = ('SolidCatalyst', 'Ni', 'Al2O3', 'fcc111', 0.0100000001, ('N', 'B'), 2, 0)
+    assert candidate_id(a) == candidate_id(b), "Equivalent dopant permutations need one candidate ID"
+
+
+def test_discovery_metadata_is_persistable():
+    import pandas as pd
+    from pipeline.discovery import add_discovery_metadata
+    genome = ('SAC', 'Fe', 'N4', 'N-graphene', 'OH')
+    out = add_discovery_metadata(pd.DataFrame({'genome': [str(genome)]}))
+    assert out.loc[0, 'candidate_id']
+    assert out.loc[0, 'discovery_region'].startswith('SAC|')
+
+
+def test_indexed_space_boundaries_and_classes():
+    from pipeline.indexed_space import (CLASS_OFFSETS, CLASS_ORDER, CLASS_SIZES,
+                                        TOTAL_SIZE, candidate_at, candidate_at_class)
+    from pipeline.catalyst_spaces import estimate_design_space_size
+    assert TOTAL_SIZE == estimate_design_space_size()['TOTAL']
+    for cls in CLASS_ORDER:
+        assert candidate_at(CLASS_OFFSETS[cls])[0] == cls
+        assert candidate_at_class(cls, CLASS_SIZES[cls] - 1)[0] == cls
+
+
+def test_indexed_worker_shards_are_disjoint():
+    from pipeline.indexed_space import iter_shard
+    a = {i for i, _ in iter_shard(0, 101, 0, 3)}
+    b = {i for i, _ in iter_shard(0, 101, 1, 3)}
+    c = {i for i, _ in iter_shard(0, 101, 2, 3)}
+    assert not (a & b or a & c or b & c)
+    assert a | b | c == set(range(101))
+
+
+def test_streaming_scan_resumes_without_rescoring():
+    import tempfile
+    from pathlib import Path
+    from pipeline.exhaustive_search import ScanConfig, run_streaming_scan
+    calls = []
+    def scorer(genomes):
+        calls.append(len(genomes))
+        return np.column_stack([np.arange(len(genomes), dtype=float),
+                                np.zeros((len(genomes), 3))])
+    with tempfile.TemporaryDirectory() as tmp:
+        db = str(Path(tmp) / 'scan.sqlite')
+        first = run_streaming_scan(ScanConfig('test', db, stop=40, batch_size=10, max_batches=2), scorer)
+        second = run_streaming_scan(ScanConfig('test', db, stop=40, batch_size=10), scorer)
+        assert first['processed_this_run'] == 20
+        assert second['processed_this_run'] == 20
+        assert second['complete']
+        assert sum(calls) <= 40  # invalid candidates may be rejected before scoring
+
+
+def test_branch_search_resolves_without_surrogate_pruning():
+    import tempfile
+    from pathlib import Path
+    from pipeline.branch_search import BranchConfig, run_branch_and_bound
+    from pipeline.indexed_space import CLASS_SIZES
+    def deliberately_bad_scorer(genomes):
+        # A poor probe is not permission to remove its branch.
+        return np.column_stack([np.full(len(genomes), 99.0),
+                                np.zeros((len(genomes), 3))])
+    with tempfile.TemporaryDirectory() as tmp:
+        result = run_branch_and_bound(BranchConfig(
+            application='branch_test', database=str(Path(tmp) / 'branch.sqlite'),
+            leaf_size=CLASS_SIZES['MetalFreeCarbon'] + 1,
+            scan_batch_size=512, max_leaves=1,
+            material_classes=('MetalFreeCarbon',),
+        ), deliberately_bad_scorer)
+        assert result['complete']
+        assert result['node_status_counts'].get('scanned') == 1
+        assert result['node_status_counts'].get('pruned', 0) == 0
+
+
+def test_branch_certificate_detects_incomplete_and_gaps():
+    import sqlite3
+    import tempfile
+    from pathlib import Path
+    from pipeline.branch_search import BranchConfig, run_branch_and_bound, verify_branch_coverage
+    def scorer(genomes):
+        return np.zeros((len(genomes), 4))
+    with tempfile.TemporaryDirectory() as tmp:
+        db = str(Path(tmp) / 'certificate.sqlite')
+        result = run_branch_and_bound(BranchConfig(
+            application='certificate_test', database=db, leaf_size=1000,
+            scan_batch_size=256, max_leaves=1,
+            material_classes=('MetalFreeCarbon',),
+        ), scorer)
+        cert = result['coverage_certificate']
+        assert cert['gap_free'] and cert['overlap_free']
+        assert not cert['complete'] and cert['unresolved_terminal_nodes'] > 0
+
+        conn = sqlite3.connect(db)
+        row = conn.execute("SELECT node_id FROM branch_nodes WHERE application=? "
+                           "AND status!='expanded' LIMIT 1", ('certificate_test',)).fetchone()
+        conn.execute("DELETE FROM branch_nodes WHERE application=? AND node_id=?",
+                     ('certificate_test', row[0]))
+        conn.commit(); conn.close()
+        broken = verify_branch_coverage(db, 'certificate_test', ('MetalFreeCarbon',))
+        assert not broken['complete']
+        assert broken['errors'], "Deleted terminal interval must invalidate certificate"
+
+
+def test_branch_rejects_population_mismatch():
+    import tempfile
+    from pathlib import Path
+    from pipeline.branch_search import BranchConfig, run_branch_and_bound
+    def scorer(genomes):
+        return np.zeros((len(genomes), 4))
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
+            run_branch_and_bound(BranchConfig(
+                application='mismatch', database=str(Path(tmp) / 'mismatch.sqlite'),
+                material_classes=('SAA',), expected_population=25_300_000_000,
+            ), scorer)
+        except ValueError as exc:
+            assert 'denominator mismatch' in str(exc)
+        else:
+            raise AssertionError('Population mismatch was silently accepted')
+
+
+def test_tree_calibration_probes_cover_all_classes_deterministically():
+    from pipeline.indexed_space import deterministic_tree_probes
+    from pipeline.catalyst_spaces import ALL_MATERIAL_CLASSES
+    first = deterministic_tree_probes(100)
+    second = deterministic_tree_probes(100)
+    assert first == second
+    assert {g[0] for g in first} == set(ALL_MATERIAL_CLASSES)
+
+
+def test_production_has_only_branch_candidate_search():
+    from pathlib import Path
+    source = (Path(__file__).parent / 'run_production_campaign.py').read_text()
+    forbidden = [
+        'run_genetic_algorithm', 'run_fc_genetic_algorithm',
+        '--exhaustive-scan', '--branch-search', '--pop', '--gens',
+        'generate_population', 'generate_random_genome',
+    ]
+    present = [token for token in forbidden if token in source]
+    assert not present, f"Legacy candidate-search paths remain in production: {present}"
+    assert 'run_branch_discovery' in source
+    assert 'run_fc_branch_discovery' in source
+    assert "envs_dir / 'qe-env' / 'bin' / 'pw.x'" in source
+    assert "'conda', 'run', '-n', 'quantum-env'" in source
+    assert "result.get('mock')" in source
+
+
+def test_readme_matches_branch_only_contract():
+    from pathlib import Path
+    readme = (Path(__file__).parent / 'README.md').read_text()
+    assert '21,092,645,031' in readme
+    assert 'Deterministic Branch-and-Bound Discovery' in readme
+    assert '--calibration-probes' in readme
+    assert '--branch-leaf-size' in readme
+    forbidden = ['--pop', '--gens', '--exhaustive-scan', '--branch-search',
+                 '25.3-billion-configuration', '21.3-billion-configuration']
+    present = [token for token in forbidden if token in readme]
+    assert not present, f"README advertises retired search controls: {present}"
+
+
+def test_retired_ga_entry_points_are_blocked():
+    from pipeline.genetic_optimizer import run_genetic_algorithm
+    from pipeline.fc_genetic_optimizer import run_fc_genetic_algorithm, FCGAConfig
+    for fn, args in ((run_genetic_algorithm, ()),
+                     (run_fc_genetic_algorithm, (FCGAConfig(),))):
+        try:
+            fn(*args)
+        except RuntimeError as exc:
+            assert 'retired' in str(exc)
+        else:
+            raise AssertionError(f"{fn.__name__} still permits legacy search")
+
+
+def test_industrial_viability_gates_fail_closed():
+    from pipeline.viability import evaluate_turquoise, evaluate_fuel_cell
+    assert evaluate_turquoise({})['status'] == 'unknown'
+    good_h2 = evaluate_turquoise({
+        'temperature_K': 1000, 'H2_selectivity': 0.98, 'CH4_conversion': 0.8,
+        'deactivation_fraction_per_h': 0.005, 'coke_fraction': 0.02})
+    assert good_h2['status'] == 'pass'
+    assert evaluate_turquoise({'H2_selectivity': 0.8})['status'] == 'fail'
+    good_fc = evaluate_fuel_cell({
+        'orr_overpotential_V': 0.3, 'peak_power_W_cm2': 1.2,
+        'system_efficiency': 0.5, 'voltage_degradation_uV_h': 5})
+    assert good_fc['status'] == 'pass'
+    assert evaluate_fuel_cell({'orr_overpotential_V': 0.6})['status'] == 'fail'
+
+
+def test_prior_art_registry_tracks_exact_and_region_novelty():
+    import tempfile
+    from pathlib import Path
+    from pipeline.prior_art import PriorArtRegistry
+    known = ('SAC', 'Fe', 'N4', 'N-graphene', 'OH')
+    related = ('SAC', 'Fe', 'N4', 'N-graphene', 'none')
+    unseen = ('MoltenMetal', 'Bi', 'Ni', 10.0, 1000)
+    with tempfile.TemporaryDirectory() as tmp:
+        registry = PriorArtRegistry(str(Path(tmp) / 'prior.sqlite'))
+        registry.add(known, 'literature', 'doi:test')
+        assert registry.classify(known)['novelty_status'] == 'known'
+        assert registry.classify(related)['novelty_status'] == 'region_known'
+        assert registry.classify(unseen)['novelty_status'] == 'unseen'
+
+
+def test_multiobjective_archive_preserves_conflicting_winners():
+    import sqlite3
+    import tempfile
+    from pathlib import Path
+    from pipeline.exhaustive_search import ScanConfig, run_streaming_scan
+    from pipeline.indexed_space import CLASS_OFFSETS
+    with tempfile.TemporaryDirectory() as tmp:
+        db = str(Path(tmp) / 'multi.sqlite')
+        start = CLASS_OFFSETS['SAC']
+        def scorer(genomes):
+            n = len(genomes)
+            return np.column_stack([np.arange(n), np.arange(n)[::-1],
+                                    np.zeros(n), np.ones(n)])
+        run_streaming_scan(ScanConfig('multi', db, start=start, stop=start + 20,
+                                      batch_size=20, global_archive_size=20,
+                                      state_id='multi-test'), scorer)
+        conn = sqlite3.connect(db)
+        objectives = {r[0] for r in conn.execute(
+            "SELECT DISTINCT objective_index FROM objective_archive WHERE application='multi'")}
+        regions = {r[0] for r in conn.execute(
+            "SELECT DISTINCT objective_index FROM regional_objective_champions WHERE application='multi'")}
+        conn.close()
+        assert objectives == {0, 1, 2, 3}
+        assert regions == {0, 1, 2, 3}
+
+
+def test_final_campaign_readiness_fails_closed():
+    import json
+    import tempfile
+    from pathlib import Path
+    from pipeline.indexed_space import TOTAL_SIZE
+    from pipeline.prior_art import PriorArtRegistry
+    from pipeline.readiness import campaign_readiness
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        cert = root / 'coverage.json'
+        prior = root / 'prior.sqlite'
+        result = campaign_readiness(str(cert), str(prior))
+        assert not result['ready']
+        assert 'coverage_certificate_missing' in result['failures']
+        assert 'prior_art_registry_empty' in result['failures']
+        cert.write_text(json.dumps({
+            'declared_encoded_population': TOTAL_SIZE, 'complete': True}))
+        PriorArtRegistry(str(prior)).add(
+            ('SAC', 'Fe', 'N4', 'N-graphene', 'OH'), 'literature', 'doi:test')
+        assert campaign_readiness(str(cert), str(prior))['ready']
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # RUN ALL
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -525,7 +805,6 @@ if __name__ == '__main__':
     test("14 classes generate", test_all_14_classes_generate)
     test("No toxic elements", test_no_toxic_elements)
     test("SAC axial ligands", test_sac_has_axial_ligand)
-    test("Class weights sum ~1.0", test_class_weights_sum_to_1)
 
     print("\n── Encoding ──")
     test("All classes encode (no NaN)", test_encode_all_classes_no_nan)
@@ -535,8 +814,8 @@ if __name__ == '__main__':
     test("CH4 surrogate (no NaN)", test_ch4_surrogate_no_nan)
     test("ORR surrogate (no NaN)", test_orr_surrogate_no_nan)
 
-    print("\n── NSGA-II ──")
-    test("NSGA-II sorts correctly", test_nsga2_sorts_correctly)
+    print("\n── Pareto Objectives ──")
+    test("Pareto sorting is correct", test_nsga2_sorts_correctly)
     test("Cost & Fenton in range", test_cost_and_fenton_ranges)
     test("MetalFreeCarbon cost = 0", test_metalfreecarbon_zero_cost)
 
@@ -564,15 +843,11 @@ if __name__ == '__main__':
     test("Orchestrator path", test_report_orchestrator_path)
     test("Empty state (no crash)", test_report_empty_no_crash)
 
-    print("\n── Crossover & Mutation ──")
-    test("Crossover preserves class", test_crossover_preserves_class)
-    test("Mutation preserves class", test_mutation_preserves_class)
-
     print("\n── OOD Confidence ──")
     test("High confidence for metals", test_ood_high_confidence_metals)
     test("Low confidence for OOD classes", test_ood_low_confidence_ood)
     test("Penalty scales objectives", test_ood_penalty_scales_objectives)
-    test("Confidence in NSGA-II", test_ood_nsga2_integration)
+    test("Confidence affects objectives", test_ood_nsga2_integration)
 
     print("\n── Exhaustive Coverage ──")
     test("All elements in abundance table", test_all_elements_in_abundance_table)
@@ -583,7 +858,23 @@ if __name__ == '__main__':
     test("Tafel slope all 14 classes", test_tafel_all_classes)
     test("Cathode SAC genomes 5-tuple", test_cathode_sac_genome_5tuple)
     test("Pyrolysis mode coking bonus", test_pyrolysis_mode_coking_bonus)
-    test("Deterministic hierarchical HTVS pool", test_deterministic_hierarchical_pool)
+    test("Discovery batch covers unseen regions", test_discovery_batch_prioritizes_unseen_regions)
+    test("Canonical candidate IDs", test_candidate_ids_are_canonical)
+    test("Discovery metadata persists", test_discovery_metadata_is_persistable)
+    test("Indexed space boundaries", test_indexed_space_boundaries_and_classes)
+    test("Indexed worker shards", test_indexed_worker_shards_are_disjoint)
+    test("Streaming scan resumes", test_streaming_scan_resumes_without_rescoring)
+    test("Branch search never surrogate-prunes", test_branch_search_resolves_without_surrogate_pruning)
+    test("Branch certificate detects gaps", test_branch_certificate_detects_incomplete_and_gaps)
+    test("Branch rejects population mismatch", test_branch_rejects_population_mismatch)
+    test("Tree probes deterministic across 14 classes", test_tree_calibration_probes_cover_all_classes_deterministically)
+    test("Production search is branch-only", test_production_has_only_branch_candidate_search)
+    test("README matches branch-only contract", test_readme_matches_branch_only_contract)
+    test("Retired GA entry points are blocked", test_retired_ga_entry_points_are_blocked)
+    test("Industrial viability gates fail closed", test_industrial_viability_gates_fail_closed)
+    test("Prior-art novelty states", test_prior_art_registry_tracks_exact_and_region_novelty)
+    test("Multi-objective archive keeps conflicting winners", test_multiobjective_archive_preserves_conflicting_winners)
+    test("Final campaign readiness fails closed", test_final_campaign_readiness_fails_closed)
 
     elapsed = time.time() - t0
     print(f"\n{'=' * 60}")

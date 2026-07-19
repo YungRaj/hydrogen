@@ -1,6 +1,6 @@
 # Turquoise Hydrogen — Autonomous Multi-Scale Catalyst Discovery
 
-A GPU-accelerated computational pipeline for autonomous catalyst discovery targeting **turquoise hydrogen production** (methane pyrolysis via NTEC) and **PEM fuel cell** energy conversion. Explores a **21.1-billion-configuration** design space across 14 material classes using Meta's FAIR Chemistry equivariant graph neural networks, genetic optimization, reactor-scale simulation, density functional theory, and variational quantum chemistry.
+A GPU-accelerated computational pipeline for autonomous catalyst discovery targeting **turquoise hydrogen production** (methane pyrolysis via NTEC) and **PEM fuel cell** energy conversion. Exhaustively traverses a **21.1-billion-configuration** encoded design space across 14 material classes using deterministic branch-and-bound, Meta's FAIR Chemistry equivariant graph neural networks, reactor-scale simulation, density functional theory, and variational quantum chemistry.
 
 ---
 
@@ -76,7 +76,7 @@ Phase 1: SCREENING + OPTIMIZATION            Phase 2: REACTOR SIMULATION
 │  Surrogate NN (PyTorch)         │                    │
 │  │                              │                    ▼
 │  ▼                              │          Phase 3: DFT VALIDATION
-│  NSGA-II (4-objective Pareto)   │          ┌──────────────────────────┐
+│  Branch-and-bound + archives    │          ┌──────────────────────────┐
 └─────────────────────────────────┘          │  Quantum ESPRESSO pw.x   │
            │                                 │  ├─ Bulk SCF / vc-relax  │
            │                                 │  ├─ Slab relaxation      │
@@ -107,7 +107,12 @@ Phase 5: FUEL CELL                        Phase 6: REPORTING
 
 ## Design Space
 
-**21,092,645,031** (21.1 billion) unique catalyst configurations across 14 material classes:
+**21,092,645,031** (21.1 billion) encoded Cartesian configurations across 14 material classes:
+
+This is the exact addressable denominator used by the indexed scanner. It is
+not a claim of 21.1B symmetry-distinct physical structures: canonical IDs merge
+representational duplicates, while conservative feasibility rules record invalid
+Cartesian combinations as rejected rather than silently removing them.
 
 | Class | Configs | Description |
 |-------|--------:|-------------|
@@ -149,7 +154,7 @@ Each genome encodes into a **353-dimensional** feature vector for the surrogate 
 |---------|---------|------|
 | **ASE** | 3.29.0 | Atomic structure generation (slabs, clusters, perovskites, hydrides) |
 | **fairchem-core**| 2.x | Meta's FAIR Chemistry machine learning interatomic potentials framework |
-| **NumPy** | 2.2.6 | Vectorized computation, NSGA-II, feature encoding |
+| **NumPy** | 2.2.6 | Vectorized computation, objectives, feature encoding |
 | **SciPy** | 1.15.2 | Electrode kinetics, Nernst equation, ODE integration |
 | **Pandas** | 2.3.3 | Screening database I/O, population tracking |
 
@@ -158,7 +163,7 @@ Each genome encodes into a **353-dimensional** feature vector for the surrogate 
 | Module | Physics |
 |--------|---------|
 | `surrogate_model.py` | Multi-task NN predicting E_act, coking, validity (~1000× faster than eSen-SM) |
-| `genetic_optimizer.py` | NSGA-II with crowding distance — 4-objective Pareto optimization |
+| `branch_search.py` | Persistent deterministic branch subdivision, priority, and coverage certification |
 | `pemfc_model.py` | 1D through-MEA PEM fuel cell (Tafel + Ohmic + mass transport losses) |
 | `fuel_cell_stack.py` | N-cell stack scaling with balance-of-plant and $/kW techno-economics |
 | `reactor_mechanisms.py` | TST/BEP mechanism generator producing Cantera 3.x-compliant YAML |
@@ -169,10 +174,10 @@ Each genome encodes into a **353-dimensional** feature vector for the surrogate 
 
 | Module | Lines | Description |
 |--------|------:|-------------|
-| `catalyst_spaces.py` | 1116 | 14-class design space definitions, genome generators, crossover/mutation, feature encoding |
+| `catalyst_spaces.py` | 1116 | 14-class encoded design definitions and feature encoding |
 | `surface_screener.py` | 814 | Multi-GPU parallelized Meta eSen-SM screening (slab relaxation, adsorption energies, coking index) |
-| `fc_genetic_optimizer.py` | 506 | NSGA-II GA for fuel cell active learning and PEMFC stack search |
-| `genetic_optimizer.py` | 462 | NSGA-II GA for methane pyrolysis catalyst discovery |
+| `fc_genetic_optimizer.py` | — | ORR surrogate objectives and branch-discovery orchestration |
+| `genetic_optimizer.py` | — | Methane surrogate objectives and branch-discovery orchestration |
 | `reactor_models.py` | 457 | Cantera reactor simulations — MMBCR, PFR, fluidized bed with custom surface kinetics |
 | `dft_validator.py` | 433 | Quantum ESPRESSO input generation & parsing for champion catalysts |
 | `orchestrator.py` | 396 | Core pipeline orchestrator managing phases and configurations |
@@ -334,7 +339,22 @@ The pipeline relies on Meta's FAIR Chemistry **eSen (EquiformerV2 Energy-Conserv
 conda run -n fairchem-env python -m pipeline.orchestrator --quick --no-dft --no-vqe
 ```
 
-This runs 50 generations with 100 population, validating the full pipeline end-to-end.
+Quick mode runs deterministic calibration and one resumable terminal branch leaf,
+then exercises the downstream reactor, validation, and reporting path. It is a
+smoke test and does not produce a `complete: true` 21.1B coverage certificate.
+
+### Test Suite
+
+```bash
+conda run -n deepmd-env python test_pipeline.py
+conda run -n deepmd-env python audit_pipeline.py
+```
+
+The active suite verifies indexed-space boundaries, disjoint shards, deterministic
+tree probes across all 14 classes, branch resume, no surrogate-based pruning,
+gap/overlap detection, population-denominator enforcement, coverage certificates,
+blocked legacy GA entry points, and consistency between this README and the
+branch-only production CLI.
 
 ### Production Campaign (48 hours)
 
@@ -350,11 +370,11 @@ export NUMEXPR_NUM_THREADS=1
 
 # Launch GPU-saturated campaign across all GPUs
 nohup /home/ilhanraja/miniconda3/envs/fairchem-env/bin/python -u run_production_campaign.py \
-  --pop 1000 \
-  --gens 3000 \
-  --mace-batch 500 \
-  --mace-per-round 500 \
-  --mace-interval 5 \
+  --calibration-probes 500 \
+  --validation-batch 500 \
+  --branch-leaf-size 1000000 \
+  --prior-art-csv data/literature_registry.csv \
+  --prior-art-csv data/patent_registry.csv \
   --hours 48 \
   --top-k 200 \
   > results/campaign_v6.log 2>&1 &
@@ -364,13 +384,15 @@ nohup /home/ilhanraja/miniconda3/envs/fairchem-env/bin/python -u run_production_
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `--pop` | 1000 | GA population size per generation |
-| `--gens` | 3000 | Total GA generations |
-| `--mace-batch` | 500 | Initial GNN screening batch size |
-| `--mace-per-round` | 500 | GNN evaluations per validation round |
-| `--mace-interval` | 5 | Generations between GNN validation rounds |
-| `--hours` | 48 | Maximum wall-clock time |
+| `--calibration-probes` | 500 | Deterministic binary-tree points used for initial surrogate evidence |
+| `--validation-batch` | 500 | Global and regional champions sent to the atomistic model |
+| `--branch-leaf-size` | 1,000,000 | Maximum indexed population per exhaustively streamed terminal leaf |
+| `--branch-max-leaves` | 0 | Staged leaf limit; zero continues until the tree is complete |
+| `--hours` | 0 | Campaign-wide wall-clock limit shared by both applications; zero is unlimited |
 | `--top-k` | 200 | Top-K catalysts forwarded to reactor simulation |
+| `--prior-art-db` | `results/prior_art.sqlite` | Persistent literature/patent/experimental identity registry |
+| `--prior-art-csv` | — | Import a registry CSV (repeatable; requires a `genome` column) |
+| `--final-campaign` | false | Exit nonzero unless both coverage certificates are complete and prior art is populated |
 | `--no-dft` | false | Skip Quantum ESPRESSO phase |
 | `--no-vqe` | false | Skip CUDA-Q VQE phase |
 | `--mode` | `ntec` | Pyrolysis mode: `ntec` (nanotriboelectric) or `thermocatalytic` |
@@ -401,7 +423,7 @@ conda run -n fairchem-env python -m pipeline.orchestrator --start 1 --end 3
 # Test design space
 conda run -n battery-env python -m pipeline.catalyst_spaces
 
-# Test eSen screening (20 random candidates)
+# Test eSen screening with deterministic tree probes
 conda run -n fairchem-env python -m pipeline.surface_screener
 
 # Test DFT input generation (no pw.x execution)
@@ -426,10 +448,14 @@ hydrogen/
 │
 ├── pipeline/                      # Core pipeline package
 │   ├── __init__.py
-│   ├── catalyst_spaces.py         # 25.3B design space definitions
+│   ├── catalyst_spaces.py         # 21.1B encoded design-space definitions
+│   ├── indexed_space.py           # O(1) global candidate addressing + shards
+│   ├── exhaustive_search.py       # Resumable bounded-memory population scan
+│   ├── branch_search.py           # Persistent divide-and-conquer + certificate
+│   ├── discovery.py               # Canonical IDs + novelty/coverage acquisition
 │   ├── surface_screener.py        # Multi-GPU Meta eSen screening (methane pyrolysis)
 │   ├── surrogate_model.py         # Multi-task PyTorch surrogate NN
-│   ├── genetic_optimizer.py       # NSGA-II 4-objective GA
+│   ├── genetic_optimizer.py       # Methane objectives + branch orchestration
 │   ├── reactor_mechanisms.py      # Cantera YAML mechanism generator
 │   ├── reactor_models.py          # MMBCR / PFR / fluidized bed
 │   ├── dft_validator.py           # Quantum ESPRESSO DFT validation
@@ -446,7 +472,7 @@ hydrogen/
 │
 ├── mechanisms/                    # Generated Cantera YAML (gitignored)
 └── results/                       # Pipeline outputs (gitignored)
-    ├── screening/                 # GA databases, GNN CSVs
+    ├── screening/                 # Branch database, certificates, GNN CSVs
     ├── reactor/                   # Cantera simulation results
     ├── dft/                       # QE input/output files
     ├── vqe/                       # VQE energetics (JSON)
@@ -469,14 +495,96 @@ hydrogen/
 
 ## How It Works — Phase by Phase
 
-### Phase 1: Meta eSen Screening + Genetic Optimization
+### Phase 1: Deterministic Branch-and-Bound Discovery
 
-1. **Generate initial population** — random genomes from all 14 material classes
+1. **Calibrate at deterministic tree probes** — recursively bisected probe points from all 14 class roots establish initial model evidence; these probes do not count as population coverage
 2. **eSen-SM evaluation** — for each candidate, build an atomic slab or cluster, enforce periodic boundary conditions (`pbc=True`), relax with BFGS, compute H*/CH₃*/C* adsorption energies
 3. **Train surrogate NN** — multi-task network learns to predict E_act, coking index, validity from the 353-dim genome encoding (~1000× faster than eSen-SM)
-4. **NSGA-II loop** — evolve population via tournament selection, uniform crossover, class-aware mutation; evaluate with surrogate; periodically validate top candidates with full eSen-SM on GPU
-5. **Class-diversity enforcement** — each generation guarantees ≥5% population from every material class, preventing any single class from dominating the front
-6. **Output** — Pareto-optimal front of catalysts minimizing (E_act, -coking, segregation, cost)
+4. **Divide all class ranges recursively** — deterministic surrogate probes prioritize child branches but never authorize pruning
+5. **Resolve every terminal branch** — a branch is either exhaustively streamed or hard-pruned only after every member fails conservative feasibility rules
+6. **Retain global and regional champions** — unfamiliar chemistry regions remain represented even when familiar chemistry dominates the global scores
+7. **Retain every objective's winners** — bounded global archives and per-region champions prevent a primary-objective ranking from discarding selectivity, stability, cost, or uncertainty extremes
+8. **Output a coverage certificate** — exact terminal population, gap/overlap checks, scan cursors, pruning proofs, canonical candidate IDs, and application-specific champions
+
+#### What “novel” means
+
+The discovery engine uses **campaign novelty**: a candidate has not previously been
+evaluated under its canonical ID, or represents a chemistry region not yet covered
+by the campaign. This maximizes the chance of finding unfamiliar viable chemistry
+without pretending that model uncertainty is poor performance. The repository now
+includes a versioned SQLite literature/patent/experimental registry keyed by the
+same canonical candidate identity and reports `known`, `region_known`, or `unseen`.
+Populate it with repeatable `--prior-art-csv` inputs before making external novelty
+claims. `unseen` means absent from the supplied registry, not proof of worldwide
+novelty; registry completeness and chemical identity resolution still require
+curated external data.
+
+#### Coverage and exhaustiveness
+
+The finite genome space is traversed through persistent binary subdivision and
+indexed streaming. Random, stratified, genetic, and rotating-grid candidate
+sampling are not production search strategies. Expensive atomistic calculations remain multi-fidelity:
+the repository does not claim that all billions of candidates received DFT or
+experimental validation. Coverage must be reported separately for generated,
+surrogate-scored, GNN-validated, and DFT-validated candidates.
+
+Industrial gates are fail-closed: missing measurements produce `unknown`, never a
+pass or a pruning decision. The configurable defaults are 700–1300 K, at least
+95% H2 selectivity and 70% methane conversion, at most 1%/h deactivation and 5%
+coke for turquoise hydrogen; and at most 0.40 V ORR overpotential, at least
+1.00 W/cm2 peak power and 40% system efficiency, and at most 10 uV/h voltage
+degradation for fuel cells. These are campaign screening criteria, not universal
+industrial standards.
+
+#### Production divide-and-conquer search
+
+Use deterministic hierarchical branch-and-bound to process the most promising,
+uncertain, novel, and populous regions first while retaining exhaustive coverage:
+
+```bash
+python run_production_campaign.py \
+  --branch-leaf-size 1000000 \
+  --branch-probes 9
+```
+
+The tree begins with one root for each of the 14 material classes and recursively
+bisects class-local indexed ranges. Deterministic surrogate probes establish the
+processing priority of each child. Probe predictions **never authorize pruning**.
+A branch is removed only when every encoded member has been checked against the
+conservative hard-feasibility rules and all fail. Every other leaf is passed to
+the exhaustive streaming scanner.
+
+For staged campaigns, limit the number of leaves handled in one invocation:
+
+```bash
+python run_production_campaign.py --branch-max-leaves 100
+```
+
+Running the same command again resumes the persistent tree and each partially
+processed leaf. SQLite records pending, expanded, hard-pruned, and fully scanned
+nodes, including the unresolved encoded population. This behaves like binary
+divide-and-conquer without making the unsafe monotonicity assumption required by
+literal binary search.
+
+For the final fail-closed check, run the same command with `--final-campaign`.
+It writes `results/campaign_readiness.json` and exits nonzero if either application
+lacks a complete, denominator-matched coverage certificate or the prior-art
+registry is empty. A complete computational certificate still does not substitute
+for reactor, stack, durability, synthesis, safety, or experimental validation.
+
+Each invocation also regenerates an application-specific coverage certificate:
+
+- `results/screening/turquoise_hydrogen_coverage_certificate.json`
+- `results/fuel_cell/coverage_certificate.json`
+
+The certificate verifies that terminal intervals form a gap-free, non-overlapping
+partition of all 14 indexed class ranges; every `scanned` leaf has a completed
+resume cursor; and every `pruned` leaf has a rechecked all-members-fail hard-rule
+proof. `complete` becomes true only when the terminal population equals exactly
+**21,092,645,031** and no unresolved leaf remains. The production command defaults
+to `--expected-space-size 21092645031` and stops on any denominator mismatch. In
+particular, labeling the present repository population as 25.3B now produces an
+error rather than a false exhaustive-coverage claim.
 
 #### Structure Generation
 
@@ -541,7 +649,7 @@ Auto-generates a comprehensive Markdown report with:
 # GPU utilization
 nvidia-smi --query-gpu=utilization.gpu,memory.used --format=csv -l 5
 
-# GA evolution progress
+# Branch discovery progress
 tail -f results/screening/genetic_optimizer.log
 
 # eSen screening throughput

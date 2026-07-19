@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
 """
-GPU-SATURATED PRODUCTION CAMPAIGN v2
+GPU-SATURATED DETERMINISTIC DISCOVERY CAMPAIGN
 
-Key changes from v1:
-  - Smaller GA population (1000) for faster NSGA-II O(N²) sort
-  - Fairchem validation every 5 generations (not 50) to keep GPUs hot
-  - Larger Fairchem batch (500 per round) for better GPU saturation
-  - 3000 generations × 500 Fairchem/round = 300,000 Fairchem evaluations
-  - All 10 material classes with 25.3B design space
+The only production candidate-search strategy is persistent, exhaustive
+branch-and-bound over all 14 classes in the 21.1B indexed encoded space.
 """
 
 import os
@@ -26,16 +22,10 @@ def main():
     parser = argparse.ArgumentParser(
         description='GPU-Saturated Turquoise H₂ Catalyst Discovery v2'
     )
-    parser.add_argument('--pop', type=int, default=2000,
-                        help='GA population size (default: 2000)')
-    parser.add_argument('--gens', type=int, default=0,
-                        help='Total generations. 0 = unlimited (default: 0)')
-    parser.add_argument('--fairchem-batch', type=int, default=500,
-                        help='Initial Fairchem batch (default: 500)')
-    parser.add_argument('--fairchem-per-round', type=int, default=500,
-                        help='Fairchem evaluations per validation round (default: 500)')
-    parser.add_argument('--fairchem-interval', type=int, default=5,
-                        help='Generations between Fairchem rounds (default: 5)')
+    parser.add_argument('--calibration-probes', type=int, default=500,
+                        help='Deterministic binary-tree probes used to calibrate the surrogate')
+    parser.add_argument('--validation-batch', type=int, default=500,
+                        help='Branch/archive champions sent to the atomistic model')
     parser.add_argument('--hours', type=float, default=0,
                         help='Max wall-clock hours. 0 = unlimited (default: 0)')
     parser.add_argument('--top-k', type=int, default=200,
@@ -44,8 +34,32 @@ def main():
     parser.add_argument('--no-vqe', action='store_true')
     parser.add_argument('--mode', type=str, choices=['ntec', 'thermocatalytic'], default='ntec',
                         help='Pyrolysis screening mode (default: ntec)')
-    parser.add_argument('--seed', type=int, default=42)
+    parser.add_argument('--scan-batch-size', type=int, default=65536)
+    parser.add_argument('--branch-leaf-size', type=int, default=1_000_000)
+    parser.add_argument('--branch-probes', type=int, default=9)
+    parser.add_argument('--branch-max-leaves', type=int, default=0,
+                        help='Process at most this many leaves per run; 0 continues until complete')
+    parser.add_argument('--expected-space-size', type=int, default=21_092_645_031,
+                        help='Fail if the indexed population denominator differs')
+    parser.add_argument('--prior-art-db', default='results/prior_art.sqlite')
+    parser.add_argument('--prior-art-csv', action='append', default=[],
+                        help='CSV registry to import; repeat for multiple sources')
+    parser.add_argument('--final-campaign', action='store_true',
+                        help='Fail closed unless coverage and prior-art readiness requirements pass')
     args = parser.parse_args()
+
+    # The campaign runs under fairchem-env, while Quantum ESPRESSO is installed
+    # in qe-env. Resolve it explicitly so DFT does not depend on the caller's PATH.
+    if not os.environ.get('PW_X'):
+        envs_dir = Path(sys.executable).resolve().parents[2]
+        qe_binary = envs_dir / 'qe-env' / 'bin' / 'pw.x'
+        if qe_binary.is_file():
+            os.environ['PW_X'] = str(qe_binary)
+
+    from pipeline.prior_art import PriorArtRegistry
+    prior_registry = PriorArtRegistry(args.prior_art_db)
+    for prior_csv in args.prior_art_csv:
+        prior_registry.import_csv(prior_csv)
 
     # ─── Environment ─────────────────────────────────────────────────────────
     os.environ['PYROLYSIS_MODE'] = args.mode
@@ -61,12 +75,14 @@ def main():
         print(f"  GPU[{i}] {gpu_names[i]} — {gpu_mem[i]:.1f} GB")
     print(f"  CPUs: {os.cpu_count()} cores")
     print(f"  Mode: {args.mode.upper()}")
-    print(f"  Pop: {args.pop} | Gens: {args.gens}")
-    print(f"  Fairchem: {args.fairchem_per_round}/round every {args.fairchem_interval} gens")
-    total_fairchem = args.fairchem_batch + args.fairchem_per_round * (args.gens // args.fairchem_interval)
-    print(f"  Estimated total Fairchem evaluations: {total_fairchem:,}")
-    print(f"  Estimated surrogate evaluations: {args.pop * args.gens:,}")
+    print(f"  Search: deterministic branch-and-bound only")
+    print(f"  Calibration probes: {args.calibration_probes:,}")
+    print(f"  Validation batch: {args.validation_batch:,}")
+    print(f"  Prior-art records: {prior_registry.count():,}")
     print("=" * 80)
+
+    # Final-campaign mode is fail-closed after both application searches have
+    # had an opportunity to update their coverage certificates.
 
     # ─── HuggingFace Token (for OC20 surface models) ─────────────────────────
     hf_token = os.environ.get('HF_TOKEN', '')
@@ -92,16 +108,18 @@ def main():
     from pipeline.utils import print_banner, save_json, load_json
 
     sizes = estimate_design_space_size()
+    if args.expected_space_size != sizes['TOTAL']:
+        raise SystemExit(
+            f"Population denominator mismatch: --expected-space-size={args.expected_space_size:,}, "
+            f"but this repository indexes {sizes['TOTAL']:,}. Update the design-space "
+            "definition or use the verified denominator; do not label it 25.3B."
+        )
     print(f"\n  Design Space: {sizes['TOTAL']:,} ({sizes['TOTAL']/1e9:.1f}B)")
     for cls in ALL_MATERIAL_CLASSES:
         print(f"    {cls:20s}: {sizes[cls]:>15,}")
 
     t_start = time.time()
     t_deadline = t_start + args.hours * 3600 if args.hours > 0 else float('inf')
-
-    # Unlimited mode: 0 means "no cap"
-    if args.gens == 0:
-        args.gens = 1_000_000_000  # effectively unlimited
 
     # ─── Campaign Provenance (reproducibility metadata) ──────────────────
     def _get_git_sha():
@@ -134,25 +152,26 @@ def main():
     }
     save_json(pipeline_state, "pipeline_state.json")
 
-    # ─── Phase 1: GA + META ESEN-SM ──────────────────────────────────────────
-    print_banner("PHASE 1: GPU-ACCELERATED META ESEN-SM + NSGA-II")
+    # ─── Phase 1: BRANCH DISCOVERY + META ESEN-SM ───────────────────────────
+    print_banner("PHASE 1: DETERMINISTIC BRANCH-AND-BOUND + META ESEN-SM")
     t1 = time.time()
 
-    from pipeline.genetic_optimizer import run_genetic_algorithm, GAConfig
+    from pipeline.genetic_optimizer import run_branch_discovery, BranchDiscoveryConfig
 
-    ga_config = GAConfig(
-        pop_size=args.pop,
-        n_generations=args.gens,
-        initial_fairchem_samples=args.fairchem_batch,
-        fairchem_eval_interval=args.fairchem_interval,
-        fairchem_eval_top_k=args.fairchem_per_round,
-        surrogate_retrain_interval=args.fairchem_interval,
-        mutation_rate=0.35,
-        crossover_rate=0.7,
-        seed=args.seed,
+    branch_config = BranchDiscoveryConfig(
+        initial_fairchem_samples=args.calibration_probes,
+        fairchem_eval_top_k=args.validation_batch,
+        exhaustive_batch_size=args.scan_batch_size,
+        branch_leaf_size=args.branch_leaf_size,
+        branch_probe_count=args.branch_probes,
+        branch_max_leaves=None if args.branch_max_leaves == 0 else args.branch_max_leaves,
+        expected_space_size=args.expected_space_size,
+        # One wall-clock budget covers the entire dual-application campaign.
+        max_runtime_s=None if args.hours == 0 else max(0.0, t_deadline - time.time()),
+        prior_art_db=args.prior_art_db,
     )
 
-    pareto_genomes, screening_db = run_genetic_algorithm(ga_config)
+    pareto_genomes, screening_db = run_branch_discovery(branch_config)
 
     valid_db = screening_db[screening_db['valid'] == True].copy()
     if 'E_act' in valid_db.columns:
@@ -166,7 +185,7 @@ def main():
         'valid_count': len(valid_db),
         'top_catalysts_count': len(top_catalysts),
         'elapsed_s': time.time() - t1,
-        'total_fairchem_target': total_fairchem,
+        'search_strategy': 'deterministic_branch_and_bound',
     }
     if len(valid_db) > 0 and 'E_act' in valid_db.columns:
         pipeline_state['phase1']['best_E_act'] = float(valid_db['E_act'].min())
@@ -195,12 +214,16 @@ def main():
                     sweep = run_reactor_sweep(cat_name, str(mech_file),
                                               temperatures=reactor_temps,
                                               catalyst_E_act_eV=e_act)
-                    best_conv = max(r.get('CH4_conversion', 0) for r in sweep) if sweep else 0
+                    best_condition = max(sweep, key=lambda r: r.get('CH4_conversion', 0)) if sweep else {}
+                    best_conv = best_condition.get('CH4_conversion', 0)
                     reactor_results.append({
                         'catalyst': cat_name,
                         'E_act': e_act,
                         'best_conversion': best_conv,
                         'n_conditions': len(sweep),
+                        **{k: best_condition.get(k) for k in (
+                            'temperature_K', 'H2_selectivity', 'CH4_conversion',
+                            'deactivation_fraction_per_h', 'coke_fraction')},
                     })
                 except Exception as e:
                     print(f"    Reactor error: {e}")
@@ -228,6 +251,13 @@ def main():
             pipeline_state['phase2'] = {
                 'catalysts_simulated': len(reactor_results),
                 'elapsed_s': time.time() - t2,
+            }
+            from pipeline.viability import evaluate_turquoise
+            viability = [evaluate_turquoise(r) for r in reactor_results]
+            pipeline_state['phase2']['industrial_viability'] = {
+                'pass': sum(v['status'] == 'pass' for v in viability),
+                'fail': sum(v['status'] == 'fail' for v in viability),
+                'unknown': sum(v['status'] == 'unknown' for v in viability),
             }
             if reactor_results:
                 pipeline_state['phase2']['best_conversion'] = max(
@@ -272,12 +302,29 @@ def main():
         print_banner("PHASE 4: VQE TRANSITION STATES (CUDA-Q)")
         t4 = time.time()
         try:
-            from pipeline.vqe_transition_state import validate_transition_state
-
             n_vqe = min(5, len(top_catalysts))
             vqe_results = []
             for i in range(n_vqe):
-                result = validate_transition_state(f"champion_{i}", "CH_split", target='nvidia')
+                # CUDA-Q lives in quantum-env and is intentionally not imported
+                # from fairchem-env. Run the real backend there; never accept the
+                # module's mock fallback as campaign validation.
+                name = f"champion_{i}"
+                code = (
+                    "import json; from pipeline.vqe_transition_state import "
+                    "validate_transition_state; r=validate_transition_state("
+                    f"{name!r}, 'CH_split', target='nvidia'); print(json.dumps(r))"
+                )
+                proc = subprocess.run(
+                    ['conda', 'run', '-n', 'quantum-env', 'python', '-c', code],
+                    cwd=str(Path(__file__).parent), capture_output=True, text=True)
+                if proc.returncode != 0:
+                    raise RuntimeError(f"CUDA-Q failed for {name}: {proc.stderr[-1000:]}")
+                result_path = Path('results/vqe') / f'vqe_{name}_CH_split.json'
+                if not result_path.exists():
+                    raise RuntimeError(f"CUDA-Q produced no result for {name}")
+                result = json.loads(result_path.read_text())
+                if result.get('mock'):
+                    raise RuntimeError(f"CUDA-Q returned mock evidence for {name}")
                 vqe_results.append(result)
             pipeline_state['phase4'] = {
                 'catalysts_refined': len(vqe_results),
@@ -290,34 +337,33 @@ def main():
     elif args.no_vqe:
         pipeline_state['phase4'] = {'skipped': True, 'reason': '--no-vqe flag'}
 
-    # ─── Phase 5: Fuel Cell ORR GA (SAME 25.3B DESIGN SPACE) ─────────────────
+    # ─── Phase 5: Fuel Cell ORR branch search ────────────────────────────────
     if time.time() < t_deadline:
-        print_banner("PHASE 5: FUEL CELL ORR — GA + META ESEN-SM (25.3B DESIGN SPACE)")
+        print_banner("PHASE 5: FUEL CELL ORR — BRANCH-AND-BOUND (21.1B ENCODED SPACE)")
         t5 = time.time()
 
         remaining_hours = (t_deadline - time.time()) / 3600 if t_deadline != float('inf') else float('inf')
         # Allocate 60% of remaining time to FC screening, 40% to PEMFC/stack
-        fc_gens = max(1, int(args.gens * 0.5))  # Half the gens of methane
         time_str = f"{remaining_hours:.1f}h" if remaining_hours != float('inf') else "unlimited"
         print(f"  Remaining time: {time_str}")
-        print(f"  FC-GA: {fc_gens} generations, pop={args.pop}")
-        print(f"  Same 25.3B design space, ORR-specific objectives")
+        print(f"  FC search: deterministic branch-and-bound")
+        print(f"  Same 21.1B encoded design space, ORR-specific objectives")
 
-        from pipeline.fc_genetic_optimizer import run_fc_genetic_algorithm, FCGAConfig
+        from pipeline.fc_genetic_optimizer import run_fc_branch_discovery, FCBranchDiscoveryConfig
 
-        fc_config = FCGAConfig(
-            pop_size=args.pop,
-            n_generations=fc_gens,
-            initial_fairchem_samples=args.fairchem_batch,
-            fairchem_eval_interval=args.fairchem_interval,
-            fairchem_eval_top_k=args.fairchem_per_round,
-            surrogate_retrain_interval=args.fairchem_interval,
-            mutation_rate=0.35,
-            crossover_rate=0.7,
-            seed=args.seed + 1000,  # different seed for diversity
+        fc_config = FCBranchDiscoveryConfig(
+            initial_fairchem_samples=args.calibration_probes,
+            fairchem_eval_top_k=args.validation_batch,
+            exhaustive_batch_size=args.scan_batch_size,
+            branch_leaf_size=args.branch_leaf_size,
+            branch_probe_count=args.branch_probes,
+            branch_max_leaves=None if args.branch_max_leaves == 0 else args.branch_max_leaves,
+            expected_space_size=args.expected_space_size,
+            max_runtime_s=None if args.hours == 0 else max(0.0, t_deadline - time.time()),
+            prior_art_db=args.prior_art_db,
         )
 
-        fc_pareto, fc_screening_db = run_fc_genetic_algorithm(fc_config)
+        fc_pareto, fc_screening_db = run_fc_branch_discovery(fc_config)
 
         fc_valid = fc_screening_db[fc_screening_db['valid'] == True].copy()
         if 'orr_overpotential_V' in fc_valid.columns:
@@ -325,14 +371,14 @@ def main():
         else:
             top_fc = fc_valid.head(30)
 
-        pipeline_state['phase5_ga'] = {
+        pipeline_state['phase5_branch'] = {
             'pareto_size': len(fc_pareto),
             'total_evaluated': len(fc_screening_db),
             'valid_count': len(fc_valid),
             'elapsed_s': time.time() - t5,
         }
         if len(fc_valid) > 0 and 'orr_overpotential_V' in fc_valid.columns:
-            pipeline_state['phase5_ga']['best_overpotential_V'] = float(fc_valid['orr_overpotential_V'].min())
+            pipeline_state['phase5_branch']['best_overpotential_V'] = float(fc_valid['orr_overpotential_V'].min())
 
         # ─── PEMFC Stack Modeling on top ORR catalysts ────────────────────
         if time.time() < t_deadline and len(top_fc) > 0:
@@ -370,6 +416,10 @@ def main():
                     'stack_net_kW': stack.get('net_power_kW', 0),
                     'stack_efficiency': stack.get('system_efficiency', 0),
                 }
+                from pipeline.viability import evaluate_fuel_cell
+                viability_record = dict(best)
+                viability_record['system_efficiency'] = stack.get('system_efficiency', 0)
+                pipeline_state['phase5_stack']['industrial_viability'] = evaluate_fuel_cell(viability_record)
 
         save_json(pipeline_state, "pipeline_state.json")
         print(f"\n  Phase 5: {time.time()-t5:.0f}s | FC catalysts evaluated: {len(fc_screening_db):,}")
@@ -383,13 +433,24 @@ def main():
 
     total = time.time() - t_start
     h2_eval = pipeline_state.get('phase1', {}).get('total_evaluated', 0)
-    fc_eval = pipeline_state.get('phase5_ga', {}).get('total_evaluated', 0)
+    fc_eval = pipeline_state.get('phase5_branch', {}).get('total_evaluated', 0)
     print("\n" + "=" * 80)
     print(f"  DUAL-CAMPAIGN COMPLETE: {total:.0f}s ({total/3600:.2f} hours)")
     print(f"  H₂ Production catalysts evaluated: {h2_eval:,}")
     print(f"  Fuel Cell catalysts evaluated:      {fc_eval:,}")
     print(f"  Total catalysts screened:           {h2_eval + fc_eval:,}")
     print("=" * 80)
+
+    from pipeline.readiness import campaign_readiness
+    h2_ready = campaign_readiness(
+        'results/screening/turquoise_hydrogen_coverage_certificate.json', args.prior_art_db)
+    fc_ready = campaign_readiness(
+        'results/fuel_cell/coverage_certificate.json', args.prior_art_db)
+    readiness = {'turquoise_hydrogen': h2_ready, 'fuel_cell': fc_ready,
+                 'ready': h2_ready['ready'] and fc_ready['ready']}
+    save_json(readiness, 'campaign_readiness.json')
+    if args.final_campaign and not readiness['ready']:
+        raise SystemExit(f"Final campaign readiness failed: {readiness}")
 
 
 if __name__ == '__main__':

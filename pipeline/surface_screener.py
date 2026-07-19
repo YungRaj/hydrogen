@@ -806,9 +806,9 @@ def run_screening(genomes: List[tuple], db_filename: str = "surface_screening.cs
 
 
 if __name__ == '__main__':
-    from pipeline.catalyst_spaces import generate_population
+    from pipeline.indexed_space import deterministic_tree_probes
 
-    # Quick test: screen 20 random candidates
-    pop = generate_population(20)
+    # Quick test: screen deterministic divide-and-conquer calibration probes
+    pop = deterministic_tree_probes(20)
     df = run_screening(pop, db_filename="test_screening.csv", workers_per_gpu=2)
     print(f"\nScreening complete: {len(df)} candidates evaluated")

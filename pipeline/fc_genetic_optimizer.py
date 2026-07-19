@@ -8,7 +8,7 @@ NSGA-II Genetic Algorithm for Fuel Cell ORR Cathode Catalysts.
   3. Minimize cost (crustal abundance penalty)
   4. Maximize binding strength (dissolution resistance)
 
-Uses the same 25.3B design space as the methane pyrolysis GA,
+Uses the same 21.1B indexed encoded space as the methane pyrolysis GA,
 but trains a separate surrogate NN and evaluates ORR descriptors.
 """
 
@@ -31,6 +31,7 @@ from pipeline.catalyst_spaces import (
     generate_population, crossover, mutate, encode_genome, encode_population,
     ALL_MATERIAL_CLASSES, FEATURE_DIM, generate_hierarchical_htvs_pool,
 )
+from pipeline.discovery import select_discovery_batch, coverage_summary, add_discovery_metadata
 import torch
 
 logger = setup_logger('fc_genetic_optimizer', 'fuel_cell/fc_genetic_optimizer.log')
@@ -54,6 +55,35 @@ class FCGAConfig:
     reinjection_interval: int = 20      # Periodically reinject top candidates from new pool
     device: str = 'cuda'
     seed: int = 42
+    exhaustive_scan: bool = False
+    exhaustive_start: int = 0
+    exhaustive_stop: Optional[int] = None
+    exhaustive_batch_size: int = 65536
+    exhaustive_db: str = str(BASE_DIR / 'results' / 'fuel_cell' / 'indexed_scan.sqlite')
+    exhaustive_worker_id: int = 0
+    exhaustive_num_workers: int = 1
+    branch_search: bool = False
+    branch_leaf_size: int = 1_000_000
+    branch_probe_count: int = 9
+    branch_max_leaves: Optional[int] = None
+    expected_space_size: Optional[int] = None
+
+
+@dataclass
+class FCBranchDiscoveryConfig:
+    initial_fairchem_samples: int = 500
+    fairchem_eval_top_k: int = 500
+    n_models: int = 3
+    htvs_pool_size: int = 20000
+    device: str = 'cuda'
+    exhaustive_batch_size: int = 65536
+    exhaustive_db: str = str(BASE_DIR / 'results' / 'fuel_cell' / 'indexed_scan.sqlite')
+    branch_leaf_size: int = 1_000_000
+    branch_probe_count: int = 9
+    branch_max_leaves: Optional[int] = None
+    expected_space_size: Optional[int] = None
+    max_runtime_s: Optional[float] = None
+    prior_art_db: Optional[str] = None
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -313,7 +343,7 @@ def _train_orr_model_inplace(model: ORRCatalystSurrogate, X: np.ndarray, Y: np.n
     y_bind_t = torch.tensor(Y[:, 2], dtype=torch.float32).unsqueeze(1).to(device)
 
     dataset = TensorDataset(X_t, y_val_t, y_eta_t, y_bind_t)
-    loader = DataLoader(dataset, batch_size=256, shuffle=True, drop_last=False)
+    loader = DataLoader(dataset, batch_size=256, shuffle=False, drop_last=False)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-4)
     bce_loss = nn.BCEWithLogitsLoss()
@@ -385,8 +415,8 @@ def _train_orr_ensemble_from_db(db: pd.DataFrame, device: str, n_models: int = 3
 
     for i, model in enumerate(ensemble.models):
         logger.info(f"Training ORR ensemble member {i+1}/{n_models}...")
-        # Bootstrap sampling
-        indices = np.random.choice(n_samples, n_samples, replace=True)
+        # Deterministic cyclic resampling; candidate evidence is never randomly sampled.
+        indices = (np.arange(n_samples) * (2 * i + 1) + i) % n_samples
         X_b = X[indices]
         Y_b = Y[indices]
         _train_orr_model_inplace(model, X_b, Y_b, device)
@@ -399,10 +429,53 @@ def _train_orr_ensemble_from_db(db: pd.DataFrame, device: str, n_models: int = 3
 # MAIN GA LOOP
 # ═══════════════════════════════════════════════════════════════════════════════
 
+def run_fc_branch_discovery(config: FCBranchDiscoveryConfig, existing_db=None):
+    """Single supported ORR production search: deterministic branch-and-bound."""
+    from pipeline.indexed_space import deterministic_tree_probes
+    from pipeline.branch_search import BranchConfig, run_branch_and_bound
+    from pipeline.exhaustive_search import load_archive_genomes
+    from pipeline.fc_screener import run_orr_screening
+
+    if existing_db is not None and len(existing_db) > 50:
+        evidence = existing_db
+    else:
+        probes = deterministic_tree_probes(config.initial_fairchem_samples)
+        evidence = run_orr_screening(
+            probes, db_filename='fc_branch_calibration.csv', workers_per_gpu=2)
+    model = _train_orr_ensemble_from_db(evidence, config.device, n_models=config.n_models)
+    if model is None:
+        raise RuntimeError('ORR branch discovery requires valid calibration evidence')
+    summary = run_branch_and_bound(BranchConfig(
+        application='fuel_cell_orr', database=config.exhaustive_db,
+        leaf_size=config.branch_leaf_size, probe_count=config.branch_probe_count,
+        scan_batch_size=config.exhaustive_batch_size,
+        max_leaves=config.branch_max_leaves,
+        expected_population=config.expected_space_size,
+        certificate_path=str(BASE_DIR / 'results' / 'fuel_cell' / 'coverage_certificate.json'),
+        max_runtime_s=config.max_runtime_s,
+    ), lambda pop: compute_orr_objectives_surrogate(pop, model, config.device))
+    logger.info(f"ORR branch discovery: {summary}")
+    archive = load_archive_genomes(config.exhaustive_db, 'fuel_cell_orr', config.htvs_pool_size)
+    if not archive:
+        return [], add_discovery_metadata(evidence)
+    objectives = compute_orr_objectives_surrogate(archive, model, config.device)
+    fronts = fast_non_dominated_sort(objectives)
+    champions = [archive[i] for i in fronts[0]]
+    validate_idx = select_discovery_batch(
+        archive, objectives, min(config.fairchem_eval_top_k, len(archive)), evaluated=[])
+    validated = run_orr_screening(
+        [archive[i] for i in validate_idx], db_filename='fc_branch_champions.csv', workers_per_gpu=2)
+    evidence = pd.concat([evidence, validated], ignore_index=True)
+    if config.prior_art_db:
+        from pipeline.prior_art import annotate_prior_art
+        evidence = annotate_prior_art(evidence, config.prior_art_db)
+    return champions, add_discovery_metadata(evidence)
+
 def run_fc_genetic_algorithm(config: FCGAConfig, existing_db=None):
     """
     Run NSGA-II genetic algorithm for ORR fuel cell cathode catalyst discovery.
     """
+    raise RuntimeError("Genetic/random candidate search was retired; use run_fc_branch_discovery()")
     random.seed(config.seed)
     np.random.seed(config.seed)
 
@@ -414,7 +487,9 @@ def run_fc_genetic_algorithm(config: FCGAConfig, existing_db=None):
         all_fairchem_results = existing_db
     else:
         logger.info(f"Generating {config.initial_fairchem_samples} initial ORR Fairchem samples...")
-        initial_pop = generate_population(config.initial_fairchem_samples)
+        initial_pop = generate_hierarchical_htvs_pool(
+            config.initial_fairchem_samples, campaign_round=0
+        )
         from pipeline.fc_screener import run_orr_screening
         all_fairchem_results = run_orr_screening(
             initial_pop, db_filename="fc_initial_screening.csv", workers_per_gpu=2
@@ -422,6 +497,35 @@ def run_fc_genetic_algorithm(config: FCGAConfig, existing_db=None):
 
     # ── Phase B: Train ORR Surrogate Ensemble ───────────────────────────────
     model = _train_orr_ensemble_from_db(all_fairchem_results, config.device, n_models=config.n_models)
+
+    indexed_seeds = []
+    if config.branch_search and model is not None:
+        from pipeline.branch_search import BranchConfig, run_branch_and_bound
+        from pipeline.exhaustive_search import load_archive_genomes
+        summary = run_branch_and_bound(BranchConfig(
+            application='fuel_cell_orr', database=config.exhaustive_db,
+            leaf_size=config.branch_leaf_size, probe_count=config.branch_probe_count,
+            scan_batch_size=config.exhaustive_batch_size,
+            max_leaves=config.branch_max_leaves,
+            expected_population=config.expected_space_size,
+            certificate_path=str(BASE_DIR / 'results' / 'fuel_cell' / 'coverage_certificate.json'),
+        ), lambda pop: compute_orr_objectives_surrogate(pop, model, config.device))
+        logger.info(f"Branch-and-bound ORR scan: {summary}")
+        indexed_seeds = load_archive_genomes(
+            config.exhaustive_db, 'fuel_cell_orr', config.htvs_pool_size)
+    elif config.exhaustive_scan and model is not None:
+        from pipeline.exhaustive_search import ScanConfig, run_streaming_scan, load_archive_genomes
+        from pipeline.indexed_space import TOTAL_SIZE
+        summary = run_streaming_scan(ScanConfig(
+            application='fuel_cell_orr', database=config.exhaustive_db,
+            start=config.exhaustive_start,
+            stop=TOTAL_SIZE if config.exhaustive_stop is None else config.exhaustive_stop,
+            batch_size=config.exhaustive_batch_size,
+            worker_id=config.exhaustive_worker_id,
+            num_workers=config.exhaustive_num_workers,
+        ), lambda pop: compute_orr_objectives_surrogate(pop, model, config.device))
+        logger.info(f"Indexed ORR global scan: {summary}")
+        indexed_seeds = load_archive_genomes(config.exhaustive_db, 'fuel_cell_orr', config.htvs_pool_size)
 
     # ── Phase C: Evolutionary Loop ──────────────────────────────────────────
     if model is not None:
@@ -431,11 +535,14 @@ def run_fc_genetic_algorithm(config: FCGAConfig, existing_db=None):
             scorer=lambda pop: compute_orr_objectives_surrogate(pop, model, config.device)[:, 0]
         )
         htvs_obj = compute_orr_objectives_surrogate(htvs_pool, model, config.device)
+        if indexed_seeds:
+            htvs_pool = list({str(g): g for g in indexed_seeds + htvs_pool}.values())
+            htvs_obj = compute_orr_objectives_surrogate(htvs_pool, model, config.device)
         logger.info(f"Selecting top {config.pop_size} Pareto-optimal seeds using acquisition LCB/UCB values...")
         seed_idx = nsga2_select(htvs_pool, htvs_obj, config.pop_size)
         population = [htvs_pool[i] for i in seed_idx]
     else:
-        population = generate_population(config.pop_size)
+        population = generate_hierarchical_htvs_pool(config.pop_size, campaign_round=0)
 
     fronts = [[]]
     fairchem_round = 0
@@ -494,12 +601,20 @@ def run_fc_genetic_algorithm(config: FCGAConfig, existing_db=None):
             logger.info(f"  Gen {gen}: Running Fairchem ORR validation on top {config.fairchem_eval_top_k}...")
 
             fronts = fast_non_dominated_sort(final_obj)
-            top_indices = []
-            for front in fronts:
-                top_indices.extend(front)
-                if len(top_indices) >= config.fairchem_eval_top_k:
-                    break
-            top_genomes = [population[i] for i in top_indices[:config.fairchem_eval_top_k]]
+            from pipeline.ood_detector import compute_model_confidence
+            confidences = [compute_model_confidence(g, _extract_elements_from_genome(g)) for g in population]
+            evaluated = []
+            if 'genome' in all_fairchem_results.columns:
+                for raw in all_fairchem_results['genome'].dropna():
+                    try:
+                        evaluated.append(ast.literal_eval(raw) if isinstance(raw, str) else tuple(raw))
+                    except (ValueError, SyntaxError, TypeError):
+                        continue
+            top_indices = select_discovery_batch(
+                population, final_obj, config.fairchem_eval_top_k,
+                evaluated=evaluated, confidence=confidences,
+            )
+            top_genomes = [population[i] for i in top_indices]
 
             from pipeline.fc_screener import run_orr_screening
             fairchem_df = run_orr_screening(
@@ -550,7 +665,8 @@ def run_fc_genetic_algorithm(config: FCGAConfig, existing_db=None):
             logger.info(f"  Gen {gen}: Global HTVS — screening 10,000 fresh candidates...")
             reinject_pool = generate_hierarchical_htvs_pool(
                 10000,
-                scorer=lambda pop: compute_orr_objectives_surrogate(pop, model, config.device)[:, 0]
+                scorer=lambda pop: compute_orr_objectives_surrogate(pop, model, config.device)[:, 0],
+                campaign_round=gen // config.reinjection_interval,
             )
             reinject_obj = compute_orr_objectives_surrogate(reinject_pool, model, config.device)
 
@@ -585,8 +701,10 @@ def run_fc_genetic_algorithm(config: FCGAConfig, existing_db=None):
             )
 
     # ── Return Results ──────────────────────────────────────────────────────
+    all_fairchem_results = add_discovery_metadata(all_fairchem_results)
     final_objectives = compute_orr_objectives_surrogate(population, model, config.device) if model else np.random.rand(len(population), 4)
     fronts = fast_non_dominated_sort(final_objectives)
     pareto_genomes = [population[i] for i in fronts[0]]
+    logger.info(f"  Coverage: {coverage_summary(population)}")
 
     return pareto_genomes, all_fairchem_results

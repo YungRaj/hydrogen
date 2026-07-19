@@ -2,7 +2,7 @@
 """
 Multi-GPU Meta eSen-SM Screening for ORR Fuel Cell Cathode Catalysts.
 
-For each catalyst candidate from the 25.3B design space, computes:
+For each catalyst candidate from the 21.1B encoded design space, computes:
   1. ΔG_OH* — hydroxyl adsorption free energy
   2. ΔG_O*  — oxygen adsorption free energy
   3. ΔG_OOH* — peroxyl adsorption free energy
@@ -368,7 +368,7 @@ def run_orr_screening(genomes: List[tuple], db_filename: str = "fc_screening.csv
 
 
 if __name__ == '__main__':
-    from pipeline.catalyst_spaces import generate_population
-    pop = generate_population(20)
+    from pipeline.indexed_space import deterministic_tree_probes
+    pop = deterministic_tree_probes(20)
     df = run_orr_screening(pop, db_filename="test_orr_screening.csv", workers_per_gpu=2)
     print(f"\nORR screening complete: {len(df)} candidates")

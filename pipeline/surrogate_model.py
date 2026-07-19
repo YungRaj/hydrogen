@@ -90,7 +90,7 @@ def _train_model_inplace(model: CatalystSurrogate, X: np.ndarray, y_valid: np.nd
     y_act_t = torch.tensor(y_e_act, dtype=torch.float32).unsqueeze(1).to(device)
 
     dataset = TensorDataset(X_t, y_val_t, y_de_t, y_cok_t, y_seg_t, y_act_t)
-    loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=False)
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, drop_last=False)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
@@ -193,9 +193,10 @@ def train_ensemble(X: np.ndarray, y_valid: np.ndarray,
 
     for i, model in enumerate(ensemble.models):
         logger.info(f"Training ensemble member {i+1}/{n_models}...")
-        # Bootstrap sampling
+        # Deterministic cyclic resampling: ensemble diversity without random
+        # evidence selection or irreproducible training subsets.
         if n_samples > 10:
-            indices = np.random.choice(n_samples, n_samples, replace=True)
+            indices = (np.arange(n_samples) * (2 * i + 1) + i) % n_samples
             X_b = X[indices]
             y_valid_b = y_valid[indices]
             y_de_split_b = y_de_split[indices]

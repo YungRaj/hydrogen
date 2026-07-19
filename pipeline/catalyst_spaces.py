@@ -1100,7 +1100,8 @@ def estimate_design_space_size() -> Dict[str, int]:
     return sizes
 
 
-def generate_hierarchical_htvs_pool(pool_size: int, scorer=None) -> List[tuple]:
+def generate_hierarchical_htvs_pool(pool_size: int, scorer=None,
+                                    campaign_round: int = 0) -> List[tuple]:
     """
     Generate a deterministic, non-random pool of catalyst candidates using hierarchical screening.
     
@@ -1109,14 +1110,21 @@ def generate_hierarchical_htvs_pool(pool_size: int, scorer=None) -> List[tuple]:
     3. Expands the best-performing cores with local modifications (dopants, strain, defects).
     4. Selects and returns the best candidates.
     """
+    # Rotate every strided dimension between rounds.  Unlike a fixed [::2]
+    # slice, successive reinjection rounds cover the complementary half.
+    # Each categorical dimension uses a different bit of campaign_round.  Over
+    # 2**N rounds this visits every even/odd Cartesian shard, including mixed
+    # combinations (not merely the all-even and all-odd diagonals).
+    stride2 = lambda values, dimension: values[(campaign_round >> dimension) & 1::2]
+
     # A. Generate core configurations deterministically
     cores = []
 
     # 1. MoltenMetal (stride to ~5000)
     for host in MOLTEN_HOSTS:
-        for promoter in MOLTEN_PROMOTERS[::2]:
-            for at_pct in MOLTEN_PROMOTER_AT_PCT[::2]:
-                for temp in MOLTEN_TEMPERATURES_K[::2]:
+        for promoter in stride2(MOLTEN_PROMOTERS, 0):
+            for at_pct in stride2(MOLTEN_PROMOTER_AT_PCT, 1):
+                for temp in stride2(MOLTEN_TEMPERATURES_K, 2):
                     cores.append(('MoltenMetal', host, promoter, at_pct, temp))
 
     # 2. SAC (100% exhaustive: 6,318)
@@ -1127,44 +1135,48 @@ def generate_hierarchical_htvs_pool(pool_size: int, scorer=None) -> List[tuple]:
                     cores.append(('SAC', metal, coord, substrate, axial))
 
     # 3. DAC (strided to ~10,000)
-    for m1 in DAC_METALS_1[::2]:
-        for m2 in DAC_METALS_2[::2]:
-            for coord in DAC_COORDINATIONS[::2]:
+    for m1 in stride2(DAC_METALS_1, 0):
+        for m2 in stride2(DAC_METALS_2, 1):
+            for coord in stride2(DAC_COORDINATIONS, 2):
                 for substrate in SAC_SUBSTRATES:
                     cores.append(('DAC', m1, m2, coord, substrate))
 
     # 4. MOF (strided to ~5,000)
-    for metal in MOF_METAL_NODES[::2]:
-        for linker in MOF_LINKERS[::2]:
-            for cavity in MOF_CAVITIES[::2]:
-                for pore in MOF_PORE_SIZES[::2]:
+    for metal in stride2(MOF_METAL_NODES, 0):
+        for linker in stride2(MOF_LINKERS, 1):
+            for cavity in stride2(MOF_CAVITIES, 2):
+                for pore in stride2(MOF_PORE_SIZES, 3):
                     cores.append(('MOF', metal, linker, cavity, pore))
 
     # 5. COF (strided to ~5,000)
-    for metal in (MOF_METAL_NODES + ['None'])[::2]:
-        for linkage in COF_LINKAGES[::2]:
-            for cavity in MOF_CAVITIES[::2]:
-                for pore in MOF_PORE_SIZES[::2]:
+    for metal in stride2(MOF_METAL_NODES + ['None'], 0):
+        for linkage in stride2(COF_LINKAGES, 1):
+            for cavity in stride2(MOF_CAVITIES, 2):
+                for pore in stride2(MOF_PORE_SIZES, 3):
                     cores.append(('COF', metal, linkage, cavity, pore))
 
     # 6. Perovskite (strided to ~3,000)
-    for A in PEROVSKITE_A_SITE[::2]:
-        for B in PEROVSKITE_B_SITE[::2]:
-            for dopant in (PEROVSKITE_B_SITE + ['None'])[::2]:
-                cores.append(('Perovskite', A, B, dopant, 0.0, 'none'))
+    for A in stride2(PEROVSKITE_A_SITE, 0):
+        for B in stride2(PEROVSKITE_B_SITE, 1):
+            for dopant in stride2(PEROVSKITE_B_SITE + ['None'], 2):
+                frac = 0.0 if dopant == 'None' else PEROVSKITE_DOPANT_FRAC[(campaign_round % (len(PEROVSKITE_DOPANT_FRAC)-1))+1]
+                defect = PEROVSKITE_DEFECTS[campaign_round % len(PEROVSKITE_DEFECTS)]
+                cores.append(('Perovskite', A, B, dopant, frac, defect))
 
     # 7. MetalHydride (strided to ~5,000)
-    for metal in HYDRIDE_METALS[::2]:
-        for h_type in HYDRIDE_TYPES[::2]:
-            for second in HYDRIDE_SECOND_METAL[::2]:
-                cores.append(('MetalHydride', metal, h_type, second, 'None', 500))
+    for metal in stride2(HYDRIDE_METALS, 0):
+        for h_type in stride2(HYDRIDE_TYPES, 1):
+            for second in stride2(HYDRIDE_SECOND_METAL, 2):
+                additive = HYDRIDE_ADDITIVES[campaign_round % len(HYDRIDE_ADDITIVES)]
+                temp = [300, 350, 400, 450, 500, 550, 600, 700, 800][campaign_round % 9]
+                cores.append(('MetalHydride', metal, h_type, second, additive, temp))
 
     # 8. MAXPhase (100% exhaustive: 49,140)
     for M in MAX_M_ELEMENTS:
         for A in MAX_A_ELEMENTS:
             for X in MAX_X_ELEMENTS:
                 for N in MAX_N_VALUES:
-                    cores.append(('MAXPhase', M, A, X, N, 'None', '0001'))
+                    cores.append(('MAXPhase', M, A, X, N, 'None', 'basal_0001'))
 
     # 9. HEA (strided to ~10,000)
     from itertools import combinations
@@ -1230,6 +1242,9 @@ def generate_hierarchical_htvs_pool(pool_size: int, scorer=None) -> List[tuple]:
         g = cores[idx]
         mat_class = g[0]
         if mat_class == 'SolidCatalyst':
+            if solid_expanded_count >= 500:
+                expanded_pool.append(g)
+                continue
             _, metal, support, facet, _, _, _, _ = g
             for strain in [-0.05, 0.05]:
                 for vac in [0, 1]:
@@ -1237,8 +1252,6 @@ def generate_hierarchical_htvs_pool(pool_size: int, scorer=None) -> List[tuple]:
                     for d in common_dopants:
                         expanded_pool.append(('SolidCatalyst', metal, support, facet, strain, (d,), 1, vac))
             solid_expanded_count += 1
-            if solid_expanded_count > 500:
-                pass
         elif mat_class == 'Perovskite':
             _, A, B, _, _, _ = g
             for dopant in PEROVSKITE_B_SITE[:3]:

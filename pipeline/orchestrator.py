@@ -4,7 +4,7 @@ Master Pipeline Orchestrator.
 
 Coordinates all 6 phases of the turquoise hydrogen → fuel cell pipeline:
 
-  Phase 1: Fairchem Screening → Genetic Optimization → Pareto Front
+  Phase 1: Deterministic Branch-and-Bound → Champion Archives
   Phase 2: Cantera Reactor Simulation (top catalysts × 3 reactor types)
   Phase 3: DFT Validation (top catalysts)
   Phase 4: VQE Transition State (top 3 catalysts)
@@ -43,8 +43,8 @@ class PipelineConfig:
     """Pipeline-level configuration."""
     # Phase 1: Screening
     initial_fairchem_samples: int = 500       # Initial Fairchem evaluations
-    ga_pop_size: int = 500                    # GA population size
-    ga_generations: int = 200                 # GA generations
+    branch_leaf_size: int = 1_000_000         # Exhaustive terminal range size
+    branch_max_leaves: Optional[int] = None    # Staged execution; None = complete
     top_k_reactor: int = 50                  # Top K catalysts → reactor simulation
     top_k_dft: int = 10                  # Top K → DFT validation
     top_k_vqe: int = 3                   # Top K → VQE
@@ -62,7 +62,6 @@ class PipelineConfig:
     run_vqe: bool = True                 # Actually execute CUDA-Q
     quick_mode: bool = False             # Reduced parameters for testing
     pyrolysis_mode: str = 'ntec'         # 'ntec' or 'thermocatalytic'
-    seed: int = 42
 
 
 def run_pipeline(config: PipelineConfig = PipelineConfig(),
@@ -83,8 +82,8 @@ def run_pipeline(config: PipelineConfig = PipelineConfig(),
 
     if config.quick_mode:
         config.initial_fairchem_samples = 50
-        config.ga_pop_size = 100
-        config.ga_generations = 50
+        config.branch_leaf_size = 10_000
+        config.branch_max_leaves = 1
         config.top_k_reactor = 10
         config.top_k_dft = 3
         config.top_k_vqe = 1
@@ -93,15 +92,14 @@ def run_pipeline(config: PipelineConfig = PipelineConfig(),
     pipeline_state = load_json("pipeline_state.json") or {}
 
     # ═════════════════════════════════════════════════════════════════════════
-    # PHASE 1: CATALYST SCREENING & GENETIC OPTIMIZATION
+    # PHASE 1: DETERMINISTIC BRANCH-AND-BOUND
     # ═════════════════════════════════════════════════════════════════════════
     if start_phase <= 1 <= end_phase:
-        print_banner("PHASE 1: META ESEN SCREENING & GENETIC OPTIMIZATION")
+        print_banner("PHASE 1: DETERMINISTIC BRANCH-AND-BOUND DISCOVERY")
         t1 = time.time()
 
-        from pipeline.catalyst_spaces import generate_population, estimate_design_space_size
-        from pipeline.surface_screener import run_screening
-        from pipeline.genetic_optimizer import run_genetic_algorithm, GAConfig
+        from pipeline.catalyst_spaces import estimate_design_space_size
+        from pipeline.genetic_optimizer import run_branch_discovery, BranchDiscoveryConfig
 
         # Report design space
         sizes = estimate_design_space_size()
@@ -110,16 +108,13 @@ def run_pipeline(config: PipelineConfig = PipelineConfig(),
             if cls != 'TOTAL':
                 logger.info(f"  {cls}: {size:,}")
 
-        # Run GA
-        ga_config = GAConfig(
-            pop_size=config.ga_pop_size,
-            n_generations=config.ga_generations,
+        branch_config = BranchDiscoveryConfig(
             initial_fairchem_samples=config.initial_fairchem_samples,
-            fairchem_eval_interval=max(1, config.ga_generations // 4),
-            surrogate_retrain_interval=max(1, config.ga_generations // 4),
-            seed=config.seed,
+            branch_leaf_size=config.branch_leaf_size,
+            branch_max_leaves=config.branch_max_leaves,
+            expected_space_size=sizes['TOTAL'],
         )
-        pareto_genomes, screening_db = run_genetic_algorithm(ga_config)
+        pareto_genomes, screening_db = run_branch_discovery(branch_config)
 
         # Select top-K from Pareto front
         valid_db = screening_db[screening_db['valid'] == True].copy()

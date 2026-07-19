@@ -34,6 +34,7 @@ from pipeline.catalyst_spaces import (
     ALL_MATERIAL_CLASSES, FEATURE_DIM, generate_hierarchical_htvs_pool,
 )
 from pipeline.surrogate_model import CatalystSurrogate, train_surrogate, predict_batch, SurrogateEnsemble, train_ensemble, predict_ensemble
+from pipeline.discovery import select_discovery_batch, coverage_summary, add_discovery_metadata
 
 logger = setup_logger('genetic_optimizer', 'screening/genetic_optimizer.log')
 
@@ -270,6 +271,35 @@ class GAConfig:
     reinjection_interval: int = 20          # Periodically reinject top candidates from new pool
     device: str = 'cuda:0'
     seed: int = 42
+    exhaustive_scan: bool = False           # Stream every indexed configuration
+    exhaustive_start: int = 0
+    exhaustive_stop: Optional[int] = None   # None means the complete global space
+    exhaustive_batch_size: int = 65536
+    exhaustive_db: str = str(SCREENING_DIR / 'indexed_scan.sqlite')
+    exhaustive_worker_id: int = 0
+    exhaustive_num_workers: int = 1
+    branch_search: bool = False
+    branch_leaf_size: int = 1_000_000
+    branch_probe_count: int = 9
+    branch_max_leaves: Optional[int] = None
+    expected_space_size: Optional[int] = None
+
+
+@dataclass
+class BranchDiscoveryConfig:
+    initial_fairchem_samples: int = 500
+    fairchem_eval_top_k: int = 500
+    n_models: int = 3
+    htvs_pool_size: int = 20000
+    device: str = 'cuda:0'
+    exhaustive_batch_size: int = 65536
+    exhaustive_db: str = str(SCREENING_DIR / 'indexed_scan.sqlite')
+    branch_leaf_size: int = 1_000_000
+    branch_probe_count: int = 9
+    branch_max_leaves: Optional[int] = None
+    expected_space_size: Optional[int] = None
+    max_runtime_s: Optional[float] = None
+    prior_art_db: Optional[str] = None
 
 
 
@@ -286,11 +316,55 @@ def tournament_select(population: List[tuple], objectives: np.ndarray,
     return best
 
 
+def run_branch_discovery(config: BranchDiscoveryConfig = BranchDiscoveryConfig(),
+                         existing_db: Optional[pd.DataFrame] = None):
+    """Single supported production search: deterministic branch-and-bound."""
+    from pipeline.indexed_space import deterministic_tree_probes
+    from pipeline.branch_search import BranchConfig, run_branch_and_bound
+    from pipeline.exhaustive_search import load_archive_genomes
+    from pipeline.surface_screener import run_screening
+
+    if existing_db is not None and len(existing_db) > 50:
+        evidence = existing_db
+    else:
+        probes = deterministic_tree_probes(config.initial_fairchem_samples)
+        evidence = run_screening(probes, db_filename='branch_calibration.csv', workers_per_gpu=2)
+    model = _train_ensemble_from_db(evidence, config.device, n_models=config.n_models)
+    summary = run_branch_and_bound(BranchConfig(
+        application='turquoise_hydrogen', database=config.exhaustive_db,
+        leaf_size=config.branch_leaf_size, probe_count=config.branch_probe_count,
+        scan_batch_size=config.exhaustive_batch_size,
+        max_leaves=config.branch_max_leaves,
+        expected_population=config.expected_space_size,
+        certificate_path=str(SCREENING_DIR / 'turquoise_hydrogen_coverage_certificate.json'),
+        max_runtime_s=config.max_runtime_s,
+    ), lambda pop: compute_objectives_surrogate(pop, model, config.device))
+    logger.info(f"Branch discovery: {summary}")
+    archive = load_archive_genomes(config.exhaustive_db, 'turquoise_hydrogen', config.htvs_pool_size)
+    if not archive:
+        return [], add_discovery_metadata(evidence)
+    objectives = compute_objectives_surrogate(archive, model, config.device)
+    fronts = fast_non_dominated_sort(objectives)
+    champions = [archive[i] for i in fronts[0]]
+    validate_idx = select_discovery_batch(
+        archive, objectives, min(config.fairchem_eval_top_k, len(archive)),
+        evaluated=[],
+    )
+    validated = run_screening([archive[i] for i in validate_idx],
+                              db_filename='branch_champions.csv', workers_per_gpu=2)
+    evidence = pd.concat([evidence, validated], ignore_index=True)
+    if config.prior_art_db:
+        from pipeline.prior_art import annotate_prior_art
+        evidence = annotate_prior_art(evidence, config.prior_art_db)
+    return champions, add_discovery_metadata(evidence)
+
+
 def run_genetic_algorithm(config: GAConfig = GAConfig(),
                           existing_db: Optional[pd.DataFrame] = None) -> Tuple[List[tuple], pd.DataFrame]:
     """
     Execute the NSGA-II genetic algorithm for catalyst discovery.
     """
+    raise RuntimeError("Genetic/random candidate search was retired; use run_branch_discovery()")
     random.seed(config.seed)
     np.random.seed(config.seed)
 
@@ -303,7 +377,11 @@ def run_genetic_algorithm(config: GAConfig = GAConfig(),
         all_fairchem_results = existing_db
     else:
         logger.info(f"Generating {config.initial_fairchem_samples} initial Fairchem samples...")
-        initial_pop = generate_population(config.initial_fairchem_samples)
+        # Space-filling, reproducible initial evidence.  Random seeding can miss
+        # entire chemistry cells and gives weak coverage for the first surrogate.
+        initial_pop = generate_hierarchical_htvs_pool(
+            config.initial_fairchem_samples, campaign_round=0
+        )
         from pipeline.surface_screener import run_screening
         all_fairchem_results = run_screening(initial_pop, db_filename="ga_initial_screening.csv",
                                              workers_per_gpu=2)
@@ -311,12 +389,48 @@ def run_genetic_algorithm(config: GAConfig = GAConfig(),
     # ── Phase B: Train Initial Surrogate Ensemble ───────────────────────────
     model = _train_ensemble_from_db(all_fairchem_results, config.device, n_models=config.n_models)
 
+    indexed_seeds = []
+    if config.branch_search:
+        from pipeline.branch_search import BranchConfig, run_branch_and_bound
+        from pipeline.exhaustive_search import load_archive_genomes
+        summary = run_branch_and_bound(BranchConfig(
+            application='turquoise_hydrogen', database=config.exhaustive_db,
+            leaf_size=config.branch_leaf_size, probe_count=config.branch_probe_count,
+            scan_batch_size=config.exhaustive_batch_size,
+            max_leaves=config.branch_max_leaves,
+            expected_population=config.expected_space_size,
+            certificate_path=str(SCREENING_DIR / 'turquoise_hydrogen_coverage_certificate.json'),
+        ), lambda pop: compute_objectives_surrogate(pop, model, config.device))
+        logger.info(f"Branch-and-bound scan: {summary}")
+        indexed_seeds = load_archive_genomes(
+            config.exhaustive_db, 'turquoise_hydrogen', config.htvs_pool_size)
+    elif config.exhaustive_scan:
+        from pipeline.exhaustive_search import ScanConfig, run_streaming_scan, load_archive_genomes
+        from pipeline.indexed_space import TOTAL_SIZE
+        scan_cfg = ScanConfig(
+            application='turquoise_hydrogen', database=config.exhaustive_db,
+            start=config.exhaustive_start,
+            stop=TOTAL_SIZE if config.exhaustive_stop is None else config.exhaustive_stop,
+            batch_size=config.exhaustive_batch_size,
+            worker_id=config.exhaustive_worker_id,
+            num_workers=config.exhaustive_num_workers,
+        )
+        summary = run_streaming_scan(
+            scan_cfg, lambda pop: compute_objectives_surrogate(pop, model, config.device)
+        )
+        logger.info(f"Indexed global scan: {summary}")
+        indexed_seeds = load_archive_genomes(
+            config.exhaustive_db, 'turquoise_hydrogen', config.htvs_pool_size
+        )
+
     # ── Phase C: Evolutionary Loop ──────────────────────────────────────────
     logger.info(f"Generating HTVS pool of {config.htvs_pool_size} candidates for initial seeding...")
     htvs_pool = generate_hierarchical_htvs_pool(
         config.htvs_pool_size,
         scorer=lambda pop: compute_objectives_surrogate(pop, model, config.device)[:, 0]
     )
+    if indexed_seeds:
+        htvs_pool = list({str(g): g for g in indexed_seeds + htvs_pool}.values())
     htvs_obj = compute_objectives_surrogate(htvs_pool, model, config.device)
 
     logger.info(f"Selecting top {config.pop_size} Pareto-optimal seeds using acquisition LCB/UCB values...")
@@ -385,7 +499,22 @@ def run_genetic_algorithm(config: GAConfig = GAConfig(),
         if (gen + 1) % config.fairchem_eval_interval == 0:
             fairchem_round += 1
             logger.info(f"  Gen {gen+1}: Running Fairchem validation on top {config.fairchem_eval_top_k}...")
-            pareto_genomes = [population[i] for i in fronts[0][:config.fairchem_eval_top_k]]
+            # Validate viable region champions as well as global Pareto leaders.
+            # Low model confidence is an acquisition signal here, not a penalty.
+            from pipeline.ood_detector import compute_model_confidence
+            confidences = [compute_model_confidence(g, _extract_elements_from_genome(g)) for g in population]
+            evaluated = []
+            if 'genome' in all_fairchem_results.columns:
+                for raw in all_fairchem_results['genome'].dropna():
+                    try:
+                        evaluated.append(ast.literal_eval(raw) if isinstance(raw, str) else tuple(raw))
+                    except (ValueError, SyntaxError, TypeError):
+                        continue
+            validate_idx = select_discovery_batch(
+                population, final_obj, config.fairchem_eval_top_k,
+                evaluated=evaluated, confidence=confidences,
+            )
+            pareto_genomes = [population[i] for i in validate_idx]
             from pipeline.surface_screener import run_screening
             fairchem_df = run_screening(
                 pareto_genomes,
@@ -441,7 +570,8 @@ def run_genetic_algorithm(config: GAConfig = GAConfig(),
             logger.info(f"  Gen {gen+1}: Global HTVS — screening 10,000 fresh candidates...")
             reinject_pool = generate_hierarchical_htvs_pool(
                 10000,
-                scorer=lambda pop: compute_objectives_surrogate(pop, model, config.device)[:, 0]
+                scorer=lambda pop: compute_objectives_surrogate(pop, model, config.device)[:, 0],
+                campaign_round=(gen + 1) // config.reinjection_interval,
             )
             reinject_obj = compute_objectives_surrogate(reinject_pool, model, config.device)
 
@@ -477,8 +607,10 @@ def run_genetic_algorithm(config: GAConfig = GAConfig(),
     fronts = fast_non_dominated_sort(final_objectives)
     pareto_genomes = [population[i] for i in fronts[0]]
 
+    all_fairchem_results = add_discovery_metadata(all_fairchem_results)
     logger.info(f"\n  GA Complete. Final Pareto front: {len(pareto_genomes)} candidates")
     logger.info(f"  Total Fairchem evaluations: {len(all_fairchem_results)}")
+    logger.info(f"  Coverage: {coverage_summary(population)}")
 
     # Save final results
     save_screening_db(all_fairchem_results, "ga_full_database.csv")
