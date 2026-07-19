@@ -226,6 +226,9 @@ def test_six_point_status_fails_closed():
         result = assess_campaign(tmp)
         assert not result['ready']
         assert len(result['missing']) == 6
+        thermal = assess_campaign(tmp, pyrolysis_mode='thermocatalytic')
+        assert 'calibrated_ntec' not in thermal['criteria']
+        assert len(thermal['missing']) == 5
 
 
 def test_adaptive_validation_policy():
@@ -616,12 +619,24 @@ def test_pyrolysis_mode_coking_bonus():
         os.environ.pop('NTEC_CONDITIONS_JSON', None)
         objs_unknown = compute_objectives_surrogate(pop, model, device='cpu')
 
-        # A fully specified, sourced upper-bound condition activates the model.
+        # Operating evidence alone is insufficient without a paired control.
         import json
         os.environ['NTEC_CONDITIONS_JSON'] = json.dumps({
             'shear_rate_s': 1e4, 'interfacial_field_V_m': 1e8,
             'mechanical_power_W_kg': 1e3, 'carbon_detachment_fraction': 1.0,
-            'field_measurement_source': 'test:paired-control',
+            'field_measurement_source': 'test:field-measurement',
+        })
+        objs_uncalibrated = compute_objectives_surrogate(pop, model, device='cpu')
+
+        # Explicit paired NTEC/control measurements activate the bounded transfer.
+        os.environ['NTEC_CONDITIONS_JSON'] = json.dumps({
+            'shear_rate_s': 1e4, 'interfacial_field_V_m': 1e8,
+            'mechanical_power_W_kg': 1e3, 'carbon_detachment_fraction': 1.0,
+            'field_measurement_source': 'test:field-measurement',
+            'paired_control_source': 'test:paired-control',
+            'paired_control_count': 2,
+            'measured_barrier_reduction_eV': 0.25,
+            'measured_coking_delta_eV': 3.0,
         })
         objs_ntec = compute_objectives_surrogate(pop, model, device='cpu')
 
@@ -640,6 +655,8 @@ def test_pyrolysis_mode_coking_bonus():
     assert np.isclose(diff_ga, -3.0), f"Liquid metal Ga coking bonus not applied correctly, got diff: {diff_ga}"
     assert np.isclose(objs_unknown[0, 1], objs_thermo[0, 1]), \
         "NTEC without measured inputs must receive zero bonus"
+    assert np.isclose(objs_uncalibrated[0, 1], objs_thermo[0, 1]), \
+        "NTEC operating inputs without a paired control must receive zero bonus"
 
     # For Fe catalyst, there should be no bonus, so diff should be 0.0
     diff_fe = objs_ntec[1, 1] - objs_thermo[1, 1]
@@ -986,6 +1003,16 @@ def test_final_campaign_readiness_fails_closed():
         assert campaign_readiness(str(cert), str(prior),
                                   evidence_manifest=str(manifest),
                                   application='turquoise_hydrogen')['ready']
+        no_ntec = json.loads(manifest.read_text())
+        no_ntec['ntec_control_pair_count'] = 0
+        manifest.write_text(json.dumps(no_ntec))
+        assert campaign_readiness(
+            str(cert), str(prior), evidence_manifest=str(manifest),
+            application='turquoise_hydrogen',
+            pyrolysis_mode='thermocatalytic')['ready']
+        assert not campaign_readiness(
+            str(cert), str(prior), evidence_manifest=str(manifest),
+            application='turquoise_hydrogen', pyrolysis_mode='ntec')['ready']
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

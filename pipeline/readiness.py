@@ -10,7 +10,8 @@ from pipeline.prior_art import PriorArtRegistry
 def campaign_readiness(coverage_certificate: str, prior_art_db: str,
                        require_complete_coverage: bool = True,
                        evidence_manifest: str | None = None,
-                       application: str | None = None) -> dict:
+                       application: str | None = None,
+                       pyrolysis_mode: str = 'ntec') -> dict:
     failures, warnings = [], []
     cert_path = Path(coverage_certificate)
     if not cert_path.exists():
@@ -35,11 +36,13 @@ def campaign_readiness(coverage_certificate: str, prior_art_db: str,
             evidence = json.loads(path.read_text())
             required = {
                 'turquoise_hydrogen': ('converged_dft_count', 'measured_reactor_count',
-                                       'measured_deactivation_count', 'ntec_control_pair_count'),
+                                       'measured_deactivation_count'),
                 'fuel_cell': ('converged_orr_dft_count', 'measured_mea_count',
                               'measured_durability_count', 'hydrogen_impurity_test_count',
                               'time_split_benchmark_count', 'curated_prior_art_sources'),
             }.get(application, ())
+            if application == 'turquoise_hydrogen' and pyrolysis_mode == 'ntec':
+                required += ('ntec_control_pair_count',)
             for key in required:
                 if int(evidence.get(key, 0) or 0) < 1:
                     failures.append(f'evidence_missing:{key}')

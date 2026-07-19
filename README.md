@@ -82,7 +82,10 @@ Methane splitting (pyrolysis) traditionally requires high temperatures due to th
 
 * **Nanotribo-Mechano-Electrochemical (NTEC) Pyrolysis (Default):**
   - **Mechanism:** Employs mechanical fluidization or shearing forces to create local triboelectric fields, facilitating C-H bond activation.
-  - **Coking Resistance:** NTEC assistance is zero unless measured operating inputs (field, shear, mechanical power, carbon detachment, and source) are supplied. The bounded model in `pipeline/ntec_model.py` is a hypothesis requiring paired NTEC/control calibration, not validation evidence.
+  - **Coking Resistance:** NTEC assistance is zero unless measured operating
+    inputs and explicit paired NTEC/control effect measurements are supplied.
+    The bounded transfer model in `pipeline/ntec_model.py` remains modeled
+    evidence for a new catalyst, not candidate-specific validation.
 
 * **Thermocatalytic Pyrolysis:**
   - **Mechanism:** Standard thermochemical activation where carbon splitting is driven purely by bulk temperature and traditional solid/alloy surface kinetics.
@@ -435,14 +438,16 @@ nohup /home/ilhanraja/miniconda3/envs/fairchem-env/bin/python -u run_production_
 | `--no-dft` | false | Skip Quantum ESPRESSO phase |
 | `--no-vqe` | false | Skip CUDA-Q VQE phase |
 | `--mode` | `ntec` | Pyrolysis mode: `ntec` (nanotriboelectric) or `thermocatalytic` |
-| `--ntec-conditions-json` | — | Measured NTEC inputs; absent inputs receive no numerical assistance |
+| `--ntec-conditions-json` | — | Measured NTEC operating inputs plus paired-control effect calibration; incomplete inputs receive no numerical assistance |
 
 ### Pyrolysis Modes: NTEC vs. Thermocatalytic
 
 The pipeline supports dual-mode screening of methane conversion mechanisms, toggled via the `--mode` flag. Both modes sweep the same temperature range from **500°C (773.15 K) to 1300 K** (`[773.15, 900.0, 1100.0, 1300.0] K`):
 
 1. **NTEC Mode (Default):**
-   * **Catalyst Physics:** Uses explicit NTEC operating inputs. Missing inputs yield zero assistance and `unknown` evidence status.
+   * **Catalyst Physics:** Uses explicit NTEC operating inputs and paired-control
+     effect measurements. Missing calibration yields zero assistance and
+     `unknown` evidence status.
 
 2. **Thermocatalytic Mode:**
    * **Catalyst Physics:** Standard thermal cracking without mechanical shear bonuses, prioritizing materials with high thermal stability and low activation energy.

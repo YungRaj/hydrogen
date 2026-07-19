@@ -37,7 +37,8 @@ def main():
     parser.add_argument('--mode', type=str, choices=['ntec', 'thermocatalytic'], default='ntec',
                         help='Pyrolysis screening mode (default: ntec)')
     parser.add_argument('--ntec-conditions-json', default='',
-                        help='JSON with measured shear, field, mechanical power, detachment and source')
+                        help=('JSON with measured operating conditions and paired '
+                              'NTEC/control effect calibration'))
     parser.add_argument('--scan-batch-size', type=int, default=65536)
     parser.add_argument('--branch-leaf-size', type=int, default=1_000_000)
     parser.add_argument('--branch-probes', type=int, default=9)
@@ -477,7 +478,7 @@ def main():
     h2_ready = campaign_readiness(
         'results/screening/turquoise_hydrogen_coverage_certificate.json', args.prior_art_db,
         evidence_manifest=args.evidence_manifest if args.final_campaign else None,
-        application='turquoise_hydrogen')
+        application='turquoise_hydrogen', pyrolysis_mode=args.mode)
     fc_ready = campaign_readiness(
         'results/fuel_cell/coverage_certificate.json', args.prior_art_db,
         evidence_manifest=args.evidence_manifest if args.final_campaign else None,
@@ -485,7 +486,7 @@ def main():
     readiness = {'turquoise_hydrogen': h2_ready, 'fuel_cell': fc_ready,
                  'ready': h2_ready['ready'] and fc_ready['ready']}
     from pipeline.campaign_status import assess_campaign
-    readiness['six_point_status'] = assess_campaign('results')
+    readiness['six_point_status'] = assess_campaign('results', pyrolysis_mode=args.mode)
     readiness['ready'] = readiness['ready'] and readiness['six_point_status']['ready']
     save_json(readiness, 'campaign_readiness.json')
     if args.final_campaign and not readiness['ready']:
