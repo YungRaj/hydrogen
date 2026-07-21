@@ -111,6 +111,7 @@ def generate_bulk_scf_input(elements: List[str], positions_frac: List[Tuple],
     """Generate a QE scf input for a bulk crystal."""
     nat = len(positions_frac)
     ntyp = len(set(elements))
+    kshift = tuple(0 if mesh == 1 else 1 for mesh in kpoints)
 
     from pipeline.validation.qe_workflows import verify_sssp, SSSP_DIR
     sssp = verify_sssp(elements)
@@ -159,7 +160,7 @@ ATOMIC_SPECIES
 ATOMIC_POSITIONS {{crystal}}
 {atoms_block}
 K_POINTS {{automatic}}
-  {kpoints[0]} {kpoints[1]} {kpoints[2]}  1 1 1
+  {kpoints[0]} {kpoints[1]} {kpoints[2]}  {kshift[0]} {kshift[1]} {kshift[2]}
 """
     return input_text
 
@@ -172,6 +173,7 @@ def generate_slab_scf_input(elements: List[str], positions_ang: List[Tuple],
     """Generate QE scf input for a surface slab (ibrav=0)."""
     nat = len(positions_ang)
     ntyp = len(set(elements))
+    kshift = tuple(0 if mesh == 1 else 1 for mesh in kpoints)
 
     from pipeline.validation.qe_workflows import verify_sssp, SSSP_DIR
     sssp = verify_sssp(elements)
@@ -185,6 +187,15 @@ def generate_slab_scf_input(elements: List[str], positions_ang: List[Tuple],
         pseudo = sssp['records'][elem]['filename']
         mass = ATOMIC_MASSES_QE.get(elem, 50.0)
         species_block += f"  {elem}  {mass:.3f}  {pseudo}\n"
+
+    # Quantum ESPRESSO rejects spin-polarized calculations unless at least one
+    # species has a non-zero starting magnetization.  Use a conservative seed
+    # for every species; this initializes the spin channel without asserting a
+    # particular converged magnetic state.
+    magnetization_block = "\n".join(
+        f"  starting_magnetization({index}) = 0.05"
+        for index, _ in enumerate(unique_elements, start=1)
+    )
 
     atoms_block = ""
     for elem, pos in zip(elements, positions_ang):
@@ -212,6 +223,7 @@ def generate_slab_scf_input(elements: List[str], positions_ang: List[Tuple],
   smearing = 'mv'
   degauss = 0.02
   nspin = 2
+{magnetization_block}
 /
 &ELECTRONS
   mixing_beta = 0.3
@@ -228,7 +240,7 @@ ATOMIC_SPECIES
 ATOMIC_POSITIONS {{angstrom}}
 {atoms_block}
 K_POINTS {{automatic}}
-  {kpoints[0]} {kpoints[1]} {kpoints[2]}  1 1 1
+  {kpoints[0]} {kpoints[1]} {kpoints[2]}  {kshift[0]} {kshift[1]} {kshift[2]}
 """
     return input_text
 

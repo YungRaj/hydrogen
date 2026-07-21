@@ -291,6 +291,17 @@ def test_sssp_and_candidate_neb_workflow():
         assert "CI_scheme='auto'" in text and 'nspin=2' in text
         assert result['n_images'] == 5
 
+    from pipeline.validation.dft_validator import generate_slab_scf_input
+    slab_input = generate_slab_scf_input(
+        ['Pd', 'N'], [(0.0, 0.0, 0.0), (1.0, 1.0, 1.0)],
+        [[10.0, 0.0, 0.0], [0.0, 10.0, 0.0], [0.0, 0.0, 15.0]],
+        kpoints=(1, 1, 1),
+    )
+    assert 'nspin = 2' in slab_input
+    assert 'starting_magnetization(1) = 0.05' in slab_input
+    assert 'starting_magnetization(2) = 0.05' in slab_input
+    assert '1 1 1  0 0 0' in slab_input
+
 
 def test_orr_multisite_and_corrections():
     from ase.build import fcc111
