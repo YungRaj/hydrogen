@@ -58,6 +58,7 @@ The repository has one production launcher and one current pilot launcher:
 | Run or resume a discovery campaign | `run_production_campaign.py` | `pipeline/orchestrator.py`, `pipeline/search/branch_search.py` |
 | Reproduce the locked divide-and-conquer pilot | `run_divide_conquer_pilot.py` | `pipeline/evidence/pilot_benchmark.py`, `pipeline/screening/small_data_ranker.py` |
 | Check scientific and implementation invariants | `test_pipeline.py`, `audit_pipeline.py` | readiness and claim gates under `pipeline/` |
+| Inspect/resume production QE validation | `run_validation_campaign.py` | converged endpoints → NEB and clean → ORR adsorbates/references |
 | Monitor an active local run | `live_dashboard.py` | generated state under `results/` |
 
 Inside `pipeline/`, source is grouped by responsibility:
@@ -736,6 +737,25 @@ Copy `evidence_manifest.example.json` to `results/evidence_manifest.json` and
 update its counts only from traceable records. Final mode remains nonzero until
 all six scientific criteria pass. Current four-qubit VQE Hamiltonians are labeled
 toy models and are not accepted as catalyst evidence.
+
+Production Quantum ESPRESSO validation can be inspected without disturbing a
+running calculation:
+
+```bash
+python run_validation_campaign.py \
+  --pyro-dir results/dft/production_validation/pyro_saa_pdal \
+  --orr-dir results/dft/fc_production_pdn2p2 \
+  --orr-name production_pdn2p2
+```
+
+Add `--advance` after active jobs finish to resume converged stages: methane NEB
+is not generated until both relaxed endpoints pass the QE termination and
+electronic-convergence checks, while ORR proceeds through clean, OH, O, OOH, H2,
+and H2O outputs. A nonempty incomplete output is never overwritten unless the
+operator explicitly supplies `--restart-incomplete`. Partial energies and
+placeholder gas-reference energies cannot produce a reported ORR overpotential.
+Transition-state frequency validation remains a separate required gate after a
+converged NEB path.
 
 Each invocation also regenerates an application-specific coverage certificate:
 

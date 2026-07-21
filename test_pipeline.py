@@ -318,6 +318,29 @@ def test_orr_multisite_and_corrections():
     assert best['site_id'] == 'a'
 
 
+def test_production_qe_workflow_fails_closed_and_resumes():
+    import tempfile
+    from pathlib import Path
+    from pipeline.validation.dft_fuel_cell import converged_energy
+    from pipeline.validation.production_workflow import (
+        ORR_STAGES, orr_campaign_status, qe_output_status)
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        partial = root / 'candidate_clean.out'
+        partial.write_text('! total energy = -10.000000 Ry\niteration # 2\n')
+        assert qe_output_status(partial) == 'incomplete'
+        assert converged_energy(partial) is None
+        status = orr_campaign_status(root, 'candidate')
+        assert not status['complete'] and status['next_stage'] == 'clean'
+        complete = ('! total energy = -10.000000 Ry\n'
+                    'convergence has been achieved\nJOB DONE\n')
+        for stage in ORR_STAGES:
+            (root / f'candidate_{stage}.out').write_text(complete)
+        status = orr_campaign_status(root, 'candidate')
+        assert status['complete'] and status['orr_result_allowed']
+        assert converged_energy(root / 'candidate_h2.out') == -10.0
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 5. ELEMENT EXTRACTORS (4 copies must agree)
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1092,6 +1115,8 @@ if __name__ == '__main__':
     test("Adaptive validation policy", test_adaptive_validation_policy)
     test("SSSP and candidate NEB workflow", test_sssp_and_candidate_neb_workflow)
     test("ORR multisite and corrections", test_orr_multisite_and_corrections)
+    test("Production QE workflow fails closed and resumes",
+         test_production_qe_workflow_fails_closed_and_resumes)
 
     print("\n── Element Extractors ──")
     test("4 extractors consistent", test_element_extractors_consistent)

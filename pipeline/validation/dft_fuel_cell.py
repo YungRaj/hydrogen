@@ -32,6 +32,14 @@ from pipeline.screening.surface_screener import generate_porphyrin_cluster
 logger = setup_logger('dft_fuel_cell', 'dft/dft_fuel_cell.log')
 
 
+def converged_energy(output_file: Path | str) -> Optional[float]:
+    """Return the final QE energy only for a cleanly converged calculation."""
+    path = str(output_file)
+    if not parse_convergence(path):
+        return None
+    return parse_total_energy(path)
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # FREE ENERGY CORRECTIONS (ZPE + entropy at 298 K, 1 bar)
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -135,7 +143,7 @@ def validate_orr_catalyst(catalyst_name: str, genome: tuple,
     if run_dft:
         _run_pw(clean_in, clean_out, calc_dir)
 
-    E_clean = parse_total_energy(str(clean_out))
+    E_clean = converged_energy(clean_out)
     result['E_clean_Ry'] = E_clean
     if E_clean:
         E_clean_eV = E_clean * Ry_to_eV
@@ -174,7 +182,7 @@ def validate_orr_catalyst(catalyst_name: str, genome: tuple,
         if run_dft:
             _run_pw(ads_in, ads_out, calc_dir)
 
-        E_ads = parse_total_energy(str(ads_out))
+        E_ads = converged_energy(ads_out)
         result[f'E_{ads_name}_Ry'] = E_ads
         if E_ads:
             result[f'E_{ads_name}_eV'] = E_ads * Ry_to_eV
@@ -212,8 +220,8 @@ def validate_orr_catalyst(catalyst_name: str, genome: tuple,
         logger.info(f"  Running gas-phase reference H₂O...")
         _run_pw(h2o_in, h2o_out, calc_dir)
 
-    E_h2_Ry = parse_total_energy(str(h2_out))
-    E_h2o_Ry = parse_total_energy(str(h2o_out))
+    E_h2_Ry = converged_energy(h2_out)
+    E_h2o_Ry = converged_energy(h2o_out)
 
     if E_h2_Ry and E_h2o_Ry:
         E_h2_eV = E_h2_Ry * Ry_to_eV
@@ -221,14 +229,14 @@ def validate_orr_catalyst(catalyst_name: str, genome: tuple,
         result['E_H2_eV'] = E_h2_eV
         result['E_H2O_eV'] = E_h2o_eV
     else:
-        # Fallbacks for non-run or missing outputs
-        E_h2_eV = -31.8
-        E_h2o_eV = -432.6
-        result['E_H2_eV_fallback'] = E_h2_eV
-        result['E_H2O_eV_fallback'] = E_h2o_eV
+        # Missing reference calculations invalidate the CHE result.  Surrogate
+        # or placeholder molecular energies must never enter production ORR.
+        E_h2_eV = None
+        E_h2o_eV = None
 
     # ── 5. Free energy diagram ──────────────────────────────────────────────
-    if E_clean_eV and all(result.get(f'E_{a}_eV') for a in ['OH', 'O', 'OOH']):
+    if (E_clean_eV is not None and E_h2_eV is not None and E_h2o_eV is not None
+            and all(result.get(f'E_{a}_eV') is not None for a in ['OH', 'O', 'OOH'])):
         # Reference energies: H₂O(g) and H₂(g)
         # Using standard CHE: dG_OH = E(slab+OH) - E(slab) - (E_H2O - 0.5*E_H2) + corrections
         E_OH = result['E_OH_eV']
@@ -255,12 +263,12 @@ def validate_orr_catalyst(catalyst_name: str, genome: tuple,
 
     required_outputs = [clean_out, h2_out, h2o_out] + [
         calc_dir / f"{catalyst_name}_{name}.out" for name in ('OH', 'O', 'OOH')]
-    result['converged'] = bool(run_dft and all(
-        parse_convergence(str(path)) for path in required_outputs))
+    # Parsing a resumed campaign is valid even when this invocation only
+    # generated inputs (`run_dft=False`).  Evidence comes from the outputs,
+    # never from whether this Python process launched them.
+    result['converged'] = all(parse_convergence(str(path)) for path in required_outputs)
     result['evidence_level'] = 'converged_dft' if result['converged'] else 'incomplete'
     if not result['converged']:
-        # Fallback molecular energies may aid input-generation smoke tests but
-        # can never establish an ORR champion.
         result.pop('orr_overpotential_V', None)
         result.pop('limiting_potential_V', None)
 
