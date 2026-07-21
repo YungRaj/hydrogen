@@ -717,6 +717,37 @@ def test_candidate_ids_are_canonical():
     b = ('SolidCatalyst', 'Ni', 'Al2O3', 'fcc111', 0.0100000001, ('N', 'B'), 2, 0)
     assert candidate_id(a) == candidate_id(b), "Equivalent dopant permutations need one candidate ID"
 
+    molten_a = ('MoltenMetal', 'Ga', 'Fe', 0.0, 1000)
+    molten_b = ('MoltenMetal', 'Ga', 'None', 0.0, 1000)
+    assert candidate_id(molten_a) == candidate_id(molten_b)
+
+    perovskite_a = ('Perovskite', 'La', 'Fe', 'Co', 0.0, 'none')
+    perovskite_b = ('Perovskite', 'La', 'Fe', 'None', 0.0, 'none')
+    assert candidate_id(perovskite_a) == candidate_id(perovskite_b)
+
+
+def test_design_space_audit_preserves_all_sizable_classes():
+    from pipeline.common.catalyst_spaces import ALL_MATERIAL_CLASSES
+    from pipeline.common.design_space_provenance import validate_provenance
+    from pipeline.evidence.design_space_audit import audit_design_space
+    from pipeline.search.indexed_space import is_physically_admissible
+
+    provenance = validate_provenance(ALL_MATERIAL_CLASSES)
+    assert provenance['valid'] and provenance['classes'] == 14
+    report = audit_design_space(sample_per_class=128)
+    assert report['valid'], report['failures']
+    assert report['classes_represented'] == 14
+    assert set(report['classes']) == set(ALL_MATERIAL_CLASSES)
+    assert report['minimum_raw_per_class'] >= 1000
+    assert report['minimum_projected_admissible_per_class'] >= 1000
+    assert report['canonical_total'] < report['raw_cartesian_total']
+
+    assert not is_physically_admissible(
+        ('SolidCatalyst', 'Ni', 'Al2O3', 'fcc111', 0.0,
+         ('N', 'B'), 2, 0))[0]
+    assert not is_physically_admissible(
+        ('MoltenMetal', 'Ga', 'Fe', 0.0, 1000))[0]
+
 
 def test_discovery_metadata_is_persistable():
     import pandas as pd
@@ -1092,6 +1123,8 @@ if __name__ == '__main__':
     test("Pyrolysis mode coking bonus", test_pyrolysis_mode_coking_bonus)
     test("Discovery batch covers unseen regions", test_discovery_batch_prioritizes_unseen_regions)
     test("Canonical candidate IDs", test_candidate_ids_are_canonical)
+    test("Design space remains sizable and provenance-backed",
+         test_design_space_audit_preserves_all_sizable_classes)
     test("Discovery metadata persists", test_discovery_metadata_is_persistable)
     test("Indexed space boundaries", test_indexed_space_boundaries_and_classes)
     test("Indexed worker shards", test_indexed_worker_shards_are_disjoint)

@@ -13,7 +13,10 @@ from typing import Callable, List, Optional
 import numpy as np
 
 from pipeline.search.discovery import candidate_id, canonicalize_genome, discovery_region
-from pipeline.search.indexed_space import TOTAL_SIZE, candidate_at, is_physically_admissible
+from pipeline.search.indexed_space import (
+    ADMISSIBILITY_POLICY_VERSION, TOTAL_SIZE, candidate_at,
+    is_physically_admissible,
+)
 
 
 @dataclass
@@ -98,8 +101,34 @@ def _connect(path: str) -> sqlite3.Connection:
             elapsed_s REAL NOT NULL,
             PRIMARY KEY(application, state_id, first_index)
         );
+        CREATE TABLE IF NOT EXISTS scan_metadata (
+            key TEXT PRIMARY KEY, value TEXT NOT NULL
+        );
     """)
     return conn
+
+
+def _verify_policy(conn: sqlite3.Connection) -> None:
+    row = conn.execute(
+        "SELECT value FROM scan_metadata WHERE key='admissibility_policy_version'"
+    ).fetchone()
+    if row is None:
+        populated = any(conn.execute(f"SELECT EXISTS(SELECT 1 FROM {table} LIMIT 1)").fetchone()[0]
+                        for table in ('scan_progress', 'scan_chunks', 'global_archive'))
+        if populated:
+            raise RuntimeError(
+                "Legacy scan database has no admissibility-policy version; use a "
+                "fresh database so old and canonicalized evidence are not mixed."
+            )
+        conn.execute(
+            "INSERT INTO scan_metadata VALUES ('admissibility_policy_version', ?)",
+            (ADMISSIBILITY_POLICY_VERSION,))
+        conn.commit()
+    elif row[0] != ADMISSIBILITY_POLICY_VERSION:
+        raise RuntimeError(
+            f"Scan database uses admissibility policy {row[0]!r}, expected "
+            f"{ADMISSIBILITY_POLICY_VERSION!r}; use a fresh database."
+        )
 
 
 def _resume_index(conn: sqlite3.Connection, cfg: ScanConfig) -> int:
@@ -186,6 +215,7 @@ def run_streaming_scan(config: ScanConfig,
     if config.batch_size <= 0:
         raise ValueError("batch_size must be positive")
     conn = _connect(config.database)
+    _verify_policy(conn)
     next_index = _resume_index(conn, config)
     batches = processed_total = accepted_total = rejected_total = 0
     started = time.time()

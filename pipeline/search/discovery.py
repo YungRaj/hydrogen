@@ -27,8 +27,23 @@ def canonicalize_genome(genome: tuple) -> tuple:
         # therefore describe the same candidate.  Preserve multiplicity.
         g[5] = tuple(sorted(g[5]))
         g[4] = round(float(g[4]), 6)
+    elif g[0] == "MoltenMetal":
+        # Zero loading and self-promotion both describe the pure host.
+        if g[2] == "None" or float(g[3]) == 0.0 or g[2] == g[1]:
+            g[2], g[3] = "None", 0.0
+    elif g[0] == "Perovskite":
+        # Dopant identity has no physical meaning at zero fraction.
+        if float(g[4]) == 0.0:
+            g[3] = "None"
     elif g[0] == "HEA":
         g[1] = tuple(sorted(g[1]))
+    elif g[0] == "MetalHydride" and g[3] == g[1]:
+        # A repeated secondary metal is the single-metal composition.
+        g[3] = "None"
+    elif g[0] == "MAXPhase" and g[5] == g[1]:
+        g[5] = "None"
+    elif g[0] == "MXene" and g[5] == g[1]:
+        g[5] = "None"
     return tuple(g)
 
 

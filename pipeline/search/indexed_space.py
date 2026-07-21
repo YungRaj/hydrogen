@@ -18,6 +18,9 @@ import numpy as np
 from pipeline.common import catalyst_spaces as cs
 
 
+ADMISSIBILITY_POLICY_VERSION = "canonical-chemistry-v1"
+
+
 def _decode(index: int, dimensions: Sequence[Sequence]) -> list:
     values = [None] * len(dimensions)
     for pos in range(len(dimensions) - 1, -1, -1):
@@ -146,18 +149,46 @@ def iter_shard(start: int, stop: int, worker_id: int = 0,
 
 
 def is_physically_admissible(genome: tuple) -> Tuple[bool, str]:
-    """Conservative, cheap rejection rules; uncertainty is never rejected."""
+    """Conservative structural checks; model uncertainty is never rejected.
+
+    Redundant Cartesian encodings are rejected with explicit proof reasons and
+    remain part of the raw coverage denominator.
+    """
     cls = genome[0]
-    if cls == "MoltenMetal" and not cs.validate_molten_metal(genome):
-        return False, "molten_temperature_or_composition"
+    if cls == "MoltenMetal":
+        _, host, promoter, fraction, _ = genome
+        if promoter == host:
+            return False, "promoter_equals_host"
+        if promoter == "None" and fraction != 0.0:
+            return False, "promoter_fraction_without_promoter"
+        if promoter != "None" and fraction == 0.0:
+            return False, "zero_fraction_promoter_identity"
+        if not cs.validate_molten_metal(genome):
+            return False, "molten_temperature_or_composition"
+    if cls == "SolidCatalyst":
+        _, _, _, _, strain, dopants, substitutions, vacancies = genome
+        if tuple(dopants) != tuple(sorted(dopants)):
+            return False, "unordered_dopant_pair_duplicate"
+        if not -0.10 <= float(strain) <= 0.10:
+            return False, "strain_outside_encoded_bounds"
+        if not 1 <= int(substitutions) <= 4:
+            return False, "substitution_count_outside_encoded_bounds"
+        if not 0 <= int(vacancies) <= 2:
+            return False, "vacancy_count_outside_encoded_bounds"
     if cls == "Perovskite":
         _, _, base, dopant, frac, _ = genome
         if dopant == 'None' and frac != 0.0:
             return False, "dopant_fraction_without_dopant"
         if dopant == base and frac > 0:
             return False, "dopant_equals_base_site"
+        if frac == 0.0 and dopant != 'None':
+            return False, "zero_fraction_dopant_identity"
+    if cls == "MetalHydride" and genome[3] == genome[1]:
+        return False, "secondary_metal_equals_primary"
     if cls == "MAXPhase" and genome[5] == genome[1]:
         return False, "dopant_equals_host"
+    if cls == "MXene" and genome[5] == genome[1]:
+        return False, "single_atom_equals_mxene_host"
     if cls == "SAA" and genome[1] == genome[2]:
         return False, "trace_equals_host"
     return True, "accepted"

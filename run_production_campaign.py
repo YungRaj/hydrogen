@@ -129,7 +129,13 @@ def main():
             f"but this repository indexes {sizes['TOTAL']:,}. Update the design-space "
             "definition or use the verified denominator; do not label it 25.3B."
         )
+    from pipeline.evidence.design_space_audit import audit_design_space
+    design_audit = audit_design_space(sample_per_class=2048)
+    save_json(design_audit, 'design_space_audit.json', subdir='')
+    if not design_audit['valid']:
+        raise SystemExit(f"Design-space audit failed: {design_audit['failures']}")
     print(f"\n  Design Space: {sizes['TOTAL']:,} ({sizes['TOTAL']/1e9:.1f}B)")
+    print(f"  Canonical identities: {design_audit['canonical_total']:,}")
     for cls in ALL_MATERIAL_CLASSES:
         print(f"    {cls:20s}: {sizes[cls]:>15,}")
 

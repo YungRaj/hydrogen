@@ -140,29 +140,49 @@ Phase 5: FUEL CELL                        Phase 6: REPORTING
 
 ## Design Space
 
-**21,092,645,031** (21.1 billion) encoded Cartesian configurations across 14 material classes:
+**21,092,645,031** (21.1 billion) raw encoded Cartesian configurations across
+14 material classes. Explicit representational equivalences—such as swapped
+solid-catalyst dopant pairs, zero-loading promoter identities, and zero-fraction
+perovskite dopants—collapse this to **10,815,793,768 canonical identities**
+before physical-admissibility checks.
 
-This is the exact addressable denominator used by the indexed scanner. It is
-not a claim of 21.1B symmetry-distinct physical structures: canonical IDs merge
-representational duplicates, while conservative feasibility rules record invalid
-Cartesian combinations as rejected rather than silently removing them.
+The raw count remains the exact addressable denominator used by the indexed
+scanner and its coverage certificates. It is not a claim of 21.1B
+symmetry-distinct or synthesizable structures. Canonical IDs merge only explicit
+encoded equivalences, while conservative feasibility rules record invalid and
+redundant Cartesian combinations as rejected rather than silently removing them.
 
-| Class | Configs | Description |
-|-------|--------:|-------------|
-| **SolidCatalyst** | 20,890,448,640 | 35 active metals × 50 supports × 12 facets × 67 dopants with strain configurations |
-| **HEA** | 200,344,320 | 4–6 component high-entropy alloys from 35 elements |
-| **MetalHydride** | 796,068 | Alanates, borohydrides, amides, intermetallic AB₅/AB₂/AB with 13 additives |
-| **Perovskite** | 449,280 | ABO₃ oxides — 16 A-site × 27 B-site with dopant fractions and defect types |
-| **DAC** | 155,952 | Dual-atom metal pairs (37² combinations) × 12 coordination environments × 9 substrates |
-| **MoltenMetal** | 134,640 | 13 low-melting hosts × 53 promoters × 16 concentrations × 15 temperatures |
-| **MOF** | 112,047 | 35 metal nodes × 17 organic linkers × 13 cavity types × 13 pore sizes |
-| **COF** | 81,120 | 36 metals × 12 covalent linkages (imine, triazine, boroxine, etc.) |
-| **SAC** | 55,404 | 37 single-atom metals × 18 coordinations × 9 substrates × axial ligands |
-| **MAXPhase** | 37,800 | M_{n+1}AX_n layered ternary ceramics (14 M × 13 A × 2 X × 3 n) |
-| **Spinel** | 14,400 | AB₂O₄ spinel oxides (Ni, Co, Fe, Mn, Zn, Mg) × dopants × morphology × carbon supports |
-| **MetalFreeCarbon** | 7,200 | Nitrogen-doped carbon (pyridinic, pyrrolic, graphitic) × defects × co-dopant (B, S, P, F) |
-| **MXene** | 6,480 | M_{n+1}X_n carbides/nitrides (M elements × X elements × terminations × single-atom metals) |
-| **SAA** | 1,680 | Single-atom alloys (dilute trace metals in molten metal host) × facets × loadings |
+| Class | Raw Cartesian | Canonical | Description |
+|-------|--------------:|----------:|-------------|
+| **SolidCatalyst** | 20,890,448,640 | 10,613,695,680 | Active metals × supports × facets × strain × dopant multisets × substitutions × vacancies |
+| **HEA** | 200,344,320 | 200,344,320 | 4–6 component high-entropy alloys from 35 elements |
+| **MetalHydride** | 796,068 | 767,637 | Hydride families, secondary metals, additives, and temperatures |
+| **Perovskite** | 449,280 | 395,200 | ABO₃ choices with dopant fractions and defect types |
+| **DAC** | 155,952 | 155,952 | Dual-atom metal pairs, coordination environments, and substrates |
+| **MoltenMetal** | 134,640 | 121,440 | Low-melting hosts, promoters, concentrations, and temperatures |
+| **MOF** | 112,047 | 112,047 | Metal nodes, organic linkers, cavities, and pore sizes |
+| **COF** | 81,120 | 81,120 | Metals, covalent linkages, cavities, and pore sizes |
+| **SAC** | 55,404 | 55,404 | Single atoms, coordinations, substrates, and axial ligands |
+| **MAXPhase** | 37,800 | 35,280 | M_{n+1}AX_n compositions, dopants, and facets |
+| **Spinel** | 14,400 | 14,400 | AB₂O₄ choices, dopants, morphology, and carbon supports |
+| **MetalFreeCarbon** | 7,200 | 7,200 | N configurations, defects, substrates, and co-dopants |
+| **MXene** | 6,480 | 6,408 | Carbides/nitrides, terminations, and single-atom sites |
+| **SAA** | 1,680 | 1,680 | Dilute trace metals in hosts, facets, and loadings |
+
+Every design axis has machine-readable provenance in
+`pipeline/common/design_space_provenance.py`. The references support the
+material families and descriptor choices; the individual Cartesian products
+remain project-curated hypotheses, not claims of prior synthesis. Generate a
+deterministic per-class size, canonicalization, and sampled-admissibility report
+with:
+
+```bash
+conda run -n fairchem-env python -m pipeline.evidence.design_space_audit \
+  --samples-per-class 2048 --output results/design_space_audit.json
+```
+
+The audit fails if any documented class is missing provenance, has no sampled
+admissible candidates, or falls below the minimum sizable-class threshold.
 
 Each genome encodes into a **353-dimensional** feature vector for the surrogate neural network.
 
@@ -487,6 +507,7 @@ hydrogen/
 │   ├── orchestrator.py            # End-to-end phase coordination
 │   ├── common/                    # Cross-cutting definitions and helpers
 │   │   ├── catalyst_spaces.py     # 21.1B encoded design space
+│   │   ├── design_space_provenance.py # Axis sources and selection basis
 │   │   ├── application_scope.py   # Application admissibility rules
 │   │   ├── ood_detector.py        # Confidence policy
 │   │   └── utils.py               # Constants, paths, logging, and I/O
@@ -514,6 +535,7 @@ hydrogen/
 │   └── evidence/                  # Prior art, benchmarks, and claim gates
 │       ├── prior_art.py
 │       ├── novelty_benchmark.py
+│       ├── design_space_audit.py  # Raw/canonical/admissible class report
 │       ├── readiness.py
 │       └── report_generator.py
 │

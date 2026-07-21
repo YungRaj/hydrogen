@@ -491,6 +491,19 @@ else:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# 14. DESIGN-SPACE PROVENANCE, CANONICALIZATION, AND CLASS SIZE
+# ═══════════════════════════════════════════════════════════════════════════════
+print("\n═══ DESIGN SPACE AUDIT ═══")
+
+from pipeline.evidence.design_space_audit import audit_design_space
+
+design_audit = audit_design_space(sample_per_class=1024)
+check("All 14 design classes remain sizable and provenance-backed",
+      design_audit['valid'],
+      f"Failures: {design_audit['failures']}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # SUMMARY
 # ═══════════════════════════════════════════════════════════════════════════════
 print(f"\n{'═' * 60}")
