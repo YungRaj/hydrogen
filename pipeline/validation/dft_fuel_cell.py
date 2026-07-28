@@ -19,14 +19,14 @@ from typing import Dict, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from pipeline.common.utils import (
-    DFT_DIR, QE_PSEUDO_DIR, Ry_to_eV, E_ORR_eq,
-    ZPE_H2, TS_H2, G_H2_correction,
+    DFT_DIR, Ry_to_eV, E_ORR_eq,
     setup_logger, save_json, orr_overpotential,
 )
 from pipeline.validation.dft_validator import (
-    generate_slab_scf_input, parse_total_energy, parse_convergence, PW_X,
-    PSEUDO_MAP, ATOMIC_MASSES_QE,
+    generate_molecule_input, generate_slab_scf_input,
+    parse_total_energy, parse_convergence,
 )
+from pipeline.validation.qe_workflows import QEExecutionConfig, run_pw as run_qe_pw
 from pipeline.screening.surface_screener import generate_porphyrin_cluster
 
 logger = setup_logger('dft_fuel_cell', 'dft/dft_fuel_cell.log')
@@ -190,9 +190,9 @@ def validate_orr_catalyst(catalyst_name: str, genome: tuple,
     # ── 4b. Gas-phase references (H₂O and H₂) ─────────────────────────────────
     h2_elements = ['H', 'H']
     h2_positions = [(cell/2, cell/2, cell/2 - 0.37), (cell/2, cell/2, cell/2 + 0.37)]
-    h2_input = generate_slab_scf_input(
-        h2_elements, h2_positions, cell_params,
-        calc_name=f"fc_{catalyst_name}_h2", ecutwfc=40.0, kpoints=(1, 1, 1)
+    h2_input = generate_molecule_input(
+        h2_elements, h2_positions, cell,
+        calc_name=f"fc_{catalyst_name}_h2", ecutwfc=40.0
     )
     h2_in = calc_dir / f"{catalyst_name}_h2.in"
     h2_out = calc_dir / f"{catalyst_name}_h2.out"
@@ -205,9 +205,9 @@ def validate_orr_catalyst(catalyst_name: str, genome: tuple,
         (cell/2 + 0.757, cell/2 + 0.586, cell/2),
         (cell/2 - 0.757, cell/2 + 0.586, cell/2)
     ]
-    h2o_input = generate_slab_scf_input(
-        h2o_elements, h2o_positions, cell_params,
-        calc_name=f"fc_{catalyst_name}_h2o", ecutwfc=40.0, kpoints=(1, 1, 1)
+    h2o_input = generate_molecule_input(
+        h2o_elements, h2o_positions, cell,
+        calc_name=f"fc_{catalyst_name}_h2o", ecutwfc=40.0
     )
     h2o_in = calc_dir / f"{catalyst_name}_h2o.in"
     h2o_out = calc_dir / f"{catalyst_name}_h2o.out"
@@ -278,15 +278,14 @@ def validate_orr_catalyst(catalyst_name: str, genome: tuple,
 
 def _run_pw(input_file: Path, output_file: Path, cwd: Path):
     """Execute pw.x calculation."""
-    import subprocess
     try:
-        subprocess.run(
-            f"{PW_X} < {input_file} > {output_file}",
-            shell=True, cwd=str(cwd), timeout=3600,
-            capture_output=True, text=True,
-        )
-    except subprocess.TimeoutExpired:
-        logger.warning(f"  DFT timed out: {input_file}")
+        outcome = run_qe_pw(
+            str(input_file), str(output_file), timeout_s=3600,
+            execution=QEExecutionConfig.production_default())
+        if outcome['timed_out']:
+            logger.warning(f"  DFT timed out: {input_file}")
+        elif outcome['returncode'] != 0:
+            logger.error(f"  DFT failed with return code {outcome['returncode']}: {input_file}")
     except Exception as e:
         logger.error(f"  DFT error: {e}")
 

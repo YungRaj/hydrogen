@@ -15,7 +15,6 @@ Generates QE input files and submits calculations via pw.x.
 
 import os
 import sys
-import subprocess
 import shutil
 import json
 import re
@@ -245,6 +244,69 @@ K_POINTS {{automatic}}
     return input_text
 
 
+def generate_molecule_input(elements: List[str], positions_ang: List[Tuple],
+                            cell_size_ang: float, calc_name: str,
+                            ecutwfc: float = 40.0,
+                            calculation: str = 'relax') -> str:
+    """Generate a closed-shell, Gamma-only molecular QE input.
+
+    Gas-phase CHE references must not inherit metallic slab smearing or an
+    unnecessary second spin channel.  Production pseudopotential cutoffs and
+    the final convergence threshold remain unchanged.
+    """
+    if calculation not in ('scf', 'relax'):
+        raise ValueError('molecular calculation must be scf or relax')
+    if len(elements) != len(positions_ang) or not elements:
+        raise ValueError('molecular elements and positions must be nonempty and aligned')
+    if cell_size_ang <= 0:
+        raise ValueError('molecular cell must be positive')
+
+    from pipeline.validation.qe_workflows import verify_sssp, SSSP_DIR
+    sssp = verify_sssp(elements)
+    if not sssp['valid']:
+        raise RuntimeError(f"SSSP verification failed: {sssp['errors']}")
+    ecutwfc = max(float(ecutwfc), sssp['ecutwfc_Ry'])
+    unique_elements = sorted(set(elements))
+    species_block = '\n'.join(
+        f"  {element}  {ATOMIC_MASSES_QE.get(element, 50.0):.3f}  "
+        f"{sssp['records'][element]['filename']}"
+        for element in unique_elements)
+    atoms_block = '\n'.join(
+        f"  {element}  {position[0]:.10f}  {position[1]:.10f}  {position[2]:.10f}"
+        for element, position in zip(elements, positions_ang))
+    ions = "\n&IONS\n  ion_dynamics = 'bfgs'\n/" if calculation == 'relax' else ''
+
+    return f"""&CONTROL
+  calculation = '{calculation}'
+  prefix = '{calc_name}'
+  outdir = './tmp'
+  pseudo_dir = '{SSSP_DIR}'
+  tprnfor = .true.
+  forc_conv_thr = 1.0d-3
+/
+&SYSTEM
+  ibrav = 1
+  celldm(1) = {cell_size_ang / 0.529177210903:.12f}
+  nat = {len(elements)}
+  ntyp = {len(unique_elements)}
+  ecutwfc = {ecutwfc}
+  ecutrho = {sssp['ecutrho_Ry']}
+  nspin = 1
+  occupations = 'fixed'
+/
+&ELECTRONS
+  mixing_beta = 0.3
+  conv_thr = 1.0d-7
+  electron_maxstep = 200
+/{ions}
+ATOMIC_SPECIES
+{species_block}
+ATOMIC_POSITIONS {{angstrom}}
+{atoms_block}
+K_POINTS {{gamma}}
+"""
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # DFT OUTPUT PARSING
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -350,16 +412,19 @@ def validate_catalyst(catalyst_name: str, genome: tuple,
     if run_dft:
         logger.info(f"  Running pw.x for {catalyst_name}...")
         try:
-            proc = subprocess.run(
-                f"{PW_X} < {input_file} > {output_file}",
-                shell=True, cwd=str(calc_dir),
-                timeout=3600, capture_output=True, text=True,
-            )
-            result['returncode'] = proc.returncode
-        except subprocess.TimeoutExpired:
-            logger.warning(f"  DFT calculation timed out for {catalyst_name}")
+            from pipeline.validation.qe_workflows import QEExecutionConfig, run_pw
+            outcome = run_pw(
+                str(input_file), str(output_file), timeout_s=3600,
+                execution=QEExecutionConfig.production_default())
+            result['returncode'] = outcome['returncode']
+            result['execution'] = outcome['execution']
+            if outcome['timed_out']:
+                logger.warning(f"  DFT calculation timed out for {catalyst_name}")
+                result['error'] = 'timeout'
+        except Exception as exc:
+            logger.warning(f"  DFT execution failed for {catalyst_name}: {exc}")
             result['returncode'] = -1
-            result['error'] = 'timeout'
+            result['error'] = str(exc)[:200]
 
     # Parse results
     if output_file.exists():

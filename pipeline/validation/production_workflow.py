@@ -8,6 +8,7 @@ from ase.mep import NEB
 
 from pipeline.validation.dft_validator import parse_convergence
 from pipeline.validation.qe_workflows import (
+    QEExecutionConfig,
     parse_neb_result,
     relaxed_structure,
     run_neb,
@@ -49,7 +50,8 @@ def orr_campaign_status(calc_dir: str | Path, catalyst_name: str) -> dict:
 
 
 def run_orr_sequence(calc_dir: str | Path, catalyst_name: str,
-                     timeout_s: int = 86400, restart_incomplete: bool = False) -> dict:
+                     timeout_s: int = 86400, restart_incomplete: bool = False,
+                     execution: QEExecutionConfig | None = None) -> dict:
     """Run missing ORR stages in order and resume cleanly completed outputs.
 
     Nonempty incomplete outputs are left untouched by default because they may
@@ -66,7 +68,8 @@ def run_orr_sequence(calc_dir: str | Path, catalyst_name: str,
             break
         if not input_path.is_file():
             raise FileNotFoundError(f'missing QE input: {input_path}')
-        outcome = run_pw(str(input_path), str(output_path), timeout_s=timeout_s)
+        outcome = run_pw(str(input_path), str(output_path), timeout_s=timeout_s,
+                         execution=execution)
         if not outcome['converged']:
             break
     return orr_campaign_status(root, catalyst_name)
@@ -99,7 +102,8 @@ def methane_neb_status(calc_dir: str | Path) -> dict:
 
 
 def run_methane_neb(calc_dir: str | Path, prefix: str,
-                    n_images: int = 7, timeout_s: int = 86400) -> dict:
+                    n_images: int = 7, timeout_s: int = 86400,
+                    execution: QEExecutionConfig | None = None) -> dict:
     """Start NEB only after both candidate-specific endpoints converge."""
     root = Path(calc_dir)
     status = methane_neb_status(root)
@@ -116,5 +120,6 @@ def run_methane_neb(calc_dir: str | Path, prefix: str,
     input_path = root / 'candidate.neb.in'
     output_path = root / 'candidate.neb.out'
     write_qe_neb_input(images, str(input_path), prefix)
-    run_neb(str(input_path), str(output_path), timeout_s=timeout_s)
+    run_neb(str(input_path), str(output_path), timeout_s=timeout_s,
+            execution=execution)
     return methane_neb_status(root)

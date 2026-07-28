@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 import re
+import time
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import numpy as np
@@ -19,6 +22,83 @@ from pipeline.common.utils import BASE_DIR
 
 SSSP_DIR = BASE_DIR / 'quantum_espresso/sssp/1.3.0-pbe-efficiency'
 SSSP_MANIFEST = SSSP_DIR / 'SSSP_1.3.0_PBE_efficiency.json'
+
+
+@dataclass(frozen=True)
+class QEExecutionConfig:
+    """Explicit, provenance-recorded local QE resource allocation."""
+
+    mpi_ranks: int = 1
+    omp_threads: int = 1
+    kpoint_pools: int = 1
+    image_groups: int = 1
+
+    def validate(self, *, neb: bool = False) -> None:
+        values = (self.mpi_ranks, self.omp_threads, self.kpoint_pools,
+                  self.image_groups)
+        if any(int(value) < 1 for value in values):
+            raise ValueError('QE parallel dimensions must be positive')
+        if self.mpi_ranks % self.kpoint_pools:
+            raise ValueError('MPI ranks must be divisible by k-point pools')
+        if neb and self.mpi_ranks % self.image_groups:
+            raise ValueError('MPI ranks must be divisible by NEB image groups')
+        if not neb and self.image_groups != 1:
+            raise ValueError('image groups are valid only for NEB calculations')
+
+    @classmethod
+    def production_default(cls) -> 'QEExecutionConfig':
+        return cls(
+            mpi_ranks=int(os.environ.get('QE_MPI_RANKS', '4')),
+            omp_threads=int(os.environ.get('QE_OMP_THREADS', '1')),
+            kpoint_pools=int(os.environ.get('QE_KPOINT_POOLS', '1')),
+        )
+
+
+def build_qe_command(executable: str, input_path: str,
+                     config: QEExecutionConfig, *, neb: bool = False) -> list[str]:
+    """Build a shell-free MPI/QE command with validated parallel dimensions."""
+    config.validate(neb=neb)
+    requested = Path(executable)
+    resolved = shutil.which(str(executable))
+    fallback = Path('/home/ilhanraja/miniconda3/envs/qe-env/bin') / requested.name
+    if resolved:
+        executable_path = str(Path(resolved).resolve())
+    elif requested.is_file():
+        executable_path = str(requested.resolve())
+    elif fallback.is_file():
+        executable_path = str(fallback.resolve())
+    else:
+        raise RuntimeError(f'QE executable is unavailable: {executable}')
+    command = []
+    if config.mpi_ranks > 1:
+        sibling_mpirun = Path(executable_path).parent / 'mpirun'
+        mpirun = str(sibling_mpirun) if sibling_mpirun.is_file() else shutil.which('mpirun')
+        if not mpirun:
+            raise RuntimeError('MPI ranks requested but mpirun is unavailable')
+        command.extend([mpirun, '-np', str(config.mpi_ranks)])
+    command.append(executable_path)
+    if config.kpoint_pools > 1:
+        command.extend(['-nk', str(config.kpoint_pools)])
+    if neb and config.image_groups > 1:
+        command.extend(['-ni', str(config.image_groups)])
+    command.extend(['-inp' if neb else '-in', str(Path(input_path).resolve())])
+    return command
+
+
+def _execution_record(input_path: str, output_path: str, command: list[str],
+                      config: QEExecutionConfig, elapsed_s: float,
+                      returncode: int, timed_out: bool) -> None:
+    source = Path(input_path)
+    record = {
+        'command': command,
+        'configuration': asdict(config),
+        'input_sha256': hashlib.sha256(source.read_bytes()).hexdigest(),
+        'elapsed_s': elapsed_s,
+        'returncode': returncode,
+        'timed_out': timed_out,
+    }
+    Path(f'{output_path}.execution.json').write_text(
+        json.dumps(record, indent=2, sort_keys=True))
 
 
 def verify_sssp(elements, directory=SSSP_DIR, manifest=SSSP_MANIFEST) -> dict:
@@ -125,18 +205,34 @@ END
     return {'path': str(target), 'n_images': len(images), 'sssp': verified}
 
 
-def run_neb(input_path: str, output_path: str, timeout_s: int = 86400) -> dict:
+def run_neb(input_path: str, output_path: str, timeout_s: int = 86400,
+            execution: QEExecutionConfig | None = None) -> dict:
     neb = shutil.which('neb.x') or '/home/ilhanraja/miniconda3/envs/qe-env/bin/neb.x'
     workdir = Path(input_path).resolve().parent
     (workdir / 'tmp').mkdir(exist_ok=True)
-    proc = subprocess.run([neb, '-inp', str(Path(input_path).resolve())],
-                          cwd=str(workdir),
-                          capture_output=True, text=True, timeout=timeout_s)
-    Path(output_path).write_text(proc.stdout + '\n' + proc.stderr)
-    lower = proc.stdout.lower()
-    converged = proc.returncode == 0 and 'job done' in lower and 'error' not in lower
-    return {'converged': converged, 'returncode': proc.returncode,
-            'output': str(output_path), 'candidate_specific': True}
+    config = execution or QEExecutionConfig()
+    command = build_qe_command(neb, input_path, config, neb=True)
+    environment = os.environ.copy()
+    environment['OMP_NUM_THREADS'] = str(config.omp_threads)
+    started = time.monotonic()
+    timed_out, returncode = False, -1
+    with open(output_path, 'w') as sink:
+        try:
+            proc = subprocess.run(
+                command, cwd=str(workdir), env=environment, stdout=sink,
+                stderr=subprocess.STDOUT, timeout=timeout_s)
+            returncode = proc.returncode
+        except subprocess.TimeoutExpired:
+            timed_out = True
+    elapsed = time.monotonic() - started
+    _execution_record(input_path, output_path, command, config, elapsed,
+                      returncode, timed_out)
+    text = Path(output_path).read_text(errors='replace')
+    lower = text.lower()
+    converged = returncode == 0 and 'job done' in lower and 'error' not in lower
+    return {'converged': converged, 'returncode': returncode,
+            'output': str(output_path), 'candidate_specific': True,
+            'execution': asdict(config), 'timed_out': timed_out}
 
 
 def write_qe_relax_input(atoms: Atoms, path: str, prefix: str,
@@ -181,16 +277,33 @@ K_POINTS automatic
     return {'path': str(target), 'sssp': verified}
 
 
-def run_pw(input_path: str, output_path: str, timeout_s: int = 86400) -> dict:
+def run_pw(input_path: str, output_path: str, timeout_s: int = 86400,
+           execution: QEExecutionConfig | None = None) -> dict:
     workdir = Path(input_path).resolve().parent
     (workdir / 'tmp').mkdir(exist_ok=True)
     pw = shutil.which('pw.x') or '/home/ilhanraja/miniconda3/envs/qe-env/bin/pw.x'
-    with open(input_path) as source, open(output_path, 'w') as sink:
-        proc = subprocess.run([pw], stdin=source, stdout=sink, stderr=subprocess.STDOUT,
-                              cwd=str(workdir), timeout=timeout_s)
+    config = execution or QEExecutionConfig.production_default()
+    command = build_qe_command(pw, input_path, config)
+    environment = os.environ.copy()
+    environment['OMP_NUM_THREADS'] = str(config.omp_threads)
+    started = time.monotonic()
+    timed_out, returncode = False, -1
+    with open(output_path, 'w') as sink:
+        try:
+            proc = subprocess.run(
+                command, stdout=sink, stderr=subprocess.STDOUT, cwd=str(workdir),
+                env=environment, timeout=timeout_s)
+            returncode = proc.returncode
+        except subprocess.TimeoutExpired:
+            timed_out = True
+    elapsed = time.monotonic() - started
+    _execution_record(input_path, output_path, command, config, elapsed,
+                      returncode, timed_out)
     text = Path(output_path).read_text(errors='replace')
-    converged = proc.returncode == 0 and 'JOB DONE' in text and 'convergence NOT achieved' not in text
-    return {'converged': converged, 'returncode': proc.returncode, 'output': output_path}
+    converged = returncode == 0 and 'JOB DONE' in text and 'convergence NOT achieved' not in text
+    return {'converged': converged, 'returncode': returncode,
+            'output': output_path, 'execution': asdict(config),
+            'timed_out': timed_out}
 
 
 def relaxed_structure(output_path: str) -> Atoms:

@@ -324,6 +324,9 @@ def test_production_qe_workflow_fails_closed_and_resumes():
     from pipeline.validation.dft_fuel_cell import converged_energy
     from pipeline.validation.production_workflow import (
         ORR_STAGES, orr_campaign_status, qe_output_status)
+    from pipeline.validation.dft_validator import PW_X, generate_molecule_input
+    from pipeline.validation.qe_workflows import (
+        QEExecutionConfig, build_qe_command)
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         partial = root / 'candidate_clean.out'
@@ -339,6 +342,27 @@ def test_production_qe_workflow_fails_closed_and_resumes():
         status = orr_campaign_status(root, 'candidate')
         assert status['complete'] and status['orr_result_allowed']
         assert converged_energy(root / 'candidate_h2.out') == -10.0
+
+        molecule = generate_molecule_input(
+            ['H', 'H'], [(7.5, 7.5, 7.13), (7.5, 7.5, 7.87)],
+            15.0, 'h2_test', calculation='scf')
+        assert "nspin = 1" in molecule
+        assert "occupations = 'fixed'" in molecule
+        assert "K_POINTS {gamma}" in molecule
+        assert 'smearing' not in molecule
+        command = build_qe_command(
+            PW_X, str(root / 'h2.in'),
+            QEExecutionConfig(mpi_ranks=4, omp_threads=1, kpoint_pools=2))
+        assert isinstance(command, list)
+        assert command[-4:] == ['-nk', '2', '-in',
+                                str((root / 'h2.in').resolve())]
+        assert command[-5].endswith('/pw.x')
+        try:
+            QEExecutionConfig(mpi_ranks=4, image_groups=3).validate(neb=True)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError('incompatible MPI/image layout must fail')
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

@@ -745,7 +745,9 @@ running calculation:
 python run_validation_campaign.py \
   --pyro-dir results/dft/production_validation/pyro_saa_pdal \
   --orr-dir results/dft/fc_production_pdn2p2 \
-  --orr-name production_pdn2p2
+  --orr-name production_pdn2p2 \
+  --mpi-ranks 4 \
+  --omp-threads 1
 ```
 
 Add `--advance` after active jobs finish to resume converged stages: methane NEB
@@ -756,6 +758,16 @@ operator explicitly supplies `--restart-incomplete`. Partial energies and
 placeholder gas-reference energies cannot produce a reported ORR overpotential.
 Transition-state frequency validation remains a separate required gate after a
 converged NEB path.
+
+Production `pw.x` stages default to four MPI ranks and one OpenMP thread, the
+best latency/resource compromise measured on the local H2 and Pd-N2P2
+benchmarks. Override this explicitly with `--mpi-ranks`, `--omp-threads`, and
+`--kpoint-pools`; incompatible pool/image divisibility fails before launch.
+Every execution writes an adjacent `.execution.json` containing the shell-free
+command, resource layout, input hash, elapsed time, return code, and timeout
+state. Gas-phase H2/H2O references use closed-shell fixed occupations and Gamma
+sampling rather than inheriting metallic slab smearing. Final ORR evidence still
+requires all six calculations to converge under one recorded protocol.
 
 Each invocation also regenerates an application-specific coverage certificate:
 
