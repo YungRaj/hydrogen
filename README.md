@@ -699,10 +699,14 @@ uncertain, novel, and populous regions first while retaining exhaustive coverage
 
 ```bash
 python run_production_campaign.py \
+  --scan-workers 8 \
   --branch-leaf-size 1000000 \
   --branch-probes 9 \
   --branch-class-floor 1 \
-  --branch-exploration-interval 4
+  --branch-exploration-interval 4 \
+  --qe-mpi-ranks 4 \
+  --qe-omp-threads 1 \
+  --qe-max-concurrent 4
 ```
 
 The tree begins with one root for each of the 14 material classes and recursively
@@ -715,6 +719,22 @@ class-level validation disagreement. Probe predictions **never authorize pruning
 A branch is removed only when every encoded member has been checked against the
 conservative hard-feasibility rules and all fail. Every other leaf is passed to
 the exhaustive streaming scanner.
+
+Each resolved leaf is split into deterministic interleaved scanner shards
+(`index % workers`). Workers write independent SQLite databases, so they do not
+serialize on a shared write lock. The parent publishes the leaf result only
+after every shard reaches its exact bound, verifies the combined accounting,
+and merges bounded archives with stable candidate-ID tie breaks. An interrupted
+or failed worker therefore cannot create a false completion certificate; reruns
+resume its existing shard. `--scan-workers 1` retains the serial reference path.
+Use a worker count appropriate for the available CPU cores and storage bandwidth.
+
+Candidate DFT validation is also resource bounded. `--qe-mpi-ranks` and
+`--qe-omp-threads` control each Quantum ESPRESSO process, while
+`--qe-max-concurrent` caps independent candidates in flight. The campaign
+rejects a configuration whose combined requested CPU count exceeds the CPUs
+visible to the process. These controls improve throughput but do not weaken any
+electronic-convergence, endpoint, NEB, ORR, or evidence gate.
 
 For staged campaigns, limit the number of leaves handled in one invocation:
 

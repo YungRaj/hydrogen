@@ -854,6 +854,69 @@ def test_streaming_scan_resumes_without_rescoring():
         assert sum(calls) <= 40  # invalid candidates may be rejected before scoring
 
 
+def test_sharded_scan_matches_serial_and_fails_closed():
+    import sqlite3
+    import tempfile
+    from pathlib import Path
+    from pipeline.search.exhaustive_search import (
+        ScanConfig, run_sharded_scan, run_streaming_scan)
+    from pipeline.common.catalyst_spaces import encode_population
+
+    def scorer(genomes):
+        encoded = encode_population(genomes)
+        return np.column_stack([
+            encoded[:, 0] + 0.01 * encoded[:, 1],
+            encoded[:, 2], encoded[:, 3], encoded[:, 4]])
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        serial_db = root / 'serial.sqlite'
+        sharded_db = root / 'sharded.sqlite'
+        serial = run_streaming_scan(ScanConfig(
+            'shard_equivalence', str(serial_db), stop=2000,
+            batch_size=128, global_archive_size=100,
+            state_id='equivalence'), scorer)
+        sharded = run_sharded_scan(ScanConfig(
+            'shard_equivalence', str(sharded_db), stop=2000,
+            batch_size=128, global_archive_size=100,
+            state_id='equivalence'), scorer, workers=4)
+        assert serial['complete'] and sharded['complete']
+        tables = ('region_champions', 'global_archive', 'objective_archive',
+                  'regional_objective_champions')
+        with sqlite3.connect(serial_db) as left, sqlite3.connect(sharded_db) as right:
+            for table in tables:
+                left_rows = left.execute(f'SELECT * FROM {table} ORDER BY 1,2,3').fetchall()
+                right_rows = right.execute(f'SELECT * FROM {table} ORDER BY 1,2,3').fetchall()
+                assert left_rows == right_rows, f'shard merge changed {table}'
+            progress = right.execute(
+                "SELECT next_index, processed FROM scan_progress "
+                "WHERE application=? AND state_id=?",
+                ('shard_equivalence', 'equivalence')).fetchone()
+            assert progress == (2000, 2000)
+
+        incomplete_db = root / 'incomplete.sqlite'
+        partial = run_sharded_scan(ScanConfig(
+            'shard_resume', str(incomplete_db), stop=400,
+            batch_size=10, max_batches=1, state_id='resume'),
+            scorer, workers=4)
+        assert not partial['complete']
+        assert not incomplete_db.exists(), 'partial shards must not create aggregate evidence'
+        resumed = run_sharded_scan(ScanConfig(
+            'shard_resume', str(incomplete_db), stop=400,
+            batch_size=10, state_id='resume'), scorer, workers=4)
+        assert resumed['complete']
+        with sqlite3.connect(incomplete_db) as conn:
+            progress = conn.execute(
+                "SELECT next_index, processed FROM scan_progress "
+                "WHERE application='shard_resume' AND state_id='resume'").fetchone()
+        assert progress == (400, 400)
+
+        tiny = run_sharded_scan(ScanConfig(
+            'tiny_range', str(root / 'tiny.sqlite'), stop=3,
+            batch_size=10, state_id='tiny'), scorer, workers=8)
+        assert tiny['complete'] and tiny['workers'] == 3
+
+
 def test_branch_search_resolves_without_surrogate_pruning():
     import tempfile
     from pathlib import Path
@@ -867,7 +930,7 @@ def test_branch_search_resolves_without_surrogate_pruning():
         result = run_branch_and_bound(BranchConfig(
             application='branch_test', database=str(Path(tmp) / 'branch.sqlite'),
             leaf_size=CLASS_SIZES['MetalFreeCarbon'] + 1,
-            scan_batch_size=512, max_leaves=1,
+            scan_batch_size=512, max_leaves=1, scan_workers=2,
             material_classes=('MetalFreeCarbon',),
         ), deliberately_bad_scorer)
         assert result['complete']
@@ -1189,6 +1252,8 @@ if __name__ == '__main__':
     test("Indexed space boundaries", test_indexed_space_boundaries_and_classes)
     test("Indexed worker shards", test_indexed_worker_shards_are_disjoint)
     test("Streaming scan resumes", test_streaming_scan_resumes_without_rescoring)
+    test("Sharded scan matches serial and fails closed",
+         test_sharded_scan_matches_serial_and_fails_closed)
     test("Branch search never surrogate-prunes", test_branch_search_resolves_without_surrogate_pruning)
     test("Branch probes use low-discrepancy schedule", test_branch_probes_are_deterministic_low_discrepancy)
     test("Branch finite budget preserves class floor", test_branch_finite_budget_preserves_class_floor)

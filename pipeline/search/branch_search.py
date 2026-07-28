@@ -18,7 +18,7 @@ from typing import Callable, List, Optional
 
 import numpy as np
 
-from pipeline.search.exhaustive_search import ScanConfig, run_streaming_scan
+from pipeline.search.exhaustive_search import ScanConfig, run_sharded_scan
 from pipeline.search.indexed_space import (CLASS_OFFSETS, CLASS_ORDER, CLASS_SIZES,
                                     TOTAL_SIZE, candidate_at, is_physically_admissible)
 from pipeline.common.ood_detector import CLASS_CONFIDENCE
@@ -41,6 +41,7 @@ class BranchConfig:
     min_resolved_leaves_per_class: int = 1
     exploration_interval: int = 4
     refresh_pending_priorities: int = 10_000
+    scan_workers: int = 1
 
 
 def _node_id(application: str, start: int, stop: int) -> str:
@@ -211,7 +212,7 @@ def run_branch_and_bound(config: BranchConfig,
     """Recursively schedule and exhaustively resolve catalyst-space leaves."""
     if config.leaf_size <= 0 or config.probe_count < 2 or \
             config.min_resolved_leaves_per_class < 0 or config.exploration_interval < 0 or \
-            config.refresh_pending_priorities < 0:
+            config.refresh_pending_priorities < 0 or config.scan_workers < 1:
         raise ValueError("invalid branch configuration")
     conn = _open(config.database)
     resumed = conn.execute("SELECT 1 FROM branch_nodes WHERE application=? LIMIT 1",
@@ -273,15 +274,17 @@ def run_branch_and_bound(config: BranchConfig,
             expanded += 1
             continue
 
-        # Close our planning transaction before the scanner writes archives.
+        # Close the planning connection before scanner processes inherit state.
         conn.commit()
-        summary = run_streaming_scan(ScanConfig(
+        conn.close()
+        summary = run_sharded_scan(ScanConfig(
             application=config.application, database=config.database,
             start=start, stop=stop, batch_size=config.scan_batch_size,
             global_archive_size=config.global_archive_size,
             state_id=f"branch:{node_id}",
             deadline_epoch_s=deadline,
-        ), scorer)
+        ), scorer, workers=config.scan_workers)
+        conn = _open(config.database)
         status = 'scanned' if summary['complete'] else 'pending'
         conn.execute("UPDATE branch_nodes SET status=?, reason=?, updated_at=? "
                      "WHERE application=? AND node_id=?",

@@ -307,6 +307,7 @@ class BranchDiscoveryConfig:
     min_resolved_leaves_per_class: int = 1
     branch_exploration_interval: int = 4
     refresh_pending_priorities: int = 10_000
+    scan_workers: int = 8
 
 
 
@@ -350,6 +351,7 @@ def run_branch_discovery(config: BranchDiscoveryConfig = BranchDiscoveryConfig()
         min_resolved_leaves_per_class=config.min_resolved_leaves_per_class,
         exploration_interval=config.branch_exploration_interval,
         refresh_pending_priorities=config.refresh_pending_priorities,
+        scan_workers=config.scan_workers,
     ), score_population)
     logger.info(f"Branch discovery: {summary}")
     archive = load_archive_genomes(config.exhaustive_db, 'turquoise_hydrogen', config.htvs_pool_size)

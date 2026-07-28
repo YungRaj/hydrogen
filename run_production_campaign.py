@@ -40,6 +40,8 @@ def main():
                         help=('JSON with measured operating conditions and paired '
                               'NTEC/control effect calibration'))
     parser.add_argument('--scan-batch-size', type=int, default=65536)
+    parser.add_argument('--scan-workers', type=int, default=8,
+                        help='Independent deterministic scanner shards per resolved leaf')
     parser.add_argument('--branch-leaf-size', type=int, default=1_000_000)
     parser.add_argument('--branch-probes', type=int, default=9)
     parser.add_argument('--branch-max-leaves', type=int, default=0,
@@ -59,7 +61,22 @@ def main():
                         help='Fail closed unless coverage and prior-art readiness requirements pass')
     parser.add_argument('--evidence-manifest', default='results/evidence_manifest.json',
                         help='Measured/validated evidence counts required by --final-campaign')
+    parser.add_argument('--qe-mpi-ranks', type=int, default=4)
+    parser.add_argument('--qe-omp-threads', type=int, default=1)
+    default_qe_concurrency = max(1, min(4, (os.cpu_count() or 1) // 4))
+    parser.add_argument('--qe-max-concurrent', type=int, default=default_qe_concurrency,
+                        help='Maximum independent candidate DFT jobs launched together')
     args = parser.parse_args()
+    if args.scan_workers < 1 or args.qe_mpi_ranks < 1 or \
+            args.qe_omp_threads < 1 or args.qe_max_concurrent < 1:
+        parser.error('scanner and QE resource dimensions must be positive')
+    requested_qe_cpus = (args.qe_mpi_ranks * args.qe_omp_threads *
+                         args.qe_max_concurrent)
+    available_cpus = os.cpu_count() or 1
+    if requested_qe_cpus > available_cpus:
+        parser.error(
+            f'QE allocation requests {requested_qe_cpus} CPUs, '
+            f'but only {available_cpus} are visible')
 
     # The campaign runs under fairchem-env, while Quantum ESPRESSO is installed
     # in qe-env. Resolve it explicitly so DFT does not depend on the caller's PATH.
@@ -68,6 +85,8 @@ def main():
         qe_binary = envs_dir / 'qe-env' / 'bin' / 'pw.x'
         if qe_binary.is_file():
             os.environ['PW_X'] = str(qe_binary)
+    os.environ['QE_MPI_RANKS'] = str(args.qe_mpi_ranks)
+    os.environ['QE_OMP_THREADS'] = str(args.qe_omp_threads)
 
     from pipeline.evidence.prior_art import PriorArtRegistry
     prior_registry = PriorArtRegistry(args.prior_art_db)
@@ -194,6 +213,7 @@ def main():
         min_resolved_leaves_per_class=args.branch_class_floor,
         branch_exploration_interval=args.branch_exploration_interval,
         refresh_pending_priorities=args.branch_priority_refresh,
+        scan_workers=args.scan_workers,
     )
 
     pareto_genomes, screening_db = run_branch_discovery(branch_config)
@@ -310,16 +330,32 @@ def main():
             from pipeline.validation.dft_validator import validate_catalyst
 
             n_dft = min(10, len(top_catalysts))
-            dft_results = []
+            dft_tasks = []
             for idx, (_, row) in enumerate(top_catalysts.head(n_dft).iterrows()):
                 try:
                     genome = ast.literal_eval(row['genome'])
-                    result = validate_catalyst(f"campaign_cat_{idx}", genome, run_dft=True)
-                    dft_results.append(result)
+                    dft_tasks.append((f"campaign_cat_{idx}", genome))
                 except Exception as e:
-                    print(f"    DFT failed for cat_{idx}: {e}")
+                    print(f"    DFT input failed for cat_{idx}: {e}")
+            from concurrent.futures import ThreadPoolExecutor
+            def _validate_task(task):
+                name, genome = task
+                try:
+                    return validate_catalyst(name, genome, run_dft=True)
+                except Exception as exc:
+                    return {'catalyst_name': name, 'error': str(exc)[:200],
+                            'converged': False}
+            with ThreadPoolExecutor(
+                    max_workers=min(args.qe_max_concurrent, len(dft_tasks) or 1)
+            ) as executor:
+                dft_results = list(executor.map(_validate_task, dft_tasks))
             pipeline_state['phase3'] = {
                 'catalysts_validated': len(dft_results),
+                'converged': sum(bool(result.get('converged'))
+                                 for result in dft_results),
+                'qe_max_concurrent': args.qe_max_concurrent,
+                'qe_mpi_ranks': args.qe_mpi_ranks,
+                'qe_omp_threads': args.qe_omp_threads,
                 'elapsed_s': time.time() - t3,
             }
         except (ImportError, Exception) as e:
@@ -400,6 +436,7 @@ def main():
             min_resolved_leaves_per_class=args.branch_class_floor,
             branch_exploration_interval=args.branch_exploration_interval,
             refresh_pending_priorities=args.branch_priority_refresh,
+            scan_workers=args.scan_workers,
         )
 
         fc_pareto, fc_screening_db = run_fc_branch_discovery(fc_config)
