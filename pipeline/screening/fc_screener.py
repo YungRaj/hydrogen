@@ -258,7 +258,8 @@ def _extract_elements(genome: tuple) -> List[str]:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def orr_worker(worker_id: int, gpu_id: int, gpu_uuid: str, task_queue: mp.Queue,
-               result_queue: mp.Queue):
+               result_queue: mp.Queue, candidate_threads: int = 1,
+               batched: bool = False):
     """Worker process: loads Meta eSen on assigned GPU, evaluates ORR candidates."""
     try:
         import os
@@ -278,27 +279,46 @@ def orr_worker(worker_id: int, gpu_id: int, gpu_uuid: str, task_queue: mp.Queue,
         calc = get_ocp_calculator(
             model_name='esen-sm-conserving-all-oc25', device='cuda')
 
-        e_h2o = compute_water_ref(calc)
-        e_h2 = compute_h2_ref(calc)
+        service = None
+        if batched:
+            from pipeline.screening.batched_calculator import BatchedInferenceService
+            service = BatchedInferenceService(calc)
+            ref_calc = service.calculator_proxy()
+        else:
+            ref_calc = calc
+        e_h2o = compute_water_ref(ref_calc)
+        e_h2 = compute_h2_ref(ref_calc)
 
-        while True:
-            item = task_queue.get()
-            if item is None:
-                break
-            idx, genome = item
-            try:
-                result = evaluate_orr_candidate(genome, calc, e_h2o, e_h2)
-                result['worker_id'] = worker_id
-                result['gpu_id'] = gpu_id
-                result_queue.put((idx, result))
-            except Exception as e:
-                result_queue.put((idx, {
-                    'genome': str(genome),
-                    'material_class': genome[0],
-                    'valid': False,
-                    'screening_protocol': SCREENING_PROTOCOL_ID,
-                    'error': str(e)[:200],
-                }))
+        def consume_tasks(local_id):
+            thread_calc = service.calculator_proxy() if service else calc
+            while True:
+                item = task_queue.get()
+                if item is None:
+                    break
+                idx, genome = item
+                try:
+                    result = evaluate_orr_candidate(genome, thread_calc, e_h2o, e_h2)
+                    result['worker_id'] = worker_id
+                    result['gpu_id'] = gpu_id
+                    result_queue.put((idx, result))
+                except Exception as e:
+                    result_queue.put((idx, {
+                        'genome': str(genome),
+                        'material_class': genome[0],
+                        'valid': False,
+                        'screening_protocol': SCREENING_PROTOCOL_ID,
+                        'error': str(e)[:200],
+                    }))
+        if batched:
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=candidate_threads) as executor:
+                futures = [executor.submit(consume_tasks, i)
+                           for i in range(candidate_threads)]
+                for future in futures:
+                    future.result()
+            service.close()
+        else:
+            consume_tasks(0)
     except Exception as e:
         logger.error(f"ORR Worker {worker_id} failed: {e}")
 
@@ -308,7 +328,7 @@ def orr_worker(worker_id: int, gpu_id: int, gpu_uuid: str, task_queue: mp.Queue,
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def run_orr_screening(genomes: List[tuple], db_filename: str = "fc_screening.csv",
-                      workers_per_gpu: int = 2) -> 'pd.DataFrame':
+                      workers_per_gpu: int = 2, engine: str = 'batched') -> 'pd.DataFrame':
     """
     Run parallel Meta eSen-SM ORR screening on a list of catalyst genomes.
 
@@ -333,17 +353,22 @@ def run_orr_screening(genomes: List[tuple], db_filename: str = "fc_screening.csv
         raise RuntimeError('Meta eSen-SM ORR screening requires at least one visible CUDA GPU')
     if workers_per_gpu < 1:
         raise ValueError('workers_per_gpu must be positive')
-    num_workers = device_count * workers_per_gpu
+    if engine not in ('batched', 'legacy'):
+        raise ValueError("engine must be 'batched' or 'legacy'")
+    processes_per_gpu = 1 if engine == 'batched' else workers_per_gpu
+    candidate_threads = workers_per_gpu if engine == 'batched' else 1
+    num_workers = device_count * processes_per_gpu
     gpu_uuids = [f"GPU-{torch.cuda.get_device_properties(i).uuid}"
                  for i in range(device_count)]
-    logger.info(f"Using {device_count} GPU(s), {num_workers} parallel workers")
+    logger.info(f"Using {device_count} GPU(s), engine={engine}, "
+                f"{num_workers} model process(es), {candidate_threads} candidate thread(s)/process")
 
     task_queue = mp.Queue()
     result_queue = mp.Queue()
 
     for idx, genome in enumerate(genomes):
         task_queue.put((idx, genome))
-    for _ in range(num_workers):
+    for _ in range(num_workers * candidate_threads):
         task_queue.put(None)
 
     workers = []
@@ -351,20 +376,21 @@ def run_orr_screening(genomes: List[tuple], db_filename: str = "fc_screening.csv
         gpu_id = w_id % device_count
         p = mp.Process(
             target=orr_worker,
-            args=(w_id, gpu_id, gpu_uuids[gpu_id], task_queue, result_queue))
+            args=(w_id, gpu_id, gpu_uuids[gpu_id], task_queue, result_queue,
+                  candidate_threads, engine == 'batched'))
         p.start()
         workers.append(p)
 
-    results = []
+    indexed_results = []
     t_start = time.time()
     for i in range(len(genomes)):
         idx, result = result_queue.get()
-        results.append(result)
+        indexed_results.append((idx, result))
 
         if (i + 1) % 50 == 0 or (i + 1) == len(genomes):
             elapsed = time.time() - t_start
             rate = (i + 1) / elapsed
-            n_valid = sum(1 for r in results if r.get('valid', False))
+            n_valid = sum(1 for _, r in indexed_results if r.get('valid', False))
             logger.info(
                 f"Progress: {i+1}/{len(genomes)} "
                 f"({rate:.1f} cand/sec, {n_valid} valid, {elapsed:.0f}s)"
@@ -373,6 +399,7 @@ def run_orr_screening(genomes: List[tuple], db_filename: str = "fc_screening.csv
     for p in workers:
         p.join(timeout=30)
 
+    results = [result for _, result in sorted(indexed_results)]
     df = pd.DataFrame(results)
     path = save_screening_db(df, db_filename, subdir="fuel_cell")
     logger.info(f"ORR screening complete. {len(df)} results saved to {path}")

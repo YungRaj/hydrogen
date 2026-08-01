@@ -104,7 +104,7 @@ Phase 1: SCREENING + OPTIMIZATION            Phase 2: REACTOR SIMULATION
 │  21.1B Design Space             │          │  Cantera 3.2             │
 │  │                              │          │  ├─ MMBCR (bubble col.)  │
 │  ▼                              │          │  ├─ PFR (plug flow)     │
-│  eSen-SM (3 GPUs, 6 workers)    │──Top-K──→│  ├─ Fluidized bed        │
+│  eSen-SM (3 GPUs, batched)      │──Top-K──→│  ├─ Fluidized bed        │
 │  │                              │          │  └─ TST + BEP kinetics   │
 │  ▼                              │          └──────────────────────────┘
 │  Surrogate NN (PyTorch)         │                    │
@@ -709,6 +709,75 @@ python run_production_campaign.py \
   --qe-max-concurrent 4
 ```
 
+#### How 21.1 billion candidates become a tractable campaign
+
+The 21.1B figure is the exact cardinality of the encoded, provenance-backed
+finite genome space—not the number of structures that fit in GPU memory and not
+a claim that 21.1B DFT calculations are run. The campaign separates exhaustive
+logical traversal from progressively narrower physical validation:
+
+| Layer | Work performed | Scaling strategy | Evidence level |
+|-------|----------------|------------------|----------------|
+| Indexed space | Decode stable integer ranges in all 14 classes | O(1) random access; no materialized 21B-row table | Enumerated identity only |
+| Branch traversal | Bisect, probe, prioritize, and certify ranges | Persistent tree; class floors and exploration intervals | Coverage and allocation |
+| Streaming scan | Apply hard feasibility and encode admissible genomes | Eight disjoint resumable CPU/SQLite shards | Exhaustive cheap checks |
+| Ranker | Score admissible batches and quantify regional uncertainty | Vectorized 256-tree ensemble; one matrix validation per batch | Surrogate prediction |
+| eSen/OC25 | Relax selected atomic structures and adsorption states | One model/GPU, two optimizer streams, dynamic graph batching | ML potential result |
+| DFT/NEB/ORR | Recalculate candidate-specific finalists | MPI ranks, k-point pools, bounded concurrent jobs, resume manifests | First-principles result after convergence gates |
+| Reactor/NTEC/MEA | Measure paired controls, conversion, power, and durability | Fixed class budget plus improvement/uncertainty/disagreement budget | Experimental result |
+
+This distinction matters. The search can account for every global index and
+prove that no range was silently skipped while spending expensive calculations
+only where they improve the decision. Surrogates change ordering, never logical
+coverage. A low score cannot remove a branch. Only an all-member conservative
+feasibility proof can hard-prune one, and its proof is recorded in the coverage
+certificate. The practical stopping variables are elapsed campaign time,
+validation budget, and convergence—not an ambiguous claim that the 21B space was
+"run on the GPU."
+
+#### End-to-end hardware optimization story
+
+Optimization is applied at the bottleneck appropriate to each fidelity layer:
+
+1. **Do not materialize the population.** Integer codecs decode candidates on
+   demand; branch state, cursors, and bounded champion archives are the durable
+   state. Memory therefore depends on batch/archive size rather than 21.1B.
+2. **Parallelize only independent scans.** Interleaved shards avoid overlap and
+   private SQLite files remove write-lock contention. Exact bounds and merge
+   accounting preserve reproducibility across worker counts.
+3. **Batch ranker work.** Encoded matrices are validated once and evaluated by
+   the compact deterministic ensemble. More trees or processes are retained only
+   when held-out ranking or measured candidates/second improves.
+4. **Keep GPU models resident.** CUDA UUID affinity is established before torch
+   import. One process owns each eSen model, avoiding duplicated weights and CUDA
+   contexts. Multiple independent ASE/BFGS streams feed its batching thread.
+5. **Batch graphs, not padded tensors.** Fairchem atomic graphs concatenate until
+   a total-atom budget is reached; predictions are split back to the requesting
+   optimizer. Different candidates keep independent positions, Hessians, and
+   convergence state. Finished streams pull new work from the global queue, so
+   faster GPUs naturally complete more candidates.
+6. **Cache immutable work.** Molecular reference energies are computed once per
+   model/GPU. Candidate IDs, protocol IDs, ranker evidence, scan cursors, QE
+   manifests, and converged stages are reused only when their provenance matches.
+7. **Control CPU contention.** BLAS/OpenMP libraries are limited before spawned
+   interpreters import numpy or torch. QE uses explicit MPI/OMP/k-point settings;
+   campaign concurrency is bounded so simultaneous jobs do not starve one another.
+8. **Optimize throughput under accuracy contracts.** Changes are accepted using
+   completed valid candidates/second, memory/model replica count, all-GPU use,
+   and numerical comparisons—not utilization alone. The legacy engine remains a
+   direct A/B control. Scientific tests cover equations, device affinity, energy/
+   force invariance, and single-versus-batched inference equivalence.
+
+The current local optimum is deliberately a measured default, not a universal
+constant. Re-run `test_gpu_affinity_contract.py` with
+`HYDROGEN_WORKERS_PER_GPU=1`, `2`, and `3`; use
+`HYDROGEN_SCREENING_ENGINE=legacy` for the fallback comparison and
+`HYDROGEN_SCREENING_APPLICATION=orr` for the fuel-cell path. Choose the smallest
+configuration on the throughput plateau, then monitor `nvidia-smi dmon` alongside
+valid completions. Additional concurrency that raises utilization but lowers
+valid candidates/second, causes out-of-memory retries, or changes numerical
+contracts is not an optimization.
+
 The tree begins with one root for each of the 14 material classes and recursively
 bisects class-local indexed ranges. Deterministic low-discrepancy surrogate probes
 establish a robust quantile priority for each child. A class floor gives every
@@ -738,11 +807,20 @@ former 1024-tree scorer in the local benchmark while removing repeated tree-leve
 validation and large batch-by-tree allocations.
 
 Atomistic screening addresses every logical CUDA device explicitly and uses a
-shared task queue, so faster GPUs pull more candidates. The measured local optimum
-was two eSen worker processes per GPU: 0.166 candidates/s across the three-GPU
-host versus 0.147 with one; three workers reached 0.167 but added three model
-replicas for no meaningful throughput gain. Near-100% instantaneous GPU usage is
-not itself the objective—completed valid candidates per second is. Native BLAS
+shared task queue, so faster GPUs pull more candidates. Each GPU now holds one
+eSen model while two independent ASE optimizer streams submit energy/force work
+to a native graph-batching service. Converged streams are immediately replaced
+from the global queue; reference energies are cached once per model/GPU. Graphs
+are concatenated under a total-atom budget, so variable-size structures do not
+incur dense padding. The legacy multi-process engine remains available through
+the screeners' `engine='legacy'` argument for controlled fallback comparisons.
+
+On the local three-GPU host, an identical 14-class smoke campaign took 46.9 s
+with dynamic batching versus 49.4 s with two legacy model processes per GPU
+(5.2% faster while halving resident model replicas). A paired-inference
+microbenchmark took 0.074 s batched versus 0.760 s sequential; energy and force
+differences were below 9e-8 eV and 2.3e-7 eV/Å. Near-100% instantaneous GPU usage
+is not itself the objective—completed valid candidates per second is. Native BLAS
 thread limits are installed before spawned workers import numpy or torch.
 
 Same-protocol calibration and champion observations are accumulated in

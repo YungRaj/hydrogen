@@ -207,7 +207,8 @@ def test_esen_energy_force_and_invariance_contracts():
     from ase import Atoms
     from pipeline.screening.surface_calculator import get_ocp_calculator
 
-    calc = get_ocp_calculator(device='cuda:0')
+    # The contract process is masked to one physical GPU; use its logical name.
+    calc = get_ocp_calculator(device='cuda')
     assert calc is not None
     atoms = Atoms('H2', positions=[[0, 0, 0], [0, 0, 0.75]],
                   cell=[10, 10, 10], pbc=True)
@@ -232,6 +233,41 @@ def test_esen_energy_force_and_invariance_contracts():
     numerical_force = -(
         plus.get_potential_energy() - minus.get_potential_energy()) / (2 * step)
     assert math.isclose(forces[1, 2], numerical_force, rel_tol=2e-2, abs_tol=2e-2)
+
+
+def test_esen_dynamic_batch_matches_single_system_inference():
+    if os.environ.get('RUN_ESEN_CONTRACTS') != '1':
+        return
+    from concurrent.futures import ThreadPoolExecutor
+    from ase.build import molecule
+    from pipeline.screening.batched_calculator import BatchedInferenceService
+    from pipeline.screening.surface_calculator import get_ocp_calculator
+
+    base = get_ocp_calculator(device='cuda')
+    assert base is not None
+    structures = [molecule('H2'), molecule('H2O')]
+    for atoms in structures:
+        atoms.set_cell([10, 10, 10])
+        atoms.center()
+        atoms.pbc = True
+    expected = []
+    for atoms in structures:
+        atoms.calc = base
+        expected.append((atoms.get_potential_energy(), atoms.get_forces().copy()))
+
+    service = BatchedInferenceService(base, batch_wait_ms=20)
+    def evaluate(atoms):
+        atoms = atoms.copy()
+        atoms.calc = service.calculator_proxy()
+        return atoms.get_potential_energy(), atoms.get_forces()
+    try:
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            observed = list(executor.map(evaluate, structures))
+    finally:
+        service.close()
+    for reference, batched in zip(expected, observed):
+        assert math.isclose(reference[0], batched[0], abs_tol=2e-5)
+        assert np.allclose(reference[1], batched[1], atol=2e-5, rtol=2e-5)
 
 
 TESTS = [value for name, value in sorted(globals().items())
