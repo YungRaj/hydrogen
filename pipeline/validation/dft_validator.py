@@ -335,16 +335,27 @@ def parse_forces(output_file: str) -> Optional[float]:
     return float(matches[-1]) if matches else None
 
 
-def parse_convergence(output_file: str) -> bool:
-    """Require clean QE termination and electronic convergence."""
+def parse_convergence(output_file: str, *, require_ionic: bool = False) -> bool:
+    """Require clean QE termination and the requested convergence level."""
     if not os.path.exists(output_file):
         return False
     with open(output_file, 'r') as f:
         content = f.read()
     lower = content.lower()
     fatal = ('error in routine', 'convergence not achieved', 'stopping ...')
-    return ('job done' in lower and 'convergence has been achieved' in lower and
-            not any(token in lower for token in fatal))
+    electronic = ('job done' in lower and
+                  'convergence has been achieved' in lower and
+                  not any(token in lower for token in fatal))
+    if not electronic:
+        return False
+    if not require_ionic:
+        return True
+    # QE prints this only after the BFGS ionic criteria (including
+    # forc_conv_thr) have been satisfied. An SCF convergence line is not an
+    # endpoint-relaxation certificate.
+    ionic = ('end of bfgs geometry optimization' in lower or
+             'bfgs converged in' in lower)
+    return ionic
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -352,7 +363,8 @@ def parse_convergence(output_file: str) -> bool:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def validate_catalyst(catalyst_name: str, genome: tuple,
-                       run_dft: bool = True) -> Dict:
+                       run_dft: bool = True,
+                       restart_incomplete: bool = False) -> Dict:
     """
     Full DFT validation workflow for a champion catalyst.
     
@@ -369,10 +381,13 @@ def validate_catalyst(catalyst_name: str, genome: tuple,
     calc_dir.mkdir(parents=True, exist_ok=True)
 
     mat_class = genome[0]
+    from pipeline.search.discovery import candidate_id
     result = {
         'catalyst_name': catalyst_name,
+        'candidate_id': candidate_id(genome),
         'material_class': mat_class,
         'genome': str(genome),
+        'evidence_level': 'screening_dft',
     }
 
     # Generate input based on material class
@@ -404,6 +419,23 @@ def validate_catalyst(catalyst_name: str, genome: tuple,
     # Write input file
     input_file = calc_dir / f"{catalyst_name}.in"
     output_file = calc_dir / f"{catalyst_name}.out"
+    if output_file.is_file() and output_file.stat().st_size:
+        require_ionic = "calculation = 'relax'" in input_text
+        existing_converged = parse_convergence(
+            str(output_file), require_ionic=require_ionic)
+        if existing_converged or not restart_incomplete:
+            energy = parse_total_energy(str(output_file))
+            result.update({
+                'dft_energy_Ry': energy,
+                'dft_energy_eV': energy * Ry_to_eV if energy else None,
+                'converged': existing_converged,
+                'max_force_Ry_bohr': parse_forces(str(output_file)),
+                'resumed_existing_output': True,
+            })
+            if not existing_converged:
+                result['error'] = 'existing_output_incomplete_or_failed'
+            save_json(result, f"{catalyst_name}_dft.json", subdir="dft")
+            return result
     with open(input_file, 'w') as f:
         f.write(input_text)
     logger.info(f"  Written QE input: {input_file}")
@@ -429,7 +461,9 @@ def validate_catalyst(catalyst_name: str, genome: tuple,
     # Parse results
     if output_file.exists():
         energy = parse_total_energy(str(output_file))
-        converged = parse_convergence(str(output_file))
+        require_ionic = "calculation = 'relax'" in input_text
+        converged = parse_convergence(
+            str(output_file), require_ionic=require_ionic)
         max_force = parse_forces(str(output_file))
 
         result['dft_energy_Ry'] = energy

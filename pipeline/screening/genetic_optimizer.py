@@ -330,14 +330,18 @@ def run_branch_discovery(config: BranchDiscoveryConfig = BranchDiscoveryConfig()
     from pipeline.search.indexed_space import deterministic_tree_probes
     from pipeline.search.branch_search import BranchConfig, run_branch_and_bound
     from pipeline.search.exhaustive_search import load_archive_genomes
-    from pipeline.screening.surface_screener import run_screening
+    from pipeline.screening.surface_screener import run_screening, SCREENING_PROTOCOL_ID
 
     if existing_db is not None and len(existing_db) > 50:
         evidence = existing_db
     else:
         probes = deterministic_tree_probes(config.initial_fairchem_samples)
         evidence = run_screening(probes, db_filename='branch_calibration.csv', workers_per_gpu=2)
-    from pipeline.screening.small_data_ranker import fit_tree_ranker, turquoise_tree_objectives
+    from pipeline.screening.small_data_ranker import (
+        fit_tree_ranker, merge_compatible_evidence, turquoise_tree_objectives)
+    prior_evidence = load_screening_db('branch_ranker_evidence.csv')
+    evidence = merge_compatible_evidence(
+        evidence, prior_evidence, SCREENING_PROTOCOL_ID)
     model = fit_tree_ranker(evidence, 'turquoise_hydrogen')
     score_population = lambda pop: turquoise_tree_objectives(pop, model)
     summary = run_branch_and_bound(BranchConfig(
@@ -376,6 +380,9 @@ def run_branch_discovery(config: BranchDiscoveryConfig = BranchDiscoveryConfig()
     record_screening_frame(config.exhaustive_db, 'turquoise_hydrogen', predictions,
                            validated, 'E_act', 'fairchem', 0.8)
     evidence = pd.concat([evidence, validated], ignore_index=True)
+    evidence = merge_compatible_evidence(
+        evidence, None, SCREENING_PROTOCOL_ID)
+    save_screening_db(evidence, 'branch_ranker_evidence.csv')
     if config.prior_art_db:
         from pipeline.evidence.prior_art import annotate_prior_art
         evidence = annotate_prior_art(evidence, config.prior_art_db)

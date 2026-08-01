@@ -62,6 +62,7 @@ class PipelineConfig:
     run_vqe: bool = True                 # Actually execute CUDA-Q
     quick_mode: bool = False             # Reduced parameters for testing
     pyrolysis_mode: str = 'ntec'         # 'ntec' or 'thermocatalytic'
+    allow_mock_inputs: bool = False       # Explicit test-only opt-in
 
 
 def run_pipeline(config: PipelineConfig = PipelineConfig(),
@@ -160,6 +161,9 @@ def run_pipeline(config: PipelineConfig = PipelineConfig(),
                 valid_db = valid_db[valid_db['valid'] == True]
                 top_catalysts = valid_db.nsmallest(config.top_k_reactor, 'E_act')
             else:
+                if not config.allow_mock_inputs:
+                    raise RuntimeError(
+                        'screening database is required; mock catalyst fallback is disabled')
                 logger.warning("No screening database found. Using mock catalysts.")
                 top_catalysts = None
 
@@ -226,6 +230,9 @@ def run_pipeline(config: PipelineConfig = PipelineConfig(),
                     logger.error(f"DFT failed for cat_{idx}: {e}")
         else:
             # Mock validation
+            if not config.allow_mock_inputs:
+                raise RuntimeError(
+                    'screening candidates are required; mock DFT fallback is disabled')
             mock_genomes = [
                 ('MoltenMetal', 'Bi', 'Ni', 10.0, 1000),
                 ('SolidCatalyst', 'Ni', 'Al2O3', 'fcc111', 0.0, ('Cu',), 1, 0),

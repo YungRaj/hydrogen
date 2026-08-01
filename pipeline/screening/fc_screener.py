@@ -22,8 +22,7 @@ import sys
 import time
 import random
 import numpy as np
-import torch
-import torch.multiprocessing as mp
+import multiprocessing as mp
 from typing import List, Tuple, Dict, Optional
 
 from ase import Atoms, Atom
@@ -37,6 +36,8 @@ from pipeline.common.utils import (
 from pipeline.screening.surface_screener import generate_structure
 
 logger = setup_logger('fc_screener', 'fuel_cell/fc_screening.log')
+
+SCREENING_PROTOCOL_ID = 'esen-sm-conserving-all-oc25:relax-v2:orr-che-v2'
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -103,6 +104,7 @@ def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> di
         'genome': str(genome),
         'material_class': mat_class,
         'valid': False,
+        'screening_protocol': SCREENING_PROTOCOL_ID,
     }
 
     try:
@@ -255,14 +257,12 @@ def _extract_elements(genome: tuple) -> List[str]:
 # MULTI-GPU WORKER
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def orr_worker(worker_id: int, gpu_id: int, task_queue: mp.Queue,
+def orr_worker(worker_id: int, gpu_id: int, gpu_uuid: str, task_queue: mp.Queue,
                result_queue: mp.Queue):
     """Worker process: loads Meta eSen on assigned GPU, evaluates ORR candidates."""
     try:
         import os
-        # Respect a launcher-level GPU mask (for concurrent campaigns). When no
-        # mask exists, assign this worker to its scheduler-selected device.
-        os.environ.setdefault('CUDA_VISIBLE_DEVICES', str(gpu_id))
+        os.environ['CUDA_VISIBLE_DEVICES'] = gpu_uuid
         os.environ['OMP_NUM_THREADS'] = '1'
         os.environ['MKL_NUM_THREADS'] = '1'
         os.environ['OPENBLAS_NUM_THREADS'] = '1'
@@ -275,7 +275,8 @@ def orr_worker(worker_id: int, gpu_id: int, task_queue: mp.Queue,
         torch.set_num_interop_threads(1)
         
         from pipeline.screening.surface_calculator import get_ocp_calculator
-        calc = get_ocp_calculator(model_name='esen-sm-conserving-all-oc25', device='cuda')
+        calc = get_ocp_calculator(
+            model_name='esen-sm-conserving-all-oc25', device='cuda')
 
         e_h2o = compute_water_ref(calc)
         e_h2 = compute_h2_ref(calc)
@@ -295,6 +296,7 @@ def orr_worker(worker_id: int, gpu_id: int, task_queue: mp.Queue,
                     'genome': str(genome),
                     'material_class': genome[0],
                     'valid': False,
+                    'screening_protocol': SCREENING_PROTOCOL_ID,
                     'error': str(e)[:200],
                 }))
     except Exception as e:
@@ -314,6 +316,12 @@ def run_orr_screening(genomes: List[tuple], db_filename: str = "fc_screening.csv
     OH*, O*, OOH* for fuel cell cathode applications.
     """
     import pandas as pd
+    import torch
+
+    # Apply native-library limits before spawned interpreters import BLAS.
+    for name in ('OMP_NUM_THREADS', 'MKL_NUM_THREADS', 'OPENBLAS_NUM_THREADS',
+                 'VECLIB_MAXIMUM_THREADS', 'NUMEXPR_NUM_THREADS'):
+        os.environ.setdefault(name, '1')
 
     mp.set_start_method('spawn', force=True)
 
@@ -321,7 +329,13 @@ def run_orr_screening(genomes: List[tuple], db_filename: str = "fc_screening.csv
     logger.info(f"ORR screening {len(genomes)} candidates...")
 
     device_count = torch.cuda.device_count()
+    if device_count < 1:
+        raise RuntimeError('Meta eSen-SM ORR screening requires at least one visible CUDA GPU')
+    if workers_per_gpu < 1:
+        raise ValueError('workers_per_gpu must be positive')
     num_workers = device_count * workers_per_gpu
+    gpu_uuids = [f"GPU-{torch.cuda.get_device_properties(i).uuid}"
+                 for i in range(device_count)]
     logger.info(f"Using {device_count} GPU(s), {num_workers} parallel workers")
 
     task_queue = mp.Queue()
@@ -335,7 +349,9 @@ def run_orr_screening(genomes: List[tuple], db_filename: str = "fc_screening.csv
     workers = []
     for w_id in range(num_workers):
         gpu_id = w_id % device_count
-        p = mp.Process(target=orr_worker, args=(w_id, gpu_id, task_queue, result_queue))
+        p = mp.Process(
+            target=orr_worker,
+            args=(w_id, gpu_id, gpu_uuids[gpu_id], task_queue, result_queue))
         p.start()
         workers.append(p)
 

@@ -11,6 +11,7 @@ import time
 import json
 import hashlib
 import logging
+import tempfile
 import numpy as np
 try:
     import pandas as pd
@@ -470,11 +471,22 @@ def load_screening_db(filename: str, subdir: str = "screening"):
 
 
 def save_json(data: dict, filename: str, subdir: str = "reports"):
-    """Save a dictionary as JSON."""
+    """Atomically save JSON so interruption cannot corrupt campaign state."""
     path = RESULTS_DIR / subdir / filename
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, 'w') as f:
-        json.dump(data, f, indent=2, default=str)
+    with tempfile.NamedTemporaryFile(
+            mode='w', dir=path.parent, prefix=f'.{path.name}.',
+            suffix='.tmp', delete=False) as handle:
+        temporary = Path(handle.name)
+        try:
+            json.dump(data, handle, indent=2, default=str)
+            handle.write('\n')
+            handle.flush()
+            os.fsync(handle.fileno())
+        except Exception:
+            temporary.unlink(missing_ok=True)
+            raise
+    os.replace(temporary, path)
     return path
 
 
@@ -498,15 +510,18 @@ def conda_run_cmd(env_name: str, python_cmd: str, cwd: Optional[str] = None) -> 
 def run_in_env(env_name: str, script_path: str, args: str = "",
                cwd: Optional[str] = None, check: bool = True):
     """Execute a Python script in a specific conda environment."""
+    import shlex
     import subprocess
-    cmd = f"conda run -n {env_name} python {script_path} {args}"
+    cmd = ['conda', 'run', '-n', env_name, 'python', script_path]
+    if args:
+        cmd.extend(shlex.split(args))
     work_dir = cwd or str(BASE_DIR)
-    result = subprocess.run(cmd, shell=True, cwd=work_dir, 
+    result = subprocess.run(cmd, cwd=work_dir,
                            capture_output=True, text=True)
     if check and result.returncode != 0:
         raise RuntimeError(
             f"Command failed in {env_name}:\n"
-            f"CMD: {cmd}\n"
+            f"CMD: {shlex.join(cmd)}\n"
             f"STDERR: {result.stderr[-2000:]}"
         )
     return result

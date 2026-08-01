@@ -35,7 +35,7 @@ logger = setup_logger('dft_fuel_cell', 'dft/dft_fuel_cell.log')
 def converged_energy(output_file: Path | str) -> Optional[float]:
     """Return the final QE energy only for a cleanly converged calculation."""
     path = str(output_file)
-    if not parse_convergence(path):
+    if not parse_convergence(path, require_ionic=True):
         return None
     return parse_total_energy(path)
 
@@ -266,7 +266,9 @@ def validate_orr_catalyst(catalyst_name: str, genome: tuple,
     # Parsing a resumed campaign is valid even when this invocation only
     # generated inputs (`run_dft=False`).  Evidence comes from the outputs,
     # never from whether this Python process launched them.
-    result['converged'] = all(parse_convergence(str(path)) for path in required_outputs)
+    result['converged'] = all(
+        parse_convergence(str(path), require_ionic=True)
+        for path in required_outputs)
     result['evidence_level'] = 'converged_dft' if result['converged'] else 'incomplete'
     if not result['converged']:
         result.pop('orr_overpotential_V', None)

@@ -728,6 +728,29 @@ and merges bounded archives with stable candidate-ID tie breaks. An interrupted
 or failed worker therefore cannot create a false completion certificate; reruns
 resume its existing shard. `--scan-workers 1` retains the serial reference path.
 Use a worker count appropriate for the available CPU cores and storage bandwidth.
+On the local 64-core/128-thread Threadripper host while three legacy QE jobs were
+active, an August 2026 controlled scan measured 26.4k, 49.9k, 74.4k, 78.8k, and
+71.6k candidates/s at 1, 2, 4, 8, and 16 scanner workers respectively. Eight is
+therefore the measured default; more processes reduced throughput. The small-data
+ranker uses a deterministic 256-tree ensemble and validates the encoded matrix
+once per batch. This preserved approximately 0.99 rank correlation against the
+former 1024-tree scorer in the local benchmark while removing repeated tree-level
+validation and large batch-by-tree allocations.
+
+Atomistic screening addresses every logical CUDA device explicitly and uses a
+shared task queue, so faster GPUs pull more candidates. The measured local optimum
+was two eSen worker processes per GPU: 0.166 candidates/s across the three-GPU
+host versus 0.147 with one; three workers reached 0.167 but added three model
+replicas for no meaningful throughput gain. Near-100% instantaneous GPU usage is
+not itself the objective—completed valid candidates per second is. Native BLAS
+thread limits are installed before spawned workers import numpy or torch.
+
+Same-protocol calibration and champion observations are accumulated in
+`branch_ranker_evidence.csv` and `fc_branch_ranker_evidence.csv`, deduplicated by
+genome, and folded into later rankers. Rows without the exact screening protocol
+ID are not reused. Thus disagreement feedback changes later allocation and model
+fit instead of merely being logged; every campaign still spends its reserved
+class validation budget on new archive candidates.
 
 Candidate DFT validation is also resource bounded. `--qe-mpi-ranks` and
 `--qe-omp-threads` control each Quantum ESPRESSO process, while
@@ -754,9 +777,25 @@ lacks a complete, denominator-matched coverage certificate or the prior-art
 registry is empty. A complete computational certificate still does not substitute
 for reactor, stack, durability, synthesis, safety, or experimental validation.
 Copy `evidence_manifest.example.json` to `results/evidence_manifest.json` and
-update its counts only from traceable records. Final mode remains nonzero until
-all six scientific criteria pass. Current four-qubit VQE Hamiltonians are labeled
-toy models and are not accepted as catalyst evidence.
+populate its schema-v2 record lists with candidate IDs, protocol IDs, source
+paths, statuses, and SHA-256 hashes. Readiness counts are derived only from
+artifacts whose hashes and required statuses verify; manually entered aggregate
+counts are rejected. Final mode remains nonzero until all six scientific
+criteria pass. Current four-qubit VQE Hamiltonians are labeled toy models and
+are not accepted as catalyst evidence.
+
+#### Physical candidate realizations
+
+The encoded genome and its atomic realization are separate, versioned layers.
+Structure generation uses process-independent SHA-256 seeds and explicitly
+represents supports, facets, dopant/vacancy placement, axial ligands, framework
+linkers and pore scale, hydride family/additives, MAX/MXene layers and
+terminations, SAA loading, and metal-free-carbon environments. Regression tests
+require physically meaningful genome changes to alter the structure fingerprint.
+These compact structures remain screening realizations—not claims of a unique
+synthesized phase. Candidates promoted to production evidence still require
+phase-specific cells, configuration ensembles, converged relaxation, and the
+candidate-specific NEB or ORR workflow.
 
 Production Quantum ESPRESSO validation can be inspected without disturbing a
 running calculation:
@@ -788,6 +827,12 @@ command, resource layout, input hash, elapsed time, return code, and timeout
 state. Gas-phase H2/H2O references use closed-shell fixed occupations and Gamma
 sampling rather than inheriting metallic slab smearing. Final ORR evidence still
 requires all six calculations to converge under one recorded protocol.
+
+The campaign's preliminary DFT stage is explicitly labeled `screening_dft`.
+Tasks are persisted in `results/dft/validation_tasks.sqlite`, keyed by candidate
+ID, task type, and protocol. Rank changes therefore cannot overwrite another
+candidate's result, completed tasks are not re-run, and stale running tasks can
+be recovered. Screening DFT does not increment production DFT/NEB/ORR evidence.
 
 Each invocation also regenerates an application-specific coverage certificate:
 

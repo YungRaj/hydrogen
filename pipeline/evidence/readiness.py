@@ -5,6 +5,7 @@ from pathlib import Path
 
 from pipeline.search.indexed_space import TOTAL_SIZE
 from pipeline.evidence.prior_art import PriorArtRegistry
+from pipeline.evidence.manifest import verify_evidence_manifest
 
 
 def campaign_readiness(coverage_certificate: str, prior_art_db: str,
@@ -29,20 +30,19 @@ def campaign_readiness(coverage_certificate: str, prior_art_db: str,
         failures.append('prior_art_registry_empty')
     evidence = {}
     if evidence_manifest is not None:
-        path = Path(evidence_manifest)
-        if not path.exists():
-            failures.append('evidence_manifest_missing')
-        else:
-            evidence = json.loads(path.read_text())
+        verification = verify_evidence_manifest(evidence_manifest)
+        evidence = verification['counts']
+        failures.extend(verification['errors'])
+        if verification['valid']:
             required = {
-                'turquoise_hydrogen': ('converged_dft_count', 'measured_reactor_count',
-                                       'measured_deactivation_count'),
-                'fuel_cell': ('converged_orr_dft_count', 'measured_mea_count',
-                              'measured_durability_count', 'hydrogen_impurity_test_count',
-                              'time_split_benchmark_count', 'curated_prior_art_sources'),
+                'turquoise_hydrogen': ('converged_dft', 'measured_reactor',
+                                       'measured_deactivation'),
+                'fuel_cell': ('converged_orr_dft', 'measured_mea',
+                              'measured_durability', 'hydrogen_impurity_test',
+                              'time_split_benchmark', 'curated_prior_art_source'),
             }.get(application, ())
             if application == 'turquoise_hydrogen' and pyrolysis_mode == 'ntec':
-                required += ('ntec_control_pair_count',)
+                required += ('ntec_control_pair',)
             for key in required:
                 if int(evidence.get(key, 0) or 0) < 1:
                     failures.append(f'evidence_missing:{key}')

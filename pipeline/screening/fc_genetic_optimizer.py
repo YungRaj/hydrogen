@@ -442,7 +442,7 @@ def run_fc_branch_discovery(config: FCBranchDiscoveryConfig, existing_db=None):
     from pipeline.search.indexed_space import deterministic_tree_probes
     from pipeline.search.branch_search import BranchConfig, run_branch_and_bound
     from pipeline.search.exhaustive_search import load_archive_genomes
-    from pipeline.screening.fc_screener import run_orr_screening
+    from pipeline.screening.fc_screener import run_orr_screening, SCREENING_PROTOCOL_ID
 
     if existing_db is not None and len(existing_db) > 50:
         evidence = existing_db
@@ -450,7 +450,13 @@ def run_fc_branch_discovery(config: FCBranchDiscoveryConfig, existing_db=None):
         probes = deterministic_tree_probes(config.initial_fairchem_samples)
         evidence = run_orr_screening(
             probes, db_filename='fc_branch_calibration.csv', workers_per_gpu=2)
-    from pipeline.screening.small_data_ranker import fit_tree_ranker, orr_tree_objectives
+    from pipeline.screening.small_data_ranker import (
+        fit_tree_ranker, merge_compatible_evidence, orr_tree_objectives)
+    from pipeline.common.utils import load_screening_db, save_screening_db
+    prior_evidence = load_screening_db(
+        'fc_branch_ranker_evidence.csv', subdir='fuel_cell')
+    evidence = merge_compatible_evidence(
+        evidence, prior_evidence, SCREENING_PROTOCOL_ID)
     model = fit_tree_ranker(evidence, 'fuel_cell_orr')
     score_population = lambda pop: orr_tree_objectives(pop, model)
     summary = run_branch_and_bound(BranchConfig(
@@ -489,6 +495,10 @@ def run_fc_branch_discovery(config: FCBranchDiscoveryConfig, existing_db=None):
     record_screening_frame(config.exhaustive_db, 'fuel_cell_orr', predictions,
                            validated, 'orr_overpotential_V', 'fairchem', 0.40)
     evidence = pd.concat([evidence, validated], ignore_index=True)
+    evidence = merge_compatible_evidence(
+        evidence, None, SCREENING_PROTOCOL_ID)
+    save_screening_db(
+        evidence, 'fc_branch_ranker_evidence.csv', subdir='fuel_cell')
     if config.prior_art_db:
         from pipeline.evidence.prior_art import annotate_prior_art
         evidence = annotate_prior_art(evidence, config.prior_art_db)

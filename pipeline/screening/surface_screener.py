@@ -19,9 +19,9 @@ import os
 import sys
 import time
 import random
+import hashlib
 import numpy as np
-import torch
-import torch.multiprocessing as mp
+import multiprocessing as mp
 from typing import List, Tuple, Dict, Optional
 
 # ASE imports
@@ -40,6 +40,55 @@ from pipeline.common.utils import (
 
 logger = setup_logger('surface_screener', 'screening/surface_screening.log')
 
+SCREENING_PROTOCOL_ID = 'esen-sm-conserving-all-oc25:relax-v2:pyrolysis-v2'
+
+
+def _stable_seed(*parts) -> int:
+    """Return a process-independent seed for one physical realization."""
+    payload = repr(parts).encode('utf-8')
+    return int.from_bytes(hashlib.sha256(payload).digest()[:8], 'big')
+
+
+def _label_fraction(label) -> float:
+    """Stable [0, 1) coordinate used to distinguish categorical realizations."""
+    return (_stable_seed('label-coordinate-v1', label) % 10_000) / 10_000.0
+
+
+def _representative_element(label: str, default: str = 'C') -> str:
+    """Map support/linker labels to a chemically relevant explicit atom."""
+    text = str(label)
+    for token in ('Mo', 'Ti', 'Al', 'Si', 'Mg', 'Zr', 'Ce', 'La', 'Fe',
+                  'Cl', 'Se', 'Zn', 'Ni', 'Co', 'Cu', 'Ca', 'Na',
+                  'B', 'N', 'O', 'S', 'P', 'F', 'C'):
+        if token in text:
+            return token
+    return default
+
+
+def _append_marker(atoms: Atoms, symbol: str, offset: tuple[float, float, float]) -> int:
+    """Add one explicit environment atom without overlapping the active site."""
+    center = atoms.get_center_of_mass()
+    atoms.append(Atom(symbol, position=center + np.asarray(offset, dtype=float)))
+    return len(atoms) - 1
+
+
+def _add_surface_markers(atoms: Atoms, symbols: list[str]) -> list[int]:
+    """Add sparse environment atoms and restore a valid bottom constraint."""
+    if not symbols:
+        return []
+    atoms.set_constraint()
+    z_max = float(atoms.positions[:, 2].max())
+    cell = atoms.cell.lengths()
+    added = []
+    for index, symbol in enumerate(symbols):
+        x = (index + 1) * float(cell[0]) / (len(symbols) + 1)
+        y = (index % 2 + 1) * float(cell[1]) / 3.0
+        atoms.append(Atom(symbol, position=(x, y, z_max + 1.5 + 0.25 * index)))
+        added.append(len(atoms) - 1)
+    z = atoms.positions[:, 2]
+    atoms.set_constraint(FixAtoms(mask=z < z.min() + 4.0))
+    return added
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # STRUCTURE GENERATORS
@@ -48,7 +97,8 @@ logger = setup_logger('surface_screener', 'screening/surface_screening.log')
 def generate_alloy_slab(host: str, facet: str, strain: float,
                         dopants: tuple, n_sub: int, n_vac: int,
                         size: Tuple[int,int,int] = (3, 3, 4),
-                        vacuum: float = 12.0) -> Tuple[Atoms, list]:
+                        vacuum: float = 12.0, seed_key=None,
+                        environment_label: str | None = None) -> Tuple[Atoms, list]:
     """Generate a strained alloy slab with dopant substitutions and vacancies."""
     builders = {
         'fcc111': fcc111, 'fcc100': fcc100,
@@ -94,12 +144,14 @@ def generate_alloy_slab(host: str, facet: str, strain: float,
     top_indices = np.where(top_mask)[0]
 
     # Deterministic shuffle based on composition for reproducibility
-    rng = random.Random(hash((host, facet, str(dopants))))
+    rng = random.Random(_stable_seed(
+        'alloy-slab-v2', host, facet, float(strain), tuple(dopants),
+        int(n_sub), int(n_vac), tuple(size), float(vacuum), seed_key))
     shuffled = list(top_indices)
     rng.shuffle(shuffled)
 
     # Substitutions
-    sub_count = min(n_sub, len(dopants), len(shuffled))
+    sub_count = min(n_sub, len(shuffled)) if dopants else 0
     for i in range(sub_count):
         slab[shuffled[i]].symbol = dopants[i % len(dopants)]
 
@@ -113,6 +165,13 @@ def generate_alloy_slab(host: str, facet: str, strain: float,
         z_coords = slab.positions[:, 2]
         top_mask = z_coords > (z_coords.max() - 2.5)
         top_indices = np.where(top_mask)[0]
+
+    # A compact interface proxy prevents support-distinct genomes from
+    # collapsing to an identical unsupported metal slab.
+    if environment_label and str(environment_label).lower() != 'none':
+        bottom = int(np.argmin(slab.positions[:, 2]))
+        slab[bottom].symbol = _representative_element(environment_label, 'C')
+        slab.positions[bottom, 0] += 0.05 * _label_fraction(environment_label)
 
     # Apply biaxial strain
     cell = slab.get_cell()
@@ -130,7 +189,11 @@ def generate_alloy_slab(host: str, facet: str, strain: float,
 
 
 def generate_porphyrin_cluster(metal: str, cavity: str,
-                               d_metal_n: float = 2.0) -> Atoms:
+                               d_metal_n: float = 2.0,
+                               substrate: str = 'N-graphene',
+                               axial_ligand: str = 'none',
+                               linker: str | None = None,
+                               pore_size: float | None = None) -> Atoms:
     """Generate a metal-porphyrin active site cluster for SAC/MOF evaluation."""
     atoms = Atoms()
 
@@ -138,7 +201,9 @@ def generate_porphyrin_cluster(metal: str, cavity: str,
     if metal != 'None':
         atoms.append(Atom(metal, position=(0.0, 0.0, 0.0)))
     else:
-        atoms.append(Atom('X', position=(0.0, 0.0, 0.0)))  # dummy
+        # COFs have no metal node; use an explicit framework carbon instead of
+        # ASE's dummy X element, which atomistic models cannot embed.
+        atoms.append(Atom('C', position=(0.0, 0.0, 0.0)))
 
     # Parse cavity for coordinating atoms
     coord_map = {
@@ -181,19 +246,38 @@ def generate_porphyrin_cluster(metal: str, cavity: str,
 
     for sym, pos in zip(coord_atoms, positions[:len(coord_atoms)]):
         atoms.append(Atom(sym, position=pos))
+    if len(atoms) > 1:
+        atoms.positions[1, 2] += 0.08 * _label_fraction(cavity)
 
     # Add surrounding carbon skeleton
     n_c = 8
+    pore_scale = 1.0 if pore_size is None else np.clip(float(pore_size) / 12.0, 0.75, 1.75)
     for k in range(n_c):
         angle = 2 * np.pi * k / n_c + np.pi / n_c
-        r = d_metal_n + 1.2
+        r = (d_metal_n + 1.2) * pore_scale
         atoms.append(Atom('C', position=(r * np.cos(angle), r * np.sin(angle), 0.0)))
 
     # Add hydrogen termination
     for k in range(n_c):
         angle = 2 * np.pi * k / n_c + np.pi / n_c
-        r = d_metal_n + 2.2
+        r = (d_metal_n + 2.2) * pore_scale
         atoms.append(Atom('H', position=(r * np.cos(angle), r * np.sin(angle), 0.0)))
+
+    # Encode the local support/linker chemistry explicitly. These atoms are a
+    # compact active-site environment, not a claim of a converged full crystal.
+    substrate_element = _representative_element(substrate, 'C')
+    atoms[5].symbol = substrate_element
+    atoms.positions[5, 2] += 0.08 * _label_fraction(substrate)
+    if linker is not None:
+        atoms[6].symbol = _representative_element(linker, 'C')
+        atoms.positions[6, 2] += 0.08 * _label_fraction(linker)
+
+    ligand = str(axial_ligand).lower()
+    if ligand not in ('none', '') and metal != 'None':
+        ligand_symbol = _representative_element(axial_ligand, 'O')
+        _append_marker(
+            atoms, ligand_symbol,
+            (0.0, 0.0, 1.9 + 0.3 * _label_fraction(axial_ligand)))
 
     atoms.set_cell((15.0, 15.0, 15.0))
     atoms.center()
@@ -214,14 +298,19 @@ def generate_structure(genome: tuple) -> Tuple[Atoms, list, str]:
         facet_key = facet.split('_')[0] if '_' in facet else facet
         if facet_key not in ('fcc111', 'fcc100', 'bcc110', 'hcp0001'):
             facet_key = 'fcc111'  # default fallback
-        slab, top_idx = generate_alloy_slab(metal, facet_key, strain, dopants, n_sub, n_vac)
+        slab, top_idx = generate_alloy_slab(
+            metal, facet_key, strain, dopants, n_sub, n_vac,
+            seed_key=genome, environment_label=support)
         return slab, top_idx, mat_class
 
     elif mat_class == 'MoltenMetal':
         _, host, promoter, at_pct, temp = genome
         n_sub = max(1, int(at_pct / 100.0 * 36))
         dopants = (promoter,) if promoter != 'None' else ()
-        slab, top_idx = generate_alloy_slab(host, 'fcc111', 0.0, dopants, n_sub, 0)
+        thermal_strain = (float(temp) - 1000.0) * 1.0e-5
+        slab, top_idx = generate_alloy_slab(
+            host, 'fcc111', thermal_strain, dopants, n_sub, 0,
+            seed_key=genome)
         return slab, top_idx, mat_class
 
     elif mat_class in ('SAC', 'DAC'):
@@ -229,11 +318,12 @@ def generate_structure(genome: tuple) -> Tuple[Atoms, list, str]:
             metal = genome[1]
             coord = genome[2]
             substrate = genome[3]
-            # axial ligand is genome[4] but not used in structure generation
-            cluster = generate_porphyrin_cluster(metal, coord)
+            axial = genome[4]
+            cluster = generate_porphyrin_cluster(
+                metal, coord, substrate=substrate, axial_ligand=axial)
         else:
             _, m1, m2, coord, substrate = genome
-            cluster = generate_porphyrin_cluster(m1, coord)
+            cluster = generate_porphyrin_cluster(m1, coord, substrate=substrate)
             pos = cluster[0].position.copy()
             pos[0] += 2.5
             cluster.append(Atom(m2, position=pos))
@@ -241,13 +331,14 @@ def generate_structure(genome: tuple) -> Tuple[Atoms, list, str]:
 
     elif mat_class in ('MOF', 'COF'):
         _, metal, linker, cavity, pore = genome
-        cluster = generate_porphyrin_cluster(metal, cavity)
+        cluster = generate_porphyrin_cluster(
+            metal, cavity, substrate='framework', linker=linker, pore_size=pore)
         return cluster, [0], mat_class
 
     elif mat_class == 'Perovskite':
         # ABO₃ perovskite — simple cubic unit cell replicated as slab
         _, A, B, dopant, frac, defect = genome
-        slab = _generate_perovskite_slab(A, B, dopant, frac, defect)
+        slab = _generate_perovskite_slab(A, B, dopant, frac, defect, seed_key=genome)
         z = slab.positions[:, 2]
         top_idx = list(np.where(z > z.max() - 3.0)[0])
         return slab, top_idx, mat_class
@@ -255,7 +346,9 @@ def generate_structure(genome: tuple) -> Tuple[Atoms, list, str]:
     elif mat_class == 'MetalHydride':
         # Metal hydride — metal + H in bulk-like slab
         _, metal, h_type, second, additive, temp = genome
-        slab = _generate_hydride_slab(metal, second)
+        slab = _generate_hydride_slab(
+            metal, second, h_type=h_type, additive=additive,
+            temperature_K=temp, seed_key=genome)
         z = slab.positions[:, 2]
         top_idx = list(np.where(z > z.max() - 3.0)[0])
         return slab, top_idx, mat_class
@@ -263,11 +356,14 @@ def generate_structure(genome: tuple) -> Tuple[Atoms, list, str]:
     elif mat_class == 'MAXPhase':
         # M_{n+1}AX_n layered structure — model as M-slab with A/X interstitials
         _, M, A, X, n_val, dopant, facet = genome
+        facet_map = {'basal_0001': 'hcp0001', 'edge_1010': 'bcc110',
+                     'edge_1120': 'fcc100'}
+        dopants = tuple(x for x in (A, dopant) if x != 'None')
         slab, top_idx = generate_alloy_slab(
-            M, 'hcp0001', 0.0,
-            (A,) if A != 'None' else (), 2, 0,
-            size=(3, 3, 3)
-        )
+            M, facet_map.get(facet, 'hcp0001'), 0.0, dopants,
+            min(len(dopants), 2), 0, size=(3, 3, n_val + 1),
+            seed_key=genome)
+        _add_surface_markers(slab, [X] * n_val)
         return slab, top_idx, mat_class
 
     elif mat_class == 'HEA':
@@ -277,14 +373,33 @@ def generate_structure(genome: tuple) -> Tuple[Atoms, list, str]:
         dopants = components[1:]
         facet_map = {'111': 'fcc111', '100': 'fcc100', '110': 'bcc110', '211': 'fcc111'}
         facet_key = facet_map.get(facet_str, 'fcc111')
+        if structure == 'bcc':
+            facet_key = 'bcc110'
+        elif structure == 'hcp':
+            facet_key = 'hcp0001'
         n_sub = min(len(dopants), 6)
-        slab, top_idx = generate_alloy_slab(host, facet_key, 0.0, dopants, n_sub, 0)
+        thermal_strain = (float(temp) - 1000.0) * 5.0e-6
+        if structure == 'amorphous':
+            thermal_strain += 0.003
+        elif structure == 'fcc_bcc_dual':
+            thermal_strain -= 0.003
+        slab, top_idx = generate_alloy_slab(
+            host, facet_key, thermal_strain, dopants, n_sub, 0,
+            seed_key=genome)
         return slab, top_idx, mat_class
 
     elif mat_class == 'Spinel':
         # AB₂O₄ spinel — model as B-metal oxide slab
         _, A, B, dopant, morph, support = genome
-        slab = _generate_perovskite_slab(A, B, dopant if dopant != 'None' else 'None', 0.1, 'none')
+        morphology_defect = {
+            'mesoporous': 'O_vacancy', 'hollow_sphere': 'A_vacancy',
+            'nanorod': 'B_vacancy',
+        }.get(morph, 'none')
+        slab = _generate_spinel_slab(
+            A, B, dopant, morphology_defect, support, seed_key=genome)
+        morphology_scale = 0.98 + 0.04 * _label_fraction(morph)
+        slab.set_cell(slab.cell * [morphology_scale, 1.0, 1.0],
+                      scale_atoms=True)
         z = slab.positions[:, 2]
         top_idx = list(np.where(z > z.max() - 3.0)[0])
         return slab, top_idx, mat_class
@@ -295,8 +410,14 @@ def generate_structure(genome: tuple) -> Tuple[Atoms, list, str]:
         slab, top_idx = generate_alloy_slab(
             M, 'hcp0001', 0.0,
             (sac_metal,) if sac_metal != 'None' else (), 1, 0,
-            size=(3, 3, 2)
-        )
+            size=(3, 3, n_val + 1), seed_key=genome)
+        x_symbols = list(('C', 'N') if X_elem == 'CN' else (X_elem,))
+        term_symbols = {
+            'OH': ['O', 'H'], 'O': ['O'], 'F': ['F'], 'Cl': ['Cl'],
+            'S': ['S'], 'mixed_OH_O': ['O', 'H', 'O'],
+            'mixed_OH_F': ['O', 'H', 'F'], 'bare': [],
+        }.get(term, [])
+        _add_surface_markers(slab, x_symbols * n_val + term_symbols)
         return slab, top_idx, mat_class
 
     elif mat_class == 'SAA':
@@ -304,14 +425,31 @@ def generate_structure(genome: tuple) -> Tuple[Atoms, list, str]:
         _, trace, host, facet_str, loading = genome
         facet_map = {'111': 'fcc111', '100': 'fcc100', '110': 'bcc110', '211': 'fcc111'}
         facet_key = facet_map.get(facet_str, 'fcc111')
-        slab, top_idx = generate_alloy_slab(host, facet_key, 0.0, (trace,), 1, 0)
+        # Loading controls the explicit surface-cell size: more dilute SAAs use
+        # a larger host cell around the single trace atom.
+        lateral = 4 if loading <= 100 else (3 if loading <= 1000 else 2)
+        slab, top_idx = generate_alloy_slab(
+            host, facet_key, 0.0, (trace,), 1, 0,
+            size=(lateral, lateral, 4), seed_key=genome)
+        loading_scale = 1.0 + min(float(loading), 10000.0) * 1.0e-7
+        slab.set_cell(slab.cell * [loading_scale, loading_scale, 1.0],
+                      scale_atoms=True)
         return slab, top_idx, mat_class
 
     elif mat_class == 'MetalFreeCarbon':
         # Metal-free N-doped carbon — model as N-graphene cluster
         _, n_type, n_frac, defect, substrate, co_dop = genome
-        # Use porphyrin-like N4 cluster without a metal center
-        cluster = generate_porphyrin_cluster('N', 'N4')
+        cavity = {
+            'pyridinic': 'N3C', 'pyrrolic': 'N4_pyrrole',
+            'graphitic': 'N4', 'oxidized': 'N3O',
+            'mixed_pyridinic_graphitic': 'N4C2',
+        }.get(n_type, 'N4')
+        cluster = generate_porphyrin_cluster(
+            'N', cavity, d_metal_n=1.8 + float(n_frac),
+            substrate=substrate, linker=defect,
+            pore_size=8.0 + 20.0 * float(n_frac))
+        if co_dop.lower() != 'none':
+            _append_marker(cluster, co_dop, (2.5, 0.0, 0.5))
         return cluster, [0], mat_class
 
     else:
@@ -319,26 +457,46 @@ def generate_structure(genome: tuple) -> Tuple[Atoms, list, str]:
 
 
 def _generate_perovskite_slab(A: str, B: str, dopant: str,
-                               frac: float, defect: str) -> Atoms:
+                               frac: float, defect: str,
+                               seed_key=None) -> Atoms:
     """Generate a simple ABO₃ perovskite slab for MACE evaluation."""
     a = 3.9  # approx perovskite lattice constant (Å)
     # 2×2×3 supercell → 12 ABO₃ units
     atoms = Atoms()
+    a_sites, b_sites, o_sites = [], [], []
     for ix in range(2):
         for iy in range(2):
             for iz in range(3):
                 base = np.array([ix * a, iy * a, iz * a])
                 # A-site (corner)
-                site_A = A
-                if dopant != 'None' and random.random() < frac:
-                    site_A = dopant
-                atoms.append(Atom(site_A, position=base))
+                atoms.append(Atom(A, position=base))
+                a_sites.append(len(atoms) - 1)
                 # B-site (body center)
                 atoms.append(Atom(B, position=base + np.array([a/2, a/2, a/2])))
+                b_sites.append(len(atoms) - 1)
                 # O-sites (face centers)
                 atoms.append(Atom('O', position=base + np.array([a/2, a/2, 0])))
+                o_sites.append(len(atoms) - 1)
                 atoms.append(Atom('O', position=base + np.array([a/2, 0, a/2])))
+                o_sites.append(len(atoms) - 1)
                 atoms.append(Atom('O', position=base + np.array([0, a/2, a/2])))
+                o_sites.append(len(atoms) - 1)
+
+    rng = random.Random(_stable_seed(
+        'perovskite-v2', A, B, dopant, float(frac), defect, seed_key))
+    if dopant != 'None' and frac > 0:
+        count = max(1, min(len(b_sites), round(float(frac) * len(b_sites))))
+        for index in rng.sample(b_sites, count):
+            atoms[index].symbol = dopant
+
+    vacancy_pool = {
+        'A_vacancy': a_sites, 'B_vacancy': b_sites, 'O_vacancy': o_sites,
+    }.get(defect)
+    if vacancy_pool:
+        del atoms[rng.choice(vacancy_pool)]
+    elif defect == 'A_excess':
+        atoms.append(Atom(A, position=(
+            a / 2, a / 2, float(atoms.positions[:, 2].max()) + 1.8)))
 
     cell = [2*a, 2*a, 3*a + 12.0]  # vacuum in z
     atoms.set_cell(cell)
@@ -349,7 +507,43 @@ def _generate_perovskite_slab(A: str, B: str, dopant: str,
     return atoms
 
 
-def _generate_hydride_slab(metal: str, second: str) -> Atoms:
+def _generate_spinel_slab(A: str, B: str, dopant: str, defect: str,
+                          support: str, seed_key=None) -> Atoms:
+    """Build an AB2O4-like local slab rather than reusing ABO3 stoichiometry."""
+    atoms = Atoms()
+    a = 4.1
+    for ix in range(2):
+        for iy in range(2):
+            for iz in range(2):
+                base = np.array([ix * a, iy * a, iz * a])
+                atoms.append(Atom(A, position=base))
+                atoms.append(Atom(B, position=base + (a/4, a/4, a/4)))
+                atoms.append(Atom(B, position=base + (3*a/4, 3*a/4, 3*a/4)))
+                for offset in ((a/2, 0, 0), (0, a/2, 0),
+                               (0, 0, a/2), (a/2, a/2, a/2)):
+                    atoms.append(Atom('O', position=base + offset))
+    rng = random.Random(_stable_seed(
+        'spinel-v2', A, B, dopant, defect, support, seed_key))
+    if dopant != 'None':
+        b_sites = [i for i, atom in enumerate(atoms) if atom.symbol == B]
+        atoms[rng.choice(b_sites)].symbol = dopant
+    vacancy_symbol = {'A_vacancy': A, 'B_vacancy': B, 'O_vacancy': 'O'}.get(defect)
+    if vacancy_symbol:
+        choices = [i for i, atom in enumerate(atoms) if atom.symbol == vacancy_symbol]
+        if choices:
+            del atoms[rng.choice(choices)]
+    if support != 'none':
+        atoms[0].symbol = _representative_element(support, 'C')
+    atoms.set_cell((2*a, 2*a, 2*a + 12.0))
+    atoms.pbc = True
+    z = atoms.positions[:, 2]
+    atoms.set_constraint(FixAtoms(mask=z < z.min() + 2.0))
+    return atoms
+
+
+def _generate_hydride_slab(metal: str, second: str, h_type: str = 'simple',
+                           additive: str = 'None', temperature_K: float = 300,
+                           seed_key=None) -> Atoms:
     """Generate a metal-hydride slab: metal FCC + interstitial H."""
     # Use explicit lattice constant (same table as generate_alloy_slab)
     LATTICE_CONSTANTS = {
@@ -380,12 +574,38 @@ def _generate_hydride_slab(metal: str, second: str) -> Atoms:
     for h_pos in h_positions:
         slab.append(Atom('H', position=h_pos))
 
+    # Hydride family controls approximate hydrogen loading. This is a compact
+    # screening realization; DFT promotion still requires phase-specific cells.
+    extra_h = {
+        'simple': 0, 'intermetallic_AB': 1, 'intermetallic_AB2': 2,
+        'intermetallic_AB5': 3, 'intermetallic_A2B': 2,
+        'complex_alanate': 4, 'complex_borohydride': 4,
+        'complex_amide': 3, 'perovskite_hydride': 2,
+    }.get(h_type, 0)
+    rng = random.Random(_stable_seed(
+        'hydride-v2', metal, second, h_type, additive,
+        float(temperature_K), seed_key))
+    for index in range(extra_h):
+        slab.append(Atom('H', position=(
+            (index + 1) * slab.cell.lengths()[0] / (extra_h + 1),
+            (index % 2 + 1) * slab.cell.lengths()[1] / 3.0,
+            top_z + 2.5 + 0.35 * index)))
+
     # Substitute surface atoms with second metal
     if second != 'None' and second != metal:
         indices = [i for i in range(len(slab))
                    if slab[i].symbol == metal and slab[i].position[2] > top_z - 2.5]
         for i in indices[:2]:
             slab[i].symbol = second
+
+    if additive != 'None':
+        added = _add_surface_markers(
+            slab, [_representative_element(additive, 'C')])
+        slab.positions[added[0], 0] += 0.1 * _label_fraction(additive)
+
+    thermal_scale = 1.0 + (float(temperature_K) - 300.0) * 1.0e-5
+    slab.set_cell(slab.cell * [thermal_scale, thermal_scale, 1.0],
+                  scale_atoms=True)
 
     # Recompute z after adding H and set constraints
     z_all = slab.positions[:, 2]
@@ -446,6 +666,7 @@ def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
         'genome': str(genome),
         'material_class': mat_class,
         'valid': False,
+        'screening_protocol': SCREENING_PROTOCOL_ID,
     }
 
     try:
@@ -682,14 +903,15 @@ def _extract_elements(genome: tuple) -> List[str]:
 # WORKER PROCESS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def eval_worker(worker_id: int, gpu_id: int, task_queue: mp.Queue,
+def eval_worker(worker_id: int, gpu_id: int, gpu_uuid: str, task_queue: mp.Queue,
                 result_queue: mp.Queue):
     """Worker process: loads Meta eSen on assigned GPU and evaluates candidates."""
     try:
         import os
-        # Respect a launcher-level GPU mask (for concurrent campaigns). When no
-        # mask exists, assign this worker to its scheduler-selected device.
-        os.environ.setdefault('CUDA_VISIBLE_DEVICES', str(gpu_id))
+        # This process is spawned without importing torch at module scope, so
+        # the UUID mask takes effect before CUDA is initialized. Inside this
+        # one-device namespace fairchem should use logical device ``cuda``.
+        os.environ['CUDA_VISIBLE_DEVICES'] = gpu_uuid
         os.environ['OMP_NUM_THREADS'] = '1'
         os.environ['MKL_NUM_THREADS'] = '1'
         os.environ['OPENBLAS_NUM_THREADS'] = '1'
@@ -702,7 +924,8 @@ def eval_worker(worker_id: int, gpu_id: int, task_queue: mp.Queue,
         torch.set_num_interop_threads(1)
         
         from pipeline.screening.surface_calculator import get_ocp_calculator
-        calc = get_ocp_calculator(model_name='esen-sm-conserving-all-oc25', device='cuda')
+        calc = get_ocp_calculator(
+            model_name='esen-sm-conserving-all-oc25', device='cuda')
 
         # Compute reference energies on this worker's calculator
         refs = compute_reference_energies(calc)
@@ -723,6 +946,7 @@ def eval_worker(worker_id: int, gpu_id: int, task_queue: mp.Queue,
                     'genome': str(genome),
                     'material_class': genome[0],
                     'valid': False,
+                    'screening_protocol': SCREENING_PROTOCOL_ID,
                     'error': str(e)[:200],
                 }))
 
@@ -735,7 +959,7 @@ def eval_worker(worker_id: int, gpu_id: int, task_queue: mp.Queue,
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def run_screening(genomes: List[tuple], db_filename: str = "surface_screening.csv",
-                  workers_per_gpu: int = 4) -> 'pd.DataFrame':
+                  workers_per_gpu: int = 2) -> 'pd.DataFrame':
     """
     Run parallel Meta eSen-SM screening on a list of catalyst genomes.
     
@@ -748,6 +972,13 @@ def run_screening(genomes: List[tuple], db_filename: str = "surface_screening.cs
         DataFrame with all screening results
     """
     import pandas as pd
+    import torch
+
+    # These must exist before spawn starts a fresh interpreter and imports
+    # numpy/torch. Setting them only inside eval_worker is too late for BLAS.
+    for name in ('OMP_NUM_THREADS', 'MKL_NUM_THREADS', 'OPENBLAS_NUM_THREADS',
+                 'VECLIB_MAXIMUM_THREADS', 'NUMEXPR_NUM_THREADS'):
+        os.environ.setdefault(name, '1')
 
     mp.set_start_method('spawn', force=True)
 
@@ -755,7 +986,13 @@ def run_screening(genomes: List[tuple], db_filename: str = "surface_screening.cs
     logger.info(f"Screening {len(genomes)} catalyst candidates...")
 
     device_count = torch.cuda.device_count()
+    if device_count < 1:
+        raise RuntimeError('Meta eSen-SM screening requires at least one visible CUDA GPU')
+    if workers_per_gpu < 1:
+        raise ValueError('workers_per_gpu must be positive')
     num_workers = device_count * workers_per_gpu
+    gpu_uuids = [f"GPU-{torch.cuda.get_device_properties(i).uuid}"
+                 for i in range(device_count)]
     logger.info(f"Using {device_count} GPU(s), {num_workers} parallel workers")
 
     # Setup queues
@@ -774,7 +1011,9 @@ def run_screening(genomes: List[tuple], db_filename: str = "surface_screening.cs
     workers = []
     for w_id in range(num_workers):
         gpu_id = w_id % device_count
-        p = mp.Process(target=eval_worker, args=(w_id, gpu_id, task_queue, result_queue))
+        p = mp.Process(
+            target=eval_worker,
+            args=(w_id, gpu_id, gpu_uuids[gpu_id], task_queue, result_queue))
         p.start()
         workers.append(p)
 

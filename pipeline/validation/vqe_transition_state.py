@@ -84,12 +84,35 @@ def build_orr_hamiltonian(n_qubits: int = 4) -> list:
     return hamiltonian_terms
 
 
+def exact_ground_energy(hamiltonian_terms: list, n_qubits: int) -> float:
+    """Classically diagonalize a small Pauli Hamiltonian for VQE validation."""
+    if n_qubits > 12:
+        raise ValueError('exact VQE benchmark is limited to at most 12 qubits')
+    pauli = {
+        'I': np.eye(2),
+        'X': np.array([[0, 1], [1, 0]], complex),
+        'Y': np.array([[0, -1j], [1j, 0]], complex),
+        'Z': np.diag([1, -1]),
+    }
+    hamiltonian = np.zeros((2 ** n_qubits, 2 ** n_qubits), complex)
+    for coefficient, word in hamiltonian_terms:
+        if len(word) != n_qubits or any(symbol not in pauli for symbol in word):
+            raise ValueError('Pauli word does not match the declared qubit count')
+        term = np.array([[1.0]], complex)
+        for symbol in word:
+            term = np.kron(term, pauli[symbol])
+        hamiltonian += float(coefficient) * term
+    if not np.allclose(hamiltonian, hamiltonian.conj().T):
+        raise ValueError('VQE Hamiltonian is not Hermitian')
+    return float(np.linalg.eigvalsh(hamiltonian)[0])
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # VQE SOLVER
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def run_vqe(hamiltonian_terms: list, n_qubits: int = 4,
-            n_layers: int = 2, max_iter: int = 200,
+            n_layers: int = 3, max_iter: int = 3000,
             initial_theta: Optional[list] = None,
             target: str = 'nvidia') -> Dict:
     """
@@ -116,7 +139,9 @@ def run_vqe(hamiltonian_terms: list, n_qubits: int = 4,
         return _mock_vqe_result(hamiltonian_terms)
 
     # Set target
-    cudaq.set_target(target)
+    # CUDA-Q 0.12 names its local state-vector CPU target qpp-cpu.
+    resolved_target = 'qpp-cpu' if target == 'default' else target
+    cudaq.set_target(resolved_target)
 
     # Build spin operator
     H = 0.0 * spin.i(0)  # initialize
@@ -164,12 +189,25 @@ def run_vqe(hamiltonian_terms: list, n_qubits: int = 4,
     if initial_theta is None:
         initial_theta = [0.01] * n_params
 
-    # Run VQE optimization
+    # Run VQE optimization using the CUDA-Q 0.12 optimizer contract.
     logger.info(f"  Running CUDA-Q VQE: {n_qubits} qubits, {n_params} parameters, {n_layers} layers")
-    result = cudaq.vqe(ansatz, H, initial_theta, max_iterations=max_iter)
+    optimizer = cudaq.optimizers.COBYLA()
+    optimizer.max_iterations = int(max_iter)
+    optimizer.initial_parameters = list(initial_theta)
+    result = cudaq.vqe(ansatz, H, optimizer, n_params)
 
     optimal_energy = result.energy if hasattr(result, 'energy') else result[0]
-    optimal_params = result.optimal_parameters if hasattr(result, 'optimal_parameters') else result[1]
+    optimal_params = (result.optimal_parameters
+                      if hasattr(result, 'optimal_parameters') else result[1])
+    exact_energy = exact_ground_energy(hamiltonian_terms, n_qubits)
+    variational_gap = float(optimal_energy) - exact_energy
+    variational_valid = variational_gap >= -1e-8
+    if not variational_valid:
+        raise RuntimeError(
+            f'VQE energy violates the variational bound by {-variational_gap:.3e} Ha')
+    chemical_accuracy_Ha = 1.6e-3
+    benchmark_passed = (
+        variational_valid and variational_gap <= chemical_accuracy_Ha)
 
     logger.info(f"  VQE converged: E = {optimal_energy:.6f} Ha ({optimal_energy * Ha_to_eV:.4f} eV)")
 
@@ -181,10 +219,14 @@ def run_vqe(hamiltonian_terms: list, n_qubits: int = 4,
         'n_layers': n_layers,
         'n_params': n_params,
         'max_iter': max_iter,
-        'target': target,
+        'target': resolved_target,
         'evidence_level': 'toy_hamiltonian',
         'catalyst_specific_hamiltonian': False,
-        'benchmarked': False,
+        'benchmarked': benchmark_passed,
+        'exact_ground_energy_Ha': exact_energy,
+        'variational_gap_Ha': variational_gap,
+        'variational_bound_valid': variational_valid,
+        'benchmark_tolerance_Ha': chemical_accuracy_Ha,
     }
 
 
@@ -235,7 +277,8 @@ def validate_transition_state(catalyst_name: str, reaction_type: str = 'CH_split
     else:
         raise ValueError(f"Unknown reaction type: {reaction_type}")
 
-    result = run_vqe(H_terms, n_qubits=4, n_layers=2, target=target)
+    result = run_vqe(
+        H_terms, n_qubits=4, n_layers=3, max_iter=3000, target=target)
     result['catalyst_name'] = catalyst_name
     result['reaction_type'] = reaction_type
 

@@ -70,6 +70,13 @@ def main():
     if args.scan_workers < 1 or args.qe_mpi_ranks < 1 or \
             args.qe_omp_threads < 1 or args.qe_max_concurrent < 1:
         parser.error('scanner and QE resource dimensions must be positive')
+    if args.calibration_probes < 20:
+        parser.error('--calibration-probes must be at least 20 for the tree ranker')
+    required_validation = 14 * args.min_validation_per_class
+    if args.validation_batch < required_validation:
+        parser.error(
+            f'--validation-batch must be at least {required_validation} to reserve '
+            f'{args.min_validation_per_class} candidate(s) across all 14 classes')
     requested_qe_cpus = (args.qe_mpi_ranks * args.qe_omp_threads *
                          args.qe_max_concurrent)
     available_cpus = os.cpu_count() or 1
@@ -281,23 +288,17 @@ def main():
                     print(f"    Reactor error: {e}")
 
             # ── Pyrolysis TEA ($/kg H₂) ──────────────────────────────────
+            from pipeline.process.tea import estimate_scenario_range
             tea_results = []
             for r in reactor_results:
                 conv = r.get('best_conversion', 0)
                 if conv > 0.01:
-                    # Simplified TEA: natural gas + energy + capex
-                    ng_cost = 3.50  # $/MMBtu natural gas
-                    energy_input = 8.5 / conv  # kWh/kg_H2 (endothermic)
-                    electricity_cost = 0.06  # $/kWh
-                    capex_amortized = 0.50  # $/kg_H2 (capex over 20 yr)
-                    carbon_credit = -0.80   # $/kg_H2 (solid C revenue)
-                    h2_cost = (ng_cost * 0.05 / conv +
-                               energy_input * electricity_cost +
-                               capex_amortized + carbon_credit)
+                    estimate = estimate_scenario_range(conv)
                     tea_results.append({
                         'catalyst': r['catalyst'],
-                        'h2_cost_usd_kg': round(max(0.5, h2_cost), 2),
-                        'conversion': conv,
+                        'h2_cost_usd_kg': estimate['estimates']['base'][
+                            'h2_cost_usd_kg'],
+                        **estimate,
                     })
 
             pipeline_state['phase2'] = {
@@ -328,21 +329,50 @@ def main():
         t3 = time.time()
         try:
             from pipeline.validation.dft_validator import validate_catalyst
+            from pipeline.validation.task_queue import ValidationTaskQueue
+            from pipeline.search.discovery import candidate_id
 
             n_dft = min(10, len(top_catalysts))
             dft_tasks = []
+            protocol_id = (
+                f'screening-dft-v2:sssp-1.3.0:physical-realization-v2:'
+                f'mpi={args.qe_mpi_ranks}:'
+                f'omp={args.qe_omp_threads}')
+            task_queue = ValidationTaskQueue(
+                Path('results/dft/validation_tasks.sqlite'))
+            task_queue.recover_stale()
             for idx, (_, row) in enumerate(top_catalysts.head(n_dft).iterrows()):
                 try:
                     genome = ast.literal_eval(row['genome'])
-                    dft_tasks.append((f"campaign_cat_{idx}", genome))
+                    cid = candidate_id(genome)
+                    name = f"campaign_{cid}"
+                    task_queue.enqueue(
+                        'turquoise_hydrogen', genome,
+                        'screening_dft', protocol_id)
+                    dft_tasks.append((name, cid, genome))
                 except Exception as e:
                     print(f"    DFT input failed for cat_{idx}: {e}")
             from concurrent.futures import ThreadPoolExecutor
             def _validate_task(task):
-                name, genome = task
+                name, cid, genome = task
+                if not task_queue.claim(
+                        'turquoise_hydrogen', cid,
+                        'screening_dft', protocol_id):
+                    return {'catalyst_name': name, 'candidate_id': cid,
+                            'skipped': True, 'converged': False,
+                            'reason': 'task_not_claimable'}
                 try:
-                    return validate_catalyst(name, genome, run_dft=True)
+                    result = validate_catalyst(name, genome, run_dft=True)
+                    task_queue.finish(
+                        'turquoise_hydrogen', cid, 'screening_dft',
+                        protocol_id, bool(result.get('converged')),
+                        result_path=f'results/dft/{name}_dft.json',
+                        error=result.get('error'))
+                    return result
                 except Exception as exc:
+                    task_queue.finish(
+                        'turquoise_hydrogen', cid, 'screening_dft',
+                        protocol_id, False, error=str(exc))
                     return {'catalyst_name': name, 'error': str(exc)[:200],
                             'converged': False}
             with ThreadPoolExecutor(
@@ -356,6 +386,9 @@ def main():
                 'qe_max_concurrent': args.qe_max_concurrent,
                 'qe_mpi_ranks': args.qe_mpi_ranks,
                 'qe_omp_threads': args.qe_omp_threads,
+                'task_queue': task_queue.summary(
+                    'turquoise_hydrogen', 'screening_dft'),
+                'evidence_level': 'screening_dft',
                 'elapsed_s': time.time() - t3,
             }
         except (ImportError, Exception) as e:

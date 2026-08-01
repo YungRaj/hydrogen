@@ -172,12 +172,23 @@ def test_pemfc_application_scope():
 def test_novelty_time_split_benchmark():
     from pipeline.evidence.novelty_benchmark import time_split_recovery
     known = ('SAC', 'Fe', 'N4', 'N-graphene', 'OH')
+    training = [{'genome': ('SAC', 'Co', 'N4', 'N-graphene', 'none'),
+                 'publication_year': 2023, 'source_id': 'doi:train',
+                 'citation': 'Training et al.'}]
     held_out = [{'genome': known, 'publication_year': 2025,
                  'source_id': 'doi:test', 'citation': 'Test et al.'}]
-    result = time_split_recovery([known], held_out, k=1)
+    result = time_split_recovery(
+        [known], held_out, cutoff_year=2024,
+        training_records=training, k=1)
     assert result['valid'] and result['exact_recall_at_k'] == 1.0
-    malformed = time_split_recovery([known], [{'genome': known}], k=1)
+    malformed = time_split_recovery(
+        [known], [{'genome': known}], cutoff_year=2024,
+        training_records=training, k=1)
     assert not malformed['valid']
+    leaked = time_split_recovery(
+        [known], held_out, cutoff_year=2024,
+        training_records=[dict(held_out[0], publication_year=2024)], k=1)
+    assert not leaked['valid']
 
 
 def test_pilot_benchmark_deduplicates_candidates():
@@ -203,13 +214,18 @@ def test_pilot_benchmark_deduplicates_candidates():
 def test_small_data_rankers_preserve_continuous_targets():
     import pandas as pd
     from pipeline.search.indexed_space import deterministic_tree_probes
-    from pipeline.screening.small_data_ranker import fit_tree_ranker
+    from pipeline.screening.small_data_ranker import (
+        TREE_ENSEMBLE_SIZE, fit_tree_ranker, merge_compatible_evidence)
     genomes = deterministic_tree_probes(24)
     pyro = pd.DataFrame({'genome': [repr(g) for g in genomes], 'valid': True,
                          'E_act': np.linspace(0.1, 2.0, len(genomes))})
     ranker = fit_tree_ranker(pyro, 'turquoise_hydrogen')
+    assert len(ranker.model.estimators_) == TREE_ENSEMBLE_SIZE == 256
     mean, uncertainty = ranker.predict(genomes[:5])
     assert np.all(np.isfinite(mean)) and np.all(uncertainty >= 0)
+    fast_mean, omitted_uncertainty = ranker.predict(
+        genomes[:5], uncertainty=False)
+    assert np.allclose(mean, fast_mean) and np.all(omitted_uncertainty == 0)
     orr = pd.DataFrame({'genome': [repr(g) for g in genomes], 'valid': True,
                         'dG_OH_eV': np.linspace(-1, 1, len(genomes)),
                         'dG_O_eV': np.linspace(-2, 2, len(genomes)),
@@ -217,6 +233,20 @@ def test_small_data_rankers_preserve_continuous_targets():
     ranker = fit_tree_ranker(orr, 'fuel_cell_orr')
     mean, _ = ranker.predict(genomes[:5])
     assert np.all(np.isfinite(mean)) and len(set(mean.tolist())) > 1
+
+    current = pd.DataFrame({
+        'genome': ['new', 'duplicate'],
+        'screening_protocol': ['v2', 'v2'],
+        'value': [1, 2],
+    })
+    ledger = pd.DataFrame({
+        'genome': ['old', 'wrong', 'duplicate'],
+        'screening_protocol': ['v2', 'v1', 'v2'],
+        'value': [3, 4, 5],
+    })
+    merged = merge_compatible_evidence(current, ledger, 'v2')
+    assert set(merged.genome) == {'old', 'new', 'duplicate'}
+    assert merged.loc[merged.genome == 'duplicate', 'value'].iloc[0] == 2
 
 
 def test_six_point_status_fails_closed():
@@ -336,7 +366,8 @@ def test_production_qe_workflow_fails_closed_and_resumes():
         status = orr_campaign_status(root, 'candidate')
         assert not status['complete'] and status['next_stage'] == 'clean'
         complete = ('! total energy = -10.000000 Ry\n'
-                    'convergence has been achieved\nJOB DONE\n')
+                    'convergence has been achieved\n'
+                    'End of BFGS Geometry Optimization\nJOB DONE\n')
         for stage in ORR_STAGES:
             (root / f'candidate_{stage}.out').write_text(complete)
         status = orr_campaign_status(root, 'candidate')
@@ -363,6 +394,27 @@ def test_production_qe_workflow_fails_closed_and_resumes():
             pass
         else:
             raise AssertionError('incompatible MPI/image layout must fail')
+
+
+def test_validation_task_queue_is_candidate_keyed_and_resumable():
+    import tempfile
+    from pathlib import Path
+    from pipeline.validation.task_queue import ValidationTaskQueue
+    from pipeline.search.discovery import candidate_id
+    genome = ('SAC', 'Fe', 'N4', 'N-graphene', 'OH')
+    with tempfile.TemporaryDirectory() as tmp:
+        queue = ValidationTaskQueue(Path(tmp) / 'tasks.sqlite')
+        cid = queue.enqueue('turquoise_hydrogen', genome, 'screening_dft', 'v1')
+        assert cid == candidate_id(genome)
+        assert queue.claim('turquoise_hydrogen', cid, 'screening_dft', 'v1')
+        assert not queue.claim('turquoise_hydrogen', cid, 'screening_dft', 'v1')
+        queue.finish('turquoise_hydrogen', cid, 'screening_dft', 'v1',
+                     True, result_path='result.json')
+        assert queue.summary('turquoise_hydrogen', 'screening_dft') == {
+            'converged': 1}
+        queue.enqueue('turquoise_hydrogen', genome, 'screening_dft', 'v1')
+        assert queue.summary('turquoise_hydrogen', 'screening_dft') == {
+            'converged': 1}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -398,6 +450,7 @@ def test_element_extractors_consistent():
 def test_structure_generation_all_classes():
     from pipeline.common.catalyst_spaces import ALL_MATERIAL_CLASSES, generate_random_genome
     from pipeline.screening.surface_screener import generate_structure
+    from scipy.spatial.distance import pdist
     for cls in ALL_MATERIAL_CLASSES:
         for _ in range(20):
             g = generate_random_genome(cls)
@@ -405,6 +458,46 @@ def test_structure_generation_all_classes():
             assert len(atoms) > 0, f"{cls}: empty structure"
             assert atoms.pbc.any(), f"{cls}: PBC not set"
             assert mc == cls, f"{cls}: returned class {mc}"
+            assert 'X' not in atoms.get_chemical_symbols(), f"{cls}: dummy atom"
+            if len(atoms) > 1:
+                assert pdist(atoms.positions).min() > 0.45, (
+                    f"{cls}: overlapping atoms")
+
+
+def test_structure_generation_is_deterministic_and_genome_sensitive():
+    import hashlib
+    import random
+    from pipeline.screening.surface_screener import generate_structure
+
+    def fingerprint(genome):
+        atoms, _, _ = generate_structure(genome)
+        payload = ('|'.join(atoms.get_chemical_symbols()).encode() +
+                   np.asarray(atoms.positions).round(8).tobytes() +
+                   np.asarray(atoms.cell).round(8).tobytes())
+        return hashlib.sha256(payload).hexdigest()
+
+    candidate = ('SolidCatalyst', 'Ni', 'Al2O3', 'fcc111', 0.0,
+                 ('Cu', 'Fe', 'Co'), 3, 1)
+    random.seed(1); first = fingerprint(candidate)
+    random.seed(999); second = fingerprint(candidate)
+    assert first == second
+
+    pairs = [
+        (('SolidCatalyst', 'Ni', 'Al2O3', 'fcc111', 0.0, (), 1, 0),
+         ('SolidCatalyst', 'Ni', 'Graphene', 'fcc111', 0.0, (), 1, 0)),
+        (('SAC', 'Fe', 'N4', 'N-graphene', 'none'),
+         ('SAC', 'Fe', 'N4', 'BN_sheet', 'OH')),
+        (('MOF', 'Fe', 'BDC', 'N4', 4.0),
+         ('MOF', 'Fe', 'TCPP', 'N4', 20.0)),
+        (('MAXPhase', 'Ti', 'Al', 'C', 1, 'None', 'basal_0001'),
+         ('MAXPhase', 'Ti', 'Al', 'N', 3, 'None', 'edge_1120')),
+        (('MXene', 'Ti', 'C', 1, 'O', 'None'),
+         ('MXene', 'Ti', 'N', 3, 'F', 'None')),
+        (('MetalFreeCarbon', 'pyridinic', 0.02, 'none', 'graphene', 'B'),
+         ('MetalFreeCarbon', 'graphitic', 0.20, 'divacancy', 'CNT', 'P')),
+    ]
+    for left, right in pairs:
+        assert fingerprint(left) != fingerprint(right)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -452,6 +545,18 @@ def test_stack_model():
     assert stack['net_power_kW'] > 0, f"Negative net power: {stack['net_power_kW']}"
     assert 0 < stack['system_efficiency'] < 1, f"Efficiency out of range: {stack['system_efficiency']}"
     assert stack['cost_per_kW'] > 0, f"Negative cost: {stack['cost_per_kW']}"
+
+
+def test_tea_is_scenario_labelled_and_unclamped():
+    from pipeline.process.tea import estimate_scenario_range
+    low_conversion = estimate_scenario_range(0.10)
+    high_conversion = estimate_scenario_range(0.90)
+    assert low_conversion['max_usd_kg'] > low_conversion['min_usd_kg']
+    assert (low_conversion['estimates']['base']['h2_cost_usd_kg'] >
+            high_conversion['estimates']['base']['h2_cost_usd_kg'])
+    assert all(
+        value['evidence_level'] == 'screening_scenario_not_measured_tea'
+        for value in low_conversion['estimates'].values())
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1092,6 +1197,9 @@ def test_prior_art_registry_tracks_exact_and_region_novelty():
     with tempfile.TemporaryDirectory() as tmp:
         registry = PriorArtRegistry(str(Path(tmp) / 'prior.sqlite'))
         registry.add(known, 'literature', 'doi:test')
+        registry.add(known, 'patent', 'patent:test')
+        assert registry.count() == 2
+        assert len(registry.classify(known)['exact_records']) == 2
         assert registry.classify(known)['novelty_status'] == 'known'
         assert registry.classify(related)['novelty_status'] == 'region_known'
         assert registry.classify(unseen)['novelty_status'] == 'unseen'
@@ -1148,15 +1256,26 @@ def test_final_campaign_readiness_fails_closed():
                                    evidence_manifest=str(manifest),
                                    application='turquoise_hydrogen')
         assert not gated['ready'] and 'evidence_manifest_missing' in gated['failures']
+        import hashlib
+        records = {}
+        for key in ('converged_dft', 'measured_reactor',
+                    'measured_deactivation', 'ntec_control_pair'):
+            artifact = root / f'{key}.json'
+            artifact.write_text(json.dumps({'kind': key, 'verified': True}))
+            records[key] = [{
+                'candidate_id': f'candidate:{key}',
+                'source_path': artifact.name,
+                'sha256': hashlib.sha256(artifact.read_bytes()).hexdigest(),
+                'protocol_id': 'test-protocol-v1',
+                'status': 'converged' if key == 'converged_dft' else 'measured',
+            }]
         manifest.write_text(json.dumps({
-            'converged_dft_count': 1, 'measured_reactor_count': 1,
-            'measured_deactivation_count': 1, 'ntec_control_pair_count': 1,
-        }))
+            'schema_version': 2, 'records': records}))
         assert campaign_readiness(str(cert), str(prior),
                                   evidence_manifest=str(manifest),
                                   application='turquoise_hydrogen')['ready']
         no_ntec = json.loads(manifest.read_text())
-        no_ntec['ntec_control_pair_count'] = 0
+        no_ntec['records']['ntec_control_pair'] = []
         manifest.write_text(json.dumps(no_ntec))
         assert campaign_readiness(
             str(cert), str(prior), evidence_manifest=str(manifest),
@@ -1181,6 +1300,7 @@ if __name__ == '__main__':
     test("14 classes generate", test_all_14_classes_generate)
     test("No toxic elements", test_no_toxic_elements)
     test("SAC axial ligands", test_sac_has_axial_ligand)
+    test("Class weights sum to one", test_class_weights_sum_to_1)
 
     print("\n── Encoding ──")
     test("All classes encode (no NaN)", test_encode_all_classes_no_nan)
@@ -1204,12 +1324,16 @@ if __name__ == '__main__':
     test("ORR multisite and corrections", test_orr_multisite_and_corrections)
     test("Production QE workflow fails closed and resumes",
          test_production_qe_workflow_fails_closed_and_resumes)
+    test("Validation task queue is candidate-keyed and resumable",
+         test_validation_task_queue_is_candidate_keyed_and_resumable)
 
     print("\n── Element Extractors ──")
     test("4 extractors consistent", test_element_extractors_consistent)
 
     print("\n── Structure Generation ──")
     test("All 14 classes build structures", test_structure_generation_all_classes)
+    test("Structures are deterministic and genome-sensitive",
+         test_structure_generation_is_deterministic_and_genome_sensitive)
 
     print("\n── PEMFC Model ──")
     test("Tafel covers all classes", test_tafel_covers_all_classes)
@@ -1219,6 +1343,8 @@ if __name__ == '__main__':
 
     print("\n── Stack Model ──")
     test("Stack model", test_stack_model)
+    test("TEA is scenario-labelled and unclamped",
+         test_tea_is_scenario_labelled_and_unclamped)
 
     print("\n── CHE / Utils ──")
     test("ORR ideal overpotential = 0", test_orr_overpotential_ideal)
@@ -1246,6 +1372,11 @@ if __name__ == '__main__':
     test("Pyrolysis mode coking bonus", test_pyrolysis_mode_coking_bonus)
     test("Discovery batch covers unseen regions", test_discovery_batch_prioritizes_unseen_regions)
     test("Canonical candidate IDs", test_candidate_ids_are_canonical)
+    test("Crossover preserves class", test_crossover_preserves_class)
+    test("Mutation preserves class", test_mutation_preserves_class)
+    test("Deterministic hierarchical pool", test_deterministic_hierarchical_pool)
+    test("Hierarchical rounds cover complementary cells",
+         test_hierarchical_rounds_cover_complementary_cells)
     test("Design space remains sizable and provenance-backed",
          test_design_space_audit_preserves_all_sizable_classes)
     test("Discovery metadata persists", test_discovery_metadata_is_persistable)

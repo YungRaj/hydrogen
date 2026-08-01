@@ -28,7 +28,7 @@ def qe_output_status(path: str | Path) -> str:
     text = target.read_text(errors='replace').lower()
     if 'error in routine' in text or 'convergence not achieved' in text:
         return 'failed'
-    if parse_convergence(str(target)):
+    if parse_convergence(str(target), require_ionic=True):
         return 'converged'
     return 'incomplete'
 

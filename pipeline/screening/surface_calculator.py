@@ -204,7 +204,10 @@ def get_ocp_calculator(model_name: str = 'esen-sm-conserving-all-oc25',
         from fairchem.core.calculate.pretrained_mlip import get_predict_unit
         from fairchem.core import FAIRChemCalculator
 
-        unit = get_predict_unit(model_name)
+        # fairchem v2 does not infer the caller's requested device from the ASE
+        # calculator. Forward it explicitly so CPU requests and CUDA worker
+        # masks cannot silently fall back to another device.
+        unit = get_predict_unit(model_name, device=device)
         calc = FAIRChemCalculator(predict_unit=unit)
         logger.info(f"Loaded {model_name} via fairchem v2")
         return calc
