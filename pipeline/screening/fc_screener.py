@@ -26,7 +26,7 @@ import multiprocessing as mp
 from typing import List, Tuple, Dict, Optional
 
 from ase import Atoms, Atom
-from ase.optimize import BFGS
+from pipeline.screening.relaxation import relax_with_record, require_relaxation
 
 from pipeline.common.utils import (
     BASE_DIR, FUEL_CELL_DIR, setup_logger, print_banner,
@@ -37,7 +37,7 @@ from pipeline.screening.surface_screener import generate_structure
 
 logger = setup_logger('fc_screener', 'fuel_cell/fc_screening.log')
 
-SCREENING_PROTOCOL_ID = 'esen-sm-conserving-all-oc25:relax-v2:orr-che-v2'
+SCREENING_PROTOCOL_ID = 'esen-sm-conserving-all-oc25:relax-v3:orr-che-v2'
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -72,7 +72,9 @@ def compute_water_ref(calc) -> float:
     h2o.center()
     h2o.pbc = True
     h2o.calc = calc
-    BFGS(h2o, logfile=None).run(fmax=0.05)
+    record = relax_with_record(h2o, 'reference_h2o', 0.05, 200)
+    if not record['relax_reference_h2o_converged']:
+        raise RuntimeError('H2O reference relaxation did not converge')
     return h2o.get_potential_energy()
 
 
@@ -84,7 +86,9 @@ def compute_h2_ref(calc) -> float:
     h2.center()
     h2.pbc = True
     h2.calc = calc
-    BFGS(h2, logfile=None).run(fmax=0.05)
+    record = relax_with_record(h2, 'reference_h2', 0.05, 200)
+    if not record['relax_reference_h2_converged']:
+        raise RuntimeError('H2 reference relaxation did not converge')
     return h2.get_potential_energy()
 
 
@@ -113,7 +117,8 @@ def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> di
 
         # 1. Relax clean surface
         structure.calc = calc
-        BFGS(structure, logfile=None).run(fmax=0.08, steps=150)
+        if not require_relaxation(result, structure, 'clean', 0.08, 150):
+            return result
         e_clean = structure.get_potential_energy()
         result['e_clean'] = e_clean
 
@@ -129,7 +134,8 @@ def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> di
         slab_oh.append(Atom('O', position=oh_pos))
         slab_oh.append(Atom('H', position=oh_pos + np.array([0.0, 0.0, 0.97])))
         slab_oh.calc = calc
-        BFGS(slab_oh, logfile=None).run(fmax=0.08, steps=100)
+        if not require_relaxation(result, slab_oh, 'oh', 0.08, 100):
+            return result
         e_oh = slab_oh.get_potential_energy()
         # ΔG_OH* = E(slab+OH) - E(slab) - (E(H2O) - 0.5*E(H2)) + ZPE + TS
         dG_OH = (e_oh - e_clean) - (e_h2o - 0.5 * e_h2) + ZPE_CORRECTIONS['OH'] + TS_CORRECTIONS['OH']
@@ -140,7 +146,8 @@ def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> di
         o_pos = ads_base + np.array([0.0, 0.0, 1.7])
         slab_o.append(Atom('O', position=o_pos))
         slab_o.calc = calc
-        BFGS(slab_o, logfile=None).run(fmax=0.08, steps=100)
+        if not require_relaxation(result, slab_o, 'o', 0.08, 100):
+            return result
         e_o = slab_o.get_potential_energy()
         # ΔG_O* = E(slab+O) - E(slab) - (E(H2O) - E(H2)) + ZPE + TS
         dG_O = (e_o - e_clean) - (e_h2o - e_h2) + ZPE_CORRECTIONS['O'] + TS_CORRECTIONS['O']
@@ -155,7 +162,8 @@ def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> di
         slab_ooh.append(Atom('O', position=o2_pos))
         slab_ooh.append(Atom('H', position=h_pos))
         slab_ooh.calc = calc
-        BFGS(slab_ooh, logfile=None).run(fmax=0.08, steps=100)
+        if not require_relaxation(result, slab_ooh, 'ooh', 0.08, 100):
+            return result
         e_ooh = slab_ooh.get_potential_energy()
         # ΔG_OOH* = E(slab+OOH) - E(slab) - (2*E(H2O) - 1.5*E(H2)) + ZPE + TS
         dG_OOH = (e_ooh - e_clean) - (2 * e_h2o - 1.5 * e_h2) + ZPE_CORRECTIONS['OOH'] + TS_CORRECTIONS['OOH']
@@ -258,7 +266,7 @@ def _extract_elements(genome: tuple) -> List[str]:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def orr_worker(worker_id: int, gpu_id: int, gpu_uuid: str, task_queue: mp.Queue,
-               result_queue: mp.Queue, candidate_threads: int = 1,
+               result_queue: mp.Queue, stop_event, candidate_threads: int = 1,
                batched: bool = False):
     """Worker process: loads Meta eSen on assigned GPU, evaluates ORR candidates."""
     try:
@@ -288,21 +296,31 @@ def orr_worker(worker_id: int, gpu_id: int, gpu_uuid: str, task_queue: mp.Queue,
             ref_calc = calc
         e_h2o = compute_water_ref(ref_calc)
         e_h2 = compute_h2_ref(ref_calc)
+        import queue as std_queue
+        import threading
+        from pipeline.screening.worker_supervisor import emit, start_heartbeat
+        heartbeat_stop = threading.Event()
+        heartbeat = start_heartbeat(result_queue, worker_id, heartbeat_stop)
+        emit(result_queue, 'ready', worker_id, {'gpu_id': gpu_id})
 
         def consume_tasks(local_id):
             thread_calc = service.calculator_proxy() if service else calc
             while True:
-                item = task_queue.get()
-                if item is None:
-                    break
+                try:
+                    item = task_queue.get(timeout=1.0)
+                except std_queue.Empty:
+                    if stop_event.is_set():
+                        break
+                    continue
                 idx, genome = item
+                emit(result_queue, 'started', worker_id, idx)
                 try:
                     result = evaluate_orr_candidate(genome, thread_calc, e_h2o, e_h2)
                     result['worker_id'] = worker_id
                     result['gpu_id'] = gpu_id
-                    result_queue.put((idx, result))
+                    emit(result_queue, 'result', worker_id, (idx, result))
                 except Exception as e:
-                    result_queue.put((idx, {
+                    emit(result_queue, 'result', worker_id, (idx, {
                         'genome': str(genome),
                         'material_class': genome[0],
                         'valid': False,
@@ -319,8 +337,15 @@ def orr_worker(worker_id: int, gpu_id: int, gpu_uuid: str, task_queue: mp.Queue,
             service.close()
         else:
             consume_tasks(0)
+        heartbeat_stop.set()
+        heartbeat.join(timeout=2)
     except Exception as e:
         logger.error(f"ORR Worker {worker_id} failed: {e}")
+        try:
+            from pipeline.screening.worker_supervisor import emit
+            emit(result_queue, 'fatal', worker_id, str(e)[:500])
+        except Exception:
+            pass
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -365,41 +390,42 @@ def run_orr_screening(genomes: List[tuple], db_filename: str = "fc_screening.csv
 
     task_queue = mp.Queue()
     result_queue = mp.Queue()
+    stop_event = mp.Event()
 
     for idx, genome in enumerate(genomes):
         task_queue.put((idx, genome))
-    for _ in range(num_workers * candidate_threads):
-        task_queue.put(None)
-
     workers = []
-    for w_id in range(num_workers):
+    def spawn_worker(w_id):
         gpu_id = w_id % device_count
         p = mp.Process(
             target=orr_worker,
             args=(w_id, gpu_id, gpu_uuids[gpu_id], task_queue, result_queue,
-                  candidate_threads, engine == 'batched'))
+                  stop_event, candidate_threads, engine == 'batched'))
         p.start()
-        workers.append(p)
+        return p
+    for w_id in range(num_workers):
+        workers.append(spawn_worker(w_id))
 
-    indexed_results = []
     t_start = time.time()
-    for i in range(len(genomes)):
-        idx, result = result_queue.get()
-        indexed_results.append((idx, result))
-
-        if (i + 1) % 50 == 0 or (i + 1) == len(genomes):
+    def report_progress(completed, results):
+        if completed % 50 == 0 or completed == len(genomes):
             elapsed = time.time() - t_start
-            rate = (i + 1) / elapsed
-            n_valid = sum(1 for _, r in indexed_results if r.get('valid', False))
+            rate = completed / elapsed
+            n_valid = sum(1 for r in results if r.get('valid', False))
             logger.info(
-                f"Progress: {i+1}/{len(genomes)} "
+                f"Progress: {completed}/{len(genomes)} "
                 f"({rate:.1f} cand/sec, {n_valid} valid, {elapsed:.0f}s)"
             )
+    from pipeline.screening.worker_supervisor import collect_results
+    workers_by_id = {index: process for index, process in enumerate(workers)}
+    results = collect_results(
+        result_queue, task_queue, stop_event, workers_by_id, spawn_worker,
+        genomes, 'fuel_cell_orr', FUEL_CELL_DIR / 'orr_worker_health.json',
+        progress=report_progress)
 
-    for p in workers:
+    for p in workers_by_id.values():
         p.join(timeout=30)
 
-    results = [result for _, result in sorted(indexed_results)]
     df = pd.DataFrame(results)
     path = save_screening_db(df, db_filename, subdir="fuel_cell")
     logger.info(f"ORR screening complete. {len(df)} results saved to {path}")

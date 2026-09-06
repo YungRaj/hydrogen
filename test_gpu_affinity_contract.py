@@ -4,6 +4,7 @@
 import os
 import subprocess
 import time
+import json
 
 from pipeline.search.indexed_space import deterministic_tree_probes
 from pipeline.screening.surface_screener import run_screening
@@ -34,6 +35,19 @@ def main():
     used = {int(value) for value in frame['gpu_id'].dropna().tolist()}
     assert used == set(range(expected)), (used, expected)
     assert frame['screening_protocol'].notna().all()
+    assert frame['screening_protocol'].str.contains('relax-v3', regex=False).all()
+    valid = frame[frame['valid'].eq(True)]
+    convergence_columns = [column for column in frame
+                           if column.endswith('_converged')]
+    assert convergence_columns
+    assert valid[convergence_columns].eq(True).all(axis=None)
+    health_name = ('surface_worker_health.json' if application == 'pyrolysis'
+                   else 'orr_worker_health.json')
+    health_root = ('results/screening' if application == 'pyrolysis'
+                   else 'results/fuel_cell')
+    health = json.loads(open(f'{health_root}/{health_name}').read())
+    assert health['status'] == 'complete'
+    assert health['completed'] == health['expected'] == len(frame)
     print({'application': application, 'engine': engine,
            'workers_per_gpu': workers_per_gpu,
            'visible_gpus': expected, 'used_gpu_ids': sorted(used),

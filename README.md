@@ -768,6 +768,35 @@ Optimization is applied at the bottleneck appropriate to each fidelity layer:
    direct A/B control. Scientific tests cover equations, device affinity, energy/
    force invariance, and single-versus-batched inference equivalence.
 
+Every eSen geometry state is fail-closed under screening protocol `relax-v3`.
+Clean structures and each adsorbate retain the final maximum force, optimizer
+steps, requested force threshold, termination reason, and SHA-256 geometry
+digest. Exhausting the BFGS step allowance is an incomplete calculation—not a
+valid candidate—even when finite energies are available. This deliberately
+reduces headline validity rates while preventing unconverged trajectories from
+becoming champions or training labels.
+
+Difficult but physically sane structures receive a deterministic recovery
+ladder without relaxing the final force criterion: standard BFGS; reset to the
+original geometry followed by conservative FIRE preconditioning and small-step
+BFGS; then a final small-step, downhill-checked FIRE attempt from the best finite
+geometry. Initial atomic overlaps, invalid periodic cells, non-finite geometry,
+optimizer exceptions, and exhausted force recovery are classified separately.
+All attempts, their geometry digests, forces, and cumulative cost are retained.
+On the local 14-class calibration probes this raised fully converged validity
+from 5–6/14 to 12/14 for pyrolysis and from 5/14 to 12/14 for ORR, at roughly
+1.8× the smoke-test runtime. The remaining failures stayed invalid rather than
+being forced through the gate.
+
+GPU workers use a leased-task health protocol. Model/reference initialization
+must emit a startup acknowledgement; a separate heartbeat continues during long
+candidate evaluations; every task emits start and result events. The supervisor
+enforces startup, heartbeat, and no-result deadlines, requeues work leased to a
+failed worker, permits one bounded restart, and writes an atomic success/failure
+manifest (`surface_worker_health.json` or `orr_worker_health.json`). A repeated
+failure stops the campaign with the unfinished count instead of hanging or
+silently producing a partial database.
+
 The current local optimum is deliberately a measured default, not a universal
 constant. Re-run `test_gpu_affinity_contract.py` with
 `HYDROGEN_WORKERS_PER_GPU=1`, `2`, and `3`; use
@@ -948,9 +977,22 @@ The eSen screener builds physically realistic, periodic atomic structures for al
 ### Phase 2: Cantera Reactor Simulation
 
 For each top-K catalyst from Phase 1:
-1. Generate a Cantera YAML mechanism with TST-derived rate constants calibrated to the catalyst's E_act
-2. Simulate three reactor types (MMBCR, PFR, fluidized bed) across the standardized 4 temperatures (500°C to 1300 K / 773.15–1300 K)
-3. Record CH₄ conversion, H₂ selectivity, carbon yield, residence time
+1. Build a typed candidate-kinetics record from the convergence-qualified
+   screening row. `E_act`, H*, CH3*, and C* adsorption descriptors retain their
+   protocol and candidate provenance; unavailable elementary barriers are
+   explicitly labeled `template_default`, never presented as candidate-specific.
+2. Generate a Cantera YAML mechanism in which surface steps are reversible, so
+   reverse rates follow the declared surface thermochemistry and detailed
+   balance. A JSON sidecar records every resolved parameter and whether the
+   mechanism remains an incomplete screening template.
+3. Simulate three reactor types (MMBCR, PFR, fluidized bed) across the standardized 4 temperatures (500°C to 1300 K / 773.15–1300 K)
+4. Record CH₄ conversion, H₂ selectivity, carbon-yield bookkeeping,
+   residence time, and kinetic-completeness status.
+
+The current mechanism retains the legacy ideal-gas `C_graphite` tracer for
+carbon bookkeeping. It must not be interpreted as a physically validated
+condensed-carbon chemical potential, deposit inventory, morphology, pore
+blockage, or time-dependent site-loss model.
 
 ### Phase 3: DFT Validation (Quantum ESPRESSO)
 

@@ -76,6 +76,28 @@ class ReactorConfig:
     catalyst_E_act_eV: float = 0.8   # Catalyst activation barrier (used by mock when Cantera unavailable)
 
 
+def _load_candidate_phases(config: ReactorConfig):
+    """Load the gas and required candidate-specific surface phase."""
+    gas = ct.Solution(config.mechanism_file, 'gas')
+    surf_name = f'{config.catalyst_name}_surface'
+    try:
+        surface = ct.Interface(config.mechanism_file, surf_name, [gas])
+    except Exception as exc:
+        raise RuntimeError(
+            f'candidate surface phase failed to load: {exc}') from exc
+    return gas, surface
+
+
+def _kinetics_metadata(config: ReactorConfig) -> dict:
+    path = Path(config.mechanism_file).with_suffix('.kinetics.json')
+    if not path.exists():
+        return {'quantitative_status': 'missing_provenance'}
+    try:
+        return json.loads(path.read_text()).get('inputs', {})
+    except Exception:
+        return {'quantitative_status': 'invalid_provenance'}
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # A. MOLTEN METAL BUBBLE COLUMN REACTOR (MMBCR)
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -97,13 +119,7 @@ def simulate_mmbcr(config: ReactorConfig) -> Dict:
     logger.info(f"Simulating MMBCR: {config.catalyst_name} at {config.T_inlet_K} K")
 
     # Load mechanism
-    gas = ct.Solution(config.mechanism_file, 'gas')
-    surf_name = f'{config.catalyst_name}_surface'
-    try:
-        surf = ct.Interface(config.mechanism_file, surf_name, [gas])
-    except Exception:
-        # If no surface phase, use gas-phase only
-        surf = None
+    gas, surf = _load_candidate_phases(config)
 
     # Set initial gas state
     gas.TPX = config.T_inlet_K, config.P_inlet_Pa, config.inlet_composition
@@ -130,8 +146,7 @@ def simulate_mmbcr(config: ReactorConfig) -> Dict:
         reactor = ct.IdealGasReactor(gas)
         reactor.volume = 1.0  # normalized volume
 
-        if surf is not None:
-            rsurf = ct.ReactorSurface(surf, reactor, A=sv_ratio)
+        rsurf = ct.ReactorSurface(surf, reactor, A=sv_ratio)
 
         inlet_res = ct.Reservoir(gas)
         outlet_res = ct.Reservoir(gas)
@@ -168,7 +183,6 @@ def simulate_mmbcr(config: ReactorConfig) -> Dict:
     h_in_h2 = 2.0 * x_h2
     h2_selectivity = h_in_h2 / max(h_in_ch4 * final_conv, 1e-10) if final_conv > 0.01 else 0.0
 
-    # Carbon selectivity: fraction of C not forming C₂+ species
     c_in_c2_species = 2.0 * (x_c2h2 + x_c2h4 + x_c2h6)
     c_to_solid = final_conv * ch4_initial - c_in_c2_species
     solid_c_selectivity = c_to_solid / max(final_conv * ch4_initial, 1e-10) if final_conv > 0.01 else 0.0
@@ -185,6 +199,8 @@ def simulate_mmbcr(config: ReactorConfig) -> Dict:
         'CH4_conversion': float(final_conv),
         'H2_selectivity': float(np.clip(h2_selectivity, 0, 1)),
         'solid_C_selectivity': float(np.clip(solid_c_selectivity, 0, 1)),
+        'kinetics_status': _kinetics_metadata(config).get(
+            'quantitative_status', 'missing_provenance'),
         'exit_x_H2': float(x_h2),
         'exit_x_CH4': float(gas.X[gas.species_index('CH4')]) if 'CH4' in gas.species_names else 0.0,
         'exit_x_C2H2': float(x_c2h2),
@@ -219,12 +235,7 @@ def simulate_pfr(config: ReactorConfig) -> Dict:
 
     logger.info(f"Simulating PFR: {config.catalyst_name} at {config.T_inlet_K} K")
 
-    gas = ct.Solution(config.mechanism_file, 'gas')
-    surf_name = f'{config.catalyst_name}_surface'
-    try:
-        surf = ct.Interface(config.mechanism_file, surf_name, [gas])
-    except Exception:
-        surf = None
+    gas, surf = _load_candidate_phases(config)
 
     gas.TPX = config.T_inlet_K, config.P_inlet_Pa, config.inlet_composition
 
@@ -255,8 +266,7 @@ def simulate_pfr(config: ReactorConfig) -> Dict:
         reactor = ct.IdealGasReactor(gas)
         reactor.volume = stage_volume
 
-        if surf is not None:
-            rsurf = ct.ReactorSurface(surf, reactor, A=sv_ratio * stage_volume)
+        rsurf = ct.ReactorSurface(surf, reactor, A=sv_ratio * stage_volume)
 
         net = ct.ReactorNet([reactor])
         net.advance(tau_stage)
@@ -279,6 +289,8 @@ def simulate_pfr(config: ReactorConfig) -> Dict:
         'residence_time_s': tau_total,
         'WHSV_h-1': 3600.0 / tau_total if tau_total > 0 else 0,
         'CH4_conversion': float(final_conv),
+        'kinetics_status': _kinetics_metadata(config).get(
+            'quantitative_status', 'missing_provenance'),
         'exit_x_H2': float(x_h2),
         'z_positions': z_positions.tolist(),
         'conversion_profile': conversion_profile,
@@ -306,7 +318,7 @@ def simulate_fluidized_bed(config: ReactorConfig) -> Dict:
 
     logger.info(f"Simulating Fluidized Bed: {config.catalyst_name} at {config.T_inlet_K} K")
 
-    gas = ct.Solution(config.mechanism_file, 'gas')
+    gas, surf = _load_candidate_phases(config)
     gas.TPX = config.T_inlet_K, config.P_inlet_Pa, config.inlet_composition
 
     ch4_initial = gas.X[gas.species_index('CH4')] if 'CH4' in gas.species_names else 1.0
@@ -322,14 +334,9 @@ def simulate_fluidized_bed(config: ReactorConfig) -> Dict:
     reactor_em = ct.IdealGasReactor(gas)
     reactor_em.volume = 1.0
 
-    surf_name = f'{config.catalyst_name}_surface'
-    try:
-        surf = ct.Interface(config.mechanism_file, surf_name, [gas])
-        d_p = config.catalyst_particle_mm * 1e-3
-        sv_ratio = 6.0 * 0.55 / d_p  # (1-ε_mf)/d_p
-        rsurf = ct.ReactorSurface(surf, reactor_em, A=sv_ratio)
-    except Exception:
-        pass
+    d_p = config.catalyst_particle_mm * 1e-3
+    sv_ratio = 6.0 * 0.55 / d_p  # (1-ε_mf)/d_p
+    rsurf = ct.ReactorSurface(surf, reactor_em, A=sv_ratio)
 
     net = ct.ReactorNet([reactor_em])
     net.advance(tau_emulsion)
@@ -350,6 +357,8 @@ def simulate_fluidized_bed(config: ReactorConfig) -> Dict:
         'bubble_fraction': delta,
         'residence_time_s': tau_emulsion,
         'CH4_conversion': float(final_conv),
+        'kinetics_status': _kinetics_metadata(config).get(
+            'quantitative_status', 'missing_provenance'),
         'exit_x_H2': float(x_h2),
     }
 

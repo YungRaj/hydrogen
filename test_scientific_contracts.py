@@ -11,11 +11,120 @@ from __future__ import annotations
 import math
 import os
 import tempfile
+import queue
+import threading
 import time
 from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
+
+
+def test_screening_relaxations_record_and_enforce_force_convergence():
+    from ase import Atoms
+    from ase.calculators.calculator import Calculator, all_changes
+    from pipeline.screening.relaxation import require_relaxation
+
+    class Harmonic(Calculator):
+        implemented_properties = ['energy', 'forces']
+        def calculate(self, atoms=None, properties=('energy',),
+                      system_changes=all_changes):
+            super().calculate(atoms, properties, system_changes)
+            positions = np.asarray(atoms.positions)
+            self.results = {'energy': float(0.5 * (positions ** 2).sum()),
+                            'forces': -positions}
+
+    converging = Atoms('H', positions=[[0.2, 0, 0]])
+    converging.calc = Harmonic()
+    result = {'valid': False}
+    assert require_relaxation(result, converging, 'contract', 0.01, 50)
+    assert result['relax_contract_converged'] is True
+    assert result['relax_contract_max_force_eV_A'] <= 0.01
+    assert len(result['relax_contract_geometry_sha256']) == 64
+
+    incomplete = Atoms('H', positions=[[1.0, 0, 0]])
+    incomplete.calc = Harmonic()
+    result = {'valid': True}
+    assert not require_relaxation(
+        result, incomplete, 'contract', 0.01, 0, recovery=False)
+    assert result['valid'] is False and result['needs_dft_validation'] is True
+    assert result['relax_contract_termination'] == 'recovery_exhausted'
+
+
+def test_worker_supervisor_requeues_leased_task_and_writes_manifest():
+    from pipeline.screening.worker_supervisor import collect_results, emit
+
+    class FakeProcess:
+        pid = 123
+        exitcode = None
+        alive = True
+        def is_alive(self): return self.alive
+        def terminate(self): self.alive = False; self.exitcode = -15
+        def join(self, timeout=None): pass
+
+    statuses, tasks, stopped = queue.Queue(), queue.Queue(), threading.Event()
+    initial = FakeProcess()
+    emit(statuses, 'ready', 0)
+    emit(statuses, 'started', 0, 0)
+    emit(statuses, 'fatal', 0, 'injected failure')
+
+    def restart(worker_id):
+        replacement = FakeProcess()
+        def complete():
+            index, genome = tasks.get(timeout=1)
+            emit(statuses, 'ready', worker_id)
+            emit(statuses, 'started', worker_id, index)
+            emit(statuses, 'result', worker_id, (index, {
+                'genome': repr(genome), 'valid': True}))
+        threading.Thread(target=complete, daemon=True).start()
+        return replacement
+
+    with tempfile.TemporaryDirectory() as tmp:
+        manifest = Path(tmp) / 'health.json'
+        results = collect_results(
+            statuses, tasks, stopped, {0: initial}, restart, [('SAC',)],
+            'contract', manifest, startup_timeout_s=1,
+            heartbeat_timeout_s=1, result_timeout_s=2)
+        payload = __import__('json').loads(manifest.read_text())
+    assert results[0]['valid'] is True
+    assert payload['status'] == 'complete' and payload['completed'] == 1
+    assert any(event['kind'] == 'worker_restarted' for event in payload['events'])
+
+
+def test_candidate_cantera_mechanism_records_kinetics_provenance():
+    from pipeline.process.reactor_mechanisms import (
+        CandidateKinetics, write_full_mechanism)
+
+    row = {
+        'E_act': 0.72, 'dE_H': -0.30, 'dE_CH3': -0.55, 'dE_C': -1.10,
+        'screening_protocol': 'contract:relax-v3',
+    }
+    kinetics = CandidateKinetics.from_screening_row(row, candidate_id='abc')
+    path = write_full_mechanism('contract_candidate', kinetics=kinetics)
+    text = path.read_text()
+    assert 'species: [CH4, H2, C2H2, C2H4, C2H6, Ar, C_graphite]' in text
+    assert 'adjacent-phases: [gas]' in text
+    assert 'carbon_phase_model' not in text
+    metadata = __import__('json').loads(
+        path.with_suffix('.kinetics.json').read_text())
+    inputs = metadata['inputs']
+    assert inputs['methane_activation_eV'] == 0.72
+    assert inputs['h_adsorption_eV'] == -0.30
+    assert inputs['ch3_adsorption_eV'] == -0.55
+    assert inputs['c_adsorption_eV'] == -1.10
+    assert inputs['quantitative_status'] == 'screening_template_incomplete'
+    assert inputs['provenance']['ch2_dehydrogenation_eV'] == 'template_default'
+
+    try:
+        import cantera as ct
+    except ImportError:
+        return
+    gas = ct.Solution(str(path), 'gas')
+    surface = ct.Interface(str(path), 'contract_candidate_surface', [gas])
+    assert 'C_graphite' in gas.species_names
+    reactions = surface.reactions()
+    assert all(reaction.reversible for reaction in reactions[:-1])
+    assert reactions[-1].reversible is False
 
 
 def test_arrhenius_matches_joule_and_ev_forms():

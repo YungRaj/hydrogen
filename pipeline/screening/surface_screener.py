@@ -27,8 +27,8 @@ from typing import List, Tuple, Dict, Optional
 # ASE imports
 from ase import Atoms, Atom
 from ase.build import fcc111, fcc100, bcc110, hcp0001, molecule
-from ase.optimize import BFGS
 from ase.constraints import FixAtoms
+from pipeline.screening.relaxation import relax_with_record, require_relaxation
 
 from pipeline.common.utils import (
     BASE_DIR, SCREENING_DIR, setup_logger, print_banner,
@@ -40,7 +40,7 @@ from pipeline.common.utils import (
 
 logger = setup_logger('surface_screener', 'screening/surface_screening.log')
 
-SCREENING_PROTOCOL_ID = 'esen-sm-conserving-all-oc25:relax-v2:pyrolysis-v2'
+SCREENING_PROTOCOL_ID = 'esen-sm-conserving-all-oc25:relax-v3:pyrolysis-v2'
 
 
 def _stable_seed(*parts) -> int:
@@ -627,7 +627,9 @@ def compute_reference_energies(calc) -> Dict[str, float]:
     h2.center()
     h2.pbc = True
     h2.calc = calc
-    BFGS(h2, logfile=None).run(fmax=0.05)
+    record = relax_with_record(h2, 'reference_h2', 0.05, 200)
+    if not record['relax_reference_h2_converged']:
+        raise RuntimeError('H2 reference relaxation did not converge')
     refs['H2'] = h2.get_potential_energy()
 
     # CH₄
@@ -636,7 +638,9 @@ def compute_reference_energies(calc) -> Dict[str, float]:
     ch4.center()
     ch4.pbc = True
     ch4.calc = calc
-    BFGS(ch4, logfile=None).run(fmax=0.05)
+    record = relax_with_record(ch4, 'reference_ch4', 0.05, 200)
+    if not record['relax_reference_ch4_converged']:
+        raise RuntimeError('CH4 reference relaxation did not converge')
     refs['CH4'] = ch4.get_potential_energy()
 
     # CH₃ radical
@@ -645,7 +649,9 @@ def compute_reference_energies(calc) -> Dict[str, float]:
     ch3.center()
     ch3.pbc = True
     ch3.calc = calc
-    BFGS(ch3, logfile=None).run(fmax=0.05)
+    record = relax_with_record(ch3, 'reference_ch3', 0.05, 200)
+    if not record['relax_reference_ch3_converged']:
+        raise RuntimeError('CH3 reference relaxation did not converge')
     refs['CH3'] = ch3.get_potential_energy()
 
     # Isolated C reference calculated thermodynamically: CH4 - 2*H2
@@ -675,8 +681,8 @@ def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
 
         # 1. Relax clean surface/cluster
         structure.calc = calc
-        dyn = BFGS(structure, logfile=None)
-        dyn.run(fmax=0.08, steps=150)
+        if not require_relaxation(result, structure, 'clean', 0.08, 150):
+            return result
         e_clean = structure.get_potential_energy()
         result['e_clean'] = e_clean
 
@@ -693,7 +699,8 @@ def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
         h_pos[2] = ads_pos[2] - 0.3  # H binds closer
         slab_h.append(Atom('H', position=h_pos))
         slab_h.calc = calc
-        BFGS(slab_h, logfile=None).run(fmax=0.08, steps=100)
+        if not require_relaxation(result, slab_h, 'h', 0.08, 100):
+            return result
         e_h = slab_h.get_potential_energy()
         dE_H = e_h - e_clean - 0.5 * refs['H2']
         result['dE_H'] = dE_H
@@ -706,7 +713,8 @@ def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
         slab_ch3.append(Atom('H', position=c_pos + np.array([-0.88, -0.51, 0.35])))
         slab_ch3.append(Atom('H', position=c_pos + np.array([0.88, -0.51, 0.35])))
         slab_ch3.calc = calc
-        BFGS(slab_ch3, logfile=None).run(fmax=0.08, steps=100)
+        if not require_relaxation(result, slab_ch3, 'ch3', 0.08, 100):
+            return result
         e_ch3 = slab_ch3.get_potential_energy()
         dE_CH3 = e_ch3 - e_clean - refs['CH3']
         result['dE_CH3'] = dE_CH3
@@ -717,7 +725,8 @@ def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
         c_ads_pos[2] -= 0.4  # C binds closer to surface
         slab_c.append(Atom('C', position=c_ads_pos))
         slab_c.calc = calc
-        BFGS(slab_c, logfile=None).run(fmax=0.08, steps=100)
+        if not require_relaxation(result, slab_c, 'c', 0.08, 100):
+            return result
         e_c = slab_c.get_potential_energy()
         dE_C = e_c - e_clean - refs['C']
         result['dE_C'] = dE_C
@@ -904,7 +913,7 @@ def _extract_elements(genome: tuple) -> List[str]:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def eval_worker(worker_id: int, gpu_id: int, gpu_uuid: str, task_queue: mp.Queue,
-                result_queue: mp.Queue, candidate_threads: int = 1,
+                result_queue: mp.Queue, stop_event, candidate_threads: int = 1,
                 batched: bool = False):
     """GPU worker; optionally share one dynamically batched model across threads."""
     try:
@@ -936,21 +945,31 @@ def eval_worker(worker_id: int, gpu_id: int, gpu_uuid: str, task_queue: mp.Queue
         else:
             ref_calc = calc
         refs = compute_reference_energies(ref_calc)
+        import queue as std_queue
+        import threading
+        from pipeline.screening.worker_supervisor import emit, start_heartbeat
+        heartbeat_stop = threading.Event()
+        heartbeat = start_heartbeat(result_queue, worker_id, heartbeat_stop)
+        emit(result_queue, 'ready', worker_id, {'gpu_id': gpu_id})
 
         def consume_tasks(local_id):
             thread_calc = service.calculator_proxy() if service else calc
             while True:
-                item = task_queue.get()
-                if item is None:
-                    break
+                try:
+                    item = task_queue.get(timeout=1.0)
+                except std_queue.Empty:
+                    if stop_event.is_set():
+                        break
+                    continue
                 idx, genome = item
+                emit(result_queue, 'started', worker_id, idx)
                 try:
                     result = evaluate_candidate(genome, thread_calc, refs)
                     result['worker_id'] = worker_id
                     result['gpu_id'] = gpu_id
-                    result_queue.put((idx, result))
+                    emit(result_queue, 'result', worker_id, (idx, result))
                 except Exception as e:
-                    result_queue.put((idx, {
+                    emit(result_queue, 'result', worker_id, (idx, {
                         'genome': str(genome),
                         'material_class': genome[0],
                         'valid': False,
@@ -968,9 +987,16 @@ def eval_worker(worker_id: int, gpu_id: int, gpu_uuid: str, task_queue: mp.Queue
             service.close()
         else:
             consume_tasks(0)
+        heartbeat_stop.set()
+        heartbeat.join(timeout=2)
 
     except Exception as e:
         logger.error(f"Worker {worker_id} failed to initialize: {e}")
+        try:
+            from pipeline.screening.worker_supervisor import emit
+            emit(result_queue, 'fatal', worker_id, str(e)[:500])
+        except Exception:
+            pass
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1022,51 +1048,49 @@ def run_screening(genomes: List[tuple], db_filename: str = "surface_screening.cs
     # Setup queues
     task_queue = mp.Queue()
     result_queue = mp.Queue()
+    stop_event = mp.Event()
 
     # Enqueue all tasks
     for idx, genome in enumerate(genomes):
         task_queue.put((idx, genome))
 
-    # Poison pills
-    for _ in range(num_workers * candidate_threads):
-        task_queue.put(None)
-
     # Launch workers
     workers = []
-    for w_id in range(num_workers):
+    def spawn_worker(w_id):
         gpu_id = w_id % device_count
         p = mp.Process(
             target=eval_worker,
             args=(w_id, gpu_id, gpu_uuids[gpu_id], task_queue, result_queue,
-                  candidate_threads, engine == 'batched'))
+                  stop_event, candidate_threads, engine == 'batched'))
         p.start()
-        workers.append(p)
+        return p
+    for w_id in range(num_workers):
+        workers.append(spawn_worker(w_id))
 
     # Collect results
-    indexed_results = []
     t_start = time.time()
-    for i in range(len(genomes)):
-        idx, result = result_queue.get()
-        indexed_results.append((idx, result))
-
-        if (i + 1) % 50 == 0 or (i + 1) == len(genomes):
+    def report_progress(completed, results):
+        if completed % 50 == 0 or completed == len(genomes):
             elapsed = time.time() - t_start
-            rate = (i + 1) / elapsed
-            n_valid = sum(1 for _, r in indexed_results if r.get('valid', False))
+            rate = completed / elapsed
+            n_valid = sum(1 for r in results if r.get('valid', False))
             logger.info(
-                f"Progress: {i+1}/{len(genomes)} "
+                f"Progress: {completed}/{len(genomes)} "
                 f"({rate:.1f} candidates/sec, {n_valid} valid, "
                 f"{elapsed:.0f}s elapsed)"
             )
+    from pipeline.screening.worker_supervisor import collect_results
+    workers_by_id = {index: process for index, process in enumerate(workers)}
+    results = collect_results(
+        result_queue, task_queue, stop_event, workers_by_id, spawn_worker,
+        genomes, 'turquoise_hydrogen',
+        SCREENING_DIR / 'surface_worker_health.json', progress=report_progress)
 
     # Wait for workers
-    for p in workers:
+    for p in workers_by_id.values():
         p.join(timeout=30)
 
     # Build DataFrame
-    # Completion order depends on GPU speed; persist canonical input order so
-    # identical campaigns produce directly comparable databases.
-    results = [result for _, result in sorted(indexed_results)]
     df = pd.DataFrame(results)
     path = save_screening_db(df, db_filename)
     logger.info(f"Screening complete. {len(df)} results saved to {path}")

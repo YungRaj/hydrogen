@@ -11,7 +11,10 @@ units, phases, species, and reactions.
 """
 
 import numpy as np
+import json
 from pathlib import Path
+from dataclasses import asdict, dataclass, field
+from typing import Mapping, Optional
 
 from pipeline.common.utils import (
     eV_to_J, MECHANISMS_DIR, setup_logger,
@@ -20,6 +23,85 @@ from pipeline.common.utils import (
 logger = setup_logger('reactor_mechanisms', 'reactor/mechanism_generation.log')
 
 NA = 6.02214076e23  # Avogadro's number
+EV_TO_J_MOL = eV_to_J * NA
+
+
+@dataclass(frozen=True)
+class CandidateKinetics:
+    """Candidate-specific inputs and honest provenance for one mechanism.
+
+    Screening adsorption energies are used to distinguish the thermochemistry
+    of adsorbed H, CH3, and C. They are not silently reinterpreted as activation
+    barriers. Missing elementary barriers retain declared template values until
+    candidate-specific NEB or measured kinetics replaces them.
+    """
+
+    methane_activation_eV: float
+    h_adsorption_eV: Optional[float] = None
+    ch3_adsorption_eV: Optional[float] = None
+    c_adsorption_eV: Optional[float] = None
+    ch3_dehydrogenation_eV: Optional[float] = None
+    ch2_dehydrogenation_eV: Optional[float] = None
+    ch_dehydrogenation_eV: Optional[float] = None
+    h2_desorption_eV: Optional[float] = None
+    carbon_transfer_eV: Optional[float] = None
+    site_density_mol_cm2: float = 2.5e-9
+    screening_protocol: str = 'unknown'
+    candidate_id: str = 'unknown'
+    sources: Mapping[str, str] = field(default_factory=dict)
+
+    @classmethod
+    def from_screening_row(cls, row, candidate_id: str = 'unknown'):
+        """Build kinetics from a pandas Series or ordinary mapping."""
+        def finite(name):
+            value = row.get(name)
+            try:
+                value = float(value)
+            except (TypeError, ValueError):
+                return None
+            return value if np.isfinite(value) else None
+
+        barrier = finite('E_act')
+        if barrier is None or barrier <= 0:
+            raise ValueError('a finite positive E_act is required')
+        protocol = str(row.get('screening_protocol', 'unknown'))
+        sources = {'methane_activation_eV': f'screening:{protocol}'}
+        mapping = {
+            'h_adsorption_eV': 'dE_H',
+            'ch3_adsorption_eV': 'dE_CH3',
+            'c_adsorption_eV': 'dE_C',
+        }
+        values = {}
+        for target, source in mapping.items():
+            values[target] = finite(source)
+            if values[target] is not None:
+                sources[target] = f'screening:{protocol}:{source}'
+        return cls(methane_activation_eV=barrier, candidate_id=candidate_id,
+                   screening_protocol=protocol, sources=sources, **values)
+
+    def resolved(self) -> dict:
+        """Return numerical values plus whether each was observed or templated."""
+        defaults = {
+            'ch3_dehydrogenation_eV': self.methane_activation_eV + 0.10,
+            'ch2_dehydrogenation_eV': self.methane_activation_eV + 0.15,
+            'ch_dehydrogenation_eV': self.methane_activation_eV + 0.05,
+            'h2_desorption_eV': 0.8,
+            'carbon_transfer_eV': 1.5,
+        }
+        values = asdict(self)
+        provenance = dict(self.sources)
+        for name, default in defaults.items():
+            if values[name] is None:
+                values[name] = default
+                provenance[name] = 'template_default'
+            else:
+                provenance.setdefault(name, 'candidate_specific')
+        values['provenance'] = provenance
+        values['quantitative_status'] = (
+            'candidate_specific' if not any(
+                provenance.get(name) == 'template_default' for name in defaults)
+            else 'screening_template_incomplete')
+        return values
 
 
 def write_gas_only_mechanism() -> Path:
@@ -113,23 +195,45 @@ reactions:
     return filepath
 
 
-def write_full_mechanism(catalyst_name: str, E_act_CH4: float,
+def write_full_mechanism(catalyst_name: str, E_act_CH4: float = None,
                           E_act_H_desorb: float = 0.8,
                           E_act_C_diffuse: float = 1.5,
                           site_density: float = 2.5e-9,
-                          T_ref: float = 1000.0) -> Path:
+                          T_ref: float = 1000.0,
+                          kinetics: CandidateKinetics = None) -> Path:
     """
     Write a complete Cantera mechanism file (gas + surface) to disk.
     """
     MECHANISMS_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Convert eV → J/mol
-    Ea_CH4 = E_act_CH4 * eV_to_J * NA
-    Ea_CH3 = (E_act_CH4 + 0.1) * eV_to_J * NA
-    Ea_CH2 = (E_act_CH4 + 0.15) * eV_to_J * NA
-    Ea_CH  = (E_act_CH4 + 0.05) * eV_to_J * NA
-    Ea_H2  = E_act_H_desorb * eV_to_J * NA
-    Ea_C   = E_act_C_diffuse * eV_to_J * NA
+    if kinetics is None:
+        if E_act_CH4 is None:
+            raise ValueError('E_act_CH4 or kinetics is required')
+        kinetics = CandidateKinetics(
+            methane_activation_eV=float(E_act_CH4),
+            h2_desorption_eV=float(E_act_H_desorb),
+            carbon_transfer_eV=float(E_act_C_diffuse),
+            site_density_mol_cm2=float(site_density),
+            sources={'methane_activation_eV': 'legacy_argument',
+                     'h2_desorption_eV': 'legacy_argument',
+                     'carbon_transfer_eV': 'legacy_argument'})
+    values = kinetics.resolved()
+
+    # Convert eV → J/mol. Adsorption energies alter surface enthalpies but are
+    # not used as activation barriers.
+    Ea_CH4 = values['methane_activation_eV'] * EV_TO_J_MOL
+    Ea_CH3 = values['ch3_dehydrogenation_eV'] * EV_TO_J_MOL
+    Ea_CH2 = values['ch2_dehydrogenation_eV'] * EV_TO_J_MOL
+    Ea_CH = values['ch_dehydrogenation_eV'] * EV_TO_J_MOL
+    Ea_H2 = values['h2_desorption_eV'] * EV_TO_J_MOL
+    Ea_C = values['carbon_transfer_eV'] * EV_TO_J_MOL
+    h0_h = (values['h_adsorption_eV'] * EV_TO_J_MOL
+            if values['h_adsorption_eV'] is not None else -25000.0)
+    h0_ch3 = (values['ch3_adsorption_eV'] * EV_TO_J_MOL
+              if values['ch3_adsorption_eV'] is not None else -20000.0)
+    h0_c = (values['c_adsorption_eV'] * EV_TO_J_MOL
+            if values['c_adsorption_eV'] is not None else -40000.0)
+    site_density = values['site_density_mol_cm2']
 
     yaml_content = f"""\
 units: {{length: cm, time: s, quantity: mol, activation-energy: J/mol}}
@@ -221,7 +325,7 @@ species:
   composition: {{C: 1, H: 3}}
   thermo:
     model: constant-cp
-    h0: -20000.0 J/mol
+    h0: {h0_ch3:.8g} J/mol
     s0: 50.0 J/mol/K
   sites: 1
 - name: CH2_s
@@ -242,14 +346,14 @@ species:
   composition: {{H: 1}}
   thermo:
     model: constant-cp
-    h0: -25000.0 J/mol
+    h0: {h0_h:.8g} J/mol
     s0: 20.0 J/mol/K
   sites: 1
 - name: C_s
   composition: {{C: 1}}
   thermo:
     model: constant-cp
-    h0: -40000.0 J/mol
+    h0: {h0_c:.8g} J/mol
     s0: 10.0 J/mol/K
   sites: 1
 - name: C_graphite
@@ -269,15 +373,15 @@ reactions:
   rate-constant: {{A: 1.0e+14, b: 0.0, Ea: 331000.0}}
 
 {catalyst_name}_surface-reactions:
-- equation: CH4 + 2 site => CH3_s + H_s
+- equation: CH4 + 2 site <=> CH3_s + H_s
   sticking-coefficient: {{A: 0.01, b: 0.0, Ea: {Ea_CH4:.1f}}}
-- equation: CH3_s + site => CH2_s + H_s
+- equation: CH3_s + site <=> CH2_s + H_s
   rate-constant: {{A: 1.0e+13, b: 0.0, Ea: {Ea_CH3:.1f}}}
-- equation: CH2_s + site => CH_s + H_s
+- equation: CH2_s + site <=> CH_s + H_s
   rate-constant: {{A: 1.0e+13, b: 0.0, Ea: {Ea_CH2:.1f}}}
-- equation: CH_s + site => C_s + H_s
+- equation: CH_s + site <=> C_s + H_s
   rate-constant: {{A: 1.0e+13, b: 0.0, Ea: {Ea_CH:.1f}}}
-- equation: 2 H_s => H2 + 2 site
+- equation: 2 H_s <=> H2 + 2 site
   rate-constant: {{A: 5.0e+13, b: 0.0, Ea: {Ea_H2:.1f}}}
 - equation: C_s => C_graphite + site
   rate-constant: {{A: 1.0e+10, b: 0.0, Ea: {Ea_C:.1f}}}
@@ -287,7 +391,18 @@ reactions:
     with open(filepath, 'w') as f:
         f.write(yaml_content)
 
-    logger.info(f"Wrote mechanism: {filepath} (E_act={E_act_CH4:.3f} eV)")
+    metadata_path = filepath.with_suffix('.kinetics.json')
+    metadata_path.write_text(json.dumps({
+        'schema_version': 1,
+        'catalyst_name': catalyst_name,
+        'mechanism_file': str(filepath),
+        'inputs': values,
+        'carbon_phase_model': 'legacy_gas_tracer',
+    }, indent=2, sort_keys=True) + '\n')
+    logger.info(
+        f"Wrote mechanism: {filepath} "
+        f"(E_act={values['methane_activation_eV']:.3f} eV, "
+        f"status={values['quantitative_status']})")
     return filepath
 
 

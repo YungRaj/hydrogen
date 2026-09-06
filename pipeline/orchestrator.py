@@ -145,7 +145,8 @@ def run_pipeline(config: PipelineConfig = PipelineConfig(),
         print_banner("PHASE 2: CANTERA REACTOR SIMULATION")
         t2 = time.time()
 
-        from pipeline.process.reactor_mechanisms import write_full_mechanism, write_gri30_subset
+        from pipeline.process.reactor_mechanisms import (
+            CandidateKinetics, write_full_mechanism, write_gri30_subset)
         from pipeline.process.reactor_models import run_reactor_sweep
 
         # Write gas-phase mechanism
@@ -174,10 +175,10 @@ def run_pipeline(config: PipelineConfig = PipelineConfig(),
                 E_act = row.get('E_act', 0.8)
 
                 # Generate Cantera mechanism
+                candidate_kinetics = CandidateKinetics.from_screening_row(
+                    row, candidate_id=str(row.get('candidate_id', cat_name)))
                 mech_path = write_full_mechanism(
-                    cat_name, E_act_CH4=E_act,
-                    E_act_H_desorb=max(0.3, abs(row.get('dE_H', -0.5))),
-                )
+                    cat_name, kinetics=candidate_kinetics)
 
                 # Run reactor sweep
                 results = run_reactor_sweep(
