@@ -15,7 +15,6 @@ Generates QE input files and submits calculations via pw.x.
 
 import os
 import sys
-import shutil
 import json
 import re
 import numpy as np
@@ -30,7 +29,8 @@ from pipeline.common.utils import (
 
 logger = setup_logger('dft_validator', 'dft/dft_validation.log')
 
-PW_X = os.environ.get("PW_X", shutil.which("pw.x") or "pw.x")
+# Backward-compatible command hint; execution uses the portable QE resolver.
+PW_X = os.environ.get("PW_X", "pw.x")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

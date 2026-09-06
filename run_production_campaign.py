@@ -85,13 +85,8 @@ def main():
             f'QE allocation requests {requested_qe_cpus} CPUs, '
             f'but only {available_cpus} are visible')
 
-    # The campaign runs under fairchem-env, while Quantum ESPRESSO is installed
-    # in qe-env. Resolve it explicitly so DFT does not depend on the caller's PATH.
-    if not os.environ.get('PW_X'):
-        envs_dir = Path(sys.executable).resolve().parents[2]
-        qe_binary = envs_dir / 'qe-env' / 'bin' / 'pw.x'
-        if qe_binary.is_file():
-            os.environ['PW_X'] = str(qe_binary)
+    # QE executables are resolved at execution time from PW_X/NEB_X, PATH, or
+    # by querying the documented qe-env through the PATH-resolved conda command.
     os.environ['QE_MPI_RANKS'] = str(args.qe_mpi_ranks)
     os.environ['QE_OMP_THREADS'] = str(args.qe_omp_threads)
 

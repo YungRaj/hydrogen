@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import shutil
 import subprocess
 import re
 import time
@@ -19,6 +18,7 @@ from ase.mep import NEB
 from ase.io import read as ase_read
 
 from pipeline.common.utils import BASE_DIR
+from pipeline.common.executables import resolve_executable, resolve_qe_executable
 
 SSSP_DIR = BASE_DIR / 'quantum_espresso/sssp/1.3.0-pbe-efficiency'
 SSSP_MANIFEST = SSSP_DIR / 'SSSP_1.3.0_PBE_efficiency.json'
@@ -58,21 +58,21 @@ def build_qe_command(executable: str, input_path: str,
                      config: QEExecutionConfig, *, neb: bool = False) -> list[str]:
     """Build a shell-free MPI/QE command with validated parallel dimensions."""
     config.validate(neb=neb)
-    requested = Path(executable)
-    resolved = shutil.which(str(executable))
-    fallback = Path('/home/ilhanraja/miniconda3/envs/qe-env/bin') / requested.name
-    if resolved:
-        executable_path = str(Path(resolved).resolve())
-    elif requested.is_file():
-        executable_path = str(requested.resolve())
-    elif fallback.is_file():
-        executable_path = str(fallback.resolve())
-    else:
-        raise RuntimeError(f'QE executable is unavailable: {executable}')
+    requested = Path(executable).name
+    env_var = {'pw.x': 'PW_X', 'neb.x': 'NEB_X'}.get(requested)
+    executable_path = resolve_executable(
+        executable, env_var=env_var, conda_env='qe-env', required=True)
     command = []
     if config.mpi_ranks > 1:
         sibling_mpirun = Path(executable_path).parent / 'mpirun'
-        mpirun = str(sibling_mpirun) if sibling_mpirun.is_file() else shutil.which('mpirun')
+        mpirun = os.environ.get('MPIEXEC')
+        if mpirun:
+            mpirun = resolve_executable(mpirun, required=True)
+        elif sibling_mpirun.is_file() and os.access(sibling_mpirun, os.X_OK):
+            mpirun = str(sibling_mpirun.resolve())
+        else:
+            mpirun = resolve_executable(
+                'mpirun', conda_env='qe-env', required=False)
         if not mpirun:
             raise RuntimeError('MPI ranks requested but mpirun is unavailable')
         command.extend([mpirun, '-np', str(config.mpi_ranks)])
@@ -207,7 +207,7 @@ END
 
 def run_neb(input_path: str, output_path: str, timeout_s: int = 86400,
             execution: QEExecutionConfig | None = None) -> dict:
-    neb = shutil.which('neb.x') or '/home/ilhanraja/miniconda3/envs/qe-env/bin/neb.x'
+    neb = resolve_qe_executable('neb.x')
     workdir = Path(input_path).resolve().parent
     (workdir / 'tmp').mkdir(exist_ok=True)
     config = execution or QEExecutionConfig()
@@ -281,7 +281,7 @@ def run_pw(input_path: str, output_path: str, timeout_s: int = 86400,
            execution: QEExecutionConfig | None = None) -> dict:
     workdir = Path(input_path).resolve().parent
     (workdir / 'tmp').mkdir(exist_ok=True)
-    pw = shutil.which('pw.x') or '/home/ilhanraja/miniconda3/envs/qe-env/bin/pw.x'
+    pw = resolve_qe_executable('pw.x')
     config = execution or QEExecutionConfig.production_default()
     command = build_qe_command(pw, input_path, config)
     environment = os.environ.copy()

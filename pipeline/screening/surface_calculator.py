@@ -278,12 +278,10 @@ def get_qe_calculator(atoms: Atoms, config: QEConfig = None) -> Optional[Calcula
     try:
         from ase.calculators.espresso import Espresso, EspressoProfile
 
-        # Locate pw.x
-        pw_path = '/home/ilhanraja/miniconda3/envs/qe-env/bin/pw.x'
-        if not os.path.exists(pw_path):
-            import shutil
-            pw_path = shutil.which('pw.x')
-
+        # Locate pw.x without assuming a Conda installation directory.
+        from pipeline.common.executables import resolve_executable
+        pw_path = resolve_executable(
+            'pw.x', env_var='PW_X', conda_env='qe-env', required=False)
         if pw_path is None:
             logger.warning("pw.x not found — QE calculator unavailable")
             return None

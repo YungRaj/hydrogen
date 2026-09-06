@@ -1139,7 +1139,10 @@ def test_production_has_only_branch_candidate_search():
     assert not present, f"Legacy candidate-search paths remain in production: {present}"
     assert 'run_branch_discovery' in source
     assert 'run_fc_branch_discovery' in source
-    assert "envs_dir / 'qe-env' / 'bin' / 'pw.x'" in source
+    assert 'QE executables are resolved at execution time' in source
+    resolver = (Path(__file__).parent / 'pipeline/common/executables.py').read_text()
+    assert "env_var=variables.get(name), conda_env='qe-env'" in resolver
+    assert ('/' + 'home/') not in source + resolver
     assert "'conda', 'run', '-n', 'quantum-env'" in source
     assert "result.get('mock')" in source
 
@@ -1148,6 +1151,17 @@ def test_readme_matches_branch_only_contract():
     from pathlib import Path
     readme = (Path(__file__).parent / 'README.md').read_text()
     assert '21,092,645,031' in readme
+
+
+def test_readme_contains_no_machine_specific_paths():
+    from pathlib import Path
+    readme = (Path(__file__).parent / 'README.md').read_text()
+    forbidden = [
+        '/' + 'home/', '/' + 'Users/', 'mini' + 'conda3',
+        'ana' + 'conda3', '/' + 'opt/conda', '.gem' + 'ini/antigravity',
+    ]
+    present = [token for token in forbidden if token in readme]
+    assert not present, f'Machine-specific paths remain in README: {present}'
     assert 'Deterministic Branch-and-Bound Discovery' in readme
     assert '--calibration-probes' in readme
     assert '--branch-leaf-size' in readme
@@ -1393,6 +1407,8 @@ if __name__ == '__main__':
     test("Tree probes deterministic across 14 classes", test_tree_calibration_probes_cover_all_classes_deterministically)
     test("Production search is branch-only", test_production_has_only_branch_candidate_search)
     test("README matches branch-only contract", test_readme_matches_branch_only_contract)
+    test("README has no machine-specific paths",
+         test_readme_contains_no_machine_specific_paths)
     test("Retired GA entry points are blocked", test_retired_ga_entry_points_are_blocked)
     test("Industrial viability gates fail closed", test_industrial_viability_gates_fail_closed)
     test("Prior-art novelty states", test_prior_art_registry_tracks_exact_and_region_novelty)

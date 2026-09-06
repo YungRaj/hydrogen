@@ -177,7 +177,7 @@ def test_refactored_protocol_executor_and_reactor_stage_contracts():
         {'CH4_conversion': 0.4, 'mock': False},
     ]
     with patch('pipeline.process.reactor_mechanisms.write_full_mechanism',
-               return_value=Path('/tmp/contract.yaml')) as write, \
+               return_value=Path('contract.yaml')) as write, \
          patch('pipeline.process.reactor_models.run_reactor_sweep',
                return_value=fake_sweep) as sweep:
         result = simulate_candidate(
@@ -274,11 +274,49 @@ def test_qe_inputs_use_verified_cutoffs_references_and_parallel_contracts():
     with tempfile.TemporaryDirectory() as tmp:
         input_path = Path(tmp) / 'pw.in'
         input_path.write_text(molecule)
-        command = build_qe_command(
-            '/home/ilhanraja/miniconda3/envs/qe-env/bin/pw.x', str(input_path),
-            QEExecutionConfig(mpi_ranks=4, omp_threads=1, kpoint_pools=2))
+        pw = Path(tmp) / 'pw.x'
+        mpi = Path(tmp) / 'mpirun'
+        pw.write_text('#!/bin/sh\nexit 0\n')
+        mpi.write_text('#!/bin/sh\nexit 0\n')
+        pw.chmod(0o755)
+        mpi.chmod(0o755)
+        with patch.dict(os.environ, {'MPIEXEC': str(mpi)}):
+            command = build_qe_command(
+                str(pw), str(input_path),
+                QEExecutionConfig(mpi_ranks=4, omp_threads=1, kpoint_pools=2))
         assert '-np' in command and command[command.index('-np') + 1] == '4'
         assert command[command.index('-nk') + 1] == '2'
+
+
+def test_external_executable_resolution_is_machine_portable():
+    from pipeline.common.executables import resolve_executable
+
+    with tempfile.TemporaryDirectory() as tmp:
+        executable = Path(tmp) / 'portable-tool'
+        executable.write_text('#!/bin/sh\nexit 0\n')
+        executable.chmod(0o755)
+        with patch.dict(os.environ, {'PORTABLE_TOOL': str(executable)}):
+            assert resolve_executable(
+                'missing-name', env_var='PORTABLE_TOOL') == str(executable.resolve())
+        with patch.dict(os.environ, {'PATH': tmp}, clear=False):
+            assert resolve_executable('portable-tool') == str(executable.resolve())
+        with patch.dict(os.environ, {'PORTABLE_TOOL': str(Path(tmp) / 'absent')}):
+            try:
+                resolve_executable('portable-tool', env_var='PORTABLE_TOOL')
+            except RuntimeError as exc:
+                assert 'PORTABLE_TOOL is set' in str(exc)
+            else:
+                raise AssertionError('invalid executable override was accepted')
+        with patch.dict(os.environ, {}, clear=True), \
+             patch('pipeline.common.executables.shutil.which', return_value=None):
+            try:
+                resolve_executable(
+                    'absent-tool', env_var='ABSENT_TOOL', conda_env='tool-env')
+            except RuntimeError as exc:
+                message = str(exc)
+                assert 'ABSENT_TOOL' in message and 'README.md' in message
+            else:
+                raise AssertionError('missing executable did not fail explicitly')
 
 
 def test_qe_relaxation_cannot_pass_on_electronic_convergence_alone():

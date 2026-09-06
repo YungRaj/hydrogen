@@ -389,8 +389,8 @@ The pipeline relies on Meta's FAIR Chemistry **eSen (EquiformerV2 Energy-Conserv
 3. **Deploy Token to Workspace**:
    Create a file named `.hf_token` in the root of the project repository containing ONLY your token:
    ```bash
-   echo "hf_your_token_here" > /home/ilhanraja/.gemini/antigravity/scratch/hydrogen/.hf_token
-   chmod 600 /home/ilhanraja/.gemini/antigravity/scratch/hydrogen/.hf_token
+   printf '%s\n' "hf_your_token_here" > .hf_token
+   chmod 600 .hf_token
    ```
    Alternatively, you can export it to your environment:
    ```bash
@@ -437,7 +437,7 @@ export VECLIB_MAXIMUM_THREADS=1
 export NUMEXPR_NUM_THREADS=1
 
 # Launch GPU-saturated campaign across all GPUs
-nohup /home/ilhanraja/miniconda3/envs/fairchem-env/bin/python -u run_production_campaign.py \
+nohup conda run --no-capture-output -n fairchem-env python -u run_production_campaign.py \
   --calibration-probes 500 \
   --validation-batch 500 \
   --branch-leaf-size 1000000 \
@@ -447,6 +447,22 @@ nohup /home/ilhanraja/miniconda3/envs/fairchem-env/bin/python -u run_production_
   --top-k 200 \
   > results/campaign_v6.log 2>&1 &
 ```
+
+No Conda installation directory is assumed. Quantum ESPRESSO executables are
+resolved in this order: `PW_X`/`NEB_X` overrides, the current `PATH`, then a
+query of the documented `qe-env` through the `conda` command found on `PATH`.
+MPI uses `MPIEXEC` when set, then an executable next to QE, then `mpirun` from
+`PATH` or `qe-env`. Examples for non-Conda or module-based installations:
+
+```bash
+export PW_X="$(command -v pw.x)"
+export NEB_X="$(command -v neb.x)"
+export MPIEXEC="$(command -v mpirun)"
+```
+
+If these programs are absent, the relevant high-fidelity stage fails with the
+required variable and installation instructions; it never guesses a home
+directory or silently substitutes another executable.
 
 **Key parameters:**
 
