@@ -781,6 +781,7 @@ def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
         is_safe, safety_reason = check_element_safety(elements)
         if not is_safe:
             result['valid'] = False
+            result['candidate_disposition'] = 'hard_excluded'
             result['error'] = safety_reason
             return result
 
@@ -795,7 +796,9 @@ def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
             val = result.get(key, 0)
             if abs(val) > SANE_LIMIT:
                 result['valid'] = False
+                result['candidate_disposition'] = 'validation_required'
                 result['error'] = f'Unphysical {key}={val:.2f} eV (|val|>{SANE_LIMIT})'
+                result['needs_dft_validation'] = True
                 return result
 
         # Clamp derived values to physical ranges
@@ -812,9 +815,11 @@ def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
         result['needs_dft_validation'] = result.get('needs_dft_validation', False) or conf < 0.5
 
         result['valid'] = True
+        result['candidate_disposition'] = 'quantitative_screening'
 
     except Exception as e:
         result['error'] = str(e)[:200]
+        result['candidate_disposition'] = 'validation_required'
 
     return result
 

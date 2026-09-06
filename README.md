@@ -994,6 +994,25 @@ carbon bookkeeping. It must not be interpreted as a physically validated
 condensed-carbon chemical potential, deposit inventory, morphology, pore
 blockage, or time-dependent site-loss model.
 
+Fidelity boundaries use evidence-aware admission. A converged, finite,
+uncensored atomistic row may enter quantitative Cantera screening. An
+unconverged relaxation, censored BEP estimate, out-of-domain prediction,
+missing descriptor, or numerically implausible surrogate result is not evidence
+that the chemistry is poor: it is retained as `validation_required` and given a
+class-preserving route to DFT resolution. Only an explicit hard constraint such
+as a prohibited toxic/radioactive element is terminal (`hard_excluded`).
+Reactor and validation slates reserve material-class champions before filling
+remaining capacity by score, preventing a lowest-barrier-only shortlist from
+collapsing onto familiar chemistry.
+
+Because the current Cantera mechanism still contains template elementary
+barriers, its outputs carry `reactor_evidence_tier=diagnostic_screening_template`
+and `can_exclude_candidate=false`. They may guide sensitivity analysis and
+calculation allocation, but cannot eliminate a candidate, satisfy measured
+reactor evidence, or establish industrial viability. Production also persists
+an ORR validation slate so unresolved fuel-cell candidates are not lost merely
+because they cannot yet parameterize the PEMFC model.
+
 ### Phase 3: DFT Validation (Quantum ESPRESSO)
 
 For the top 10 champion catalysts:

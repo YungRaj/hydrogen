@@ -46,7 +46,7 @@ class PipelineConfig:
     branch_leaf_size: int = 1_000_000         # Exhaustive terminal range size
     branch_max_leaves: Optional[int] = None    # Staged execution; None = complete
     top_k_reactor: int = 50                  # Top K catalysts → reactor simulation
-    top_k_dft: int = 10                  # Top K → DFT validation
+    top_k_dft: int = 14                  # At least one class champion → DFT
     top_k_vqe: int = 3                   # Top K → VQE
 
     # Phase 2: Reactor
@@ -117,18 +117,24 @@ def run_pipeline(config: PipelineConfig = PipelineConfig(),
         )
         pareto_genomes, screening_db = run_branch_discovery(branch_config)
 
-        # Select top-K from Pareto front
+        # Keep quantitative reactor admission separate from high-fidelity rescue.
+        from pipeline.screening.stage_selection import (
+            annotate_evidence, select_for_reactor, select_for_validation)
         valid_db = screening_db[screening_db['valid'] == True].copy()
-        if 'E_act' in valid_db.columns:
-            top_catalysts = valid_db.nsmallest(config.top_k_reactor, 'E_act')
-        else:
-            top_catalysts = valid_db.head(config.top_k_reactor)
+        evidence_db = annotate_evidence(screening_db, 'E_act')
+        top_catalysts = select_for_reactor(
+            screening_db, config.top_k_reactor, 'E_act', min_per_class=1)
+        dft_candidates = select_for_validation(
+            screening_db, config.top_k_dft, 'E_act', min_per_class=1)
 
         pipeline_state['phase1'] = {
             'pareto_size': len(pareto_genomes),
             'total_evaluated': len(screening_db),
             'valid_count': len(valid_db),
             'top_catalysts_count': len(top_catalysts),
+            'dft_resolution_count': len(dft_candidates),
+            'candidate_dispositions': evidence_db[
+                'candidate_disposition'].value_counts().to_dict(),
             'elapsed_s': time.time() - t1,
         }
         if len(valid_db) > 0 and 'E_act' in valid_db.columns:
@@ -158,9 +164,13 @@ def run_pipeline(config: PipelineConfig = PipelineConfig(),
             import pandas as pd
             db_path = SCREENING_DIR / "ga_full_database.csv"
             if db_path.exists():
-                valid_db = pd.read_csv(db_path)
-                valid_db = valid_db[valid_db['valid'] == True]
-                top_catalysts = valid_db.nsmallest(config.top_k_reactor, 'E_act')
+                screening_db = pd.read_csv(db_path)
+                from pipeline.screening.stage_selection import (
+                    select_for_reactor, select_for_validation)
+                top_catalysts = select_for_reactor(
+                    screening_db, config.top_k_reactor, 'E_act', min_per_class=1)
+                dft_candidates = select_for_validation(
+                    screening_db, config.top_k_dft, 'E_act', min_per_class=1)
             else:
                 if not config.allow_mock_inputs:
                     raise RuntimeError(
@@ -219,8 +229,8 @@ def run_pipeline(config: PipelineConfig = PipelineConfig(),
         from pipeline.validation.dft_validator import validate_catalyst
 
         dft_results = []
-        if 'top_catalysts' in dir() and top_catalysts is not None:
-            top_dft = top_catalysts.head(config.top_k_dft)
+        if 'dft_candidates' in dir() and dft_candidates is not None:
+            top_dft = dft_candidates.head(config.top_k_dft)
             for idx, row in top_dft.iterrows():
                 try:
                     genome = ast.literal_eval(row['genome'])

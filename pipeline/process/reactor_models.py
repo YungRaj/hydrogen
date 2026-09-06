@@ -88,14 +88,47 @@ def _load_candidate_phases(config: ReactorConfig):
     return gas, surface
 
 
-def _kinetics_metadata(config: ReactorConfig) -> dict:
+def _mechanism_metadata(config: ReactorConfig) -> dict:
     path = Path(config.mechanism_file).with_suffix('.kinetics.json')
     if not path.exists():
-        return {'quantitative_status': 'missing_provenance'}
+        return {'inputs': {'quantitative_status': 'missing_provenance'},
+                'carbon_phase_model': 'unknown'}
     try:
-        return json.loads(path.read_text()).get('inputs', {})
+        return json.loads(path.read_text())
     except Exception:
-        return {'quantitative_status': 'invalid_provenance'}
+        return {'inputs': {'quantitative_status': 'invalid_provenance'},
+                'carbon_phase_model': 'unknown'}
+
+
+def _kinetics_metadata(config: ReactorConfig) -> dict:
+    return _mechanism_metadata(config).get('inputs', {})
+
+
+def _kinetics_evidence(config: ReactorConfig) -> dict:
+    """Declare whether reactor output may make a candidate-level decision."""
+    metadata = _mechanism_metadata(config)
+    status = metadata.get('inputs', {}).get(
+        'quantitative_status', 'missing_provenance')
+    carbon_model = metadata.get('carbon_phase_model', 'unknown')
+    limitations = []
+    if status != 'candidate_specific':
+        limitations.append('incomplete_candidate_kinetics')
+    if carbon_model == 'legacy_gas_tracer':
+        limitations.append('legacy_gas_carbon_tracer')
+    elif carbon_model == 'unknown':
+        limitations.append('unknown_carbon_phase_model')
+    complete = not limitations
+    return {
+        'kinetics_status': status,
+        'carbon_phase_model': carbon_model,
+        'reactor_evidence_tier': (
+            'candidate_specific_kinetics' if complete else
+            'diagnostic_screening_template'),
+        # Incomplete template kinetics can guide sensitivity/validation but may
+        # never eliminate a candidate or count as reactor validation.
+        'can_exclude_candidate': bool(complete),
+        'reactor_evidence_limitations': limitations,
+    }
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -199,8 +232,7 @@ def simulate_mmbcr(config: ReactorConfig) -> Dict:
         'CH4_conversion': float(final_conv),
         'H2_selectivity': float(np.clip(h2_selectivity, 0, 1)),
         'solid_C_selectivity': float(np.clip(solid_c_selectivity, 0, 1)),
-        'kinetics_status': _kinetics_metadata(config).get(
-            'quantitative_status', 'missing_provenance'),
+        **_kinetics_evidence(config),
         'exit_x_H2': float(x_h2),
         'exit_x_CH4': float(gas.X[gas.species_index('CH4')]) if 'CH4' in gas.species_names else 0.0,
         'exit_x_C2H2': float(x_c2h2),
@@ -289,8 +321,7 @@ def simulate_pfr(config: ReactorConfig) -> Dict:
         'residence_time_s': tau_total,
         'WHSV_h-1': 3600.0 / tau_total if tau_total > 0 else 0,
         'CH4_conversion': float(final_conv),
-        'kinetics_status': _kinetics_metadata(config).get(
-            'quantitative_status', 'missing_provenance'),
+        **_kinetics_evidence(config),
         'exit_x_H2': float(x_h2),
         'z_positions': z_positions.tolist(),
         'conversion_profile': conversion_profile,
@@ -357,8 +388,7 @@ def simulate_fluidized_bed(config: ReactorConfig) -> Dict:
         'bubble_fraction': delta,
         'residence_time_s': tau_emulsion,
         'CH4_conversion': float(final_conv),
-        'kinetics_status': _kinetics_metadata(config).get(
-            'quantitative_status', 'missing_provenance'),
+        **_kinetics_evidence(config),
         'exit_x_H2': float(x_h2),
     }
 

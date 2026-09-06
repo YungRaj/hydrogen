@@ -186,6 +186,7 @@ def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> di
         is_safe, safety_reason = check_element_safety(elements)
         if not is_safe:
             result['valid'] = False
+            result['candidate_disposition'] = 'hard_excluded'
             result['error'] = safety_reason
             return result
 
@@ -201,7 +202,9 @@ def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> di
             val = result.get(key, 0)
             if abs(val) > SANE_LIMIT:
                 result['valid'] = False
+                result['candidate_disposition'] = 'validation_required'
                 result['error'] = f'Unphysical {key}={val:.2f} eV'
+                result['needs_dft_validation'] = True
                 return result
 
         # Clamp overpotential to physical range [0, 3] V
@@ -214,9 +217,12 @@ def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> di
         result['needs_dft_validation'] = conf < 0.5
 
         result['valid'] = True
+        result['candidate_disposition'] = 'quantitative_screening'
 
     except Exception as e:
         result['error'] = str(e)[:200]
+        result['candidate_disposition'] = 'validation_required'
+        result['needs_dft_validation'] = True
 
     return result
 

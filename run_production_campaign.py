@@ -225,22 +225,25 @@ def main():
 
     pareto_genomes, screening_db = run_branch_discovery(branch_config)
 
+    from pipeline.screening.stage_selection import (
+        annotate_evidence, select_for_reactor, select_for_validation)
     valid_db = screening_db[screening_db['valid'] == True].copy()
-    ranking_db = valid_db
-    if 'E_act_censored' in ranking_db.columns:
-        uncensored = ranking_db[ranking_db['E_act_censored'] != True]
-        if len(uncensored):
-            ranking_db = uncensored
-    if 'E_act' in valid_db.columns:
-        top_catalysts = ranking_db.nsmallest(args.top_k, 'E_act')
-    else:
-        top_catalysts = valid_db.head(args.top_k)
+    evidence_db = annotate_evidence(screening_db, 'E_act')
+    top_catalysts = select_for_reactor(
+        screening_db, args.top_k, 'E_act',
+        min_per_class=args.min_validation_per_class)
+    dft_candidates = select_for_validation(
+        screening_db, min(args.validation_batch, len(screening_db)), 'E_act',
+        min_per_class=args.min_validation_per_class)
 
     pipeline_state['phase1'] = {
         'pareto_size': len(pareto_genomes),
         'total_evaluated': len(screening_db),
         'valid_count': len(valid_db),
         'top_catalysts_count': len(top_catalysts),
+        'dft_resolution_count': len(dft_candidates),
+        'candidate_dispositions': evidence_db[
+            'candidate_disposition'].value_counts().to_dict(),
         'elapsed_s': time.time() - t1,
         'search_strategy': 'deterministic_branch_and_bound',
     }
@@ -286,7 +289,9 @@ def main():
                         'n_conditions': len(sweep),
                         **{k: best_condition.get(k) for k in (
                             'temperature_K', 'H2_selectivity', 'CH4_conversion',
-                            'deactivation_fraction_per_h', 'coke_fraction')},
+                            'deactivation_fraction_per_h', 'coke_fraction',
+                            'kinetics_status', 'reactor_evidence_tier',
+                            'can_exclude_candidate')},
                     })
                 except Exception as e:
                     print(f"    Reactor error: {e}")
@@ -336,7 +341,10 @@ def main():
             from pipeline.validation.task_queue import ValidationTaskQueue
             from pipeline.search.discovery import candidate_id
 
-            n_dft = min(10, len(top_catalysts))
+            represented_classes = (
+                dft_candidates['material_class'].nunique()
+                if 'material_class' in dft_candidates else 0)
+            n_dft = min(max(10, represented_classes), len(dft_candidates))
             dft_tasks = []
             protocol_id = (
                 f'screening-dft-v2:sssp-1.3.0:physical-realization-v2:'
@@ -345,7 +353,7 @@ def main():
             task_queue = ValidationTaskQueue(
                 Path('results/dft/validation_tasks.sqlite'))
             task_queue.recover_stale()
-            for idx, (_, row) in enumerate(top_catalysts.head(n_dft).iterrows()):
+            for idx, (_, row) in enumerate(dft_candidates.head(n_dft).iterrows()):
                 try:
                     genome = ast.literal_eval(row['genome'])
                     cid = candidate_id(genome)
@@ -479,15 +487,27 @@ def main():
         fc_pareto, fc_screening_db = run_fc_branch_discovery(fc_config)
 
         fc_valid = fc_screening_db[fc_screening_db['valid'] == True].copy()
-        if 'orr_overpotential_V' in fc_valid.columns:
-            top_fc = fc_valid.nsmallest(30, 'orr_overpotential_V')
-        else:
-            top_fc = fc_valid.head(30)
+        fc_evidence = annotate_evidence(
+            fc_screening_db, 'orr_overpotential_V')
+        top_fc = select_for_reactor(
+            fc_screening_db, 30, 'orr_overpotential_V',
+            min_per_class=1)
+        fc_validation = select_for_validation(
+            fc_screening_db, min(args.validation_batch, len(fc_screening_db)),
+            'orr_overpotential_V', min_per_class=args.min_validation_per_class)
+        fc_validation_path = Path('results/fuel_cell/validation_slate.csv')
+        fc_validation_path.parent.mkdir(parents=True, exist_ok=True)
+        fc_validation.to_csv(fc_validation_path, index=False)
 
         pipeline_state['phase5_branch'] = {
             'pareto_size': len(fc_pareto),
             'total_evaluated': len(fc_screening_db),
             'valid_count': len(fc_valid),
+            'pemfc_model_count': len(top_fc),
+            'validation_resolution_count': len(fc_validation),
+            'validation_slate': str(fc_validation_path),
+            'candidate_dispositions': fc_evidence[
+                'candidate_disposition'].value_counts().to_dict(),
             'elapsed_s': time.time() - t5,
         }
         if len(fc_valid) > 0 and 'orr_overpotential_V' in fc_valid.columns:

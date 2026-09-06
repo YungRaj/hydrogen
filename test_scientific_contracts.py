@@ -114,6 +114,11 @@ def test_candidate_cantera_mechanism_records_kinetics_provenance():
     assert inputs['c_adsorption_eV'] == -1.10
     assert inputs['quantitative_status'] == 'screening_template_incomplete'
     assert inputs['provenance']['ch2_dehydrogenation_eV'] == 'template_default'
+    from pipeline.process.reactor_models import ReactorConfig, _kinetics_evidence
+    evidence = _kinetics_evidence(ReactorConfig(
+        mechanism_file=str(path), catalyst_name='contract_candidate'))
+    assert evidence['reactor_evidence_tier'] == 'diagnostic_screening_template'
+    assert evidence['can_exclude_candidate'] is False
 
     try:
         import cantera as ct
@@ -125,6 +130,33 @@ def test_candidate_cantera_mechanism_records_kinetics_provenance():
     reactions = surface.reactions()
     assert all(reaction.reversible for reaction in reactions[:-1])
     assert reactions[-1].reversible is False
+
+
+def test_stage_selection_rescues_incomplete_evidence_without_feeding_reactor():
+    import pandas as pd
+    from pipeline.screening.stage_selection import (
+        select_for_reactor, select_for_validation)
+
+    frame = pd.DataFrame([
+        {'genome': "('Z', 0)", 'material_class': 'Z', 'valid': False,
+         'error': 'Unconverged clean relaxation', 'needs_dft_validation': True},
+        {'genome': "('A', 0)", 'material_class': 'A', 'valid': True,
+         'E_act': 0.20},
+        {'genome': "('B', 0)", 'material_class': 'B', 'valid': True,
+         'E_act': 0.01, 'E_act_censored': True,
+         'needs_dft_validation': True},
+        {'genome': "('C', 0)", 'material_class': 'C', 'valid': False,
+         'error': 'Contains toxic/radioactive elements: Hg',
+         'candidate_disposition': 'hard_excluded'},
+        {'genome': "('D', 0)", 'material_class': 'D', 'valid': True,
+         'E_act': 0.50},
+    ])
+    reactor = select_for_reactor(frame, 10, 'E_act')
+    assert set(reactor.material_class) == {'A', 'D'}
+    assert reactor.candidate_disposition.eq('quantitative_screening').all()
+    validation = select_for_validation(frame, 10, 'E_act')
+    assert {'Z', 'B'}.issubset(set(validation.material_class))
+    assert 'C' not in set(validation.material_class)
 
 
 def test_arrhenius_matches_joule_and_ev_forms():

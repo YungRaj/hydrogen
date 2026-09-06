@@ -168,4 +168,5 @@ def require_relaxation(result: dict, atoms, label: str,
             f"{record[f'relax_{label}_max_force_eV_A']:.6g} eV/A after "
             f"{record[f'relax_{label}_steps']} cumulative recovery steps")
     result['needs_dft_validation'] = True
+    result['candidate_disposition'] = 'validation_required'
     return False
