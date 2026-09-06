@@ -159,6 +159,35 @@ def test_stage_selection_rescues_incomplete_evidence_without_feeding_reactor():
     assert 'C' not in set(validation.material_class)
 
 
+def test_refactored_protocol_executor_and_reactor_stage_contracts():
+    from pipeline.screening.gpu_executor import execution_layout
+    from pipeline.screening.protocols import ORR_PROTOCOL, PYROLYSIS_PROTOCOL
+    from pipeline.stages.reactor import simulate_candidate
+
+    assert execution_layout(3, 2, 'batched') == (3, 2)
+    assert execution_layout(3, 2, 'legacy') == (6, 1)
+    assert PYROLYSIS_PROTOCOL.clean.fmax_eV_A == 0.08
+    assert PYROLYSIS_PROTOCOL.adsorbate.steps == 100
+    assert ORR_PROTOCOL.reference.steps == 200
+    row = {'candidate_id': 'cid', 'E_act': 0.72, 'dE_H': -0.3,
+           'dE_CH3': -0.5, 'dE_C': -1.0,
+           'screening_protocol': PYROLYSIS_PROTOCOL.protocol_id}
+    fake_sweep = [
+        {'CH4_conversion': 0.1, 'mock': False},
+        {'CH4_conversion': 0.4, 'mock': False},
+    ]
+    with patch('pipeline.process.reactor_mechanisms.write_full_mechanism',
+               return_value=Path('/tmp/contract.yaml')) as write, \
+         patch('pipeline.process.reactor_models.run_reactor_sweep',
+               return_value=fake_sweep) as sweep:
+        result = simulate_candidate(
+            row, 'contract', [800.0, 900.0], ['PFR'], forbid_mock=True)
+    assert result['candidate_id'] == 'cid'
+    assert result['best_condition']['CH4_conversion'] == 0.4
+    assert write.call_args.kwargs['kinetics'].methane_activation_eV == 0.72
+    assert sweep.call_args.kwargs['reactor_types'] == ['PFR']
+
+
 def test_arrhenius_matches_joule_and_ev_forms():
     from pipeline.common.utils import (
         R_gas, eV_to_J, arrhenius_rate, k_B_eV, tst_prefactor)

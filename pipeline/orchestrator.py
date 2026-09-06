@@ -152,8 +152,9 @@ def run_pipeline(config: PipelineConfig = PipelineConfig(),
         t2 = time.time()
 
         from pipeline.process.reactor_mechanisms import (
-            CandidateKinetics, write_full_mechanism, write_gri30_subset)
+            write_full_mechanism, write_gri30_subset)
         from pipeline.process.reactor_models import run_reactor_sweep
+        from pipeline.stages.reactor import simulate_candidate
 
         # Write gas-phase mechanism
         write_gri30_subset()
@@ -182,21 +183,10 @@ def run_pipeline(config: PipelineConfig = PipelineConfig(),
         if top_catalysts is not None:
             for idx, row in top_catalysts.iterrows():
                 cat_name = f"cat_{idx}"
-                E_act = row.get('E_act', 0.8)
-
-                # Generate Cantera mechanism
-                candidate_kinetics = CandidateKinetics.from_screening_row(
-                    row, candidate_id=str(row.get('candidate_id', cat_name)))
-                mech_path = write_full_mechanism(
-                    cat_name, kinetics=candidate_kinetics)
-
-                # Run reactor sweep
-                results = run_reactor_sweep(
-                    cat_name, str(mech_path),
-                    temperatures=list(config.reactor_temperatures),
-                    reactor_types=list(config.reactor_types),
-                )
-                reactor_results.extend(results)
+                stage_result = simulate_candidate(
+                    row, cat_name, config.reactor_temperatures,
+                    config.reactor_types, forbid_mock=not config.allow_mock_inputs)
+                reactor_results.extend(stage_result['sweep'])
         else:
             # Mock: run 3 test catalysts
             for name, e_act in [('NiBi_10', 0.85), ('FeC_supported', 0.65), ('CuSn_20', 1.1)]:

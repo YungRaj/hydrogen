@@ -257,9 +257,7 @@ def main():
         print_banner("PHASE 2: CANTERA REACTOR SIMULATION")
         t2 = time.time()
         try:
-            from pipeline.process.reactor_mechanisms import (
-                CandidateKinetics, write_full_mechanism)
-            from pipeline.process.reactor_models import run_reactor_sweep
+            from pipeline.stages.reactor import simulate_candidate
 
             reactor_temps = [773.15, 900.0, 1100.0, 1300.0]
 
@@ -270,17 +268,10 @@ def main():
                 cat_name = f"catalyst_{i}"
                 print(f"  Reactor sim {i+1}/{n_reactor}: E_act={e_act:.3f} eV")
                 try:
-                    # Generate Cantera YAML mechanism from E_act
-                    candidate_kinetics = CandidateKinetics.from_screening_row(
-                        row, candidate_id=str(row.get('candidate_id', cat_name)))
-                    mech_file = write_full_mechanism(
-                        cat_name, kinetics=candidate_kinetics)
-                    sweep = run_reactor_sweep(cat_name, str(mech_file),
-                                              temperatures=reactor_temps,
-                                              catalyst_E_act_eV=e_act)
-                    if any(result.get('mock') for result in sweep):
-                        raise RuntimeError('mock reactor output is forbidden in production')
-                    best_condition = max(sweep, key=lambda r: r.get('CH4_conversion', 0)) if sweep else {}
+                    stage_result = simulate_candidate(
+                        row, cat_name, reactor_temps, forbid_mock=True)
+                    sweep = stage_result['sweep']
+                    best_condition = stage_result['best_condition']
                     best_conv = best_condition.get('CH4_conversion', 0)
                     reactor_results.append({
                         'catalyst': cat_name,

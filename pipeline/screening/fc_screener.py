@@ -19,7 +19,6 @@ Parallelized across all available GPUs with 2 workers per device.
 
 import os
 import sys
-import time
 import random
 import numpy as np
 import multiprocessing as mp
@@ -27,17 +26,18 @@ from typing import List, Tuple, Dict, Optional
 
 from ase import Atoms, Atom
 from pipeline.screening.relaxation import relax_with_record, require_relaxation
+from pipeline.screening.protocols import ORR_PROTOCOL
 
 from pipeline.common.utils import (
-    BASE_DIR, FUEL_CELL_DIR, setup_logger, print_banner,
-    save_screening_db, orr_overpotential, abundance_cost_penalty,
+    BASE_DIR, FUEL_CELL_DIR, setup_logger,
+    orr_overpotential, abundance_cost_penalty,
     check_element_safety, is_valid_for_application,
 )
 from pipeline.screening.surface_screener import generate_structure
 
 logger = setup_logger('fc_screener', 'fuel_cell/fc_screening.log')
 
-SCREENING_PROTOCOL_ID = 'esen-sm-conserving-all-oc25:relax-v3:orr-che-v2'
+SCREENING_PROTOCOL_ID = ORR_PROTOCOL.protocol_id
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -72,7 +72,9 @@ def compute_water_ref(calc) -> float:
     h2o.center()
     h2o.pbc = True
     h2o.calc = calc
-    record = relax_with_record(h2o, 'reference_h2o', 0.05, 200)
+    budget = ORR_PROTOCOL.reference
+    record = relax_with_record(
+        h2o, 'reference_h2o', budget.fmax_eV_A, budget.steps)
     if not record['relax_reference_h2o_converged']:
         raise RuntimeError('H2O reference relaxation did not converge')
     return h2o.get_potential_energy()
@@ -86,7 +88,9 @@ def compute_h2_ref(calc) -> float:
     h2.center()
     h2.pbc = True
     h2.calc = calc
-    record = relax_with_record(h2, 'reference_h2', 0.05, 200)
+    budget = ORR_PROTOCOL.reference
+    record = relax_with_record(
+        h2, 'reference_h2', budget.fmax_eV_A, budget.steps)
     if not record['relax_reference_h2_converged']:
         raise RuntimeError('H2 reference relaxation did not converge')
     return h2.get_potential_energy()
@@ -117,7 +121,9 @@ def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> di
 
         # 1. Relax clean surface
         structure.calc = calc
-        if not require_relaxation(result, structure, 'clean', 0.08, 150):
+        budget = ORR_PROTOCOL.clean
+        if not require_relaxation(
+                result, structure, 'clean', budget.fmax_eV_A, budget.steps):
             return result
         e_clean = structure.get_potential_energy()
         result['e_clean'] = e_clean
@@ -134,7 +140,9 @@ def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> di
         slab_oh.append(Atom('O', position=oh_pos))
         slab_oh.append(Atom('H', position=oh_pos + np.array([0.0, 0.0, 0.97])))
         slab_oh.calc = calc
-        if not require_relaxation(result, slab_oh, 'oh', 0.08, 100):
+        budget = ORR_PROTOCOL.adsorbate
+        if not require_relaxation(
+                result, slab_oh, 'oh', budget.fmax_eV_A, budget.steps):
             return result
         e_oh = slab_oh.get_potential_energy()
         # ΔG_OH* = E(slab+OH) - E(slab) - (E(H2O) - 0.5*E(H2)) + ZPE + TS
@@ -146,7 +154,8 @@ def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> di
         o_pos = ads_base + np.array([0.0, 0.0, 1.7])
         slab_o.append(Atom('O', position=o_pos))
         slab_o.calc = calc
-        if not require_relaxation(result, slab_o, 'o', 0.08, 100):
+        if not require_relaxation(
+                result, slab_o, 'o', budget.fmax_eV_A, budget.steps):
             return result
         e_o = slab_o.get_potential_energy()
         # ΔG_O* = E(slab+O) - E(slab) - (E(H2O) - E(H2)) + ZPE + TS
@@ -162,7 +171,8 @@ def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> di
         slab_ooh.append(Atom('O', position=o2_pos))
         slab_ooh.append(Atom('H', position=h_pos))
         slab_ooh.calc = calc
-        if not require_relaxation(result, slab_ooh, 'ooh', 0.08, 100):
+        if not require_relaxation(
+                result, slab_ooh, 'ooh', budget.fmax_eV_A, budget.steps):
             return result
         e_ooh = slab_ooh.get_potential_energy()
         # ΔG_OOH* = E(slab+OOH) - E(slab) - (2*E(H2O) - 1.5*E(H2)) + ZPE + TS
@@ -302,49 +312,20 @@ def orr_worker(worker_id: int, gpu_id: int, gpu_uuid: str, task_queue: mp.Queue,
             ref_calc = calc
         e_h2o = compute_water_ref(ref_calc)
         e_h2 = compute_h2_ref(ref_calc)
-        import queue as std_queue
-        import threading
-        from pipeline.screening.worker_supervisor import emit, start_heartbeat
-        heartbeat_stop = threading.Event()
-        heartbeat = start_heartbeat(result_queue, worker_id, heartbeat_stop)
-        emit(result_queue, 'ready', worker_id, {'gpu_id': gpu_id})
-
-        def consume_tasks(local_id):
-            thread_calc = service.calculator_proxy() if service else calc
-            while True:
-                try:
-                    item = task_queue.get(timeout=1.0)
-                except std_queue.Empty:
-                    if stop_event.is_set():
-                        break
-                    continue
-                idx, genome = item
-                emit(result_queue, 'started', worker_id, idx)
-                try:
-                    result = evaluate_orr_candidate(genome, thread_calc, e_h2o, e_h2)
-                    result['worker_id'] = worker_id
-                    result['gpu_id'] = gpu_id
-                    emit(result_queue, 'result', worker_id, (idx, result))
-                except Exception as e:
-                    emit(result_queue, 'result', worker_id, (idx, {
-                        'genome': str(genome),
-                        'material_class': genome[0],
-                        'valid': False,
-                        'screening_protocol': SCREENING_PROTOCOL_ID,
-                        'error': str(e)[:200],
-                    }))
-        if batched:
-            from concurrent.futures import ThreadPoolExecutor
-            with ThreadPoolExecutor(max_workers=candidate_threads) as executor:
-                futures = [executor.submit(consume_tasks, i)
-                           for i in range(candidate_threads)]
-                for future in futures:
-                    future.result()
-            service.close()
-        else:
-            consume_tasks(0)
-        heartbeat_stop.set()
-        heartbeat.join(timeout=2)
+        from pipeline.screening.gpu_executor import run_worker_loop
+        def evaluate(genome, thread_calc):
+            return evaluate_orr_candidate(genome, thread_calc, e_h2o, e_h2)
+        def error_record(genome, exc):
+            return {'genome': str(genome), 'material_class': genome[0],
+                    'valid': False, 'worker_id': worker_id, 'gpu_id': gpu_id,
+                    'screening_protocol': SCREENING_PROTOCOL_ID,
+                    'candidate_disposition': 'validation_required',
+                    'needs_dft_validation': True,
+                    'error': str(exc)[:200]}
+        run_worker_loop(
+            worker_id, task_queue, result_queue, stop_event,
+            candidate_threads, batched, calc, evaluate, error_record,
+            batch_service=service, result_context={'gpu_id': gpu_id})
     except Exception as e:
         logger.error(f"ORR Worker {worker_id} failed: {e}")
         try:
@@ -366,75 +347,17 @@ def run_orr_screening(genomes: List[tuple], db_filename: str = "fc_screening.csv
     Same interface as surface_screener.run_screening but evaluates
     OH*, O*, OOH* for fuel cell cathode applications.
     """
-    import pandas as pd
-    import torch
-
-    # Apply native-library limits before spawned interpreters import BLAS.
-    for name in ('OMP_NUM_THREADS', 'MKL_NUM_THREADS', 'OPENBLAS_NUM_THREADS',
-                 'VECLIB_MAXIMUM_THREADS', 'NUMEXPR_NUM_THREADS'):
-        os.environ.setdefault(name, '1')
-
-    mp.set_start_method('spawn', force=True)
-
-    print_banner("META ESEN-SM ORR CATHODE CATALYST SCREENING")
-    logger.info(f"ORR screening {len(genomes)} candidates...")
-
-    device_count = torch.cuda.device_count()
-    if device_count < 1:
-        raise RuntimeError('Meta eSen-SM ORR screening requires at least one visible CUDA GPU')
-    if workers_per_gpu < 1:
-        raise ValueError('workers_per_gpu must be positive')
-    if engine not in ('batched', 'legacy'):
-        raise ValueError("engine must be 'batched' or 'legacy'")
-    processes_per_gpu = 1 if engine == 'batched' else workers_per_gpu
-    candidate_threads = workers_per_gpu if engine == 'batched' else 1
-    num_workers = device_count * processes_per_gpu
-    gpu_uuids = [f"GPU-{torch.cuda.get_device_properties(i).uuid}"
-                 for i in range(device_count)]
-    logger.info(f"Using {device_count} GPU(s), engine={engine}, "
-                f"{num_workers} model process(es), {candidate_threads} candidate thread(s)/process")
-
-    task_queue = mp.Queue()
-    result_queue = mp.Queue()
-    stop_event = mp.Event()
-
-    for idx, genome in enumerate(genomes):
-        task_queue.put((idx, genome))
-    workers = []
-    def spawn_worker(w_id):
-        gpu_id = w_id % device_count
-        p = mp.Process(
-            target=orr_worker,
-            args=(w_id, gpu_id, gpu_uuids[gpu_id], task_queue, result_queue,
-                  stop_event, candidate_threads, engine == 'batched'))
-        p.start()
-        return p
-    for w_id in range(num_workers):
-        workers.append(spawn_worker(w_id))
-
-    t_start = time.time()
-    def report_progress(completed, results):
-        if completed % 50 == 0 or completed == len(genomes):
-            elapsed = time.time() - t_start
-            rate = completed / elapsed
-            n_valid = sum(1 for r in results if r.get('valid', False))
-            logger.info(
-                f"Progress: {completed}/{len(genomes)} "
-                f"({rate:.1f} cand/sec, {n_valid} valid, {elapsed:.0f}s)"
-            )
-    from pipeline.screening.worker_supervisor import collect_results
-    workers_by_id = {index: process for index, process in enumerate(workers)}
-    results = collect_results(
-        result_queue, task_queue, stop_event, workers_by_id, spawn_worker,
-        genomes, 'fuel_cell_orr', FUEL_CELL_DIR / 'orr_worker_health.json',
-        progress=report_progress)
-
-    for p in workers_by_id.values():
-        p.join(timeout=30)
-
-    df = pd.DataFrame(results)
-    path = save_screening_db(df, db_filename, subdir="fuel_cell")
-    logger.info(f"ORR screening complete. {len(df)} results saved to {path}")
+    from pipeline.screening.gpu_executor import ScreeningRunSpec, run_gpu_screening
+    df = run_gpu_screening(
+        genomes, db_filename, workers_per_gpu, engine, orr_worker, logger,
+        ScreeningRunSpec(
+            banner='META ESEN-SM ORR CATHODE CATALYST SCREENING',
+            application='fuel_cell_orr',
+            manifest_path=FUEL_CELL_DIR / 'orr_worker_health.json',
+            output_subdir='fuel_cell',
+            start_message='ORR screening {count} candidates...',
+            completion_label='ORR screening',
+            progress_noun='cand'))
 
     valid_df = df[df['valid'] == True]
     if len(valid_df) > 0:

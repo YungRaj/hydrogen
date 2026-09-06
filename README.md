@@ -137,6 +137,22 @@ Phase 5: FUEL CELL                        Phase 6: REPORTING
 └─────────────────────────────────┘
 ```
 
+The runtime implementation separates scientific application logic from shared
+execution mechanics:
+
+- `pipeline/screening/protocols.py` is the single immutable source for eSen
+  protocol IDs and relaxation budgets.
+- `pipeline/screening/gpu_executor.py` owns CUDA topology, multiprocessing,
+  leased tasks, heartbeats, ordered result collection, and CSV persistence.
+- `surface_screener.py` and `fc_screener.py` retain only their application
+  structures, reference states, descriptors, and summary reporting.
+- `pipeline/stages/reactor.py` is the common candidate-to-Cantera handoff used
+  by both the standard orchestrator and production campaign entry point.
+
+The public screening and campaign commands and their CSV/JSON schemas remain
+compatible; this separation is organizational and does not change fidelity or
+scientific acceptance rules.
+
 ---
 
 ## Design Space
