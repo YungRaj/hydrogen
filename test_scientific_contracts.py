@@ -91,6 +91,60 @@ def test_worker_supervisor_requeues_leased_task_and_writes_manifest():
     assert any(event['kind'] == 'worker_restarted' for event in payload['events'])
 
 
+def test_reactor_sweep_isolates_failed_conditions_without_exclusion():
+    from pipeline.process import reactor_models
+
+    calls = []
+    def simulate(config):
+        calls.append((config.reactor_type, config.T_inlet_K))
+        if config.reactor_type == 'MMBCR' and config.T_inlet_K == 773.15:
+            raise RuntimeError('injected stiff integration')
+        return {
+            'status': 'complete', 'valid': True,
+            'reactor_type': config.reactor_type,
+            'temperature_K': config.T_inlet_K,
+            'CH4_conversion': 0.1,
+            'can_exclude_candidate': False,
+        }
+
+    with patch.object(reactor_models, 'simulate_reactor', side_effect=simulate), \
+            patch.object(reactor_models, 'save_json') as save:
+        rows = reactor_models.run_reactor_sweep(
+            'contract', 'unused.yaml', temperatures=[773.15, 900.0],
+            reactor_types=['MMBCR', 'PFR'])
+    assert len(rows) == 4 and len(calls) == 4
+    assert rows[0]['status'] == 'failed'
+    assert rows[0]['can_exclude_candidate'] is False
+    assert rows[0]['error_type'] == 'RuntimeError'
+    assert all(row['status'] == 'complete' for row in rows[1:])
+    save.assert_called_once()
+
+    with patch('pipeline.process.reactor_mechanisms.write_full_mechanism',
+               return_value=Path('unused.yaml')), \
+            patch('pipeline.process.reactor_models.run_reactor_sweep',
+                  return_value=rows):
+        from pipeline.stages.reactor import simulate_candidate
+        stage = simulate_candidate(
+            {'E_act': 0.5, 'candidate_id': 'contract'}, 'contract',
+            [773.15, 900.0])
+    assert stage['sweep_status'] == 'partial'
+    assert stage['completed_conditions'] == 3
+    assert stage['failed_conditions'] == 1
+    assert stage['can_exclude_candidate'] is False
+
+
+def test_ranker_counts_only_finite_valid_training_rows():
+    import pandas as pd
+    from pipeline.screening.small_data_ranker import valid_training_row_count
+
+    frame = pd.DataFrame([
+        {'genome': "('SAC', 'Fe')", 'valid': True, 'E_act': 0.5},
+        {'genome': "('SAC', 'Co')", 'valid': False, 'E_act': 0.4},
+        {'genome': "('SAC', 'Ni')", 'valid': True, 'E_act': float('nan')},
+    ])
+    assert valid_training_row_count(frame, 'turquoise_hydrogen') == 1
+
+
 def test_candidate_cantera_mechanism_records_kinetics_provenance():
     from pipeline.process.reactor_mechanisms import (
         CandidateKinetics, write_full_mechanism)

@@ -338,10 +338,31 @@ def run_branch_discovery(config: BranchDiscoveryConfig = BranchDiscoveryConfig()
         probes = deterministic_tree_probes(config.initial_fairchem_samples)
         evidence = run_screening(probes, db_filename='branch_calibration.csv', workers_per_gpu=2)
     from pipeline.screening.small_data_ranker import (
-        fit_tree_ranker, merge_compatible_evidence, turquoise_tree_objectives)
+        MIN_TRAINING_ROWS, fit_tree_ranker, merge_compatible_evidence,
+        turquoise_tree_objectives, valid_training_row_count)
     prior_evidence = load_screening_db('branch_ranker_evidence.csv')
     evidence = merge_compatible_evidence(
         evidence, prior_evidence, SCREENING_PROTOCOL_ID)
+    attempted = {str(value) for value in evidence.get('genome', [])}
+    refill_limit = max(config.initial_fairchem_samples * 3,
+                       config.initial_fairchem_samples + MIN_TRAINING_ROWS)
+    probe_pool = deterministic_tree_probes(refill_limit)
+    refill_round = 0
+    while valid_training_row_count(evidence, 'turquoise_hydrogen') < MIN_TRAINING_ROWS:
+        refill = [genome for genome in probe_pool if repr(genome) not in attempted][:MIN_TRAINING_ROWS]
+        if not refill:
+            valid = valid_training_row_count(evidence, 'turquoise_hydrogen')
+            raise RuntimeError(
+                f'calibration exhausted after {len(attempted)} distinct probes; '
+                f'only {valid}/{MIN_TRAINING_ROWS} valid turquoise-hydrogen rows')
+        refill_round += 1
+        attempted.update(repr(genome) for genome in refill)
+        extra = run_screening(
+            refill, db_filename=f'branch_calibration_refill_{refill_round}.csv',
+            workers_per_gpu=2)
+        evidence = merge_compatible_evidence(
+            extra, evidence, SCREENING_PROTOCOL_ID)
+    save_screening_db(evidence, 'branch_calibration.csv')
     model = fit_tree_ranker(evidence, 'turquoise_hydrogen')
     score_population = lambda pop: turquoise_tree_objectives(pop, model)
     summary = run_branch_and_bound(BranchConfig(

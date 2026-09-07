@@ -486,7 +486,28 @@ def run_reactor_sweep(catalyst_name: str, mechanism_file: str,
                 catalyst_name=catalyst_name,
                 catalyst_E_act_eV=catalyst_E_act_eV,
             )
-            result = simulate_reactor(config)
+            try:
+                result = simulate_reactor(config)
+            except Exception as exc:
+                # A stiff condition must not discard the other temperatures or
+                # reactor types. Preserve it as non-excluding failed evidence.
+                result = {
+                    'status': 'failed',
+                    'valid': False,
+                    'reactor_type': rt,
+                    'temperature_K': float(T),
+                    'catalyst': catalyst_name,
+                    'error_type': type(exc).__name__,
+                    'error': str(exc),
+                    'can_exclude_candidate': False,
+                    'reactor_evidence_tier': 'failed_simulation',
+                }
+                REACTOR_DIR.mkdir(parents=True, exist_ok=True)
+                fname = f"{rt}_{catalyst_name}_{int(T)}K.json"
+                save_json(result, fname, subdir='reactor')
+                logger.error(
+                    'Reactor condition failed without excluding candidate: '
+                    f'{rt} {catalyst_name} {T} K: {exc}')
             results.append(result)
 
     return results

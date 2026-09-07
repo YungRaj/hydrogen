@@ -468,6 +468,8 @@ directory or silently substitutes another executable.
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
+| `--results-dir` | `results` | Isolated campaign output root; use a distinct directory for pilots and concurrent campaigns |
+| `--mechanisms-dir` | `<results-dir>/mechanisms` | Isolated generated Cantera mechanisms and kinetics metadata |
 | `--calibration-probes` | 500 | Deterministic binary-tree points used for initial surrogate evidence |
 | `--validation-batch` | 500 | Global and regional champions sent to the atomistic model |
 | `--min-validation-per-class` | 2 | Fixed validation quota reserved for every represented material class before adaptive allocation |
@@ -483,6 +485,13 @@ directory or silently substitutes another executable.
 | `--no-vqe` | false | Skip CUDA-Q VQE phase |
 | `--mode` | `ntec` | Pyrolysis mode: `ntec` (nanotriboelectric) or `thermocatalytic` |
 | `--ntec-conditions-json` | — | Measured NTEC operating inputs plus paired-control effect calibration; incomplete inputs receive no numerical assistance |
+
+Calibration counts are requested probes, not assumed successful calculations.
+If failed-closed relaxations leave fewer than 20 valid rows, each application
+deterministically evaluates additional, non-duplicate tree probes within a
+bounded refill pool. It either reaches the ranker's declared minimum or exits
+with an explicit calibration-exhaustion error; invalid rows are never trained
+as valid labels.
 
 ### Pyrolysis Modes: NTEC vs. Thermocatalytic
 

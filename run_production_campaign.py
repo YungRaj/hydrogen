@@ -54,15 +54,20 @@ def main():
                         help='Re-score up to this many pending nodes when resuming')
     parser.add_argument('--expected-space-size', type=int, default=21_092_645_031,
                         help='Fail if the indexed population denominator differs')
-    parser.add_argument('--prior-art-db', default='results/prior_art.sqlite')
+    parser.add_argument('--results-dir', default='results',
+                        help='Isolated output root for this campaign (default: results)')
+    parser.add_argument('--mechanisms-dir', default=None,
+                        help='Generated Cantera mechanisms (default: <results-dir>/mechanisms)')
+    parser.add_argument('--prior-art-db', default=None,
+                        help='Prior-art SQLite database (default: <results-dir>/prior_art.sqlite)')
     parser.add_argument('--prior-art-csv', action='append', default=[],
                         help='CSV registry to import; repeat for multiple sources')
     parser.add_argument('--final-campaign', action='store_true',
                         help='Fail closed unless coverage and prior-art readiness requirements pass')
-    parser.add_argument('--evidence-manifest', default='results/evidence_manifest.json',
+    parser.add_argument('--evidence-manifest', default=None,
                         help='Measured/validated evidence counts required by --final-campaign')
     parser.add_argument(
-        '--kinetics-validation-dir', default='results/dft/pyrolysis_kinetics',
+        '--kinetics-validation-dir', default=None,
         help=('Directory containing <candidate_id>/pyrolysis_validation.json; '
               'complete matching campaigns replace Cantera template barriers'))
     parser.add_argument('--qe-mpi-ranks', type=int, default=4)
@@ -71,6 +76,19 @@ def main():
     parser.add_argument('--qe-max-concurrent', type=int, default=default_qe_concurrency,
                         help='Maximum independent candidate DFT jobs launched together')
     args = parser.parse_args()
+    results_dir = Path(args.results_dir).expanduser().resolve()
+    args.results_dir = str(results_dir)
+    mechanisms_dir = (Path(args.mechanisms_dir).expanduser().resolve()
+                      if args.mechanisms_dir else results_dir / 'mechanisms')
+    args.mechanisms_dir = str(mechanisms_dir)
+    if args.prior_art_db is None:
+        args.prior_art_db = str(results_dir / 'prior_art.sqlite')
+    if args.evidence_manifest is None:
+        args.evidence_manifest = str(results_dir / 'evidence_manifest.json')
+    if args.kinetics_validation_dir is None:
+        args.kinetics_validation_dir = str(results_dir / 'dft' / 'pyrolysis_kinetics')
+    os.environ['HYDROGEN_RESULTS_DIR'] = str(results_dir)
+    os.environ['HYDROGEN_MECHANISMS_DIR'] = str(mechanisms_dir)
     if args.scan_workers < 1 or args.qe_mpi_ranks < 1 or \
             args.qe_omp_threads < 1 or args.qe_max_concurrent < 1:
         parser.error('scanner and QE resource dimensions must be positive')
@@ -288,6 +306,9 @@ def main():
                         'E_act': e_act,
                         'best_conversion': best_conv,
                         'n_conditions': len(sweep),
+                        'completed_conditions': stage_result['completed_conditions'],
+                        'failed_conditions': stage_result['failed_conditions'],
+                        'sweep_status': stage_result['sweep_status'],
                         **{k: best_condition.get(k) for k in (
                             'temperature_K', 'H2_selectivity', 'CH4_conversion',
                             'deactivation_fraction_per_h', 'coke_fraction',
@@ -312,7 +333,14 @@ def main():
                     })
 
             pipeline_state['phase2'] = {
+                'catalysts_attempted': n_reactor,
                 'catalysts_simulated': len(reactor_results),
+                'complete_sweeps': sum(
+                    r.get('sweep_status') == 'complete' for r in reactor_results),
+                'partial_sweeps': sum(
+                    r.get('sweep_status') == 'partial' for r in reactor_results),
+                'failed_sweeps': sum(
+                    r.get('sweep_status') == 'failed' for r in reactor_results),
                 'elapsed_s': time.time() - t2,
             }
             from pipeline.validation.viability import evaluate_turquoise
@@ -352,7 +380,7 @@ def main():
                 f'mpi={args.qe_mpi_ranks}:'
                 f'omp={args.qe_omp_threads}')
             task_queue = ValidationTaskQueue(
-                Path('results/dft/validation_tasks.sqlite'))
+                results_dir / 'dft' / 'validation_tasks.sqlite')
             task_queue.recover_stale()
             for idx, (_, row) in enumerate(dft_candidates.head(n_dft).iterrows()):
                 try:
@@ -379,7 +407,7 @@ def main():
                     task_queue.finish(
                         'turquoise_hydrogen', cid, 'screening_dft',
                         protocol_id, bool(result.get('converged')),
-                        result_path=f'results/dft/{name}_dft.json',
+                        result_path=str(results_dir / 'dft' / f'{name}_dft.json'),
                         error=result.get('error'))
                     return result
                 except Exception as exc:
@@ -433,7 +461,7 @@ def main():
                     cwd=str(Path(__file__).parent), capture_output=True, text=True)
                 if proc.returncode != 0:
                     raise RuntimeError(f"CUDA-Q failed for {name}: {proc.stderr[-1000:]}")
-                result_path = Path('results/vqe') / f'vqe_{name}_CH_split.json'
+                result_path = results_dir / 'vqe' / f'vqe_{name}_CH_split.json'
                 if not result_path.exists():
                     raise RuntimeError(f"CUDA-Q produced no result for {name}")
                 result = json.loads(result_path.read_text())
@@ -496,7 +524,7 @@ def main():
         fc_validation = select_for_validation(
             fc_screening_db, min(args.validation_batch, len(fc_screening_db)),
             'orr_overpotential_V', min_per_class=args.min_validation_per_class)
-        fc_validation_path = Path('results/fuel_cell/validation_slate.csv')
+        fc_validation_path = results_dir / 'fuel_cell' / 'validation_slate.csv'
         fc_validation_path.parent.mkdir(parents=True, exist_ok=True)
         fc_validation.to_csv(fc_validation_path, index=False)
 
@@ -577,11 +605,11 @@ def main():
 
     from pipeline.evidence.readiness import campaign_readiness
     h2_ready = campaign_readiness(
-        'results/screening/turquoise_hydrogen_coverage_certificate.json', args.prior_art_db,
+        results_dir / 'screening' / 'turquoise_hydrogen_coverage_certificate.json', args.prior_art_db,
         evidence_manifest=args.evidence_manifest if args.final_campaign else None,
         application='turquoise_hydrogen', pyrolysis_mode=args.mode)
     fc_ready = campaign_readiness(
-        'results/fuel_cell/coverage_certificate.json', args.prior_art_db,
+        results_dir / 'fuel_cell' / 'coverage_certificate.json', args.prior_art_db,
         evidence_manifest=args.evidence_manifest if args.final_campaign else None,
         application='fuel_cell')
     readiness = {'turquoise_hydrogen': h2_ready, 'fuel_cell': fc_ready,

@@ -25,8 +25,10 @@ from typing import Dict, List, Tuple, Optional, Any
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 PIPELINE_DIR = BASE_DIR / "pipeline"
-MECHANISMS_DIR = BASE_DIR / "mechanisms"
-RESULTS_DIR = BASE_DIR / "results"
+MECHANISMS_DIR = Path(os.environ.get(
+    "HYDROGEN_MECHANISMS_DIR", str(BASE_DIR / "mechanisms"))).expanduser().resolve()
+RESULTS_DIR = Path(os.environ.get(
+    "HYDROGEN_RESULTS_DIR", str(BASE_DIR / "results"))).expanduser().resolve()
 SCREENING_DIR = RESULTS_DIR / "screening"
 REACTOR_DIR = RESULTS_DIR / "reactor"
 DFT_DIR = RESULTS_DIR / "dft"

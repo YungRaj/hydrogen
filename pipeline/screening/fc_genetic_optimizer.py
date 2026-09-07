@@ -27,7 +27,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from pipeline.common.utils import setup_logger, save_json, BASE_DIR
+from pipeline.common.utils import setup_logger, save_json, FUEL_CELL_DIR
 from pipeline.common.catalyst_spaces import (
     generate_population, crossover, mutate, encode_genome, encode_population,
     ALL_MATERIAL_CLASSES, FEATURE_DIM, generate_hierarchical_htvs_pool,
@@ -60,7 +60,7 @@ class FCGAConfig:
     exhaustive_start: int = 0
     exhaustive_stop: Optional[int] = None
     exhaustive_batch_size: int = 65536
-    exhaustive_db: str = str(BASE_DIR / 'results' / 'fuel_cell' / 'indexed_scan.sqlite')
+    exhaustive_db: str = str(FUEL_CELL_DIR / 'indexed_scan.sqlite')
     exhaustive_worker_id: int = 0
     exhaustive_num_workers: int = 1
     branch_search: bool = False
@@ -78,7 +78,7 @@ class FCBranchDiscoveryConfig:
     htvs_pool_size: int = 20000
     device: str = 'cuda'
     exhaustive_batch_size: int = 65536
-    exhaustive_db: str = str(BASE_DIR / 'results' / 'fuel_cell' / 'indexed_scan.sqlite')
+    exhaustive_db: str = str(FUEL_CELL_DIR / 'indexed_scan.sqlite')
     branch_leaf_size: int = 1_000_000
     branch_probe_count: int = 9
     branch_max_leaves: Optional[int] = None
@@ -451,12 +451,33 @@ def run_fc_branch_discovery(config: FCBranchDiscoveryConfig, existing_db=None):
         evidence = run_orr_screening(
             probes, db_filename='fc_branch_calibration.csv', workers_per_gpu=2)
     from pipeline.screening.small_data_ranker import (
-        fit_tree_ranker, merge_compatible_evidence, orr_tree_objectives)
+        MIN_TRAINING_ROWS, fit_tree_ranker, merge_compatible_evidence,
+        orr_tree_objectives, valid_training_row_count)
     from pipeline.common.utils import load_screening_db, save_screening_db
     prior_evidence = load_screening_db(
         'fc_branch_ranker_evidence.csv', subdir='fuel_cell')
     evidence = merge_compatible_evidence(
         evidence, prior_evidence, SCREENING_PROTOCOL_ID)
+    attempted = {str(value) for value in evidence.get('genome', [])}
+    refill_limit = max(config.initial_fairchem_samples * 3,
+                       config.initial_fairchem_samples + MIN_TRAINING_ROWS)
+    probe_pool = deterministic_tree_probes(refill_limit)
+    refill_round = 0
+    while valid_training_row_count(evidence, 'fuel_cell_orr') < MIN_TRAINING_ROWS:
+        refill = [genome for genome in probe_pool if repr(genome) not in attempted][:MIN_TRAINING_ROWS]
+        if not refill:
+            valid = valid_training_row_count(evidence, 'fuel_cell_orr')
+            raise RuntimeError(
+                f'calibration exhausted after {len(attempted)} distinct probes; '
+                f'only {valid}/{MIN_TRAINING_ROWS} valid ORR rows')
+        refill_round += 1
+        attempted.update(repr(genome) for genome in refill)
+        extra = run_orr_screening(
+            refill, db_filename=f'fc_branch_calibration_refill_{refill_round}.csv',
+            workers_per_gpu=2)
+        evidence = merge_compatible_evidence(
+            extra, evidence, SCREENING_PROTOCOL_ID)
+    save_screening_db(evidence, 'fc_branch_calibration.csv', subdir='fuel_cell')
     model = fit_tree_ranker(evidence, 'fuel_cell_orr')
     score_population = lambda pop: orr_tree_objectives(pop, model)
     summary = run_branch_and_bound(BranchConfig(
@@ -465,7 +486,7 @@ def run_fc_branch_discovery(config: FCBranchDiscoveryConfig, existing_db=None):
         scan_batch_size=config.exhaustive_batch_size,
         max_leaves=config.branch_max_leaves,
         expected_population=config.expected_space_size,
-        certificate_path=str(BASE_DIR / 'results' / 'fuel_cell' / 'coverage_certificate.json'),
+        certificate_path=str(FUEL_CELL_DIR / 'coverage_certificate.json'),
         max_runtime_s=config.max_runtime_s,
         min_resolved_leaves_per_class=config.min_resolved_leaves_per_class,
         exploration_interval=config.branch_exploration_interval,
@@ -546,7 +567,7 @@ def run_fc_genetic_algorithm(config: FCGAConfig, existing_db=None):
             scan_batch_size=config.exhaustive_batch_size,
             max_leaves=config.branch_max_leaves,
             expected_population=config.expected_space_size,
-            certificate_path=str(BASE_DIR / 'results' / 'fuel_cell' / 'coverage_certificate.json'),
+            certificate_path=str(FUEL_CELL_DIR / 'coverage_certificate.json'),
         ), lambda pop: compute_orr_objectives_surrogate(pop, model, config.device))
         logger.info(f"Branch-and-bound ORR scan: {summary}")
         indexed_seeds = load_archive_genomes(

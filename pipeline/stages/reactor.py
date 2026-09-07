@@ -26,8 +26,10 @@ def simulate_candidate(row: Mapping, catalyst_name: str,
         catalyst_E_act_eV=barrier)
     if forbid_mock and any(result.get('mock') for result in sweep):
         raise RuntimeError('mock reactor output is forbidden in production')
-    best = max(sweep, key=lambda result: result.get('CH4_conversion', 0.0)) \
-        if sweep else {}
+    completed = [result for result in sweep if result.get('status') != 'failed']
+    failed = [result for result in sweep if result.get('status') == 'failed']
+    best = max(completed, key=lambda result: result.get('CH4_conversion', 0.0)) \
+        if completed else {}
     return {
         'catalyst': catalyst_name,
         'candidate_id': kinetics.candidate_id,
@@ -35,4 +37,10 @@ def simulate_candidate(row: Mapping, catalyst_name: str,
         'mechanism_file': str(mechanism),
         'sweep': sweep,
         'best_condition': best,
+        'sweep_status': ('complete' if not failed else
+                         'partial' if completed else 'failed'),
+        'completed_conditions': len(completed),
+        'failed_conditions': len(failed),
+        'can_exclude_candidate': bool(completed) and not failed and all(
+            result.get('can_exclude_candidate', False) for result in completed),
     }

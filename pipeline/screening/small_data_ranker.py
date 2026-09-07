@@ -10,6 +10,27 @@ import numpy as np
 from pipeline.common.catalyst_spaces import encode_population
 
 TREE_ENSEMBLE_SIZE = 256
+MIN_TRAINING_ROWS = 20
+
+
+def valid_training_row_count(frame, application: str) -> int:
+    """Count rows that can actually train the requested ranker."""
+    if application == "turquoise_hydrogen":
+        columns = ("E_act",)
+    elif application == "fuel_cell_orr":
+        columns = ("dG_OH_eV", "dG_O_eV", "dG_OOH_eV")
+    else:
+        raise ValueError(f"unknown application {application}")
+    count = 0
+    for _, row in frame.iterrows():
+        try:
+            values = [float(row[column]) for column in columns]
+            ast.literal_eval(row["genome"]) if isinstance(row["genome"], str) else tuple(row["genome"])
+            if bool(row.get("valid", True)) and np.all(np.isfinite(values)):
+                count += 1
+        except (ValueError, TypeError, SyntaxError, KeyError):
+            continue
+    return count
 
 
 def merge_compatible_evidence(current, ledger, protocol_id: str):
@@ -81,8 +102,9 @@ def fit_tree_ranker(frame, application: str, random_state: int = 20260721) -> Tr
                 rows.append(values); genomes.append(genome)
         except (ValueError, TypeError, SyntaxError, KeyError):
             continue
-    if len(rows) < 20:
-        raise ValueError(f"tree ranker requires at least 20 valid rows; got {len(rows)}")
+    if len(rows) < MIN_TRAINING_ROWS:
+        raise ValueError(
+            f"tree ranker requires at least {MIN_TRAINING_ROWS} valid rows; got {len(rows)}")
     y = np.asarray(rows, float)
     if len(columns) == 1:
         y = y[:, 0]

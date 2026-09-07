@@ -92,6 +92,14 @@ not become one merely because it is farther downstream.
 
 ### `run_production_campaign.py`
 
+`--results-dir` gives each campaign an independent state, evidence, log, scan,
+and report root. Generated Cantera mechanisms default to that root's
+`mechanisms/` directory (or an explicit `--mechanisms-dir`), preventing
+candidate names such as `catalyst_0` from colliding across runs. Ranker
+calibration also distinguishes requested probes from valid converged rows: a
+bounded deterministic refill evaluates new tree probes until the minimum
+training contract is met or records explicit exhaustion.
+
 This is the primary production-oriented campaign driver. Use it when the goal
 is persistent, resumable traversal of the indexed population with explicit
 resource controls and readiness checks.

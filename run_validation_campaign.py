@@ -6,22 +6,6 @@ import json
 from dataclasses import fields
 from pathlib import Path
 
-from ase.io import read as ase_read
-
-from pipeline.validation.qe_workflows import QEExecutionConfig
-from pipeline.validation.orr_workflows import (
-    ORRCorrections, build_orr_validation_plan, evaluate_orr_ensemble)
-from pipeline.validation.production_workflow import (
-    advance_methane_neb,
-    advance_pyrolysis_campaign,
-    methane_neb_status,
-    orr_campaign_status,
-    prepare_pyrolysis_campaign,
-    pyrolysis_campaign_status,
-    run_orr_sequence,
-)
-
-
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument('--pyro-dir')
@@ -56,6 +40,22 @@ def main() -> None:
         parser.error('provide a pyrolysis or ORR validation input')
     if args.orr_dir and not args.orr_name:
         parser.error('--orr-name is required with --orr-dir')
+
+    # Keep argument discovery usable before the optional scientific stack is
+    # installed. Actual validation operations still import their dependencies
+    # eagerly here and fail with a useful missing-package error when needed.
+    from pipeline.validation.qe_workflows import QEExecutionConfig
+    from pipeline.validation.orr_workflows import (
+        ORRCorrections, build_orr_validation_plan, evaluate_orr_ensemble)
+    from pipeline.validation.production_workflow import (
+        advance_methane_neb,
+        advance_pyrolysis_campaign,
+        methane_neb_status,
+        orr_campaign_status,
+        prepare_pyrolysis_campaign,
+        pyrolysis_campaign_status,
+        run_orr_sequence,
+    )
     execution = QEExecutionConfig(
         mpi_ranks=args.mpi_ranks,
         omp_threads=args.omp_threads,
@@ -96,6 +96,8 @@ def main() -> None:
             if args.advance else orr_campaign_status(args.orr_dir, args.orr_name)
         )
     if args.orr_structure:
+        from ase.io import read as ase_read
+
         coverages = tuple(float(value) for value in args.orr_coverages.split(','))
         plan = build_orr_validation_plan(
             ase_read(args.orr_structure), coverages=coverages)
