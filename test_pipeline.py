@@ -1151,6 +1151,13 @@ def test_readme_matches_branch_only_contract():
     from pathlib import Path
     readme = (Path(__file__).parent / 'README.md').read_text()
     assert '21,092,645,031' in readme
+    assert 'Deterministic Branch-and-Bound Discovery' in readme
+    assert '--calibration-probes' in readme
+    assert '--branch-leaf-size' in readme
+    forbidden = ['--pop', '--gens', '--exhaustive-scan', '--branch-search',
+                 '25.3-billion-configuration', '21.3-billion-configuration']
+    present = [token for token in forbidden if token in readme]
+    assert not present, f"README advertises retired search controls: {present}"
 
 
 def test_readme_contains_no_machine_specific_paths():
@@ -1162,13 +1169,17 @@ def test_readme_contains_no_machine_specific_paths():
     ]
     present = [token for token in forbidden if token in readme]
     assert not present, f'Machine-specific paths remain in README: {present}'
-    assert 'Deterministic Branch-and-Bound Discovery' in readme
-    assert '--calibration-probes' in readme
-    assert '--branch-leaf-size' in readme
-    forbidden = ['--pop', '--gens', '--exhaustive-scan', '--branch-search',
-                 '25.3-billion-configuration', '21.3-billion-configuration']
-    present = [token for token in forbidden if token in readme]
-    assert not present, f"README advertises retired search controls: {present}"
+
+
+def test_root_documentation_is_canonical():
+    from pathlib import Path
+    root = Path(__file__).parent
+    root_docs = {
+        path.name for pattern in ('*.md', '*.rst') for path in root.glob(pattern)
+    }
+    assert root_docs <= {'README.md', 'CHANGELOG.md'}, root_docs
+    assert (root / 'docs/FUEL_CELL.md').is_file()
+    assert (root / 'docs/TURQUOISE_HYDROGEN.md').is_file()
 
 
 def test_retired_ga_entry_points_are_blocked():
@@ -1409,6 +1420,7 @@ if __name__ == '__main__':
     test("README matches branch-only contract", test_readme_matches_branch_only_contract)
     test("README has no machine-specific paths",
          test_readme_contains_no_machine_specific_paths)
+    test("Root documentation is canonical", test_root_documentation_is_canonical)
     test("Retired GA entry points are blocked", test_retired_ga_entry_points_are_blocked)
     test("Industrial viability gates fail closed", test_industrial_viability_gates_fail_closed)
     test("Prior-art novelty states", test_prior_art_registry_tracks_exact_and_region_novelty)
