@@ -51,8 +51,13 @@ class CandidateKinetics:
     sources: Mapping[str, str] = field(default_factory=dict)
 
     @classmethod
-    def from_screening_row(cls, row, candidate_id: str = 'unknown'):
-        """Build kinetics from a pandas Series or ordinary mapping."""
+    def from_screening_row(cls, row, candidate_id: str = 'unknown',
+                           validation: Optional[Mapping] = None):
+        """Build kinetics from screening and optional converged NEB evidence.
+
+        Validation values replace templates only when the candidate identity
+        matches and the complete campaign carries the required evidence level.
+        """
         def finite(name):
             value = row.get(name)
             try:
@@ -76,6 +81,30 @@ class CandidateKinetics:
             values[target] = finite(source)
             if values[target] is not None:
                 sources[target] = f'screening:{protocol}:{source}'
+        if validation is not None:
+            if str(validation.get('candidate_id')) != str(candidate_id):
+                raise ValueError('kinetics validation candidate_id mismatch')
+            if not validation.get('complete') or validation.get(
+                    'evidence_level') != 'converged_dft_neb_frequency':
+                raise ValueError('kinetics validation campaign is incomplete')
+            resolved = validation.get('resolved_kinetics_eV', {})
+            allowed = {
+                'methane_activation_eV', 'ch3_dehydrogenation_eV',
+                'ch2_dehydrogenation_eV', 'ch_dehydrogenation_eV',
+                'h2_desorption_eV', 'carbon_transfer_eV',
+            }
+            unknown = set(resolved) - allowed
+            if unknown:
+                raise ValueError(f'unknown validated kinetics fields: {sorted(unknown)}')
+            for name, raw_value in resolved.items():
+                value = float(raw_value)
+                if not np.isfinite(value) or value < 0:
+                    raise ValueError(f'invalid validated barrier for {name}')
+                if name == 'methane_activation_eV':
+                    barrier = value
+                else:
+                    values[name] = value
+                sources[name] = 'candidate_specific:converged_dft_neb_frequency'
         return cls(methane_activation_eV=barrier, candidate_id=candidate_id,
                    screening_protocol=protocol, sources=sources, **values)
 

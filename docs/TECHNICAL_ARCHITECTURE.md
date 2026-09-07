@@ -709,19 +709,39 @@ climbing-image selection. `run_neb` records command, resources, duration,
 return code, and timeout state. `parse_neb_result` accepts a barrier only when
 QE reports both normal completion and NEB convergence.
 
-`pipeline/validation/production_workflow.py::run_methane_neb` controls the NEB
-portion of a larger validation sequence:
+`pipeline/validation/production_workflow.py` now supports both a single NEB
+directory and a manifest-driven elementary-kinetics campaign. The declared
+fields are methane activation, three subsequent dehydrogenations, hydrogen
+desorption, and carbon transport. Each manifest entry supplies explicit,
+candidate-specific initial and final structures; the workflow deliberately
+does not invent generic reaction geometries for arbitrary materials.
 
-1. it checks that separately prepared initial and final endpoint relaxations
-   have already converged;
-2. it extracts the last converged endpoint structures;
-3. it interpolates the images, writes the NEB input, and runs `neb.x`;
-4. it reports the parsed barrier and the separately supplied
-   `transition_state_frequency.json` status.
+For each supplied elementary step, `advance_methane_neb`:
 
-The helper does not itself generate endpoint inputs, run endpoint relaxations,
-or calculate finite-difference forces for the frequency file. Those artifacts
-must be prepared and executed by the candidate-specific validation campaign.
+1. prepares or resumes initial and final `pw.x` relaxations;
+2. requires both ionic relaxations to converge;
+3. extracts their final geometries;
+4. creates an IDPP-interpolated climbing-image path and runs `neb.x`;
+5. accepts a barrier only from a converged path;
+6. runs prepared central finite-difference force jobs for the proposed
+   transition state;
+7. builds a mass-weighted Hessian and requires one significant imaginary mode.
+
+`prepare_pyrolysis_campaign` reads the explicit structure manifest and writes
+the endpoint and optional frequency-force inputs. `advance_pyrolysis_campaign`
+runs/resumes all supplied steps. `pyrolysis_campaign_status` lists unresolved
+kinetic fields and emits `converged_dft_neb_frequency` only when every declared
+field is resolved. `CandidateKinetics.from_screening_row` will replace Cantera
+templates only when that evidence is complete and its candidate ID matches.
+On a later production run, `--kinetics-validation-dir` lets Phase 2 locate
+`<candidate_id>/pyrolysis_validation.json` and inject a matching completed
+campaign into the Cantera mechanism. Missing or incomplete validation leaves
+the declared screening templates and diagnostic evidence tier in place.
+
+The proposed transition-state geometry must currently be supplied in the
+manifest. Automatically extracting the highest NEB image would not eliminate
+the need to inspect/refine that geometry; the explicit input prevents an
+uninspected path image from silently becoming frequency evidence.
 
 The path is not complete merely because one or more images printed energies.
 Every required electronic calculation, both endpoints, the path, and the
@@ -747,6 +767,16 @@ metadata.
 
 The sequence is resumable. Completed stages are preserved; missing stages can
 advance; incomplete nonempty output is not overwritten by default.
+
+For production refinement, `build_orr_validation_plan` deterministically
+enumerates atop, bridge, and hollow trial sites across declared coverages and
+OH/O/OOH adsorbates. It labels every task as requiring an explicitly realized
+structure: a coverage label alone is never presented as a physical supercell.
+`evaluate_orr_ensemble` admits only site/coverage pathways where all three
+adsorbates converged, applies one or more provenance-bearing solvation,
+potential, pH, and temperature correction models, and reports the spread across
+all cases as model uncertainty. Missing expected cases suppress the headline
+overpotential and keep the ensemble evidence `incomplete`.
 
 ### 13.9 Persistent validation task queue
 
@@ -1278,6 +1308,54 @@ python run_validation_campaign.py \
 
 Use the status-only form before restarting work. Do not use
 `--restart-incomplete` while another scheduler or process may own the output.
+
+A complete elementary-step campaign is described by JSON:
+
+```json
+{
+  "candidate_id": "stable-candidate-id",
+  "campaign_dir": "candidate_calculations",
+  "steps": {
+    "methane_activation": {
+      "initial": "structures/ch4_adsorbed.traj",
+      "final": "structures/ch3_h_adsorbed.traj",
+      "transition_state": "structures/ch4_ts.traj",
+      "n_images": 7,
+      "displacement_A": 0.01
+    }
+  }
+}
+```
+
+Prepare and then advance it with:
+
+```bash
+python run_validation_campaign.py --pyro-manifest campaign.json --prepare
+python run_validation_campaign.py --pyro-manifest campaign.json --advance
+```
+
+Omitted elementary steps remain unresolved. They are never filled with a
+successful result from a different step.
+
+Generate an ORR site/coverage plan and evaluate completed free-energy records
+with provenance-bearing correction models using:
+
+```bash
+python run_validation_campaign.py \
+  --orr-structure relaxed_surface.traj \
+  --orr-coverages 0.25,0.5,1.0 \
+  --orr-plan-output results/dft/orr_plan.json
+
+python run_validation_campaign.py \
+  --orr-ensemble-results results/dft/orr_site_results.json \
+  --orr-corrections-json orr_corrections.json \
+  --orr-expected-cases 18
+```
+
+The first command creates calculation tasks; candidate-specific supercells and
+adsorbate structures must realize those tasks before QE execution. The second
+command refuses a headline ORR overpotential unless every expected case is
+present and converged.
 
 ### 22.5 Final readiness check
 

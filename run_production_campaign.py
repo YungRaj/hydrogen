@@ -61,6 +61,10 @@ def main():
                         help='Fail closed unless coverage and prior-art readiness requirements pass')
     parser.add_argument('--evidence-manifest', default='results/evidence_manifest.json',
                         help='Measured/validated evidence counts required by --final-campaign')
+    parser.add_argument(
+        '--kinetics-validation-dir', default='results/dft/pyrolysis_kinetics',
+        help=('Directory containing <candidate_id>/pyrolysis_validation.json; '
+              'complete matching campaigns replace Cantera template barriers'))
     parser.add_argument('--qe-mpi-ranks', type=int, default=4)
     parser.add_argument('--qe-omp-threads', type=int, default=1)
     default_qe_concurrency = max(1, min(4, (os.cpu_count() or 1) // 4))
@@ -263,8 +267,19 @@ def main():
                 cat_name = f"catalyst_{i}"
                 print(f"  Reactor sim {i+1}/{n_reactor}: E_act={e_act:.3f} eV")
                 try:
+                    kinetics_validation = None
+                    candidate_key = str(row.get('candidate_id', cat_name))
+                    if Path(candidate_key).name != candidate_key:
+                        raise ValueError('candidate_id is not a safe path component')
+                    validation_path = (Path(args.kinetics_validation_dir) / candidate_key /
+                                       'pyrolysis_validation.json')
+                    if validation_path.is_file():
+                        available = json.loads(validation_path.read_text())
+                        if available.get('complete'):
+                            kinetics_validation = available
                     stage_result = simulate_candidate(
-                        row, cat_name, reactor_temps, forbid_mock=True)
+                        row, cat_name, reactor_temps, forbid_mock=True,
+                        kinetics_validation=kinetics_validation)
                     sweep = stage_result['sweep']
                     best_condition = stage_result['best_condition']
                     best_conv = best_condition.get('CH4_conversion', 0)

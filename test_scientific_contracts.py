@@ -243,12 +243,140 @@ def test_che_stoichiometry_limiting_potential_and_nernst_terms():
         ORRCorrections(source_id='test:independent', temperature_K=298.15,
                        electrode_potential_V=0.2, pH=1.0))
     nernst = 8.617333262e-5 * 298.15 * math.log(10.0)
-    assert math.isclose(
-        acid['dG_OH_eV'] - shifted['dG_OH_eV'], 0.2 + nernst,
-        rel_tol=1e-12)
-    assert math.isclose(
-        acid['dG_O_eV'] - shifted['dG_O_eV'], 2 * (0.2 + nernst),
-        rel_tol=1e-12)
+    # Adsorption descriptors remain referenced at U=0. Every elementary ORR
+    # step transfers one proton/electron pair and receives the same CHE shift.
+    assert acid['dG_OH_eV'] == shifted['dG_OH_eV']
+    assert acid['dG_O_eV'] == shifted['dG_O_eV']
+    for name in acid['orr_steps_at_condition_eV']:
+        difference = (shifted['orr_steps_at_condition_eV'][name] -
+                      acid['orr_steps_at_condition_eV'][name])
+        assert math.isclose(difference, 0.2 + nernst, rel_tol=1e-12)
+
+
+def test_orr_site_coverage_ensemble_is_complete_only_with_all_cases():
+    from ase import Atoms
+    from pipeline.validation.orr_workflows import (
+        ORRCorrections, build_orr_validation_plan, evaluate_orr_ensemble)
+
+    slab = Atoms('Pt3', positions=[[0, 0, 0], [2.7, 0, 0], [1.35, 2.3, 0]],
+                 cell=[8, 8, 12], pbc=[True, True, False])
+    plan = build_orr_validation_plan(slab, coverages=(0.25, 0.5))
+    assert {task['adsorbate'] for task in plan} == {'OH', 'O', 'OOH'}
+    assert {task['coverage_ML'] for task in plan} == {0.25, 0.5}
+    rows = [
+        {'site_id': 'atop_0000', 'coverage_ML': 0.25,
+         'adsorbate': adsorbate, 'dG_eV': value, 'converged': True}
+        for adsorbate, value in [('OH', 0.9), ('O', 1.8), ('OOH', 3.5)]
+    ]
+    corrections = [
+        ORRCorrections(source_id='solvation:model-a'),
+        ORRCorrections(solvation_OH_eV=-0.2, solvation_OOH_eV=-0.25,
+                       source_id='solvation:model-b'),
+    ]
+    complete = evaluate_orr_ensemble(rows, corrections, expected_cases=2)
+    assert complete['complete'] is True
+    assert complete['evidence_level'] == 'corrected_DFT_ensemble'
+    assert complete['uncertainty']['range_V'] >= 0
+    incomplete = evaluate_orr_ensemble(rows[:-1], corrections, expected_cases=2)
+    assert incomplete['complete'] is False
+    assert incomplete['orr_overpotential_V'] is None
+
+
+def test_qe_force_parser_and_frequency_campaign_contracts():
+    from ase import Atoms
+    from pipeline.validation.qe_workflows import parse_atomic_forces
+    from pipeline.validation.production_workflow import prepare_frequency_jobs
+
+    output = """
+     Forces acting on atoms (cartesian axes, Ry/au):
+     atom    1 type  1   force =     0.01000000   -0.02000000    0.03000000
+     atom    2 type  1   force =    -0.01000000    0.02000000   -0.03000000
+     Total force =     0.074833
+     convergence has been achieved
+     JOB DONE.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / 'force.out'
+        path.write_text(output)
+        forces = parse_atomic_forces(path, expected_atoms=2)
+        transition_state = Atoms(
+            'H2', positions=[[0, 0, 4], [0, 0, 4.8]],
+            cell=[8, 8, 8], pbc=True)
+        prepared = prepare_frequency_jobs(
+            Path(tmp) / 'frequency', transition_state, 'contract',
+            active_indices=[1])
+        manifest = __import__('json').loads(
+            (Path(tmp) / 'frequency/frequency_forces/manifest.json').read_text())
+    conversion = 13.605693122994 / 0.529177210903
+    assert forces.shape == (2, 3)
+    assert math.isclose(forces[0, 0], 0.01 * conversion, rel_tol=1e-12)
+    assert len(manifest['jobs']) == 6
+    assert manifest['active_indices'] == [1]
+    assert len(manifest['manifest_sha256']) == 64
+    assert prepared['status'] == 'force_jobs_pending'
+
+
+def test_qe_relax_and_neb_preserve_fixed_slab_atoms():
+    from ase import Atoms
+    from ase.constraints import FixAtoms
+    from pipeline.validation.qe_workflows import (
+        write_qe_neb_input, write_qe_relax_input)
+
+    atoms = Atoms('Ni2H', positions=[[0, 0, 1], [1, 0, 2], [1, 0, 3]],
+                  cell=[6, 6, 10], pbc=True)
+    atoms.set_constraint(FixAtoms(indices=[0]))
+    with tempfile.TemporaryDirectory() as tmp:
+        relax = Path(tmp) / 'relax.in'
+        neb = Path(tmp) / 'neb.in'
+        write_qe_relax_input(atoms, relax, 'constraint')
+        images = [atoms.copy() for _ in range(5)]
+        write_qe_neb_input(images, neb, 'constraint')
+        relax_text, neb_text = relax.read_text(), neb.read_text()
+    assert 'Ni 0.000000000000 0.000000000000 1.000000000000 0 0 0' in relax_text
+    assert 'Ni 1.000000000000 0.000000000000 2.000000000000 1 1 1' in relax_text
+    assert neb_text.count(
+        'Ni 0.000000000000 0.000000000000 1.000000000000 0 0 0') == 5
+
+
+def test_pyrolysis_manifest_preserves_unresolved_steps_and_validated_identity():
+    import json
+    from pipeline.process.reactor_mechanisms import CandidateKinetics
+    from pipeline.validation.production_workflow import (
+        PYROLYSIS_ELEMENTARY_STEPS, pyrolysis_campaign_status)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        manifest = Path(tmp) / 'campaign.json'
+        manifest.write_text(json.dumps({
+            'candidate_id': 'candidate-123',
+            'campaign_dir': 'calculations',
+            'steps': {},
+        }))
+        status = pyrolysis_campaign_status(manifest)
+    assert status['complete'] is False
+    assert set(status['unresolved_kinetics_fields']) == set(
+        PYROLYSIS_ELEMENTARY_STEPS.values())
+
+    row = {'E_act': 0.9, 'screening_protocol': 'contract'}
+    resolved = {field: 0.5 + index * 0.1 for index, field in enumerate(
+        PYROLYSIS_ELEMENTARY_STEPS.values())}
+    validation = {
+        'candidate_id': 'candidate-123', 'complete': True,
+        'evidence_level': 'converged_dft_neb_frequency',
+        'resolved_kinetics_eV': resolved,
+    }
+    kinetics = CandidateKinetics.from_screening_row(
+        row, candidate_id='candidate-123', validation=validation)
+    values = kinetics.resolved()
+    assert values['quantitative_status'] == 'candidate_specific'
+    assert values['methane_activation_eV'] == resolved['methane_activation_eV']
+    bad = dict(validation, candidate_id='different-candidate')
+    try:
+        CandidateKinetics.from_screening_row(
+            row, candidate_id='candidate-123', validation=bad)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError('mismatched validation identity was accepted')
 
 
 def test_qe_inputs_use_verified_cutoffs_references_and_parallel_contracts():

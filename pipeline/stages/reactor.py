@@ -8,14 +8,16 @@ from typing import Mapping, Sequence
 def simulate_candidate(row: Mapping, catalyst_name: str,
                        temperatures: Sequence[float],
                        reactor_types: Sequence[str] | None = None,
-                       forbid_mock: bool = True) -> dict:
+                       forbid_mock: bool = True,
+                       kinetics_validation: Mapping | None = None) -> dict:
     """Build one candidate mechanism and run its reactor-condition sweep."""
     from pipeline.process.reactor_mechanisms import (
         CandidateKinetics, write_full_mechanism)
     from pipeline.process.reactor_models import run_reactor_sweep
 
     kinetics = CandidateKinetics.from_screening_row(
-        row, candidate_id=str(row.get('candidate_id', catalyst_name)))
+        row, candidate_id=str(row.get('candidate_id', catalyst_name)),
+        validation=kinetics_validation)
     mechanism = write_full_mechanism(catalyst_name, kinetics=kinetics)
     barrier = float(row.get('E_act'))
     sweep = run_reactor_sweep(
