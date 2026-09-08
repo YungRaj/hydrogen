@@ -6,7 +6,7 @@ from pipeline.search.indexed_space import TOTAL_SIZE
 from pipeline.evidence.manifest import verify_evidence_manifest
 
 
-def assess_campaign(results_dir='results', pyrolysis_mode='ntec') -> dict:
+def assess_campaign(results_dir='results', pyrolysis_mode='thermocatalytic') -> dict:
     root = Path(results_dir)
     coverage = []
     for path in (root / 'screening/turquoise_hydrogen_coverage_certificate.json',

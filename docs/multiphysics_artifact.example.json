@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "candidate_id": "replace-with-canonical-candidate-id",
+  "pathway_mode": "mmbcr",
+  "reactor_type": "MMBCR",
+  "temperature_K": 900.0,
+  "complete": true,
+  "backend_solvers": {"openfoam": "replace-with-version"},
+  "convergence": {
+    "converged": true,
+    "mesh_independent": true,
+    "conservation_relative_residuals": {"mass": 1e-8, "energy": 1e-7}
+  },
+  "outputs": {
+    "gas_velocity_m_s": 0.05,
+    "gas_holdup_fraction": 0.1,
+    "bubble_diameter_mm": 5.0
+  },
+  "provenance": {
+    "input_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "model_source": "replace-with-case-and-parameter-source"
+  },
+  "physical_case": {
+    "schema_version": 1,
+    "kinetics_source": "replace-with-candidate-mechanism-source",
+    "feed_source": "replace-with-feed-record-source",
+    "calibration_source": "replace-with-calibration-dataset-source",
+    "calibration_count": 3,
+    "holdout_validation_count": 1,
+    "disjoint_holdout": true
+  },
+  "model_validation": {
+    "metric": "relative_rmse",
+    "holdout_error": 0.08,
+    "acceptance_threshold": 0.10,
+    "passed": true
+  }
+}

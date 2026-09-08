@@ -12,7 +12,7 @@ def campaign_readiness(coverage_certificate: str, prior_art_db: str,
                        require_complete_coverage: bool = True,
                        evidence_manifest: str | None = None,
                        application: str | None = None,
-                       pyrolysis_mode: str = 'ntec') -> dict:
+                       pyrolysis_mode: str = 'thermocatalytic') -> dict:
     failures, warnings = [], []
     cert_path = Path(coverage_certificate)
     if not cert_path.exists():

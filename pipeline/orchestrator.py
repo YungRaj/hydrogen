@@ -34,6 +34,8 @@ from pipeline.common.utils import (
     setup_logger, print_banner, save_json, load_json,
     run_in_env,
 )
+from pipeline.process.pathway_modes import (
+    DEFAULT_MODE, MODE_CHOICES, reactor_types_for_mode)
 
 logger = setup_logger('orchestrator', 'pipeline_orchestrator.log')
 
@@ -51,7 +53,8 @@ class PipelineConfig:
 
     # Phase 2: Reactor
     reactor_temperatures: tuple = (800, 900, 1000, 1100, 1200)
-    reactor_types: tuple = ('MMBCR', 'PFR', 'Fluidized')
+    reactor_types: Optional[tuple] = None  # None derives routing from mode
+    multiphysics_results_dir: Optional[str] = None
 
     # Phase 5: Fuel Cell
     fc_top_k_pemfc: int = 20            # Top cathode catalysts → PEMFC model
@@ -61,7 +64,7 @@ class PipelineConfig:
     run_dft: bool = True                 # Actually execute pw.x
     run_vqe: bool = True                 # Actually execute CUDA-Q
     quick_mode: bool = False             # Reduced parameters for testing
-    pyrolysis_mode: str = 'ntec'         # 'ntec' or 'thermocatalytic'
+    pyrolysis_mode: str = DEFAULT_MODE
     allow_mock_inputs: bool = False       # Explicit test-only opt-in
 
 
@@ -77,6 +80,10 @@ def run_pipeline(config: PipelineConfig = PipelineConfig(),
 
     # Propagate pyrolysis mode to env
     os.environ['PYROLYSIS_MODE'] = config.pyrolysis_mode
+    selected_reactors = (config.reactor_types if config.reactor_types is not None
+                         else reactor_types_for_mode(config.pyrolysis_mode))
+    multiphysics_results_dir = (config.multiphysics_results_dir or
+                                str(RESULTS_DIR / 'multiphysics'))
 
     # Configure default sweep temperatures (500°C / 773.15 K to 1300 K) for both modes
     config.reactor_temperatures = (773.15, 900.0, 1100.0, 1300.0)
@@ -148,7 +155,7 @@ def run_pipeline(config: PipelineConfig = PipelineConfig(),
     # PHASE 2: REACTOR-SCALE SIMULATION (CANTERA)
     # ═════════════════════════════════════════════════════════════════════════
     if start_phase <= 2 <= end_phase:
-        print_banner("PHASE 2: CANTERA REACTOR SIMULATION")
+        print_banner("PHASE 2: PATHWAY-SPECIFIC REACTOR SIMULATION")
         t2 = time.time()
 
         from pipeline.process.reactor_mechanisms import (
@@ -185,7 +192,9 @@ def run_pipeline(config: PipelineConfig = PipelineConfig(),
                 cat_name = f"cat_{idx}"
                 stage_result = simulate_candidate(
                     row, cat_name, config.reactor_temperatures,
-                    config.reactor_types, forbid_mock=not config.allow_mock_inputs)
+                    selected_reactors, forbid_mock=not config.allow_mock_inputs,
+                    pathway_mode=config.pyrolysis_mode,
+                    multiphysics_results_dir=multiphysics_results_dir)
                 reactor_results.extend(stage_result['sweep'])
         else:
             # Mock: run 3 test catalysts
@@ -194,7 +203,11 @@ def run_pipeline(config: PipelineConfig = PipelineConfig(),
                 results = run_reactor_sweep(
                     name, str(mech_path),
                     temperatures=list(config.reactor_temperatures),
-                    reactor_types=list(config.reactor_types),
+                    reactor_types=list(selected_reactors),
+                    pathway_mode=config.pyrolysis_mode,
+                    material_class='MoltenMetal' if config.pyrolysis_mode == 'mmbcr'
+                    else 'SolidCatalyst',
+                    multiphysics_results_dir=multiphysics_results_dir,
                 )
                 reactor_results.extend(results)
 
@@ -381,7 +394,9 @@ if __name__ == '__main__':
     parser.add_argument('--quick', action='store_true', help='Quick mode (reduced parameters)')
     parser.add_argument('--no-dft', action='store_true', help='Skip DFT execution')
     parser.add_argument('--no-vqe', action='store_true', help='Skip VQE execution')
-    parser.add_argument('--mode', type=str, choices=['ntec', 'thermocatalytic'], default='ntec', help='Pyrolysis mode')
+    parser.add_argument('--mode', choices=MODE_CHOICES, default=DEFAULT_MODE,
+                        help=f'Methane-conversion pathway (default: {DEFAULT_MODE})')
+    parser.add_argument('--multiphysics-results-dir', default=None)
     args = parser.parse_args()
 
     config = PipelineConfig(
@@ -389,6 +404,7 @@ if __name__ == '__main__':
         run_dft=not args.no_dft,
         run_vqe=not args.no_vqe,
         pyrolysis_mode=args.mode,
+        multiphysics_results_dir=args.multiphysics_results_dir,
     )
 
     if args.phase:

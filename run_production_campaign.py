@@ -16,6 +16,8 @@ import subprocess
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+from pipeline.process.pathway_modes import (
+    DEFAULT_MODE, MODE_CHOICES, reactor_types_for_mode)
 
 
 def main():
@@ -34,11 +36,14 @@ def main():
                         help='Top-K for reactor simulation (default: 200)')
     parser.add_argument('--no-dft', action='store_true')
     parser.add_argument('--no-vqe', action='store_true')
-    parser.add_argument('--mode', type=str, choices=['ntec', 'thermocatalytic'], default='ntec',
-                        help='Pyrolysis screening mode (default: ntec)')
+    parser.add_argument('--mode', choices=MODE_CHOICES, default=DEFAULT_MODE,
+                        help=f'Methane-conversion pathway (default: {DEFAULT_MODE})')
     parser.add_argument('--ntec-conditions-json', default='',
                         help=('JSON with measured operating conditions and paired '
                               'NTEC/control effect calibration'))
+    parser.add_argument('--electrochemical-conditions-json', default='',
+                        help=('JSON measured electrochemical operating point; '
+                              'electrolyte_phase is aqueous or molten'))
     parser.add_argument('--scan-batch-size', type=int, default=65536)
     parser.add_argument('--scan-workers', type=int, default=8,
                         help='Independent deterministic scanner shards per resolved leaf')
@@ -70,6 +75,10 @@ def main():
         '--kinetics-validation-dir', default=None,
         help=('Directory containing <candidate_id>/pyrolysis_validation.json; '
               'complete matching campaigns replace Cantera template barriers'))
+    parser.add_argument(
+        '--multiphysics-results-dir', default=None,
+        help=('Required OpenFOAM/FEniCSx artifacts (default: '
+              '<results-dir>/multiphysics)'))
     parser.add_argument('--qe-mpi-ranks', type=int, default=4)
     parser.add_argument('--qe-omp-threads', type=int, default=1)
     default_qe_concurrency = max(1, min(4, (os.cpu_count() or 1) // 4))
@@ -87,6 +96,11 @@ def main():
         args.evidence_manifest = str(results_dir / 'evidence_manifest.json')
     if args.kinetics_validation_dir is None:
         args.kinetics_validation_dir = str(results_dir / 'dft' / 'pyrolysis_kinetics')
+    if args.multiphysics_results_dir is None:
+        args.multiphysics_results_dir = str(results_dir / 'multiphysics')
+    else:
+        args.multiphysics_results_dir = str(
+            Path(args.multiphysics_results_dir).expanduser().resolve())
     os.environ['HYDROGEN_RESULTS_DIR'] = str(results_dir)
     os.environ['HYDROGEN_MECHANISMS_DIR'] = str(mechanisms_dir)
     if args.scan_workers < 1 or args.qe_mpi_ranks < 1 or \
@@ -121,6 +135,9 @@ def main():
     os.environ['PYROLYSIS_MODE'] = args.mode
     if args.ntec_conditions_json:
         os.environ['NTEC_CONDITIONS_JSON'] = args.ntec_conditions_json
+    if args.electrochemical_conditions_json:
+        os.environ['ELECTROCHEMICAL_CONDITIONS_JSON'] = \
+            args.electrochemical_conditions_json
     import torch
     n_gpus = torch.cuda.device_count()
     gpu_names = [torch.cuda.get_device_name(i) for i in range(n_gpus)]
@@ -271,7 +288,7 @@ def main():
 
     # ─── Phase 2: Cantera Reactor Simulation ─────────────────────────────────
     if time.time() < t_deadline and len(top_catalysts) > 0:
-        print_banner("PHASE 2: CANTERA REACTOR SIMULATION")
+        print_banner("PHASE 2: PATHWAY-SPECIFIC REACTOR SIMULATION")
         t2 = time.time()
         try:
             from pipeline.stages.reactor import simulate_candidate
@@ -296,8 +313,12 @@ def main():
                         if available.get('complete'):
                             kinetics_validation = available
                     stage_result = simulate_candidate(
-                        row, cat_name, reactor_temps, forbid_mock=True,
-                        kinetics_validation=kinetics_validation)
+                        row, cat_name, reactor_temps,
+                        reactor_types=reactor_types_for_mode(args.mode),
+                        forbid_mock=True,
+                        kinetics_validation=kinetics_validation,
+                        pathway_mode=args.mode,
+                        multiphysics_results_dir=args.multiphysics_results_dir)
                     sweep = stage_result['sweep']
                     best_condition = stage_result['best_condition']
                     best_conv = best_condition.get('CH4_conversion', 0)

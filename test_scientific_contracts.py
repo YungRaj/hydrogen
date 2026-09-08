@@ -97,7 +97,7 @@ def test_reactor_sweep_isolates_failed_conditions_without_exclusion():
     calls = []
     def simulate(config):
         calls.append((config.reactor_type, config.T_inlet_K))
-        if config.reactor_type == 'MMBCR' and config.T_inlet_K == 773.15:
+        if config.reactor_type == 'PFR' and config.T_inlet_K == 773.15:
             raise RuntimeError('injected stiff integration')
         return {
             'status': 'complete', 'valid': True,
@@ -111,7 +111,8 @@ def test_reactor_sweep_isolates_failed_conditions_without_exclusion():
             patch.object(reactor_models, 'save_json') as save:
         rows = reactor_models.run_reactor_sweep(
             'contract', 'unused.yaml', temperatures=[773.15, 900.0],
-            reactor_types=['MMBCR', 'PFR'])
+            reactor_types=['PFR', 'Fluidized'],
+            pathway_mode='thermocatalytic', material_class='SolidCatalyst')
     assert len(rows) == 4 and len(calls) == 4
     assert rows[0]['status'] == 'failed'
     assert rows[0]['can_exclude_candidate'] is False
@@ -125,12 +126,419 @@ def test_reactor_sweep_isolates_failed_conditions_without_exclusion():
                   return_value=rows):
         from pipeline.stages.reactor import simulate_candidate
         stage = simulate_candidate(
-            {'E_act': 0.5, 'candidate_id': 'contract'}, 'contract',
+            {'E_act': 0.5, 'candidate_id': 'contract',
+             'material_class': 'SolidCatalyst'}, 'contract',
             [773.15, 900.0])
     assert stage['sweep_status'] == 'partial'
     assert stage['completed_conditions'] == 3
     assert stage['failed_conditions'] == 1
     assert stage['can_exclude_candidate'] is False
+
+
+def test_pathway_modes_route_explicit_physics_and_default_to_thermal():
+    from pipeline.process.pathway_modes import (
+        DEFAULT_MODE, MODE_CHOICES, reactor_applicability,
+        reactor_types_for_mode, validate_mode_reactors)
+
+    assert DEFAULT_MODE == 'thermocatalytic'
+    assert set(MODE_CHOICES) == {
+        'thermocatalytic', 'thermocatalytic_pfr',
+        'thermocatalytic_fluidized', 'mmbcr', 'ntec', 'electrochemical'}
+    assert reactor_types_for_mode(None) == ('PFR', 'Fluidized')
+    assert reactor_types_for_mode('thermocatalytic_pfr') == ('PFR',)
+    assert reactor_types_for_mode('thermocatalytic_fluidized') == ('Fluidized',)
+    assert reactor_types_for_mode('mmbcr') == ('MMBCR',)
+    assert reactor_types_for_mode('ntec') == ('NTEC',)
+    assert reactor_types_for_mode('electrochemical') == ('Electrochemical',)
+    validate_mode_reactors('mmbcr', ['MMBCR'])
+    try:
+        validate_mode_reactors('mmbcr', ['PFR'])
+        assert False, 'cross-wired mode/reactor pair was accepted'
+    except ValueError:
+        pass
+    assert reactor_applicability('MMBCR', 'MoltenMetal') == (True, None)
+    compatible, reason = reactor_applicability('PFR', 'MoltenMetal')
+    assert compatible is False and 'not_compatible' in reason
+
+
+def test_incompatible_bed_is_non_excluding_and_never_simulated():
+    from pipeline.process import reactor_models
+
+    config = reactor_models.ReactorConfig(
+        reactor_type='PFR', pathway_mode='thermocatalytic_pfr',
+        material_class='MoltenMetal', catalyst_name='contract')
+    with patch.object(reactor_models, 'simulate_pfr') as simulation:
+        result = reactor_models.simulate_reactor(config)
+    simulation.assert_not_called()
+    assert result['status'] == 'not_applicable'
+    assert result['can_exclude_candidate'] is False
+    assert result['material_class'] == 'MoltenMetal'
+
+
+def test_reactor_geometry_contract_rejects_nonphysical_beds():
+    from pipeline.process.reactor_models import (
+        ReactorConfig, _validate_reactor_config)
+
+    _validate_reactor_config(ReactorConfig(
+        reactor_type='Fluidized', pathway_mode='thermocatalytic_fluidized',
+        material_class='SolidCatalyst', gas_velocity_m_s=0.05,
+        u_mf_m_s=0.02))
+    try:
+        _validate_reactor_config(ReactorConfig(
+            reactor_type='Fluidized',
+            pathway_mode='thermocatalytic_fluidized',
+            material_class='SolidCatalyst', gas_velocity_m_s=0.01,
+            u_mf_m_s=0.02))
+        assert False, 'a non-fluidizing gas velocity was accepted'
+    except ValueError as exc:
+        assert 'exceed minimum fluidization' in str(exc)
+
+
+def test_specialized_pathways_fail_closed_without_validated_models():
+    from pipeline.process.reactor_models import ReactorConfig, simulate_reactor
+
+    with patch.dict(os.environ, {}, clear=False):
+        os.environ.pop('NTEC_CONDITIONS_JSON', None)
+        os.environ.pop('ELECTROCHEMICAL_CONDITIONS_JSON', None)
+        for reactor_type in ('NTEC', 'Electrochemical'):
+            result = simulate_reactor(ReactorConfig(
+                reactor_type=reactor_type, catalyst_name='contract',
+                pathway_mode=('ntec' if reactor_type == 'NTEC'
+                              else 'electrochemical')))
+            assert result['status'] == 'validation_required'
+            assert result['can_exclude_candidate'] is False
+            assert 'CH4_conversion' not in result
+
+    with patch('pipeline.process.reactor_mechanisms.write_full_mechanism') as write:
+        from pipeline.stages.reactor import simulate_candidate
+        stage = simulate_candidate(
+            {'E_act': 0.5, 'candidate_id': 'specialized',
+             'material_class': 'MoltenMetal'},
+            'specialized', [300.0], pathway_mode='ntec',
+            reactor_types=['NTEC'])
+    write.assert_not_called()
+    assert stage['mechanism_file'] is None
+    assert stage['sweep_status'] == 'validation_required'
+    assert stage['pending_conditions'] == 1
+    assert stage['failed_conditions'] == 0
+
+
+def test_electrochemical_phase_is_configuration_not_a_mode():
+    from pipeline.process.electrochemical_model import (
+        conditions_from_environment, electrochemical_evidence)
+
+    payload = {
+        'electrolyte_phase': 'aqueous', 'electrolyte_identity': '1 M KOH',
+        'applied_potential_V': 1.1, 'current_density_A_cm2': 0.2,
+        'faradaic_efficiency_H2': 0.9, 'methane_conversion': 0.1,
+        'temperature_K': 298.15, 'pressure_Pa': 101325,
+        'measurement_source': 'contract measurement',
+        'paired_control_source': 'contract control',
+    }
+    with patch.dict(os.environ, {
+            'ELECTROCHEMICAL_CONDITIONS_JSON': __import__('json').dumps(payload)}):
+        evidence = electrochemical_evidence(conditions_from_environment())
+    assert evidence['status'] == 'measured_paired_control'
+    assert evidence['conditions']['electrolyte_phase'] == 'aqueous'
+
+
+def test_multiphysics_artifacts_are_identity_convergence_and_solver_gated():
+    import json
+    from pipeline.process.multiphysics_contract import (
+        artifact_path, load_validated_artifact)
+
+    artifact = {
+        'schema_version': 1, 'candidate_id': 'candidate',
+        'pathway_mode': 'mmbcr', 'reactor_type': 'MMBCR',
+        'temperature_K': 900.0, 'complete': True,
+        'backend_solvers': {'openfoam': 'contract-version'},
+        'convergence': {
+            'converged': True, 'mesh_independent': True,
+            'conservation_relative_residuals': {'mass': 1e-8, 'energy': 1e-8}},
+        'outputs': {'gas_velocity_m_s': 0.05,
+                    'gas_holdup_fraction': 0.1,
+                    'bubble_diameter_mm': 5.0},
+        'provenance': {'input_sha256': 'a' * 64,
+                       'model_source': 'contract'},
+        'physical_case': {
+            'schema_version': 1, 'kinetics_source': 'contract kinetics',
+            'feed_source': 'contract feed',
+            'calibration_source': 'contract calibration',
+            'calibration_count': 2, 'holdout_validation_count': 1,
+            'disjoint_holdout': True},
+        'model_validation': {
+            'metric': 'relative_rmse', 'holdout_error': 0.04,
+            'acceptance_threshold': 0.1, 'passed': True},
+    }
+    with tempfile.TemporaryDirectory() as tmp:
+        path = artifact_path(tmp, 'candidate', 'mmbcr', 'MMBCR', 900.0)
+        path.parent.mkdir(parents=True)
+        path.write_text(json.dumps(artifact))
+        loaded = load_validated_artifact(
+            tmp, 'candidate', 'mmbcr', 'MMBCR', 900.0)
+        assert loaded['valid'] is True
+        artifact['candidate_id'] = 'wrong'
+        path.write_text(json.dumps(artifact))
+        rejected = load_validated_artifact(
+            tmp, 'candidate', 'mmbcr', 'MMBCR', 900.0)
+        assert rejected['valid'] is False
+        assert 'candidate_id' in rejected['failed_checks']
+
+
+def test_validated_specialized_artifact_completes_without_thermal_yaml():
+    import json
+    from pipeline.process.multiphysics_contract import artifact_path
+    from pipeline.stages.reactor import simulate_candidate
+
+    base = {
+        'schema_version': 1, 'candidate_id': 'ntec-candidate',
+        'pathway_mode': 'ntec', 'reactor_type': 'NTEC',
+        'temperature_K': 300.0, 'complete': True,
+        'backend_solvers': {
+            'openfoam': 'contract', 'fenicsx': 'contract',
+            'cantera': 'contract'},
+        'convergence': {
+            'converged': True, 'mesh_independent': True,
+            'conservation_relative_residuals': {
+                'mass': 1e-8, 'charge': 1e-8, 'energy': 1e-8}},
+        'outputs': {
+            'CH4_conversion': 0.2, 'H2_selectivity': 0.9,
+            'solid_C_selectivity': 0.95,
+            'specific_energy_kWh_kg_H2': 15.0},
+        'provenance': {'input_sha256': 'b' * 64,
+                       'model_source': 'contract'},
+        'physical_case': {
+            'schema_version': 1, 'kinetics_source': 'contract kinetics',
+            'feed_source': 'contract feed',
+            'calibration_source': 'contract calibration',
+            'calibration_count': 2, 'holdout_validation_count': 1,
+            'disjoint_holdout': True},
+        'model_validation': {
+            'metric': 'relative_rmse', 'holdout_error': 0.04,
+            'acceptance_threshold': 0.1, 'passed': True},
+        'calibration': {
+            'paired_control': True,
+            'paired_control_source': 'contract calibration'},
+    }
+    with tempfile.TemporaryDirectory() as tmp, \
+            patch('pipeline.process.reactor_mechanisms.write_full_mechanism') as write:
+        path = artifact_path(
+            tmp, 'ntec-candidate', 'ntec', 'NTEC', 300.0)
+        path.parent.mkdir(parents=True)
+        path.write_text(json.dumps(base))
+        result = simulate_candidate(
+            {'E_act': 0.5, 'candidate_id': 'ntec-candidate',
+             'material_class': 'MoltenMetal'}, 'ntec-candidate', [300.0],
+            ['NTEC'], pathway_mode='ntec',
+            multiphysics_results_dir=tmp)
+    write.assert_not_called()
+    assert result['sweep_status'] == 'complete'
+    assert result['mechanism_file'] is None
+    assert result['best_condition']['CH4_conversion'] == 0.2
+    assert result['can_exclude_candidate'] is False
+
+
+def _write_contract_physical_case(path, reactor_type, mode, candidate_id,
+                                  temperature_K):
+    import json
+    required = {
+        'Fluidized': {
+            'geometry': {'column_diameter_m': 0.1, 'bed_height_m': 0.8},
+            'operating': {'temperature_K': temperature_K,
+                          'pressure_Pa': 101325,
+                          'methane_mass_flow_kg_s': 1e-4},
+            'properties': {'particle_diameter_m': 1e-3,
+                           'particle_density_kg_m3': 2500,
+                           'gas_viscosity_Pa_s': 2e-5},
+            'models': {'drag_model': 'Gidaspow',
+                       'heat_transfer_model': 'Ranz-Marshall'}},
+        'Electrochemical': {
+            'geometry': {'electrode_area_m2': 0.01,
+                         'electrolyte_thickness_m': 1e-3},
+            'operating': {'temperature_K': temperature_K,
+                          'pressure_Pa': 101325,
+                          'methane_mass_flow_kg_s': 1e-6,
+                          'applied_potential_V': 1.4},
+            'properties': {'ionic_conductivity_S_m': 1.0,
+                           'electronic_conductivity_S_m': 100.0,
+                           'methane_diffusivity_m2_s': 1e-9},
+            'models': {'charge_transfer_model': 'Butler-Volmer',
+                       'species_transport_model': 'Nernst-Planck'}},
+        'MMBCR': {
+            'geometry': {'column_diameter_m': 0.1, 'liquid_height_m': 1.0,
+                         'sparger_orifice_diameter_m': 1e-3},
+            'operating': {'temperature_K': temperature_K,
+                          'pressure_Pa': 101325,
+                          'methane_mass_flow_kg_s': 1e-4},
+            'properties': {'liquid_density_kg_m3': 6000,
+                           'liquid_viscosity_Pa_s': 2e-3,
+                           'surface_tension_N_m': 0.7},
+            'models': {'bubble_breakup_model': 'Lehr',
+                       'bubble_coalescence_model': 'Prince-Blanch'}},
+        'NTEC': {
+            'geometry': {'reactor_volume_m3': 1e-3,
+                         'interface_area_m2': 0.1},
+            'operating': {'temperature_K': temperature_K,
+                          'pressure_Pa': 101325,
+                          'methane_mass_flow_kg_s': 1e-6,
+                          'shear_rate_s-1': 100.0,
+                          'mechanical_power_W_kg': 20.0},
+            'properties': {'liquid_viscosity_Pa_s': 1e-3,
+                           'permittivity_F_m': 7e-10,
+                           'ionic_conductivity_S_m': 1.0},
+            'models': {'contact_electrification_model': 'measured source term',
+                       'species_transport_model': 'Nernst-Planck'}},
+    }[reactor_type]
+    value = {
+        'schema_version': 1, 'candidate_id': candidate_id,
+        'pathway_mode': mode, 'reactor_type': reactor_type,
+        **required,
+        'feed': {'composition': {'CH4': 1.0}, 'source': 'contract feed'},
+        'kinetics': {'source': 'contract kinetics'},
+        'calibration': {'training_ids': ['train-1', 'train-2'],
+                        'validation_ids': ['holdout-1'],
+                        'source': 'contract measurements'},
+    }
+    value['parameter_sources'] = {
+        f'{section}.{name}': 'contract parameter source'
+        for section in ('geometry', 'operating', 'properties')
+        for name in value[section]}
+    if reactor_type == 'Electrochemical':
+        value['electrolyte_phase'] = 'aqueous'
+    if reactor_type == 'NTEC':
+        value['calibration']['paired_control'] = True
+    path.write_text(json.dumps(value))
+
+
+def test_physical_case_contract_covers_every_external_reactor_and_holdout():
+    import json
+    from pipeline.process.physical_case import load_physical_case
+
+    modes = {
+        'Fluidized': 'thermocatalytic_fluidized', 'MMBCR': 'mmbcr',
+        'NTEC': 'ntec', 'Electrochemical': 'electrochemical'}
+    with tempfile.TemporaryDirectory() as tmp:
+        for reactor_type, mode in modes.items():
+            path = Path(tmp) / f'{reactor_type}.json'
+            _write_contract_physical_case(
+                path, reactor_type, mode, 'candidate', 900.0)
+            loaded = load_physical_case(
+                path, candidate_id='candidate', mode=mode,
+                reactor_type=reactor_type, temperature_K=900.0)
+            assert loaded['calibration']['validation_ids'] == ['holdout-1']
+        broken = json.loads(path.read_text())
+        broken['calibration']['validation_ids'] = ['train-1']
+        path.write_text(json.dumps(broken))
+        try:
+            load_physical_case(
+                path, candidate_id='candidate', mode='electrochemical',
+                reactor_type='Electrochemical', temperature_K=900.0)
+        except ValueError as exc:
+            assert 'disjoint_training_and_validation_ids' in str(exc)
+        else:
+            raise AssertionError('calibration leakage was accepted')
+
+
+def test_multiphysics_runner_executes_and_revalidates_electrochemical_output():
+    import json
+    from pipeline.process.multiphysics_runner import run_backend
+
+    def completed_model(_command, cwd, _timeout):
+        (cwd / 'hydrogen_outputs.json').write_text(json.dumps({
+            'CH4_conversion': 0.12, 'H2_selectivity': 0.88,
+            'faradaic_efficiency_H2': 0.91,
+            'current_density_A_cm2': 0.2, 'cell_voltage_V': 1.4,
+            'electrical_power_density_W_cm2': 0.28}))
+        (cwd / 'hydrogen_convergence.json').write_text(json.dumps({
+            'converged': True, 'mesh_independent': True,
+            'conservation_relative_residuals': {
+                'mass': 1e-8, 'charge': 1e-8}}))
+        (cwd / 'hydrogen_metadata.json').write_text(json.dumps({
+            'solver_coupling': {'cantera_used': True},
+            'mechanism': {
+                'complete': True, 'source': 'contract mechanism'},
+            'model_validation': {
+                'metric': 'relative_rmse', 'holdout_error': 0.04,
+                'acceptance_threshold': 0.1, 'passed': True},
+            'electrolyte_phase': 'aqueous'}))
+
+    with tempfile.TemporaryDirectory() as tmp, \
+            patch('pipeline.process.multiphysics_runner.mode_preflight',
+                  return_value={
+                      'missing': [], 'solvers': {
+                          'openfoam': {'executable': '/unused'}}}), \
+            patch('pipeline.process.multiphysics_runner._fenics_command',
+                  return_value=(['fenics-model'], 'contract-fenicsx')), \
+            patch('pipeline.process.multiphysics_runner._run', completed_model):
+        case = Path(tmp) / 'case'
+        case.mkdir()
+        _write_contract_physical_case(
+            case / 'hydrogen_case.json', 'Electrochemical',
+            'electrochemical', 'electro-candidate', 300.0)
+        model = case / 'model.py'
+        model.write_text('# contract model\n')
+        target = run_backend(
+            mode='electrochemical', reactor_type='Electrochemical',
+            candidate_id='electro-candidate', temperature_K=300.0,
+            case_dir=case, results_dir=Path(tmp) / 'results',
+            model_source='contract model', fenics_model=model)
+        artifact = json.loads(target.read_text())
+    assert artifact['complete'] is True
+    assert artifact['backend_solvers']['fenicsx'] == 'contract-fenicsx'
+    assert artifact['outputs']['electrical_power_density_W_cm2'] == 0.28
+
+
+def test_multiphysics_runner_rejects_nonconservative_solver_output():
+    import json
+    from pipeline.process.multiphysics_runner import run_backend
+
+    def nonconservative_model(_command, cwd, _timeout):
+        (cwd / 'hydrogen_outputs.json').write_text(json.dumps({
+            'gas_velocity_m_s': 0.1, 'u_mf_m_s': 0.02,
+            'bubble_fraction': 0.2}))
+        (cwd / 'hydrogen_convergence.json').write_text(json.dumps({
+            'converged': True, 'mesh_independent': True,
+            'conservation_relative_residuals': {'mass': 0.1}}))
+        (cwd / 'hydrogen_metadata.json').write_text(json.dumps({
+            'model_validation': {
+                'metric': 'relative_rmse', 'holdout_error': 0.04,
+                'acceptance_threshold': 0.1, 'passed': True}}))
+
+    with tempfile.TemporaryDirectory() as tmp, \
+            patch('pipeline.process.multiphysics_runner.mode_preflight',
+                  return_value={
+                      'missing': [], 'solvers': {
+                          'openfoam': {'executable': '/contract/openfoam'}}}), \
+            patch('pipeline.process.multiphysics_runner._run',
+                  nonconservative_model):
+        case = Path(tmp) / 'case'
+        case.mkdir()
+        _write_contract_physical_case(
+            case / 'hydrogen_case.json', 'Fluidized',
+            'thermocatalytic_fluidized', 'fluid-candidate', 900.0)
+        try:
+            run_backend(
+                mode='thermocatalytic_fluidized', reactor_type='Fluidized',
+                candidate_id='fluid-candidate', temperature_K=900.0,
+                case_dir=case, results_dir=Path(tmp) / 'results',
+                model_source='contract model')
+        except RuntimeError as exc:
+            assert 'conservation_residuals' in str(exc)
+        else:
+            raise AssertionError('nonconservative backend output was accepted')
+
+
+def test_multiphysics_input_digest_includes_mode_input_and_precedes_outputs():
+    from pipeline.process.multiphysics_runner import _tree_digest
+
+    with tempfile.TemporaryDirectory() as tmp:
+        case = Path(tmp)
+        model_input = case / 'hydrogen_input.json'
+        model_input.write_text('{"parameter": 1}')
+        first = _tree_digest(case)
+        model_input.write_text('{"parameter": 2}')
+        second = _tree_digest(case)
+    assert first != second
 
 
 def test_ranker_counts_only_finite_valid_training_rows():

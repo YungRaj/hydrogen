@@ -21,7 +21,7 @@ The project searches a very large, heterogeneous catalyst design space for two
 connected applications:
 
 1. Methane pyrolysis for turquoise hydrogen, in either ordinary
-   thermocatalytic or NTEC-assisted operation.
+   thermocatalytic, MMBCR, NTEC, or broader electrochemical operation.
 2. Oxygen-reduction cathodes and PEM fuel-cell systems that consume the
    resulting hydrogen.
 
@@ -580,12 +580,53 @@ geometry parameters. `simulate_reactor` dispatches to:
 - `simulate_mmbcr`: a molten-metal bubble-column representation using a CSTR
   cascade, bubble surface-to-volume ratio, and axial conversion profile;
 - `simulate_pfr`: a staged plug-flow representation;
-- `simulate_fluidized_bed`: a two-phase fluidized-bed proxy.
+- `simulate_fluidized_bed`: a two-phase fluidized-bed proxy;
+- `simulate_ntec_pathway`: consumes a validated OpenFOAM + FEniCSx + Cantera
+  artifact for the liquid-solid NTEC pathway;
+- `simulate_electrochemical_pathway`: consumes a validated FEniCSx + Cantera
+  artifact whose configuration selects aqueous or molten electrolyte physics.
 
 `run_reactor_sweep` runs combinations of temperature and reactor type and writes
 JSON results under `results/reactor/`. Outputs include methane conversion,
 hydrogen and carbon selectivity diagnostics, residence/axial information, and
-the mechanism evidence metadata.
+the mechanism evidence metadata. Before dispatch,
+`validate_mode_reactors` requires the exact mode-to-reactor mapping and
+`reactor_applicability` checks the candidate material phase. Wrong pairings are
+recorded as non-excluding `not_applicable` evidence and are never sent into
+Cantera.
+
+The thermal models have deliberately bounded interpretations:
+
+| Reactor | Cantera construction | Geometry/phase contract | Limitation |
+|---|---|---|---|
+| Packed-bed PFR | Sequential isothermal ideal-gas reactors followed as a Lagrangian parcel, each with `ReactorSurface` | Solid catalyst; surface area from total packed volume, gas residence from void volume | Staged 1-D approximation; no axial dispersion, pressure drop, heat/mass-transfer limitation, or pellet diffusion |
+| Fluidized bed | Isothermal reacting emulsion parcel plus explicit unreacted bubble bypass mixing | Particulate solid catalyst; superficial velocity must exceed minimum fluidization velocity | Conservative two-phase screening closure; no interphase exchange correlation, population balance, attrition, or CFD |
+| MMBCR | Isothermal steady `IdealGasReactor` CSTRs in series with `ReactorSurface` | `MoltenMetal` candidates only; column area sets flow, gas holdup sets residence, bubble diameter and holdup set interfacial area; gas-liquid kinetics currently use a declared Cantera ideal-surface proxy | Idealized interface/bubbles/CSTRs; no liquid-phase activity model, coalescence, breakup, circulation, mass-transfer coefficient, or CFD |
+
+Cantera integrates the declared gas and heterogeneous surface reaction network
+inside those idealized thermal control volumes. Cantera also supports declared
+electrochemical interface reactions, phase electric potentials, and associated
+rate expressions. That capability is a kinetics component, not a complete
+aqueous or molten electrochemical reactor: the methane-specific charge-transfer
+mechanism, ionic/electronic transport closure, potential/current boundary
+conditions, and reactor geometry must still be supplied and coupled. Cantera
+does not supply NTEC contact electrification/mechanical coupling or detailed
+multiphase hydrodynamics. Those equations belong to mode-specific
+OpenFOAM/FEniCSx cases. The repository executes those cases, validates their
+artifacts, and never falls back to a thermal bed; the scientific case inputs
+must still be candidate-specific and calibrated.
+
+See Cantera's official documentation for
+[electrochemical interface reactions](https://cantera.org/stable/yaml/reactions.html#electrochemical)
+and [reactor-network scope](https://cantera.org/stable/reference/reactors/).
+
+The shared reactor stage generates a candidate thermal Cantera YAML only for
+the three thermal dispatch targets. NTEC and electrochemical execution leaves
+`mechanism_file` null and instead requires a mode-owned artifact. A valid
+artifact completes the condition; a missing, mismatched, unconverged,
+non-conservative, or non-mesh-independent artifact returns
+`validation_required`. `failed`, `not_applicable`, and `validation_required`
+conditions are counted separately.
 
 ### 11.4 Current carbon-model limitation
 
@@ -615,9 +656,16 @@ Thus Cantera can help rank conditions and identify sensitivity targets, but the
 current incomplete mechanism cannot eliminate a catalyst or count as measured
 reactor validation.
 
-## 12. NTEC and thermocatalytic modes
+## 12. Methane-conversion pathway modes
 
-`PYROLYSIS_MODE` selects `ntec` or `thermocatalytic` behavior.
+`PYROLYSIS_MODE` selects one of six explicitly routed pathway modes:
+`thermocatalytic` (the default PFR + fluidized-bed family),
+`thermocatalytic_pfr`, `thermocatalytic_fluidized`, `mmbcr`, `ntec`, or
+`electrochemical`. Aqueous versus molten electrolyte is an electrochemical
+condition, not a separate orchestration mode. NTEC and electrochemical routes
+consume strict external-solver artifacts and return non-excluding
+`validation_required` evidence when those artifacts are absent or invalid;
+they never fall back silently to a thermal reactor.
 
 Thermocatalytic screening uses the unassisted atomistic descriptors. NTEC uses
 the same candidate base calculation and optionally applies a bounded transfer
@@ -1186,15 +1234,23 @@ have different binary, CUDA, and compiler requirements:
 | `qe-env` | Periodic DFT and NEB | Quantum ESPRESSO, MPI, ASE helpers |
 | `quantum-env` | Quantum workflow | CUDA-Q and a compatible NVIDIA stack |
 | `battery-env` | Fuel-cell/data utilities | NumPy, SciPy, pandas, ASE/pymatgen as needed |
+| `openfoam-env` | Fluidized/MMBCR/NTEC hydrodynamics | OpenFOAM `multiphaseEulerFoam` |
+| `fenicsx-env` | NTEC/electrochemical continuum transport | FEniCSx/dolfinx, MPI, Cantera coupling |
 
 The environment names are conventions, not absolute paths. `run_in_env` and
 the executable resolver locate `conda` from `PATH`. Users may instead provide
 the required executable in `PATH` or set documented overrides.
 
-`environment.yml` provides a useful core Python environment, while
-`requirements.txt` identifies phase-specific dependencies and comments on
-external executables. GPU driver, CUDA, MPI, Quantum ESPRESSO, pseudopotential,
-and CUDA-Q compatibility must still be verified on the target machine.
+`environment.yml` provides a useful core Python environment;
+`environment-openfoam.yml` and `environment-fenicsx.yml` provide reproducible
+external multiphysics environments. The runner discovers these environments,
+`PATH`, or documented executable overrides without assuming a home directory.
+It accepts solver output only after artifact identity, backend version,
+convergence, mesh-independence, conservation, required-output, and provenance
+validation. `requirements.txt` identifies phase-specific dependencies and
+comments on external executables. GPU driver, CUDA, MPI, Quantum ESPRESSO,
+pseudopotential, and CUDA-Q compatibility must still be verified on the target
+machine.
 
 ## 20. Artifacts and provenance
 
@@ -1291,15 +1347,36 @@ guarantee convergence.
 
 ### 22.3 NTEC run
 
+First populate a sourced solver case as specified in
+[`PHYSICAL_CASES.md`](PHYSICAL_CASES.md), then generate its validated artifact:
+
+```bash
+python -m pipeline.process.multiphysics_runner \
+  --mode ntec \
+  --reactor-type NTEC \
+  --candidate-id CANONICAL_ID \
+  --temperature-K 300 \
+  --case-dir cases/CANONICAL_ID/ntec \
+  --fenics-model cases/CANONICAL_ID/ntec/model.py \
+  --results-dir results/multiphysics \
+  --model-source "immutable case revision or DOI"
+```
+
+The case must emit converged, conservative, mesh-independent outputs and
+held-out validation metadata. Then run the campaign against that artifact root:
+
 ```bash
 python run_production_campaign.py \
   --mode ntec \
   --ntec-conditions-json measured_ntec_conditions.json \
+  --multiphysics-results-dir results/multiphysics \
   --hours 4
 ```
 
 The JSON must contain measured operating conditions and paired-control
-provenance. Without them, NTEC bonuses remain zero.
+provenance. Without those measurements NTEC screening bonuses remain zero;
+without the validated artifact the reactor condition remains non-excluding
+`validation_required`.
 
 ### 22.4 Inspect or advance QE validation
 

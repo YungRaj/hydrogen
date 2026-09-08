@@ -179,12 +179,20 @@ def generate_full_report(pipeline_state: Dict = None) -> Path:
 
     real_reactor = [x for x in data['reactor'] if not x.get('mock', False)]
     if real_reactor:
+        def _report_number(value, format_spec, unavailable='N/A'):
+            try:
+                return format(float(value), format_spec)
+            except (TypeError, ValueError):
+                return unavailable
+
         r("| Catalyst | Reactor | T (K) | CH₄ Conv. | H₂ Select. | τ (s) |")
         r("|----------|---------|-------|-----------|------------|-------|")
         for res in sorted(real_reactor, key=lambda x: x.get('CH4_conversion', 0), reverse=True)[:20]:
             r(f"| {res.get('catalyst_name', '?')} | {res.get('reactor_type', '?')} | "
-              f"{res.get('T_K', '?')} | {res.get('CH4_conversion', 0):.1%} | "
-              f"{res.get('H2_selectivity', 'N/A')} | {res.get('residence_time_s', '?'):.1f} |")
+              f"{res.get('T_K', '?')} | "
+              f"{_report_number(res.get('CH4_conversion'), '.1%')} | "
+              f"{res.get('H2_selectivity', 'N/A')} | "
+              f"{_report_number(res.get('residence_time_s'), '.1f')} |")
         r("")
     if len(real_reactor) != len(data['reactor']):
         r(f"Excluded {len(data['reactor']) - len(real_reactor)} mock reactor records from performance claims.\n")

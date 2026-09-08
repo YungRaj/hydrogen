@@ -171,7 +171,7 @@ def compute_objectives_surrogate(population: List[tuple],
 
     # Objective 2: Coking resistance (maximize → negate for minimization)
     coking = coking_pred.copy()
-    py_mode = os.environ.get('PYROLYSIS_MODE', 'ntec')
+    py_mode = os.environ.get('PYROLYSIS_MODE', 'thermocatalytic')
     if py_mode == 'ntec':
         from pipeline.process.ntec_model import conditions_from_environment, ntec_assistance
         assistance = ntec_assistance(conditions_from_environment())

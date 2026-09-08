@@ -1,0 +1,6 @@
+name: openfoam-env
+channels:
+  - conda-forge
+dependencies:
+  - openfoam>=2412
+

@@ -5,8 +5,12 @@ Cantera Reactor-Scale Simulation Models for Methane Pyrolysis.
 
 Three reactor archetypes:
   A. Molten Metal Bubble Column Reactor (MMBCR) — CSTR cascade model
-  B. Packed-Bed Catalytic Reactor (PFR) — FlowReactor with surface chemistry
-  C. Fluidized Bed Reactor — Two-phase bubble/emulsion model
+  B. Packed-Bed Catalytic Reactor (PFR) — staged Lagrangian surface model
+  C. Fluidized Bed Reactor — emulsion reaction plus bubble bypass model
+
+NTEC and electrochemical pathways consume validated external multiphysics
+artifacts. Cantera supplies chemistry within those coupled calculations, but
+does not itself solve their mechanical/electrical/charge-transport physics.
 
 Each model takes a Cantera mechanism file and operating conditions,
 and returns conversion, selectivity, and performance metrics.
@@ -35,6 +39,9 @@ from pipeline.common.utils import (
     RESULTS_DIR, MECHANISMS_DIR, REACTOR_DIR,
     setup_logger, print_banner, R_gas, save_json,
 )
+from pipeline.process.pathway_modes import (
+    DEFAULT_MODE, REACTOR_MODELS, reactor_applicability,
+    reactor_types_for_mode, validate_mode_reactors)
 
 logger = setup_logger('reactor_models', 'reactor/reactor_simulation.log')
 
@@ -53,8 +60,10 @@ class ReactorConfig:
 
     # Bubble column specific
     column_height_m: float = 1.5     # Molten metal column height
+    column_diameter_m: float = 0.10  # Internal column diameter
     bubble_diameter_mm: float = 5.0  # Average bubble diameter
     gas_velocity_m_s: float = 0.05   # Superficial gas velocity
+    gas_holdup_fraction: float = 0.10  # Dispersed gas volume / bed volume
     n_cstr_stages: int = 20          # Number of CSTR stages for cascade model
 
     # Packed bed specific
@@ -67,11 +76,17 @@ class ReactorConfig:
     u_mf_m_s: float = 0.02          # Minimum fluidization velocity
     bed_height_m: float = 0.8       # Static bed height
     catalyst_density_kg_m3: float = 2500.0  # Catalyst particle density
+    fluidized_bubble_fraction: float | None = None
 
     # General
-    reactor_type: str = 'MMBCR'     # 'MMBCR', 'PFR', 'Fluidized'
+    reactor_type: str = 'PFR'
     mechanism_file: str = ''
     catalyst_name: str = 'test'
+    material_class: str | None = None
+    pathway_mode: str = DEFAULT_MODE
+    candidate_id: str = 'unknown'
+    multiphysics_results_dir: str | None = None
+    multiphysics_artifact: dict | None = None
     max_residence_time_s: float = 60.0
     catalyst_E_act_eV: float = 0.8   # Catalyst activation barrier (used by mock when Cantera unavailable)
 
@@ -131,6 +146,31 @@ def _kinetics_evidence(config: ReactorConfig) -> dict:
     }
 
 
+def _validate_reactor_config(config: ReactorConfig) -> None:
+    """Reject geometries that do not represent the selected physical bed."""
+    if config.T_inlet_K <= 0 or config.P_inlet_Pa <= 0:
+        raise ValueError('reactor temperature and pressure must be positive')
+    if config.reactor_type == 'PFR':
+        if config.bed_length_m <= 0 or config.bed_diameter_m <= 0 or \
+                config.catalyst_particle_mm <= 0 or config.gas_velocity_m_s <= 0:
+            raise ValueError('packed-bed dimensions, particle size, and flow must be positive')
+        if not 0 < config.bed_porosity < 1:
+            raise ValueError('packed-bed porosity must lie strictly between zero and one')
+    elif config.reactor_type == 'Fluidized':
+        if config.bed_height_m <= 0 or config.catalyst_particle_mm <= 0 or \
+                config.u_mf_m_s <= 0:
+            raise ValueError('fluidized-bed dimensions, particle size, and umf must be positive')
+        if config.gas_velocity_m_s <= config.u_mf_m_s:
+            raise ValueError('gas velocity must exceed minimum fluidization velocity')
+    elif config.reactor_type == 'MMBCR':
+        if config.column_height_m <= 0 or config.column_diameter_m <= 0 or \
+                config.bubble_diameter_mm <= 0 or config.gas_velocity_m_s <= 0 or \
+                config.n_cstr_stages < 1:
+            raise ValueError('MMBCR dimensions, flow, bubbles, and stage count must be positive')
+        if not 0 < config.gas_holdup_fraction < 1:
+            raise ValueError('MMBCR gas holdup must lie strictly between zero and one')
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # A. MOLTEN METAL BUBBLE COLUMN REACTOR (MMBCR)
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -158,12 +198,18 @@ def simulate_mmbcr(config: ReactorConfig) -> Dict:
     gas.TPX = config.T_inlet_K, config.P_inlet_Pa, config.inlet_composition
 
     # Compute residence time per stage
-    tau_total = config.column_height_m / config.gas_velocity_m_s
-    tau_stage = tau_total / config.n_cstr_stages
+    tau_total = (config.column_height_m * config.gas_holdup_fraction /
+                 config.gas_velocity_m_s)
 
     # Bubble geometry → surface-to-volume ratio
     d_b = config.bubble_diameter_mm * 1e-3  # m
-    sv_ratio = 6.0 / d_b  # sphere S/V = 6/d (m⁻¹)
+    interfacial_area_density = (
+        6.0 * config.gas_holdup_fraction / d_b)  # m² interface / m³ bed
+    column_area = np.pi * (config.column_diameter_m / 2) ** 2
+    stage_bed_volume = (column_area * config.column_height_m /
+                        config.n_cstr_stages)
+    stage_gas_volume = stage_bed_volume * config.gas_holdup_fraction
+    stage_interface_area = interfacial_area_density * stage_bed_volume
 
     # Track axial profiles
     z_positions = np.linspace(0, config.column_height_m, config.n_cstr_stages + 1)
@@ -176,20 +222,20 @@ def simulate_mmbcr(config: ReactorConfig) -> Dict:
 
     # CSTR cascade
     for stage in range(config.n_cstr_stages):
-        reactor = ct.IdealGasReactor(gas)
-        reactor.volume = 1.0  # normalized volume
+        reactor = ct.IdealGasReactor(gas, energy='off')
+        reactor.volume = stage_gas_volume
 
-        rsurf = ct.ReactorSurface(surf, reactor, A=sv_ratio)
+        rsurf = ct.ReactorSurface(surf, reactor, A=stage_interface_area)
 
         inlet_res = ct.Reservoir(gas)
         outlet_res = ct.Reservoir(gas)
 
-        mdot = gas.density * config.gas_velocity_m_s * np.pi * (d_b / 2) ** 2
+        mdot = gas.density * config.gas_velocity_m_s * column_area
         mfc = ct.MassFlowController(inlet_res, reactor, mdot=max(mdot, 1e-8))
         valve = ct.PressureController(reactor, outlet_res, primary=mfc, K=1e-5)
 
         net = ct.ReactorNet([reactor])
-        net.advance(tau_stage)
+        net.advance_to_steady_state()
 
         # Update gas state for next stage
         gas.TPX = reactor.thermo.T, reactor.thermo.P, reactor.thermo.X
@@ -226,7 +272,9 @@ def simulate_mmbcr(config: ReactorConfig) -> Dict:
         'T_K': config.T_inlet_K,
         'P_Pa': config.P_inlet_Pa,
         'column_height_m': config.column_height_m,
+        'column_diameter_m': config.column_diameter_m,
         'gas_velocity_m_s': config.gas_velocity_m_s,
+        'gas_holdup_fraction': config.gas_holdup_fraction,
         'bubble_diameter_mm': config.bubble_diameter_mm,
         'residence_time_s': tau_total,
         'CH4_conversion': float(final_conv),
@@ -257,7 +305,7 @@ def simulate_mmbcr(config: ReactorConfig) -> Dict:
 
 def simulate_pfr(config: ReactorConfig) -> Dict:
     """
-    Simulate a packed-bed catalytic reactor using Cantera FlowReactor.
+    Simulate a packed bed with a staged Lagrangian PFR approximation.
     
     Methane flows through a tube filled with catalyst pellets.
     Surface reactions occur on the catalyst surface area.
@@ -276,14 +324,15 @@ def simulate_pfr(config: ReactorConfig) -> Dict:
     eps = config.bed_porosity
     sv_ratio = 6.0 * (1.0 - eps) / d_p  # m²/m³
 
-    # Use FlowReactor if available (Cantera 3.x), else CSTR cascade
+    # Follow a gas parcel through sequential surface-reacting control volumes.
     ch4_initial = gas.X[gas.species_index('CH4')] if 'CH4' in gas.species_names else 1.0
 
     # CSTR cascade approximation for PFR
     n_stages = 50
     bed_cross_area = np.pi * (config.bed_diameter_m / 2) ** 2  # m²
     stage_length = config.bed_length_m / n_stages  # m
-    stage_volume = bed_cross_area * stage_length * eps  # void volume
+    stage_bed_volume = bed_cross_area * stage_length
+    stage_gas_volume = stage_bed_volume * eps
 
     # Superficial velocity
     u_sup = config.gas_velocity_m_s if config.gas_velocity_m_s > 0 else 0.1
@@ -295,10 +344,10 @@ def simulate_pfr(config: ReactorConfig) -> Dict:
     for stage in range(n_stages):
         tau_stage = tau_total / n_stages
 
-        reactor = ct.IdealGasReactor(gas)
-        reactor.volume = stage_volume
+        reactor = ct.IdealGasReactor(gas, energy='off')
+        reactor.volume = stage_gas_volume
 
-        rsurf = ct.ReactorSurface(surf, reactor, A=sv_ratio * stage_volume)
+        rsurf = ct.ReactorSurface(surf, reactor, A=sv_ratio * stage_bed_volume)
 
         net = ct.ReactorNet([reactor])
         net.advance(tau_stage)
@@ -341,8 +390,10 @@ def simulate_fluidized_bed(config: ReactorConfig) -> Dict:
     """
     Simplified two-phase (bubble + emulsion) fluidized bed model.
     
-    Bubble phase: Plug-flow, gas exchange with emulsion
-    Emulsion phase: Well-mixed CSTR at minimum fluidization
+    Emulsion phase reacts at minimum-fluidization residence time. The bubble
+    fraction is represented as conservative bypass and mixed with the emulsion
+    outlet. Interphase mass transfer is not yet resolved, so this remains a
+    screening approximation rather than a predictive two-phase CFD model.
     """
     if not HAS_CANTERA:
         return _mock_reactor_result(config, 'Fluidized')
@@ -351,18 +402,23 @@ def simulate_fluidized_bed(config: ReactorConfig) -> Dict:
 
     gas, surf = _load_candidate_phases(config)
     gas.TPX = config.T_inlet_K, config.P_inlet_Pa, config.inlet_composition
+    inlet_x = gas.X.copy()
 
     ch4_initial = gas.X[gas.species_index('CH4')] if 'CH4' in gas.species_names else 1.0
 
     # Two-phase model parameters
-    u0 = max(config.gas_velocity_m_s, 0.05)  # operating velocity
+    u0 = config.gas_velocity_m_s  # operating velocity (> umf is validated)
     umf = config.u_mf_m_s
-    delta = min(0.5, max(0.01, (u0 - umf) / u0))  # bubble fraction of bed
+    delta = (float(config.fluidized_bubble_fraction)
+             if config.fluidized_bubble_fraction is not None
+             else min(0.5, max(0.01, (u0 - umf) / u0)))
+    if not 0 <= delta < 1:
+        raise ValueError('fluidized-bed bubble fraction must lie in [0, 1)')
 
     # Emulsion phase (CSTR)
     tau_emulsion = config.bed_height_m * (1 - delta) / umf
 
-    reactor_em = ct.IdealGasReactor(gas)
+    reactor_em = ct.IdealGasReactor(gas, energy='off')
     reactor_em.volume = 1.0
 
     d_p = config.catalyst_particle_mm * 1e-3
@@ -373,6 +429,12 @@ def simulate_fluidized_bed(config: ReactorConfig) -> Dict:
     net.advance(tau_emulsion)
 
     gas.TPX = reactor_em.thermo.T, reactor_em.thermo.P, reactor_em.thermo.X
+
+    # Conservative two-phase closure: bubbles bypass reaction and mix with the
+    # reacted emulsion outlet. This prevents the emulsion proxy from being
+    # mislabeled as conversion of the entire gas feed.
+    mixed_x = delta * inlet_x + (1.0 - delta) * gas.X
+    gas.TPX = gas.T, gas.P, mixed_x
 
     final_x_ch4 = gas.X[gas.species_index('CH4')] if 'CH4' in gas.species_names else 0.0
     final_conv = 1.0 - final_x_ch4 / ch4_initial
@@ -441,15 +503,188 @@ def _mock_reactor_result(config: ReactorConfig, reactor_type: str) -> Dict:
 # UNIFIED SIMULATION INTERFACE
 # ═══════════════════════════════════════════════════════════════════════════════
 
+def simulate_ntec_pathway(config: ReactorConfig) -> Dict:
+    """Describe NTEC readiness without substituting an unrelated reactor model."""
+    from pipeline.process.ntec_model import (
+        conditions_from_environment, ntec_assistance)
+
+    assistance = ntec_assistance(conditions_from_environment())
+    if config.multiphysics_artifact:
+        evidence = config.multiphysics_artifact
+        artifact = evidence['artifact']
+        outputs = artifact['outputs']
+        return {
+            'status': 'complete', 'valid': True,
+            'reactor_type': 'NTEC', 'pathway_mode': 'ntec',
+            'catalyst_name': config.catalyst_name,
+            'candidate_id': config.candidate_id,
+            'T_K': config.T_inlet_K,
+            'CH4_conversion': float(outputs['CH4_conversion']),
+            'H2_selectivity': float(outputs['H2_selectivity']),
+            'solid_C_selectivity': float(outputs['solid_C_selectivity']),
+            'specific_energy_kWh_kg_H2': float(
+                outputs['specific_energy_kWh_kg_H2']),
+            'ntec_assistance': assistance,
+            'multiphysics_evidence': evidence,
+            'reactor_evidence_tier': 'calibrated_multiphysics_screening',
+            'can_exclude_candidate': False,
+        }
+    return {
+        'status': 'validation_required',
+        'valid': False,
+        'reactor_type': 'NTEC',
+        'pathway_mode': 'ntec',
+        'catalyst_name': config.catalyst_name,
+        'T_K': config.T_inlet_K,
+        'ntec_assistance': assistance,
+        'reactor_evidence_tier': 'pathway_model_pending',
+        'can_exclude_candidate': False,
+        'limitations': [
+            'candidate_specific_ntec_pathway_kinetics_required',
+            'liquid_solid_hydrodynamic_model_required',
+        ],
+    }
+
+
+def simulate_electrochemical_pathway(config: ReactorConfig) -> Dict:
+    """Report electrochemical evidence without inventing a Cantera conversion."""
+    from pipeline.process.electrochemical_model import (
+        conditions_from_environment, electrochemical_evidence)
+
+    evidence = electrochemical_evidence(conditions_from_environment())
+    phase = evidence['conditions'].get('electrolyte_phase')
+    if config.multiphysics_artifact:
+        solver_evidence = config.multiphysics_artifact
+        artifact = solver_evidence['artifact']
+        outputs = artifact['outputs']
+        phase = artifact.get('electrolyte_phase', phase)
+        return {
+            'status': 'complete', 'valid': True,
+            'reactor_type': 'Electrochemical',
+            'pathway_mode': 'electrochemical',
+            'electrolyte_phase': phase,
+            'catalyst_name': config.catalyst_name,
+            'candidate_id': config.candidate_id,
+            'T_K': config.T_inlet_K,
+            **{name: float(outputs[name]) for name in (
+                'CH4_conversion', 'H2_selectivity',
+                'faradaic_efficiency_H2', 'current_density_A_cm2',
+                'cell_voltage_V', 'electrical_power_density_W_cm2')},
+            'electrochemical_evidence': evidence,
+            'multiphysics_evidence': solver_evidence,
+            'reactor_evidence_tier': 'mechanistic_multiphysics_screening',
+            'can_exclude_candidate': False,
+        }
+    return {
+        'status': 'validation_required',
+        'valid': False,
+        'reactor_type': 'Electrochemical',
+        'pathway_mode': 'electrochemical',
+        'electrolyte_phase': phase,
+        'catalyst_name': config.catalyst_name,
+        'T_K': config.T_inlet_K,
+        'electrochemical_evidence': evidence,
+        'reactor_evidence_tier': 'pathway_model_pending',
+        'can_exclude_candidate': False,
+        'limitations': [
+            'candidate_specific_electrochemical_kinetics_required',
+            f'{phase or "unspecified"}_electrolyte_transport_model_required',
+        ],
+    }
+
+
 def simulate_reactor(config: ReactorConfig) -> Dict:
     """Run the appropriate reactor simulation based on config.reactor_type."""
     simulators = {
         'MMBCR': simulate_mmbcr,
         'PFR': simulate_pfr,
         'Fluidized': simulate_fluidized_bed,
+        'NTEC': simulate_ntec_pathway,
+        'Electrochemical': simulate_electrochemical_pathway,
     }
-    sim = simulators.get(config.reactor_type, simulate_mmbcr)
-    result = sim(config)
+    if config.reactor_type not in simulators:
+        raise ValueError(f'unsupported reactor type: {config.reactor_type}')
+    selected_mode = reactor_types_for_mode(config.pathway_mode)
+    if config.reactor_type not in selected_mode:
+        raise ValueError(
+            f'reactor {config.reactor_type!r} is not valid for pathway mode '
+            f'{config.pathway_mode!r}; expected {selected_mode}')
+    applicable, reason = reactor_applicability(
+        config.reactor_type, config.material_class)
+    spec = REACTOR_MODELS[config.reactor_type]
+    if not applicable:
+        result = {
+            'status': 'not_applicable', 'valid': False,
+            'reactor_type': config.reactor_type,
+            'pathway_mode': config.pathway_mode,
+            'catalyst_name': config.catalyst_name,
+            'material_class': config.material_class,
+            'reason': reason, 'can_exclude_candidate': False,
+            'reactor_evidence_tier': 'not_applicable_non_excluding',
+            'bed_or_interface': spec.bed_or_interface,
+            'cantera_reactor_model': spec.cantera_model,
+            'reaction_domain': spec.reaction_domain,
+            'reactor_model_fidelity': spec.fidelity,
+        }
+    else:
+        from pipeline.process.multiphysics_contract import (
+            EXTERNAL_SOLVERS, load_validated_artifact)
+        if config.reactor_type in EXTERNAL_SOLVERS:
+            loaded = load_validated_artifact(
+                config.multiphysics_results_dir, config.candidate_id,
+                config.pathway_mode, config.reactor_type, config.T_inlet_K)
+            if not loaded['valid']:
+                result = {
+                    'status': 'validation_required', 'valid': False,
+                    'reactor_type': config.reactor_type,
+                    'pathway_mode': config.pathway_mode,
+                    'catalyst_name': config.catalyst_name,
+                    'candidate_id': config.candidate_id,
+                    'material_class': config.material_class,
+                    'multiphysics_evidence': loaded,
+                    'can_exclude_candidate': False,
+                    'reactor_evidence_tier': 'required_solver_evidence_missing',
+                    'bed_or_interface': spec.bed_or_interface,
+                    'cantera_reactor_model': spec.cantera_model,
+                    'reaction_domain': spec.reaction_domain,
+                    'reactor_model_fidelity': spec.fidelity,
+                }
+                REACTOR_DIR.mkdir(parents=True, exist_ok=True)
+                fname = (f"{config.reactor_type}_{config.catalyst_name}_"
+                         f"{int(config.T_inlet_K)}K.json")
+                save_json(result, fname, subdir='reactor')
+                return result
+            config.multiphysics_artifact = loaded
+            outputs = loaded['artifact']['outputs']
+            if config.reactor_type == 'Fluidized':
+                config.gas_velocity_m_s = float(outputs['gas_velocity_m_s'])
+                config.u_mf_m_s = float(outputs['u_mf_m_s'])
+                config.fluidized_bubble_fraction = float(
+                    outputs['bubble_fraction'])
+            elif config.reactor_type == 'MMBCR':
+                config.gas_velocity_m_s = float(outputs['gas_velocity_m_s'])
+                config.gas_holdup_fraction = float(
+                    outputs['gas_holdup_fraction'])
+                config.bubble_diameter_mm = float(outputs['bubble_diameter_mm'])
+        _validate_reactor_config(config)
+        result = simulators[config.reactor_type](config)
+        result.setdefault('status', 'complete')
+        result.update({
+            'pathway_mode': config.pathway_mode,
+            'material_class': config.material_class,
+            'bed_or_interface': spec.bed_or_interface,
+            'cantera_reactor_model': spec.cantera_model,
+            'reaction_domain': spec.reaction_domain,
+            'reactor_model_fidelity': spec.fidelity,
+            'multiphysics_evidence': config.multiphysics_artifact,
+        })
+        if spec.fidelity != 'validated_predictive':
+            limitations = list(result.get('reactor_evidence_limitations', []))
+            limitation = f'{config.reactor_type.lower()}_screening_model_not_validated'
+            if limitation not in limitations:
+                limitations.append(limitation)
+            result['reactor_evidence_limitations'] = limitations
+            result['can_exclude_candidate'] = False
 
     # Save result
     REACTOR_DIR.mkdir(parents=True, exist_ok=True)
@@ -462,7 +697,11 @@ def simulate_reactor(config: ReactorConfig) -> Dict:
 def run_reactor_sweep(catalyst_name: str, mechanism_file: str,
                       temperatures: List[float] = None,
                       reactor_types: List[str] = None,
-                      catalyst_E_act_eV: float = 0.8) -> List[Dict]:
+                      catalyst_E_act_eV: float = 0.8,
+                      pathway_mode: str = DEFAULT_MODE,
+                      material_class: str | None = None,
+                      candidate_id: str = 'unknown',
+                      multiphysics_results_dir: str | None = None) -> List[Dict]:
     """
     Sweep operating conditions for a catalyst across temperatures and reactor types.
 
@@ -474,7 +713,10 @@ def run_reactor_sweep(catalyst_name: str, mechanism_file: str,
     if temperatures is None:
         temperatures = [773.15, 900.0, 1100.0, 1300.0]
     if reactor_types is None:
-        reactor_types = ['MMBCR', 'PFR', 'Fluidized']
+        # The default family is conventional thermocatalysis. MMBCR, NTEC, and
+        # electrochemical physics must be selected explicitly.
+        reactor_types = list(reactor_types_for_mode(pathway_mode))
+    validate_mode_reactors(pathway_mode, reactor_types)
 
     results = []
     for rt in reactor_types:
@@ -485,6 +727,10 @@ def run_reactor_sweep(catalyst_name: str, mechanism_file: str,
                 mechanism_file=str(mechanism_file),
                 catalyst_name=catalyst_name,
                 catalyst_E_act_eV=catalyst_E_act_eV,
+                pathway_mode=pathway_mode,
+                material_class=material_class,
+                candidate_id=candidate_id,
+                multiphysics_results_dir=multiphysics_results_dir,
             )
             try:
                 result = simulate_reactor(config)
@@ -495,6 +741,8 @@ def run_reactor_sweep(catalyst_name: str, mechanism_file: str,
                     'status': 'failed',
                     'valid': False,
                     'reactor_type': rt,
+                    'pathway_mode': pathway_mode,
+                    'material_class': material_class,
                     'temperature_K': float(T),
                     'catalyst': catalyst_name,
                     'error_type': type(exc).__name__,
@@ -521,6 +769,8 @@ if __name__ == '__main__':
         T_inlet_K=1000.0,
         reactor_type='MMBCR',
         catalyst_name='NiBi_test',
+        material_class='MoltenMetal',
+        pathway_mode='mmbcr',
     )
     result = simulate_reactor(config)
     print(json.dumps(result, indent=2))

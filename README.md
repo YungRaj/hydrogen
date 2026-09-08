@@ -1,12 +1,13 @@
 # Turquoise Hydrogen — Autonomous Multi-Scale Catalyst Discovery
 
-A GPU-accelerated computational pipeline for autonomous catalyst discovery targeting **turquoise hydrogen production** (methane pyrolysis via NTEC) and **PEM fuel cell** energy conversion. Exhaustively traverses a **21.1-billion-configuration** encoded design space across 14 material classes using deterministic branch-and-bound, Meta's FAIR Chemistry equivariant graph neural networks, reactor-scale simulation, density functional theory, and variational quantum chemistry.
+A GPU-accelerated computational pipeline for autonomous catalyst discovery targeting **turquoise hydrogen production** through thermocatalytic, molten-metal, NTEC, and broader electrochemical methane-conversion pathways, plus **PEM fuel cell** energy conversion. It traverses a **21.1-billion-configuration** encoded design space across 14 material classes using deterministic branch-and-bound, Meta's FAIR Chemistry equivariant graph neural networks, reactor-scale simulation, density functional theory, and variational quantum chemistry.
 
 ---
 
 ### 📖 References & Deep-Dives
 
 * 🔬 **[Turquoise Hydrogen Reference Guide](docs/TURQUOISE_HYDROGEN.md)**: Exhaustive literature review of thermocatalytic and nanotribo-mechano-electrochemical (NTEC) methane splitting.
+* 🧪 **[Physical Multiphysics Cases](docs/PHYSICAL_CASES.md)**: Exact reactor-input, parameter-provenance, calibration/holdout, and solver-artifact contract.
 * ⚡ **[Fuel Cell ORR & MEA Guide](docs/FUEL_CELL.md)**: Comprehensive description of state-of-the-art catalysts, MEA designs, and large-scale PEMFC stack configurations.
 
 ---
@@ -15,6 +16,7 @@ A GPU-accelerated computational pipeline for autonomous catalyst discovery targe
 
 - [Overview](#overview)
 - [Where to Start](#where-to-start)
+- [Current Reactor-Mode Readiness](#current-reactor-mode-readiness)
 - [Architecture](#architecture)
 - [Design Space](#design-space)
 - [Simulation Software Stack](#simulation-software-stack)
@@ -61,6 +63,25 @@ The repository has one production launcher and one current pilot launcher:
 | Inspect/resume production QE validation | `run_validation_campaign.py` | converged endpoints → NEB and clean → ORR adsorbates/references |
 | Monitor an active local run | `live_dashboard.py` | generated state under `results/` |
 
+## Current Reactor-Mode Readiness
+
+The repository distinguishes executable software from scientifically validated
+prediction. Current status is:
+
+| Mode | Software status | Inputs needed to complete a condition | Claim boundary |
+|---|---|---|---|
+| `thermocatalytic_pfr` | Operational now | Candidate screening record; generated Cantera mechanism | Qualified diagnostic screening, not experimentally validated prediction |
+| `thermocatalytic` | Operational dispatcher | PFR inputs plus a valid fluidized OpenFOAM artifact | PFR completes independently; missing fluidized evidence is `validation_required` |
+| `thermocatalytic_fluidized` | Solver integration complete | Sourced physical case, OpenFOAM hydrodynamics, calibration and held-out validation | Non-excluding until a valid artifact is present |
+| `mmbcr` | Solver integration complete | Sourced molten-metal case, OpenFOAM hydrodynamics, candidate interface kinetics, calibration and holdout | Non-excluding until a valid artifact is present; graphite correction remains separate work |
+| `ntec` | Solver integration complete | Coupled OpenFOAM/FEniCSx/Cantera case and real paired NTEC/control calibration | No speculative NTEC assistance or conversion |
+| `electrochemical` | Solver integration complete | FEniCSx/Cantera case, complete charge-transfer mechanism, aqueous/molten properties and holdout | No fabricated electrochemical performance |
+
+For an immediately runnable reactor-screening campaign, explicitly select
+`--mode thermocatalytic_pfr`. The default `thermocatalytic` deliberately
+dispatches both PFR and fluidized-bed conditions; fluidized conditions remain
+visible but incomplete until their validated OpenFOAM artifacts exist.
+
 Inside `pipeline/`, source is grouped by responsibility:
 
 - **`search/`:** `indexed_space.py`, `exhaustive_search.py`, `branch_search.py`,
@@ -69,8 +90,8 @@ Inside `pipeline/`, source is grouped by responsibility:
   `surrogate_model.py`, and `small_data_ranker.py`.
 - **`validation/`:** `qe_workflows.py`, `orr_workflows.py`,
   `dft_validator.py`, and `dft_fuel_cell.py`.
-- **`process/`:** `reactor_models.py`, `ntec_model.py`, `pemfc_model.py`,
-  and `fuel_cell_stack.py`.
+- **`process/`:** reactor/pathway routing, physical-case and multiphysics
+  contracts/runners, NTEC/electrochemical evidence, PEMFC, and stack models.
 - **`evidence/`:** `prior_art.py`, `novelty_benchmark.py`,
   `readiness.py`, `campaign_status.py`, and `report_generator.py`.
 - **`common/`:** design-space definitions, scope rules, confidence policy,
@@ -79,11 +100,16 @@ Inside `pipeline/`, source is grouped by responsibility:
 Generated outputs, downloaded model weights, pseudopotentials, mechanisms, and
 Python caches are intentionally ignored. They are runtime assets, not source.
 
-### Turquoise Hydrogen Regimes: NTEC vs. Thermocatalytic Pyrolysis
+### Turquoise Hydrogen Pathway Modes
 
-Methane splitting (pyrolysis) traditionally requires high temperatures due to the high activation barrier of the C-H bond. This pipeline supports dual-mode screening to optimize for both regimes over a shared sweep range of **500°C (773.15 K) to 1300 K** (using points `[773.15, 900.0, 1100.0, 1300.0] K`):
+Methane splitting traditionally requires high temperatures because of its C-H
+activation barrier. The default `thermocatalytic` mode evaluates both PFR and
+fluidized-bed operation over **500°C (773.15 K) to 1300 K** (using points
+`[773.15, 900.0, 1100.0, 1300.0] K`). The corresponding single-reactor modes
+are `thermocatalytic_pfr` and `thermocatalytic_fluidized`; `mmbcr` selects the
+thermal molten-metal bubble-column route explicitly.
 
-* **Nanotribo-Mechano-Electrochemical (NTEC) Pyrolysis (Default):**
+* **Nanotribo-Mechano-Electrochemical (NTEC) Pyrolysis:**
   - **Mechanism:** Employs mechanical fluidization or shearing forces to create local triboelectric fields, facilitating C-H bond activation.
   - **Coking Resistance:** NTEC assistance is zero unless measured operating
     inputs and explicit paired NTEC/control effect measurements are supplied.
@@ -94,6 +120,13 @@ Methane splitting (pyrolysis) traditionally requires high temperatures due to th
   - **Mechanism:** Standard thermochemical activation where carbon splitting is driven purely by bulk temperature and traditional solid/alloy surface kinetics.
   - **Coking Resistance:** No mechanical coking bonuses are applied, focusing the optimization on high-temperature phase stability and traditional activation barriers.
 
+* **Electrochemical Methane Conversion:**
+  - **Configuration:** One `electrochemical` mode accepts either `aqueous` or
+    `molten` as its electrolyte phase. Specialized kinetics and transport remain
+    phase-specific even though orchestration is shared.
+  - **Evidence:** Missing measurements or pathway models yield a non-excluding
+    `validation_required` record rather than a speculative conversion estimate.
+
 ---
 
 ## Architecture
@@ -101,11 +134,11 @@ Methane splitting (pyrolysis) traditionally requires high temperatures due to th
 ```
 Phase 1: SCREENING + OPTIMIZATION            Phase 2: REACTOR SIMULATION
 ┌─────────────────────────────────┐          ┌──────────────────────────┐
-│  21.1B Design Space             │          │  Cantera 3.2             │
-│  │                              │          │  ├─ MMBCR (bubble col.)  │
-│  ▼                              │          │  ├─ PFR (plug flow)     │
-│  eSen-SM (3 GPUs, batched)      │──Top-K──→│  ├─ Fluidized bed        │
-│  │                              │          │  └─ TST + BEP kinetics   │
+│  21.1B Design Space             │          │  Pathway-owned solvers   │
+│  │                              │          │  ├─ Cantera: kinetics    │
+│  ▼                              │          │  ├─ OpenFOAM: multiphase│
+│  eSen-SM (3 GPUs, batched)      │──Top-K──→│  ├─ FEniCSx: transport   │
+│  │                              │          │  └─ strict case/artifact │
 │  ▼                              │          └──────────────────────────┘
 │  Surrogate NN (PyTorch)         │                    │
 │  │                              │                    ▼
@@ -211,12 +244,14 @@ Each genome encodes into a **353-dimensional** feature vector for the surrogate 
 
 | Software | Version | Role | Phase |
 |----------|---------|------|-------|
-| **Meta eSen-SM** | OC25 | Equivariant GNN surface-catalysis potential — slab relaxation, adsorption energies, barriers | 1, 5 |
+| **Meta eSen-SM** | OC25 | Equivariant GNN potential — screening slab relaxation, energies and forces; BEP converts descriptors to provisional barriers | 1, 5 |
 | **PyTorch** | 2.11.0 | Multi-GPU GNN inference + surrogate NN training/prediction | 1, 5 |
 | **CUDA-Q** | 0.12.0 | Variational Quantum Eigensolver on GPU quantum simulator | 4 |
 | **cuQuantum** | 26.6.0 | Accelerated statevector simulation backend for CUDA-Q | 4 |
 | **Cantera** | 3.2.0 | Chemical kinetics — reactor ODEs with custom YAML mechanisms | 2 |
-| **Quantum ESPRESSO** | 7.x | Plane-wave DFT (pw.x) — SCF, relaxation, electronic structure | 3 |
+| **Quantum ESPRESSO** | 7.x | Plane-wave DFT (`pw.x`) and reaction paths (`neb.x`) — SCF, relaxation, adsorption and candidate barriers | 3 |
+| **OpenFOAM** | v2412+ | Multiphase hydrodynamics for fluidized, MMBCR, and NTEC physical cases | 2 |
+| **FEniCSx** | 0.9+ | Charge/species/electrical continuum transport for NTEC and electrochemical cases | 2 |
 
 ### Scientific Libraries
 
@@ -248,7 +283,7 @@ Each genome encodes into a **353-dimensional** feature vector for the surrogate 
 | `search/` | `indexed_space`, `exhaustive_search`, `branch_search`, `discovery`, `adaptive_validation` | Deterministic coverage and multi-fidelity acquisition |
 | `screening/` | surface and fuel-cell screeners, surrogate/ranker modules, application objective orchestrators | Candidate construction and low-cost ranking |
 | `validation/` | QE/NEB, ORR, DFT, VQE, and viability modules | High-fidelity calculations and fail-closed checks |
-| `process/` | reactor, NTEC, PEMFC, and stack modules | Reactor-to-electricity system modeling |
+| `process/` | pathway routing, physical-case/artifact gates, external solver runner, reactor, NTEC/electrochemical, PEMFC and stack modules | Reactor-to-electricity system modeling |
 | `evidence/` | prior art, benchmarks, readiness, status, and reporting | Scientific evidence and claim control |
 | package root | `orchestrator.py` | End-to-end phase coordination |
 
@@ -260,7 +295,7 @@ Each genome encodes into a **353-dimensional** feature vector for the surrogate 
 
 | Descriptor | Definition | Target |
 |-----------|-----------|--------|
-| **E_act** (activation barrier) | BEP correlation: `0.75 × ΔE_split + 0.95` eV | < 0.8 eV |
+| **E_act** (activation barrier) | Class-specific BEP correlation `intercept + slope × ΔE_split`; provisional until candidate NEB validation | < 0.8 eV |
 | **ΔE_H** (H* adsorption) | `E(slab+H) - E(slab) - 0.5×E(H₂)` | -0.3 to -0.5 eV |
 | **ΔE_C** (C* adsorption) | `E(slab+C) - E(slab) - E(C)` | > -4.0 eV (resist coking) |
 | **Coking index** | `ΔE_C - 2×ΔE_H` | Positive = resistant |
@@ -277,7 +312,7 @@ ranking whenever an uncensored candidate is available.
 | Rate constants | Arrhenius: `k = A × exp(-E_act / k_B T)`, A from TST |
 | Surface reactions | Cantera `ReactorSurface` with custom YAML mechanism |
 | Solid carbon | Modeled as `C_graphite` gas-phase tracer species |
-| Reactor types | MMBCR (molten metal bubble column), PFR, fluidized bed |
+| Reactor types | PFR screening; OpenFOAM-coupled fluidized/MMBCR; OpenFOAM+FEniCSx+Cantera NTEC; FEniCSx+Cantera electrochemical; external modes fail closed on missing evidence |
 
 ### Fuel Cell Models
 
@@ -299,7 +334,9 @@ catalyst-layer realization.
 
 ## Environment Setup
 
-The pipeline requires **5 separate conda environments** due to incompatible dependency trees. Each environment serves specific phases.
+The pipeline uses **7 logical Conda environments** because the scientific
+stacks have incompatible binary and accelerator requirements. Compatible
+environments may be merged, but these names provide portable discovery.
 
 ### Prerequisites
 
@@ -361,6 +398,22 @@ conda activate battery-env
 pip install numpy scipy pandas
 ```
 
+### Environment 6: `openfoam-env` — Multiphase hydrodynamics
+
+Used by fluidized-bed, MMBCR, and NTEC cases:
+
+```bash
+conda env create -f environment-openfoam.yml
+```
+
+### Environment 7: `fenicsx-env` — Coupled continuum transport
+
+Used by NTEC and aqueous/molten electrochemical cases:
+
+```bash
+conda env create -f environment-fenicsx.yml
+```
+
 ### Verify Installation
 
 ```bash
@@ -370,6 +423,8 @@ conda run -n cp2k-env python -c "import cantera; print(f'cp2k-env OK: Cantera {c
 conda run -n qe-env bash -c "which pw.x && echo 'qe-env OK'"
 conda run -n quantum-env python -c "import cudaq; print('quantum-env OK')"
 conda run -n battery-env python -c "import numpy, scipy; print('battery-env OK')"
+conda run -n openfoam-env multiphaseEulerFoam -help
+conda run -n fenicsx-env python -c "import dolfinx, cantera; print(f'FEniCSx {dolfinx.__version__}; Cantera {cantera.__version__}')"
 ```
 
 ---
@@ -404,7 +459,8 @@ The pipeline relies on Meta's FAIR Chemistry **eSen (EquiformerV2 Energy-Conserv
 ### Quick Test (5 min)
 
 ```bash
-conda run -n fairchem-env python -m pipeline.orchestrator --quick --no-dft --no-vqe
+conda run -n fairchem-env python -m pipeline.orchestrator \
+  --quick --no-dft --no-vqe --mode thermocatalytic_pfr
 ```
 
 Quick mode runs deterministic calibration and one resumable terminal branch leaf,
@@ -414,8 +470,9 @@ smoke test and does not produce a `complete: true` 21.1B coverage certificate.
 ### Test Suite
 
 ```bash
-conda run -n deepmd-env python test_pipeline.py
-conda run -n deepmd-env python audit_pipeline.py
+conda run -n fairchem-env python test_pipeline.py
+conda run -n fairchem-env python audit_pipeline.py
+conda run -n fairchem-env python test_scientific_contracts.py
 ```
 
 The active suite verifies indexed-space boundaries, disjoint shards, deterministic
@@ -423,6 +480,10 @@ tree probes across all 14 classes, branch resume, no surrogate-based pruning,
 gap/overlap detection, population-denominator enforcement, coverage certificates,
 blocked legacy GA entry points, and consistency between this README and the
 branch-only production CLI.
+
+Current validated baseline: **74/74 pipeline tests**, **34/34 scientific
+contracts**, and **24/24 exclusion-audit checks**. Hardware-specific CUDA-Q and
+eSen tests remain dependent on the documented accelerator environments.
 
 ### Production Campaign (48 hours)
 
@@ -445,6 +506,7 @@ nohup conda run --no-capture-output -n fairchem-env python -u run_production_cam
   --prior-art-csv data/patent_registry.csv \
   --hours 48 \
   --top-k 200 \
+  --mode thermocatalytic_pfr \
   > results/campaign_v6.log 2>&1 &
 ```
 
@@ -483,8 +545,10 @@ directory or silently substitutes another executable.
 | `--evidence-manifest` | `results/evidence_manifest.json` | Counts of converged calculations and measured reactor/MEA/durability/NTEC-control evidence required in final mode |
 | `--no-dft` | false | Skip Quantum ESPRESSO phase |
 | `--no-vqe` | false | Skip CUDA-Q VQE phase |
-| `--mode` | `ntec` | Pyrolysis mode: `ntec` (nanotriboelectric) or `thermocatalytic` |
+| `--mode` | `thermocatalytic` | Pathway mode: `thermocatalytic`, `thermocatalytic_pfr`, `thermocatalytic_fluidized`, `mmbcr`, `ntec`, or `electrochemical` |
 | `--ntec-conditions-json` | — | Measured NTEC operating inputs plus paired-control effect calibration; incomplete inputs receive no numerical assistance |
+| `--electrochemical-conditions-json` | — | Measured electrochemical operating point; `electrolyte_phase` selects `aqueous` or `molten` physics |
+| `--multiphysics-results-dir` | `<results-dir>/multiphysics` | Root containing identity- and convergence-gated OpenFOAM/FEniCSx artifacts |
 
 Calibration counts are requested probes, not assumed successful calculations.
 If failed-closed relaxations leave fewer than 20 valid rows, each application
@@ -493,23 +557,114 @@ bounded refill pool. It either reaches the ranker's declared minimum or exits
 with an explicit calibration-exhaustion error; invalid rows are never trained
 as valid labels.
 
-### Pyrolysis Modes: NTEC vs. Thermocatalytic
+### Methane-Conversion Pathway Modes
 
-The pipeline supports dual-mode screening of methane conversion mechanisms, toggled via the `--mode` flag. Both modes sweep the same temperature range from **500°C (773.15 K) to 1300 K** (`[773.15, 900.0, 1100.0, 1300.0] K`):
+The `--mode` flag selects physical pathway routing, rather than merely changing
+a score. The default `thermocatalytic` family dispatches both PFR and
+fluidized-bed models; it does not imply both have complete evidence.
+`thermocatalytic_pfr` and `thermocatalytic_fluidized` select one model, while
+`mmbcr` explicitly selects the thermal molten-metal bubble column. These
+thermal modes sweep **500°C (773.15 K) to 1300 K**
+(`[773.15, 900.0, 1100.0, 1300.0] K`).
 
-1. **NTEC Mode (Default):**
-   * **Catalyst Physics:** Uses explicit NTEC operating inputs and paired-control
-     effect measurements. Missing calibration yields zero assistance and
-     `unknown` evidence status.
+`ntec` represents the mechanically stimulated liquid-solid interfacial
+pathway. It does not silently reuse MMBCR, PFR, or fluidized-bed hydrodynamics.
+An NTEC result is accepted only from a converged OpenFOAM + FEniCSx + Cantera
+artifact with mesh independence, conservation checks, input provenance, and a
+paired NTEC/control calibration. Missing or invalid evidence remains visible
+and non-excluding.
 
-2. **Thermocatalytic Mode:**
-   * **Catalyst Physics:** Standard thermal cracking without mechanical shear bonuses, prioritizing materials with high thermal stability and low activation energy.
+`electrochemical` covers both aqueous and molten electrolytes through the
+`electrolyte_phase` condition. They share orchestration but retain distinct
+transport, thermodynamic, and kinetic configuration. Results require a
+converged FEniCSx transport + Cantera charge-transfer artifact and a declared
+complete mechanism. Missing inputs produce `validation_required` with no
+fabricated conversion and no authority to exclude a candidate.
+
+#### Reactor and mechanism wiring
+
+The pathway-to-reactor mapping is enforced in
+`pipeline/process/pathway_modes.py`; callers cannot request a reactor that does
+not belong to the selected mode. The reactor layer also checks candidate phase
+compatibility before invoking Cantera. An incompatible pairing is retained as
+`not_applicable_non_excluding`: it is not simulated and cannot eliminate the
+candidate from discovery.
+
+| Mode | Physical configuration | Implementation and present boundary |
+|---|---|---|
+| `thermocatalytic` | Fixed packed bed plus gas-solid fluidized bed | Dispatches both; PFR runs internally and fluidized requires its validated OpenFOAM artifact |
+| `thermocatalytic_pfr` | Fixed packed bed | Isothermal staged Lagrangian ideal-gas control volumes with candidate surface kinetics; catalyst area uses total bed volume and gas residence uses void volume |
+| `thermocatalytic_fluidized` | Gas-solid fluidized bed | OpenFOAM supplies converged hydrodynamics; Cantera applies candidate surface kinetics to the resulting emulsion/bubble screening model |
+| `mmbcr` | Methane bubbles in molten metal | OpenFOAM supplies gas velocity, holdup, and bubble size; Cantera applies candidate interface kinetics in a CSTR cascade; restricted to `MoltenMetal` candidates |
+| `ntec` | Mechanically agitated liquid-solid interface | OpenFOAM hydrodynamics + FEniCSx coupled transport + Cantera chemistry, accepted only with paired-control calibration |
+| `electrochemical` | Aqueous or molten electrode-electrolyte interface | FEniCSx electrolyte/electrode transport + Cantera charge-transfer kinetics, accepted only with a complete methane-specific mechanism |
+
+The generated Cantera YAML contains gas chemistry plus a candidate-named
+heterogeneous surface phase. Screening adsorption descriptors and activation
+barriers are carried with provenance; unresolved elementary barriers remain
+explicit template defaults. Consequently, even a numerically completed
+Cantera sweep remains diagnostic until candidate-specific kinetics and the
+reactor-model limitations recorded in its JSON output are resolved.
+
+NTEC and electrochemical runs do **not** generate the thermal screening YAML.
+All external modes consume mode-owned multiphysics artifacts. Before execution,
+the case directory must contain the sourced and validated
+`hydrogen_case.json` described in `docs/PHYSICAL_CASES.md`. Generate an artifact with
+`python -m pipeline.process.multiphysics_runner` and pass its root with
+`--multiphysics-results-dir`. Each case must emit `hydrogen_outputs.json`,
+`hydrogen_convergence.json`, and `hydrogen_metadata.json`, including held-out
+model error and its acceptance threshold; see
+`docs/multiphysics_artifact.example.json`. Artifacts are identity-, solver-,
+physical-case-, convergence-, conservation-, mesh-, held-out-validation-, and
+provenance-gated before ingestion.
+Invalid evidence is deleted by the runner and cannot become a performance
+claim or eliminate a candidate.
+
+Create the external solver environments portably with:
+
+```bash
+conda env create -f environment-openfoam.yml
+conda env create -f environment-fenicsx.yml
+```
+
+#### External-mode execution lifecycle
+
+For `thermocatalytic_fluidized`, `mmbcr`, `ntec`, or `electrochemical`:
+
+1. Create a candidate- and apparatus-specific solver directory.
+2. Add `hydrogen_case.json` with all mode-required physical values, units in
+   field names, parameter sources, kinetics/feed sources, and disjoint
+   calibration and holdout IDs.
+3. Configure the appropriate OpenFOAM case and/or FEniCSx model. This repository
+   does not manufacture apparatus geometry, kinetic constants, or measurements.
+4. Run the external backend adapter, for example:
+
+```bash
+python -m pipeline.process.multiphysics_runner \
+  --mode ntec \
+  --reactor-type NTEC \
+  --candidate-id CANONICAL_ID \
+  --temperature-K 300 \
+  --case-dir cases/CANONICAL_ID/ntec \
+  --fenics-model cases/CANONICAL_ID/ntec/model.py \
+  --results-dir results/multiphysics \
+  --model-source "immutable case revision or DOI"
+```
+
+5. Launch or resume the campaign with the same candidate identity, mode,
+   temperature, and `--multiphysics-results-dir results/multiphysics`.
+
+The external case must write solver outputs, convergence/conservation data, and
+metadata proving held-out error is within its declared threshold. The runner
+hashes pristine inputs before execution and deletes any artifact that fails the
+acceptance contract. See [Physical Multiphysics Cases](docs/PHYSICAL_CASES.md)
+for every required field.
 
 ### Single Phase Execution
 
 ```bash
-# Run only Phase 2 (reactor simulation)
-conda run -n cp2k-env python -m pipeline.orchestrator --phase 2
+# Run only Phase 2 with the immediately operational PFR screening mode
+conda run -n cp2k-env python -m pipeline.orchestrator --phase 2 --mode thermocatalytic_pfr
 
 # Run Phases 1-3
 conda run -n fairchem-env python -m pipeline.orchestrator --start 1 --end 3
@@ -538,9 +693,12 @@ conda run -n battery-env python -m pipeline.process.pemfc_model
 ```
 hydrogen/
 ├── README.md                      # This file
+├── CHANGELOG.md                   # Shipped behavior and known boundaries
 ├── LICENSE                        # MIT license
 ├── requirements.txt               # Python dependencies
 ├── environment.yml                # Conda environment spec
+├── environment-openfoam.yml       # Multiphase solver environment
+├── environment-fenicsx.yml        # Continuum transport environment
 ├── run_production_campaign.py     # Production launcher (GPU-saturated)
 ├── .hf_token                      # HuggingFace token (chmod 600, gitignored)
 │
@@ -571,6 +729,11 @@ hydrogen/
 │   │   └── dft_fuel_cell.py       # Fuel-cell DFT validation
 │   ├── process/                   # Reactor-to-electricity models
 │   │   ├── reactor_models.py      # MMBCR, PFR, and fluidized bed
+│   │   ├── pathway_modes.py       # Enforced mode/bed/phase routing contracts
+│   │   ├── physical_case.py       # Unit/source/calibration input contract
+│   │   ├── multiphysics_contract.py # Accepted-artifact scientific gates
+│   │   ├── multiphysics_runner.py # Portable OpenFOAM/FEniCSx execution
+│   │   ├── electrochemical_model.py # Aqueous/molten evidence contract
 │   │   ├── ntec_model.py          # Paired-control NTEC transfer model
 │   │   ├── pemfc_model.py         # 1D PEMFC polarization
 │   │   └── fuel_cell_stack.py     # Stack scaling and TEA
@@ -584,10 +747,16 @@ hydrogen/
 ├── quantum_espresso/              # QE pseudopotentials (gitignored)
 │   └── pseudo/                    # .UPF files (download separately)
 │
+├── docs/
+│   ├── TECHNICAL_ARCHITECTURE.md  # Detailed pipeline architecture
+│   ├── PHYSICAL_CASES.md          # External case and calibration contract
+│   └── multiphysics_artifact.example.json
+│
 ├── mechanisms/                    # Generated Cantera YAML (gitignored)
 └── results/                       # Pipeline outputs (gitignored)
     ├── screening/                 # Branch database, certificates, GNN CSVs
-    ├── reactor/                   # Cantera simulation results
+    ├── reactor/                   # Pathway-specific reactor results
+    ├── multiphysics/              # Validated external solver artifacts
     ├── dft/                       # QE input/output files
     ├── vqe/                       # VQE energetics (JSON)
     ├── fuel_cell/                 # Cathode screening + PEMFC curves
@@ -1026,7 +1195,14 @@ For each top-K catalyst from Phase 1:
    reverse rates follow the declared surface thermochemistry and detailed
    balance. A JSON sidecar records every resolved parameter and whether the
    mechanism remains an incomplete screening template.
-3. Simulate three reactor types (MMBCR, PFR, fluidized bed) across the standardized 4 temperatures (500°C to 1300 K / 773.15–1300 K)
+3. Route the selected pathway to its compatible reactor model(s). The default
+   runs packed-bed PFR and fluidized-bed paths; `mmbcr` runs only the
+   molten-metal path. Thermal modes sweep the standardized four temperatures
+   (500°C to 1300 K / 773.15–1300 K). Fluidized/MMBCR hydrodynamics require
+   OpenFOAM artifacts; NTEC requires OpenFOAM + FEniCSx + Cantera;
+   electrochemical requires FEniCSx + Cantera. Every external path requires a
+   sourced `hydrogen_case.json`, disjoint calibration/holdout records, and a
+   held-out error within its declared acceptance threshold.
 4. Record CH₄ conversion, H₂ selectivity, carbon-yield bookkeeping,
    residence time, and kinetic-completeness status.
 
@@ -1101,7 +1277,7 @@ tail -f results/screening/surface_screening.log
 tail -f results/campaign_v6.log
 
 # Check pipeline state
-python -c "import json; print(json.dumps(json.load(open('pipeline_state.json')), indent=2))"
+python -c "import json; print(json.dumps(json.load(open('results/reports/pipeline_state.json')), indent=2))"
 ```
 
 ---
@@ -1112,11 +1288,14 @@ After a campaign completes, key outputs include:
 
 | File | Contents |
 |------|----------|
-| `results/screening/ga_full_database.csv` | Complete screening database (all eSen-evaluated candidates) |
-| `results/screening/ga_surface_gen*.csv` | Per-round GNN validation results |
+| `results/screening/indexed_scan.sqlite` | Resumable divide-and-conquer search state |
+| `results/screening/turquoise_hydrogen_coverage_certificate.json` | Certified methane-catalyst coverage status |
+| `results/fuel_cell/coverage_certificate.json` | Certified fuel-cell catalyst coverage status |
+| `results/screening/ga_full_database.csv` | Historical filename containing evaluated eSen calibration/validation rows; not the full 21.1B population |
 | `results/reports/pipeline_report.md` | Auto-generated comprehensive report |
-| `pipeline_state.json` | Machine-readable pipeline state with timing and metrics |
-| `results/reactor/*.json` | Cantera simulation results per catalyst |
+| `results/reports/pipeline_state.json` | Machine-readable pipeline state with timing and metrics |
+| `results/reactor/*.json` | PFR or pathway-specific reactor records, including incomplete evidence states |
+| `results/multiphysics/<candidate>/<mode>/*.json` | Accepted OpenFOAM/FEniCSx/Cantera artifacts |
 | `results/dft/*/` | QE input/output files per catalyst |
 | `results/fuel_cell/` | Cathode screening + PEMFC polarization data |
 

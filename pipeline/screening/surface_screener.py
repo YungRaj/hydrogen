@@ -753,7 +753,7 @@ def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
         coking_index = dE_C - 2.0 * dE_H  # positive = resistant
         
         # Apply liquid-metal coking resistance bonus for NTEC mode
-        py_mode = os.environ.get('PYROLYSIS_MODE', 'ntec')
+        py_mode = os.environ.get('PYROLYSIS_MODE', 'thermocatalytic')
         if py_mode == 'ntec':
             from pipeline.screening.genetic_optimizer import _extract_elements_from_genome
             from pipeline.process.ntec_model import conditions_from_environment, ntec_assistance

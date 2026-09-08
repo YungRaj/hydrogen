@@ -1,0 +1,9 @@
+name: fenicsx-env
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - fenics-dolfinx>=0.9
+  - cantera>=3.0
+  - numpy
+  - mpi4py

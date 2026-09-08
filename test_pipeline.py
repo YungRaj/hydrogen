@@ -255,10 +255,11 @@ def test_six_point_status_fails_closed():
     with tempfile.TemporaryDirectory() as tmp:
         result = assess_campaign(tmp)
         assert not result['ready']
-        assert len(result['missing']) == 6
-        thermal = assess_campaign(tmp, pyrolysis_mode='thermocatalytic')
-        assert 'calibrated_ntec' not in thermal['criteria']
-        assert len(thermal['missing']) == 5
+        assert 'calibrated_ntec' not in result['criteria']
+        assert len(result['missing']) == 5
+        ntec = assess_campaign(tmp, pyrolysis_mode='ntec')
+        assert 'calibrated_ntec' in ntec['criteria']
+        assert len(ntec['missing']) == 6
 
 
 def test_adaptive_validation_policy():
