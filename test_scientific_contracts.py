@@ -9,6 +9,7 @@ RUN_ESEN_CONTRACTS=1; CUDA-Q is tested separately in quantum-env when present.
 from __future__ import annotations
 
 import math
+import json
 import os
 import tempfile
 import queue
@@ -242,6 +243,20 @@ def test_electrochemical_phase_is_configuration_not_a_mode():
     assert evidence['conditions']['electrolyte_phase'] == 'aqueous'
 
 
+def _contract_convergence(outlet=1.0):
+    return {
+        'converged': True,
+        'mesh_series': [
+            {'cells': 100, 'observable': 0.90},
+            {'cells': 400, 'observable': 0.99},
+            {'cells': 1600, 'observable': 1.00}],
+        'mesh_tolerance_relative': 0.02,
+        'conservation_budgets': {
+            name: {'inlet': 1.0, 'outlet': outlet if name == 'mass' else 1.0}
+            for name in ('mass', 'carbon', 'hydrogen', 'energy', 'charge')},
+    }
+
+
 def test_multiphysics_artifacts_are_identity_convergence_and_solver_gated():
     import json
     from pipeline.process.multiphysics_contract import (
@@ -252,9 +267,7 @@ def test_multiphysics_artifacts_are_identity_convergence_and_solver_gated():
         'pathway_mode': 'mmbcr', 'reactor_type': 'MMBCR',
         'temperature_K': 900.0, 'complete': True,
         'backend_solvers': {'openfoam': 'contract-version'},
-        'convergence': {
-            'converged': True, 'mesh_independent': True,
-            'conservation_relative_residuals': {'mass': 1e-8, 'energy': 1e-8}},
+        'convergence': _contract_convergence(),
         'outputs': {'gas_velocity_m_s': 0.05,
                     'gas_holdup_fraction': 0.1,
                     'bubble_diameter_mm': 5.0},
@@ -268,7 +281,8 @@ def test_multiphysics_artifacts_are_identity_convergence_and_solver_gated():
             'disjoint_holdout': True},
         'model_validation': {
             'metric': 'relative_rmse', 'holdout_error': 0.04,
-            'acceptance_threshold': 0.1, 'passed': True},
+            'acceptance_threshold': 0.1, 'passed': True,
+            'record_source': 'contract measurements'},
     }
     with tempfile.TemporaryDirectory() as tmp:
         path = artifact_path(tmp, 'candidate', 'mmbcr', 'MMBCR', 900.0)
@@ -297,10 +311,7 @@ def test_validated_specialized_artifact_completes_without_thermal_yaml():
         'backend_solvers': {
             'openfoam': 'contract', 'fenicsx': 'contract',
             'cantera': 'contract'},
-        'convergence': {
-            'converged': True, 'mesh_independent': True,
-            'conservation_relative_residuals': {
-                'mass': 1e-8, 'charge': 1e-8, 'energy': 1e-8}},
+        'convergence': _contract_convergence(),
         'outputs': {
             'CH4_conversion': 0.2, 'H2_selectivity': 0.9,
             'solid_C_selectivity': 0.95,
@@ -315,7 +326,8 @@ def test_validated_specialized_artifact_completes_without_thermal_yaml():
             'disjoint_holdout': True},
         'model_validation': {
             'metric': 'relative_rmse', 'holdout_error': 0.04,
-            'acceptance_threshold': 0.1, 'passed': True},
+            'acceptance_threshold': 0.1, 'passed': True,
+            'record_source': 'contract measurements'},
         'calibration': {
             'paired_control': True,
             'paired_control_source': 'contract calibration'},
@@ -381,7 +393,7 @@ def _write_contract_physical_case(path, reactor_type, mode, candidate_id,
             'operating': {'temperature_K': temperature_K,
                           'pressure_Pa': 101325,
                           'methane_mass_flow_kg_s': 1e-6,
-                          'shear_rate_s-1': 100.0,
+                          'shear_rate_s_inv': 100.0,
                           'mechanical_power_W_kg': 20.0},
             'properties': {'liquid_viscosity_Pa_s': 1e-3,
                            'permittivity_F_m': 7e-10,
@@ -397,17 +409,29 @@ def _write_contract_physical_case(path, reactor_type, mode, candidate_id,
         'kinetics': {'source': 'contract kinetics'},
         'calibration': {'training_ids': ['train-1', 'train-2'],
                         'validation_ids': ['holdout-1'],
-                        'source': 'contract measurements'},
+                        'source': 'contract measurements',
+                        'metric': 'relative_rmse',
+                        'acceptance_threshold': 0.1},
     }
     value['parameter_sources'] = {
         f'{section}.{name}': 'contract parameter source'
         for section in ('geometry', 'operating', 'properties')
         for name in value[section]}
     if reactor_type == 'Electrochemical':
-        value['electrolyte_phase'] = 'aqueous'
+        value['electrolyte_phase'] = (
+            'aqueous' if temperature_K < 647.096 else 'molten')
+        value['electrolyte'] = {
+            'identity': '1 M KOH', 'source': 'contract electrolyte'}
     if reactor_type == 'NTEC':
         value['calibration']['paired_control'] = True
     path.write_text(json.dumps(value))
+    (path.parent / 'hydrogen_validation_records.json').write_text(json.dumps({
+        'source': 'contract measurements',
+        'records': [
+            {'id': 'train-1', 'predicted': 0.10, 'observed': 0.10},
+            {'id': 'train-2', 'predicted': 0.20, 'observed': 0.20},
+            {'id': 'holdout-1', 'predicted': 0.105, 'observed': 0.10},
+        ]}))
 
 
 def test_physical_case_contract_covers_every_external_reactor_and_holdout():
@@ -439,27 +463,114 @@ def test_physical_case_contract_covers_every_external_reactor_and_holdout():
             raise AssertionError('calibration leakage was accepted')
 
 
+def test_case_templates_are_complete_guides_but_never_runnable_defaults():
+    from pipeline.process.physical_case import case_template, load_physical_case
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / 'hydrogen_case.json'
+        path.write_text(json.dumps(case_template(
+            candidate_id='candidate', mode='mmbcr', reactor_type='MMBCR',
+            temperature_K=900.0)))
+        try:
+            load_physical_case(
+                path, candidate_id='candidate', mode='mmbcr',
+                reactor_type='MMBCR', temperature_K=900.0)
+        except ValueError as exc:
+            assert 'template_must_be_completed' in str(exc)
+        else:
+            raise AssertionError('placeholder case was runnable')
+
+
+def test_holdout_error_is_computed_from_raw_disjoint_records():
+    from pipeline.process.model_validation import score_holdout
+
+    calibration = {
+        'training_ids': ['train-1'], 'validation_ids': ['holdout-1'],
+        'source': 'measurement set', 'metric': 'relative_rmse',
+        'acceptance_threshold': 0.1}
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / 'records.json'
+        path.write_text(json.dumps({
+            'source': 'measurement set', 'records': [
+                {'id': 'train-1', 'predicted': 1.0, 'observed': 1.0},
+                {'id': 'holdout-1', 'predicted': 1.05, 'observed': 1.0}]}))
+        result = score_holdout(path, calibration)
+    assert math.isclose(result['holdout_error'], 0.05)
+    assert result['passed'] is True and result['holdout_count'] == 1
+
+
+def test_mesh_and_conservation_are_recomputed_not_self_attested():
+    from pipeline.process.multiphysics_contract import verify_numerics
+
+    forged = _contract_convergence(outlet=1.1)
+    forged.update({'mesh_independent': True,
+                   'conservation_satisfied': True})
+    verified = verify_numerics(forged, 'MMBCR')
+    assert verified['mesh_independent'] is True
+    assert verified['conservation_satisfied'] is False
+    unstable = _contract_convergence()
+    unstable['mesh_series'][-1]['observable'] = 1.2
+    assert verify_numerics(unstable, 'MMBCR')['mesh_independent'] is False
+
+
+def test_external_mode_physical_identities_are_enforced():
+    from pipeline.process.multiphysics_contract import verify_physical_outputs
+
+    assert verify_physical_outputs('Fluidized', {
+        'gas_velocity_m_s': 0.01, 'u_mf_m_s': 0.02,
+        'bubble_fraction': 0.2}) == ['fluidization_velocity']
+    assert verify_physical_outputs('Electrochemical', {
+        'current_density_A_cm2': 0.2, 'cell_voltage_V': 1.4,
+        'electrical_power_density_W_cm2': 0.1}) == [
+            'electrical_power_identity']
+    assert verify_physical_outputs('MMBCR', {
+        'gas_velocity_m_s': 0.05, 'gas_holdup_fraction': 0.1,
+        'bubble_diameter_mm': 20.0}, {
+            'geometry': {'column_diameter_m': 0.01}}) == [
+                'bubble_smaller_than_column']
+
+
+def test_multiphysics_batch_preparation_reports_ready_and_templates():
+    from pipeline.process.multiphysics_prepare import prepare_manifest
+
+    with tempfile.TemporaryDirectory() as tmp, patch(
+            'pipeline.process.multiphysics_prepare.mode_preflight',
+            return_value={'missing': []}):
+        root = Path(tmp)
+        ready = root / 'ready'
+        ready.mkdir()
+        _write_contract_physical_case(
+            ready / 'hydrogen_case.json', 'MMBCR', 'mmbcr',
+            'candidate-a', 900.0)
+        manifest = root / 'manifest.json'
+        manifest.write_text(json.dumps({'cases': [
+            {'candidate_id': 'candidate-a', 'mode': 'mmbcr',
+             'reactor_type': 'MMBCR', 'temperature_K': 900.0,
+             'case_dir': str(ready)},
+            {'candidate_id': 'candidate-b', 'mode': 'ntec',
+             'reactor_type': 'NTEC', 'temperature_K': 300.0,
+             'case_dir': str(root / 'template')}]}))
+        report = prepare_manifest(manifest, create=True)
+    assert report['ready'] == 1 and report['not_ready'] == 1
+    assert 'template_must_be_completed' in report['cases'][1]['failures'][0]
+
+
 def test_multiphysics_runner_executes_and_revalidates_electrochemical_output():
     import json
     from pipeline.process.multiphysics_runner import run_backend
 
-    def completed_model(_command, cwd, _timeout):
+    def completed_model(_command, cwd, _timeout, _backend='solver'):
         (cwd / 'hydrogen_outputs.json').write_text(json.dumps({
             'CH4_conversion': 0.12, 'H2_selectivity': 0.88,
             'faradaic_efficiency_H2': 0.91,
             'current_density_A_cm2': 0.2, 'cell_voltage_V': 1.4,
             'electrical_power_density_W_cm2': 0.28}))
-        (cwd / 'hydrogen_convergence.json').write_text(json.dumps({
-            'converged': True, 'mesh_independent': True,
-            'conservation_relative_residuals': {
-                'mass': 1e-8, 'charge': 1e-8}}))
+        (cwd / 'hydrogen_convergence.json').write_text(json.dumps(
+            _contract_convergence()))
         (cwd / 'hydrogen_metadata.json').write_text(json.dumps({
             'solver_coupling': {'cantera_used': True},
             'mechanism': {
                 'complete': True, 'source': 'contract mechanism'},
-            'model_validation': {
-                'metric': 'relative_rmse', 'holdout_error': 0.04,
-                'acceptance_threshold': 0.1, 'passed': True},
             'electrolyte_phase': 'aqueous'}))
 
     with tempfile.TemporaryDirectory() as tmp, \
@@ -492,13 +603,12 @@ def test_multiphysics_runner_rejects_nonconservative_solver_output():
     import json
     from pipeline.process.multiphysics_runner import run_backend
 
-    def nonconservative_model(_command, cwd, _timeout):
+    def nonconservative_model(_command, cwd, _timeout, _backend='solver'):
         (cwd / 'hydrogen_outputs.json').write_text(json.dumps({
             'gas_velocity_m_s': 0.1, 'u_mf_m_s': 0.02,
             'bubble_fraction': 0.2}))
-        (cwd / 'hydrogen_convergence.json').write_text(json.dumps({
-            'converged': True, 'mesh_independent': True,
-            'conservation_relative_residuals': {'mass': 0.1}}))
+        (cwd / 'hydrogen_convergence.json').write_text(json.dumps(
+            _contract_convergence(outlet=1.1)))
         (cwd / 'hydrogen_metadata.json').write_text(json.dumps({
             'model_validation': {
                 'metric': 'relative_rmse', 'holdout_error': 0.04,
@@ -510,7 +620,9 @@ def test_multiphysics_runner_rejects_nonconservative_solver_output():
                       'missing': [], 'solvers': {
                           'openfoam': {'executable': '/contract/openfoam'}}}), \
             patch('pipeline.process.multiphysics_runner._run',
-                  nonconservative_model):
+                  nonconservative_model), \
+            patch('pipeline.process.multiphysics_runner._openfoam_version',
+                  return_value='contract-openfoam'):
         case = Path(tmp) / 'case'
         case.mkdir()
         _write_contract_physical_case(
@@ -526,6 +638,61 @@ def test_multiphysics_runner_rejects_nonconservative_solver_output():
             assert 'conservation_residuals' in str(exc)
         else:
             raise AssertionError('nonconservative backend output was accepted')
+
+
+def test_ntec_runner_requires_explicit_openfoam_hydrodynamic_handoff():
+    from pipeline.process.multiphysics_runner import run_backend
+
+    def openfoam_without_handoff(_command, _cwd, _timeout, _backend='solver'):
+        return None
+
+    with tempfile.TemporaryDirectory() as tmp, \
+            patch('pipeline.process.multiphysics_runner.mode_preflight',
+                  return_value={
+                      'missing': [], 'solvers': {
+                          'openfoam': {'executable': '/contract/openfoam'}}}), \
+            patch('pipeline.process.multiphysics_runner._run',
+                  openfoam_without_handoff), \
+            patch('pipeline.process.multiphysics_runner._openfoam_version',
+                  return_value='contract-openfoam'):
+        case = Path(tmp) / 'case'
+        case.mkdir()
+        _write_contract_physical_case(
+            case / 'hydrogen_case.json', 'NTEC', 'ntec',
+            'ntec-candidate', 300.0)
+        model = case / 'model.py'
+        model.write_text('# contract model\n')
+        try:
+            run_backend(
+                mode='ntec', reactor_type='NTEC',
+                candidate_id='ntec-candidate', temperature_K=300.0,
+                case_dir=case, results_dir=Path(tmp) / 'results',
+                model_source='contract model', fenics_model=model)
+        except RuntimeError as exc:
+            assert 'hydrogen_hydrodynamics.json' in str(exc)
+        else:
+            raise AssertionError('NTEC proceeded without hydrodynamic handoff')
+
+
+def test_electrochemical_artifact_phase_mismatch_is_non_excluding():
+    from pipeline.process.reactor_models import ReactorConfig, simulate_reactor
+
+    loaded = {
+        'valid': True, 'path': '/contract/artifact.json',
+        'artifact': {'electrolyte_phase': 'aqueous'}}
+    conditions = json.dumps({'electrolyte_phase': 'molten'})
+    with patch(
+            'pipeline.process.multiphysics_contract.load_validated_artifact',
+            return_value=loaded), patch.dict(
+                os.environ, {'ELECTROCHEMICAL_CONDITIONS_JSON': conditions}):
+        result = simulate_reactor(ReactorConfig(
+            reactor_type='Electrochemical', pathway_mode='electrochemical',
+            candidate_id='candidate', catalyst_name='candidate',
+            T_inlet_K=500.0))
+    assert result['status'] == 'validation_required'
+    assert result['multiphysics_evidence']['reason'] == \
+        'electrolyte_phase_mismatch'
+    assert result['can_exclude_candidate'] is False
 
 
 def test_multiphysics_input_digest_includes_mode_input_and_precedes_outputs():

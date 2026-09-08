@@ -628,6 +628,27 @@ non-conservative, or non-mesh-independent artifact returns
 `validation_required`. `failed`, `not_applicable`, and `validation_required`
 conditions are counted separately.
 
+External cases pass through three independently implemented gates:
+
+1. `physical_case.py` verifies routing, identity, positive unit-bearing inputs,
+   geometry relationships, non-placeholder parameter/model sources, feed and
+   kinetics provenance, electrolyte phase, and disjoint calibration/holdout
+   identifiers before solver launch. Its CLI creates deliberately non-runnable
+   templates and validates completed cases.
+2. `multiphysics_runner.py` hashes pristine inputs, writes backend-specific
+   logs, captures OpenFOAM/FEniCSx/Cantera versions, requires the OpenFOAM
+   hydrodynamic handoff before an NTEC FEniCSx solve, and independently scores
+   raw holdout prediction/observation records.
+3. `multiphysics_contract.py` recomputes mesh change from at least three refined
+   meshes, recomputes required mass/carbon/hydrogen/energy/charge residuals
+   from inlet/outlet budgets, and checks reactor-specific identities such as
+   fluidization velocity and electrochemical power. Self-attested Boolean
+   success fields cannot substitute for these raw values.
+
+`multiphysics_prepare.py` applies preflight across a candidate manifest and can
+create missing non-runnable skeletons. It never invents physical values or
+marks a template ready.
+
 ### 11.4 Current carbon-model limitation
 
 The current mechanism still lists `C_graphite` inside the ideal-gas phase as a

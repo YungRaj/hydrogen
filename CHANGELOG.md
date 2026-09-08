@@ -32,10 +32,14 @@
 
 ### Validation
 
-- 74 pipeline tests, 34 scientific contracts, and 24 exclusion-audit checks
+- 74 pipeline tests, 41 scientific contracts, and 24 exclusion-audit checks
   pass locally.
 - Real Cantera chemistry loading, OpenFOAM executable startup, and a FEniCSx
   finite-element solve were exercised successfully.
+- External modes now include safe case-template generation, batch readiness,
+  independently computed raw holdout error, quantitative mesh refinement,
+  recomputed elemental/energy/charge balances, phase consistency, physical
+  output identities, backend-specific logs, and an explicit NTEC handoff.
 
 ### Known scientific boundaries
 

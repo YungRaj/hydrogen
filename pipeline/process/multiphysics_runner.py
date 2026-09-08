@@ -19,9 +19,10 @@ from pathlib import Path
 from pipeline.common.executables import resolve_executable
 from pipeline.process.multiphysics_contract import (
     EXTERNAL_SOLVERS, SCHEMA_VERSION, artifact_path, load_validated_artifact,
-    mode_preflight)
+    mode_preflight, verify_numerics, verify_physical_outputs)
 from pipeline.process.pathway_modes import MODE_CHOICES, reactor_types_for_mode
 from pipeline.process.physical_case import case_summary, load_physical_case
+from pipeline.process.model_validation import score_holdout
 
 
 def _tree_digest(path: Path) -> str:
@@ -43,14 +44,25 @@ def _read_json(path: Path) -> dict:
     return value
 
 
-def _run(command: list[str], cwd: Path, timeout_s: int) -> None:
+def _run(command: list[str], cwd: Path, timeout_s: int,
+         backend: str = 'solver') -> None:
     completed = subprocess.run(
         command, cwd=cwd, capture_output=True, text=True, timeout=timeout_s)
-    (cwd / 'hydrogen_solver.stdout.log').write_text(completed.stdout)
-    (cwd / 'hydrogen_solver.stderr.log').write_text(completed.stderr)
+    (cwd / f'hydrogen_{backend}.stdout.log').write_text(completed.stdout)
+    (cwd / f'hydrogen_{backend}.stderr.log').write_text(completed.stderr)
     if completed.returncode:
         raise RuntimeError(
             f'solver exited {completed.returncode}; see logs in {cwd}')
+
+
+def _openfoam_version(executable: str) -> str:
+    probe = subprocess.run(
+        [executable, '-help'], capture_output=True, text=True, timeout=30)
+    combined = probe.stdout + probe.stderr
+    for line in combined.splitlines():
+        if 'OpenFOAM-v' in line:
+            return line.strip()
+    return Path(executable).name
 
 
 def _fenics_command(model_script: Path) -> tuple[list[str], str]:
@@ -120,8 +132,12 @@ def run_backend(*, mode: str, reactor_type: str, candidate_id: str,
     versions = {}
     if 'openfoam' in required:
         executable = preflight['solvers']['openfoam']['executable']
-        _run([executable, '-case', str(case)], case, timeout_s)
-        versions['openfoam'] = Path(executable).name
+        _run([executable, '-case', str(case)], case, timeout_s, 'openfoam')
+        versions['openfoam'] = _openfoam_version(executable)
+        if reactor_type == 'NTEC' and not (
+                case / 'hydrogen_hydrodynamics.json').is_file():
+            raise RuntimeError(
+                'NTEC OpenFOAM stage must emit hydrogen_hydrodynamics.json')
     if 'fenicsx' in required:
         if fenics_model is None:
             raise ValueError('a FEniCSx model script is required for this mode')
@@ -129,12 +145,23 @@ def run_backend(*, mode: str, reactor_type: str, candidate_id: str,
         if not script.is_file():
             raise ValueError(f'FEniCSx model script does not exist: {script}')
         command, version = _fenics_command(script)
-        _run(command, case, timeout_s)
+        _run(command, case, timeout_s, 'fenicsx')
         versions['fenicsx'] = version
     outputs = _read_json(case / 'hydrogen_outputs.json')
     convergence = _read_json(case / 'hydrogen_convergence.json')
+    numerical = verify_numerics(convergence, reactor_type)
+    convergence.update(numerical)
+    physical_failures = verify_physical_outputs(
+        reactor_type, outputs, physical_case)
+    if physical_failures:
+        raise RuntimeError(
+            'solver outputs violate physical checks: ' +
+            ', '.join(physical_failures))
     metadata = _read_json(case / 'hydrogen_metadata.json') \
         if (case / 'hydrogen_metadata.json').is_file() else {}
+    metadata['model_validation'] = score_holdout(
+        case / 'hydrogen_validation_records.json',
+        physical_case['calibration'])
     if 'cantera' in required:
         if metadata.get('solver_coupling', {}).get('cantera_used') is not True:
             raise RuntimeError(

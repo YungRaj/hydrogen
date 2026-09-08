@@ -481,7 +481,7 @@ gap/overlap detection, population-denominator enforcement, coverage certificates
 blocked legacy GA entry points, and consistency between this README and the
 branch-only production CLI.
 
-Current validated baseline: **74/74 pipeline tests**, **34/34 scientific
+Current validated baseline: **74/74 pipeline tests**, **41/41 scientific
 contracts**, and **24/24 exclusion-audit checks**. Hardware-specific CUDA-Q and
 eSen tests remain dependent on the documented accelerator environments.
 
@@ -612,8 +612,9 @@ the case directory must contain the sourced and validated
 `hydrogen_case.json` described in `docs/PHYSICAL_CASES.md`. Generate an artifact with
 `python -m pipeline.process.multiphysics_runner` and pass its root with
 `--multiphysics-results-dir`. Each case must emit `hydrogen_outputs.json`,
-`hydrogen_convergence.json`, and `hydrogen_metadata.json`, including held-out
-model error and its acceptance threshold; see
+`hydrogen_convergence.json`, raw `hydrogen_validation_records.json`, and
+mode-required `hydrogen_metadata.json`. The runner computes held-out error
+against the case's declared acceptance threshold; see
 `docs/multiphysics_artifact.example.json`. Artifacts are identity-, solver-,
 physical-case-, convergence-, conservation-, mesh-, held-out-validation-, and
 provenance-gated before ingestion.
@@ -654,11 +655,30 @@ python -m pipeline.process.multiphysics_runner \
 5. Launch or resume the campaign with the same candidate identity, mode,
    temperature, and `--multiphysics-results-dir results/multiphysics`.
 
-The external case must write solver outputs, convergence/conservation data, and
-metadata proving held-out error is within its declared threshold. The runner
-hashes pristine inputs before execution and deletes any artifact that fails the
-acceptance contract. See [Physical Multiphysics Cases](docs/PHYSICAL_CASES.md)
-for every required field.
+The external case must write solver outputs, convergence/conservation data,
+raw held-out predictions and observations, and their provenance. The runner
+independently calculates the declared error metric, hashes pristine inputs
+before execution, and deletes any artifact that fails the acceptance contract.
+See [Physical Multiphysics Cases](docs/PHYSICAL_CASES.md) for every required
+field.
+
+Generate a deliberately non-runnable case skeleton and validate it after
+replacing every placeholder:
+
+```bash
+python -m pipeline.process.physical_case init \
+  --mode mmbcr --reactor-type MMBCR --candidate-id CANONICAL_ID \
+  --temperature-K 900 --output cases/CANONICAL_ID/mmbcr
+
+python -m pipeline.process.physical_case validate \
+  cases/CANONICAL_ID/mmbcr/hydrogen_case.json \
+  --mode mmbcr --reactor-type MMBCR --candidate-id CANONICAL_ID \
+  --temperature-K 900
+```
+
+For a candidate batch, `pipeline.process.multiphysics_prepare` can create all
+missing skeletons and emit a machine-readable readiness report. Created files
+retain `template: true` and cannot launch until completed.
 
 ### Single Phase Execution
 
@@ -733,6 +753,8 @@ hydrogen/
 │   │   ├── physical_case.py       # Unit/source/calibration input contract
 │   │   ├── multiphysics_contract.py # Accepted-artifact scientific gates
 │   │   ├── multiphysics_runner.py # Portable OpenFOAM/FEniCSx execution
+│   │   ├── multiphysics_prepare.py # Batch skeleton/readiness reporting
+│   │   ├── model_validation.py # Independent raw holdout scoring
 │   │   ├── electrochemical_model.py # Aqueous/molten evidence contract
 │   │   ├── ntec_model.py          # Paired-control NTEC transfer model
 │   │   ├── pemfc_model.py         # 1D PEMFC polarization

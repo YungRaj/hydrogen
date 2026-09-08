@@ -20,7 +20,8 @@ Every case declares:
 - nonempty and disjoint calibration and holdout-validation experiment IDs;
 - the calibration dataset source.
 
-Training and holdout IDs may not overlap. NTEC additionally requires a paired
+Training and holdout IDs may not overlap. Placeholder values and templates are
+never runnable. NTEC additionally requires a paired
 control declaration. Electrochemical cases additionally select `aqueous` or
 `molten`. Missing, non-finite, zero/negative, unsourced, mismatched, or leaking
 inputs stop the external calculation before compute is spent.
@@ -78,7 +79,9 @@ conditions. Case-specific solver files remain authoritative for discretization.
   "calibration": {
     "training_ids": ["experiment-001", "experiment-002"],
     "validation_ids": ["experiment-101"],
-    "source": "immutable dataset path or DOI"
+    "source": "immutable dataset path or DOI",
+    "metric": "relative_rmse",
+    "acceptance_threshold": 0.10
   }
 }
 ```
@@ -90,12 +93,38 @@ The case must emit `hydrogen_outputs.json`,
 `hydrogen_metadata.json`. The runner accepts the result only when the artifact
 passes identity, required-backend, version, output, numerical-bound,
 convergence, mesh-independence, conservation, physical-case, calibration, and
-provenance checks. `hydrogen_metadata.json` must also report
-`model_validation.metric`, `holdout_error`, `acceptance_threshold`, and
-`passed`; acceptance requires a finite held-out error no larger than the
-declared threshold. Failure removes the would-be accepted artifact. Downstream
+provenance checks. The case must also emit raw prediction/observation records
+in `hydrogen_validation_records.json`. The runner—not the external model—then
+calculates `model_validation.metric`, `holdout_error`, `acceptance_threshold`,
+and `passed`; acceptance requires a finite held-out error no larger than the
+declared threshold. It likewise recomputes mesh stability from at least three
+successively refined meshes and recomputes mass, carbon, hydrogen, energy,
+and/or charge closure from inlet/outlet budgets appropriate to the mode.
+Failure removes the would-be accepted artifact. Downstream
 screening records `validation_required` and retains the candidate.
 
 This contract establishes reproducible computational machinery. Predictive
 validation still requires real measurements and candidate-specific kinetics;
 the repository intentionally cannot synthesize either as ground truth.
+
+Use `python -m pipeline.process.physical_case init ...` to generate a complete
+key skeleton and `python -m pipeline.process.physical_case validate ...` for a
+standalone preflight. Use
+`python -m pipeline.process.multiphysics_prepare MANIFEST.json --create` to
+create missing batch skeletons and report why each case is not ready.
+
+A batch manifest has this minimal form:
+
+```json
+{
+  "cases": [
+    {
+      "candidate_id": "CANONICAL_ID",
+      "mode": "mmbcr",
+      "reactor_type": "MMBCR",
+      "temperature_K": 900.0,
+      "case_dir": "cases/CANONICAL_ID/mmbcr"
+    }
+  ]
+}
+```

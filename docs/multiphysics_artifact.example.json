@@ -8,8 +8,27 @@
   "backend_solvers": {"openfoam": "replace-with-version"},
   "convergence": {
     "converged": true,
+    "mesh_series": [
+      {"cells": 10000, "observable": 0.181},
+      {"cells": 40000, "observable": 0.188},
+      {"cells": 160000, "observable": 0.189}
+    ],
+    "mesh_tolerance_relative": 0.01,
+    "conservation_budgets": {
+      "mass": {"inlet": 1.0, "outlet": 0.9999999},
+      "carbon": {"inlet": 1.0, "outlet": 1.0000001},
+      "hydrogen": {"inlet": 1.0, "outlet": 0.9999999},
+      "energy": {"inlet": 1.0, "outlet": 1.0000001}
+    },
     "mesh_independent": true,
-    "conservation_relative_residuals": {"mass": 1e-8, "energy": 1e-7}
+    "mesh_relative_change": 0.005291,
+    "conservation_relative_residuals": {
+      "mass": 1e-7,
+      "carbon": 1e-7,
+      "hydrogen": 1e-7,
+      "energy": 1e-7
+    },
+    "conservation_satisfied": true
   },
   "outputs": {
     "gas_velocity_m_s": 0.05,
@@ -33,6 +52,7 @@
     "metric": "relative_rmse",
     "holdout_error": 0.08,
     "acceptance_threshold": 0.10,
-    "passed": true
+    "passed": true,
+    "record_source": "replace-with-calibration-dataset-source"
   }
 }

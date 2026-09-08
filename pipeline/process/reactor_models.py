@@ -633,6 +633,20 @@ def simulate_reactor(config: ReactorConfig) -> Dict:
             loaded = load_validated_artifact(
                 config.multiphysics_results_dir, config.candidate_id,
                 config.pathway_mode, config.reactor_type, config.T_inlet_K)
+            if loaded['valid'] and config.reactor_type == 'Electrochemical':
+                from pipeline.process.electrochemical_model import (
+                    conditions_from_environment)
+                requested = conditions_from_environment()
+                artifact_phase = loaded['artifact'].get('electrolyte_phase')
+                if (requested.electrolyte_phase is not None and
+                        requested.electrolyte_phase.lower() != artifact_phase):
+                    loaded = {
+                        'valid': False,
+                        'reason': 'electrolyte_phase_mismatch',
+                        'requested': requested.electrolyte_phase.lower(),
+                        'artifact': artifact_phase,
+                        'path': loaded['path'],
+                    }
             if not loaded['valid']:
                 result = {
                     'status': 'validation_required', 'valid': False,

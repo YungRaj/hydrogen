@@ -38,6 +38,91 @@ REQUIRED_OUTPUTS = {
                         'faradaic_efficiency_H2', 'current_density_A_cm2',
                         'cell_voltage_V', 'electrical_power_density_W_cm2'},
 }
+REQUIRED_BALANCES = {
+    'Fluidized': {'mass', 'carbon', 'hydrogen', 'energy'},
+    'MMBCR': {'mass', 'carbon', 'hydrogen', 'energy'},
+    'NTEC': {'mass', 'carbon', 'hydrogen', 'energy', 'charge'},
+    'Electrochemical': {'mass', 'carbon', 'hydrogen', 'charge'},
+}
+
+
+def verify_numerics(convergence: dict, reactor_type: str | None = None) -> dict:
+    """Independently compute mesh stability and conservation residuals."""
+    series = convergence.get('mesh_series', [])
+    tolerance = convergence.get('mesh_tolerance_relative')
+    mesh_ok = False
+    mesh_change = math.inf
+    try:
+        cells = [int(row['cells']) for row in series]
+        values = [float(row['observable']) for row in series]
+        tolerance = float(tolerance)
+        if (len(series) >= 3 and all(b > a > 0 for a, b in zip(cells, cells[1:]))
+                and all(math.isfinite(value) for value in values)
+                and math.isfinite(tolerance) and tolerance >= 0):
+            mesh_change = abs(values[-1] - values[-2]) / max(
+                abs(values[-1]), 1e-12)
+            mesh_ok = mesh_change <= tolerance
+    except (KeyError, TypeError, ValueError):
+        pass
+    budgets = convergence.get('conservation_budgets', {})
+    residuals = {}
+    if isinstance(budgets, dict):
+        for name, budget in budgets.items():
+            try:
+                inlet, outlet = float(budget['inlet']), float(budget['outlet'])
+                if math.isfinite(inlet) and math.isfinite(outlet):
+                    residuals[name] = abs(outlet - inlet) / max(abs(inlet), 1e-12)
+            except (KeyError, TypeError, ValueError):
+                continue
+    required_balances = REQUIRED_BALANCES.get(reactor_type, set())
+    conservation_ok = (bool(residuals) and len(residuals) == len(budgets) and
+                       required_balances.issubset(residuals) and all(
+                           value <= 1e-5 for value in residuals.values()))
+    return {
+        'mesh_independent': mesh_ok,
+        'mesh_relative_change': mesh_change,
+        'conservation_relative_residuals': residuals,
+        'conservation_satisfied': conservation_ok,
+    }
+
+
+def verify_physical_outputs(reactor_type: str, outputs: dict,
+                            physical_case: dict | None = None) -> list[str]:
+    """Return violated mode-specific identities and physical bounds."""
+    failed = []
+    try:
+        if reactor_type == 'Fluidized':
+            if not float(outputs['gas_velocity_m_s']) > float(outputs['u_mf_m_s']) > 0:
+                failed.append('fluidization_velocity')
+            if not 0 < float(outputs['bubble_fraction']) < 1:
+                failed.append('bubble_fraction')
+        elif reactor_type == 'MMBCR':
+            if float(outputs['gas_velocity_m_s']) <= 0:
+                failed.append('gas_velocity')
+            if not 0 < float(outputs['gas_holdup_fraction']) < 1:
+                failed.append('gas_holdup_fraction')
+            if float(outputs['bubble_diameter_mm']) <= 0:
+                failed.append('bubble_diameter')
+            if physical_case and float(outputs['bubble_diameter_mm']) / 1000 >= float(
+                    physical_case['geometry']['column_diameter_m']):
+                failed.append('bubble_smaller_than_column')
+        elif reactor_type == 'NTEC':
+            if float(outputs['specific_energy_kWh_kg_H2']) <= 0:
+                failed.append('specific_energy')
+        elif reactor_type == 'Electrochemical':
+            current = float(outputs['current_density_A_cm2'])
+            voltage = float(outputs['cell_voltage_V'])
+            if current < 0 or voltage <= 0:
+                failed.append('electrochemical_current_voltage')
+            expected = current * voltage
+            actual = float(outputs['electrical_power_density_W_cm2'])
+            if actual < 0:
+                failed.append('electrical_power_nonnegative')
+            if abs(actual - expected) > 1e-6 * max(abs(expected), 1.0):
+                failed.append('electrical_power_identity')
+    except (KeyError, TypeError, ValueError, ZeroDivisionError):
+        failed.append('physical_output_types')
+    return failed
 
 
 def _conda_module_available(environment: str, module: str) -> bool:
@@ -116,8 +201,6 @@ def load_validated_artifact(root: str | Path | None, candidate_id: str,
         'temperature_K': temperature_matches,
         'complete': value.get('complete') is True,
         'converged': value.get('convergence', {}).get('converged') is True,
-        'mesh_independent': value.get('convergence', {}).get(
-            'mesh_independent') is True,
     }
     declared = set(value.get('backend_solvers', {}))
     required = EXTERNAL_SOLVERS.get(reactor_type, set())
@@ -126,10 +209,9 @@ def load_validated_artifact(root: str | Path | None, candidate_id: str,
     outputs = value.get('outputs', {})
     checks['required_outputs'] = REQUIRED_OUTPUTS[reactor_type].issubset(outputs)
     convergence = value.get('convergence', {})
-    residuals = convergence.get('conservation_relative_residuals', {})
-    checks['conservation_residuals'] = bool(residuals) and all(
-        isinstance(number, (int, float)) and math.isfinite(float(number)) and
-        abs(float(number)) <= 1e-5 for number in residuals.values())
+    numerical = verify_numerics(convergence, reactor_type)
+    checks['mesh_independent'] = numerical['mesh_independent']
+    checks['conservation_residuals'] = numerical['conservation_satisfied']
     checks['backend_versions'] = all(
         isinstance(value.get('backend_solvers', {}).get(name), str) and
         bool(value['backend_solvers'][name].strip()) for name in required)
@@ -162,7 +244,8 @@ def load_validated_artifact(root: str | Path | None, candidate_id: str,
         math.isfinite(holdout_error) and holdout_error >= 0 and
         math.isfinite(acceptance_threshold) and acceptance_threshold >= 0 and
         holdout_error <= acceptance_threshold and
-        validation.get('passed') is True)
+        validation.get('passed') is True and
+        bool(validation.get('record_source')))
     if reactor_type == 'NTEC':
         calibration = value.get('calibration', {})
         checks['paired_control_calibration'] = (
@@ -188,4 +271,8 @@ def load_validated_artifact(root: str | Path | None, candidate_id: str,
            for number in bounds.values()):
         return {'valid': False, 'reason': 'multiphysics_artifact_invalid',
                 'failed_checks': ['bounded_outputs'], 'path': str(path)}
+    physical_failures = verify_physical_outputs(reactor_type, outputs)
+    if physical_failures:
+        return {'valid': False, 'reason': 'multiphysics_artifact_invalid',
+                'failed_checks': physical_failures, 'path': str(path)}
     return {'valid': True, 'artifact': value, 'path': str(path)}
