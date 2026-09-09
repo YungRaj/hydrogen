@@ -103,6 +103,43 @@ and/or charge closure from inlet/outlet budgets appropriate to the mode.
 Failure removes the would-be accepted artifact. Downstream
 screening records `validation_required` and retains the candidate.
 
+## Solver handoffs and coupling proof
+
+An NTEC OpenFOAM stage must write `hydrogen_hydrodynamics.json`. The runner
+validates schema version, candidate, mode, reactor, temperature, finite
+unit-bearing summary fields (`velocity_m_s`, `pressure_Pa`, `temperature_K`,
+`liquid_volume_fraction`, and `shear_rate_s_inv`), mesh identity, coordinate
+system, spatial-field format, and the checksum of an in-case XDMF/HDF5/VTU
+field artifact. Existence alone is not accepted.
+
+NTEC and electrochemical metadata must replace a boolean Cantera assertion with
+a `solver_coupling` proof containing relative in-case paths and SHA-256 hashes
+for the exact mechanism, nonempty Cantera log, candidate-specific reaction-rate
+exchange, and coupling-iteration history. The rate exchange identifies the
+candidate and temperature and records finite `reaction_rates_mol_m3_s`.
+Production artifacts require `coupling_method=iterative_two_way`, at least two
+sequential iterations, a finite final residual no larger than its declared
+tolerance, and exchange of species, temperature, reaction heat, reaction rates,
+charge, and potential; NTEC additionally exchanges momentum.
+
+The runner owns this outer loop. Before each pass it writes
+`hydrogen_coupling_request.json` with the candidate, reactor, temperature, and
+iteration number; it then reruns OpenFOAM when required and FEniCSx, validates
+`hydrogen_coupling_state.json` and its checksummed feedback artifact, and stops
+only after convergence or the configured maximum. The final coupling receipt
+must match the iteration count, residual, and tolerance observed by the runner.
+
+The case-owned solver scripts remain responsible for consuming each request and
+feedback artifact and applying the exchanged fields correctly. The repository
+verifies their inputs, outputs, observed history, residual, and conservation
+evidence; it cannot infer correct boundary conditions or material laws from a
+log file.
+
+Before hashing or execution, the runner rejects old hydrogen outputs/logs and
+nonzero OpenFOAM time directories. OpenFOAM's `0` initial-condition directory
+remains valid input. A FEniCSx script outside the case directory is hashed as an
+explicit external input, and its digest is retained in the accepted artifact.
+
 This contract establishes reproducible computational machinery. Predictive
 validation still requires real measurements and candidate-specific kinetics;
 the repository intentionally cannot synthesize either as ground truth.

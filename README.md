@@ -620,6 +620,17 @@ provenance-gated before ingestion.
 Invalid evidence is deleted by the runner and cannot become a performance
 claim or eliminate a candidate.
 
+For NTEC, OpenFOAM must emit a checksum-bound spatial hydrodynamic handoff that
+FEniCSx consumes; file existence is insufficient. NTEC and electrochemical
+cases must also provide checksummed Cantera mechanism, execution log,
+candidate-specific rate exchange, and iteration history. Accepted production
+artifacts require converged iterative two-way coupling rather than a
+`cantera_used` assertion. External FEniCSx scripts are included in the input
+digest, and stale solver outputs or nonzero OpenFOAM time directories are
+rejected before execution.
+The runner owns the numbered outer iterations and accepts the final receipt only
+when it matches the feedback states and residuals that the runner observed.
+
 Create the external solver environments portably with:
 
 ```bash

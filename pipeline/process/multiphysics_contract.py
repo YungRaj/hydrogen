@@ -220,6 +220,11 @@ def load_validated_artifact(root: str | Path | None, candidate_id: str,
     checks['input_digest'] = (isinstance(digest, str) and len(digest) == 64 and
                               all(char in '0123456789abcdef' for char in digest.lower()))
     checks['model_source'] = bool(provenance.get('model_source'))
+    if 'fenicsx' in required:
+        script_digest = provenance.get('fenics_model_sha256', '')
+        checks['fenics_model_digest'] = (
+            isinstance(script_digest, str) and len(script_digest) == 64 and
+            all(char in '0123456789abcdef' for char in script_digest.lower()))
     physical_case = value.get('physical_case', {})
     try:
         calibration_count = int(physical_case.get('calibration_count', 0))
@@ -251,6 +256,12 @@ def load_validated_artifact(root: str | Path | None, candidate_id: str,
         checks['paired_control_calibration'] = (
             calibration.get('paired_control') is True and
             bool(calibration.get('paired_control_source')))
+        handoff = provenance.get('hydrodynamic_handoff', {})
+        checks['hydrodynamic_handoff'] = (
+            isinstance(handoff.get('sha256'), str) and
+            len(handoff['sha256']) == 64 and bool(handoff.get('mesh_id')) and
+            isinstance(handoff.get('field_sha256'), str) and
+            len(handoff['field_sha256']) == 64)
     if reactor_type == 'Electrochemical':
         mechanism = value.get('mechanism', {})
         checks['electrochemical_mechanism'] = (
@@ -258,6 +269,37 @@ def load_validated_artifact(root: str | Path | None, candidate_id: str,
             bool(mechanism.get('source')))
         checks['electrolyte_phase'] = value.get(
             'electrolyte_phase') in {'aqueous', 'molten'}
+    if reactor_type in {'NTEC', 'Electrochemical'}:
+        coupling = value.get('solver_coupling', {})
+        try:
+            iterations = int(coupling.get('iterations', 0))
+            coupling_residual = float(coupling.get(
+                'residual_relative', math.inf))
+            coupling_tolerance = float(coupling.get(
+                'tolerance_relative', -1))
+        except (TypeError, ValueError):
+            iterations = 0
+            coupling_residual, coupling_tolerance = math.inf, -1
+        checks['iterative_solver_coupling'] = (
+            coupling.get('method') == 'iterative_two_way' and
+            coupling.get('converged') is True and
+            iterations >= 2 and coupling_residual <= coupling_tolerance and
+            all(isinstance(coupling.get(name), str) and
+                len(coupling[name]) == 64 for name in (
+                    'mechanism_sha256', 'cantera_log_sha256',
+                    'rate_exchange_sha256', 'coupling_history_sha256')))
+        observed = provenance.get('observed_coupling_iterations', [])
+        try:
+            observed_ok = (
+                isinstance(observed, list) and len(observed) == iterations and
+                iterations >= 2 and observed[-1].get('converged') is True and
+                int(observed[-1].get('iteration', 0)) == iterations and
+                math.isclose(float(observed[-1].get(
+                    'residual_relative', math.inf)), coupling_residual,
+                    rel_tol=1e-9, abs_tol=1e-12))
+        except (AttributeError, TypeError, ValueError):
+            observed_ok = False
+        checks['runner_observed_coupling'] = observed_ok
     failed = [name for name, passed in checks.items() if not passed]
     if failed:
         return {'valid': False, 'reason': 'multiphysics_artifact_invalid',

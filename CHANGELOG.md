@@ -24,6 +24,12 @@
 - A checksum-bound experimental dataset contract for reactor, paired NTEC,
   MEA, durability, and hydrogen-impurity calibration/holdout evidence, including
   preregistered sample minima and experimental-unit leakage prevention.
+- Strict OpenFOAM-to-FEniCSx field handoffs and Cantera coupling receipts,
+  including mechanism/log/rate/history hashes and two-way residual convergence.
+- Runner-owned, numbered OpenFOAM/FEniCSx outer iterations whose observed
+  feedback states must match the final coupling receipt.
+- Pristine-case enforcement and external FEniCSx script hashing for reproducible
+  multiphysics input identities.
 
 ### Changed
 

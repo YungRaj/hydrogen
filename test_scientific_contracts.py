@@ -9,6 +9,7 @@ RUN_ESEN_CONTRACTS=1; CUDA-Q is tested separately in quantum-env when present.
 from __future__ import annotations
 
 import math
+import hashlib
 import json
 import os
 import tempfile
@@ -257,6 +258,49 @@ def _contract_convergence(outlet=1.0):
     }
 
 
+def _write_coupling_proof(case, candidate_id, temperature_K):
+    files = {
+        'mechanism': ('mechanism.yaml', 'phases: []\n'),
+        'cantera_log': ('cantera.log', 'Cantera contract execution\n'),
+        'rate_exchange': ('rates.json', json.dumps({
+            'schema_version': 1, 'candidate_id': candidate_id,
+            'temperature_K': temperature_K,
+            'reaction_rates_mol_m3_s': {'CH4_to_products': 0.1}})),
+        'coupling_history': ('coupling_history.json', json.dumps({
+            'iterations': [
+                {'iteration': 1, 'residual_relative': 0.01},
+                {'iteration': 2, 'residual_relative': 1e-5}]})),
+    }
+    proof = {
+        'schema_version': 1, 'cantera_used': True,
+        'coupling_method': 'iterative_two_way', 'coupling_iterations': 2,
+        'coupling_residual_relative': 1e-5,
+        'coupling_tolerance_relative': 1e-4,
+        'exchanged_fields': ['species', 'temperature', 'reaction_heat',
+                             'reaction_rates', 'momentum', 'charge',
+                             'potential'],
+    }
+    for stem, (name, content) in files.items():
+        path = case / name
+        path.write_text(content)
+        proof[f'{stem}_path'] = name
+        proof[f'{stem}_sha256'] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return proof
+
+
+def _stored_coupling_proof():
+    return {
+        'method': 'iterative_two_way', 'iterations': 2,
+        'residual_relative': 1e-5, 'tolerance_relative': 1e-4,
+        'converged': True, 'exchanged_fields': [
+            'species', 'temperature', 'reaction_heat', 'reaction_rates', 'momentum',
+            'charge', 'potential'],
+        'mechanism_sha256': '1' * 64, 'cantera_log_sha256': '2' * 64,
+        'rate_exchange_sha256': '3' * 64,
+        'coupling_history_sha256': '4' * 64,
+    }
+
+
 def test_multiphysics_artifacts_are_identity_convergence_and_solver_gated():
     import json
     from pipeline.process.multiphysics_contract import (
@@ -316,8 +360,17 @@ def test_validated_specialized_artifact_completes_without_thermal_yaml():
             'CH4_conversion': 0.2, 'H2_selectivity': 0.9,
             'solid_C_selectivity': 0.95,
             'specific_energy_kWh_kg_H2': 15.0},
-        'provenance': {'input_sha256': 'b' * 64,
-                       'model_source': 'contract'},
+        'provenance': {
+            'input_sha256': 'b' * 64, 'model_source': 'contract',
+            'fenics_model_sha256': 'c' * 64,
+            'hydrodynamic_handoff': {
+                'sha256': 'd' * 64, 'field_sha256': 'e' * 64,
+                'mesh_id': 'mesh-1'},
+            'observed_coupling_iterations': [
+                {'iteration': 1, 'residual_relative': 0.01,
+                 'tolerance_relative': 1e-4, 'converged': False},
+                {'iteration': 2, 'residual_relative': 1e-5,
+                 'tolerance_relative': 1e-4, 'converged': True}]},
         'physical_case': {
             'schema_version': 1, 'kinetics_source': 'contract kinetics',
             'feed_source': 'contract feed',
@@ -331,6 +384,7 @@ def test_validated_specialized_artifact_completes_without_thermal_yaml():
         'calibration': {
             'paired_control': True,
             'paired_control_source': 'contract calibration'},
+        'solver_coupling': _stored_coupling_proof(),
     }
     with tempfile.TemporaryDirectory() as tmp, \
             patch('pipeline.process.reactor_mechanisms.write_full_mechanism') as write:
@@ -559,7 +613,22 @@ def test_multiphysics_runner_executes_and_revalidates_electrochemical_output():
     import json
     from pipeline.process.multiphysics_runner import run_backend
 
+    calls = {'fenicsx': 0}
+
     def completed_model(_command, cwd, _timeout, _backend='solver'):
+        calls['fenicsx'] += 1
+        iteration = calls['fenicsx']
+        feedback = cwd / 'hydrogen_feedback.json'
+        feedback.write_text(json.dumps({'iteration': iteration}))
+        residual = 0.01 if iteration == 1 else 1e-5
+        (cwd / 'hydrogen_coupling_state.json').write_text(json.dumps({
+            'schema_version': 1, 'candidate_id': 'electro-candidate',
+            'reactor_type': 'Electrochemical', 'temperature_K': 300.0,
+            'iteration': iteration, 'residual_relative': residual,
+            'tolerance_relative': 1e-4, 'converged': iteration >= 2,
+            'feedback_artifact': {
+                'path': feedback.name,
+                'sha256': hashlib.sha256(feedback.read_bytes()).hexdigest()}}))
         (cwd / 'hydrogen_outputs.json').write_text(json.dumps({
             'CH4_conversion': 0.12, 'H2_selectivity': 0.88,
             'faradaic_efficiency_H2': 0.91,
@@ -568,7 +637,8 @@ def test_multiphysics_runner_executes_and_revalidates_electrochemical_output():
         (cwd / 'hydrogen_convergence.json').write_text(json.dumps(
             _contract_convergence()))
         (cwd / 'hydrogen_metadata.json').write_text(json.dumps({
-            'solver_coupling': {'cantera_used': True},
+            'solver_coupling': _write_coupling_proof(
+                cwd, 'electro-candidate', 300.0),
             'mechanism': {
                 'complete': True, 'source': 'contract mechanism'},
             'electrolyte_phase': 'aqueous'}))

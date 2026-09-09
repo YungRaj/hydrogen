@@ -635,10 +635,12 @@ External cases pass through three independently implemented gates:
    kinetics provenance, electrolyte phase, and disjoint calibration/holdout
    identifiers before solver launch. Its CLI creates deliberately non-runnable
    templates and validates completed cases.
-2. `multiphysics_runner.py` hashes pristine inputs, writes backend-specific
-   logs, captures OpenFOAM/FEniCSx/Cantera versions, requires the OpenFOAM
-   hydrodynamic handoff before an NTEC FEniCSx solve, and independently scores
-   raw holdout prediction/observation records.
+2. `multiphysics_runner.py` rejects stale outputs, hashes pristine inputs plus
+   any external FEniCSx script, writes backend-specific logs, captures solver
+   versions, validates the OpenFOAM identity/unit/mesh/checksum-bound handoff,
+   verifies checksummed Cantera mechanism/log/rate exchange and converged
+   two-way coupling history, owns the numbered residual-based outer loop, and
+   independently scores raw holdout records.
 3. `multiphysics_contract.py` recomputes mesh change from at least three refined
    meshes, recomputes required mass/carbon/hydrogen/energy/charge residuals
    from inlet/outlet budgets, and checks reactor-specific identities such as
