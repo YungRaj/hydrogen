@@ -892,10 +892,14 @@ is not itself an activation barrier. A barrier requires a consistently defined
 energy difference, and kinetics additionally require the relevant thermal,
 entropic, and dynamical treatment.
 
-The current code establishes only the solver portion of that future chain. It
-does not yet construct catalyst-specific active spaces from Quantum ESPRESSO
-outputs. This distinction explains both why the stage exists and why its
-present results are not allowed to alter catalyst rankings.
+The built-in path establishes only the solver portion of that chain. The
+candidate-specific boundary accepts externally generated standard FCIDUMP
+integrals through `pipeline/validation/candidate_hamiltonian.py`. PySCF restores
+the spatial integral tensor and OpenFermion performs the spin-orbital expansion
+and Jordan-Wigner transform. A checksum-bound sidecar must identify the exact
+geometry, electronic-structure protocol, basis, active orbitals/electrons,
+charge, multiplicity, frozen orbitals, and integral source. The repository does
+not infer these scientific choices from a plane-wave QE output.
 
 ### 14.2 Terminology and division of responsibilities
 
@@ -1063,12 +1067,13 @@ skip/fail this phase rather than promote the output.
 
 ### 14.8 Scientific limitation and required upgrade path
 
-The present Hamiltonian coefficients are representative constants, not
-candidate-specific integrals derived from each catalyst's electronic structure.
-Therefore a successful GPU VQE run is labeled `toy_hamiltonian`, and a run made
-without CUDA-Q is labeled `mock`. Neither is catalyst validation, neither
-replaces DFT/NEB, and neither can support candidate selection as physical
-evidence.
+The built-in Hamiltonian coefficients remain representative constants rather
+than candidate-specific integrals. A successful built-in GPU run is therefore
+labeled `toy_hamiltonian`, and a run without CUDA-Q is labeled `mock`. A sourced
+FCIDUMP can instead be labeled `candidate_specific_integrals`; its VQE result is
+only `candidate_specific_vqe_benchmarked` after the solver passes the classical
+reference tolerance. None of these isolated energies is an activation barrier,
+and none replaces DFT/NEB.
 
 VQE becomes scientifically relevant to a candidate only after an upstream
 electronic-structure workflow supplies:

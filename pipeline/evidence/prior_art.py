@@ -1,5 +1,6 @@
 """Versioned evidence registry for literature, patents, and experiments."""
 
+import argparse
 import ast
 import csv
 import hashlib
@@ -87,6 +88,63 @@ class PriorArtRegistry:
                 count += 1
         return count
 
+    def import_curated_manifest(self, path: str) -> dict:
+        """Validate and import a checksum-bound, time-split prior-art corpus."""
+        manifest_path = Path(path).expanduser().resolve()
+        payload = json.loads(manifest_path.read_text())
+        if payload.get('schema_version') != 1:
+            raise ValueError('prior-art manifest schema_version must be 1')
+        cutoff = int(payload['training_cutoff_year'])
+        records = payload.get('records')
+        if not isinstance(records, list) or not records:
+            raise ValueError('prior-art manifest records must be a nonempty list')
+        validated, identities = [], set()
+        for index, row in enumerate(records):
+            label = f'records[{index}]'
+            required = ('genome', 'source_type', 'source_id', 'citation',
+                        'evidence_level', 'publication_year', 'split',
+                        'source_path', 'source_sha256')
+            missing = [key for key in required if row.get(key) in (None, '')]
+            if missing:
+                raise ValueError(f'{label} missing {missing}')
+            genome = ast.literal_eval(row['genome']) if isinstance(
+                row['genome'], str) else tuple(row['genome'])
+            genome = tuple(genome)
+            # These calls prove that the record maps into the encoded space.
+            cid = candidate_id(genome)
+            discovery_region(genome)
+            year, split = int(row['publication_year']), str(row['split'])
+            if split not in ('training', 'holdout'):
+                raise ValueError(f'{label} split must be training or holdout')
+            if (split == 'training' and year > cutoff) or (
+                    split == 'holdout' and year <= cutoff):
+                raise ValueError(f'{label} violates the declared time split')
+            source = Path(row['source_path']).expanduser()
+            if not source.is_absolute():
+                source = manifest_path.parent / source
+            if not source.is_file():
+                raise ValueError(f'{label} source file is missing')
+            digest = hashlib.sha256(source.read_bytes()).hexdigest()
+            if digest != str(row['source_sha256']).lower():
+                raise ValueError(f'{label} source checksum mismatch')
+            identity = (cid, str(row['source_id']))
+            if identity in identities:
+                raise ValueError(f'{label} duplicates candidate/source identity')
+            identities.add(identity)
+            validated.append((genome, row))
+        # Validation is completed before the first database mutation.
+        for genome, row in validated:
+            self.add(genome, row['source_type'], row['source_id'],
+                     row['citation'], row['evidence_level'],
+                     int(row['publication_year']))
+        return {
+            'imported': len(validated), 'training_cutoff_year': cutoff,
+            'training': sum(r['split'] == 'training' for _, r in validated),
+            'holdout': sum(r['split'] == 'holdout' for _, r in validated),
+            'manifest_sha256': hashlib.sha256(
+                manifest_path.read_bytes()).hexdigest(),
+        }
+
     def classify(self, genome: tuple) -> dict:
         cid = candidate_id(genome)
         region = '|'.join(discovery_region(genome))
@@ -127,3 +185,17 @@ def annotate_prior_art(frame, database: str):
     frame['exact_prior_art'] = exact
     frame['region_prior_art_count'] = related
     return frame
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--database', required=True)
+    parser.add_argument('--curated-manifest', required=True)
+    args = parser.parse_args()
+    report = PriorArtRegistry(args.database).import_curated_manifest(
+        args.curated_manifest)
+    print(json.dumps(report, indent=2, sort_keys=True))
+
+
+if __name__ == '__main__':
+    main()

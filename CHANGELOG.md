@@ -16,6 +16,11 @@
 - Reproducible `openfoam-env` and `fenicsx-env` definitions.
 - Aqueous/molten electrochemical configuration and paired-control NTEC evidence
   boundaries.
+- Checksum- and geometry-bound candidate Hamiltonian construction from standard
+  FCIDUMP integrals using PySCF and OpenFermion.
+- Pre-write validation for curated, checksum-bound prior-art manifests with an
+  explicit blinded time split.
+- A portable CUDA-Q/PySCF/OpenFermion environment definition.
 
 ### Changed
 

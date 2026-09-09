@@ -136,7 +136,7 @@ def run_vqe(hamiltonian_terms: list, n_qubits: int = 4,
         HAS_CUDAQ = False
 
     if not HAS_CUDAQ:
-        return _mock_vqe_result(hamiltonian_terms)
+        return _mock_vqe_result(hamiltonian_terms, n_qubits)
 
     # Set target
     # CUDA-Q 0.12 names its local state-vector CPU target qpp-cpu.
@@ -230,11 +230,12 @@ def run_vqe(hamiltonian_terms: list, n_qubits: int = 4,
     }
 
 
-def _mock_vqe_result(hamiltonian_terms: list) -> Dict:
+def _mock_vqe_result(hamiltonian_terms: list, n_qubits: int = 4) -> Dict:
     """Generate mock VQE results when CUDA-Q is not available."""
     logger.warning("CUDA-Q not available. Generating mock VQE results.")
     # Extract the constant (identity) term as the base energy
-    base_energy = sum(c for c, p in hamiltonian_terms if p == 'IIII')
+    base_energy = sum(c for c, p in hamiltonian_terms
+                      if p == 'I' * n_qubits)
     # Add approximate correlation correction
     correlation = -0.2  # typical correlation energy
     energy = base_energy + correlation
@@ -243,7 +244,7 @@ def _mock_vqe_result(hamiltonian_terms: list) -> Dict:
         'energy_Ha': float(energy),
         'energy_eV': float(energy * Ha_to_eV),
         'optimal_params': [0.01, 0.005],
-        'n_qubits': 4,
+        'n_qubits': n_qubits,
         'n_layers': 2,
         'mock': True,
         'evidence_level': 'mock',
@@ -257,7 +258,8 @@ def _mock_vqe_result(hamiltonian_terms: list) -> Dict:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def validate_transition_state(catalyst_name: str, reaction_type: str = 'CH_split',
-                               target: str = 'nvidia') -> Dict:
+                               target: str = 'nvidia',
+                               candidate_hamiltonian: str | None = None) -> Dict:
     """
     Full VQE transition-state validation for a champion catalyst.
     
@@ -270,17 +272,35 @@ def validate_transition_state(catalyst_name: str, reaction_type: str = 'CH_split
     """
     print_banner(f"CUDA-Q VQE: {catalyst_name} ({reaction_type})")
 
-    if reaction_type == 'CH_split':
+    Hamiltonian = None
+    if candidate_hamiltonian:
+        from pipeline.validation.candidate_hamiltonian import (
+            build_candidate_hamiltonian)
+        Hamiltonian = build_candidate_hamiltonian(candidate_hamiltonian)
+        if Hamiltonian['candidate_id'] != catalyst_name:
+            raise ValueError('candidate Hamiltonian identity mismatch')
+        H_terms = Hamiltonian['pauli_terms']
+        n_qubits = int(Hamiltonian['n_qubits'])
+    elif reaction_type == 'CH_split':
         H_terms = build_ch_splitting_hamiltonian()
+        n_qubits = 4
     elif reaction_type == 'ORR':
         H_terms = build_orr_hamiltonian()
+        n_qubits = 4
     else:
         raise ValueError(f"Unknown reaction type: {reaction_type}")
 
     result = run_vqe(
-        H_terms, n_qubits=4, n_layers=3, max_iter=3000, target=target)
+        H_terms, n_qubits=n_qubits, n_layers=3, max_iter=3000, target=target)
     result['catalyst_name'] = catalyst_name
     result['reaction_type'] = reaction_type
+    if Hamiltonian is not None:
+        result['hamiltonian'] = Hamiltonian
+        result['catalyst_specific_hamiltonian'] = not result.get('mock', False)
+        result['evidence_level'] = (
+            'candidate_specific_vqe_benchmarked'
+            if result.get('benchmarked') and not result.get('mock', False)
+            else 'candidate_specific_vqe_incomplete')
 
     save_json(result, f"vqe_{catalyst_name}_{reaction_type}.json", subdir="vqe")
     return result

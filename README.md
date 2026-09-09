@@ -385,9 +385,7 @@ mkdir -p quantum_espresso/pseudo && cd quantum_espresso/pseudo
 ### Environment 4: `quantum-env` — CUDA-Q (Phase 4)
 
 ```bash
-conda create -n quantum-env python=3.10 -y
-conda activate quantum-env
-pip install cuda-quantum cuquantum-cu12 numpy scipy
+conda env create -f environment-quantum.yml
 ```
 
 ### Environment 5: `battery-env` — Lightweight (Phase 6, utilities)
@@ -894,6 +892,13 @@ claims. `unseen` means absent from the supplied registry, not proof of worldwide
 novelty; registry completeness and chemical identity resolution still require
 curated external data.
 
+For a blinded corpus, prefer the strict manifest importer:
+`python -m pipeline.evidence.prior_art --database results/prior_art.sqlite
+--curated-manifest data/prior_art_manifest.json`. Every record must reference a
+checksum-bound local source snapshot, declare training or holdout membership
+around one cutoff year, and include its citation and publication year. The
+entire manifest is validated before any record is written.
+
 External novelty claims additionally require a prospective/time-split recovery
 benchmark (`pipeline.evidence.novelty_benchmark.time_split_recovery`): candidates reported
 after the training cutoff are hidden, ranked blindly, and scored by exact and
@@ -1120,8 +1125,15 @@ populate its schema-v2 record lists with candidate IDs, protocol IDs, source
 paths, statuses, and SHA-256 hashes. Readiness counts are derived only from
 artifacts whose hashes and required statuses verify; manually entered aggregate
 counts are rejected. Final mode remains nonzero until all six scientific
-criteria pass. Current four-qubit VQE Hamiltonians are labeled toy models and
-are not accepted as catalyst evidence.
+criteria pass. The built-in four-qubit VQE Hamiltonians are labeled toy models
+and are not accepted as catalyst evidence. A candidate path can instead consume
+a standard `FCIDUMP` plus a checksum-bound `FCIDUMP.json` sidecar containing the
+candidate, geometry, electronic-structure protocol, basis, active space,
+electron count, spin, frozen orbitals, and integral provenance. Convert it with
+`python -m pipeline.validation.candidate_hamiltonian FCIDUMP --output
+candidate_hamiltonian.json`. This establishes a candidate-specific Hamiltonian;
+it is not an activation barrier unless compatible reactant and transition-state
+calculations are differenced and validated.
 
 #### Physical candidate realizations
 
@@ -1262,9 +1274,12 @@ For the top 10 champion catalysts:
 ### Phase 4: VQE Quantum Chemistry (CUDA-Q)
 
 For the top 3–5 champions:
-1. Build molecular Hamiltonians for C-H and O-O bond-breaking transition states
+1. Generate sourced candidate-specific FCIDUMP integrals for consistently
+   defined reactant and transition-state active spaces
 2. Run VQE with hardware-efficient ansätze on the NVIDIA GPU quantum simulator
-3. Extract refined activation barriers beyond DFT accuracy
+3. Benchmark tractable Hamiltonians against exact or trusted classical results
+4. Form an energy difference only when both states use a compatible protocol;
+   VQE is not presumed to be more accurate than DFT
 
 ### Phase 5: Fuel Cell Modeling
 
