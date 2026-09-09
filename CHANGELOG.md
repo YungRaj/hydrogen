@@ -21,6 +21,9 @@
 - Pre-write validation for curated, checksum-bound prior-art manifests with an
   explicit blinded time split.
 - A portable CUDA-Q/PySCF/OpenFermion environment definition.
+- A checksum-bound experimental dataset contract for reactor, paired NTEC,
+  MEA, durability, and hydrogen-impurity calibration/holdout evidence, including
+  preregistered sample minima and experimental-unit leakage prevention.
 
 ### Changed
 

@@ -8,6 +8,7 @@ A GPU-accelerated computational pipeline for autonomous catalyst discovery targe
 
 * 🔬 **[Turquoise Hydrogen Reference Guide](docs/TURQUOISE_HYDROGEN.md)**: Exhaustive literature review of thermocatalytic and nanotribo-mechano-electrochemical (NTEC) methane splitting.
 * 🧪 **[Physical Multiphysics Cases](docs/PHYSICAL_CASES.md)**: Exact reactor-input, parameter-provenance, calibration/holdout, and solver-artifact contract.
+* 📏 **[Experimental Data](docs/EXPERIMENTAL_DATA.md)**: Raw-data provenance, uncertainty, preregistration, independent-unit, NTEC/control, and blinded-holdout contract.
 * ⚡ **[Fuel Cell ORR & MEA Guide](docs/FUEL_CELL.md)**: Comprehensive description of state-of-the-art catalysts, MEA designs, and large-scale PEMFC stack configurations.
 
 ---
