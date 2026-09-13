@@ -248,5 +248,37 @@ def case_summary(case: dict) -> dict:
     }
 
 
+def surrogate_inputs(case: dict) -> dict:
+    """Return the numeric, unit-bearing inputs needed to reproduce a surrogate row.
+
+    Sources and model names remain in ``hydrogen_case.json`` and are protected by
+    the case digest.  This snapshot deliberately contains only numerical solver
+    inputs; it is therefore suitable for deterministic feature extraction but is
+    not a replacement for the full physical-case provenance.
+    """
+    reactor_type = case.get('reactor_type')
+    if reactor_type not in _REQUIRED:
+        raise ValueError(f'no surrogate-input contract for {reactor_type}')
+    values = {}
+    for section, names in _REQUIRED[reactor_type].items():
+        if section == 'models':
+            continue
+        for name in names:
+            value = case[section][name]
+            if not _positive_number(value):
+                raise ValueError(f'non-numeric surrogate input: {section}.{name}')
+            values[f'{section}.{name}'] = float(value)
+    composition = case['feed']['composition']
+    total = float(sum(composition.values()))
+    for species, amount in sorted(composition.items()):
+        values[f'feed.mole_fraction.{species}'] = float(amount) / total
+    return {
+        'schema_version': 1,
+        'reactor_type': reactor_type,
+        'units_in_field_names': True,
+        'values': values,
+    }
+
+
 if __name__ == '__main__':
     main()

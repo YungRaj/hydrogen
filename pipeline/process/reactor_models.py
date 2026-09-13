@@ -87,6 +87,8 @@ class ReactorConfig:
     candidate_id: str = 'unknown'
     multiphysics_results_dir: str | None = None
     multiphysics_artifact: dict | None = None
+    closure_features: dict | None = None
+    reactor_closure_evidence: dict | None = None
     max_residence_time_s: float = 60.0
     catalyst_E_act_eV: float = 0.8   # Catalyst activation barrier (used by mock when Cantera unavailable)
 
@@ -593,7 +595,7 @@ def simulate_electrochemical_pathway(config: ReactorConfig) -> Dict:
     }
 
 
-def simulate_reactor(config: ReactorConfig) -> Dict:
+def simulate_reactor(config: ReactorConfig, coupling_services=None) -> Dict:
     """Run the appropriate reactor simulation based on config.reactor_type."""
     simulators = {
         'MMBCR': simulate_mmbcr,
@@ -627,27 +629,35 @@ def simulate_reactor(config: ReactorConfig) -> Dict:
             'reactor_model_fidelity': spec.fidelity,
         }
     else:
-        from pipeline.process.multiphysics_contract import (
-            EXTERNAL_SOLVERS, load_validated_artifact)
+        from pipeline.process.multiphysics_contract import EXTERNAL_SOLVERS
         if config.reactor_type in EXTERNAL_SOLVERS:
-            loaded = load_validated_artifact(
+            from pipeline.process.reactor_coupling import (
+                default_reactor_coupling_services)
+            coupling_services = (coupling_services or
+                                 default_reactor_coupling_services())
+            loaded = coupling_services.load_artifact(
                 config.multiphysics_results_dir, config.candidate_id,
                 config.pathway_mode, config.reactor_type, config.T_inlet_K)
-            if loaded['valid'] and config.reactor_type == 'Electrochemical':
-                from pipeline.process.electrochemical_model import (
-                    conditions_from_environment)
-                requested = conditions_from_environment()
-                artifact_phase = loaded['artifact'].get('electrolyte_phase')
-                if (requested.electrolyte_phase is not None and
-                        requested.electrolyte_phase.lower() != artifact_phase):
-                    loaded = {
-                        'valid': False,
-                        'reason': 'electrolyte_phase_mismatch',
-                        'requested': requested.electrolyte_phase.lower(),
-                        'artifact': artifact_phase,
-                        'path': loaded['path'],
-                    }
+            loaded = coupling_services.validate_compatibility(config, loaded)
             if not loaded['valid']:
+                from pipeline.process.closure_provider import (
+                    resolve_reactor_closure)
+                surrogate = (coupling_services.load_surrogate(
+                    config.pathway_mode, config.reactor_type)
+                    if coupling_services.load_surrogate else None)
+                closure = resolve_reactor_closure(
+                    full_physics=loaded, surrogate=surrogate,
+                    features=config.closure_features,
+                    pathway_mode=config.pathway_mode,
+                    reactor_type=config.reactor_type,
+                    temperature_K=config.T_inlet_K)
+                if closure['available']:
+                    from pipeline.process.reactor_coupling import (
+                        couple_surrogate_closure)
+                    couple_surrogate_closure(config, closure)
+                else:
+                    loaded = {**loaded, 'closure_resolution': closure}
+            if not loaded['valid'] and not config.reactor_closure_evidence:
                 result = {
                     'status': 'validation_required', 'valid': False,
                     'reactor_type': config.reactor_type,
@@ -668,18 +678,8 @@ def simulate_reactor(config: ReactorConfig) -> Dict:
                          f"{int(config.T_inlet_K)}K.json")
                 save_json(result, fname, subdir='reactor')
                 return result
-            config.multiphysics_artifact = loaded
-            outputs = loaded['artifact']['outputs']
-            if config.reactor_type == 'Fluidized':
-                config.gas_velocity_m_s = float(outputs['gas_velocity_m_s'])
-                config.u_mf_m_s = float(outputs['u_mf_m_s'])
-                config.fluidized_bubble_fraction = float(
-                    outputs['bubble_fraction'])
-            elif config.reactor_type == 'MMBCR':
-                config.gas_velocity_m_s = float(outputs['gas_velocity_m_s'])
-                config.gas_holdup_fraction = float(
-                    outputs['gas_holdup_fraction'])
-                config.bubble_diameter_mm = float(outputs['bubble_diameter_mm'])
+            if loaded['valid']:
+                coupling_services.couple_evidence(config, loaded)
         _validate_reactor_config(config)
         result = simulators[config.reactor_type](config)
         result.setdefault('status', 'complete')
@@ -691,6 +691,7 @@ def simulate_reactor(config: ReactorConfig) -> Dict:
             'reaction_domain': spec.reaction_domain,
             'reactor_model_fidelity': spec.fidelity,
             'multiphysics_evidence': config.multiphysics_artifact,
+            'reactor_closure_evidence': config.reactor_closure_evidence,
         })
         if spec.fidelity != 'validated_predictive':
             limitations = list(result.get('reactor_evidence_limitations', []))
@@ -715,7 +716,8 @@ def run_reactor_sweep(catalyst_name: str, mechanism_file: str,
                       pathway_mode: str = DEFAULT_MODE,
                       material_class: str | None = None,
                       candidate_id: str = 'unknown',
-                      multiphysics_results_dir: str | None = None) -> List[Dict]:
+                      multiphysics_results_dir: str | None = None,
+                      coupling_services=None) -> List[Dict]:
     """
     Sweep operating conditions for a catalyst across temperatures and reactor types.
 
@@ -747,7 +749,9 @@ def run_reactor_sweep(catalyst_name: str, mechanism_file: str,
                 multiphysics_results_dir=multiphysics_results_dir,
             )
             try:
-                result = simulate_reactor(config)
+                result = (simulate_reactor(config) if coupling_services is None
+                          else simulate_reactor(
+                              config, coupling_services=coupling_services))
             except Exception as exc:
                 # A stiff condition must not discard the other temperatures or
                 # reactor types. Preserve it as non-excluding failed evidence.

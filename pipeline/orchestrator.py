@@ -15,27 +15,21 @@ Usage:
     python -m pipeline.orchestrator [--phase N] [--quick]
 """
 
-import os
 import sys
-import ast
-import time
-import json
 import argparse
-import subprocess
 from pathlib import Path
-from typing import Dict, List, Optional
-from dataclasses import dataclass
+from typing import Optional
+from dataclasses import dataclass, replace
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from pipeline.common.utils import (
-    BASE_DIR, RESULTS_DIR, SCREENING_DIR, REACTOR_DIR, DFT_DIR, VQE_DIR,
-    FUEL_CELL_DIR, REPORTS_DIR, MECHANISMS_DIR,
-    ENV_MACE, ENV_BATTERY, ENV_CANTERA, ENV_QE, ENV_QUANTUM,
-    setup_logger, print_banner, save_json, load_json,
-    run_in_env,
+    RESULTS_DIR, SCREENING_DIR, setup_logger,
 )
 from pipeline.process.pathway_modes import (
     DEFAULT_MODE, MODE_CHOICES, reactor_types_for_mode)
+from pipeline.stages.orchestration import (
+    PipelineComponents, PipelineRuntime, default_pipeline_components,
+    default_pipeline_runtime)
 
 logger = setup_logger('orchestrator', 'pipeline_orchestrator.log')
 
@@ -68,117 +62,89 @@ class PipelineConfig:
     allow_mock_inputs: bool = False       # Explicit test-only opt-in
 
 
-def run_pipeline(config: PipelineConfig = PipelineConfig(),
-                 start_phase: int = 1, end_phase: int = 6):
+def normalized_pipeline_config(config: PipelineConfig) -> PipelineConfig:
+    """Return the legacy effective settings without mutating caller state."""
+    effective = replace(
+        config, reactor_temperatures=(773.15, 900.0, 1100.0, 1300.0))
+    if effective.quick_mode:
+        effective = replace(
+            effective, initial_fairchem_samples=50, branch_leaf_size=10_000,
+            branch_max_leaves=1, top_k_reactor=10, top_k_dft=3,
+            top_k_vqe=1, fc_top_k_pemfc=5)
+    return effective
+
+
+def run_pipeline(config: PipelineConfig | None = None,
+                 start_phase: int = 1, end_phase: int = 6,
+                 runtime: PipelineRuntime | None = None,
+                 components: PipelineComponents | None = None):
     """
     Execute the full multi-scale simulation pipeline.
     """
-    t_total = time.time()
-    print_banner("TURQUOISE HYDROGEN → FUEL CELL: MULTI-SCALE PIPELINE")
+    config = normalized_pipeline_config(config or PipelineConfig())
+    runtime = runtime or default_pipeline_runtime()
+    components = components or default_pipeline_components()
+    t_total = runtime.clock()
+    runtime.banner("TURQUOISE HYDROGEN → FUEL CELL: MULTI-SCALE PIPELINE")
     logger.info(f"Starting pipeline: phases {start_phase}–{end_phase}")
     logger.info(f"Configuration: quick_mode={config.quick_mode}, pyrolysis_mode={config.pyrolysis_mode}")
 
     # Propagate pyrolysis mode to env
-    os.environ['PYROLYSIS_MODE'] = config.pyrolysis_mode
+    runtime.select_pathway_mode(config.pyrolysis_mode)
     selected_reactors = (config.reactor_types if config.reactor_types is not None
                          else reactor_types_for_mode(config.pyrolysis_mode))
     multiphysics_results_dir = (config.multiphysics_results_dir or
                                 str(RESULTS_DIR / 'multiphysics'))
 
-    # Configure default sweep temperatures (500°C / 773.15 K to 1300 K) for both modes
-    config.reactor_temperatures = (773.15, 900.0, 1100.0, 1300.0)
-
-    if config.quick_mode:
-        config.initial_fairchem_samples = 50
-        config.branch_leaf_size = 10_000
-        config.branch_max_leaves = 1
-        config.top_k_reactor = 10
-        config.top_k_dft = 3
-        config.top_k_vqe = 1
-        config.fc_top_k_pemfc = 5
-
-    pipeline_state = load_json("pipeline_state.json") or {}
+    pipeline_state = runtime.load_state()
 
     # ═════════════════════════════════════════════════════════════════════════
     # PHASE 1: DETERMINISTIC BRANCH-AND-BOUND
     # ═════════════════════════════════════════════════════════════════════════
     if start_phase <= 1 <= end_phase:
-        print_banner("PHASE 1: DETERMINISTIC BRANCH-AND-BOUND DISCOVERY")
-        t1 = time.time()
+        runtime.banner("PHASE 1: DETERMINISTIC BRANCH-AND-BOUND DISCOVERY")
+        t1 = runtime.clock()
 
-        from pipeline.common.catalyst_spaces import estimate_design_space_size
-        from pipeline.screening.genetic_optimizer import run_branch_discovery, BranchDiscoveryConfig
-
-        # Report design space
-        sizes = estimate_design_space_size()
+        outcome = components.discovery(
+            initial_samples=config.initial_fairchem_samples,
+            leaf_size=config.branch_leaf_size,
+            max_leaves=config.branch_max_leaves,
+            top_k_reactor=config.top_k_reactor,
+            top_k_dft=config.top_k_dft)
+        sizes = outcome.products['design_space_sizes']
         logger.info(f"Design space: {sizes['TOTAL']:,} total configurations")
         for cls, size in sizes.items():
             if cls != 'TOTAL':
                 logger.info(f"  {cls}: {size:,}")
 
-        branch_config = BranchDiscoveryConfig(
-            initial_fairchem_samples=config.initial_fairchem_samples,
-            branch_leaf_size=config.branch_leaf_size,
-            branch_max_leaves=config.branch_max_leaves,
-            expected_space_size=sizes['TOTAL'],
-        )
-        pareto_genomes, screening_db = run_branch_discovery(branch_config)
-
-        # Keep quantitative reactor admission separate from high-fidelity rescue.
-        from pipeline.screening.stage_selection import (
-            annotate_evidence, select_for_reactor, select_for_validation)
-        valid_db = screening_db[screening_db['valid'] == True].copy()
-        evidence_db = annotate_evidence(screening_db, 'E_act')
-        top_catalysts = select_for_reactor(
-            screening_db, config.top_k_reactor, 'E_act', min_per_class=1)
-        dft_candidates = select_for_validation(
-            screening_db, config.top_k_dft, 'E_act', min_per_class=1)
-
+        pareto_genomes = outcome.products['pareto_genomes']
+        screening_db = outcome.products['screening_database']
+        top_catalysts = outcome.products['top_catalysts']
+        dft_candidates = outcome.products['dft_candidates']
         pipeline_state['phase1'] = {
-            'pareto_size': len(pareto_genomes),
-            'total_evaluated': len(screening_db),
-            'valid_count': len(valid_db),
-            'top_catalysts_count': len(top_catalysts),
-            'dft_resolution_count': len(dft_candidates),
-            'candidate_dispositions': evidence_db[
-                'candidate_disposition'].value_counts().to_dict(),
-            'elapsed_s': time.time() - t1,
-        }
-        if len(valid_db) > 0 and 'E_act' in valid_db.columns:
-            pipeline_state['phase1']['best_E_act'] = float(valid_db['E_act'].min())
-            pipeline_state['phase1']['best_coking'] = float(valid_db['coking_index'].max())
+            **outcome.state, 'elapsed_s': runtime.clock() - t1}
 
-        save_json(pipeline_state, "pipeline_state.json")
-        logger.info(f"Phase 1 complete: {time.time()-t1:.0f}s")
+        runtime.save_state(pipeline_state)
+        logger.info(f"Phase 1 complete: {runtime.clock()-t1:.0f}s")
 
     # ═════════════════════════════════════════════════════════════════════════
     # PHASE 2: REACTOR-SCALE SIMULATION (CANTERA)
     # ═════════════════════════════════════════════════════════════════════════
     if start_phase <= 2 <= end_phase:
-        print_banner("PHASE 2: PATHWAY-SPECIFIC REACTOR SIMULATION")
-        t2 = time.time()
-
-        from pipeline.process.reactor_mechanisms import (
-            write_full_mechanism, write_gri30_subset)
-        from pipeline.process.reactor_models import run_reactor_sweep
-        from pipeline.stages.reactor import simulate_candidate
-
-        # Write gas-phase mechanism
-        write_gri30_subset()
+        runtime.banner("PHASE 2: PATHWAY-SPECIFIC REACTOR SIMULATION")
+        t2 = runtime.clock()
 
         # For each top catalyst, generate mechanism and run reactor sweep
         if 'top_catalysts' not in dir():
             # Load from previous phase
-            import pandas as pd
             db_path = SCREENING_DIR / "ga_full_database.csv"
-            if db_path.exists():
-                screening_db = pd.read_csv(db_path)
-                from pipeline.screening.stage_selection import (
-                    select_for_reactor, select_for_validation)
-                top_catalysts = select_for_reactor(
-                    screening_db, config.top_k_reactor, 'E_act', min_per_class=1)
-                dft_candidates = select_for_validation(
-                    screening_db, config.top_k_dft, 'E_act', min_per_class=1)
+            restored = components.load_candidates(
+                db_path, top_k_reactor=config.top_k_reactor,
+                top_k_dft=config.top_k_dft)
+            if restored is not None:
+                screening_db = restored['screening_database']
+                top_catalysts = restored['top_catalysts']
+                dft_candidates = restored['dft_candidates']
             else:
                 if not config.allow_mock_inputs:
                     raise RuntimeError(
@@ -186,62 +152,30 @@ def run_pipeline(config: PipelineConfig = PipelineConfig(),
                 logger.warning("No screening database found. Using mock catalysts.")
                 top_catalysts = None
 
-        reactor_results = []
-        if top_catalysts is not None:
-            for idx, row in top_catalysts.iterrows():
-                cat_name = f"cat_{idx}"
-                stage_result = simulate_candidate(
-                    row, cat_name, config.reactor_temperatures,
-                    selected_reactors, forbid_mock=not config.allow_mock_inputs,
-                    pathway_mode=config.pyrolysis_mode,
-                    multiphysics_results_dir=multiphysics_results_dir)
-                reactor_results.extend(stage_result['sweep'])
-        else:
-            # Mock: run 3 test catalysts
-            for name, e_act in [('NiBi_10', 0.85), ('FeC_supported', 0.65), ('CuSn_20', 1.1)]:
-                mech_path = write_full_mechanism(name, E_act_CH4=e_act)
-                results = run_reactor_sweep(
-                    name, str(mech_path),
-                    temperatures=list(config.reactor_temperatures),
-                    reactor_types=list(selected_reactors),
-                    pathway_mode=config.pyrolysis_mode,
-                    material_class='MoltenMetal' if config.pyrolysis_mode == 'mmbcr'
-                    else 'SolidCatalyst',
-                    multiphysics_results_dir=multiphysics_results_dir,
-                )
-                reactor_results.extend(results)
-
+        outcome = components.reactor_batch(
+            top_catalysts, temperatures=config.reactor_temperatures,
+            reactor_types=selected_reactors,
+            pathway_mode=config.pyrolysis_mode,
+            multiphysics_results_dir=multiphysics_results_dir,
+            allow_mock_inputs=config.allow_mock_inputs)
+        reactor_results = outcome.products['reactor_results']
         pipeline_state['phase2'] = {
-            'n_simulations': len(reactor_results),
-            'elapsed_s': time.time() - t2,
-        }
-        if reactor_results:
-            best_conv = max(r.get('CH4_conversion', 0) for r in reactor_results)
-            pipeline_state['phase2']['best_conversion'] = best_conv
+            **outcome.state, 'elapsed_s': runtime.clock() - t2}
 
-        save_json(pipeline_state, "pipeline_state.json")
-        logger.info(f"Phase 2 complete: {len(reactor_results)} simulations, {time.time()-t2:.0f}s")
+        runtime.save_state(pipeline_state)
+        logger.info(f"Phase 2 complete: {len(reactor_results)} simulations, {runtime.clock()-t2:.0f}s")
 
     # ═════════════════════════════════════════════════════════════════════════
     # PHASE 3: DFT VALIDATION (QUANTUM ESPRESSO)
     # ═════════════════════════════════════════════════════════════════════════
     if start_phase <= 3 <= end_phase:
-        print_banner("PHASE 3: DFT VALIDATION")
-        t3 = time.time()
+        runtime.banner("PHASE 3: DFT VALIDATION")
+        t3 = runtime.clock()
 
-        from pipeline.validation.dft_validator import validate_catalyst
-
-        dft_results = []
         if 'dft_candidates' in dir() and dft_candidates is not None:
-            top_dft = dft_candidates.head(config.top_k_dft)
-            for idx, row in top_dft.iterrows():
-                try:
-                    genome = ast.literal_eval(row['genome'])
-                    cat_name = f"dft_cat_{idx}"
-                    result = validate_catalyst(cat_name, genome, run_dft=config.run_dft)
-                    dft_results.append(result)
-                except Exception as e:
-                    logger.error(f"DFT failed for cat_{idx}: {e}")
+            outcome = components.dft(
+                dft_candidates, top_k=config.top_k_dft,
+                execute_dft=config.run_dft, error_sink=logger.error)
         else:
             # Mock validation
             if not config.allow_mock_inputs:
@@ -252,136 +186,75 @@ def run_pipeline(config: PipelineConfig = PipelineConfig(),
                 ('SolidCatalyst', 'Ni', 'Al2O3', 'fcc111', 0.0, ('Cu',), 1, 0),
                 ('SAC', 'Fe', 'N4', 'N-graphene'),
             ]
-            for i, genome in enumerate(mock_genomes[:config.top_k_dft]):
-                result = validate_catalyst(f"dft_mock_{i}", genome, run_dft=config.run_dft)
-                dft_results.append(result)
+            outcome = components.dft(
+                mock_genomes, top_k=config.top_k_dft,
+                execute_dft=config.run_dft, name_prefix='dft_mock',
+                error_sink=logger.error)
 
+        dft_results = outcome.products['dft_results']
         pipeline_state['phase3'] = {
-            'n_validated': len(dft_results),
-            'n_converged': sum(1 for r in dft_results if r.get('converged', False)),
-            'elapsed_s': time.time() - t3,
-        }
-        save_json(pipeline_state, "pipeline_state.json")
-        logger.info(f"Phase 3 complete: {time.time()-t3:.0f}s")
+            **outcome.state, 'elapsed_s': runtime.clock() - t3}
+        runtime.save_state(pipeline_state)
+        logger.info(f"Phase 3 complete: {runtime.clock()-t3:.0f}s")
 
     # ═════════════════════════════════════════════════════════════════════════
     # PHASE 4: VQE TRANSITION STATE (CUDA-Q)
     # ═════════════════════════════════════════════════════════════════════════
     if start_phase <= 4 <= end_phase:
-        print_banner("PHASE 4: CUDA-Q VQE TRANSITION STATE")
-        t4 = time.time()
+        runtime.banner("PHASE 4: CUDA-Q VQE TRANSITION STATE")
+        t4 = runtime.clock()
 
-        from pipeline.validation.vqe_transition_state import validate_transition_state
-
-        vqe_results = []
-        target = 'nvidia' if config.run_vqe else 'default'
-
-        for i in range(min(config.top_k_vqe, 3)):
-            result = validate_transition_state(f"champion_{i}", "CH_split", target=target)
-            vqe_results.append(result)
-
+        outcome = components.vqe(
+            top_k=config.top_k_vqe, execute_quantum=config.run_vqe)
+        vqe_results = outcome.products['vqe_results']
         pipeline_state['phase4'] = {
-            'n_vqe_runs': len(vqe_results),
-            'elapsed_s': time.time() - t4,
-        }
-        save_json(pipeline_state, "pipeline_state.json")
-        logger.info(f"Phase 4 complete: {time.time()-t4:.0f}s")
+            **outcome.state, 'elapsed_s': runtime.clock() - t4}
+        runtime.save_state(pipeline_state)
+        logger.info(f"Phase 4 complete: {runtime.clock()-t4:.0f}s")
 
     # ═════════════════════════════════════════════════════════════════════════
     # PHASE 5: FUEL CELL SCREENING & PEMFC MODELING
     # ═════════════════════════════════════════════════════════════════════════
     if start_phase <= 5 <= end_phase:
-        print_banner("PHASE 5: FUEL CELL CATHODE SCREENING & PEMFC MODEL")
-        t5 = time.time()
+        runtime.banner("PHASE 5: FUEL CELL CATHODE SCREENING & PEMFC MODEL")
+        t5 = runtime.clock()
 
-        from pipeline.screening.fc_cathode_screener import run_cathode_screening, MEMBRANE_TYPES
-        from pipeline.process.pemfc_model import PEMFCConfig, simulate_pemfc, sweep_membranes
-        from pipeline.process.fuel_cell_stack import StackConfig, model_stack
-
-        # Screen cathode catalysts
-        cathode_df = run_cathode_screening()
-
-        # Take top-K for PEMFC simulation
-        valid_cathodes = cathode_df[cathode_df['valid'] == True].copy()
-        if 'orr_overpotential_V' in valid_cathodes.columns:
-            top_cathodes = valid_cathodes.nsmallest(config.fc_top_k_pemfc, 'orr_overpotential_V')
-        else:
-            top_cathodes = valid_cathodes.head(config.fc_top_k_pemfc)
-
-        pemfc_results = []
-        for _, row in top_cathodes.iterrows():
-            cat_name = row['name']
-            eta = row.get('orr_overpotential_V', 0.4)
-            pgm = row.get('pgm_loading_mg_cm2', 0.0)
-            mat_cls = row.get('material_class', None)
-
-            # Sweep membranes
-            mem_results = sweep_membranes(cat_name, eta, material_class=mat_cls)
-            pemfc_results.extend(mem_results)
-
-        # Stack model for the best catalyst + membrane combo
-        if pemfc_results:
-            # Optimize for highest efficiency and least overvoltage first and foremost,
-            # while maximizing peak power output as much as possible.
-            def fc_composite_score(r):
-                eff = r.get('efficiency_at_peak', 0.0)
-                power = r.get('peak_power_W_cm2', 0.0)
-                eta = max(r.get('orr_overpotential_V', 0.4), 0.01)
-                return (eff * power) / eta
-
-            best_pemfc = max(pemfc_results, key=fc_composite_score)
-            stack_config = StackConfig(
-                n_cells=config.fc_stack_cells,
-                cell_voltage_V=best_pemfc.get('peak_voltage_V', 0.65),
-                current_density_A_cm2=best_pemfc.get('peak_current_A_cm2', 1.5),
-            )
-            stack_result = model_stack(stack_config)
-        else:
-            stack_result = {}
-
+        outcome = components.fuel_cell(
+            top_k_pemfc=config.fc_top_k_pemfc,
+            stack_cells=config.fc_stack_cells)
+        cathode_df = outcome.products['cathode_database']
+        valid_cathodes = outcome.products['valid_cathodes']
+        pemfc_results = outcome.products['pemfc_results']
+        stack_result = outcome.products['stack_result']
         pipeline_state['phase5'] = {
-            'n_cathodes_screened': len(cathode_df),
-            'n_valid': len(valid_cathodes),
-            'n_pemfc_simulations': len(pemfc_results),
-            'elapsed_s': time.time() - t5,
-        }
-        if pemfc_results:
-            pipeline_state['phase5']['best_power_W_cm2'] = max(
-                r.get('peak_power_W_cm2', 0) for r in pemfc_results
-            )
-            pipeline_state['phase5']['best_efficiency'] = max(
-                r.get('efficiency_at_peak', 0) for r in pemfc_results
-            )
-            pipeline_state['phase5']['min_overpotential_V'] = min(
-                r.get('orr_overpotential_V', 1.0) for r in pemfc_results
-            )
-        save_json(pipeline_state, "pipeline_state.json")
-        logger.info(f"Phase 5 complete: {time.time()-t5:.0f}s")
+            **outcome.state, 'elapsed_s': runtime.clock() - t5}
+        runtime.save_state(pipeline_state)
+        logger.info(f"Phase 5 complete: {runtime.clock()-t5:.0f}s")
 
     # ═════════════════════════════════════════════════════════════════════════
     # PHASE 6: REPORT GENERATION
     # ═════════════════════════════════════════════════════════════════════════
     if start_phase <= 6 <= end_phase:
-        print_banner("PHASE 6: REPORT GENERATION")
-        t6 = time.time()
+        runtime.banner("PHASE 6: REPORT GENERATION")
+        t6 = runtime.clock()
 
-        from pipeline.evidence.report_generator import generate_full_report
-        report_path = generate_full_report(pipeline_state)
+        outcome = components.report(pipeline_state)
+        report_path = outcome.products['report_path']
 
         pipeline_state['phase6'] = {
-            'report_path': str(report_path),
-            'elapsed_s': time.time() - t6,
+            **outcome.state,
+            'elapsed_s': runtime.clock() - t6,
         }
-        save_json(pipeline_state, "pipeline_state.json")
+        runtime.save_state(pipeline_state)
 
     # ═════════════════════════════════════════════════════════════════════════
-    total_time = time.time() - t_total
+    total_time = runtime.clock() - t_total
     logger.info(f"\n{'='*70}")
     logger.info(f"  PIPELINE COMPLETE: {total_time:.0f}s ({total_time/3600:.1f} hours)")
     logger.info(f"{'='*70}")
 
     pipeline_state['total_elapsed_s'] = total_time
-    save_json(pipeline_state, "pipeline_state.json")
+    runtime.save_state(pipeline_state)
 
     return pipeline_state
 

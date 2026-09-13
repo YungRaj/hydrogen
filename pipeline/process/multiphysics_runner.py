@@ -22,11 +22,14 @@ from pipeline.process.multiphysics_contract import (
     EXTERNAL_SOLVERS, SCHEMA_VERSION, artifact_path, load_validated_artifact,
     mode_preflight, verify_numerics, verify_physical_outputs)
 from pipeline.process.pathway_modes import MODE_CHOICES, reactor_types_for_mode
-from pipeline.process.physical_case import case_summary, load_physical_case
+from pipeline.process.physical_case import (
+    case_summary, load_physical_case, surrogate_inputs)
 from pipeline.process.model_validation import score_holdout
 from pipeline.process.coupling_contract import (
     require_pristine_case, sha256, validate_hydrodynamic_handoff,
     validate_coupling_state, validate_solver_coupling)
+from pipeline.process.solver_execution import SolverExecutionServices
+from pipeline.process.artifact_store import persist_validated_artifact
 
 
 def _tree_digest(path: Path, extra_files: tuple[Path, ...] = ()) -> str:
@@ -108,12 +111,21 @@ def _cantera_version() -> str:
     raise RuntimeError('Cantera is required in the current, cp2k-env, or fenicsx-env environment')
 
 
+def default_solver_execution_services() -> SolverExecutionServices:
+    """Bind production solver operations at call time for patchability/tests."""
+    return SolverExecutionServices(
+        preflight=mode_preflight, execute=_run,
+        openfoam_version=_openfoam_version,
+        fenics_command=_fenics_command, cantera_version=_cantera_version)
+
+
 def run_backend(*, mode: str, reactor_type: str, candidate_id: str,
                 temperature_K: float, case_dir: str | Path,
                 results_dir: str | Path, model_source: str,
                 fenics_model: str | Path | None = None,
                 timeout_s: int = 86400,
-                max_coupling_iterations: int = 20) -> Path:
+                max_coupling_iterations: int = 20,
+                execution: SolverExecutionServices | None = None) -> Path:
     """Execute the external case backends and emit one validated artifact.
 
     Thermal Fluidized/MMBCR artifacts supply OpenFOAM hydrodynamics which the
@@ -121,12 +133,13 @@ def run_backend(*, mode: str, reactor_type: str, candidate_id: str,
     electrochemical cases must perform and declare their Cantera coupling in
     the external model because those modes do not use the thermal reactor.
     """
+    execution = execution or default_solver_execution_services()
     if reactor_type not in reactor_types_for_mode(mode):
         raise ValueError(f'{reactor_type} is not assigned to mode {mode}')
     required = EXTERNAL_SOLVERS.get(reactor_type, set())
     if not required:
         raise ValueError(f'{reactor_type} does not require an external backend')
-    preflight = mode_preflight(mode)
+    preflight = execution.preflight(mode)
     missing = sorted(required.intersection(preflight['missing']))
     if missing:
         raise RuntimeError(f'required solver(s) unavailable: {missing}')
@@ -152,10 +165,10 @@ def run_backend(*, mode: str, reactor_type: str, candidate_id: str,
     executable = preflight['solvers']['openfoam']['executable'] \
         if 'openfoam' in required else None
     if executable:
-        versions['openfoam'] = _openfoam_version(executable)
+        versions['openfoam'] = execution.openfoam_version(executable)
     fenics_command = None
     if 'fenicsx' in required:
-        fenics_command, version = _fenics_command(script)
+        fenics_command, version = execution.fenics_command(script)
         versions['fenicsx'] = version
     specialized = reactor_type in {'NTEC', 'Electrochemical'}
     iterations = range(1, max_coupling_iterations + 1) if specialized else (1,)
@@ -168,8 +181,9 @@ def run_backend(*, mode: str, reactor_type: str, candidate_id: str,
                 'reactor_type': reactor_type, 'temperature_K': temperature_K,
                 'iteration': iteration}, sort_keys=True) + '\n')
         if executable:
-            _run([executable, '-case', str(case)], case, timeout_s,
-                 f'openfoam.iteration-{iteration}')
+            execution.execute(
+                [executable, '-case', str(case)], case, timeout_s,
+                f'openfoam.iteration-{iteration}')
             if reactor_type == 'NTEC':
                 try:
                     handoff = validate_hydrodynamic_handoff(
@@ -179,8 +193,9 @@ def run_backend(*, mode: str, reactor_type: str, candidate_id: str,
                 except ValueError as exc:
                     raise RuntimeError(str(exc)) from exc
         if fenics_command:
-            _run(fenics_command, case, timeout_s,
-                 f'fenicsx.iteration-{iteration}')
+            execution.execute(
+                fenics_command, case, timeout_s,
+                f'fenicsx.iteration-{iteration}')
         if specialized:
             try:
                 state = validate_coupling_state(
@@ -231,7 +246,7 @@ def run_backend(*, mode: str, reactor_type: str, candidate_id: str,
                                  rel_tol=1e-9, abs_tol=1e-12)):
             raise RuntimeError('coupling proof does not match runner-observed iterations')
         metadata['solver_coupling'] = coupling
-        versions['cantera'] = _cantera_version()
+        versions['cantera'] = execution.cantera_version()
     artifact = {
         'schema_version': SCHEMA_VERSION,
         'candidate_id': candidate_id,
@@ -250,24 +265,18 @@ def run_backend(*, mode: str, reactor_type: str, candidate_id: str,
             'observed_coupling_iterations': observed_coupling,
         },
         'physical_case': case_summary(physical_case),
+        # A compact numeric snapshot permits independently trained transport
+        # surrogates without divorcing a row from this validated artifact.
+        'surrogate_inputs': surrogate_inputs(physical_case),
     }
     for key in ('calibration', 'mechanism', 'electrolyte_phase',
                 'solver_coupling', 'model_validation'):
         if key in metadata:
             artifact[key] = metadata[key]
-    target = artifact_path(
-        results_dir, candidate_id, mode, reactor_type, temperature_K)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(json.dumps(artifact, indent=2, sort_keys=True) + '\n')
-    validated = load_validated_artifact(
-        results_dir, candidate_id, mode, reactor_type, temperature_K)
-    if not validated['valid']:
-        target.unlink(missing_ok=True)
-        failed = ', '.join(validated.get('failed_checks', ()))
-        raise RuntimeError(
-            'solver output did not satisfy the artifact contract: ' +
-            (failed or validated['reason']))
-    return target
+    return persist_validated_artifact(
+        artifact, results_dir=results_dir, candidate_id=candidate_id,
+        mode=mode, reactor_type=reactor_type, temperature_K=temperature_K,
+        path_builder=artifact_path, validator=load_validated_artifact)
 
 
 def main() -> None:

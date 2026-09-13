@@ -8,6 +8,7 @@ A GPU-accelerated computational pipeline for autonomous catalyst discovery targe
 
 * 🔬 **[Turquoise Hydrogen Reference Guide](docs/TURQUOISE_HYDROGEN.md)**: Exhaustive literature review of thermocatalytic and nanotribo-mechano-electrochemical (NTEC) methane splitting.
 * 🧪 **[Physical Multiphysics Cases](docs/PHYSICAL_CASES.md)**: Exact reactor-input, parameter-provenance, calibration/holdout, and solver-artifact contract.
+* 🔁 **[Modular Multi-Fidelity Workflow](docs/MODULAR_MULTIFIDELITY_WORKFLOW.md)**: How representative OpenFOAM/FEniCSx cases can train auditable transport closures for cheaper Cantera screening, with uncertain cases referred back to full physics.
 * 📏 **[Experimental Data](docs/EXPERIMENTAL_DATA.md)**: Raw-data provenance, uncertainty, preregistration, independent-unit, NTEC/control, and blinded-holdout contract.
 * ⚡ **[Fuel Cell ORR & MEA Guide](docs/FUEL_CELL.md)**: Comprehensive description of state-of-the-art catalysts, MEA designs, and large-scale PEMFC stack configurations.
 
@@ -472,6 +473,7 @@ smoke test and does not produce a `complete: true` 21.1B coverage certificate.
 conda run -n fairchem-env python test_pipeline.py
 conda run -n fairchem-env python audit_pipeline.py
 conda run -n fairchem-env python test_scientific_contracts.py
+conda run -n fairchem-env python test_modular_multiphysics.py
 ```
 
 The active suite verifies indexed-space boundaries, disjoint shards, deterministic
@@ -481,8 +483,9 @@ blocked legacy GA entry points, and consistency between this README and the
 branch-only production CLI.
 
 Current validated baseline: **74/74 pipeline tests**, **41/41 scientific
-contracts**, and **24/24 exclusion-audit checks**. Hardware-specific CUDA-Q and
-eSen tests remain dependent on the documented accelerator environments.
+contracts**, **39/39 modular multi-fidelity contracts**, and **24/24
+exclusion-audit checks**. Hardware-specific CUDA-Q and eSen tests remain
+dependent on the documented accelerator environments.
 
 ### Production Campaign (48 hours)
 
