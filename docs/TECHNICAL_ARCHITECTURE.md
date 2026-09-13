@@ -1,5 +1,10 @@
 # Technical Architecture and Scientific Workflow
 
+The companion [architecture and workflow visual atlas](ARCHITECTURE_DIAGRAMS.md)
+provides rendered diagrams for the stage graph, search traversal, solver
+ownership, reactor routing, evidence authority, provenance, and multi-fidelity
+feedback described here.
+
 This document is the implementation-level guide to the turquoise-hydrogen and
 fuel-cell catalyst discovery repository. It explains what each stage does, why
 it exists, which library performs each calculation, where that integration
@@ -37,6 +42,47 @@ the large space; more expensive calculations resolve a much smaller set; and
 physical measurements remain necessary for discovery and performance claims.
 
 ## 2. Architecture at a glance
+
+```mermaid
+flowchart TB
+    subgraph CONTROL["Control plane"]
+        direction LR
+        ENTRY["CLI, notebook,<br/>scheduler or test"]
+        COORDINATOR["Pipeline coordinator<br/>orders phases and handoffs"]
+        RUNTIME["PipelineRuntime<br/>clock, state and mode"]
+        COMPONENTS["PipelineComponents<br/>selected implementations"]
+        ENTRY --> COORDINATOR
+        RUNTIME -. "execution context" .-> COORDINATOR
+        COMPONENTS -. "component graph" .-> COORDINATOR
+    end
+
+    subgraph BOUNDARY["One replaceable stage boundary"]
+        direction LR
+        RESOURCES["Solvers, files,<br/>registries and GPUs"]
+        SERVICES["Stage-local service bundle<br/>replaceable scientific operations"]
+        STAGE["Selected stage<br/>Discovery · Reactor · DFT · VQE · Fuel cell · Report"]
+        RESOURCES --> SERVICES --> STAGE
+    end
+
+    OUTCOME["StageOutcome<br/>persistent state + downstream products"]
+    CONTRACT{"Are all required products<br/>valid and complete?"}
+    PERSIST["Persist state<br/>and start the next phase"]
+    REJECT["Reject the stage result<br/>do not save partial state"]
+
+    COORDINATOR --> STAGE --> OUTCOME --> CONTRACT
+    CONTRACT -- "Yes" --> PERSIST --> COORDINATOR
+    CONTRACT -- "No" --> REJECT
+    COMPONENTS -. "chooses the stage implementation" .-> STAGE
+
+    classDef control fill:#e8f1ff,stroke:#2563eb,color:#172554
+    classDef stage fill:#e8f8ee,stroke:#15803d,color:#052e16
+    classDef evidence fill:#fff7dc,stroke:#b45309,color:#451a03
+    classDef gate fill:#fff1f2,stroke:#be123c,color:#4c0519
+    class ENTRY,COORDINATOR,RUNTIME,COMPONENTS control
+    class RESOURCES,SERVICES,STAGE stage
+    class OUTCOME,PERSIST evidence
+    class CONTRACT,REJECT gate
+```
 
 ```text
 14 catalyst classes / 21.1B raw encoded configurations

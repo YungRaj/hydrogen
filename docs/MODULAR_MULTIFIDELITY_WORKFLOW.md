@@ -1,5 +1,9 @@
 # Modular multi-fidelity reactor workflow
 
+See the [architecture and workflow visual atlas](ARCHITECTURE_DIAGRAMS.md) for
+the multi-fidelity loop, replaceable component boundaries, solver ownership,
+and provenance diagrams corresponding to this document.
+
 ## Purpose
 
 The pipeline has two different jobs that must not be conflated:
@@ -23,31 +27,55 @@ candidate is chemically infeasible.
 
 The intended data flow is:
 
-```text
-hydrogen_case.json
-        |
-        v
-OpenFOAM / FEniCSx / Cantera case execution
-        |
-        v
-validated multiphysics artifact
-        |
-        +--> physical provenance, convergence and conservation evidence
-        |
-        +--> versioned numeric surrogate_inputs snapshot
-                          |
-                          v
-             mode-local training records
-                          |
-                 disjoint holdout test
-                          |
-                          v
-             transport-closure surrogate
-                    /             \
-       calibrated in-domain       OOD / uncertain / invalid
-               |                            |
-               v                            v
-       reduced Cantera model       full-physics calculation
+```mermaid
+flowchart LR
+    subgraph CALIBRATE["A · Calibrate offline"]
+        direction TB
+        DESIGN["Design representative cases<br/>including regime anchors"]
+        SPLIT["Assign training and blind validation<br/>before execution"]
+        FULL["Run the required<br/>full-physics solvers"]
+        ARTIFACT{"Does the artifact pass identity,<br/>convergence and balance checks?"}
+        TRAIN["Train one surrogate<br/>for one mode and reactor"]
+        HOLDOUT{"Does blind error satisfy<br/>the declared RMSE limit?"}
+        REGISTRY["Publish the model and<br/>checksum manifest atomically"]
+        DESIGN --> SPLIT --> FULL --> ARTIFACT
+        ARTIFACT -- "Yes" --> TRAIN --> HOLDOUT
+        HOLDOUT -- "Yes" --> REGISTRY
+    end
+
+    subgraph SCREEN["B · Screen online"]
+        direction TB
+        QUERY["Request a reduced-reactor closure"]
+        DOMAIN{"Do identity, schema, domain,<br/>uncertainty and physics checks pass?"}
+        CLOSURE["Use the calibrated closure<br/>in the reduced Cantera model"]
+        QUERY --> DOMAIN
+        DOMAIN -- "Yes" --> CLOSURE
+    end
+
+    subgraph REFINE["C · Refer and improve"]
+        direction TB
+        REFER["Require a full-physics calculation"]
+        SCHEDULE["Reserve regional coverage,<br/>then apply adaptive priority"]
+        LEDGER["Record inputs, decisions and<br/>model identity in the hash chain"]
+        REFER --> SCHEDULE --> LEDGER
+    end
+
+    REGISTRY --> QUERY
+    ARTIFACT -- "No" --> REFER
+    HOLDOUT -- "No" --> REFER
+    DOMAIN -- "No" --> REFER
+    SCHEDULE -. "new validated cases" .-> FULL
+    CLOSURE --> LEDGER
+    REGISTRY --> LEDGER
+
+    classDef calibration fill:#e8f8ee,stroke:#15803d,color:#052e16
+    classDef screening fill:#e8f1ff,stroke:#2563eb,color:#172554
+    classDef gate fill:#fff1f2,stroke:#be123c,color:#4c0519
+    classDef record fill:#fff7dc,stroke:#b45309,color:#451a03
+    class DESIGN,SPLIT,FULL,TRAIN,REGISTRY calibration
+    class QUERY,CLOSURE screening
+    class ARTIFACT,HOLDOUT,DOMAIN,REFER,SCHEDULE gate
+    class LEDGER record
 ```
 
 Each boundary uses plain dictionaries, dataclasses, NumPy arrays, or JSON. A

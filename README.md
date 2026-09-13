@@ -6,6 +6,10 @@ A GPU-accelerated computational pipeline for autonomous catalyst discovery targe
 
 ### 📖 References & Deep-Dives
 
+* 🗺️ **[Architecture and Workflow Visual Atlas](docs/ARCHITECTURE_DIAGRAMS.md)**:
+  Diagrams of the engine, search traversal, solver ownership, reactor routing,
+  evidence ladder, provenance, and multi-fidelity feedback.
+
 * 🔬 **[Turquoise Hydrogen Reference Guide](docs/TURQUOISE_HYDROGEN.md)**: Exhaustive literature review of thermocatalytic and nanotribo-mechano-electrochemical (NTEC) methane splitting.
 * 🧪 **[Physical Multiphysics Cases](docs/PHYSICAL_CASES.md)**: Exact reactor-input, parameter-provenance, calibration/holdout, and solver-artifact contract.
 * 🔁 **[Modular Multi-Fidelity Workflow](docs/MODULAR_MULTIFIDELITY_WORKFLOW.md)**: How representative OpenFOAM/FEniCSx cases can train auditable transport closures for cheaper Cantera screening, with uncertain cases referred back to full physics.
@@ -46,11 +50,78 @@ The pipeline answers two questions end-to-end:
 
 It does this autonomously across six phases:
 
+```mermaid
+flowchart TB
+    subgraph EXPLORE["1 · Explore the design space"]
+        direction LR
+        SPACE["21.1B indexed candidates<br/>across 14 material classes"]
+        SEARCH["Coverage-guided<br/>branch-and-bound search"]
+        SCREEN["Fast physical and<br/>machine-learned screening"]
+        ARCHIVE["Diverse Pareto archive<br/>and regional champions"]
+        SPACE --> SEARCH --> SCREEN --> ARCHIVE
+    end
+
+    subgraph VALIDATE["2 · Evaluate independent scientific objectives"]
+        direction LR
+        REACTOR["Methane conversion<br/>and reactor behavior"]
+        ATOMISTIC["Quantum ESPRESSO<br/>relaxation, NEB, frequencies"]
+        POWER["ORR, PEMFC<br/>power and durability"]
+    end
+
+    subgraph EVIDENCE["3 · Establish evidence and decide what runs next"]
+        direction LR
+        NOVELTY["Prior-art and<br/>novelty checks"]
+        REPORT["Readiness report<br/>with claim gates"]
+        EXPERIMENT["Experimental calibration<br/>and blinded holdouts"]
+        NOVELTY --> REPORT
+        EXPERIMENT --> REPORT
+    end
+
+    ARCHIVE --> REACTOR --> REPORT
+    ARCHIVE --> ATOMISTIC --> REPORT
+    ARCHIVE --> POWER --> REPORT
+    ARCHIVE --> NOVELTY
+    REPORT -. "uncertainty and disagreement guide the next round" .-> SEARCH
+
+    classDef explore fill:#e8f1ff,stroke:#2563eb,color:#172554
+    classDef validate fill:#e8f8ee,stroke:#15803d,color:#052e16
+    classDef evidence fill:#fff7dc,stroke:#b45309,color:#451a03
+    class SPACE,SEARCH,SCREEN,ARCHIVE explore
+    class REACTOR,ATOMISTIC,POWER validate
+    class NOVELTY,REPORT,EXPERIMENT evidence
 ```
-Methane (CH₄) ──→ Phase 1-4: Catalyst Discovery ──→ H₂ + C(s)
-                                                       │
-                                                       ▼
-                               Phase 5-6: Fuel Cell Optimization ──→ Electricity
+
+The 21.1-billion-candidate traversal is divide-and-conquer rather than a flat
+enumeration:
+
+```mermaid
+flowchart TB
+    ROOT["Index the complete design space"]
+    PARTITION["Partition by material class<br/>and chemical region"]
+    PROBE["Probe every region with a<br/>deterministic low-discrepancy schedule"]
+    PRIORITY{"Does this branch show<br/>promise or uncertainty?"}
+    REFINE["Subdivide and evaluate sooner"]
+    DEFER["Lower its priority<br/>but retain coverage"]
+    FLOOR["Apply the fixed regional budget"]
+    LEAF["Run resumable terminal-leaf scans"]
+    RESULTS["Update regional champions<br/>and the Pareto archive"]
+    CERTIFICATE["Issue a coverage certificate<br/>with visited intervals and gaps"]
+
+    ROOT --> PARTITION --> PROBE --> PRIORITY
+    PRIORITY -- "Yes" --> REFINE --> LEAF
+    PRIORITY -- "Not yet" --> DEFER --> FLOOR --> LEAF
+    LEAF --> RESULTS
+    LEAF --> CERTIFICATE
+    RESULTS -. "calibration feedback" .-> PROBE
+
+    classDef structure fill:#eef2ff,stroke:#4338ca,color:#1e1b4b
+    classDef decision fill:#fff1f2,stroke:#be123c,color:#4c0519
+    classDef execution fill:#ecfdf5,stroke:#047857,color:#022c22
+    classDef proof fill:#fffbeb,stroke:#b45309,color:#451a03
+    class ROOT,PARTITION,PROBE structure
+    class PRIORITY,REFINE,DEFER,FLOOR decision
+    class LEAF execution
+    class RESULTS,CERTIFICATE proof
 ```
 
 ## Where to Start
@@ -488,7 +559,7 @@ Current validated baseline: **74/74 pipeline tests**, **41/41 scientific
 contracts**, **39/39 modular multi-fidelity contracts**, and **24/24
 exclusion-audit checks**. An additional **5/5 replacement integration
 contracts** prove that every phase runs independently and rejects malformed
-replacement outputs; **4/4 architecture unit contracts** verify default service
+replacement outputs; **5/5 architecture unit contracts** verify default service
 bindings, deep state isolation, persisted candidate routing, and process-free
 imports across all pipeline modules. Hardware-specific CUDA-Q and eSen tests
 remain dependent on the documented accelerator environments.

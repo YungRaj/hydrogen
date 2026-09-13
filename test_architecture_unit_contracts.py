@@ -110,6 +110,34 @@ print(json.dumps({'count': len(names)}))
     assert result['count'] >= 80
 
 
+def test_architecture_visual_atlas_is_linked_and_structurally_complete():
+    root = Path(__file__).resolve().parent
+    atlas = (root / 'docs' / 'ARCHITECTURE_DIAGRAMS.md').read_text()
+    assert atlas.count('```mermaid') == 9
+    assert atlas.count('```') == 18
+    for section in (
+            'End-to-end catalyst discovery engine',
+            'Divide-and-conquer traversal',
+            'Multi-fidelity learning and referral loop',
+            'Scientific software responsibilities',
+            'Methane-conversion mode routing',
+            'Evidence authority ladder',
+            'Replaceable component architecture',
+            'Provenance chain', 'Compute allocation and escalation'):
+        assert f'## {section}' in atlas
+    assert 'ARCHITECTURE_DIAGRAMS.md' in (root / 'README.md').read_text()
+    rendered_locations = {
+        root / 'README.md': 2,
+        root / 'docs' / 'TECHNICAL_ARCHITECTURE.md': 1,
+        root / 'docs' / 'MODULAR_MULTIFIDELITY_WORKFLOW.md': 1,
+    }
+    for document, minimum_diagrams in rendered_locations.items():
+        text = document.read_text()
+        assert 'ARCHITECTURE_DIAGRAMS.md' in text
+        assert text.count('```mermaid') >= minimum_diagrams
+        assert text.count('```') % 2 == 0
+
+
 TESTS = [value for name, value in sorted(globals().items())
          if name.startswith('test_') and callable(value)]
 
