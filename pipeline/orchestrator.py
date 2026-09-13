@@ -30,6 +30,7 @@ from pipeline.process.pathway_modes import (
 from pipeline.stages.orchestration import (
     PipelineComponents, PipelineRuntime, default_pipeline_components,
     default_pipeline_runtime)
+from pipeline.stages.contracts import require_stage_outcome
 
 logger = setup_logger('orchestrator', 'pipeline_orchestrator.log')
 
@@ -105,12 +106,14 @@ def run_pipeline(config: PipelineConfig | None = None,
         runtime.banner("PHASE 1: DETERMINISTIC BRANCH-AND-BOUND DISCOVERY")
         t1 = runtime.clock()
 
-        outcome = components.discovery(
+        outcome = require_stage_outcome(components.discovery(
             initial_samples=config.initial_fairchem_samples,
             leaf_size=config.branch_leaf_size,
             max_leaves=config.branch_max_leaves,
             top_k_reactor=config.top_k_reactor,
-            top_k_dft=config.top_k_dft)
+            top_k_dft=config.top_k_dft), stage='discovery', required_products=(
+                'design_space_sizes', 'pareto_genomes', 'screening_database',
+                'top_catalysts', 'dft_candidates'))
         sizes = outcome.products['design_space_sizes']
         logger.info(f"Design space: {sizes['TOTAL']:,} total configurations")
         for cls, size in sizes.items():
@@ -152,12 +155,13 @@ def run_pipeline(config: PipelineConfig | None = None,
                 logger.warning("No screening database found. Using mock catalysts.")
                 top_catalysts = None
 
-        outcome = components.reactor_batch(
+        outcome = require_stage_outcome(components.reactor_batch(
             top_catalysts, temperatures=config.reactor_temperatures,
             reactor_types=selected_reactors,
             pathway_mode=config.pyrolysis_mode,
             multiphysics_results_dir=multiphysics_results_dir,
-            allow_mock_inputs=config.allow_mock_inputs)
+            allow_mock_inputs=config.allow_mock_inputs), stage='reactor_batch',
+            required_products=('reactor_results',))
         reactor_results = outcome.products['reactor_results']
         pipeline_state['phase2'] = {
             **outcome.state, 'elapsed_s': runtime.clock() - t2}
@@ -172,7 +176,14 @@ def run_pipeline(config: PipelineConfig | None = None,
         runtime.banner("PHASE 3: DFT VALIDATION")
         t3 = runtime.clock()
 
-        if 'dft_candidates' in dir() and dft_candidates is not None:
+        if 'dft_candidates' not in dir():
+            restored = components.load_candidates(
+                SCREENING_DIR / "ga_full_database.csv",
+                top_k_reactor=config.top_k_reactor,
+                top_k_dft=config.top_k_dft)
+            dft_candidates = (restored.get('dft_candidates')
+                              if restored is not None else None)
+        if dft_candidates is not None:
             outcome = components.dft(
                 dft_candidates, top_k=config.top_k_dft,
                 execute_dft=config.run_dft, error_sink=logger.error)
@@ -191,6 +202,9 @@ def run_pipeline(config: PipelineConfig | None = None,
                 execute_dft=config.run_dft, name_prefix='dft_mock',
                 error_sink=logger.error)
 
+        outcome = require_stage_outcome(
+            outcome, stage='dft', required_products=('dft_results',))
+
         dft_results = outcome.products['dft_results']
         pipeline_state['phase3'] = {
             **outcome.state, 'elapsed_s': runtime.clock() - t3}
@@ -204,8 +218,9 @@ def run_pipeline(config: PipelineConfig | None = None,
         runtime.banner("PHASE 4: CUDA-Q VQE TRANSITION STATE")
         t4 = runtime.clock()
 
-        outcome = components.vqe(
-            top_k=config.top_k_vqe, execute_quantum=config.run_vqe)
+        outcome = require_stage_outcome(components.vqe(
+            top_k=config.top_k_vqe, execute_quantum=config.run_vqe),
+            stage='vqe', required_products=('vqe_results',))
         vqe_results = outcome.products['vqe_results']
         pipeline_state['phase4'] = {
             **outcome.state, 'elapsed_s': runtime.clock() - t4}
@@ -219,9 +234,11 @@ def run_pipeline(config: PipelineConfig | None = None,
         runtime.banner("PHASE 5: FUEL CELL CATHODE SCREENING & PEMFC MODEL")
         t5 = runtime.clock()
 
-        outcome = components.fuel_cell(
+        outcome = require_stage_outcome(components.fuel_cell(
             top_k_pemfc=config.fc_top_k_pemfc,
-            stack_cells=config.fc_stack_cells)
+            stack_cells=config.fc_stack_cells), stage='fuel_cell',
+            required_products=('cathode_database', 'valid_cathodes',
+                               'pemfc_results', 'stack_result'))
         cathode_df = outcome.products['cathode_database']
         valid_cathodes = outcome.products['valid_cathodes']
         pemfc_results = outcome.products['pemfc_results']
@@ -238,7 +255,9 @@ def run_pipeline(config: PipelineConfig | None = None,
         runtime.banner("PHASE 6: REPORT GENERATION")
         t6 = runtime.clock()
 
-        outcome = components.report(pipeline_state)
+        outcome = require_stage_outcome(
+            components.report(pipeline_state), stage='report',
+            required_products=('report_path',))
         report_path = outcome.products['report_path']
 
         pipeline_state['phase6'] = {

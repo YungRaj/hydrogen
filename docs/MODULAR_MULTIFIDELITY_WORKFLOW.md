@@ -268,6 +268,8 @@ identity-mismatched predictions are referred back to a solver calculation.
 
 ```bash
 conda run -n fairchem-env python test_modular_multiphysics.py
+conda run -n fairchem-env python test_component_replacement_contracts.py
+conda run -n fairchem-env python test_architecture_unit_contracts.py
 ```
 
 The suite verifies a known synthetic relationship, JSON round trips,
@@ -277,3 +279,18 @@ unsafe serialized-model refusal. It also exercises the complete controller in
 memory, accumulated-evidence retraining, the production adapter boundary,
 coverage-preserving referral allocation, and tamper detection in campaign
 lineage.
+
+The replacement integration suite treats modularity as a runtime contract. It
+runs phases 1 through 6 one at a time with every unselected component replaced
+by a function that raises if called. This proves that each phase owns only its
+declared dependencies. It also verifies independent candidate restoration for
+reactor and DFT restarts, rejects non-`StageOutcome` values and missing product
+handoffs at the named stage boundary, and confirms that a rejected stage does
+not persist partial state.
+
+The architecture unit suite checks the smaller adapter boundaries. It imports
+every module in a clean child interpreter after replacing process-launch APIs
+with forbidden sentinels, verifies that production service factories bind every
+required callable, proves the memory state adapter deep-copies nested state,
+and exercises a real CSV candidate handoff where unresolved candidates remain
+eligible for validation but cannot enter the quantitative reactor route.

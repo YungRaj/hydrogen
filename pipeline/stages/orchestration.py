@@ -7,6 +7,7 @@ tested with an in-memory state store and deterministic clock.
 
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
 import os
 import time
@@ -76,12 +77,12 @@ class MemoryStateStore:
     """Small test/runtime adapter that never touches the filesystem."""
 
     def __init__(self, initial: Mapping | None = None):
-        self.state = dict(initial or {})
+        self.state = deepcopy(dict(initial or {}))
         self.history: list[dict] = []
 
     def load(self) -> dict:
-        return dict(self.state)
+        return deepcopy(self.state)
 
     def save(self, value: Mapping) -> None:
-        self.state = dict(value)
-        self.history.append(dict(value))
+        self.state = deepcopy(dict(value))
+        self.history.append(deepcopy(dict(value)))

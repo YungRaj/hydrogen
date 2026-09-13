@@ -474,6 +474,8 @@ conda run -n fairchem-env python test_pipeline.py
 conda run -n fairchem-env python audit_pipeline.py
 conda run -n fairchem-env python test_scientific_contracts.py
 conda run -n fairchem-env python test_modular_multiphysics.py
+conda run -n fairchem-env python test_component_replacement_contracts.py
+conda run -n fairchem-env python test_architecture_unit_contracts.py
 ```
 
 The active suite verifies indexed-space boundaries, disjoint shards, deterministic
@@ -484,8 +486,12 @@ branch-only production CLI.
 
 Current validated baseline: **74/74 pipeline tests**, **41/41 scientific
 contracts**, **39/39 modular multi-fidelity contracts**, and **24/24
-exclusion-audit checks**. Hardware-specific CUDA-Q and eSen tests remain
-dependent on the documented accelerator environments.
+exclusion-audit checks**. An additional **5/5 replacement integration
+contracts** prove that every phase runs independently and rejects malformed
+replacement outputs; **4/4 architecture unit contracts** verify default service
+bindings, deep state isolation, persisted candidate routing, and process-free
+imports across all pipeline modules. Hardware-specific CUDA-Q and eSen tests
+remain dependent on the documented accelerator environments.
 
 ### Production Campaign (48 hours)
 
