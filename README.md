@@ -544,6 +544,15 @@ All repository test programs live under `tests/`. Run the portable CPU contract
 suites from the repository root:
 
 ```bash
+python tests/run_tests.py
+```
+
+The runner selects the correct Conda environment for every suite, enforces
+per-suite timeouts, returns a nonzero exit status on failure, and atomically
+writes `results/test_summary.json`. Individual portable commands remain
+available for diagnosis:
+
+```bash
 conda run -n fairchem-env python tests/test_pipeline.py
 conda run -n fairchem-env python audit_pipeline.py
 conda run -n fairchem-env python tests/test_scientific_contracts.py
@@ -554,8 +563,8 @@ conda run -n fairchem-env python tests/test_coupling_contracts.py
 conda run -n fairchem-env python tests/test_experimental_data_contract.py
 ```
 
-The hardware-specific contracts use their corresponding environments and are
-run separately:
+The specialized quantum and hardware contracts use their corresponding
+environments and are run separately:
 
 ```bash
 conda run -n quantum-env python tests/test_resolution_contracts.py
@@ -565,6 +574,14 @@ conda run -n fairchem-env python tests/test_gpu_affinity_contract.py
 
 The GPU-affinity contract is opt-in and requires NVIDIA GPUs plus its documented
 `HYDROGEN_*` runtime settings. It is not part of the portable CPU baseline.
+Specialized suites can be added explicitly:
+
+```bash
+python tests/run_tests.py --include-resolution
+python tests/run_tests.py --include-vqe
+python tests/run_tests.py --include-gpu
+python tests/run_tests.py --all
+```
 
 The active suite verifies indexed-space boundaries, disjoint shards, deterministic
 tree probes across all 14 classes, branch resume, no surrogate-based pruning,
@@ -882,11 +899,12 @@ hydrogen/
 │   └── multiphysics_artifact.example.json
 │
 ├── tests/                         # Unit, integration, scientific, and hardware contracts
+│   ├── run_tests.py               # Multi-environment test orchestrator
 │   ├── test_pipeline.py           # Comprehensive portable regression suite
 │   ├── test_scientific_contracts.py # Equations and scientific evidence gates
 │   ├── test_modular_multiphysics.py # Multi-fidelity component contracts
 │   ├── test_component_replacement_contracts.py # Replaceable-stage integration
-│   └── test_*_contract.py         # Focused solver, evidence, and GPU contracts
+│   └── test_*.py                  # Focused solver, evidence, and GPU contracts
 │
 ├── mechanisms/                    # Generated Cantera YAML (gitignored)
 └── results/                       # Pipeline outputs (gitignored)

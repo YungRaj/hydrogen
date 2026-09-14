@@ -205,6 +205,10 @@ search-selection performance, not physical catalyst superiority.
 `audit_pipeline.py` checks repository and scientific-policy contracts.
 All test programs are grouped under `tests/` and are invoked from the repository
 root so their paths and imports behave consistently on local and remote systems.
+`python tests/run_tests.py` runs the portable baseline in each suite's declared Conda
+environment, applies timeouts, and writes `results/test_summary.json`. Quantum,
+VQE, and real-GPU contracts remain explicit opt-ins through
+`--include-resolution`, `--include-vqe`, and `--include-gpu`.
 `tests/test_pipeline.py`, `tests/test_scientific_contracts.py`,
 `tests/test_resolution_contracts.py`, `tests/test_gpu_affinity_contract.py`, and
 `tests/test_vqe_solver_contract.py` cover general behavior, equations and
