@@ -25,7 +25,11 @@ def test_default_selection_is_portable_only():
 def test_opt_ins_and_explicit_selection_are_deterministic():
     args = run_tests.parse_args(["--include-resolution", "--include-vqe"])
     categories = {suite.category for suite in run_tests.select_suites(args)}
-    assert categories == {"portable", "resolution", "vqe"}
+    assert categories == {"portable", "resolution", "vqe-smoke"}
+
+    args = run_tests.parse_args(["--profile", "merge"])
+    assert [suite.name for suite in run_tests.select_suites(args)] == [
+        "scientific", "modular-multiphysics", "coupling", "reactor-merge"]
 
     args = run_tests.parse_args(["--suite", "coupling", "--suite", "pipeline"])
     assert [suite.name for suite in run_tests.select_suites(args)] == [

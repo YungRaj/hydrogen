@@ -577,11 +577,19 @@ The GPU-affinity contract is opt-in and requires NVIDIA GPUs plus its documented
 Specialized suites can be added explicitly:
 
 ```bash
+python tests/run_tests.py --profile merge
 python tests/run_tests.py --include-resolution
 python tests/run_tests.py --include-vqe
+python tests/run_tests.py --include-production-vqe
 python tests/run_tests.py --include-gpu
 python tests/run_tests.py --all
 ```
+
+The `merge` profile targets PFR/MMBCR routing, carbon-model truthfulness,
+elemental balance, candidate-specific kinetic provenance, multiphysics coupling,
+and modular reactor handoffs. `--include-vqe` runs a bounded one-qubit CUDA-Q
+backend smoke test; the original four-qubit chemical-accuracy contract is
+preserved behind `--include-production-vqe` with a 30-minute hard timeout.
 
 The active suite verifies indexed-space boundaries, disjoint shards, deterministic
 tree probes across all 14 classes, branch resume, no surrogate-based pruning,
@@ -904,6 +912,8 @@ hydrogen/
 │   ├── test_scientific_contracts.py # Equations and scientific evidence gates
 │   ├── test_modular_multiphysics.py # Multi-fidelity component contracts
 │   ├── test_component_replacement_contracts.py # Replaceable-stage integration
+│   ├── test_reactor_merge_contracts.py # Focused reactor-merge safety profile
+│   ├── test_vqe_smoke_contract.py # Bounded CUDA-Q backend smoke test
 │   └── test_*.py                  # Focused solver, evidence, and GPU contracts
 │
 ├── mechanisms/                    # Generated Cantera YAML (gitignored)

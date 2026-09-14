@@ -62,10 +62,12 @@ SUITES = (
     Suite("architecture", "tests/test_architecture_unit_contracts.py", FAIRCHEM_ENV, 120),
     Suite("coupling", "tests/test_coupling_contracts.py", FAIRCHEM_ENV, 120),
     Suite("experimental-data", "tests/test_experimental_data_contract.py", FAIRCHEM_ENV, 120),
+    Suite("reactor-merge", "tests/test_reactor_merge_contracts.py", FAIRCHEM_ENV, 120),
     Suite("test-runner", "tests/test_test_runner.py", FAIRCHEM_ENV, 60),
     Suite("repository-audit", "audit_pipeline.py", FAIRCHEM_ENV, 180),
     Suite("resolution", "tests/test_resolution_contracts.py", QUANTUM_ENV, 180, "resolution"),
-    Suite("vqe", "tests/test_vqe_solver_contract.py", QUANTUM_ENV, 900, "vqe"),
+    Suite("vqe-smoke", "tests/test_vqe_smoke_contract.py", QUANTUM_ENV, 120, "vqe-smoke"),
+    Suite("vqe-production", "tests/test_vqe_solver_contract.py", QUANTUM_ENV, 1800, "vqe-production"),
     Suite("gpu-affinity", "tests/test_gpu_affinity_contract.py", FAIRCHEM_ENV, 900, "gpu"),
 )
 
@@ -76,17 +78,23 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--suite", action="append", choices=[suite.name for suite in SUITES],
         help="run only the named suite; may be supplied more than once")
     parser.add_argument(
+        "--profile", choices=("portable", "merge"), default="portable",
+        help="portable baseline (default) or focused reactor merge validation")
+    parser.add_argument(
         "--include-resolution", action="store_true",
         help="include candidate-Hamiltonian tests in the quantum environment")
     parser.add_argument(
         "--include-vqe", action="store_true",
-        help="include the potentially long real CUDA-Q VQE contract")
+        help="include the bounded CUDA-Q VQE smoke contract")
+    parser.add_argument(
+        "--include-production-vqe", action="store_true",
+        help="include the long chemical-accuracy CUDA-Q VQE contract")
     parser.add_argument(
         "--include-gpu", action="store_true",
         help="include the real multi-GPU affinity workload")
     parser.add_argument(
         "--all", action="store_true",
-        help="include portable, resolution, VQE, and GPU suites")
+        help="include portable, resolution, VQE smoke, production VQE, and GPU suites")
     parser.add_argument(
         "--timeout", type=int,
         help="override every selected suite timeout in seconds")
@@ -106,14 +114,23 @@ def select_suites(args: argparse.Namespace) -> list[Suite]:
     if args.suite:
         requested = set(args.suite)
         return [suite for suite in SUITES if suite.name in requested]
-    categories = {"portable"}
+    if args.profile == "merge":
+        names = {"reactor-merge", "scientific", "coupling", "modular-multiphysics"}
+        selected = [suite for suite in SUITES if suite.name in names]
+    else:
+        selected = [suite for suite in SUITES if suite.category == "portable"]
+    categories = set()
     if args.all or args.include_resolution:
         categories.add("resolution")
     if args.all or args.include_vqe:
-        categories.add("vqe")
+        categories.add("vqe-smoke")
+    if args.all or args.include_production_vqe:
+        categories.add("vqe-production")
     if args.all or args.include_gpu:
         categories.add("gpu")
-    return [suite for suite in SUITES if suite.category in categories]
+    selected.extend(suite for suite in SUITES
+                    if suite.category in categories and suite not in selected)
+    return selected
 
 
 def environment_command(suite: Suite, conda: str | None) -> tuple[list[str], str | None]:

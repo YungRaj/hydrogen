@@ -208,7 +208,11 @@ root so their paths and imports behave consistently on local and remote systems.
 `python tests/run_tests.py` runs the portable baseline in each suite's declared Conda
 environment, applies timeouts, and writes `results/test_summary.json`. Quantum,
 VQE, and real-GPU contracts remain explicit opt-ins through
-`--include-resolution`, `--include-vqe`, and `--include-gpu`.
+`--include-resolution`, `--include-vqe`, and `--include-gpu`. The bounded VQE
+smoke test proves CUDA-Q execution without claiming chemical accuracy; the
+original convergence contract remains available as `--include-production-vqe`.
+`--profile merge` focuses validation on PFR/MMBCR routing, carbon and mechanism
+integrity, candidate-specific kinetics, provenance, and multiphysics handoffs.
 `tests/test_pipeline.py`, `tests/test_scientific_contracts.py`,
 `tests/test_resolution_contracts.py`, `tests/test_gpu_affinity_contract.py`, and
 `tests/test_vqe_solver_contract.py` cover general behavior, equations and
