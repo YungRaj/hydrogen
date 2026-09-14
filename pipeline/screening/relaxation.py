@@ -10,7 +10,14 @@ from ase.optimize import BFGS, FIRE
 
 
 def geometry_digest(atoms) -> str:
-    """Stable digest of the final chemical identity, cell, PBC, and positions."""
+    """Stable digest of the final chemical identity, cell, PBC, and positions.
+
+    Args:
+        atoms: Atomic structure consumed by the calculator.
+
+    Returns:
+        Computed `str` result.
+    """
     digest = hashlib.sha256()
     digest.update(np.asarray(atoms.numbers, dtype=np.int16).tobytes())
     digest.update(np.asarray(atoms.positions, dtype=np.float64).tobytes())
@@ -65,9 +72,19 @@ def relax_with_record(atoms, label: str, fmax: float, steps: int,
                       recovery: bool = True) -> dict:
     """Relax atoms and return explicit convergence evidence.
 
-    ASE's return value is intentionally checked; exhausting the step budget is
-    not accepted as convergence.  Forces are evaluated once at the final
-    geometry so the recorded maximum force is the quantity behind the gate.
+        ASE's return value is intentionally checked; exhausting the step budget is
+        not accepted as convergence.  Forces are evaluated once at the final
+        geometry so the recorded maximum force is the quantity behind the gate.
+
+    Args:
+        atoms: Atomic structure consumed by the calculator.
+        label: Label used by this operation.
+        fmax: Fmax used by this operation.
+        steps: Steps used by this operation.
+        recovery: Whether to enable recovery.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
     """
     prefix = f'relax_{label}'
     geometry_error = _initial_geometry_error(atoms)
@@ -152,7 +169,19 @@ def relax_with_record(atoms, label: str, fmax: float, steps: int,
 
 def require_relaxation(result: dict, atoms, label: str,
                        fmax: float, steps: int, recovery: bool = True) -> bool:
-    """Add a relaxation record and fail the candidate closed when incomplete."""
+    """Add a relaxation record and fail the candidate closed when incomplete.
+
+    Args:
+        result: Mapping supplying result.
+        atoms: Atomic structure consumed by the calculator.
+        label: Label used by this operation.
+        fmax: Fmax used by this operation.
+        steps: Steps used by this operation.
+        recovery: Whether to enable recovery.
+
+    Returns:
+        True when the documented condition holds; otherwise False.
+    """
     record = relax_with_record(atoms, label, fmax, steps, recovery=recovery)
     result.update(record)
     if record[f'relax_{label}_converged']:

@@ -25,8 +25,17 @@ def resolve_executable(name: str, *, env_var: str | None = None,
                        required: bool = True) -> str | None:
     """Resolve without assuming where Python, Conda, or environments live.
 
-    Resolution order is an explicit environment override, the caller's PATH,
-    then a PATH-resolved Conda executable querying a documented environment.
+        Resolution order is an explicit environment override, the caller's PATH,
+        then a PATH-resolved Conda executable querying a documented environment.
+
+    Args:
+        name: Name used by this operation.
+        env_var: Env var used by this operation.
+        conda_env: Conda env used by this operation.
+        required: Whether to enable required.
+
+    Returns:
+        Computed `str | None` result.
     """
     override = os.environ.get(env_var, '') if env_var else ''
     if override:
@@ -65,6 +74,14 @@ def resolve_executable(name: str, *, env_var: str | None = None,
 
 
 def resolve_qe_executable(name: str) -> str:
+    """Locate a Quantum ESPRESSO executable without assuming an installation path.
+
+    Args:
+        name: Human-readable identifier used in diagnostics and output.
+
+    Returns:
+        A `str` containing the resolve qe executable result.
+    """
     variables = {'pw.x': 'PW_X', 'neb.x': 'NEB_X'}
     return resolve_executable(
         name, env_var=variables.get(name), conda_env='qe-env', required=True)

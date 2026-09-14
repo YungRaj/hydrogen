@@ -57,7 +57,18 @@ def _declared(value) -> bool:
 
 def load_physical_case(path: str | Path, *, candidate_id: str, mode: str,
                        reactor_type: str, temperature_K: float) -> dict:
-    """Load a physical case and fail on missing physics or provenance."""
+    """Load a physical case and fail on missing physics or provenance.
+
+    Args:
+        path: Filesystem path to the input or output artifact.
+        candidate_id: Stable candidate identifier.
+        mode: Configured methane-conversion pathway.
+        reactor_type: Physical reactor implementation identifier.
+        temperature_K: Absolute temperature in kelvin.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     source = Path(path)
     try:
         case = json.loads(source.read_text())
@@ -157,7 +168,18 @@ def load_physical_case(path: str | Path, *, candidate_id: str, mode: str,
 
 def case_template(*, candidate_id: str, mode: str, reactor_type: str,
                   temperature_K: float, electrolyte_phase: str | None = None) -> dict:
-    """Create a deliberately non-runnable template with all required keys."""
+    """Create a deliberately non-runnable template with all required keys.
+
+    Args:
+        candidate_id: Stable candidate identifier.
+        mode: Configured methane-conversion pathway.
+        reactor_type: Physical reactor implementation identifier.
+        temperature_K: Absolute temperature in kelvin.
+        electrolyte_phase: Electrolyte phase used by this operation.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     from pipeline.process.pathway_modes import reactor_types_for_mode
     if reactor_type not in reactor_types_for_mode(mode):
         raise ValueError(f'{reactor_type} is not routed by mode {mode}')
@@ -195,6 +217,8 @@ def case_template(*, candidate_id: str, mode: str, reactor_type: str,
 
 
 def main() -> None:
+    """Run the module command-line entry point.
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='command', required=True)
     init = sub.add_parser('init')
@@ -235,7 +259,14 @@ def main() -> None:
 
 
 def case_summary(case: dict) -> dict:
-    """Return traceable metadata without duplicating the full solver input."""
+    """Return traceable metadata without duplicating the full solver input.
+
+    Args:
+        case: Mapping supplying case.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     calibration = case['calibration']
     return {
         'schema_version': case['schema_version'],
@@ -251,10 +282,16 @@ def case_summary(case: dict) -> dict:
 def surrogate_inputs(case: dict) -> dict:
     """Return the numeric, unit-bearing inputs needed to reproduce a surrogate row.
 
-    Sources and model names remain in ``hydrogen_case.json`` and are protected by
-    the case digest.  This snapshot deliberately contains only numerical solver
-    inputs; it is therefore suitable for deterministic feature extraction but is
-    not a replacement for the full physical-case provenance.
+        Sources and model names remain in ``hydrogen_case.json`` and are protected by
+        the case digest.  This snapshot deliberately contains only numerical solver
+        inputs; it is therefore suitable for deterministic feature extraction but is
+        not a replacement for the full physical-case provenance.
+
+    Args:
+        case: Mapping supplying case.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
     """
     reactor_type = case.get('reactor_type')
     if reactor_type not in _REQUIRED:

@@ -9,7 +9,16 @@ from pipeline.stages.contracts import StageOutcome
 
 def run_vqe_stage(*, top_k: int, execute_quantum: bool,
                   validator: Callable | None = None) -> StageOutcome:
-    """Run candidate VQE validations with an injectable solver boundary."""
+    """Run candidate VQE validations with an injectable solver boundary.
+
+    Args:
+        top_k: Bound controlling top k.
+        execute_quantum: Whether to enable execute quantum.
+        validator: Injected callable used to perform validator.
+
+    Returns:
+        Computed `StageOutcome` result.
+    """
     if not isinstance(top_k, int) or top_k < 0:
         raise ValueError('top_k must be a nonnegative integer')
     if validator is None:

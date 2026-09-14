@@ -34,7 +34,14 @@ class TransportModelRegistry:
         return f'{mode}__{reactor}'
 
     def publish(self, model: TransportSurrogate) -> Path:
-        """Atomically publish a model and a manifest tied to its exact bytes."""
+        """Atomically publish a model and a manifest tied to its exact bytes.
+
+        Args:
+            model: Fitted model used for inference.
+
+        Returns:
+            Filesystem path produced or resolved by the operation.
+        """
         self.root.mkdir(parents=True, exist_ok=True)
         stem = self._stem(model.pathway_mode, model.reactor_type)
         target = self.root / f'{stem}.model.json'
@@ -61,7 +68,15 @@ class TransportModelRegistry:
         return manifest_target
 
     def load(self, mode: str, reactor: str) -> TransportSurrogate | None:
-        """Return a verified identity-matched model, or None when unpublished."""
+        """Return a verified identity-matched model, or None when unpublished.
+
+        Args:
+            mode: Configured methane-conversion pathway.
+            reactor: Reactor used by this operation.
+
+        Returns:
+            Computed `TransportSurrogate | None` result.
+        """
         stem = self._stem(mode, reactor)
         manifest_path = self.root / f'{stem}.manifest.json'
         if not manifest_path.is_file():

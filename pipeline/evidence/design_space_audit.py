@@ -16,8 +16,11 @@ from pipeline.search.indexed_space import CLASS_ORDER, CLASS_SIZES, candidate_at
 def canonical_class_sizes() -> dict[str, int]:
     """Return exact counts after known representational equivalences collapse.
 
-    These counts do not assert physical feasibility or symmetry uniqueness.
-    They only remove equivalences explicitly implemented by ``candidate_id``.
+        These counts do not assert physical feasibility or symmetry uniqueness.
+        They only remove equivalences explicitly implemented by ``candidate_id``.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
     """
     sizes = dict(CLASS_SIZES)
     dopants = len(cs.SOLID_DOPANTS)
@@ -90,7 +93,16 @@ def _sample_indices(size: int, count: int) -> list[int]:
 def audit_design_space(sample_per_class: int = 2048,
                        min_raw_per_class: int = 1000,
                        min_projected_admissible_per_class: int = 1000) -> dict:
-    """Audit all classes without materializing the combinatorial population."""
+    """Audit all classes without materializing the combinatorial population.
+
+    Args:
+        sample_per_class: Sample per class used by this operation.
+        min_raw_per_class: Bound controlling min raw per class.
+        min_projected_admissible_per_class: Bound controlling min projected admissible per class.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     canonical_sizes = canonical_class_sizes()
     classes, failures = {}, []
     for material_class in CLASS_ORDER:
@@ -140,6 +152,8 @@ def audit_design_space(sample_per_class: int = 2048,
 
 
 def main() -> None:
+    """Run the module command-line entry point.
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--samples-per-class", type=int, default=2048)
     parser.add_argument("--output", default="")

@@ -23,6 +23,8 @@ class CaseArtifactReference:
     partition: str
 
     def validate(self) -> None:
+        """Reject invalid configuration before it reaches scientific execution.
+        """
         if self.partition not in {'training', 'validation'}:
             raise ValueError('case partition must be training or validation')
         if not self.candidate_id or not self.pathway_mode or not self.reactor_type:
@@ -38,9 +40,24 @@ def train_and_publish_transport_model(
         model_fitter: Callable = fit_transport_surrogate) -> dict:
     """Validate every declared label, fit a blind holdout, and publish atomically.
 
-    Partitions are supplied before fitting rather than selected opportunistically
-    after inspecting errors. Any invalid artifact aborts the complete operation;
-    the workflow never trains on a silently reduced collection.
+        Partitions are supplied before fitting rather than selected opportunistically
+        after inspecting errors. Any invalid artifact aborts the complete operation;
+        the workflow never trains on a silently reduced collection.
+
+    Args:
+        references: References used by this operation.
+        results_dir: Directory containing or receiving calculation results.
+        model_registry: Model registry used by this operation.
+        targets: Output properties learned or evaluated by the model.
+        validation_rmse_limits: Mapping supplying validation rmse limits.
+        ensemble_size: Number of ensemble size to use.
+        ridge: Ridge used by this operation.
+        random_seed: Seed controlling deterministic sampling or fitting.
+        artifact_loader: Injected callable used to perform artifact loader.
+        model_fitter: Injected callable used to perform model fitter.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
     """
     refs = list(references)
     if not refs:

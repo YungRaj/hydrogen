@@ -17,10 +17,17 @@ def _digest(value: Mapping) -> str:
 
 
 class CampaignLedger:
+    """Maintain an atomic, tamper-evident campaign event chain.
+    """
     def __init__(self, path: str | Path):
         self.path = Path(path)
 
     def read_verified(self) -> list[dict]:
+        """Read the campaign ledger and verify every hash-chain link.
+
+        Returns:
+            A list of ledger events after schema and hash-chain verification.
+        """
         if not self.path.is_file():
             return []
         try:
@@ -47,6 +54,15 @@ class CampaignLedger:
         return events
 
     def append(self, event_type: str, payload: Mapping) -> dict:
+        """Append an event and atomically persist the updated hash chain.
+
+        Args:
+            event_type: Stable category assigned to the new ledger event.
+            payload: JSON-compatible evidence stored in the event.
+
+        Returns:
+            The newly appended event, including its sequence and SHA-256 digest.
+        """
         if not event_type or not isinstance(payload, Mapping):
             raise ValueError('ledger event type and payload are required')
         events = self.read_verified()

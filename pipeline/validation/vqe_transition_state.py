@@ -33,15 +33,21 @@ logger = setup_logger('vqe_ts', 'vqe/vqe_transition_state.log')
 
 def build_ch_splitting_hamiltonian(n_qubits: int = 4) -> list:
     """
-    Build a model Hamiltonian for the C-H bond splitting transition state.
-    
-    Active space: σ(C-H) bonding and σ*(C-H) antibonding orbitals
-    plus metal d-orbitals involved in activation.
-    
-    Uses a Jordan-Wigner-mapped second-quantized Hamiltonian with
-    one- and two-body integrals derived from DFT orbital energies.
-    
-    Returns a list of (coefficient, Pauli_string) tuples.
+        Build a model Hamiltonian for the C-H bond splitting transition state.
+
+        Active space: σ(C-H) bonding and σ*(C-H) antibonding orbitals
+        plus metal d-orbitals involved in activation.
+
+        Uses a Jordan-Wigner-mapped second-quantized Hamiltonian with
+        one- and two-body integrals derived from DFT orbital energies.
+
+        Returns a list of (coefficient, Pauli_string) tuples.
+
+    Args:
+        n_qubits: Number of qubits to use.
+
+    Returns:
+        List of computed or validated records.
     """
     # Model Hamiltonian terms (from DFT orbital energies in CH₄/catalyst system)
     # These are representative values for a C-H activation transition state
@@ -64,9 +70,15 @@ def build_ch_splitting_hamiltonian(n_qubits: int = 4) -> list:
 
 def build_orr_hamiltonian(n_qubits: int = 4) -> list:
     """
-    Build a model Hamiltonian for the O-O bond cleavage in OOH* intermediate.
-    
-    Active space: σ(O-O) and π*(O-O) orbitals with metal d participation.
+        Build a model Hamiltonian for the O-O bond cleavage in OOH* intermediate.
+
+        Active space: σ(O-O) and π*(O-O) orbitals with metal d participation.
+
+    Args:
+        n_qubits: Number of qubits to use.
+
+    Returns:
+        List of computed or validated records.
     """
     hamiltonian_terms = [
         (-148.00, 'IIII'),    # Core energy
@@ -85,7 +97,15 @@ def build_orr_hamiltonian(n_qubits: int = 4) -> list:
 
 
 def exact_ground_energy(hamiltonian_terms: list, n_qubits: int) -> float:
-    """Classically diagonalize a small Pauli Hamiltonian for VQE validation."""
+    """Classically diagonalize a small Pauli Hamiltonian for VQE validation.
+
+    Args:
+        hamiltonian_terms: Ordered values supplying hamiltonian terms.
+        n_qubits: Number of qubits to use.
+
+    Returns:
+        Computed `float` value in the units documented above.
+    """
     if n_qubits > 12:
         raise ValueError('exact VQE benchmark is limited to at most 12 qubits')
     pauli = {
@@ -117,7 +137,7 @@ def run_vqe(hamiltonian_terms: list, n_qubits: int = 4,
             target: str = 'nvidia') -> Dict:
     """
     Run VQE using CUDA-Q with a hardware-efficient ansatz.
-    
+
     Args:
         hamiltonian_terms: List of (coeff, pauli_string) tuples
         n_qubits: Number of qubits
@@ -125,7 +145,7 @@ def run_vqe(hamiltonian_terms: list, n_qubits: int = 4,
         max_iter: Maximum COBYLA iterations
         initial_theta: Initial variational parameters
         target: CUDA-Q target ('nvidia' for GPU, 'default' for CPU)
-        
+
     Returns: Dict with optimized energy, parameters, etc.
     """
     try:
@@ -262,12 +282,14 @@ def validate_transition_state(catalyst_name: str, reaction_type: str = 'CH_split
                                candidate_hamiltonian: str | None = None) -> Dict:
     """
     Full VQE transition-state validation for a champion catalyst.
-    
+
     Args:
         catalyst_name: Identifier for the catalyst
         reaction_type: 'CH_split' (methane pyrolysis) or 'ORR' (fuel cell)
         target: CUDA-Q target
-        
+        candidate_hamiltonian: Optional FCIDUMP path for a provenance-bound,
+            candidate-specific Hamiltonian; absent input uses a toy benchmark.
+
     Returns: Dict with VQE results
     """
     print_banner(f"CUDA-Q VQE: {catalyst_name} ({reaction_type})")

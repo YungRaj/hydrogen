@@ -99,7 +99,23 @@ def generate_alloy_slab(host: str, facet: str, strain: float,
                         size: Tuple[int,int,int] = (3, 3, 4),
                         vacuum: float = 12.0, seed_key=None,
                         environment_label: str | None = None) -> Tuple[Atoms, list]:
-    """Generate a strained alloy slab with dopant substitutions and vacancies."""
+    """Generate a strained alloy slab with dopant substitutions and vacancies.
+
+    Args:
+        host: Host used by this operation.
+        facet: Facet used by this operation.
+        strain: Strain used by this operation.
+        dopants: Ordered values supplying dopants.
+        n_sub: Number of sub to use.
+        n_vac: Number of vac to use.
+        size: Ordered values supplying size.
+        vacuum: Vacuum used by this operation.
+        seed_key: Seed key used by this operation.
+        environment_label: Environment label used by this operation.
+
+    Returns:
+        Ordered tuple of computed values.
+    """
     builders = {
         'fcc111': fcc111, 'fcc100': fcc100,
         'bcc110': bcc110, 'hcp0001': hcp0001,
@@ -194,7 +210,20 @@ def generate_porphyrin_cluster(metal: str, cavity: str,
                                axial_ligand: str = 'none',
                                linker: str | None = None,
                                pore_size: float | None = None) -> Atoms:
-    """Generate a metal-porphyrin active site cluster for SAC/MOF evaluation."""
+    """Generate a metal-porphyrin active site cluster for SAC/MOF evaluation.
+
+    Args:
+        metal: Metal used by this operation.
+        cavity: Cavity used by this operation.
+        d_metal_n: D metal n used by this operation.
+        substrate: Substrate used by this operation.
+        axial_ligand: Axial ligand used by this operation.
+        linker: Linker used by this operation.
+        pore_size: Number of pore size to use.
+
+    Returns:
+        Computed `Atoms` result.
+    """
     atoms = Atoms()
 
     # Central metal atom
@@ -287,8 +316,11 @@ def generate_porphyrin_cluster(metal: str, cavity: str,
 
 def generate_structure(genome: tuple) -> Tuple[Atoms, list, str]:
     """
-    Generate an atomic structure from a catalyst genome.
-    Returns: (atoms, active_site_indices, material_class)
+        Generate an atomic structure from a catalyst genome.
+        Returns: (atoms, active_site_indices, material_class)
+
+    Args:
+        genome: Encoded catalyst composition and structural configuration.
     """
     mat_class = genome[0]
 
@@ -618,7 +650,14 @@ def _generate_hydride_slab(metal: str, second: str, h_type: str = 'simple',
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def compute_reference_energies(calc) -> Dict[str, float]:
-    """Compute gas-phase reference energies using Meta eSen-SM."""
+    """Compute gas-phase reference energies using Meta eSen-SM.
+
+    Args:
+        calc: Atomic calculator used for the evaluation.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     refs = {}
 
     # H₂
@@ -667,9 +706,17 @@ def compute_reference_energies(calc) -> Dict[str, float]:
 
 def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
     """
-    Evaluate a single catalyst candidate using Meta eSen-SM.
-    
-    Returns a dictionary with all computed descriptors.
+        Evaluate a single catalyst candidate using Meta eSen-SM.
+
+        Returns a dictionary with all computed descriptors.
+
+    Args:
+        genome: Encoded catalyst composition and structural configuration.
+        calc: Atomic calculator used for the evaluation.
+        refs: Mapping supplying refs.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
     """
     mat_class = genome[0]
     result = {
@@ -751,7 +798,7 @@ def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
 
         # 7. Coking resistance index
         coking_index = dE_C - 2.0 * dE_H  # positive = resistant
-        
+
         # Apply liquid-metal coking resistance bonus for NTEC mode
         py_mode = os.environ.get('PYROLYSIS_MODE', 'thermocatalytic')
         if py_mode == 'ntec':
@@ -763,7 +810,7 @@ def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
                 coking_index += assistance['coking_bonus']
                 result['ntec_evidence_status'] = assistance['status']
                 result['ntec_assistance'] = assistance
-            
+
         result['coking_index'] = coking_index
 
         # 8. Stability metric
@@ -930,7 +977,18 @@ def _extract_elements(genome: tuple) -> List[str]:
 def eval_worker(worker_id: int, gpu_id: int, gpu_uuid: str, task_queue: mp.Queue,
                 result_queue: mp.Queue, stop_event, candidate_threads: int = 1,
                 batched: bool = False):
-    """GPU worker; optionally share one dynamically batched model across threads."""
+    """GPU worker; optionally share one dynamically batched model across threads.
+
+    Args:
+        worker_id: Worker id used by this operation.
+        gpu_id: Gpu id used by this operation.
+        gpu_uuid: Gpu uuid used by this operation.
+        task_queue: Task queue used by this operation.
+        result_queue: Result queue used by this operation.
+        stop_event: Stop event used by this operation.
+        candidate_threads: Candidate threads used by this operation.
+        batched: Whether to enable batched.
+    """
     try:
         import os
         # This process is spawned without importing torch at module scope, so
@@ -942,12 +1000,12 @@ def eval_worker(worker_id: int, gpu_id: int, gpu_uuid: str, task_queue: mp.Queue
         os.environ['OPENBLAS_NUM_THREADS'] = '1'
         os.environ['VECLIB_MAXIMUM_THREADS'] = '1'
         os.environ['NUMEXPR_NUM_THREADS'] = '1'
-        
+
         # Limit CPU threads to prevent multiprocessing CPU over-subscription thrashing
         import torch
         torch.set_num_threads(1)
         torch.set_num_interop_threads(1)
-        
+
         from pipeline.screening.surface_calculator import get_ocp_calculator
         calc = get_ocp_calculator(
             model_name='esen-sm-conserving-all-oc25', device='cuda')
@@ -992,12 +1050,13 @@ def run_screening(genomes: List[tuple], db_filename: str = "surface_screening.cs
                   workers_per_gpu: int = 2, engine: str = 'batched') -> 'pd.DataFrame':
     """
     Run parallel Meta eSen-SM screening on a list of catalyst genomes.
-    
+
     Args:
         genomes: List of catalyst genome tuples
         db_filename: Output CSV filename
         workers_per_gpu: Number of parallel workers per GPU
-        
+        engine: Batched production engine or explicitly requested legacy engine.
+
     Returns:
         DataFrame with all screening results
     """

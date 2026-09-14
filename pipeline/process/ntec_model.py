@@ -15,6 +15,19 @@ import os
 
 @dataclass(frozen=True)
 class NTECConditions:
+    """Hold NTEC treatment/control conditions and calibration evidence.
+
+    Attributes:
+        shear_rate_s: Configured shear rate s value.
+        interfacial_field_V_m: Configured interfacial field V m value.
+        mechanical_power_W_kg: Configured mechanical power W kg value.
+        carbon_detachment_fraction: Configured carbon detachment fraction value.
+        field_measurement_source: Configured field measurement source value.
+        paired_control_source: Configured paired control source value.
+        paired_control_count: Configured paired control count value.
+        measured_barrier_reduction_eV: Configured measured barrier reduction eV value.
+        measured_coking_delta_eV: Configured measured coking delta eV value.
+    """
     shear_rate_s: float | None = None
     interfacial_field_V_m: float | None = None
     mechanical_power_W_kg: float | None = None
@@ -27,7 +40,11 @@ class NTECConditions:
 
 
 def conditions_from_environment() -> NTECConditions:
-    """Load NTEC_CONDITIONS_JSON. Bad or absent input deliberately means unknown."""
+    """Load NTEC_CONDITIONS_JSON. Bad or absent input deliberately means unknown.
+
+    Returns:
+        Computed `NTECConditions` result.
+    """
     try:
         raw = json.loads(os.environ.get('NTEC_CONDITIONS_JSON', '{}'))
         allowed = set(NTECConditions.__dataclass_fields__)
@@ -37,6 +54,14 @@ def conditions_from_environment() -> NTECConditions:
 
 
 def ntec_assistance(conditions: NTECConditions) -> dict:
+    """Calculate bounded NTEC assistance only from complete paired-control evidence.
+
+    Args:
+        conditions: Measured pathway conditions to validate.
+
+    Returns:
+        A dictionary containing ntec assistance outputs, status, and supporting metadata.
+    """
     values = asdict(conditions)
     operating = ('shear_rate_s', 'interfacial_field_V_m',
                  'mechanical_power_W_kg', 'carbon_detachment_fraction')

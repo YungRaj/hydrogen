@@ -16,7 +16,16 @@ class StageOutcome:
 
 def require_stage_outcome(value, *, stage: str,
                           required_products: tuple[str, ...] = ()) -> StageOutcome:
-    """Validate a replaceable stage at its orchestration boundary."""
+    """Validate a replaceable stage at its orchestration boundary.
+
+    Args:
+        value: Value used by this operation.
+        stage: Stage used by this operation.
+        required_products: Ordered values supplying required products.
+
+    Returns:
+        Computed `StageOutcome` result.
+    """
     if not isinstance(value, StageOutcome):
         raise TypeError(f'{stage} stage must return StageOutcome')
     if not isinstance(value.state, Mapping) or not isinstance(value.products, Mapping):

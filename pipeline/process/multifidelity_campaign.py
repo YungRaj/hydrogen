@@ -33,7 +33,23 @@ def default_campaign_services(
         random_seed: int = 0, solver_runner: Callable = run_backend,
         trainer: Callable = train_and_publish_transport_model
         ) -> MultiFidelityCampaignServices:
-    """Bind the controller to the production solver, validator, and registry."""
+    """Bind the controller to the production solver, validator, and registry.
+
+    Args:
+        results_dir: Directory containing or receiving calculation results.
+        registry_dir: Directory used for registry dir.
+        ledger_path: Filesystem location used for ledger path.
+        targets: Output properties learned or evaluated by the model.
+        validation_rmse_limits: Validation rmse limits used by this operation.
+        ensemble_size: Number of ensemble size to use.
+        ridge: Ridge used by this operation.
+        random_seed: Seed controlling deterministic sampling or fitting.
+        solver_runner: Injected callable used to perform solver runner.
+        trainer: Injected callable used to perform trainer.
+
+    Returns:
+        Computed `MultiFidelityCampaignServices` result.
+    """
     registry = TransportModelRegistry(registry_dir)
     ledger = CampaignLedger(ledger_path)
 
@@ -94,7 +110,19 @@ def run_multifidelity_iteration(
         services: MultiFidelityCampaignServices, referral_budget: int,
         minimum_per_region: int = 1,
         prior_references: Iterable[CaseArtifactReference] = ()) -> dict:
-    """Execute, train, screen, refer, and record one fail-closed iteration."""
+    """Execute, train, screen, refer, and record one fail-closed iteration.
+
+    Args:
+        designed_cases: Mapping supplying designed cases.
+        screening_queries: Mapping supplying screening queries.
+        services: Services used by this operation.
+        referral_budget: Referral budget used by this operation.
+        minimum_per_region: Minimum per region used by this operation.
+        prior_references: Prior references used by this operation.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     plans = [dict(case) for case in designed_cases]
     if not plans:
         raise ValueError('a campaign iteration requires designed cases')

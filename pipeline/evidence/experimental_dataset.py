@@ -168,7 +168,14 @@ def _validate_values(record: dict, index: int) -> None:
 
 
 def validate_experimental_dataset(path: str | Path) -> dict:
-    """Validate raw provenance, physical fields, split isolation, and NTEC pairs."""
+    """Validate raw provenance, physical fields, split isolation, and NTEC pairs.
+
+    Args:
+        path: Filesystem path to the input or output artifact.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     dataset_path = Path(path).expanduser().resolve()
     payload = json.loads(dataset_path.read_text())
     for key in ('schema_version', 'dataset_id', 'protocol_id', 'records',
@@ -316,7 +323,14 @@ def validate_experimental_dataset(path: str | Path) -> dict:
 
 
 def experimental_evidence_records(path: str | Path) -> dict:
-    """Create evidence-manifest fragments only for split-complete groups."""
+    """Create evidence-manifest fragments only for split-complete groups.
+
+    Args:
+        path: Filesystem path to the input or output artifact.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     report = validate_experimental_dataset(path)
     mapping = {
         'pyrolysis_reactor': ('measured_reactor', 'measured_deactivation'),
@@ -344,6 +358,8 @@ def experimental_evidence_records(path: str | Path) -> dict:
 
 
 def main() -> None:
+    """Run the module command-line entry point.
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('dataset')
     parser.add_argument('--output')

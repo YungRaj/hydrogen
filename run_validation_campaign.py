@@ -7,6 +7,8 @@ from dataclasses import fields
 from pathlib import Path
 
 def main() -> None:
+    """Run the module command-line entry point.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument('--pyro-dir')
     parser.add_argument('--pyro-prefix', default='candidate')

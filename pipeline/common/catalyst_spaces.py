@@ -74,7 +74,11 @@ MOLTEN_TEMPERATURES_K = [
 
 
 def generate_molten_metal_genome() -> tuple:
-    """Generate a random molten metal catalyst genome."""
+    """Generate a random molten metal catalyst genome.
+
+    Returns:
+        Ordered tuple of computed values.
+    """
     host = random.choice(MOLTEN_HOSTS)
     promoter = random.choice(MOLTEN_PROMOTERS)
     at_pct = random.choice(MOLTEN_PROMOTER_AT_PCT) if promoter != 'None' else 0.0
@@ -86,7 +90,14 @@ def generate_molten_metal_genome() -> tuple:
 
 
 def validate_molten_metal(genome: tuple) -> bool:
-    """Check if a molten metal genome is physically feasible."""
+    """Check if a molten metal genome is physically feasible.
+
+    Args:
+        genome: Encoded catalyst composition and structural configuration.
+
+    Returns:
+        True when the documented condition holds; otherwise False.
+    """
     _, host, promoter, at_pct, temp = genome
     if not is_molten_at_temperature(host, temp):
         return False
@@ -163,7 +174,11 @@ SOLID_STRAIN_RANGE = (-0.10, 0.10)  # ±10%
 
 
 def generate_solid_catalyst_genome() -> tuple:
-    """Generate a random solid catalyst genome."""
+    """Generate a random solid catalyst genome.
+
+    Returns:
+        Ordered tuple of computed values.
+    """
     metal = random.choice(SOLID_ACTIVE_METALS)
     support = random.choice(SOLID_SUPPORTS)
     facet = random.choice(SOLID_FACETS)
@@ -220,8 +235,11 @@ SAC_SUBSTRATES = [
 
 def generate_sac_genome() -> tuple:
     """Generate a random SAC genome.
-    
-    Genome: ('SAC', metal, coordination, substrate, axial_ligand)
+
+        Genome: ('SAC', metal, coordination, substrate, axial_ligand)
+
+    Returns:
+        Ordered tuple of computed values.
     """
     metal = random.choice(SAC_METALS)
     coord = random.choice(SAC_COORDINATIONS)
@@ -240,7 +258,11 @@ DAC_COORDINATIONS = [
 
 
 def generate_dac_genome() -> tuple:
-    """Generate a random DAC genome."""
+    """Generate a random DAC genome.
+
+    Returns:
+        Ordered tuple of computed values.
+    """
     m1 = random.choice(DAC_METALS_1)
     m2 = random.choice(DAC_METALS_2)
     coord = random.choice(DAC_COORDINATIONS)
@@ -280,7 +302,11 @@ COF_LINKAGES = [
 
 
 def generate_mof_genome() -> tuple:
-    """Generate a random MOF genome."""
+    """Generate a random MOF genome.
+
+    Returns:
+        Ordered tuple of computed values.
+    """
     metal = random.choice(MOF_METAL_NODES)
     linker = random.choice(MOF_LINKERS)
     cavity = random.choice(MOF_CAVITIES)
@@ -289,7 +315,11 @@ def generate_mof_genome() -> tuple:
 
 
 def generate_cof_genome() -> tuple:
-    """Generate a random COF genome."""
+    """Generate a random COF genome.
+
+    Returns:
+        Ordered tuple of computed values.
+    """
     metal = random.choice(MOF_METAL_NODES + ['None'])
     linkage = random.choice(COF_LINKAGES)
     cavity = random.choice(MOF_CAVITIES)
@@ -315,6 +345,11 @@ PEROVSKITE_DOPANT_FRAC = [0.0, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.50]
 PEROVSKITE_DEFECTS = ['none', 'A_vacancy', 'B_vacancy', 'O_vacancy', 'A_excess']
 
 def generate_perovskite_genome() -> tuple:
+    """Sample one encoded perovskite catalyst candidate.
+
+    Returns:
+        An encoded genome tuple for the sampled material class.
+    """
     A = random.choice(PEROVSKITE_A_SITE)
     B = random.choice(PEROVSKITE_B_SITE)
     dopant = random.choice(PEROVSKITE_B_SITE + ['None'])
@@ -346,6 +381,11 @@ HYDRIDE_ADDITIVES = _safe([
 ])
 
 def generate_hydride_genome() -> tuple:
+    """Sample one encoded metal-hydride candidate.
+
+    Returns:
+        An encoded genome tuple for the sampled material class.
+    """
     metal = random.choice(HYDRIDE_METALS)
     h_type = random.choice(HYDRIDE_TYPES)
     second = random.choice(HYDRIDE_SECOND_METAL)
@@ -370,6 +410,11 @@ MAX_X_ELEMENTS = ['C', 'N']  # carbide or nitride
 MAX_N_VALUES = [1, 2, 3]  # n in M_{n+1}AX_n → 211, 312, 413 phases
 
 def generate_max_genome() -> tuple:
+    """Sample one encoded MAX-phase candidate.
+
+    Returns:
+        An encoded genome tuple for the sampled material class.
+    """
     M = random.choice(MAX_M_ELEMENTS)
     A = random.choice(MAX_A_ELEMENTS)
     X = random.choice(MAX_X_ELEMENTS)
@@ -393,6 +438,11 @@ HEA_ELEMENTS = _safe([
 HEA_STRUCTURES = ['fcc', 'bcc', 'hcp', 'fcc_bcc_dual', 'amorphous']
 
 def generate_hea_genome() -> tuple:
+    """Sample one encoded high-entropy-alloy candidate.
+
+    Returns:
+        An encoded genome tuple for the sampled material class.
+    """
     n_components = random.randint(4, 6)
     components = tuple(sorted(random.sample(HEA_ELEMENTS, n_components)))
     structure = random.choice(HEA_STRUCTURES)
@@ -413,8 +463,11 @@ SPINEL_SUPPORT_CARBONS = ['N-graphene', 'N-CNT', 'carbon_black', 'graphene_oxide
 
 def generate_spinel_genome() -> tuple:
     """Generate a random Spinel (AB₂O₄) genome.
-    
-    Genome: ('Spinel', A_metal, B_metal, dopant, morphology, support)
+
+        Genome: ('Spinel', A_metal, B_metal, dopant, morphology, support)
+
+    Returns:
+        Ordered tuple of computed values.
     """
     A = random.choice(SPINEL_A_METALS)
     B = random.choice(SPINEL_B_METALS)
@@ -436,10 +489,13 @@ MXENE_SAC_METALS = _safe(['Fe', 'Co', 'Ni', 'Cu', 'Mn', 'Pt', 'Pd', 'Ru', 'None'
 
 def generate_mxene_genome() -> tuple:
     """Generate a random MXene genome.
-    
-    Genome: ('MXene', M_element, X_element, n, termination, sac_metal)
-    MXenes are 2D sheets derived from MAX phases with distinct surface chemistry.
-    Optionally decorated with single-atom metal sites.
+
+        Genome: ('MXene', M_element, X_element, n, termination, sac_metal)
+        MXenes are 2D sheets derived from MAX phases with distinct surface chemistry.
+        Optionally decorated with single-atom metal sites.
+
+    Returns:
+        Ordered tuple of computed values.
     """
     M = random.choice(MXENE_M_ELEMENTS)
     X = random.choice(MXENE_X_ELEMENTS)
@@ -460,10 +516,13 @@ SAA_LOADINGS_PPM = [100, 500, 1000, 2000, 5000, 10000]  # trace metal loading
 
 def generate_saa_genome() -> tuple:
     """Generate a random Single-Atom Alloy genome.
-    
-    Genome: ('SAA', trace_metal, host_metal, facet, loading_ppm)
-    SAAs disperse isolated atoms of one metal in a host of another.
-    Distinct from SACs (which use N-carbon supports).
+
+        Genome: ('SAA', trace_metal, host_metal, facet, loading_ppm)
+        SAAs disperse isolated atoms of one metal in a host of another.
+        Distinct from SACs (which use N-carbon supports).
+
+    Returns:
+        Ordered tuple of computed values.
     """
     trace = random.choice(SAA_TRACE_METALS)
     host = random.choice(SAA_HOST_METALS)
@@ -484,9 +543,12 @@ MFC_DOPANTS = ['B', 'S', 'P', 'F', 'none']  # co-dopants with nitrogen
 
 def generate_mfc_genome() -> tuple:
     """Generate a random Metal-Free N-Carbon genome.
-    
-    Genome: ('MetalFreeCarbon', n_type, n_fraction, defect, substrate, co_dopant)
-    Pure N-doped carbon without any metal center — zero catalyst cost.
+
+        Genome: ('MetalFreeCarbon', n_type, n_fraction, defect, substrate, co_dopant)
+        Pure N-doped carbon without any metal center — zero catalyst cost.
+
+    Returns:
+        Ordered tuple of computed values.
     """
     n_type = random.choice(MFC_N_TYPES)
     n_frac = random.choice(MFC_N_FRACTIONS)
@@ -545,8 +607,14 @@ GENERATORS = {
 
 def generate_random_genome(material_class: Optional[str] = None) -> tuple:
     """
-    Generate a random catalyst genome.
-    If material_class is None, randomly select one based on CLASS_WEIGHTS.
+        Generate a random catalyst genome.
+        If material_class is None, randomly select one based on CLASS_WEIGHTS.
+
+    Args:
+        material_class: Canonical catalyst material-class name.
+
+    Returns:
+        Ordered tuple of computed values.
     """
     if material_class is None:
         classes = list(CLASS_WEIGHTS.keys())
@@ -556,7 +624,15 @@ def generate_random_genome(material_class: Optional[str] = None) -> tuple:
 
 
 def generate_population(pop_size: int, material_class: Optional[str] = None) -> List[tuple]:
-    """Generate a diverse initial population of catalyst genomes."""
+    """Generate a diverse initial population of catalyst genomes.
+
+    Args:
+        pop_size: Number of pop size to use.
+        material_class: Canonical catalyst material-class name.
+
+    Returns:
+        List of computed or validated records.
+    """
     population = []
     for _ in range(pop_size):
         genome = generate_random_genome(material_class)
@@ -612,10 +688,13 @@ FEATURE_DIM = N_CLASSES + 2 * N_METALS + N_SUPPORTS + N_FACETS + N_COORDS + N_DO
 
 def encode_genome(genome: tuple) -> np.ndarray:
     """
-    Encode a catalyst genome into a fixed-length feature vector
-    suitable for surrogate model training.
-    
-    Returns: np.ndarray of shape (FEATURE_DIM,)
+        Encode a catalyst genome into a fixed-length feature vector
+        suitable for surrogate model training.
+
+        Returns: np.ndarray of shape (FEATURE_DIM,)
+
+    Args:
+        genome: Encoded catalyst composition and structural configuration.
     """
     mat_class = genome[0]
 
@@ -813,7 +892,14 @@ def encode_genome(genome: tuple) -> np.ndarray:
 
 
 def encode_population(population: List[tuple]) -> np.ndarray:
-    """Encode a list of genomes into a feature matrix."""
+    """Encode a list of genomes into a feature matrix.
+
+    Args:
+        population: Ordered values supplying population.
+
+    Returns:
+        Computed `np.ndarray` result.
+    """
     return np.stack([encode_genome(g) for g in population])
 
 
@@ -823,9 +909,16 @@ def encode_population(population: List[tuple]) -> np.ndarray:
 
 def crossover(parent1: tuple, parent2: tuple) -> tuple:
     """
-    Uniform crossover between two genomes of the same material class.
-    If classes differ, randomly pick one parent's class and build child
-    by mixing compatible genes.
+        Uniform crossover between two genomes of the same material class.
+        If classes differ, randomly pick one parent's class and build child
+        by mixing compatible genes.
+
+    Args:
+        parent1: Ordered values supplying parent1.
+        parent2: Ordered values supplying parent2.
+
+    Returns:
+        Ordered tuple of computed values.
     """
     if parent1[0] != parent2[0]:
         # Cross-class: just pick one parent (class-preserving)
@@ -844,8 +937,15 @@ def crossover(parent1: tuple, parent2: tuple) -> tuple:
 
 def mutate(genome: tuple, rate: float = 0.2) -> tuple:
     """
-    Mutate a genome with probability `rate` per gene.
-    Respects material-class-specific constraints.
+        Mutate a genome with probability `rate` per gene.
+        Respects material-class-specific constraints.
+
+    Args:
+        genome: Encoded catalyst composition and structural configuration.
+        rate: Rate used by this operation.
+
+    Returns:
+        Ordered tuple of computed values.
     """
     if random.random() > rate:
         return genome
@@ -1029,7 +1129,11 @@ def mutate(genome: tuple, rate: float = 0.2) -> tuple:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def estimate_design_space_size() -> Dict[str, int]:
-    """Estimate the combinatorial size of each material class."""
+    """Estimate the combinatorial size of each material class.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     from math import comb
     sizes = {
         'MoltenMetal': (
@@ -1104,12 +1208,20 @@ def estimate_design_space_size() -> Dict[str, int]:
 def generate_hierarchical_htvs_pool(pool_size: int, scorer=None,
                                     campaign_round: int = 0) -> List[tuple]:
     """
-    Generate a deterministic, non-random pool of catalyst candidates using hierarchical screening.
-    
-    1. Exhaustively builds grids for small classes and core configurations for large classes.
-    2. Screens the cores with the scorer callback (if provided).
-    3. Expands the best-performing cores with local modifications (dopants, strain, defects).
-    4. Selects and returns the best candidates.
+        Generate a deterministic, non-random pool of catalyst candidates using hierarchical screening.
+
+        1. Exhaustively builds grids for small classes and core configurations for large classes.
+        2. Screens the cores with the scorer callback (if provided).
+        3. Expands the best-performing cores with local modifications (dopants, strain, defects).
+        4. Selects and returns the best candidates.
+
+    Args:
+        pool_size: Number of pool size to use.
+        scorer: Scorer used by this operation.
+        campaign_round: Campaign round used by this operation.
+
+    Returns:
+        List of computed or validated records.
     """
     # Rotate every strided dimension between rounds.  Unlike a fixed [::2]
     # slice, successive reinjection rounds cover the complementary half.

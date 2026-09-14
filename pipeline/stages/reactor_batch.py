@@ -10,6 +10,14 @@ from pipeline.stages.contracts import StageOutcome
 
 @dataclass(frozen=True)
 class ReactorBatchServices:
+    """Bundle replaceable reactor-batch operations.
+
+    Attributes:
+        prepare_gas_mechanism: Configured prepare gas mechanism value.
+        simulate_candidate: Configured simulate candidate value.
+        write_mock_mechanism: Configured write mock mechanism value.
+        run_mock_sweep: Configured run mock sweep value.
+    """
     prepare_gas_mechanism: Callable
     simulate_candidate: Callable
     write_mock_mechanism: Callable
@@ -17,6 +25,11 @@ class ReactorBatchServices:
 
 
 def default_reactor_batch_services() -> ReactorBatchServices:
+    """Construct production reactor-batch dependencies.
+
+    Returns:
+        A `ReactorBatchServices` containing the default reactor batch services result.
+    """
     from pipeline.process.reactor_mechanisms import (
         write_full_mechanism, write_gri30_subset)
     from pipeline.process.reactor_models import run_reactor_sweep
@@ -31,7 +44,20 @@ def run_reactor_batch_stage(
         reactor_types: Sequence[str], pathway_mode: str,
         multiphysics_results_dir: str, allow_mock_inputs: bool,
         services: ReactorBatchServices | None = None) -> StageOutcome:
-    """Run candidate sweeps; mock inputs require the existing explicit opt-in."""
+    """Run candidate sweeps; mock inputs require the existing explicit opt-in.
+
+    Args:
+        candidates: Candidate records to process.
+        temperatures: Ordered values supplying temperatures.
+        reactor_types: Ordered values supplying reactor types.
+        pathway_mode: Configured methane-conversion pathway.
+        multiphysics_results_dir: Directory used for multiphysics results dir.
+        allow_mock_inputs: Whether to enable allow mock inputs.
+        services: Services used by this operation.
+
+    Returns:
+        Computed `StageOutcome` result.
+    """
     services = services or default_reactor_batch_services()
     services.prepare_gas_mechanism()
     results = []

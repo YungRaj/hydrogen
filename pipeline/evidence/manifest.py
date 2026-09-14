@@ -29,6 +29,14 @@ REQUIRED_STATUS = {
 
 
 def file_sha256(path: str | Path) -> str:
+    """Compute the SHA-256 digest of a file.
+
+    Args:
+        path: Input or output filesystem path.
+
+    Returns:
+        The lowercase hexadecimal SHA-256 digest.
+    """
     digest = hashlib.sha256()
     with Path(path).open('rb') as handle:
         for block in iter(lambda: handle.read(1024 * 1024), b''):
@@ -37,7 +45,14 @@ def file_sha256(path: str | Path) -> str:
 
 
 def verify_evidence_manifest(path: str | Path) -> dict:
-    """Verify every evidence record against an immutable source artifact."""
+    """Verify every evidence record against an immutable source artifact.
+
+    Args:
+        path: Filesystem path to the input or output artifact.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     manifest_path = Path(path)
     if not manifest_path.is_file():
         return {'valid': False, 'errors': ['evidence_manifest_missing'],

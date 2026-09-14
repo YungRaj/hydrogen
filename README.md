@@ -561,6 +561,7 @@ conda run -n fairchem-env python tests/test_component_replacement_contracts.py
 conda run -n fairchem-env python tests/test_architecture_unit_contracts.py
 conda run -n fairchem-env python tests/test_coupling_contracts.py
 conda run -n fairchem-env python tests/test_experimental_data_contract.py
+conda run -n fairchem-env python tests/test_source_documentation_contracts.py
 ```
 
 The specialized quantum and hardware contracts use their corresponding
@@ -914,6 +915,7 @@ hydrogen/
 │   ├── test_component_replacement_contracts.py # Replaceable-stage integration
 │   ├── test_reactor_merge_contracts.py # Focused reactor-merge safety profile
 │   ├── test_vqe_smoke_contract.py # Bounded CUDA-Q backend smoke test
+│   ├── test_source_documentation_contracts.py # Public API documentation audit
 │   └── test_*.py                  # Focused solver, evidence, and GPU contracts
 │
 ├── mechanisms/                    # Generated Cantera YAML (gitignored)

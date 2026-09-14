@@ -34,7 +34,15 @@ class ReactorCouplingServices:
 
 
 def validate_evidence_compatibility(config, loaded: dict) -> dict:
-    """Apply mode-specific compatibility checks after generic validation."""
+    """Apply mode-specific compatibility checks after generic validation.
+
+    Args:
+        config: Configuration controlling this operation.
+        loaded: Mapping supplying loaded.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     if loaded.get('valid') and config.reactor_type == 'Electrochemical':
         from pipeline.process.electrochemical_model import (
             conditions_from_environment)
@@ -50,6 +58,11 @@ def validate_evidence_compatibility(config, loaded: dict) -> dict:
 
 
 def default_reactor_coupling_services() -> ReactorCouplingServices:
+    """Construct the production multiphysics-to-reactor coupling adapters.
+
+    Returns:
+        A `ReactorCouplingServices` containing the default reactor coupling services result.
+    """
     from pipeline.process.multiphysics_contract import load_validated_artifact
     return ReactorCouplingServices(
         load_artifact=load_validated_artifact,
@@ -60,8 +73,15 @@ def default_reactor_coupling_services() -> ReactorCouplingServices:
 def couple_multiphysics_evidence(config, loaded: dict):
     """Attach identity-matched evidence and map established closure fields.
 
-    ``loaded`` must be the result of the strict artifact loader. The identity is
-    rechecked here so this adapter remains safe when used independently.
+        ``loaded`` must be the result of the strict artifact loader. The identity is
+        rechecked here so this adapter remains safe when used independently.
+
+    Args:
+        config: Configuration controlling this operation.
+        loaded: Mapping supplying loaded.
+
+    Returns:
+        Computed result described above.
     """
     if loaded.get('valid') is not True:
         raise ValueError('cannot couple invalid multiphysics evidence')
@@ -112,7 +132,15 @@ def _apply_closure_outputs(config, outputs: dict) -> None:
 
 
 def couple_surrogate_closure(config, decision: dict):
-    """Apply an explicitly calibrated surrogate closure without relabeling it."""
+    """Apply an explicitly calibrated surrogate closure without relabeling it.
+
+    Args:
+        config: Configuration controlling this operation.
+        decision: Mapping supplying decision.
+
+    Returns:
+        Computed result described above.
+    """
     if (decision.get('available') is not True or
             decision.get('source') != 'calibrated_transport_surrogate' or
             decision.get('candidate_exclusion_authorized') is not False):

@@ -49,8 +49,14 @@ def _metadata(path: str | Path) -> tuple[Path, dict]:
 def build_candidate_hamiltonian(path: str | Path) -> dict:
     """Convert sourced spatial-orbital integrals into Pauli terms.
 
-    PySCF reads the standard FCIDUMP representation and OpenFermion performs
-    the spatial-to-spin-orbital and Jordan-Wigner transformations.
+        PySCF reads the standard FCIDUMP representation and OpenFermion performs
+        the spatial-to-spin-orbital and Jordan-Wigner transformations.
+
+    Args:
+        path: Filesystem path to the input or output artifact.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
     """
     source, metadata = _metadata(path)
     try:
@@ -113,12 +119,23 @@ def build_candidate_hamiltonian(path: str | Path) -> dict:
 
 
 def write_candidate_hamiltonian(path: str | Path, output: str | Path) -> dict:
+    """Persist a candidate Hamiltonian and checksum-bound identity sidecar.
+
+    Args:
+        path: Input or output filesystem path.
+        output: Destination path for the serialized Hamiltonian.
+
+    Returns:
+        Path or serialized object produced by the operation.
+    """
     result = build_candidate_hamiltonian(path)
     Path(output).write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
     return result
 
 
 def main() -> None:
+    """Run the module command-line entry point.
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('fcidump')
     parser.add_argument('--output', required=True)

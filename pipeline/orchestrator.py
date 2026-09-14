@@ -64,7 +64,14 @@ class PipelineConfig:
 
 
 def normalized_pipeline_config(config: PipelineConfig) -> PipelineConfig:
-    """Return the legacy effective settings without mutating caller state."""
+    """Return the legacy effective settings without mutating caller state.
+
+    Args:
+        config: Configuration controlling this operation.
+
+    Returns:
+        Computed `PipelineConfig` result.
+    """
     effective = replace(
         config, reactor_temperatures=(773.15, 900.0, 1100.0, 1300.0))
     if effective.quick_mode:
@@ -80,7 +87,17 @@ def run_pipeline(config: PipelineConfig | None = None,
                  runtime: PipelineRuntime | None = None,
                  components: PipelineComponents | None = None):
     """
-    Execute the full multi-scale simulation pipeline.
+        Execute the full multi-scale simulation pipeline.
+
+    Args:
+        config: Configuration controlling this operation.
+        start_phase: Start phase used by this operation.
+        end_phase: End phase used by this operation.
+        runtime: Runtime used by this operation.
+        components: Components used by this operation.
+
+    Returns:
+        Computed result described above.
     """
     config = normalized_pipeline_config(config or PipelineConfig())
     runtime = runtime or default_pipeline_runtime()

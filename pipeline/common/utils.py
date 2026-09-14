@@ -146,7 +146,16 @@ MELTING_POINT_K = {
 # ─── Logging ─────────────────────────────────────────────────────────────────────
 
 def setup_logger(name: str, log_file: Optional[str] = None, level=logging.INFO) -> logging.Logger:
-    """Create a configured logger with both console and file output."""
+    """Create a configured logger with both console and file output.
+
+    Args:
+        name: Name used by this operation.
+        log_file: Filesystem location used for log file.
+        level: Level used by this operation.
+
+    Returns:
+        Computed `logging.Logger` result.
+    """
     logger = logging.getLogger(name)
     logger.setLevel(level)
     logger.handlers = []  # Clear any existing handlers
@@ -175,7 +184,12 @@ def setup_logger(name: str, log_file: Optional[str] = None, level=logging.INFO) 
 
 
 def print_banner(title: str, width: int = 80):
-    """Print a formatted section banner."""
+    """Print a formatted section banner.
+
+    Args:
+        title: Title used by this operation.
+        width: Width used by this operation.
+    """
     print("=" * width)
     print(f" {title.center(width - 2)} ")
     print("=" * width)
@@ -184,13 +198,28 @@ def print_banner(title: str, width: int = 80):
 # ─── Genome Hashing & Serialization ─────────────────────────────────────────────
 
 def genome_hash(genome: tuple) -> str:
-    """Create a deterministic hash for a catalyst genome for deduplication."""
+    """Create a deterministic hash for a catalyst genome for deduplication.
+
+    Args:
+        genome: Encoded catalyst composition and structural configuration.
+
+    Returns:
+        Computed `str` result.
+    """
     serialized = json.dumps(genome, sort_keys=True, default=str)
     return hashlib.md5(serialized.encode()).hexdigest()[:12]
 
 
 def genome_to_dict(genome: tuple, material_class: str) -> Dict[str, Any]:
-    """Convert a genome tuple to a labeled dictionary based on material class."""
+    """Convert a genome tuple to a labeled dictionary based on material class.
+
+    Args:
+        genome: Encoded catalyst composition and structural configuration.
+        material_class: Canonical catalyst material-class name.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     if material_class == 'MoltenMetal':
         return {
             'material_class': material_class,
@@ -234,12 +263,18 @@ def genome_to_dict(genome: tuple, material_class: str) -> Dict[str, Any]:
 
 def abundance_cost_penalty(elements: List[str]) -> float:
     """
-    Compute a log-scaled cost penalty based on crustal abundance.
-    More abundant elements get lower (better) penalties.
-    Returns a value in [−2, 0] where 0 = abundant, −2 = very rare.
+        Compute a log-scaled cost penalty based on crustal abundance.
+        More abundant elements get lower (better) penalties.
+        Returns a value in [−2, 0] where 0 = abundant, −2 = very rare.
 
-    Uses geometric mean to prevent a single abundant element from
-    masking rare/expensive components (e.g. Fe+Ir should still penalize Ir).
+        Uses geometric mean to prevent a single abundant element from
+        masking rare/expensive components (e.g. Fe+Ir should still penalize Ir).
+
+    Args:
+        elements: Ordered values supplying elements.
+
+    Returns:
+        Computed `float` value in the units documented above.
     """
     if not elements:
         return 0.0
@@ -303,8 +338,14 @@ VALID_CLASSES_FUEL_CELL = {
 
 def check_element_safety(elements: List[str]) -> Tuple[bool, str]:
     """
-    Check if a catalyst's elements are safe for recommendation.
-    Returns (is_safe, reason).
+        Check if a catalyst's elements are safe for recommendation.
+        Returns (is_safe, reason).
+
+    Args:
+        elements: Ordered values supplying elements.
+
+    Returns:
+        Ordered tuple of computed values.
     """
     toxic_found = [e for e in elements if e in TOXIC_ELEMENTS]
     if toxic_found:
@@ -313,7 +354,15 @@ def check_element_safety(elements: List[str]) -> Tuple[bool, str]:
 
 
 def is_valid_for_application(material_class: str, application: str = 'pyrolysis') -> bool:
-    """Check if a material class is physically viable for the target application."""
+    """Check if a material class is physically viable for the target application.
+
+    Args:
+        material_class: Canonical catalyst material-class name.
+        application: Scientific objective, such as pyrolysis or ORR.
+
+    Returns:
+        True when the documented condition holds; otherwise False.
+    """
     if application == 'pyrolysis':
         return material_class in VALID_CLASSES_PYROLYSIS
     elif application in ('fuel_cell', 'orr'):
@@ -322,7 +371,15 @@ def is_valid_for_application(material_class: str, application: str = 'pyrolysis'
 
 
 def material_cost_usd_per_kg(elements: List[str], fractions: Optional[List[float]] = None) -> float:
-    """Estimate raw material cost in $/kg for a multi-component catalyst."""
+    """Estimate raw material cost in $/kg for a multi-component catalyst.
+
+    Args:
+        elements: Ordered values supplying elements.
+        fractions: Fractions used by this operation.
+
+    Returns:
+        Computed `float` value in the units documented above.
+    """
     if fractions is None:
         fractions = [1.0 / len(elements)] * len(elements)
     cost = sum(
@@ -333,7 +390,15 @@ def material_cost_usd_per_kg(elements: List[str], fractions: Optional[List[float
 
 
 def is_molten_at_temperature(metal: str, temperature_K: float) -> bool:
-    """Check if a metal is molten at the given temperature."""
+    """Check if a metal is molten at the given temperature.
+
+    Args:
+        metal: Metal used by this operation.
+        temperature_K: Absolute temperature in kelvin.
+
+    Returns:
+        True when the documented condition holds; otherwise False.
+    """
     mp = MELTING_POINT_K.get(metal, 3000.0)
     return temperature_K > mp
 
@@ -341,7 +406,16 @@ def is_molten_at_temperature(metal: str, temperature_K: float) -> bool:
 # ─── Arrhenius & Kinetics ────────────────────────────────────────────────────────
 
 def arrhenius_rate(A: float, E_act_eV: float, T_K: float) -> float:
-    """Compute Arrhenius rate constant k = A * exp(-Eₐ / kT)."""
+    """Compute Arrhenius rate constant k = A * exp(-Eₐ / kT).
+
+    Args:
+        A: A used by this operation.
+        E_act_eV: E act in electronvolts.
+        T_K: Absolute temperature in kelvin.
+
+    Returns:
+        Computed `float` value in the units documented above.
+    """
     if T_K <= 0:
         return 0.0
     return A * np.exp(-E_act_eV / (k_B_eV * T_K))
@@ -349,8 +423,15 @@ def arrhenius_rate(A: float, E_act_eV: float, T_K: float) -> float:
 
 def tst_prefactor(T_K: float, delta_S_eV_K: float = 0.0) -> float:
     """
-    Transition State Theory pre-exponential factor:
-    A = (kT/h) * exp(ΔS‡/k)
+        Transition State Theory pre-exponential factor:
+        A = (kT/h) * exp(ΔS‡/k)
+
+    Args:
+        T_K: Absolute temperature in kelvin.
+        delta_S_eV_K: Delta s ev in kelvin.
+
+    Returns:
+        Computed `float` value in the units documented above.
     """
     A_tst = (k_B_eV * T_K) / h_eV
     if delta_S_eV_K != 0.0:
@@ -361,18 +442,27 @@ def tst_prefactor(T_K: float, delta_S_eV_K: float = 0.0) -> float:
 def bep_activation_energy(delta_E_rxn: float, alpha: float = 0.87,
                           beta: float = 0.75, material_class: str = None) -> float:
     """
-    Brønsted-Evans-Polanyi (BEP) correlation for activation energy:
-    Eₐ = alpha + beta * ΔE_rxn  (for exothermic reactions, ΔE < 0)
+        Brønsted-Evans-Polanyi (BEP) correlation for activation energy:
+        Eₐ = alpha + beta * ΔE_rxn  (for exothermic reactions, ΔE < 0)
 
-    Class-specific BEP parameters from literature:
-      - Transition metals: Nørskov et al., J. Catal. 2002
-      - Metal oxides: Vojvodic et al., Chem. Rev. 2014
-      - Zeolites: Bligaard et al., J. Catal. 2004
-      - Molten metals: Upham et al., Science 2017
-      - SAC/DAC: Li et al., Nat. Catal. 2019 (approximate)
-      - Others: Use metal defaults with uncertainty flag
+        Class-specific BEP parameters from literature:
+          - Transition metals: Nørskov et al., J. Catal. 2002
+          - Metal oxides: Vojvodic et al., Chem. Rev. 2014
+          - Zeolites: Bligaard et al., J. Catal. 2004
+          - Molten metals: Upham et al., Science 2017
+          - SAC/DAC: Li et al., Nat. Catal. 2019 (approximate)
+          - Others: Use metal defaults with uncertainty flag
 
-    Returns Eₐ in eV, clamped to [0.01, 5.0].
+        Returns Eₐ in eV, clamped to [0.01, 5.0].
+
+    Args:
+        delta_E_rxn: Delta e rxn used by this operation.
+        alpha: Alpha used by this operation.
+        beta: Beta used by this operation.
+        material_class: Canonical catalyst material-class name.
+
+    Returns:
+        Computed `float` value in the units documented above.
     """
     # Class-specific BEP parameters (alpha = intercept, beta = slope)
     BEP_PARAMS = {
@@ -403,17 +493,25 @@ def bep_activation_energy(delta_E_rxn: float, alpha: float = 0.87,
 
 def orr_overpotential(dG_OH: float, dG_O: float, dG_OOH: float) -> Tuple[float, str]:
     """
-    Compute ORR overpotential using the computational hydrogen electrode (CHE).
-    
-    The 4-electron ORR pathway:
-      O₂ + * + H⁺ + e⁻ → OOH*      ΔG₁ = dG_OOH
-      OOH* + H⁺ + e⁻ → O* + H₂O    ΔG₂ = dG_O - dG_OOH + 3.33 (water correction)
-      O* + H⁺ + e⁻ → OH*            ΔG₃ = dG_OH - dG_O
-      OH* + H⁺ + e⁻ → H₂O + *      ΔG₄ = -dG_OH
+        Compute ORR overpotential using the computational hydrogen electrode (CHE).
 
-    η = max(ΔGᵢ)/e − 1.23 V
-    
-    Returns (overpotential_V, rate_determining_step).
+        The 4-electron ORR pathway:
+          O₂ + * + H⁺ + e⁻ → OOH*      ΔG₁ = dG_OOH
+          OOH* + H⁺ + e⁻ → O* + H₂O    ΔG₂ = dG_O - dG_OOH + 3.33 (water correction)
+          O* + H⁺ + e⁻ → OH*            ΔG₃ = dG_OH - dG_O
+          OH* + H⁺ + e⁻ → H₂O + *      ΔG₄ = -dG_OH
+
+        η = max(ΔGᵢ)/e − 1.23 V
+
+        Returns (overpotential_V, rate_determining_step).
+
+    Args:
+        dG_OH: Dg oh used by this operation.
+        dG_O: Dg o used by this operation.
+        dG_OOH: Dg ooh used by this operation.
+
+    Returns:
+        Ordered tuple of computed values.
     """
     dG1 = dG_OOH - 4.92  # relative to O₂ + 2H₂O reference
     dG2 = dG_O - dG_OOH
@@ -440,12 +538,12 @@ def butler_volmer_current(j0: float, eta: float, alpha_a: float = 0.5,
     """
     Butler-Volmer equation for electrode kinetics.
     j = j₀ * [exp(αₐFη/RT) − exp(−αcFη/RT)]
-    
+
     Args:
         j0: Exchange current density (A/cm²)
         eta: Overpotential (V), positive for anodic
         alpha_a: Anodic transfer coefficient
-        alpha_c: Cathodic transfer coefficient  
+        alpha_c: Cathodic transfer coefficient
         T_K: Temperature (K)
     Returns:
         Current density (A/cm²)
@@ -457,7 +555,16 @@ def butler_volmer_current(j0: float, eta: float, alpha_a: float = 0.5,
 # ─── Data I/O ────────────────────────────────────────────────────────────────────
 
 def save_screening_db(df, filename: str, subdir: str = "screening"):
-    """Save a screening database as CSV."""
+    """Save a screening database as CSV.
+
+    Args:
+        df: Tabular candidate or result records.
+        filename: Artifact filename relative to the configured result directory.
+        subdir: Subdir used by this operation.
+
+    Returns:
+        Computed result described above.
+    """
     path = RESULTS_DIR / subdir / filename
     path.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(path, index=False)
@@ -465,7 +572,15 @@ def save_screening_db(df, filename: str, subdir: str = "screening"):
 
 
 def load_screening_db(filename: str, subdir: str = "screening"):
-    """Load a screening database if it exists."""
+    """Load a screening database if it exists.
+
+    Args:
+        filename: Artifact filename relative to the configured result directory.
+        subdir: Subdir used by this operation.
+
+    Returns:
+        Computed result described above.
+    """
     path = RESULTS_DIR / subdir / filename
     if path.exists():
         return pd.read_csv(path)
@@ -473,7 +588,16 @@ def load_screening_db(filename: str, subdir: str = "screening"):
 
 
 def save_json(data: dict, filename: str, subdir: str = "reports"):
-    """Atomically save JSON so interruption cannot corrupt campaign state."""
+    """Atomically save JSON so interruption cannot corrupt campaign state.
+
+    Args:
+        data: Input data consumed by the operation.
+        filename: Artifact filename relative to the configured result directory.
+        subdir: Subdir used by this operation.
+
+    Returns:
+        Computed result described above.
+    """
     path = RESULTS_DIR / subdir / filename
     path.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(
@@ -493,7 +617,15 @@ def save_json(data: dict, filename: str, subdir: str = "reports"):
 
 
 def load_json(filename: str, subdir: str = "reports") -> Optional[dict]:
-    """Load a JSON file if it exists."""
+    """Load a JSON file if it exists.
+
+    Args:
+        filename: Artifact filename relative to the configured result directory.
+        subdir: Subdir used by this operation.
+
+    Returns:
+        Computed `Optional[dict]` result.
+    """
     path = RESULTS_DIR / subdir / filename
     if path.exists():
         with open(path, 'r') as f:
@@ -504,14 +636,34 @@ def load_json(filename: str, subdir: str = "reports") -> Optional[dict]:
 # ─── Subprocess Helpers ──────────────────────────────────────────────────────────
 
 def conda_run_cmd(env_name: str, python_cmd: str, cwd: Optional[str] = None) -> str:
-    """Build a conda run command string."""
+    """Build a conda run command string.
+
+    Args:
+        env_name: Env name used by this operation.
+        python_cmd: Python cmd used by this operation.
+        cwd: Cwd used by this operation.
+
+    Returns:
+        Computed `str` result.
+    """
     cmd = f"conda run -n {env_name} python {python_cmd}"
     return cmd
 
 
 def run_in_env(env_name: str, script_path: str, args: str = "",
                cwd: Optional[str] = None, check: bool = True):
-    """Execute a Python script in a specific conda environment."""
+    """Execute a Python script in a specific conda environment.
+
+    Args:
+        env_name: Env name used by this operation.
+        script_path: Filesystem location used for script path.
+        args: Args used by this operation.
+        cwd: Cwd used by this operation.
+        check: Whether to enable check.
+
+    Returns:
+        Computed result described above.
+    """
     import shlex
     import subprocess
     cmd = ['conda', 'run', '-n', env_name, 'python', script_path]

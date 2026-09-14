@@ -21,6 +21,8 @@ from pipeline.process.pathway_modes import (
 
 
 def main():
+    """Run the module command-line entry point.
+    """
     parser = argparse.ArgumentParser(
         description='GPU-Saturated Turquoise H₂ Catalyst Discovery v2'
     )

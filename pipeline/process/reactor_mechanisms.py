@@ -55,8 +55,16 @@ class CandidateKinetics:
                            validation: Optional[Mapping] = None):
         """Build kinetics from screening and optional converged NEB evidence.
 
-        Validation values replace templates only when the candidate identity
-        matches and the complete campaign carries the required evidence level.
+                Validation values replace templates only when the candidate identity
+                matches and the complete campaign carries the required evidence level.
+
+        Args:
+            row: Row used by this operation.
+            candidate_id: Stable candidate identifier.
+            validation: Candidate-specific validation evidence.
+
+        Returns:
+            Computed result described above.
         """
         def finite(name):
             value = row.get(name)
@@ -109,7 +117,11 @@ class CandidateKinetics:
                    screening_protocol=protocol, sources=sources, **values)
 
     def resolved(self) -> dict:
-        """Return numerical values plus whether each was observed or templated."""
+        """Return numerical values plus whether each was observed or templated.
+
+        Returns:
+            Dictionary containing the computed values, status, and supporting metadata.
+        """
         defaults = {
             'ch3_dehydrogenation_eV': self.methane_activation_eV + 0.10,
             'ch2_dehydrogenation_eV': self.methane_activation_eV + 0.15,
@@ -134,7 +146,11 @@ class CandidateKinetics:
 
 
 def write_gas_only_mechanism() -> Path:
-    """Write a gas-phase-only CH₄ decomposition mechanism."""
+    """Write a gas-phase-only CH₄ decomposition mechanism.
+
+    Returns:
+        Filesystem path produced or resolved by the operation.
+    """
     MECHANISMS_DIR.mkdir(parents=True, exist_ok=True)
 
     yaml_content = """\
@@ -231,7 +247,19 @@ def write_full_mechanism(catalyst_name: str, E_act_CH4: float = None,
                           T_ref: float = 1000.0,
                           kinetics: CandidateKinetics = None) -> Path:
     """
-    Write a complete Cantera mechanism file (gas + surface) to disk.
+        Write a complete Cantera mechanism file (gas + surface) to disk.
+
+    Args:
+        catalyst_name: Catalyst name used by this operation.
+        E_act_CH4: E act ch4 used by this operation.
+        E_act_H_desorb: E act h desorb used by this operation.
+        E_act_C_diffuse: E act c diffuse used by this operation.
+        site_density: Site density used by this operation.
+        T_ref: T ref used by this operation.
+        kinetics: Kinetics used by this operation.
+
+    Returns:
+        Filesystem path produced or resolved by the operation.
     """
     MECHANISMS_DIR.mkdir(parents=True, exist_ok=True)
 

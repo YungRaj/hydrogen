@@ -8,7 +8,15 @@ from pathlib import Path
 
 
 def score_holdout(path: str | Path, calibration: dict) -> dict:
-    """Calculate held-out error from raw prediction/observation records."""
+    """Calculate held-out error from raw prediction/observation records.
+
+    Args:
+        path: Filesystem path to the input or output artifact.
+        calibration: Mapping supplying calibration.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     try:
         payload = json.loads(Path(path).read_text())
     except (OSError, json.JSONDecodeError) as exc:

@@ -112,7 +112,11 @@ def _cantera_version() -> str:
 
 
 def default_solver_execution_services() -> SolverExecutionServices:
-    """Bind production solver operations at call time for patchability/tests."""
+    """Bind production solver operations at call time for patchability/tests.
+
+    Returns:
+        Computed `SolverExecutionServices` result.
+    """
     return SolverExecutionServices(
         preflight=mode_preflight, execute=_run,
         openfoam_version=_openfoam_version,
@@ -128,10 +132,26 @@ def run_backend(*, mode: str, reactor_type: str, candidate_id: str,
                 execution: SolverExecutionServices | None = None) -> Path:
     """Execute the external case backends and emit one validated artifact.
 
-    Thermal Fluidized/MMBCR artifacts supply OpenFOAM hydrodynamics which the
-    reactor layer subsequently couples to Cantera kinetics. NTEC and
-    electrochemical cases must perform and declare their Cantera coupling in
-    the external model because those modes do not use the thermal reactor.
+        Thermal Fluidized/MMBCR artifacts supply OpenFOAM hydrodynamics which the
+        reactor layer subsequently couples to Cantera kinetics. NTEC and
+        electrochemical cases must perform and declare their Cantera coupling in
+        the external model because those modes do not use the thermal reactor.
+
+    Args:
+        mode: Configured methane-conversion pathway.
+        reactor_type: Physical reactor implementation identifier.
+        candidate_id: Stable candidate identifier.
+        temperature_K: Absolute temperature in kelvin.
+        case_dir: Filesystem location used for case dir.
+        results_dir: Directory containing or receiving calculation results.
+        model_source: Model source used by this operation.
+        fenics_model: Filesystem location used for fenics model.
+        timeout_s: Maximum allowed wall time in seconds.
+        max_coupling_iterations: Bound controlling max coupling iterations.
+        execution: Execution used by this operation.
+
+    Returns:
+        Filesystem path produced or resolved by the operation.
     """
     execution = execution or default_solver_execution_services()
     if reactor_type not in reactor_types_for_mode(mode):
@@ -280,6 +300,8 @@ def run_backend(*, mode: str, reactor_type: str, candidate_id: str,
 
 
 def main() -> None:
+    """Run the module command-line entry point.
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--mode', required=True, choices=MODE_CHOICES)
     parser.add_argument('--reactor-type', required=True)

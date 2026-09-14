@@ -115,8 +115,16 @@ class PEMFCConfig:
 
 def nernst_voltage(T_K: float, P_H2: float, P_O2: float) -> float:
     """
-    Compute the Nernst open-circuit voltage.
-    E = E₀ + (RT/2F) ln(P_H2 * P_O2^0.5 / P_H2O)
+        Compute the Nernst open-circuit voltage.
+        E = E₀ + (RT/2F) ln(P_H2 * P_O2^0.5 / P_H2O)
+
+    Args:
+        T_K: Absolute temperature in kelvin.
+        P_H2: Hydrogen partial pressure in the configured pressure units.
+        P_O2: Oxygen partial pressure in the configured pressure units.
+
+    Returns:
+        Computed `float` value in the units documented above.
     """
     E0 = 1.229 - 0.85e-3 * (T_K - 298.15)  # temperature correction
     E = E0 + (R_gas * T_K / (2 * F_const)) * np.log(P_H2 * np.sqrt(P_O2))
@@ -126,9 +134,17 @@ def nernst_voltage(T_K: float, P_H2: float, P_O2: float) -> float:
 def cathode_activation_loss(j: float, j0_cathode: float,
                               tafel_slope_V: float) -> float:
     """
-    Cathode activation overpotential using Tafel equation.
-    η_act = (b / ln10) * ln(j / j0)   for j > j0
-    where b is the Tafel slope in V/decade.
+        Cathode activation overpotential using Tafel equation.
+        η_act = (b / ln10) * ln(j / j0)   for j > j0
+        where b is the Tafel slope in V/decade.
+
+    Args:
+        j: J used by this operation.
+        j0_cathode: J0 cathode used by this operation.
+        tafel_slope_V: Tafel slope v used by this operation.
+
+    Returns:
+        Computed `float` value in the units documented above.
     """
     if j <= 0 or j0_cathode <= 0:
         return 0.0
@@ -138,24 +154,47 @@ def cathode_activation_loss(j: float, j0_cathode: float,
 
 def anode_activation_loss(j: float, j0_anode: float, T_K: float) -> float:
     """
-    Anode activation overpotential (Butler-Volmer, symmetric).
-    For HOR on Pt, this is very small.
-    η_act = (RT/αF) * arcsinh(j / 2j0)
+        Anode activation overpotential (Butler-Volmer, symmetric).
+        For HOR on Pt, this is very small.
+        η_act = (RT/αF) * arcsinh(j / 2j0)
+
+    Args:
+        j: J used by this operation.
+        j0_anode: J0 anode used by this operation.
+        T_K: Absolute temperature in kelvin.
+
+    Returns:
+        Computed `float` value in the units documented above.
     """
     alpha = 0.5
     return (R_gas * T_K / (alpha * F_const)) * np.arcsinh(j / (2.0 * j0_anode))
 
 
 def ohmic_loss(j: float, R_ohmic_ohm_cm2: float) -> float:
-    """Ohmic loss = j * R_total."""
+    """Ohmic loss = j * R_total.
+
+    Args:
+        j: J used by this operation.
+        R_ohmic_ohm_cm2: R ohmic ohm cm2 used by this operation.
+
+    Returns:
+        Computed `float` value in the units documented above.
+    """
     return j * R_ohmic_ohm_cm2
 
 
 def mass_transport_loss(j: float, j_L: float) -> float:
     """
-    Concentration (mass-transport) overpotential.
-    η_conc = c * ln(1 - j/j_L)   
-    where c ≈ RT/(4F) and j_L is the limiting current density.
+        Concentration (mass-transport) overpotential.
+        η_conc = c * ln(1 - j/j_L)
+        where c ≈ RT/(4F) and j_L is the limiting current density.
+
+    Args:
+        j: J used by this operation.
+        j_L: J l used by this operation.
+
+    Returns:
+        Computed `float` value in the units documented above.
     """
     if j >= j_L * 0.99:
         return 2.0  # effectively infinite loss
@@ -167,8 +206,14 @@ def mass_transport_loss(j: float, j_L: float) -> float:
 
 def compute_limiting_current(config: PEMFCConfig) -> float:
     """
-    Compute the mass-transport limiting current density.
-    j_L = 4F * D_eff * c_O2 / δ_GDL
+        Compute the mass-transport limiting current density.
+        j_L = 4F * D_eff * c_O2 / δ_GDL
+
+    Args:
+        config: Configuration controlling this operation.
+
+    Returns:
+        Computed `float` value in the units documented above.
     """
     # O₂ diffusivity in air (corrected for GDL porosity & tortuosity)
     D_O2_bulk = 2.1e-5 * (config.T_K / 293.15) ** 1.75  # m²/s
@@ -186,15 +231,21 @@ def compute_limiting_current(config: PEMFCConfig) -> float:
 
 def simulate_pemfc(config: PEMFCConfig) -> Dict:
     """
-    Compute the full polarization curve for a PEMFC cell.
-    
-    Returns dict with:
-      - current_density: array (A/cm²)
-      - voltage: array (V)
-      - power_density: array (W/cm²)
-      - peak_power_density: W/cm²
-      - efficiency_at_peak: fraction
-      - OCV: open circuit voltage (V)
+        Compute the full polarization curve for a PEMFC cell.
+
+        Returns dict with:
+          - current_density: array (A/cm²)
+          - voltage: array (V)
+          - power_density: array (W/cm²)
+          - peak_power_density: W/cm²
+          - efficiency_at_peak: fraction
+          - OCV: open circuit voltage (V)
+
+    Args:
+        config: Configuration controlling this operation.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
     """
     logger.info(f"Simulating PEMFC: {config.cathode_catalyst} at {config.T_K:.0f} K")
 
@@ -305,9 +356,18 @@ def simulate_pemfc(config: PEMFCConfig) -> Dict:
 def sweep_membranes(cathode_name: str, orr_eta: float, membranes: List[Dict] = None,
                     material_class: str = None) -> List[Dict]:
     """Sweep membrane types for a given cathode catalyst.
-    
-    If material_class is provided, uses the class-specific Tafel slope
-    from TAFEL_SLOPE_BY_CLASS instead of the default 70 mV/dec.
+
+        If material_class is provided, uses the class-specific Tafel slope
+        from TAFEL_SLOPE_BY_CLASS instead of the default 70 mV/dec.
+
+    Args:
+        cathode_name: Cathode name used by this operation.
+        orr_eta: Orr eta used by this operation.
+        membranes: Ordered values supplying membranes.
+        material_class: Canonical catalyst material-class name.
+
+    Returns:
+        List of computed or validated records.
     """
     if membranes is None:
         from pipeline.screening.fc_cathode_screener import MEMBRANE_TYPES

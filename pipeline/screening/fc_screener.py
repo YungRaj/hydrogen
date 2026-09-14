@@ -65,7 +65,14 @@ FENTON_RISK = {
 
 
 def compute_water_ref(calc) -> float:
-    """Compute H₂O reference energy."""
+    """Compute H₂O reference energy.
+
+    Args:
+        calc: Atomic calculator used for the evaluation.
+
+    Returns:
+        Computed `float` value in the units documented above.
+    """
     from ase.build import molecule
     h2o = molecule('H2O')
     h2o.set_cell([10, 10, 10])
@@ -81,7 +88,14 @@ def compute_water_ref(calc) -> float:
 
 
 def compute_h2_ref(calc) -> float:
-    """Compute H₂ reference energy."""
+    """Compute H₂ reference energy.
+
+    Args:
+        calc: Atomic calculator used for the evaluation.
+
+    Returns:
+        Computed `float` value in the units documented above.
+    """
     from ase.build import molecule
     h2 = molecule('H2')
     h2.set_cell([10, 10, 10])
@@ -102,10 +116,19 @@ def compute_h2_ref(calc) -> float:
 
 def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> dict:
     """
-    Evaluate a single catalyst candidate for ORR activity using Meta eSen-SM.
+        Evaluate a single catalyst candidate for ORR activity using Meta eSen-SM.
 
-    Computes adsorption free energies for OH*, O*, OOH* intermediates
-    and derives the theoretical ORR overpotential via the CHE method.
+        Computes adsorption free energies for OH*, O*, OOH* intermediates
+        and derives the theoretical ORR overpotential via the CHE method.
+
+    Args:
+        genome: Encoded catalyst composition and structural configuration.
+        calc: Atomic calculator used for the evaluation.
+        e_h2o: E h2o used by this operation.
+        e_h2: E h2 used by this operation.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
     """
     mat_class = genome[0]
     result = {
@@ -284,7 +307,18 @@ def _extract_elements(genome: tuple) -> List[str]:
 def orr_worker(worker_id: int, gpu_id: int, gpu_uuid: str, task_queue: mp.Queue,
                result_queue: mp.Queue, stop_event, candidate_threads: int = 1,
                batched: bool = False):
-    """Worker process: loads Meta eSen on assigned GPU, evaluates ORR candidates."""
+    """Worker process: loads Meta eSen on assigned GPU, evaluates ORR candidates.
+
+    Args:
+        worker_id: Worker id used by this operation.
+        gpu_id: Gpu id used by this operation.
+        gpu_uuid: Gpu uuid used by this operation.
+        task_queue: Task queue used by this operation.
+        result_queue: Result queue used by this operation.
+        stop_event: Stop event used by this operation.
+        candidate_threads: Candidate threads used by this operation.
+        batched: Whether to enable batched.
+    """
     try:
         import os
         os.environ['CUDA_VISIBLE_DEVICES'] = gpu_uuid
@@ -293,12 +327,12 @@ def orr_worker(worker_id: int, gpu_id: int, gpu_uuid: str, task_queue: mp.Queue,
         os.environ['OPENBLAS_NUM_THREADS'] = '1'
         os.environ['VECLIB_MAXIMUM_THREADS'] = '1'
         os.environ['NUMEXPR_NUM_THREADS'] = '1'
-        
+
         # Limit CPU threads to prevent multiprocessing CPU over-subscription thrashing
         import torch
         torch.set_num_threads(1)
         torch.set_num_interop_threads(1)
-        
+
         from pipeline.screening.surface_calculator import get_ocp_calculator
         calc = get_ocp_calculator(
             model_name='esen-sm-conserving-all-oc25', device='cuda')
@@ -342,10 +376,19 @@ def orr_worker(worker_id: int, gpu_id: int, gpu_uuid: str, task_queue: mp.Queue,
 def run_orr_screening(genomes: List[tuple], db_filename: str = "fc_screening.csv",
                       workers_per_gpu: int = 2, engine: str = 'batched') -> 'pd.DataFrame':
     """
-    Run parallel Meta eSen-SM ORR screening on a list of catalyst genomes.
+        Run parallel Meta eSen-SM ORR screening on a list of catalyst genomes.
 
-    Same interface as surface_screener.run_screening but evaluates
-    OH*, O*, OOH* for fuel cell cathode applications.
+        Same interface as surface_screener.run_screening but evaluates
+        OH*, O*, OOH* for fuel cell cathode applications.
+
+    Args:
+        genomes: Sequence of encoded catalyst candidates.
+        db_filename: Db filename used by this operation.
+        workers_per_gpu: Workers per gpu used by this operation.
+        engine: Engine used by this operation.
+
+    Returns:
+        Computed `'pd.DataFrame'` result.
     """
     from pipeline.screening.gpu_executor import ScreeningRunSpec, run_gpu_screening
     df = run_gpu_screening(

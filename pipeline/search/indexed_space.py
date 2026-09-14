@@ -63,7 +63,15 @@ SOLID_STRAINS = tuple(float(x) for x in np.linspace(
 
 
 def candidate_at_class(material_class: str, index: int) -> tuple:
-    """Return the candidate at a class-local index in O(number of genes)."""
+    """Return the candidate at a class-local index in O(number of genes).
+
+    Args:
+        material_class: Canonical catalyst material-class name.
+        index: Index used by this operation.
+
+    Returns:
+        Ordered tuple of computed values.
+    """
     size = CLASS_SIZES[material_class]
     if index < 0 or index >= size:
         raise IndexError(f"{material_class} index {index} outside [0, {size})")
@@ -126,7 +134,14 @@ def candidate_at_class(material_class: str, index: int) -> tuple:
 
 
 def candidate_at(global_index: int) -> tuple:
-    """Map a global index in ``[0, TOTAL_SIZE)`` to a candidate."""
+    """Map a global index in ``[0, TOTAL_SIZE)`` to a candidate.
+
+    Args:
+        global_index: Global index used by this operation.
+
+    Returns:
+        Ordered tuple of computed values.
+    """
     if global_index < 0 or global_index >= TOTAL_SIZE:
         raise IndexError(f"global index {global_index} outside [0, {TOTAL_SIZE})")
     # Fourteen entries: a linear lookup is faster and clearer than allocating a
@@ -139,7 +154,17 @@ def candidate_at(global_index: int) -> tuple:
 
 def iter_shard(start: int, stop: int, worker_id: int = 0,
                num_workers: int = 1) -> Iterator[Tuple[int, tuple]]:
-    """Yield one deterministic, disjoint strided worker shard."""
+    """Yield one deterministic, disjoint strided worker shard.
+
+    Args:
+        start: Start used by this operation.
+        stop: Stop used by this operation.
+        worker_id: Worker id used by this operation.
+        num_workers: Number of workers to use.
+
+    Returns:
+        Computed `Iterator[Tuple[int, tuple]]` result.
+    """
     if not 0 <= start <= stop <= TOTAL_SIZE:
         raise ValueError("invalid shard bounds")
     if num_workers <= 0 or not 0 <= worker_id < num_workers:
@@ -151,8 +176,14 @@ def iter_shard(start: int, stop: int, worker_id: int = 0,
 def is_physically_admissible(genome: tuple) -> Tuple[bool, str]:
     """Conservative structural checks; model uncertainty is never rejected.
 
-    Redundant Cartesian encodings are rejected with explicit proof reasons and
-    remain part of the raw coverage denominator.
+        Redundant Cartesian encodings are rejected with explicit proof reasons and
+        remain part of the raw coverage denominator.
+
+    Args:
+        genome: Encoded catalyst composition and structural configuration.
+
+    Returns:
+        Ordered tuple of computed values.
     """
     cls = genome[0]
     if cls == "MoltenMetal":
@@ -197,8 +228,14 @@ def is_physically_admissible(genome: tuple) -> Tuple[bool, str]:
 def deterministic_tree_probes(count: int) -> list:
     """Return calibration points by recursively bisecting all class ranges.
 
-    These points calibrate the surrogate; they are not used to claim population
-    coverage. Population discovery remains the exhaustive branch scanner.
+        These points calibrate the surrogate; they are not used to claim population
+        coverage. Population discovery remains the exhaustive branch scanner.
+
+    Args:
+        count: Count used by this operation.
+
+    Returns:
+        List of computed or validated records.
     """
     if count <= 0:
         return []

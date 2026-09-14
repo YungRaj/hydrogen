@@ -12,6 +12,15 @@ from pipeline.process.physical_case import case_template, load_physical_case
 
 
 def prepare_manifest(manifest_path: str | Path, *, create: bool = False) -> dict:
+    """Prepare case directories and summarize their solver readiness.
+
+    Args:
+        manifest_path: Destination of the generated readiness manifest.
+        create: Whether missing case skeletons should be generated.
+
+    Returns:
+        A dictionary containing prepare manifest outputs, status, and supporting metadata.
+    """
     manifest_file = Path(manifest_path).expanduser().resolve()
     manifest = json.loads(manifest_file.read_text())
     entries = manifest.get('cases', [])
@@ -55,6 +64,8 @@ def prepare_manifest(manifest_path: str | Path, *, create: bool = False) -> dict
 
 
 def main() -> None:
+    """Run the module command-line entry point.
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('manifest')
     parser.add_argument('--create', action='store_true',

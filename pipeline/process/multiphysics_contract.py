@@ -47,7 +47,15 @@ REQUIRED_BALANCES = {
 
 
 def verify_numerics(convergence: dict, reactor_type: str | None = None) -> dict:
-    """Independently compute mesh stability and conservation residuals."""
+    """Independently compute mesh stability and conservation residuals.
+
+    Args:
+        convergence: Mapping supplying convergence.
+        reactor_type: Physical reactor implementation identifier.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     series = convergence.get('mesh_series', [])
     tolerance = convergence.get('mesh_tolerance_relative')
     mesh_ok = False
@@ -88,7 +96,16 @@ def verify_numerics(convergence: dict, reactor_type: str | None = None) -> dict:
 
 def verify_physical_outputs(reactor_type: str, outputs: dict,
                             physical_case: dict | None = None) -> list[str]:
-    """Return violated mode-specific identities and physical bounds."""
+    """Return violated mode-specific identities and physical bounds.
+
+    Args:
+        reactor_type: Physical reactor implementation identifier.
+        outputs: Mapping supplying outputs.
+        physical_case: Physical case used by this operation.
+
+    Returns:
+        List of computed or validated records.
+    """
     failed = []
     try:
         if reactor_type == 'Fluidized':
@@ -137,7 +154,11 @@ def _conda_module_available(environment: str, module: str) -> bool:
 
 @lru_cache(maxsize=1)
 def solver_preflight() -> dict:
-    """Discover supported solvers without assuming installation paths."""
+    """Discover supported solvers without assuming installation paths.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     from pipeline.common.executables import resolve_executable
 
     cantera = (importlib.util.find_spec('cantera') is not None or
@@ -156,6 +177,14 @@ def solver_preflight() -> dict:
 
 
 def mode_preflight(mode: str) -> dict:
+    """Report whether every external solver required by a pathway is available.
+
+    Args:
+        mode: Configured methane-conversion pathway.
+
+    Returns:
+        A dictionary containing mode preflight outputs, status, and supporting metadata.
+    """
     available = solver_preflight()
     required = sorted(MODE_SOLVERS[mode])
     missing = [name for name in required if not available[name]['available']]
@@ -165,6 +194,18 @@ def mode_preflight(mode: str) -> dict:
 
 def artifact_path(root: str | Path, candidate_id: str, pathway_mode: str,
                   reactor_type: str, temperature_K: float) -> Path:
+    """Construct the canonical result-artifact path for one case.
+
+    Args:
+        root: Root directory containing multiphysics results.
+        candidate_id: Stable candidate identifier used for identity checks.
+        pathway_mode: Configured methane-conversion pathway.
+        reactor_type: Physical reactor implementation associated with the artifact.
+        temperature_K: Absolute operating temperature in kelvin.
+
+    Returns:
+        The filesystem path produced by the operation.
+    """
     safe = Path(candidate_id).name
     if safe != candidate_id:
         raise ValueError('candidate_id is not a safe path component')
@@ -175,7 +216,18 @@ def artifact_path(root: str | Path, candidate_id: str, pathway_mode: str,
 def load_validated_artifact(root: str | Path | None, candidate_id: str,
                             pathway_mode: str, reactor_type: str,
                             temperature_K: float) -> dict:
-    """Load solver evidence and reject incomplete, mismatched, or unconverged data."""
+    """Load solver evidence and reject incomplete, mismatched, or unconverged data.
+
+    Args:
+        root: Root directory containing the relevant artifacts.
+        candidate_id: Stable candidate identifier.
+        pathway_mode: Configured methane-conversion pathway.
+        reactor_type: Physical reactor implementation identifier.
+        temperature_K: Absolute temperature in kelvin.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     if not root:
         return {'valid': False, 'reason': 'multiphysics_results_dir_not_configured'}
     path = artifact_path(root, candidate_id, pathway_mode, reactor_type,

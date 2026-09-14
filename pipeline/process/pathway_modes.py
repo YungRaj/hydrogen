@@ -23,6 +23,13 @@ MODE_CHOICES = (
 
 @dataclass(frozen=True)
 class PathwayMode:
+    """Describe the reactor models and external-physics requirement for a mode.
+
+    Attributes:
+        name: Configured name value.
+        reactor_types: Ordered reactor implementations requested for the pathway.
+        requires_specialized_validation: Configured requires specialized validation value.
+    """
     name: str
     reactor_types: tuple[str, ...]
     requires_specialized_validation: bool = False
@@ -85,7 +92,14 @@ REACTOR_MODELS = {
 
 
 def resolve_pathway_mode(mode: str | None) -> PathwayMode:
-    """Return a validated mode definition; absent mode means thermocatalytic."""
+    """Return a validated mode definition; absent mode means thermocatalytic.
+
+    Args:
+        mode: Configured methane-conversion pathway.
+
+    Returns:
+        Filesystem path produced or resolved by the operation.
+    """
     normalized = (mode or DEFAULT_MODE).strip().lower()
     try:
         return _MODES[normalized]
@@ -95,12 +109,25 @@ def resolve_pathway_mode(mode: str | None) -> PathwayMode:
 
 
 def reactor_types_for_mode(mode: str | None) -> tuple[str, ...]:
+    """Return the ordered reactor implementations owned by a pathway mode.
+
+    Args:
+        mode: Configured methane-conversion pathway.
+
+    Returns:
+        An ordered tuple of reactor-type identifiers.
+    """
     return resolve_pathway_mode(mode).reactor_types
 
 
 def validate_mode_reactors(mode: str | None,
                            reactor_types: tuple[str, ...] | list[str]) -> None:
-    """Reject cross-wiring such as an MMBCR mode dispatched into a PFR."""
+    """Reject cross-wiring such as an MMBCR mode dispatched into a PFR.
+
+    Args:
+        mode: Configured methane-conversion pathway.
+        reactor_types: Ordered values supplying reactor types.
+    """
     selected = resolve_pathway_mode(mode)
     requested = tuple(reactor_types)
     unknown = set(requested) - set(REACTOR_MODELS)
@@ -114,7 +141,15 @@ def validate_mode_reactors(mode: str | None,
 
 def reactor_applicability(reactor_type: str,
                           material_class: str | None) -> tuple[bool, str | None]:
-    """Return physical bed/material compatibility without excluding candidates."""
+    """Return physical bed/material compatibility without excluding candidates.
+
+    Args:
+        reactor_type: Physical reactor implementation identifier.
+        material_class: Canonical catalyst material-class name.
+
+    Returns:
+        Ordered tuple of computed values.
+    """
     spec = REACTOR_MODELS[reactor_type]
     if spec.compatible_material_classes is None:
         return True, None
@@ -127,4 +162,12 @@ def reactor_applicability(reactor_type: str,
 
 
 def is_ntec_mode(mode: str | None) -> bool:
+    """Return whether a pathway selects NTEC physics.
+
+    Args:
+        mode: Configured methane-conversion pathway.
+
+    Returns:
+        True when the stated condition holds; otherwise False.
+    """
     return resolve_pathway_mode(mode).name == 'ntec'

@@ -62,7 +62,11 @@ MEMBRANE_TYPES = [
 
 
 def generate_fc_catalyst_list() -> List[Dict]:
-    """Generate the complete fuel cell cathode catalyst candidate list."""
+    """Generate the complete fuel cell cathode catalyst candidate list.
+
+    Returns:
+        List of computed or validated records.
+    """
     candidates = []
 
     # Pt-alloys
@@ -107,10 +111,19 @@ def generate_fc_catalyst_list() -> List[Dict]:
 
 def screen_orr_candidate(candidate: Dict, calc, e_h2o: float, e_h2: float) -> Dict:
     """
-    Screen a single ORR cathode candidate using Meta eSen-SM.
-    
-    Computes adsorption energies for OH*, O*, OOH* and derives
-    the theoretical ORR overpotential.
+        Screen a single ORR cathode candidate using Meta eSen-SM.
+
+        Computes adsorption energies for OH*, O*, OOH* and derives
+        the theoretical ORR overpotential.
+
+    Args:
+        candidate: Candidate record to process.
+        calc: Atomic calculator used for the evaluation.
+        e_h2o: E h2o used by this operation.
+        e_h2: E h2 used by this operation.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
     """
     from ase import Atoms, Atom
     from ase.optimize import BFGS
@@ -212,7 +225,13 @@ def screen_orr_candidate(candidate: Dict, calc, e_h2o: float, e_h2: float) -> Di
 
 def run_cathode_screening(workers_per_gpu: int = 2) -> 'pd.DataFrame':
     """
-    Run full cathode catalyst screening campaign.
+        Run full cathode catalyst screening campaign.
+
+    Args:
+        workers_per_gpu: Workers per gpu used by this operation.
+
+    Returns:
+        Computed `'pd.DataFrame'` result.
     """
     import pandas as pd
     import torch

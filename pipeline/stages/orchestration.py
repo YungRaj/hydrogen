@@ -39,7 +39,11 @@ class PipelineComponents:
 
 
 def default_pipeline_runtime() -> PipelineRuntime:
-    """Build the filesystem/environment-backed runtime used by the CLI."""
+    """Build the filesystem/environment-backed runtime used by the CLI.
+
+    Returns:
+        Computed `PipelineRuntime` result.
+    """
     from pipeline.common.utils import load_json, print_banner, save_json
 
     def load() -> dict:
@@ -58,7 +62,11 @@ def default_pipeline_runtime() -> PipelineRuntime:
 
 
 def default_pipeline_components() -> PipelineComponents:
-    """Bind the production stage graph lazily."""
+    """Bind the production stage graph lazily.
+
+    Returns:
+        Computed `PipelineComponents` result.
+    """
     from pipeline.stages.candidate_io import load_selected_candidates
     from pipeline.stages.dft import run_dft_stage
     from pipeline.stages.discovery import run_discovery_stage
@@ -81,8 +89,18 @@ class MemoryStateStore:
         self.history: list[dict] = []
 
     def load(self) -> dict:
+        """Load and validate a serialized surrogate model.
+
+        Returns:
+            A validated model reconstructed from disk.
+        """
         return deepcopy(self.state)
 
     def save(self, value: Mapping) -> None:
+        """Atomically save the surrogate model.
+
+        Args:
+            value: Pipeline state value to copy or persist.
+        """
         self.state = deepcopy(dict(value))
         self.history.append(deepcopy(dict(value)))

@@ -13,6 +13,8 @@ from pipeline.search.discovery import candidate_id, discovery_region
 
 
 class PriorArtRegistry:
+    """Store and query curated, dated prior-art records.
+    """
     def __init__(self, database: str):
         Path(database).parent.mkdir(parents=True, exist_ok=True)
         self.database = database
@@ -51,6 +53,19 @@ class PriorArtRegistry:
     def add(self, genome: tuple, source_type: str, source_id: str,
             citation: str = '', evidence_level: str = 'reported',
             publication_year: int | None = None):
+        """Insert or replace one prior-art record.
+
+        Args:
+            genome: Encoded catalyst composition and structural configuration.
+            source_type: Kind of publication or database supplying the prior-art record.
+            source_id: Stable DOI, accession, or source identifier.
+            citation: Human-readable citation for the prior-art source.
+            evidence_level: Authority level supported by the source record.
+            publication_year: Year used for time-split novelty evaluation.
+
+        Returns:
+            The computed add result.
+        """
         if not str(source_id).strip():
             raise ValueError('prior-art source_id is required')
         if publication_year is not None and not 1800 <= int(publication_year) <= 2200:
@@ -76,6 +91,14 @@ class PriorArtRegistry:
                  record_hash, time.time()))
 
     def import_csv(self, path: str) -> int:
+        """Import curated prior-art records from CSV.
+
+        Args:
+            path: Input or output filesystem path.
+
+        Returns:
+            The computed import csv numeric value.
+        """
         count = 0
         with open(path, newline='') as handle:
             for row in csv.DictReader(handle):
@@ -89,7 +112,14 @@ class PriorArtRegistry:
         return count
 
     def import_curated_manifest(self, path: str) -> dict:
-        """Validate and import a checksum-bound, time-split prior-art corpus."""
+        """Validate and import a checksum-bound, time-split prior-art corpus.
+
+        Args:
+            path: Filesystem path to the input or output artifact.
+
+        Returns:
+            Dictionary containing the computed values, status, and supporting metadata.
+        """
         manifest_path = Path(path).expanduser().resolve()
         payload = json.loads(manifest_path.read_text())
         if payload.get('schema_version') != 1:
@@ -146,6 +176,14 @@ class PriorArtRegistry:
         }
 
     def classify(self, genome: tuple) -> dict:
+        """Classify a candidate against dated prior-art records.
+
+        Args:
+            genome: Encoded catalyst composition and structural configuration.
+
+        Returns:
+            The prior-art classification and matching source records.
+        """
         cid = candidate_id(genome)
         region = '|'.join(discovery_region(genome))
         with self._connect() as conn:
@@ -161,12 +199,26 @@ class PriorArtRegistry:
                 'novelty_status': 'known' if exact else ('region_known' if related else 'unseen')}
 
     def count(self) -> int:
+        """Count stored prior-art records.
+
+        Returns:
+            The number of records currently stored.
+        """
         with self._connect() as conn:
             return int(conn.execute(
                 "SELECT COUNT(*) FROM prior_art_records").fetchone()[0])
 
 
 def annotate_prior_art(frame, database: str):
+    """Attach prior-art classifications to candidate records.
+
+    Args:
+        frame: Tabular candidate records to annotate or evaluate.
+        database: Path to the persistent campaign database.
+
+    Returns:
+        The computed annotate prior art result.
+    """
     if frame is None or 'genome' not in frame.columns:
         return frame
     registry = PriorArtRegistry(database)
@@ -188,6 +240,8 @@ def annotate_prior_art(frame, database: str):
 
 
 def main() -> None:
+    """Run the module command-line entry point.
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--database', required=True)
     parser.add_argument('--curated-manifest', required=True)

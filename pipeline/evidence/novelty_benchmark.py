@@ -19,8 +19,18 @@ def time_split_recovery(ranked_candidates, held_out_discoveries,
                         cutoff_year: int, training_records, k=100) -> dict:
     """Measure whether a ranking recovers discoveries hidden by publication year.
 
-    `held_out_discoveries` must contain mappings with genome, publication_year,
-    source_id, and a non-empty citation. Missing provenance fails closed.
+        `held_out_discoveries` must contain mappings with genome, publication_year,
+        source_id, and a non-empty citation. Missing provenance fails closed.
+
+    Args:
+        ranked_candidates: Ranked candidates used by this operation.
+        held_out_discoveries: Held out discoveries used by this operation.
+        cutoff_year: Cutoff year used by this operation.
+        training_records: Training records used by this operation.
+        k: K used by this operation.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
     """
     if k <= 0:
         raise ValueError('k must be positive')

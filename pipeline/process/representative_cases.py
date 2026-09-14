@@ -20,6 +20,11 @@ class ParameterRange:
     scale: str = 'linear'
 
     def validate(self, name: str) -> None:
+        """Reject invalid configuration before it reaches scientific execution.
+
+        Args:
+            name: Human-readable identifier used in diagnostics and output.
+        """
         if (not math.isfinite(self.minimum) or not math.isfinite(self.maximum)
                 or self.maximum <= self.minimum):
             raise ValueError(f'invalid parameter range: {name}')
@@ -29,6 +34,14 @@ class ParameterRange:
             raise ValueError(f'log parameter must be positive: {name}')
 
     def interpolate(self, fraction: float) -> float:
+        """Map a unit-interval coordinate into this parameter range.
+
+        Args:
+            fraction: Unit-interval coordinate to map into the parameter range.
+
+        Returns:
+            The physical parameter value corresponding to the unit coordinate.
+        """
         if self.scale == 'log':
             return float(math.exp(
                 math.log(self.minimum) + fraction *
@@ -50,8 +63,19 @@ def design_representative_cases(
         ) -> list[dict]:
     """Generate a Latin-hypercube design plus explicit regime anchors.
 
-    Every sampled dimension occupies every one of ``sample_count`` strata once.
-    Anchors are appended after validation and deduplicated by physical identity.
+        Every sampled dimension occupies every one of ``sample_count`` strata once.
+        Anchors are appended after validation and deduplicated by physical identity.
+
+    Args:
+        pathway_mode: Configured methane-conversion pathway.
+        reactor_type: Physical reactor implementation identifier.
+        ranges: Mapping supplying ranges.
+        sample_count: Number of sample count to use.
+        anchors: Mapping supplying anchors.
+        random_seed: Seed controlling deterministic sampling or fitting.
+
+    Returns:
+        List of computed or validated records.
     """
     if not pathway_mode or not reactor_type:
         raise ValueError('pathway mode and reactor type are required')
@@ -96,7 +120,16 @@ def design_representative_cases(
 
 def assign_case_partitions(cases: Sequence[Mapping], *, validation_count: int,
                            partition_seed: str = 'hydrogen-v1') -> list[dict]:
-    """Preassign an exact blind holdout without inspecting solver outcomes."""
+    """Preassign an exact blind holdout without inspecting solver outcomes.
+
+    Args:
+        cases: Mapping supplying cases.
+        validation_count: Number of validation count to use.
+        partition_seed: Partition seed used by this operation.
+
+    Returns:
+        List of computed or validated records.
+    """
     values = [dict(case) for case in cases]
     if (not isinstance(validation_count, int) or validation_count < 1 or
             validation_count >= len(values)):

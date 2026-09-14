@@ -10,6 +10,16 @@ from pipeline.stages.contracts import StageOutcome
 
 @dataclass(frozen=True)
 class DiscoveryServices:
+    """Bundle replaceable discovery-stage operations.
+
+    Attributes:
+        estimate_space: Configured estimate space value.
+        build_config: Configured build config value.
+        run_search: Configured run search value.
+        annotate_evidence: Configured annotate evidence value.
+        select_reactor: Configured select reactor value.
+        select_validation: Configured select validation value.
+    """
     estimate_space: Callable
     build_config: Callable
     run_search: Callable
@@ -19,6 +29,11 @@ class DiscoveryServices:
 
 
 def default_discovery_services() -> DiscoveryServices:
+    """Construct production discovery-stage dependencies.
+
+    Returns:
+        A `DiscoveryServices` containing the default discovery services result.
+    """
     from pipeline.common.catalyst_spaces import estimate_design_space_size
     from pipeline.screening.genetic_optimizer import (
         BranchDiscoveryConfig, run_branch_discovery)
@@ -34,7 +49,19 @@ def run_discovery_stage(*, initial_samples: int, leaf_size: int,
                         max_leaves: int | None, top_k_reactor: int,
                         top_k_dft: int,
                         services: DiscoveryServices | None = None) -> StageOutcome:
-    """Search, annotate, and route candidates through explicit dependencies."""
+    """Search, annotate, and route candidates through explicit dependencies.
+
+    Args:
+        initial_samples: Initial samples used by this operation.
+        leaf_size: Number of leaf size to use.
+        max_leaves: Bound controlling max leaves.
+        top_k_reactor: Bound controlling top k reactor.
+        top_k_dft: Bound controlling top k dft.
+        services: Services used by this operation.
+
+    Returns:
+        Computed `StageOutcome` result.
+    """
     services = services or default_discovery_services()
     sizes = services.estimate_space()
     config = services.build_config(

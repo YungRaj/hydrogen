@@ -7,7 +7,16 @@ from pathlib import Path
 
 def load_selected_candidates(path: str | Path, *, top_k_reactor: int,
                              top_k_dft: int):
-    """Load a screening table and reproduce the two distinct admission routes."""
+    """Load a screening table and reproduce the two distinct admission routes.
+
+    Args:
+        path: Filesystem path to the input or output artifact.
+        top_k_reactor: Bound controlling top k reactor.
+        top_k_dft: Bound controlling top k dft.
+
+    Returns:
+        Computed result described above.
+    """
     import pandas as pd
     from pipeline.screening.stage_selection import (
         select_for_reactor, select_for_validation)

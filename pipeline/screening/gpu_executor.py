@@ -28,7 +28,16 @@ class ScreeningRunSpec:
 
 def execution_layout(device_count: int, workers_per_gpu: int,
                      engine: str) -> tuple[int, int]:
-    """Return (process count, candidate threads/process) with validation."""
+    """Return (process count, candidate threads/process) with validation.
+
+    Args:
+        device_count: Number of device count to use.
+        workers_per_gpu: Workers per gpu used by this operation.
+        engine: Engine used by this operation.
+
+    Returns:
+        Ordered tuple of computed values.
+    """
     if device_count < 1:
         raise RuntimeError('screening requires at least one visible CUDA GPU')
     if workers_per_gpu < 1:
@@ -44,7 +53,21 @@ def run_worker_loop(worker_id, task_queue, status_queue, stop_event,
                     candidate_threads: int, batched: bool, calculator,
                     evaluator: Callable, error_record: Callable,
                     batch_service=None, result_context: dict | None = None) -> None:
-    """Run the shared leased-task and heartbeat loop inside one GPU process."""
+    """Run the shared leased-task and heartbeat loop inside one GPU process.
+
+    Args:
+        worker_id: Worker id used by this operation.
+        task_queue: Task queue used by this operation.
+        status_queue: Status queue used by this operation.
+        stop_event: Stop event used by this operation.
+        candidate_threads: Candidate threads used by this operation.
+        batched: Whether to enable batched.
+        calculator: Atomic calculator used for the evaluation.
+        evaluator: Injected callable used to perform evaluator.
+        error_record: Injected callable used to perform error record.
+        batch_service: Batch service used by this operation.
+        result_context: Result context used by this operation.
+    """
     import queue
     import threading
     from concurrent.futures import ThreadPoolExecutor
@@ -101,9 +124,21 @@ def run_gpu_screening(
 ):
     """Execute a screening evaluator with deterministic, supervised GPU work.
 
-    The worker callable retains ownership of model initialization and scientific
-    evaluation. This function owns only invariant execution behavior: topology,
-    queues, leases, health supervision, ordering, and persistence.
+        The worker callable retains ownership of model initialization and scientific
+        evaluation. This function owns only invariant execution behavior: topology,
+        queues, leases, health supervision, ordering, and persistence.
+
+    Args:
+        genomes: Sequence of encoded catalyst candidates.
+        db_filename: Db filename used by this operation.
+        workers_per_gpu: Workers per gpu used by this operation.
+        engine: Engine used by this operation.
+        worker_target: Injected callable used to perform worker target.
+        logger: Logger used by this operation.
+        spec: Spec used by this operation.
+
+    Returns:
+        Computed result described above.
     """
     import pandas as pd
     import torch

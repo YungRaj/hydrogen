@@ -94,7 +94,14 @@ DESIGN_AXIS_PROVENANCE = {
 
 
 def validate_provenance(material_classes) -> dict:
-    """Fail closed if a class, axis, or referenced source lacks provenance."""
+    """Fail closed if a class, axis, or referenced source lacks provenance.
+
+    Args:
+        material_classes: Material classes used by this operation.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     failures = []
     for material_class in material_classes:
         axes = DESIGN_AXIS_PROVENANCE.get(material_class)

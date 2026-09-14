@@ -58,6 +58,11 @@ class QEExecutionConfig:
     image_groups: int = 1
 
     def validate(self, *, neb: bool = False) -> None:
+        """Reject invalid configuration before it reaches scientific execution.
+
+        Args:
+            neb: Whether to build a NEB rather than pw.x execution command.
+        """
         values = (self.mpi_ranks, self.omp_threads, self.kpoint_pools,
                   self.image_groups)
         if any(int(value) < 1 for value in values):
@@ -71,6 +76,11 @@ class QEExecutionConfig:
 
     @classmethod
     def production_default(cls) -> 'QEExecutionConfig':
+        """Perform production default.
+
+        Returns:
+            A `'QEExecutionConfig'` containing the production default result.
+        """
         return cls(
             mpi_ranks=int(os.environ.get('QE_MPI_RANKS', '4')),
             omp_threads=int(os.environ.get('QE_OMP_THREADS', '1')),
@@ -80,7 +90,17 @@ class QEExecutionConfig:
 
 def build_qe_command(executable: str, input_path: str,
                      config: QEExecutionConfig, *, neb: bool = False) -> list[str]:
-    """Build a shell-free MPI/QE command with validated parallel dimensions."""
+    """Build a shell-free MPI/QE command with validated parallel dimensions.
+
+    Args:
+        executable: Executable used by this operation.
+        input_path: Filesystem location used for input path.
+        config: Configuration controlling this operation.
+        neb: Whether to enable neb.
+
+    Returns:
+        List of computed or validated records.
+    """
     config.validate(neb=neb)
     requested = Path(executable).name
     env_var = {'pw.x': 'PW_X', 'neb.x': 'NEB_X'}.get(requested)
@@ -126,6 +146,16 @@ def _execution_record(input_path: str, output_path: str, command: list[str],
 
 
 def verify_sssp(elements, directory=SSSP_DIR, manifest=SSSP_MANIFEST) -> dict:
+    """Verify required SSSP pseudopotentials against the pinned manifest.
+
+    Args:
+        elements: Element symbols whose pseudopotentials must be verified.
+        directory: Directory containing the files being verified.
+        manifest: Pinned manifest containing expected filenames, checksums, and cutoffs.
+
+    Returns:
+        Validated metadata or status; invalid inputs raise an exception.
+    """
     metadata = json.loads(Path(manifest).read_text())
     records, errors = {}, []
     for element in sorted(set(elements)):
@@ -151,7 +181,16 @@ def verify_sssp(elements, directory=SSSP_DIR, manifest=SSSP_MANIFEST) -> dict:
 
 def methane_dissociation_images(slab: Atoms, active_index: int,
                                  n_images: int = 7) -> list[Atoms]:
-    """Build candidate-specific CH4(g)+* -> CH3*+H* NEB endpoints/images."""
+    """Build candidate-specific CH4(g)+* -> CH3*+H* NEB endpoints/images.
+
+    Args:
+        slab: Slab used by this operation.
+        active_index: Active index used by this operation.
+        n_images: Number of images to use.
+
+    Returns:
+        List of computed or validated records.
+    """
     if n_images < 5 or active_index < 0 or active_index >= len(slab):
         raise ValueError('invalid NEB image count or active site')
     site = slab.positions[active_index].copy()
@@ -173,7 +212,16 @@ def methane_dissociation_images(slab: Atoms, active_index: int,
 
 
 def write_qe_neb_input(images: list[Atoms], path: str, prefix: str) -> dict:
-    """Write a climbing-image neb.x input using one verified SSSP family."""
+    """Write a climbing-image neb.x input using one verified SSSP family.
+
+    Args:
+        images: Ordered values supplying images.
+        path: Filesystem path to the input or output artifact.
+        prefix: Prefix used by this operation.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     if not images or any(len(x) != len(images[0]) for x in images):
         raise ValueError('NEB images must have identical atom ordering')
     elements = sorted(set(images[0].get_chemical_symbols()))
@@ -231,6 +279,17 @@ END
 
 def run_neb(input_path: str, output_path: str, timeout_s: int = 86400,
             execution: QEExecutionConfig | None = None) -> dict:
+    """Execute a Quantum ESPRESSO NEB calculation and record its provenance.
+
+    Args:
+        input_path: Quantum ESPRESSO input file.
+        output_path: Destination for solver output and execution provenance.
+        timeout_s: Maximum solver wall time in seconds.
+        execution: Injected executable-discovery and process-execution services.
+
+    Returns:
+        A dictionary containing run neb outputs, status, and supporting metadata.
+    """
     neb = resolve_qe_executable('neb.x')
     workdir = Path(input_path).resolve().parent
     (workdir / 'tmp').mkdir(exist_ok=True)
@@ -261,7 +320,17 @@ def run_neb(input_path: str, output_path: str, timeout_s: int = 86400,
 
 def write_qe_relax_input(atoms: Atoms, path: str, prefix: str,
                          kpoints=(2, 2, 1)) -> dict:
-    """Write a spin-polarized, force-converged endpoint relaxation."""
+    """Write a spin-polarized, force-converged endpoint relaxation.
+
+    Args:
+        atoms: Atomic structure consumed by the calculator.
+        path: Filesystem path to the input or output artifact.
+        prefix: Prefix used by this operation.
+        kpoints: Kpoints used by this operation.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     elements = sorted(set(atoms.get_chemical_symbols()))
     verified = verify_sssp(elements)
     if not verified['valid']:
@@ -303,7 +372,17 @@ K_POINTS automatic
 
 def write_qe_force_input(atoms: Atoms, path: str, prefix: str,
                          kpoints=(2, 2, 1)) -> dict:
-    """Write a fixed-geometry SCF input that prints Cartesian atomic forces."""
+    """Write a fixed-geometry SCF input that prints Cartesian atomic forces.
+
+    Args:
+        atoms: Atomic structure consumed by the calculator.
+        path: Filesystem path to the input or output artifact.
+        prefix: Prefix used by this operation.
+        kpoints: Kpoints used by this operation.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     elements = sorted(set(atoms.get_chemical_symbols()))
     verified = verify_sssp(elements)
     if not verified['valid']:
@@ -347,6 +426,17 @@ K_POINTS automatic
 
 def run_pw(input_path: str, output_path: str, timeout_s: int = 86400,
            execution: QEExecutionConfig | None = None) -> dict:
+    """Execute a Quantum ESPRESSO pw.x calculation and record its provenance.
+
+    Args:
+        input_path: Quantum ESPRESSO input file.
+        output_path: Destination for solver output and execution provenance.
+        timeout_s: Maximum solver wall time in seconds.
+        execution: Injected executable-discovery and process-execution services.
+
+    Returns:
+        A dictionary containing run pw outputs, status, and supporting metadata.
+    """
     workdir = Path(input_path).resolve().parent
     (workdir / 'tmp').mkdir(exist_ok=True)
     pw = resolve_qe_executable('pw.x')
@@ -375,7 +465,14 @@ def run_pw(input_path: str, output_path: str, timeout_s: int = 86400,
 
 
 def relaxed_structure(output_path: str) -> Atoms:
-    """Read the last geometry only from a cleanly completed QE relaxation."""
+    """Read the last geometry only from a cleanly completed QE relaxation.
+
+    Args:
+        output_path: Filesystem destination for generated output.
+
+    Returns:
+        Computed `Atoms` result.
+    """
     text = Path(output_path).read_text(errors='replace')
     if 'JOB DONE' not in text or 'convergence NOT achieved' in text:
         raise RuntimeError('endpoint relaxation is not converged')
@@ -383,7 +480,15 @@ def relaxed_structure(output_path: str) -> Atoms:
 
 
 def parse_atomic_forces(output_path: str, expected_atoms: int | None = None) -> np.ndarray:
-    """Read the final QE force block and return forces in eV/angstrom."""
+    """Read the final QE force block and return forces in eV/angstrom.
+
+    Args:
+        output_path: Filesystem destination for generated output.
+        expected_atoms: Expected atoms used by this operation.
+
+    Returns:
+        Computed `np.ndarray` result.
+    """
     text = Path(output_path).read_text(errors='replace')
     blocks = re.findall(
         r'Forces acting on atoms[^\n]*\n(.*?)(?=\n\s*Total force|\n\s*!|\Z)',
@@ -405,6 +510,14 @@ def parse_atomic_forces(output_path: str, expected_atoms: int | None = None) -> 
 
 
 def parse_neb_result(output_path: str) -> dict:
+    """Parse a completed NEB output into convergence and barrier evidence.
+
+    Args:
+        output_path: Destination for solver output and execution provenance.
+
+    Returns:
+        Convergence state, image energies, and activation barrier parsed from output.
+    """
     text = Path(output_path).read_text(errors='replace')
     energies = [float(x) for x in re.findall(r'activation energy \(->\)\s*=\s*([-+0-9.Ee]+)', text)]
     reverse = [float(x) for x in re.findall(r'activation energy \(<-\)\s*=\s*([-+0-9.Ee]+)', text)]
@@ -419,7 +532,17 @@ def parse_neb_result(output_path: str) -> dict:
 
 def partial_hessian(forces_plus: np.ndarray, forces_minus: np.ndarray,
                     displacement_A: float, masses_amu: np.ndarray) -> dict:
-    """Construct a mass-weighted partial Hessian from central force differences."""
+    """Construct a mass-weighted partial Hessian from central force differences.
+
+    Args:
+        forces_plus: Forces plus used by this operation.
+        forces_minus: Forces minus used by this operation.
+        displacement_A: Displacement in ångströms.
+        masses_amu: Masses amu used by this operation.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     plus = np.asarray(forces_plus, float); minus = np.asarray(forces_minus, float)
     if plus.shape != minus.shape or plus.ndim != 3 or displacement_A <= 0:
         raise ValueError('forces must be (3N, N, 3) central-difference arrays')

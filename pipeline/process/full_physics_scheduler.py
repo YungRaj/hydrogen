@@ -20,6 +20,8 @@ class FullPhysicsRequest:
     unproductive_history: float = 0.0
 
     def validate(self) -> None:
+        """Reject invalid configuration before it reaches scientific execution.
+        """
         if not self.case_id or not self.region:
             raise ValueError('case and region identities are required')
         for name in ('expected_improvement', 'uncertainty',
@@ -31,6 +33,11 @@ class FullPhysicsRequest:
 
     def priority(self) -> float:
         # Repeatedly unproductive regions lose discretionary priority only.
+        """Score a full-physics request from improvement, uncertainty, and disagreement.
+
+        Returns:
+            A sortable priority score; larger values receive earlier consideration.
+        """
         benefit = (0.30 * self.expected_improvement + 0.25 * self.uncertainty +
                    0.25 * self.disagreement + 0.20 * self.calibration_error)
         return benefit * (1.0 - 0.75 * self.unproductive_history)
@@ -39,7 +46,16 @@ class FullPhysicsRequest:
 def schedule_full_physics_cases(
         requests: Iterable[FullPhysicsRequest], *, total_budget: int,
         minimum_per_region: int = 1) -> list[dict]:
-    """Reserve regional coverage, then allocate remaining budget by priority."""
+    """Reserve regional coverage, then allocate remaining budget by priority.
+
+    Args:
+        requests: Requests used by this operation.
+        total_budget: Total budget used by this operation.
+        minimum_per_region: Minimum per region used by this operation.
+
+    Returns:
+        List of computed or validated records.
+    """
     values = list(requests)
     if not isinstance(total_budget, int) or total_budget < 1:
         raise ValueError('total_budget must be a positive integer')

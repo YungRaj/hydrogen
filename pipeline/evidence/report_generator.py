@@ -31,7 +31,11 @@ logger = setup_logger('report_generator', 'reports/report_generation.log')
 
 
 def load_all_results() -> Dict:
-    """Load all results from the pipeline output directories."""
+    """Load all results from the pipeline output directories.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     data = {}
 
     # Screening databases
@@ -93,7 +97,13 @@ def load_all_results() -> Dict:
 
 def generate_full_report(pipeline_state: Dict = None) -> Path:
     """
-    Generate the comprehensive pipeline report.
+        Generate the comprehensive pipeline report.
+
+    Args:
+        pipeline_state: Mapping supplying pipeline state.
+
+    Returns:
+        Filesystem path produced or resolved by the operation.
     """
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     data = load_all_results()

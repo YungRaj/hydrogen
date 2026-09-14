@@ -5,12 +5,26 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class RelaxationBudget:
+    """Define optimizer limits for one screening relaxation tier.
+
+    Attributes:
+        fmax_eV_A: Configured fmax eV A value.
+        steps: Configured steps value.
+    """
     fmax_eV_A: float
     steps: int
 
 
 @dataclass(frozen=True)
 class ScreeningProtocol:
+    """Define a named, auditable hierarchy of relaxation budgets.
+
+    Attributes:
+        protocol_id: Configured protocol id value.
+        reference: Configured reference value.
+        clean: Configured clean value.
+        adsorbate: Configured adsorbate value.
+    """
     protocol_id: str
     reference: RelaxationBudget
     clean: RelaxationBudget

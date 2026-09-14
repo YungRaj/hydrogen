@@ -44,9 +44,22 @@ class BatchedInferenceService:
         self._thread.start()
 
     def calculator_proxy(self) -> Calculator:
+        """Expose the worker calculator through the standard calculator interface.
+
+        Returns:
+            The calculator proxy used by callers submitting atomic systems.
+        """
         return BatchedFAIRChemCalculator(self)
 
     def predict(self, atoms) -> dict:
+        """Predict outputs and uncertainty for one feature vector.
+
+        Args:
+            atoms: Atomic structure submitted for inference.
+
+        Returns:
+            Predicted outputs paired with model uncertainty.
+        """
         request = _Request(atoms.copy())
         self._requests.put(request)
         request.event.wait()
@@ -55,6 +68,11 @@ class BatchedInferenceService:
         return request.result
 
     def close(self):
+        """Release worker processes and communication resources.
+
+        Returns:
+            None; the service is left closed even when worker shutdown is required.
+        """
         if self._thread.is_alive():
             self._requests.put(self._stop)
             self._thread.join()
@@ -144,5 +162,15 @@ class BatchedFAIRChemCalculator(Calculator):
 
     def calculate(self, atoms=None, properties=('energy',),
                   system_changes=all_changes):
+        """Evaluate one atomic system through the batched inference service.
+
+        Args:
+            atoms: Atomic structure submitted for inference.
+            properties: Atomic properties requested from the calculator.
+            system_changes: ASE change flags describing invalidated cached results.
+
+        Returns:
+            The computed calculate result.
+        """
         Calculator.calculate(self, atoms, properties, system_changes)
         self.results = self.service.predict(atoms)

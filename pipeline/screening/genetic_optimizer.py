@@ -45,13 +45,27 @@ logger = setup_logger('genetic_optimizer', 'screening/genetic_optimizer.log')
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def dominates(obj_a: np.ndarray, obj_b: np.ndarray) -> bool:
-    """Return True if solution a dominates solution b (all ≤, at least one <)."""
+    """Return True if solution a dominates solution b (all ≤, at least one <).
+
+    Args:
+        obj_a: Obj a used by this operation.
+        obj_b: Obj b used by this operation.
+
+    Returns:
+        True when the documented condition holds; otherwise False.
+    """
     return np.all(obj_a <= obj_b) and np.any(obj_a < obj_b)
 
 
 def fast_non_dominated_sort(objectives: np.ndarray) -> List[List[int]]:
     """
-    NSGA-II fast non-dominated sort using vectorized Pareto front extraction.
+        NSGA-II fast non-dominated sort using vectorized Pareto front extraction.
+
+    Args:
+        objectives: Objectives used by this operation.
+
+    Returns:
+        List of computed or validated records.
     """
     n = len(objectives)
     remaining_indices = np.arange(n)
@@ -76,8 +90,15 @@ def fast_non_dominated_sort(objectives: np.ndarray) -> List[List[int]]:
 
 def crowding_distance(objectives: np.ndarray, front: List[int]) -> np.ndarray:
     """
-    Compute crowding distance for individuals in a front.
-    Used to maintain diversity on the Pareto front.
+        Compute crowding distance for individuals in a front.
+        Used to maintain diversity on the Pareto front.
+
+    Args:
+        objectives: Objectives used by this operation.
+        front: Ordered values supplying front.
+
+    Returns:
+        Computed `np.ndarray` result.
     """
     n = len(front)
     if n <= 2:
@@ -108,8 +129,16 @@ def crowding_distance(objectives: np.ndarray, front: List[int]) -> np.ndarray:
 def nsga2_select(population: List[tuple], objectives: np.ndarray,
                  n_select: int) -> List[int]:
     """
-    NSGA-II selection: prefer lower rank, then higher crowding distance.
-    Returns indices of selected individuals.
+        NSGA-II selection: prefer lower rank, then higher crowding distance.
+        Returns indices of selected individuals.
+
+    Args:
+        population: Ordered values supplying population.
+        objectives: Objectives used by this operation.
+        n_select: Number of select to use.
+
+    Returns:
+        List of computed or validated records.
     """
     fronts = fast_non_dominated_sort(objectives)
     selected = []
@@ -137,21 +166,26 @@ def compute_objectives_surrogate(population: List[tuple],
                                   model: object,
                                   device: str = 'cuda:0') -> np.ndarray:
     """
-    Compute 4 objectives using the surrogate model or surrogate ensemble.
-    All objectives are MINIMIZED (negate what should be maximized).
-    
-    If model is a SurrogateEnsemble, uses LCB (for E_act and segregation energy)
-    and UCB (for coking resistance index) with kappa = 1.0 to drive active learning.
-    
-    E_act is scaled by OOD confidence penalty to discount predictions
-    from material classes outside the eSen-SM training distribution.
-    
-    Returns: (N, 4) array
+        Compute 4 objectives using the surrogate model or surrogate ensemble.
+        All objectives are MINIMIZED (negate what should be maximized).
+
+        If model is a SurrogateEnsemble, uses LCB (for E_act and segregation energy)
+        and UCB (for coking resistance index) with kappa = 1.0 to drive active learning.
+
+        E_act is scaled by OOD confidence penalty to discount predictions
+        from material classes outside the eSen-SM training distribution.
+
+        Returns: (N, 4) array
+
+    Args:
+        population: Ordered values supplying population.
+        model: Fitted model used for inference.
+        device: CPU or GPU device requested for execution.
     """
     from pipeline.common.ood_detector import compute_model_confidence, confidence_penalty
 
     X = encode_population(population)
-    
+
     if isinstance(model, SurrogateEnsemble):
         preds = predict_ensemble(model, X, device=device)
         kappa = 1.0
@@ -290,6 +324,28 @@ class GAConfig:
 
 @dataclass
 class BranchDiscoveryConfig:
+    """Configure the production branch-search adapter.
+
+    Attributes:
+        initial_fairchem_samples: Configured initial fairchem samples value.
+        fairchem_eval_top_k: Configured fairchem eval top k value.
+        n_models: Configured n models value.
+        htvs_pool_size: Configured htvs pool size value.
+        device: Configured device value.
+        exhaustive_batch_size: Configured exhaustive batch size value.
+        exhaustive_db: Configured exhaustive db value.
+        branch_leaf_size: Configured branch leaf size value.
+        branch_probe_count: Configured branch probe count value.
+        branch_max_leaves: Configured branch max leaves value.
+        expected_space_size: Configured expected space size value.
+        max_runtime_s: Configured max runtime s value.
+        prior_art_db: Configured prior art db value.
+        min_validation_per_class: Configured min validation per class value.
+        min_resolved_leaves_per_class: Configured min resolved leaves per class value.
+        branch_exploration_interval: Configured branch exploration interval value.
+        refresh_pending_priorities: Configured refresh pending priorities value.
+        scan_workers: Configured scan workers value.
+    """
     initial_fairchem_samples: int = 500
     fairchem_eval_top_k: int = 500
     n_models: int = 3
@@ -315,7 +371,16 @@ class BranchDiscoveryConfig:
 
 def tournament_select(population: List[tuple], objectives: np.ndarray,
                       tournament_size: int = 5) -> int:
-    """Tournament selection: pick the best from a random subset."""
+    """Tournament selection: pick the best from a random subset.
+
+    Args:
+        population: Ordered values supplying population.
+        objectives: Objectives used by this operation.
+        tournament_size: Number of tournament size to use.
+
+    Returns:
+        Computed `int` value in the units documented above.
+    """
     candidates = random.sample(range(len(population)), min(tournament_size, len(population)))
     best = candidates[0]
     for c in candidates[1:]:
@@ -326,7 +391,15 @@ def tournament_select(population: List[tuple], objectives: np.ndarray,
 
 def run_branch_discovery(config: BranchDiscoveryConfig = BranchDiscoveryConfig(),
                          existing_db: Optional[pd.DataFrame] = None):
-    """Single supported production search: deterministic branch-and-bound."""
+    """Single supported production search: deterministic branch-and-bound.
+
+    Args:
+        config: Configuration controlling this operation.
+        existing_db: Existing db used by this operation.
+
+    Returns:
+        Computed result described above.
+    """
     from pipeline.search.indexed_space import deterministic_tree_probes
     from pipeline.search.branch_search import BranchConfig, run_branch_and_bound
     from pipeline.search.exhaustive_search import load_archive_genomes
@@ -418,7 +491,14 @@ def run_branch_discovery(config: BranchDiscoveryConfig = BranchDiscoveryConfig()
 def run_genetic_algorithm(config: GAConfig = GAConfig(),
                           existing_db: Optional[pd.DataFrame] = None) -> Tuple[List[tuple], pd.DataFrame]:
     """
-    Execute the NSGA-II genetic algorithm for catalyst discovery.
+        Execute the NSGA-II genetic algorithm for catalyst discovery.
+
+    Args:
+        config: Configuration controlling this operation.
+        existing_db: Existing db used by this operation.
+
+    Returns:
+        Ordered tuple of computed values.
     """
     raise RuntimeError("Genetic/random candidate search was retired; use run_branch_discovery()")
     random.seed(config.seed)

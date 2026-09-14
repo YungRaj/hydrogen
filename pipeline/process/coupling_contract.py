@@ -19,6 +19,14 @@ GENERATED_FILES = {
 
 
 def sha256(path: str | Path) -> str:
+    """Compute the SHA-256 digest of a file.
+
+    Args:
+        path: Input or output filesystem path.
+
+    Returns:
+        The lowercase hexadecimal SHA-256 digest.
+    """
     digest = hashlib.sha256()
     with Path(path).open('rb') as handle:
         for block in iter(lambda: handle.read(1024 * 1024), b''):
@@ -27,6 +35,16 @@ def sha256(path: str | Path) -> str:
 
 
 def case_file(case: Path, relative: str, label: str) -> Path:
+    """Resolve and confine a relative artifact path to its case directory.
+
+    Args:
+        case: Root directory of the external-solver case.
+        relative: Relative case artifact path; absolute paths and traversal are rejected.
+        label: Artifact label used in validation errors.
+
+    Returns:
+        The resolved path confined beneath the case directory.
+    """
     if not relative or Path(relative).is_absolute():
         raise ValueError(f'{label} must be a relative case path')
     root = case.resolve()
@@ -37,7 +55,11 @@ def case_file(case: Path, relative: str, label: str) -> Path:
 
 
 def require_pristine_case(case: str | Path) -> None:
-    """Reject outputs from an earlier run before calculating the input hash."""
+    """Reject outputs from an earlier run before calculating the input hash.
+
+    Args:
+        case: Filesystem location used for case.
+    """
     root = Path(case)
     stale = sorted(name for name in GENERATED_FILES if (root / name).exists())
     stale.extend(path.name for pattern in ('hydrogen_*.stdout.log',
@@ -61,6 +83,19 @@ def validate_hydrodynamic_handoff(case: str | Path, *, candidate_id: str,
                                   mode: str, reactor_type: str,
                                   temperature_K: float,
                                   iteration: int | None = None) -> dict:
+    """Validate the identity, units, fields, and hashes of an OpenFOAM handoff.
+
+    Args:
+        case: Root directory of the external-solver case.
+        candidate_id: Stable candidate identifier used for identity checks.
+        mode: Configured methane-conversion pathway.
+        reactor_type: Physical reactor implementation associated with the artifact.
+        temperature_K: Absolute operating temperature in kelvin.
+        iteration: Coupling iteration whose fields must be validated.
+
+    Returns:
+        Validated metadata or status; invalid inputs raise an exception.
+    """
     root = Path(case).resolve()
     path = root / 'hydrogen_hydrodynamics.json'
     try:
@@ -112,7 +147,18 @@ def validate_hydrodynamic_handoff(case: str | Path, *, candidate_id: str,
 def validate_coupling_state(case: str | Path, *, candidate_id: str,
                             reactor_type: str, temperature_K: float,
                             iteration: int) -> dict:
-    """Validate one feedback state observed by the runner's outer loop."""
+    """Validate one feedback state observed by the runner's outer loop.
+
+    Args:
+        case: Filesystem location used for case.
+        candidate_id: Stable candidate identifier.
+        reactor_type: Physical reactor implementation identifier.
+        temperature_K: Absolute temperature in kelvin.
+        iteration: Iteration used by this operation.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     root = Path(case).resolve()
     path = root / 'hydrogen_coupling_state.json'
     try:
@@ -148,7 +194,18 @@ def validate_coupling_state(case: str | Path, *, candidate_id: str,
 def validate_solver_coupling(case: str | Path, coupling: dict, *,
                              candidate_id: str, temperature_K: float,
                              reactor_type: str) -> dict:
-    """Validate Cantera execution and exchanged rates, not a boolean claim."""
+    """Validate Cantera execution and exchanged rates, not a boolean claim.
+
+    Args:
+        case: Filesystem location used for case.
+        coupling: Mapping supplying coupling.
+        candidate_id: Stable candidate identifier.
+        temperature_K: Absolute temperature in kelvin.
+        reactor_type: Physical reactor implementation identifier.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     root = Path(case).resolve()
     required = ('schema_version', 'cantera_used', 'mechanism_path',
                 'mechanism_sha256', 'cantera_log_path', 'cantera_log_sha256',

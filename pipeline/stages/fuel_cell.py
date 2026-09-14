@@ -10,6 +10,14 @@ from pipeline.stages.contracts import StageOutcome
 
 @dataclass(frozen=True)
 class FuelCellServices:
+    """Bundle replaceable fuel-cell-stage operations.
+
+    Attributes:
+        screen_cathodes: Configured screen cathodes value.
+        sweep_membranes: Configured sweep membranes value.
+        build_stack_config: Configured build stack config value.
+        model_stack: Configured model stack value.
+    """
     screen_cathodes: Callable
     sweep_membranes: Callable
     build_stack_config: Callable
@@ -17,6 +25,11 @@ class FuelCellServices:
 
 
 def default_fuel_cell_services() -> FuelCellServices:
+    """Construct production fuel-cell-stage dependencies.
+
+    Returns:
+        A `FuelCellServices` containing the default fuel cell services result.
+    """
     from pipeline.screening.fc_cathode_screener import run_cathode_screening
     from pipeline.process.pemfc_model import sweep_membranes
     from pipeline.process.fuel_cell_stack import StackConfig, model_stack
@@ -25,7 +38,14 @@ def default_fuel_cell_services() -> FuelCellServices:
 
 
 def fuel_cell_composite_score(result: dict) -> float:
-    """Preserve the established efficiency/power/overpotential priority."""
+    """Preserve the established efficiency/power/overpotential priority.
+
+    Args:
+        result: Mapping supplying result.
+
+    Returns:
+        Computed `float` value in the units documented above.
+    """
     efficiency = result.get('efficiency_at_peak', 0.0)
     power = result.get('peak_power_W_cm2', 0.0)
     overpotential = max(result.get('orr_overpotential_V', 0.4), 0.01)
@@ -34,7 +54,16 @@ def fuel_cell_composite_score(result: dict) -> float:
 
 def run_fuel_cell_stage(*, top_k_pemfc: int, stack_cells: int,
                         services: FuelCellServices | None = None) -> StageOutcome:
-    """Run the complete fuel-cell phase through independently replaceable tools."""
+    """Run the complete fuel-cell phase through independently replaceable tools.
+
+    Args:
+        top_k_pemfc: Bound controlling top k pemfc.
+        stack_cells: Stack cells used by this operation.
+        services: Services used by this operation.
+
+    Returns:
+        Computed `StageOutcome` result.
+    """
     if top_k_pemfc < 0 or stack_cells <= 0:
         raise ValueError('fuel-cell limits must be physically positive')
     services = services or default_fuel_cell_services()

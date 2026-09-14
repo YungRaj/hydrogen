@@ -77,9 +77,16 @@ class PhysicsRecord:
 def record_from_artifact(artifact: Mapping, *, case_id: str | None = None) -> PhysicsRecord:
     """Extract a training row from an already validated artifact.
 
-    Callers loading files should use ``load_validated_artifact`` first.  This
-    function independently checks the fields relevant to model training so a
-    malformed or legacy artifact cannot silently become a label.
+        Callers loading files should use ``load_validated_artifact`` first.  This
+        function independently checks the fields relevant to model training so a
+        malformed or legacy artifact cannot silently become a label.
+
+    Args:
+        artifact: Mapping supplying artifact.
+        case_id: Case id used by this operation.
+
+    Returns:
+        Computed `PhysicsRecord` result.
     """
     if artifact.get('complete') is not True or artifact.get('convergence', {}).get(
             'converged') is not True:
@@ -172,12 +179,24 @@ class TransportSurrogate:
             raise ValueError('model case identities must be unique and split-disjoint')
 
     def sha256(self) -> str:
-        """Return a deterministic identity for the complete serialized model."""
+        """Return a deterministic identity for the complete serialized model.
+
+        Returns:
+            Computed `str` result.
+        """
         payload = json.dumps(
             self.to_dict(), sort_keys=True, separators=(',', ':')).encode()
         return hashlib.sha256(payload).hexdigest()
 
     def predict(self, features: Mapping[str, float]) -> dict:
+        """Predict outputs and uncertainty for one feature vector.
+
+        Args:
+            features: Numerical feature vector in the model schema.
+
+        Returns:
+            Predicted outputs paired with model uncertainty.
+        """
         try:
             actual = _finite_mapping(features, 'features')
             if set(actual) != set(self.feature_names):
@@ -215,6 +234,11 @@ class TransportSurrogate:
         }
 
     def to_dict(self) -> dict:
+        """Serialize the trained surrogate and its validation metadata.
+
+        Returns:
+            A JSON-compatible model representation including validation metadata.
+        """
         return {
             'schema_version': MODEL_SCHEMA_VERSION,
             'pathway_mode': self.pathway_mode,
@@ -234,12 +258,28 @@ class TransportSurrogate:
         }
 
     def save(self, path: str | Path) -> Path:
+        """Atomically save the surrogate model.
+
+        Args:
+            path: Input or output filesystem path.
+
+        Returns:
+            Path or serialized object produced by the operation.
+        """
         target = Path(path)
         target.write_text(json.dumps(self.to_dict(), indent=2, sort_keys=True) + '\n')
         return target
 
     @classmethod
     def load(cls, path: str | Path) -> 'TransportSurrogate':
+        """Load and validate a serialized surrogate model.
+
+        Args:
+            path: Input or output filesystem path.
+
+        Returns:
+            A validated model reconstructed from disk.
+        """
         value = json.loads(Path(path).read_text())
         if (value.get('schema_version') != MODEL_SCHEMA_VERSION or
                 value.get('scope') != 'transport_closure_only' or
@@ -265,7 +305,20 @@ def fit_transport_surrogate(
         targets: Iterable[str], validation_rmse_limits: Mapping[str, float],
         ensemble_size: int = 8, ridge: float = 1e-8,
         random_seed: int = 0) -> TransportSurrogate:
-    """Fit one mode-local model and require a disjoint passing holdout."""
+    """Fit one mode-local model and require a disjoint passing holdout.
+
+    Args:
+        training: Training used by this operation.
+        validation: Candidate-specific validation evidence.
+        targets: Output properties learned or evaluated by the model.
+        validation_rmse_limits: Mapping supplying validation rmse limits.
+        ensemble_size: Number of ensemble size to use.
+        ridge: Ridge used by this operation.
+        random_seed: Seed controlling deterministic sampling or fitting.
+
+    Returns:
+        Computed `TransportSurrogate` result.
+    """
     train, holdout = list(training), list(validation)
     if not isinstance(ensemble_size, int) or ensemble_size < 2:
         raise ValueError('ensemble_size must be an integer of at least two')

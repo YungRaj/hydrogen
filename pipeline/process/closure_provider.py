@@ -10,7 +10,19 @@ def resolve_reactor_closure(*, full_physics: Mapping, surrogate,
                             features: Mapping[str, float] | None,
                             pathway_mode: str, reactor_type: str,
                             temperature_K: float) -> dict:
-    """Prefer validated physics, otherwise admit only a safe surrogate closure."""
+    """Prefer validated physics, otherwise admit only a safe surrogate closure.
+
+    Args:
+        full_physics: Mapping supplying full physics.
+        surrogate: Surrogate used by this operation.
+        features: Numerical model features.
+        pathway_mode: Configured methane-conversion pathway.
+        reactor_type: Physical reactor implementation identifier.
+        temperature_K: Absolute temperature in kelvin.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     if full_physics.get('valid') is True:
         return {
             'available': True, 'source': 'validated_full_physics',

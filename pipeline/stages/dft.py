@@ -19,7 +19,19 @@ def run_dft_stage(candidates, *, top_k: int, execute_dft: bool,
                   validator: Callable | None = None,
                   name_prefix: str = 'dft_cat',
                   error_sink: Callable[[str], None] | None = None) -> StageOutcome:
-    """Validate candidate genomes through an injectable QE workflow boundary."""
+    """Validate candidate genomes through an injectable QE workflow boundary.
+
+    Args:
+        candidates: Candidate records to process.
+        top_k: Bound controlling top k.
+        execute_dft: Whether to enable execute dft.
+        validator: Injected callable used to perform validator.
+        name_prefix: Name prefix used by this operation.
+        error_sink: Injected callable used to perform error sink.
+
+    Returns:
+        Computed `StageOutcome` result.
+    """
     if not isinstance(top_k, int) or top_k < 0:
         raise ValueError('top_k must be a nonnegative integer')
     if validator is None:

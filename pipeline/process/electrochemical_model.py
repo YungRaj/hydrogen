@@ -16,6 +16,20 @@ import os
 
 @dataclass(frozen=True)
 class ElectrochemicalConditions:
+    """Hold measured electrochemical operating conditions and provenance.
+
+    Attributes:
+        electrolyte_phase: Configured electrolyte phase value.
+        electrolyte_identity: Configured electrolyte identity value.
+        applied_potential_V: Configured applied potential V value.
+        current_density_A_cm2: Configured current density A cm2 value.
+        faradaic_efficiency_H2: Configured faradaic efficiency H2 value.
+        methane_conversion: Configured methane conversion value.
+        temperature_K: Configured temperature K value.
+        pressure_Pa: Configured pressure Pa value.
+        measurement_source: Configured measurement source value.
+        paired_control_source: Configured paired control source value.
+    """
     electrolyte_phase: str | None = None
     electrolyte_identity: str | None = None
     applied_potential_V: float | None = None
@@ -29,6 +43,11 @@ class ElectrochemicalConditions:
 
 
 def conditions_from_environment() -> ElectrochemicalConditions:
+    """Load pathway conditions from the corresponding JSON environment variable.
+
+    Returns:
+        A populated conditions object; malformed input yields empty conditions.
+    """
     try:
         raw = json.loads(os.environ.get('ELECTROCHEMICAL_CONDITIONS_JSON', '{}'))
         allowed = set(ElectrochemicalConditions.__dataclass_fields__)
@@ -39,6 +58,14 @@ def conditions_from_environment() -> ElectrochemicalConditions:
 
 
 def electrochemical_evidence(conditions: ElectrochemicalConditions) -> dict:
+    """Validate electrochemical conditions and classify their evidence status.
+
+    Args:
+        conditions: Measured pathway conditions to validate.
+
+    Returns:
+        A status record containing validated conditions and missing-evidence details.
+    """
     values = asdict(conditions)
     required = (
         'electrolyte_phase', 'electrolyte_identity', 'applied_potential_V',

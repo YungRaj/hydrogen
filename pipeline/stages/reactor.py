@@ -19,7 +19,11 @@ class ReactorStageServices:
 
 
 def default_reactor_services() -> ReactorStageServices:
-    """Load production dependencies lazily so importing the stage stays cheap."""
+    """Load production dependencies lazily so importing the stage stays cheap.
+
+    Returns:
+        Computed `ReactorStageServices` result.
+    """
     from pipeline.process.reactor_mechanisms import (
         CandidateKinetics, write_full_mechanism)
     from pipeline.process.reactor_models import run_reactor_sweep
@@ -31,7 +35,14 @@ def default_reactor_services() -> ReactorStageServices:
 
 
 def summarize_reactor_sweep(sweep: Sequence[Mapping]) -> dict:
-    """Summarize condition-level evidence without executing reactor software."""
+    """Summarize condition-level evidence without executing reactor software.
+
+    Args:
+        sweep: Mapping supplying sweep.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     by_status = {}
     for result in sweep:
         by_status.setdefault(result.get('status', 'complete'), []).append(result)
@@ -66,7 +77,22 @@ def simulate_candidate(row: Mapping, catalyst_name: str,
                        pathway_mode: str = DEFAULT_MODE,
                        multiphysics_results_dir: str | None = None,
                        services: ReactorStageServices | None = None) -> dict:
-    """Build only the mechanism appropriate to the selected pathway and run it."""
+    """Build only the mechanism appropriate to the selected pathway and run it.
+
+    Args:
+        row: Mapping supplying row.
+        catalyst_name: Catalyst name used by this operation.
+        temperatures: Ordered values supplying temperatures.
+        reactor_types: Ordered values supplying reactor types.
+        forbid_mock: Whether to enable forbid mock.
+        kinetics_validation: Mapping supplying kinetics validation.
+        pathway_mode: Configured methane-conversion pathway.
+        multiphysics_results_dir: Directory used for multiphysics results dir.
+        services: Services used by this operation.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     services = services or default_reactor_services()
     mode = services.resolve_mode(pathway_mode)
     candidate_id = str(row.get('candidate_id', catalyst_name))

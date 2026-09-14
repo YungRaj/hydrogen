@@ -18,7 +18,14 @@ import numpy as np
 
 
 def canonicalize_genome(genome: tuple) -> tuple:
-    """Return a stable representation without changing site semantics."""
+    """Return a stable representation without changing site semantics.
+
+    Args:
+        genome: Encoded catalyst composition and structural configuration.
+
+    Returns:
+        Ordered tuple of computed values.
+    """
     g = list(genome)
     if not g:
         raise ValueError("empty catalyst genome")
@@ -48,13 +55,27 @@ def canonicalize_genome(genome: tuple) -> tuple:
 
 
 def candidate_id(genome: tuple) -> str:
-    """Content-addressed ID suitable for resumable, sharded campaigns."""
+    """Content-addressed ID suitable for resumable, sharded campaigns.
+
+    Args:
+        genome: Encoded catalyst composition and structural configuration.
+
+    Returns:
+        Computed `str` result.
+    """
     payload = json.dumps(canonicalize_genome(genome), separators=(",", ":"))
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:20]
 
 
 def discovery_region(genome: tuple) -> Tuple[str, ...]:
-    """A coarse chemistry cell used to prevent global-rank mode collapse."""
+    """A coarse chemistry cell used to prevent global-rank mode collapse.
+
+    Args:
+        genome: Encoded catalyst composition and structural configuration.
+
+    Returns:
+        Ordered tuple of computed values.
+    """
     g = canonicalize_genome(genome)
     cls = g[0]
     if cls == "SolidCatalyst":
@@ -71,7 +92,14 @@ def discovery_region(genome: tuple) -> Tuple[str, ...]:
 
 
 def coverage_summary(genomes: Iterable[tuple]) -> dict:
-    """Return JSON-serializable class and chemistry-cell coverage."""
+    """Return JSON-serializable class and chemistry-cell coverage.
+
+    Args:
+        genomes: Sequence of encoded catalyst candidates.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     canonical = {candidate_id(g): canonicalize_genome(g) for g in genomes}
     class_counts = Counter(g[0] for g in canonical.values())
     regions = {discovery_region(g) for g in canonical.values()}
@@ -83,7 +111,14 @@ def coverage_summary(genomes: Iterable[tuple]) -> dict:
 
 
 def add_discovery_metadata(frame):
-    """Add stable identity and coverage-cell columns to a screening DataFrame."""
+    """Add stable identity and coverage-cell columns to a screening DataFrame.
+
+    Args:
+        frame: Tabular candidate or result records.
+
+    Returns:
+        Computed result described above.
+    """
     if frame is None or "genome" not in frame.columns:
         return frame
     ids, regions = [], []
@@ -124,9 +159,20 @@ def select_discovery_batch(
 ) -> List[int]:
     """Select a deterministic batch balancing viability, novelty, and OOD value.
 
-    First take the best candidate from as many unseen chemistry cells as the
-    budget permits.  Remaining slots use a combined score.  Low confidence is
-    treated as a reason to *validate* a candidate, not as proof it is poor.
+        First take the best candidate from as many unseen chemistry cells as the
+        budget permits.  Remaining slots use a combined score.  Low confidence is
+        treated as a reason to *validate* a candidate, not as proof it is poor.
+
+    Args:
+        candidates: Candidate records to process.
+        objectives: Objectives used by this operation.
+        n_select: Number of select to use.
+        evaluated: Evaluated used by this operation.
+        uncertainties: Ordered values supplying uncertainties.
+        confidence: Ordered values supplying confidence.
+
+    Returns:
+        List of computed or validated records.
     """
     if n_select <= 0 or not candidates:
         return []

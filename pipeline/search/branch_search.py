@@ -26,6 +26,26 @@ from pipeline.common.ood_detector import CLASS_CONFIDENCE
 
 @dataclass
 class BranchConfig:
+    """Configure a persistent divide-and-conquer search.
+
+    Attributes:
+        application: Configured application value.
+        database: Configured database value.
+        leaf_size: Configured leaf size value.
+        probe_count: Configured probe count value.
+        scan_batch_size: Configured scan batch size value.
+        hard_prune_limit: Configured hard prune limit value.
+        max_leaves: Configured max leaves value.
+        global_archive_size: Configured global archive size value.
+        material_classes: Configured material classes value.
+        expected_population: Configured expected population value.
+        certificate_path: Configured certificate path value.
+        max_runtime_s: Configured max runtime s value.
+        min_resolved_leaves_per_class: Configured min resolved leaves per class value.
+        exploration_interval: Configured exploration interval value.
+        refresh_pending_priorities: Configured refresh pending priorities value.
+        scan_workers: Configured scan workers value.
+    """
     application: str
     database: str
     leaf_size: int = 1_000_000
@@ -209,7 +229,15 @@ def _refresh_pending(conn, config: BranchConfig, scorer) -> int:
 
 def run_branch_and_bound(config: BranchConfig,
                          scorer: Callable[[List[tuple]], np.ndarray]) -> dict:
-    """Recursively schedule and exhaustively resolve catalyst-space leaves."""
+    """Recursively schedule and exhaustively resolve catalyst-space leaves.
+
+    Args:
+        config: Configuration controlling this operation.
+        scorer: Injected callable used to perform scorer.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     if config.leaf_size <= 0 or config.probe_count < 2 or \
             config.min_resolved_leaves_per_class < 0 or config.exploration_interval < 0 or \
             config.refresh_pending_priorities < 0 or config.scan_workers < 1:
@@ -323,8 +351,17 @@ def verify_branch_coverage(database: str, application: str,
                            certificate_path: Optional[str] = None) -> dict:
     """Prove that terminal nodes partition the declared space exactly.
 
-    This verifies address coverage, scanner completion, and pruning provenance;
-    it does not assert that surrogate predictions equal experimental truth.
+        This verifies address coverage, scanner completion, and pruning provenance;
+        it does not assert that surrogate predictions equal experimental truth.
+
+    Args:
+        database: Database used by this operation.
+        application: Scientific objective, such as pyrolysis or ORR.
+        material_classes: Material classes used by this operation.
+        certificate_path: Filesystem location used for certificate path.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
     """
     classes = material_classes or CLASS_ORDER
     conn = _open(database)

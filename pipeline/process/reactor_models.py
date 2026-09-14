@@ -179,14 +179,20 @@ def _validate_reactor_config(config: ReactorConfig) -> None:
 
 def simulate_mmbcr(config: ReactorConfig) -> Dict:
     """
-    Simulate a molten metal bubble column reactor as a CSTR cascade.
-    
-    The methane gas enters as bubbles at the bottom of a column of
-    molten metal. As bubbles rise, CH₄ decomposes on the gas-liquid
-    interface. The CSTR cascade approximates the axial plug-flow
-    behavior of the rising bubbles.
-    
-    Returns dict with conversion profiles, selectivities, etc.
+        Simulate a molten metal bubble column reactor as a CSTR cascade.
+
+        The methane gas enters as bubbles at the bottom of a column of
+        molten metal. As bubbles rise, CH₄ decomposes on the gas-liquid
+        interface. The CSTR cascade approximates the axial plug-flow
+        behavior of the rising bubbles.
+
+        Returns dict with conversion profiles, selectivities, etc.
+
+    Args:
+        config: Configuration controlling this operation.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
     """
     if not HAS_CANTERA:
         return _mock_reactor_result(config, 'MMBCR')
@@ -307,10 +313,16 @@ def simulate_mmbcr(config: ReactorConfig) -> Dict:
 
 def simulate_pfr(config: ReactorConfig) -> Dict:
     """
-    Simulate a packed bed with a staged Lagrangian PFR approximation.
-    
-    Methane flows through a tube filled with catalyst pellets.
-    Surface reactions occur on the catalyst surface area.
+        Simulate a packed bed with a staged Lagrangian PFR approximation.
+
+        Methane flows through a tube filled with catalyst pellets.
+        Surface reactions occur on the catalyst surface area.
+
+    Args:
+        config: Configuration controlling this operation.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
     """
     if not HAS_CANTERA:
         return _mock_reactor_result(config, 'PFR')
@@ -390,12 +402,18 @@ def simulate_pfr(config: ReactorConfig) -> Dict:
 
 def simulate_fluidized_bed(config: ReactorConfig) -> Dict:
     """
-    Simplified two-phase (bubble + emulsion) fluidized bed model.
-    
-    Emulsion phase reacts at minimum-fluidization residence time. The bubble
-    fraction is represented as conservative bypass and mixed with the emulsion
-    outlet. Interphase mass transfer is not yet resolved, so this remains a
-    screening approximation rather than a predictive two-phase CFD model.
+        Simplified two-phase (bubble + emulsion) fluidized bed model.
+
+        Emulsion phase reacts at minimum-fluidization residence time. The bubble
+        fraction is represented as conservative bypass and mixed with the emulsion
+        outlet. Interphase mass transfer is not yet resolved, so this remains a
+        screening approximation rather than a predictive two-phase CFD model.
+
+    Args:
+        config: Configuration controlling this operation.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
     """
     if not HAS_CANTERA:
         return _mock_reactor_result(config, 'Fluidized')
@@ -506,7 +524,14 @@ def _mock_reactor_result(config: ReactorConfig, reactor_type: str) -> Dict:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def simulate_ntec_pathway(config: ReactorConfig) -> Dict:
-    """Describe NTEC readiness without substituting an unrelated reactor model."""
+    """Describe NTEC readiness without substituting an unrelated reactor model.
+
+    Args:
+        config: Configuration controlling this operation.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     from pipeline.process.ntec_model import (
         conditions_from_environment, ntec_assistance)
 
@@ -549,7 +574,14 @@ def simulate_ntec_pathway(config: ReactorConfig) -> Dict:
 
 
 def simulate_electrochemical_pathway(config: ReactorConfig) -> Dict:
-    """Report electrochemical evidence without inventing a Cantera conversion."""
+    """Report electrochemical evidence without inventing a Cantera conversion.
+
+    Args:
+        config: Configuration controlling this operation.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     from pipeline.process.electrochemical_model import (
         conditions_from_environment, electrochemical_evidence)
 
@@ -596,7 +628,15 @@ def simulate_electrochemical_pathway(config: ReactorConfig) -> Dict:
 
 
 def simulate_reactor(config: ReactorConfig, coupling_services=None) -> Dict:
-    """Run the appropriate reactor simulation based on config.reactor_type."""
+    """Run the appropriate reactor simulation based on config.reactor_type.
+
+    Args:
+        config: Configuration controlling this operation.
+        coupling_services: Coupling services used by this operation.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     simulators = {
         'MMBCR': simulate_mmbcr,
         'PFR': simulate_pfr,
@@ -718,13 +758,27 @@ def run_reactor_sweep(catalyst_name: str, mechanism_file: str,
                       candidate_id: str = 'unknown',
                       multiphysics_results_dir: str | None = None,
                       coupling_services=None) -> List[Dict]:
-    """
-    Sweep operating conditions for a catalyst across temperatures and reactor types.
+    """Sweep operating conditions across the reactors owned by a pathway.
 
     Args:
-        catalyst_E_act_eV: Activation barrier in eV. Passed through to ReactorConfig
-            so that mock results (when Cantera is unavailable) still differentiate
-            between catalysts.
+        catalyst_name: Human-readable catalyst identifier used in output names.
+        mechanism_file: Candidate-specific Cantera mechanism path.
+        temperatures: Absolute operating temperatures in kelvin; defaults to the
+            standard four-point screening sweep.
+        reactor_types: Ordered reactor implementations; defaults to those owned
+            by ``pathway_mode``.
+        catalyst_E_act_eV: Activation barrier in eV. This is retained by the
+            explicitly labeled mock path so candidates remain distinguishable.
+        pathway_mode: Methane-conversion pathway controlling valid reactors.
+        material_class: Catalyst class used for physical-bed compatibility.
+        candidate_id: Stable identity required by multiphysics evidence.
+        multiphysics_results_dir: Root containing validated external artifacts.
+        coupling_services: Optional injected evidence-loading/coupling adapters.
+
+    Returns:
+        One result record per requested reactor and temperature. Individual
+        condition failures remain non-excluding records rather than aborting the
+        complete sweep.
     """
     if temperatures is None:
         temperatures = [773.15, 900.0, 1100.0, 1300.0]

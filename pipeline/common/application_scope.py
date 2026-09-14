@@ -9,7 +9,14 @@ OUT_OF_SCOPE_PEMFC_CATHODE_CLASSES = frozenset({'MetalHydride', 'MoltenMetal'})
 
 
 def pemfc_cathode_scope(genome: tuple) -> dict:
-    """Reject classes with no physically defined solid PEMFC cathode realization."""
+    """Reject classes with no physically defined solid PEMFC cathode realization.
+
+    Args:
+        genome: Encoded catalyst composition and structural configuration.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     material_class = genome[0]
     if material_class in OUT_OF_SCOPE_PEMFC_CATHODE_CLASSES:
         return {'status': 'out_of_scope', 'reason':

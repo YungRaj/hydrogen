@@ -13,8 +13,21 @@ def persist_validated_artifact(
         path_builder: Callable, validator: Callable) -> Path:
     """Write by atomic replacement and retain only validator-accepted artifacts.
 
-    The target is removed if validation fails, preventing an invalid partial
-    result from being mistaken for reusable solver evidence.
+        The target is removed if validation fails, preventing an invalid partial
+        result from being mistaken for reusable solver evidence.
+
+    Args:
+        artifact: Mapping supplying artifact.
+        results_dir: Directory containing or receiving calculation results.
+        candidate_id: Stable candidate identifier.
+        mode: Configured methane-conversion pathway.
+        reactor_type: Physical reactor implementation identifier.
+        temperature_K: Absolute temperature in kelvin.
+        path_builder: Injected callable used to perform path builder.
+        validator: Injected callable used to perform validator.
+
+    Returns:
+        Filesystem path produced or resolved by the operation.
     """
     target = path_builder(
         results_dir, candidate_id, mode, reactor_type, temperature_K)

@@ -56,7 +56,14 @@ def _pw_execution(execution: QEExecutionConfig | None) -> QEExecutionConfig | No
 
 
 def qe_output_status(path: str | Path) -> str:
-    """Classify an output without mistaking a partial energy for evidence."""
+    """Classify an output without mistaking a partial energy for evidence.
+
+    Args:
+        path: Filesystem path to the input or output artifact.
+
+    Returns:
+        Computed `str` result.
+    """
     target = Path(path)
     if not target.exists() or target.stat().st_size == 0:
         return 'missing'
@@ -69,7 +76,14 @@ def qe_output_status(path: str | Path) -> str:
 
 
 def qe_scf_output_status(path: str | Path) -> str:
-    """Classify a fixed-geometry force calculation without requiring BFGS."""
+    """Classify a fixed-geometry force calculation without requiring BFGS.
+
+    Args:
+        path: Filesystem path to the input or output artifact.
+
+    Returns:
+        Computed `str` result.
+    """
     target = Path(path)
     if not target.exists() or target.stat().st_size == 0:
         return 'missing'
@@ -80,6 +94,15 @@ def qe_scf_output_status(path: str | Path) -> str:
 
 
 def orr_campaign_status(calc_dir: str | Path, catalyst_name: str) -> dict:
+    """Summarize completeness and convergence across an ORR campaign.
+
+    Args:
+        calc_dir: Directory containing calculation inputs and outputs.
+        catalyst_name: Human-readable catalyst identifier.
+
+    Returns:
+        A dictionary containing orr campaign status outputs, status, and supporting metadata.
+    """
     root = Path(calc_dir)
     stages = {
         stage: qe_output_status(root / f'{catalyst_name}_{stage}.out')
@@ -100,8 +123,18 @@ def run_orr_sequence(calc_dir: str | Path, catalyst_name: str,
                      execution: QEExecutionConfig | None = None) -> dict:
     """Run missing ORR stages in order and resume cleanly completed outputs.
 
-    Nonempty incomplete outputs are left untouched by default because they may
-    belong to a calculation currently running in another process.
+        Nonempty incomplete outputs are left untouched by default because they may
+        belong to a calculation currently running in another process.
+
+    Args:
+        calc_dir: Filesystem location used for calc dir.
+        catalyst_name: Catalyst name used by this operation.
+        timeout_s: Maximum allowed wall time in seconds.
+        restart_incomplete: Whether to enable restart incomplete.
+        execution: Execution used by this operation.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
     """
     root = Path(calc_dir)
     for stage in ORR_STAGES:
@@ -122,6 +155,14 @@ def run_orr_sequence(calc_dir: str | Path, catalyst_name: str,
 
 
 def methane_neb_status(calc_dir: str | Path) -> dict:
+    """Summarize endpoint, image, barrier, and frequency readiness for methane NEB.
+
+    Args:
+        calc_dir: Directory containing calculation inputs and outputs.
+
+    Returns:
+        A dictionary containing methane neb status outputs, status, and supporting metadata.
+    """
     root = Path(calc_dir)
     endpoints = {
         name: qe_output_status(root / f'{name}.relax.out')
@@ -155,7 +196,17 @@ def methane_neb_status(calc_dir: str | Path) -> dict:
 
 def prepare_methane_neb(calc_dir: str | Path, prefix: str,
                         initial: Atoms, final: Atoms) -> dict:
-    """Prepare both endpoint relaxations from explicit candidate geometries."""
+    """Prepare both endpoint relaxations from explicit candidate geometries.
+
+    Args:
+        calc_dir: Filesystem location used for calc dir.
+        prefix: Prefix used by this operation.
+        initial: Initial used by this operation.
+        final: Final used by this operation.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     if initial.get_chemical_symbols() != final.get_chemical_symbols():
         raise ValueError('NEB endpoints must have identical atoms and ordering')
     if len(initial) == 0 or not np.allclose(initial.cell.array, final.cell.array):
@@ -183,7 +234,18 @@ def prepare_methane_neb(calc_dir: str | Path, prefix: str,
 def prepare_frequency_jobs(calc_dir: str | Path, transition_state: Atoms,
                            prefix: str, displacement_A: float = 0.01,
                            active_indices: list[int] | None = None) -> dict:
-    """Prepare central finite-difference force jobs for a proposed TS."""
+    """Prepare central finite-difference force jobs for a proposed TS.
+
+    Args:
+        calc_dir: Filesystem location used for calc dir.
+        transition_state: Transition state used by this operation.
+        prefix: Prefix used by this operation.
+        displacement_A: Displacement in ångströms.
+        active_indices: Ordered values supplying active indices.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     if len(transition_state) == 0 or displacement_A <= 0:
         raise ValueError('transition state and positive displacement are required')
     root = Path(calc_dir)
@@ -221,7 +283,14 @@ def prepare_frequency_jobs(calc_dir: str | Path, transition_state: Atoms,
 
 
 def frequency_status(calc_dir: str | Path) -> dict:
-    """Report finite-difference progress and accept only a first-order TS."""
+    """Report finite-difference progress and accept only a first-order TS.
+
+    Args:
+        calc_dir: Filesystem location used for calc dir.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     root = Path(calc_dir)
     manifest_path = root / 'frequency_forces/manifest.json'
     if not manifest_path.is_file():
@@ -252,7 +321,17 @@ def frequency_status(calc_dir: str | Path) -> dict:
 def run_frequency_sequence(calc_dir: str | Path, timeout_s: int = 86400,
                            execution: QEExecutionConfig | None = None,
                            restart_incomplete: bool = False) -> dict:
-    """Run/resume finite-difference jobs, then construct a validated Hessian."""
+    """Run/resume finite-difference jobs, then construct a validated Hessian.
+
+    Args:
+        calc_dir: Filesystem location used for calc dir.
+        timeout_s: Maximum allowed wall time in seconds.
+        execution: Execution used by this operation.
+        restart_incomplete: Whether to enable restart incomplete.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     root = Path(calc_dir)
     force_root = root / 'frequency_forces'
     manifest_path = force_root / 'manifest.json'
@@ -299,7 +378,18 @@ def run_frequency_sequence(calc_dir: str | Path, timeout_s: int = 86400,
 def run_methane_neb(calc_dir: str | Path, prefix: str,
                     n_images: int = 7, timeout_s: int = 86400,
                     execution: QEExecutionConfig | None = None) -> dict:
-    """Start NEB only after both candidate-specific endpoints converge."""
+    """Start NEB only after both candidate-specific endpoints converge.
+
+    Args:
+        calc_dir: Filesystem location used for calc dir.
+        prefix: Prefix used by this operation.
+        n_images: Number of images to use.
+        timeout_s: Maximum allowed wall time in seconds.
+        execution: Execution used by this operation.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     root = Path(calc_dir)
     status = methane_neb_status(root)
     if not status['endpoints_converged']:
@@ -324,7 +414,19 @@ def advance_methane_neb(calc_dir: str | Path, prefix: str,
                         n_images: int = 7, timeout_s: int = 86400,
                         execution: QEExecutionConfig | None = None,
                         restart_incomplete: bool = False) -> dict:
-    """Advance endpoints, NEB, and prepared frequency jobs in safe order."""
+    """Advance endpoints, NEB, and prepared frequency jobs in safe order.
+
+    Args:
+        calc_dir: Filesystem location used for calc dir.
+        prefix: Prefix used by this operation.
+        n_images: Number of images to use.
+        timeout_s: Maximum allowed wall time in seconds.
+        execution: Execution used by this operation.
+        restart_incomplete: Whether to enable restart incomplete.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     root = Path(calc_dir)
     for endpoint in ('initial', 'final'):
         input_path = root / f'{endpoint}.relax.in'
@@ -353,9 +455,15 @@ def advance_methane_neb(calc_dir: str | Path, prefix: str,
 def prepare_pyrolysis_campaign(manifest_path: str | Path) -> dict:
     """Prepare every explicitly supplied methane elementary-step endpoint pair.
 
-    The JSON manifest maps step names to ASE-readable initial/final structures.
-    An optional transition_state structure prepares finite-difference jobs.
-    No chemically generic endpoint is invented for an arbitrary catalyst.
+        The JSON manifest maps step names to ASE-readable initial/final structures.
+        An optional transition_state structure prepares finite-difference jobs.
+        No chemically generic endpoint is invented for an arbitrary catalyst.
+
+    Args:
+        manifest_path: Filesystem location used for manifest path.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
     """
     source = Path(manifest_path)
     manifest = json.loads(source.read_text())
@@ -390,7 +498,14 @@ def prepare_pyrolysis_campaign(manifest_path: str | Path) -> dict:
 
 
 def pyrolysis_campaign_status(manifest_path: str | Path) -> dict:
-    """Collect barriers only from fully converged, frequency-validated steps."""
+    """Collect barriers only from fully converged, frequency-validated steps.
+
+    Args:
+        manifest_path: Filesystem location used for manifest path.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     source = Path(manifest_path)
     manifest = json.loads(source.read_text())
     root_value = Path(manifest['campaign_dir'])
@@ -425,7 +540,17 @@ def advance_pyrolysis_campaign(manifest_path: str | Path,
                                 timeout_s: int = 86400,
                                 execution: QEExecutionConfig | None = None,
                                 restart_incomplete: bool = False) -> dict:
-    """Advance all supplied elementary steps and retain unresolved fields."""
+    """Advance all supplied elementary steps and retain unresolved fields.
+
+    Args:
+        manifest_path: Filesystem location used for manifest path.
+        timeout_s: Maximum allowed wall time in seconds.
+        execution: Execution used by this operation.
+        restart_incomplete: Whether to enable restart incomplete.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     source = Path(manifest_path)
     manifest = json.loads(source.read_text())
     root_value = Path(manifest['campaign_dir'])
