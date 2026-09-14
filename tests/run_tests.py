@@ -63,6 +63,7 @@ SUITES = (
     Suite("coupling", "tests/test_coupling_contracts.py", FAIRCHEM_ENV, 120),
     Suite("experimental-data", "tests/test_experimental_data_contract.py", FAIRCHEM_ENV, 120),
     Suite("reactor-merge", "tests/test_reactor_merge_contracts.py", FAIRCHEM_ENV, 120),
+    Suite("reactor-fixtures", "tests/test_reactor_fixtures.py", FAIRCHEM_ENV, 180),
     Suite("source-documentation", "tests/test_source_documentation_contracts.py", FAIRCHEM_ENV, 60),
     Suite("test-runner", "tests/test_test_runner.py", FAIRCHEM_ENV, 60),
     Suite("repository-audit", "audit_pipeline.py", FAIRCHEM_ENV, 180),

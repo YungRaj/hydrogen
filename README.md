@@ -561,6 +561,7 @@ conda run -n fairchem-env python tests/test_component_replacement_contracts.py
 conda run -n fairchem-env python tests/test_architecture_unit_contracts.py
 conda run -n fairchem-env python tests/test_coupling_contracts.py
 conda run -n fairchem-env python tests/test_experimental_data_contract.py
+conda run -n fairchem-env python tests/test_reactor_fixtures.py
 conda run -n fairchem-env python tests/test_source_documentation_contracts.py
 ```
 
@@ -591,6 +592,14 @@ elemental balance, candidate-specific kinetic provenance, multiphysics coupling,
 and modular reactor handoffs. `--include-vqe` runs a bounded one-qubit CUDA-Q
 backend smoke test; the original four-qubit chemical-accuracy contract is
 preserved behind `--include-production-vqe` with a 30-minute hard timeout.
+
+`test_reactor_fixtures.py` runs five small deterministic integration cases: a
+real Cantera PFR and representative Fluidized, MMBCR, NTEC, and electrochemical
+paths. The latter four substitute deterministic files only at the expensive
+OpenFOAM/FEniCSx process boundary, then exercise the production case, hash,
+holdout, coupling, artifact, and reactor-consumption code. Their provenance is
+explicitly `test-fixture`; they verify wiring and contracts, not physical solver
+accuracy or production readiness.
 
 The active suite verifies indexed-space boundaries, disjoint shards, deterministic
 tree probes across all 14 classes, branch resume, no surrogate-based pruning,

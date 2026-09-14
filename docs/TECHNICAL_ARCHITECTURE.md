@@ -213,6 +213,17 @@ smoke test proves CUDA-Q execution without claiming chemical accuracy; the
 original convergence contract remains available as `--include-production-vqe`.
 `--profile merge` focuses validation on PFR/MMBCR routing, carbon and mechanism
 integrity, candidate-specific kinetics, provenance, and multiphysics handoffs.
+
+`tests/test_reactor_fixtures.py` adds five representative integration paths.
+The PFR fixture invokes the real Cantera mechanism and reactor implementation.
+Fluidized and MMBCR fixtures pass OpenFOAM-shaped closures through the strict
+artifact loader into reduced Cantera models. NTEC and electrochemical fixtures
+exercise iterative coupling state, checksummed rate exchange, holdout scoring,
+artifact persistence, and final pathway consumption. Only the expensive
+OpenFOAM/FEniCSx process call is substituted through
+`tests/fixtures/reactor_cases.py`; every result is labeled `test-fixture`, so
+these tests establish wiring and contract behavior—not physical solver accuracy
+or production readiness.
 `tests/test_pipeline.py`, `tests/test_scientific_contracts.py`,
 `tests/test_resolution_contracts.py`, `tests/test_gpu_affinity_contract.py`, and
 `tests/test_vqe_solver_contract.py` cover general behavior, equations and
