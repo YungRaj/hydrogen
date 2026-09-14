@@ -3,8 +3,11 @@
 
 import os
 import subprocess
+import sys
 import time
 import json
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from pipeline.search.indexed_space import deterministic_tree_probes
 from pipeline.screening.surface_screener import run_screening

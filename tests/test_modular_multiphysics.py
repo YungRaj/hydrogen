@@ -6,9 +6,12 @@ import tempfile
 from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
+import sys
 from unittest.mock import patch
 
 import numpy as np
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from pipeline.process.multifidelity_surrogate import (
     PhysicsRecord, TransportSurrogate, fit_transport_surrogate,

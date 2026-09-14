@@ -294,10 +294,13 @@ identity-mismatched predictions are referred back to a solver calculation.
 
 ## Tests
 
+Run these commands from the repository root; the test programs are collected in
+the top-level `tests/` directory.
+
 ```bash
-conda run -n fairchem-env python test_modular_multiphysics.py
-conda run -n fairchem-env python test_component_replacement_contracts.py
-conda run -n fairchem-env python test_architecture_unit_contracts.py
+conda run -n fairchem-env python tests/test_modular_multiphysics.py
+conda run -n fairchem-env python tests/test_component_replacement_contracts.py
+conda run -n fairchem-env python tests/test_architecture_unit_contracts.py
 ```
 
 The suite verifies a known synthetic relationship, JSON round trips,

@@ -5,7 +5,10 @@ import hashlib
 import json
 import tempfile
 from pathlib import Path
+import sys
 from unittest.mock import patch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 def digest(path):

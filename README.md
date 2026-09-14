@@ -132,7 +132,7 @@ The repository has one production launcher and one current pilot launcher:
 |------|------------|-----------------|
 | Run or resume a discovery campaign | `run_production_campaign.py` | `pipeline/orchestrator.py`, `pipeline/search/branch_search.py` |
 | Reproduce the locked divide-and-conquer pilot | `run_divide_conquer_pilot.py` | `pipeline/evidence/pilot_benchmark.py`, `pipeline/screening/small_data_ranker.py` |
-| Check scientific and implementation invariants | `test_pipeline.py`, `audit_pipeline.py` | readiness and claim gates under `pipeline/` |
+| Check scientific and implementation invariants | `tests/test_pipeline.py`, `audit_pipeline.py` | readiness and claim gates under `pipeline/` |
 | Inspect/resume production QE validation | `run_validation_campaign.py` | converged endpoints → NEB and clean → ORR adsorbates/references |
 | Monitor an active local run | `live_dashboard.py` | generated state under `results/` |
 
@@ -540,14 +540,31 @@ smoke test and does not produce a `complete: true` 21.1B coverage certificate.
 
 ### Test Suite
 
+All repository test programs live under `tests/`. Run the portable CPU contract
+suites from the repository root:
+
 ```bash
-conda run -n fairchem-env python test_pipeline.py
+conda run -n fairchem-env python tests/test_pipeline.py
 conda run -n fairchem-env python audit_pipeline.py
-conda run -n fairchem-env python test_scientific_contracts.py
-conda run -n fairchem-env python test_modular_multiphysics.py
-conda run -n fairchem-env python test_component_replacement_contracts.py
-conda run -n fairchem-env python test_architecture_unit_contracts.py
+conda run -n fairchem-env python tests/test_scientific_contracts.py
+conda run -n fairchem-env python tests/test_modular_multiphysics.py
+conda run -n fairchem-env python tests/test_component_replacement_contracts.py
+conda run -n fairchem-env python tests/test_architecture_unit_contracts.py
+conda run -n fairchem-env python tests/test_coupling_contracts.py
+conda run -n fairchem-env python tests/test_experimental_data_contract.py
 ```
+
+The hardware-specific contracts use their corresponding environments and are
+run separately:
+
+```bash
+conda run -n quantum-env python tests/test_resolution_contracts.py
+conda run -n quantum-env python tests/test_vqe_solver_contract.py
+conda run -n fairchem-env python tests/test_gpu_affinity_contract.py
+```
+
+The GPU-affinity contract is opt-in and requires NVIDIA GPUs plus its documented
+`HYDROGEN_*` runtime settings. It is not part of the portable CPU baseline.
 
 The active suite verifies indexed-space boundaries, disjoint shards, deterministic
 tree probes across all 14 classes, branch resume, no surrogate-based pruning,
@@ -864,6 +881,13 @@ hydrogen/
 │   ├── PHYSICAL_CASES.md          # External case and calibration contract
 │   └── multiphysics_artifact.example.json
 │
+├── tests/                         # Unit, integration, scientific, and hardware contracts
+│   ├── test_pipeline.py           # Comprehensive portable regression suite
+│   ├── test_scientific_contracts.py # Equations and scientific evidence gates
+│   ├── test_modular_multiphysics.py # Multi-fidelity component contracts
+│   ├── test_component_replacement_contracts.py # Replaceable-stage integration
+│   └── test_*_contract.py         # Focused solver, evidence, and GPU contracts
+│
 ├── mechanisms/                    # Generated Cantera YAML (gitignored)
 └── results/                       # Pipeline outputs (gitignored)
     ├── screening/                 # Branch database, certificates, GNN CSVs
@@ -1127,7 +1151,7 @@ failure stops the campaign with the unfinished count instead of hanging or
 silently producing a partial database.
 
 The current local optimum is deliberately a measured default, not a universal
-constant. Re-run `test_gpu_affinity_contract.py` with
+constant. Re-run `tests/test_gpu_affinity_contract.py` with
 `HYDROGEN_WORKERS_PER_GPU=1`, `2`, and `3`; use
 `HYDROGEN_SCREENING_ENGINE=legacy` for the fallback comparison and
 `HYDROGEN_SCREENING_APPLICATION=orr` for the fuel-cell path. Choose the smallest

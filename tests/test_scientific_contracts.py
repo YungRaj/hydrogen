@@ -17,9 +17,12 @@ import queue
 import threading
 import time
 from pathlib import Path
+import sys
 from unittest.mock import patch
 
 import numpy as np
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 def test_screening_relaxations_record_and_enforce_force_convergence():

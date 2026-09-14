@@ -9,6 +9,9 @@ import tempfile
 
 import pandas as pd
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT))
+
 from pipeline.stages.candidate_io import load_selected_candidates
 from pipeline.stages.orchestration import MemoryStateStore
 
@@ -104,14 +107,14 @@ print(json.dumps({'count': len(names)}))
 '''
     completed = subprocess.run(
         [sys.executable, '-c', script], capture_output=True, text=True,
-        cwd=Path(__file__).resolve().parent, timeout=60)
+        cwd=REPO_ROOT, timeout=60)
     assert completed.returncode == 0, completed.stderr
     result = json.loads(completed.stdout.strip().splitlines()[-1])
     assert result['count'] >= 80
 
 
 def test_architecture_visual_atlas_is_linked_and_structurally_complete():
-    root = Path(__file__).resolve().parent
+    root = REPO_ROOT
     atlas = (root / 'docs' / 'ARCHITECTURE_DIAGRAMS.md').read_text()
     assert atlas.count('```mermaid') == 9
     assert atlas.count('```') == 18

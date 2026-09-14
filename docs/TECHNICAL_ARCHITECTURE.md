@@ -203,9 +203,13 @@ search-selection performance, not physical catalyst superiority.
 ### `audit_pipeline.py` and the test programs
 
 `audit_pipeline.py` checks repository and scientific-policy contracts.
-`test_pipeline.py`, `test_scientific_contracts.py`,
-`test_gpu_affinity_contract.py`, and `test_vqe_solver_contract.py` cover general
-behavior, equations/evidence rules, GPU assignment, and VQE solver invariants.
+All test programs are grouped under `tests/` and are invoked from the repository
+root so their paths and imports behave consistently on local and remote systems.
+`tests/test_pipeline.py`, `tests/test_scientific_contracts.py`,
+`tests/test_resolution_contracts.py`, `tests/test_gpu_affinity_contract.py`, and
+`tests/test_vqe_solver_contract.py` cover general behavior, equations and
+evidence rules, candidate-specific Hamiltonians, GPU assignment, and VQE solver
+invariants.
 
 ### `live_dashboard.py`
 

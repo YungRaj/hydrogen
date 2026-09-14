@@ -6,6 +6,9 @@ import json
 import tempfile
 from copy import deepcopy
 from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from pipeline.evidence.experimental_dataset import (
     experimental_evidence_records, validate_experimental_dataset)
