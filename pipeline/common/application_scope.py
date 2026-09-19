@@ -74,7 +74,14 @@ OUT_OF_SCOPE_TURQUOISE_PYROLYSIS_CLASSES = frozenset(
 
 
 def pemfc_cathode_scope(genome: tuple) -> dict:
-    """Reject classes with no physically defined solid PEMFC cathode realization."""
+    """Reject classes with no physically defined solid PEMFC cathode realization.
+
+    Args:
+        genome: Encoded catalyst composition and structural configuration.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     material_class = genome[0]
     if material_class in OUT_OF_SCOPE_PEMFC_CATHODE_CLASSES:
         return {'status': 'out_of_scope', 'reason':
@@ -170,6 +177,27 @@ def select_turquoise_pyrolysis_candidates(df, top_k=None, genome_col: str = 'gen
     if 'E_act' in scoped.columns:
         return scoped.nsmallest(int(top_k), 'E_act')
     return scoped.head(int(top_k))
+
+
+def scope_pyrolysis_pool(df, genome_col: str = 'genome'):
+    """Admissibility pool for slate drawing, tolerant of genome-less frames.
+
+    Returns ``(pool, note)``. Rows whose encoded phase is unstable at the
+    pyrolysis T band are dropped (ADR 0001). Validity is *not* applied here:
+    the validation route may still rescue invalid rows, and the caller
+    applies ``valid`` for the reactor route. A frame without a genome column
+    (synthetic tables, fixtures) is returned unchanged with the reason
+    recorded so the omission is visible rather than silent.
+    """
+    if df is None:
+        raise ValueError('screening frame is required for turquoise pyrolysis scope')
+    if genome_col not in df.columns:
+        return df, {'filter': None,
+                    'reason': f'{genome_col} column absent; admissibility not applied'}
+    pool = select_turquoise_pyrolysis_candidates(df, top_k=None, genome_col=genome_col)
+    return pool, {'filter': 'phase_stable_at_application_T',
+                  'admissible_count': int(len(pool)),
+                  'dropped_count': int(len(df) - len(pool))}
 
 
 def is_validation_quota_class(material_class: str, application: str = None) -> bool:

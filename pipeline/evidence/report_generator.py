@@ -31,7 +31,11 @@ logger = setup_logger('report_generator', 'reports/report_generation.log')
 
 
 def load_all_results() -> Dict:
-    """Load all results from the pipeline output directories."""
+    """Load all results from the pipeline output directories.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     data = {}
 
     # Screening databases
@@ -93,7 +97,13 @@ def load_all_results() -> Dict:
 
 def generate_full_report(pipeline_state: Dict = None) -> Path:
     """
-    Generate the comprehensive pipeline report.
+        Generate the comprehensive pipeline report.
+
+    Args:
+        pipeline_state: Mapping supplying pipeline state.
+
+    Returns:
+        Filesystem path produced or resolved by the operation.
     """
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     data = load_all_results()
@@ -192,6 +202,12 @@ def generate_full_report(pipeline_state: Dict = None) -> Path:
     # ─── Phase 2: Reactor Simulation ────────────────────────────────────────
     r("## Phase 2: Reactor-Scale Simulation\n")
 
+    def _report_number(value, format_spec, unavailable='N/A'):
+        try:
+            return format(float(value), format_spec)
+        except (TypeError, ValueError):
+            return unavailable
+
     from pipeline.process.phase2_scorecard import (
         is_production_reactor_record, is_solids_run, single_pass_x,
     )
@@ -206,20 +222,19 @@ def generate_full_report(pipeline_state: Dict = None) -> Path:
         r("| Reactor | Catalyst | T (K) | Single-pass X | a (m⁻¹) | WHSV (h⁻¹) | ΔP (bar) |")
         r("|---------|----------|-------|---------------|---------|------------|----------|")
         for rt, row in scorecard['headline'].items():
-            a = row.get('active_sv_1_m')
-            whsv = row.get('WHSV_h-1')
-            dp = row.get('ergun_delta_p_bar')
-            a_s = f"{a:.0f}" if isinstance(a, (int, float)) else "—"
-            w_s = f"{whsv:.0f}" if isinstance(whsv, (int, float)) else "—"
-            d_s = f"{dp:.2f}" if isinstance(dp, (int, float)) else "—"
             r(f"| {rt} | {row.get('catalyst_name', '?')} | {row.get('T_K', '?')} | "
-              f"{row.get('single_pass_CH4_conversion', 0):.2%} | "
-              f"{a_s} | {w_s} | {d_s} |")
+              f"{_report_number(row.get('single_pass_CH4_conversion'), '.2%')} | "
+              f"{_report_number(row.get('active_sv_1_m'), '.0f', '—')} | "
+              f"{_report_number(row.get('WHSV_h-1'), '.0f', '—')} | "
+              f"{_report_number(row.get('ergun_delta_p_bar'), '.2f', '—')} |")
         r("")
         if scorecard.get('mmbcr_max_conversion') is not None:
-            r(f"MMBCR max X = {scorecard['mmbcr_max_conversion']:.1%} "
+            r(f"MMBCR max X = {_report_number(scorecard['mmbcr_max_conversion'], '.1%')} "
               f"({scorecard.get('mmbcr_note', 'not a solids rank')})\n")
 
+    # Only completed production runs count. Sweeps, mocks, not_applicable,
+    # validation_required, and failed records are evidence about the
+    # workflow, not about the catalyst.
     real_reactor = [
         x for x in data['reactor']
         if is_production_reactor_record(x) and not x.get('mock', False)
@@ -230,19 +245,16 @@ def generate_full_report(pipeline_state: Dict = None) -> Path:
         r("| Catalyst | Reactor | T (K) | Single-pass X | a (m⁻¹) | WHSV (h⁻¹) | ΔP (bar) |")
         r("|----------|---------|-------|---------------|---------|------------|----------|")
         for res in sorted(solids, key=single_pass_x, reverse=True)[:20]:
-            a = res.get('active_sv_1_m')
-            whsv = res.get('WHSV_h-1')
-            dp = res.get('ergun_delta_p_bar')
-            a_s = f"{a:.0f}" if isinstance(a, (int, float)) else "—"
-            w_s = f"{whsv:.0f}" if isinstance(whsv, (int, float)) else "—"
-            d_s = f"{dp:.2f}" if isinstance(dp, (int, float)) else "—"
             r(f"| {res.get('catalyst_name', '?')} | {res.get('reactor_type', '?')} | "
-              f"{res.get('T_K', '?')} | {single_pass_x(res):.2%} | "
-              f"{a_s} | {w_s} | {d_s} |")
+              f"{res.get('T_K', '?')} | {_report_number(single_pass_x(res), '.2%')} | "
+              f"{_report_number(res.get('active_sv_1_m'), '.0f', '—')} | "
+              f"{_report_number(res.get('WHSV_h-1'), '.0f', '—')} | "
+              f"{_report_number(res.get('ergun_delta_p_bar'), '.2f', '—')} |")
         r("")
     if len(real_reactor) != len(data['reactor']):
         r(f"Excluded {len(data['reactor']) - len(real_reactor)} non-run reactor files "
-          f"(sweeps, mocks) from performance claims.\n")
+          f"(sweeps, mocks, not_applicable, validation_required, failed) "
+          f"from performance claims.\n")
 
     # ─── Phase 3: DFT Validation ───────────────────────────────────────────
     r("## Phase 3: DFT Validation (Quantum ESPRESSO)\n")

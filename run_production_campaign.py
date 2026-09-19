@@ -16,9 +16,13 @@ import subprocess
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+from pipeline.process.pathway_modes import (
+    DEFAULT_MODE, MODE_CHOICES, reactor_types_for_mode)
 
 
 def main():
+    """Run the module command-line entry point.
+    """
     parser = argparse.ArgumentParser(
         description='GPU-Saturated Turquoise H₂ Catalyst Discovery v2'
     )
@@ -34,11 +38,14 @@ def main():
                         help='Top-K for reactor simulation (default: 200)')
     parser.add_argument('--no-dft', action='store_true')
     parser.add_argument('--no-vqe', action='store_true')
-    parser.add_argument('--mode', type=str, choices=['ntec', 'thermocatalytic'], default='ntec',
-                        help='Pyrolysis screening mode (default: ntec)')
+    parser.add_argument('--mode', choices=MODE_CHOICES, default=DEFAULT_MODE,
+                        help=f'Methane-conversion pathway (default: {DEFAULT_MODE})')
     parser.add_argument('--ntec-conditions-json', default='',
                         help=('JSON with measured operating conditions and paired '
                               'NTEC/control effect calibration'))
+    parser.add_argument('--electrochemical-conditions-json', default='',
+                        help=('JSON measured electrochemical operating point; '
+                              'electrolyte_phase is aqueous or molten'))
     parser.add_argument('--scan-batch-size', type=int, default=65536)
     parser.add_argument('--scan-workers', type=int, default=8,
                         help='Independent deterministic scanner shards per resolved leaf')
@@ -54,19 +61,50 @@ def main():
                         help='Re-score up to this many pending nodes when resuming')
     parser.add_argument('--expected-space-size', type=int, default=21_092_645_031,
                         help='Fail if the indexed population denominator differs')
-    parser.add_argument('--prior-art-db', default='results/prior_art.sqlite')
+    parser.add_argument('--results-dir', default='results',
+                        help='Isolated output root for this campaign (default: results)')
+    parser.add_argument('--mechanisms-dir', default=None,
+                        help='Generated Cantera mechanisms (default: <results-dir>/mechanisms)')
+    parser.add_argument('--prior-art-db', default=None,
+                        help='Prior-art SQLite database (default: <results-dir>/prior_art.sqlite)')
     parser.add_argument('--prior-art-csv', action='append', default=[],
                         help='CSV registry to import; repeat for multiple sources')
     parser.add_argument('--final-campaign', action='store_true',
                         help='Fail closed unless coverage and prior-art readiness requirements pass')
-    parser.add_argument('--evidence-manifest', default='results/evidence_manifest.json',
+    parser.add_argument('--evidence-manifest', default=None,
                         help='Measured/validated evidence counts required by --final-campaign')
+    parser.add_argument(
+        '--kinetics-validation-dir', default=None,
+        help=('Directory containing <candidate_id>/pyrolysis_validation.json; '
+              'complete matching campaigns replace Cantera template barriers'))
+    parser.add_argument(
+        '--multiphysics-results-dir', default=None,
+        help=('Required OpenFOAM/FEniCSx artifacts (default: '
+              '<results-dir>/multiphysics)'))
     parser.add_argument('--qe-mpi-ranks', type=int, default=4)
     parser.add_argument('--qe-omp-threads', type=int, default=1)
     default_qe_concurrency = max(1, min(4, (os.cpu_count() or 1) // 4))
     parser.add_argument('--qe-max-concurrent', type=int, default=default_qe_concurrency,
                         help='Maximum independent candidate DFT jobs launched together')
     args = parser.parse_args()
+    results_dir = Path(args.results_dir).expanduser().resolve()
+    args.results_dir = str(results_dir)
+    mechanisms_dir = (Path(args.mechanisms_dir).expanduser().resolve()
+                      if args.mechanisms_dir else results_dir / 'mechanisms')
+    args.mechanisms_dir = str(mechanisms_dir)
+    if args.prior_art_db is None:
+        args.prior_art_db = str(results_dir / 'prior_art.sqlite')
+    if args.evidence_manifest is None:
+        args.evidence_manifest = str(results_dir / 'evidence_manifest.json')
+    if args.kinetics_validation_dir is None:
+        args.kinetics_validation_dir = str(results_dir / 'dft' / 'pyrolysis_kinetics')
+    if args.multiphysics_results_dir is None:
+        args.multiphysics_results_dir = str(results_dir / 'multiphysics')
+    else:
+        args.multiphysics_results_dir = str(
+            Path(args.multiphysics_results_dir).expanduser().resolve())
+    os.environ['HYDROGEN_RESULTS_DIR'] = str(results_dir)
+    os.environ['HYDROGEN_MECHANISMS_DIR'] = str(mechanisms_dir)
     if args.scan_workers < 1 or args.qe_mpi_ranks < 1 or \
             args.qe_omp_threads < 1 or args.qe_max_concurrent < 1:
         parser.error('scanner and QE resource dimensions must be positive')
@@ -99,6 +137,9 @@ def main():
     os.environ['PYROLYSIS_MODE'] = args.mode
     if args.ntec_conditions_json:
         os.environ['NTEC_CONDITIONS_JSON'] = args.ntec_conditions_json
+    if args.electrochemical_conditions_json:
+        os.environ['ELECTROCHEMICAL_CONDITIONS_JSON'] = \
+            args.electrochemical_conditions_json
     import torch
     n_gpus = torch.cuda.device_count()
     gpu_names = [torch.cuda.get_device_name(i) for i in range(n_gpus)]
@@ -251,7 +292,7 @@ def main():
 
     # ─── Phase 2: Cantera Reactor Simulation ─────────────────────────────────
     if time.time() < t_deadline and len(top_catalysts) > 0:
-        print_banner("PHASE 2: CANTERA REACTOR SIMULATION")
+        print_banner("PHASE 2: PATHWAY-SPECIFIC REACTOR SIMULATION")
         t2 = time.time()
         try:
             from pipeline.stages.reactor import simulate_candidate
@@ -272,8 +313,23 @@ def main():
                 cat_name = f"catalyst_{i}"
                 print(f"  Reactor sim {i+1}/{n_reactor}: E_act={e_act:.3f} eV")
                 try:
+                    kinetics_validation = None
+                    candidate_key = str(row.get('candidate_id', cat_name))
+                    if Path(candidate_key).name != candidate_key:
+                        raise ValueError('candidate_id is not a safe path component')
+                    validation_path = (Path(args.kinetics_validation_dir) / candidate_key /
+                                       'pyrolysis_validation.json')
+                    if validation_path.is_file():
+                        available = json.loads(validation_path.read_text())
+                        if available.get('complete'):
+                            kinetics_validation = available
                     stage_result = simulate_candidate(
-                        row, cat_name, reactor_temps, forbid_mock=True)
+                        row, cat_name, reactor_temps,
+                        reactor_types=reactor_types_for_mode(args.mode),
+                        forbid_mock=True,
+                        kinetics_validation=kinetics_validation,
+                        pathway_mode=args.mode,
+                        multiphysics_results_dir=args.multiphysics_results_dir)
                     sweep = stage_result['sweep']
                     reactor_sweep_records.extend(sweep)
                     best_condition = stage_result['best_condition']
@@ -283,6 +339,9 @@ def main():
                         'E_act': e_act,
                         'best_conversion': best_conv,
                         'n_conditions': len(sweep),
+                        'completed_conditions': stage_result['completed_conditions'],
+                        'failed_conditions': stage_result['failed_conditions'],
+                        'sweep_status': stage_result['sweep_status'],
                         **{k: best_condition.get(k) for k in (
                             'temperature_K', 'H2_selectivity', 'CH4_conversion',
                             'deactivation_fraction_per_h', 'coke_fraction',
@@ -313,7 +372,14 @@ def main():
                     print(f"  {msg}")
             log_solids_scorecard(scorecard, _PrintLogger())
             pipeline_state['phase2'] = {
+                'catalysts_attempted': n_reactor,
                 'catalysts_simulated': len(reactor_results),
+                'complete_sweeps': sum(
+                    r.get('sweep_status') == 'complete' for r in reactor_results),
+                'partial_sweeps': sum(
+                    r.get('sweep_status') == 'partial' for r in reactor_results),
+                'failed_sweeps': sum(
+                    r.get('sweep_status') == 'failed' for r in reactor_results),
                 'elapsed_s': time.time() - t2,
                 'equilibrium_check': {
                     'within_tolerance': eq_result.get('within_tolerance'),
@@ -358,7 +424,7 @@ def main():
                 f'mpi={args.qe_mpi_ranks}:'
                 f'omp={args.qe_omp_threads}')
             task_queue = ValidationTaskQueue(
-                Path('results/dft/validation_tasks.sqlite'))
+                results_dir / 'dft' / 'validation_tasks.sqlite')
             task_queue.recover_stale()
             for idx, (_, row) in enumerate(dft_candidates.head(n_dft).iterrows()):
                 try:
@@ -385,7 +451,7 @@ def main():
                     task_queue.finish(
                         'turquoise_hydrogen', cid, 'screening_dft',
                         protocol_id, bool(result.get('converged')),
-                        result_path=f'results/dft/{name}_dft.json',
+                        result_path=str(results_dir / 'dft' / f'{name}_dft.json'),
                         error=result.get('error'))
                     return result
                 except Exception as exc:
@@ -439,7 +505,7 @@ def main():
                     cwd=str(Path(__file__).parent), capture_output=True, text=True)
                 if proc.returncode != 0:
                     raise RuntimeError(f"CUDA-Q failed for {name}: {proc.stderr[-1000:]}")
-                result_path = Path('results/vqe') / f'vqe_{name}_CH_split.json'
+                result_path = results_dir / 'vqe' / f'vqe_{name}_CH_split.json'
                 if not result_path.exists():
                     raise RuntimeError(f"CUDA-Q produced no result for {name}")
                 result = json.loads(result_path.read_text())
@@ -502,7 +568,7 @@ def main():
         fc_validation = select_for_validation(
             fc_screening_db, min(args.validation_batch, len(fc_screening_db)),
             'orr_overpotential_V', min_per_class=args.min_validation_per_class)
-        fc_validation_path = Path('results/fuel_cell/validation_slate.csv')
+        fc_validation_path = results_dir / 'fuel_cell' / 'validation_slate.csv'
         fc_validation_path.parent.mkdir(parents=True, exist_ok=True)
         fc_validation.to_csv(fc_validation_path, index=False)
 
@@ -583,11 +649,11 @@ def main():
 
     from pipeline.evidence.readiness import campaign_readiness
     h2_ready = campaign_readiness(
-        'results/screening/turquoise_hydrogen_coverage_certificate.json', args.prior_art_db,
+        results_dir / 'screening' / 'turquoise_hydrogen_coverage_certificate.json', args.prior_art_db,
         evidence_manifest=args.evidence_manifest if args.final_campaign else None,
         application='turquoise_hydrogen', pyrolysis_mode=args.mode)
     fc_ready = campaign_readiness(
-        'results/fuel_cell/coverage_certificate.json', args.prior_art_db,
+        results_dir / 'fuel_cell' / 'coverage_certificate.json', args.prior_art_db,
         evidence_manifest=args.evidence_manifest if args.final_campaign else None,
         application='fuel_cell')
     readiness = {'turquoise_hydrogen': h2_ready, 'fuel_cell': fc_ready,

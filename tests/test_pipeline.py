@@ -2,7 +2,7 @@
 """
 Hydrogen Pipeline — Comprehensive Test Suite
 
-Run:  python test_pipeline.py
+Run:  python tests/test_pipeline.py
 Exit: 0 = all pass, 1 = failures
 
 Tests every component that has broken before, plus integration across
@@ -10,7 +10,9 @@ all 14 material classes. If this passes, the campaign is safe to launch.
 """
 
 import sys, os, time, traceback
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from pathlib import Path
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT))
 
 import numpy as np
 import torch
@@ -255,10 +257,11 @@ def test_six_point_status_fails_closed():
     with tempfile.TemporaryDirectory() as tmp:
         result = assess_campaign(tmp)
         assert not result['ready']
-        assert len(result['missing']) == 6
-        thermal = assess_campaign(tmp, pyrolysis_mode='thermocatalytic')
-        assert 'calibrated_ntec' not in thermal['criteria']
-        assert len(thermal['missing']) == 5
+        assert 'calibrated_ntec' not in result['criteria']
+        assert len(result['missing']) == 5
+        ntec = assess_campaign(tmp, pyrolysis_mode='ntec')
+        assert 'calibrated_ntec' in ntec['criteria']
+        assert len(ntec['missing']) == 6
 
 
 def test_adaptive_validation_policy():
@@ -1145,7 +1148,7 @@ def test_tree_calibration_probes_cover_all_classes_deterministically():
 
 def test_production_has_only_branch_candidate_search():
     from pathlib import Path
-    source = (Path(__file__).parent / 'run_production_campaign.py').read_text()
+    source = (REPO_ROOT / 'run_production_campaign.py').read_text()
     forbidden = [
         'run_genetic_algorithm', 'run_fc_genetic_algorithm',
         '--exhaustive-scan', '--branch-search', '--pop', '--gens',
@@ -1156,7 +1159,7 @@ def test_production_has_only_branch_candidate_search():
     assert 'run_branch_discovery' in source
     assert 'run_fc_branch_discovery' in source
     assert 'QE executables are resolved at execution time' in source
-    resolver = (Path(__file__).parent / 'pipeline/common/executables.py').read_text()
+    resolver = (REPO_ROOT / 'pipeline/common/executables.py').read_text()
     assert "env_var=variables.get(name), conda_env='qe-env'" in resolver
     assert ('/' + 'home/') not in source + resolver
     assert "'conda', 'run', '-n', 'quantum-env'" in source
@@ -1165,19 +1168,8 @@ def test_production_has_only_branch_candidate_search():
 
 def test_readme_matches_branch_only_contract():
     from pathlib import Path
-    readme = (Path(__file__).parent / 'README.md').read_text()
+    readme = (REPO_ROOT / 'README.md').read_text()
     assert '21,092,645,031' in readme
-
-
-def test_readme_contains_no_machine_specific_paths():
-    from pathlib import Path
-    readme = (Path(__file__).parent / 'README.md').read_text()
-    forbidden = [
-        '/' + 'home/', '/' + 'Users/', 'mini' + 'conda3',
-        'ana' + 'conda3', '/' + 'opt/conda', '.gem' + 'ini/antigravity',
-    ]
-    present = [token for token in forbidden if token in readme]
-    assert not present, f'Machine-specific paths remain in README: {present}'
     assert 'Deterministic Branch-and-Bound Discovery' in readme
     assert '--calibration-probes' in readme
     assert '--branch-leaf-size' in readme
@@ -1185,6 +1177,28 @@ def test_readme_contains_no_machine_specific_paths():
                  '25.3-billion-configuration', '21.3-billion-configuration']
     present = [token for token in forbidden if token in readme]
     assert not present, f"README advertises retired search controls: {present}"
+
+
+def test_readme_contains_no_machine_specific_paths():
+    from pathlib import Path
+    readme = (REPO_ROOT / 'README.md').read_text()
+    forbidden = [
+        '/' + 'home/', '/' + 'Users/', 'mini' + 'conda3',
+        'ana' + 'conda3', '/' + 'opt/conda', '.gem' + 'ini/antigravity',
+    ]
+    present = [token for token in forbidden if token in readme]
+    assert not present, f'Machine-specific paths remain in README: {present}'
+
+
+def test_root_documentation_is_canonical():
+    from pathlib import Path
+    root = REPO_ROOT
+    root_docs = {
+        path.name for pattern in ('*.md', '*.rst') for path in root.glob(pattern)
+    }
+    assert root_docs <= {'README.md', 'CHANGELOG.md'}, root_docs
+    assert (root / 'docs/FUEL_CELL.md').is_file()
+    assert (root / 'docs/TURQUOISE_HYDROGEN.md').is_file()
 
 
 def test_retired_ga_entry_points_are_blocked():
@@ -1912,6 +1926,7 @@ if __name__ == '__main__':
     test("README matches branch-only contract", test_readme_matches_branch_only_contract)
     test("README has no machine-specific paths",
          test_readme_contains_no_machine_specific_paths)
+    test("Root documentation is canonical", test_root_documentation_is_canonical)
     test("Retired GA entry points are blocked", test_retired_ga_entry_points_are_blocked)
     test("Industrial viability gates fail closed", test_industrial_viability_gates_fail_closed)
     test("Phase stability per class", test_phase_stable_at_application_t_per_class)

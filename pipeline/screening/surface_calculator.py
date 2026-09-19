@@ -47,7 +47,15 @@ logger = setup_logger('surface_calculator', 'screening/surface_calculator.log')
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def get_mace_calculator(device='cuda:0', model='medium'):
-    """Load MACE-MP-0 calculator (bulk materials model, fast screening)."""
+    """Load MACE-MP-0 calculator (bulk materials model, fast screening).
+
+    Args:
+        device: CPU or GPU device requested for execution.
+        model: Fitted model used for inference.
+
+    Returns:
+        Computed result described above.
+    """
     from mace.calculators import mace_mp
     return mace_mp(model=model, device=device)
 
@@ -120,9 +128,17 @@ def query_catalysis_hub(surface: str, facet: str = None,
 def lookup_adsorption_energy(element: str, facet: str,
                              adsorbate: str) -> Optional[float]:
     """
-    Look up a specific adsorption energy from Catalysis-Hub.
+        Look up a specific adsorption energy from Catalysis-Hub.
 
-    Returns energy in eV if found, None otherwise.
+        Returns energy in eV if found, None otherwise.
+
+    Args:
+        element: Element used by this operation.
+        facet: Facet used by this operation.
+        adsorbate: Adsorbate used by this operation.
+
+    Returns:
+        Computed `Optional[float]` result.
     """
     results = query_catalysis_hub(element, facet, adsorbate, limit=5)
     if results:
@@ -137,8 +153,16 @@ def build_calibration_table(elements: List[str] = None,
                             facets: List[str] = None,
                             adsorbates: List[str] = None) -> Dict:
     """
-    Build a lookup table of known DFT adsorption energies from Catalysis-Hub.
-    Used to calibrate MACE predictions against ground truth.
+        Build a lookup table of known DFT adsorption energies from Catalysis-Hub.
+        Used to calibrate MACE predictions against ground truth.
+
+    Args:
+        elements: Ordered values supplying elements.
+        facets: Ordered values supplying facets.
+        adsorbates: Ordered values supplying adsorbates.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
     """
     if elements is None:
         elements = ['Pt', 'Pd', 'Ni', 'Cu', 'Au', 'Ag', 'Rh', 'Ir',
@@ -187,15 +211,22 @@ def _ensure_hf_token():
 def get_ocp_calculator(model_name: str = 'esen-sm-conserving-all-oc25',
                        device: str = 'cuda:0') -> Optional[Calculator]:
     """
-    Load an OC20/OC25-trained surface catalysis GNN calculator.
+        Load an OC20/OC25-trained surface catalysis GNN calculator.
 
-    Available models (fairchem v2, require HF_TOKEN):
-      - esen-sm-conserving-all-oc25  (recommended — energy-conserving)
-      - esen-md-direct-all-oc25      (faster, MD-optimized)
-      - uma-s-1p1                    (Universal Model for Atoms)
-      - uma-m-1p1                    (larger UMA)
+        Available models (fairchem v2, require HF_TOKEN):
+          - esen-sm-conserving-all-oc25  (recommended — energy-conserving)
+          - esen-md-direct-all-oc25      (faster, MD-optimized)
+          - uma-s-1p1                    (Universal Model for Atoms)
+          - uma-m-1p1                    (larger UMA)
 
-    Falls back to local EquiformerV2-31M checkpoint if available.
+        Falls back to local EquiformerV2-31M checkpoint if available.
+
+    Args:
+        model_name: Model name used by this operation.
+        device: CPU or GPU device requested for execution.
+
+    Returns:
+        Computed `Optional[Calculator]` result.
     """
     _ensure_hf_token()
 
@@ -266,11 +297,18 @@ class QEConfig:
 
 def get_qe_calculator(atoms: Atoms, config: QEConfig = None) -> Optional[Calculator]:
     """
-    Create an ASE-compatible Quantum ESPRESSO calculator for a surface slab.
+        Create an ASE-compatible Quantum ESPRESSO calculator for a surface slab.
 
-    Requires:
-      - pw.x in PATH (conda run -n qe-env)
-      - PAW pseudopotentials in pseudo_dir
+        Requires:
+          - pw.x in PATH (conda run -n qe-env)
+          - PAW pseudopotentials in pseudo_dir
+
+    Args:
+        atoms: Atomic structure consumed by the calculator.
+        config: Configuration controlling this operation.
+
+    Returns:
+        Computed `Optional[Calculator]` result.
     """
     if config is None:
         config = QEConfig()
@@ -357,13 +395,22 @@ def get_qe_calculator(atoms: Atoms, config: QEConfig = None) -> Optional[Calcula
 def evaluate_with_tier(atoms: Atoms, adsorbate: str, tier: int = 1,
                        device: str = 'cuda:0') -> Dict:
     """
-    Evaluate adsorption energy using the specified fidelity tier.
+        Evaluate adsorption energy using the specified fidelity tier.
 
-    Tier 1: MACE-MP-0 (fast, ~2s, bulk-trained)
-    Tier 2: OC20 EquiformerV2 + Catalysis-Hub validation (medium, ~5s, surface-trained)
-    Tier 3: Quantum ESPRESSO DFT (slow, ~hours, gold standard)
+        Tier 1: MACE-MP-0 (fast, ~2s, bulk-trained)
+        Tier 2: OC20 EquiformerV2 + Catalysis-Hub validation (medium, ~5s, surface-trained)
+        Tier 3: Quantum ESPRESSO DFT (slow, ~hours, gold standard)
 
-    Returns dict with energy, forces, fidelity metadata.
+        Returns dict with energy, forces, fidelity metadata.
+
+    Args:
+        atoms: Atomic structure consumed by the calculator.
+        adsorbate: Adsorbate used by this operation.
+        tier: Tier used by this operation.
+        device: CPU or GPU device requested for execution.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
     """
     result = {'tier': tier, 'adsorbate': adsorbate, 'n_atoms': len(atoms)}
 
@@ -431,10 +478,17 @@ def evaluate_with_tier(atoms: Atoms, adsorbate: str, tier: int = 1,
 def cross_validate_mace(elements: List[str] = None,
                         device: str = 'cuda:0') -> Dict:
     """
-    Compare MACE-MP-0 predictions against Catalysis-Hub DFT data
-    for known systems. Computes MAE, RMSE, and systematic bias.
+        Compare MACE-MP-0 predictions against Catalysis-Hub DFT data
+        for known systems. Computes MAE, RMSE, and systematic bias.
 
-    This tells us how much to trust MACE for novel catalysts.
+        This tells us how much to trust MACE for novel catalysts.
+
+    Args:
+        elements: Ordered values supplying elements.
+        device: CPU or GPU device requested for execution.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
     """
     from ase.build import fcc111, add_adsorbate
     from ase.optimize import BFGS

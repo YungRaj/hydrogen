@@ -7,6 +7,16 @@ from dataclasses import asdict, dataclass
 
 @dataclass(frozen=True)
 class TEAAssumptions:
+    """Hold a traceable techno-economic scenario.
+
+    Attributes:
+        natural_gas_usd_mmbtu: Configured natural gas usd mmbtu value.
+        electricity_usd_kwh: Configured electricity usd kwh value.
+        base_energy_kwh_kg_h2: Configured base energy kwh kg h2 value.
+        capex_usd_kg_h2: Configured capex usd kg h2 value.
+        carbon_value_usd_kg_h2: Configured carbon value usd kg h2 value.
+        source_id: Configured source id value.
+    """
     natural_gas_usd_mmbtu: float
     electricity_usd_kwh: float
     base_energy_kwh_kg_h2: float
@@ -27,7 +37,15 @@ SCENARIOS = {
 
 def estimate_hydrogen_cost(conversion: float,
                            scenario: str = 'base') -> dict:
-    """Return an assumption-labelled screening estimate, never a measurement."""
+    """Return an assumption-labelled screening estimate, never a measurement.
+
+    Args:
+        conversion: Conversion used by this operation.
+        scenario: Scenario used by this operation.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     if scenario not in SCENARIOS:
         raise ValueError(f'unknown TEA scenario: {scenario}')
     if not 0 < float(conversion) <= 1:
@@ -52,6 +70,14 @@ def estimate_hydrogen_cost(conversion: float,
 
 
 def estimate_scenario_range(conversion: float) -> dict:
+    """Evaluate hydrogen cost across named techno-economic scenarios.
+
+    Args:
+        conversion: Methane conversion fraction used by the cost model.
+
+    Returns:
+        A dictionary containing estimate scenario range outputs, status, and supporting metadata.
+    """
     estimates = {
         name: estimate_hydrogen_cost(conversion, name)
         for name in SCENARIOS

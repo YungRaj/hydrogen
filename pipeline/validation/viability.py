@@ -12,6 +12,17 @@ import math
 
 @dataclass(frozen=True)
 class TurquoiseHydrogenBounds:
+    """Define measured viability limits for turquoise-hydrogen operation.
+
+    Attributes:
+        min_temperature_K: Configured min temperature K value.
+        max_temperature_K: Configured max temperature K value.
+        min_h2_selectivity: Configured min h2 selectivity value.
+        min_ch4_conversion: Configured min ch4 conversion value.
+        max_deactivation_fraction_per_h: Configured max deactivation fraction per h value.
+        max_coke_fraction: Configured max coke fraction value.
+        max_net_energy_kWh_kg_h2: Configured max net energy kWh kg h2 value.
+    """
     min_temperature_K: float = 700.0
     max_temperature_K: float = 1300.0
     # Legacy field name: gated quantity is an H-atom balance / reported metric,
@@ -27,6 +38,15 @@ class TurquoiseHydrogenBounds:
 
 @dataclass(frozen=True)
 class FuelCellBounds:
+    """Define measured viability limits for fuel-cell operation.
+
+    Attributes:
+        max_orr_overpotential_V: Configured max orr overpotential V value.
+        min_peak_power_W_cm2: Configured min peak power W cm2 value.
+        min_system_efficiency: Configured min system efficiency value.
+        max_voltage_degradation_uV_h: Configured max voltage degradation uV h value.
+        min_measured_hours: Configured min measured hours value.
+    """
     max_orr_overpotential_V: float = 0.40
     min_peak_power_W_cm2: float = 1.00
     min_system_efficiency: float = 0.40
@@ -49,6 +69,15 @@ def _number(record: Mapping, names):
 
 def evaluate_turquoise(record: Mapping,
                        bounds: TurquoiseHydrogenBounds = TurquoiseHydrogenBounds()) -> dict:
+    """Evaluate measured turquoise-hydrogen performance against viability bounds.
+
+    Args:
+        record: Measured performance record to evaluate.
+        bounds: Application-specific viability limits.
+
+    Returns:
+        A dictionary containing evaluate turquoise outputs, status, and supporting metadata.
+    """
     checks = {
         'temperature': (_number(record, ('temperature_K', 'T_K', 'temperature')),
                         bounds.min_temperature_K, bounds.max_temperature_K),
@@ -75,6 +104,15 @@ def evaluate_turquoise(record: Mapping,
 
 def evaluate_fuel_cell(record: Mapping,
                        bounds: FuelCellBounds = FuelCellBounds()) -> dict:
+    """Evaluate measured fuel-cell performance against viability bounds.
+
+    Args:
+        record: Measured performance record to evaluate.
+        bounds: Application-specific viability limits.
+
+    Returns:
+        A dictionary containing evaluate fuel cell outputs, status, and supporting metadata.
+    """
     checks = {
         'orr_overpotential': (_number(record, ('orr_overpotential_V', 'orr_overpotential')),
                               None, bounds.max_orr_overpotential_V),

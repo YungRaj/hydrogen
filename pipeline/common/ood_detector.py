@@ -97,18 +97,21 @@ for e in _TIER2_ELEMENTS:
 
 def element_coverage_score(elements: List[str]) -> float:
     """
-    Score how well the elements in a genome are covered by OC20/OC25.
-    
-    Returns: float in [0, 1], where 1.0 = all elements extensively trained,
-             0.1 = elements never in training data.
+        Score how well the elements in a genome are covered by OC20/OC25.
+
+        Returns: float in [0, 1], where 1.0 = all elements extensively trained,
+                 0.1 = elements never in training data.
+
+    Args:
+        elements: Ordered values supplying elements.
     """
     if not elements:
         return 0.5  # no metals (e.g., MetalFreeCarbon) — moderate uncertainty
-    
+
     scores = [_ELEMENT_COVERAGE.get(e, 0.1) for e in elements if e != 'None']
     if not scores:
         return 0.5
-    
+
     # Geometric mean: one bad element tanks the whole score
     return float(np.exp(np.mean(np.log(np.array(scores) + 1e-10))))
 
@@ -120,21 +123,30 @@ def element_coverage_score(elements: List[str]) -> float:
 def dual_model_disagreement(atoms, primary_calc, fallback_calc,
                             property_name: str = 'energy') -> Dict:
     """
-    Compare predictions from two calculators on the same structure.
-    
-    Returns dict with:
-      - 'primary_energy': energy from primary model (eSen-SM)
-      - 'fallback_energy': energy from fallback model (MACE/EquiformerV2)
-      - 'disagreement_eV': absolute difference
-      - 'relative_disagreement': |diff| / mean(|energies|)
-      - 'is_ood': True if disagreement exceeds threshold
-    
-    Should only be called on top-k candidates during validation rounds.
+        Compare predictions from two calculators on the same structure.
+
+        Returns dict with:
+          - 'primary_energy': energy from primary model (eSen-SM)
+          - 'fallback_energy': energy from fallback model (MACE/EquiformerV2)
+          - 'disagreement_eV': absolute difference
+          - 'relative_disagreement': |diff| / mean(|energies|)
+          - 'is_ood': True if disagreement exceeds threshold
+
+        Should only be called on top-k candidates during validation rounds.
+
+    Args:
+        atoms: Atomic structure consumed by the calculator.
+        primary_calc: Primary calc used by this operation.
+        fallback_calc: Fallback calc used by this operation.
+        property_name: Property name used by this operation.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
     """
     from ase.optimize import BFGS
-    
+
     result = {}
-    
+
     try:
         # Primary model (eSen-SM)
         atoms_p = atoms.copy()
@@ -161,7 +173,7 @@ def dual_model_disagreement(atoms, primary_calc, fallback_calc,
         diff = abs(e_primary - e_fallback)
         mean_abs = (abs(e_primary) + abs(e_fallback)) / 2.0
         rel_diff = diff / max(mean_abs, 0.01)
-        
+
         result['disagreement_eV'] = float(diff)
         result['relative_disagreement'] = float(rel_diff)
         # OOD threshold: >2 eV absolute OR >50% relative
@@ -181,50 +193,61 @@ def dual_model_disagreement(atoms, primary_calc, fallback_calc,
 def compute_model_confidence(genome: tuple, elements: List[str],
                              dual_result: Optional[Dict] = None) -> float:
     """
-    Compute combined confidence score for a screening prediction.
-    
-    Combines:
-      - Layer 1: class-level prior (40% weight)
-      - Layer 2: element coverage (30% weight)
-      - Layer 3: dual-model disagreement if available (30% weight)
-    
-    Returns: float in [0, 1], where 1.0 = high confidence, 0.0 = don't trust.
+        Compute combined confidence score for a screening prediction.
+
+        Combines:
+          - Layer 1: class-level prior (40% weight)
+          - Layer 2: element coverage (30% weight)
+          - Layer 3: dual-model disagreement if available (30% weight)
+
+        Returns: float in [0, 1], where 1.0 = high confidence, 0.0 = don't trust.
+
+    Args:
+        genome: Encoded catalyst composition and structural configuration.
+        elements: Ordered values supplying elements.
+        dual_result: Dual result used by this operation.
     """
     mat_class = genome[0]
-    
+
     # Layer 1: class prior
     cls_conf = CLASS_CONFIDENCE.get(mat_class, 0.3)
-    
+
     # Layer 2: element coverage
     elem_conf = element_coverage_score(elements)
-    
+
     if dual_result is not None and 'relative_disagreement' in dual_result:
         # Layer 3 available: use all three
         rel_dis = dual_result['relative_disagreement']
         # Convert disagreement to confidence: 0% disagreement → 1.0, 100% → 0.0
         dual_conf = max(0.0, 1.0 - rel_dis)
-        
+
         confidence = 0.50 * cls_conf + 0.25 * elem_conf + 0.25 * dual_conf
     else:
         # No dual model: class prior dominates (it captures structural coverage)
         confidence = 0.65 * cls_conf + 0.35 * elem_conf
-    
+
     return float(np.clip(confidence, 0.0, 1.0))
 
 
 def confidence_penalty(confidence: float) -> float:
     """
-    Convert model confidence to NSGA-II objective penalty.
-    
-    Applied ADDITIVELY to predicted properties:
-      confidence 1.0 → penalty 0.0 (no change)
-      confidence 0.5 → penalty 0.5 (shifted by 0.5 V)
-      confidence 0.2 → penalty 0.8 (shifted by 0.8 V)
-      confidence 0.0 → penalty 1.0 (maximum shift)
-    
-    Additive penalty ensures OOD candidates get worse rankings regardless
-    of whether the surrogate prediction is positive or negative.
-    This makes the GA prefer candidates where the model is trustworthy,
-    without completely eliminating OOD candidates from exploration.
+        Convert model confidence to NSGA-II objective penalty.
+
+        Applied ADDITIVELY to predicted properties:
+          confidence 1.0 → penalty 0.0 (no change)
+          confidence 0.5 → penalty 0.5 (shifted by 0.5 V)
+          confidence 0.2 → penalty 0.8 (shifted by 0.8 V)
+          confidence 0.0 → penalty 1.0 (maximum shift)
+
+        Additive penalty ensures OOD candidates get worse rankings regardless
+        of whether the surrogate prediction is positive or negative.
+        This makes the GA prefer candidates where the model is trustworthy,
+        without completely eliminating OOD candidates from exploration.
+
+    Args:
+        confidence: Confidence used by this operation.
+
+    Returns:
+        Computed `float` value in the units documented above.
     """
     return 1.0 - confidence

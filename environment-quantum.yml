@@ -1,0 +1,13 @@
+name: quantum-env
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - numpy
+  - scipy
+  - pip
+  - pip:
+      - cuda-quantum
+      - cuquantum-cu12
+      - openfermion==1.7.1
+      - pyscf==2.13.1

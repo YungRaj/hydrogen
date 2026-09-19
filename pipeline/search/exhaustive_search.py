@@ -22,6 +22,21 @@ from pipeline.search.indexed_space import (
 
 @dataclass
 class ScanConfig:
+    """Configure a bounded, resumable indexed-space scan.
+
+    Attributes:
+        application: Configured application value.
+        database: Configured database value.
+        start: Configured start value.
+        stop: Configured stop value.
+        batch_size: Configured batch size value.
+        worker_id: Configured worker id value.
+        num_workers: Configured num workers value.
+        global_archive_size: Configured global archive size value.
+        max_batches: Configured max batches value.
+        state_id: Configured state id value.
+        deadline_epoch_s: Configured deadline epoch s value.
+    """
     application: str
     database: str
     start: int = 0
@@ -207,9 +222,16 @@ def run_streaming_scan(config: ScanConfig,
                        scorer: Callable[[List[tuple]], np.ndarray]) -> dict:
     """Score a complete or partial global range and resume safely after exits.
 
-    ``scorer`` must return an ``(N, M)`` minimization-objective array.  The
-    database stores only global and per-region champions plus a cryptographic
-    digest for each processed chunk, keeping storage independent of 21.1B N.
+        ``scorer`` must return an ``(N, M)`` minimization-objective array.  The
+        database stores only global and per-region champions plus a cryptographic
+        digest for each processed chunk, keeping storage independent of 21.1B N.
+
+    Args:
+        config: Configuration controlling this operation.
+        scorer: Injected callable used to perform scorer.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
     """
     if not 0 <= config.start <= config.stop <= TOTAL_SIZE:
         raise ValueError("scan bounds outside indexed space")
@@ -519,7 +541,16 @@ def _merge_shard_archives(config: ScanConfig, shard_databases: list[Path],
 def run_sharded_scan(config: ScanConfig,
                      scorer: Callable[[List[tuple]], np.ndarray],
                      workers: int) -> dict:
-    """Run one range through independent deterministic process/database shards."""
+    """Run one range through independent deterministic process/database shards.
+
+    Args:
+        config: Configuration controlling this operation.
+        scorer: Injected callable used to perform scorer.
+        workers: Number or collection of parallel workers.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     if workers < 1:
         raise ValueError('workers must be positive')
     range_size = config.stop - config.start
@@ -578,7 +609,16 @@ def run_sharded_scan(config: ScanConfig,
 
 def load_archive_genomes(database: str, application: str,
                          limit: int = 10000) -> List[tuple]:
-    """Load deduplicated global and region champions for downstream search."""
+    """Load deduplicated global and region champions for downstream search.
+
+    Args:
+        database: Database used by this operation.
+        application: Scientific objective, such as pyrolysis or ORR.
+        limit: Limit used by this operation.
+
+    Returns:
+        List of computed or validated records.
+    """
     conn = _connect(database)
     rows = conn.execute("""
         SELECT genome, primary_score FROM global_archive WHERE application=?

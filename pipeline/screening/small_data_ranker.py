@@ -10,10 +10,48 @@ import numpy as np
 from pipeline.common.catalyst_spaces import encode_population
 
 TREE_ENSEMBLE_SIZE = 256
+MIN_TRAINING_ROWS = 20
+
+
+def valid_training_row_count(frame, application: str) -> int:
+    """Count rows that can actually train the requested ranker.
+
+    Args:
+        frame: Tabular candidate or result records.
+        application: Scientific objective, such as pyrolysis or ORR.
+
+    Returns:
+        Computed `int` value in the units documented above.
+    """
+    if application == "turquoise_hydrogen":
+        columns = ("E_act",)
+    elif application == "fuel_cell_orr":
+        columns = ("dG_OH_eV", "dG_O_eV", "dG_OOH_eV")
+    else:
+        raise ValueError(f"unknown application {application}")
+    count = 0
+    for _, row in frame.iterrows():
+        try:
+            values = [float(row[column]) for column in columns]
+            ast.literal_eval(row["genome"]) if isinstance(row["genome"], str) else tuple(row["genome"])
+            if bool(row.get("valid", True)) and np.all(np.isfinite(values)):
+                count += 1
+        except (ValueError, TypeError, SyntaxError, KeyError):
+            continue
+    return count
 
 
 def merge_compatible_evidence(current, ledger, protocol_id: str):
-    """Merge prior same-protocol observations without inventing compatibility."""
+    """Merge prior same-protocol observations without inventing compatibility.
+
+    Args:
+        current: Current used by this operation.
+        ledger: Ledger used by this operation.
+        protocol_id: Protocol id used by this operation.
+
+    Returns:
+        Computed result described above.
+    """
     import pandas as pd
 
     frames = [current]
@@ -29,6 +67,13 @@ def merge_compatible_evidence(current, ledger, protocol_id: str):
 
 @dataclass
 class TreeRanker:
+    """Wrap a fitted small-data ranker and its uncertainty ensemble.
+
+    Attributes:
+        application: Configured application value.
+        model: Configured model value.
+        target_columns: Configured target columns value.
+    """
     application: str
     model: object
     target_columns: tuple[str, ...]
@@ -46,6 +91,15 @@ class TreeRanker:
         # sklearn validates and converts X on every individual DecisionTree
         # call.  The encoder already guarantees a finite dense matrix, so do
         # that conversion once instead of hundreds of times per scan batch.
+        """Predict outputs and uncertainty for one feature vector.
+
+        Args:
+            genomes: Encoded catalyst candidates to score.
+            uncertainty: Whether prediction uncertainty should be returned.
+
+        Returns:
+            Predicted outputs paired with model uncertainty.
+        """
         x = np.asarray(encode_population(genomes), dtype=np.float32, order="C")
         total = np.zeros(len(x), dtype=float)
         total_sq = np.zeros(len(x), dtype=float) if uncertainty else None
@@ -64,7 +118,16 @@ class TreeRanker:
 
 
 def fit_tree_ranker(frame, application: str, random_state: int = 20260721) -> TreeRanker:
-    """Fit the application-specific form validated by prospective pilots."""
+    """Fit the application-specific form validated by prospective pilots.
+
+    Args:
+        frame: Tabular candidate or result records.
+        application: Scientific objective, such as pyrolysis or ORR.
+        random_state: Random state used by this operation.
+
+    Returns:
+        Computed `TreeRanker` result.
+    """
     from sklearn.ensemble import ExtraTreesRegressor
     if application == "turquoise_hydrogen":
         columns = ("E_act",)
@@ -81,8 +144,9 @@ def fit_tree_ranker(frame, application: str, random_state: int = 20260721) -> Tr
                 rows.append(values); genomes.append(genome)
         except (ValueError, TypeError, SyntaxError, KeyError):
             continue
-    if len(rows) < 20:
-        raise ValueError(f"tree ranker requires at least 20 valid rows; got {len(rows)}")
+    if len(rows) < MIN_TRAINING_ROWS:
+        raise ValueError(
+            f"tree ranker requires at least {MIN_TRAINING_ROWS} valid rows; got {len(rows)}")
     y = np.asarray(rows, float)
     if len(columns) == 1:
         y = y[:, 0]
@@ -97,6 +161,15 @@ def fit_tree_ranker(frame, application: str, random_state: int = 20260721) -> Tr
 
 
 def turquoise_tree_objectives(genomes, ranker: TreeRanker) -> np.ndarray:
+    """Extract turquoise-hydrogen ranking targets from a screening frame.
+
+    Args:
+        genomes: Encoded catalyst candidates to score.
+        ranker: Fitted tree ranker used for objective prediction.
+
+    Returns:
+        A `np.ndarray` containing the turquoise tree objectives result.
+    """
     from pipeline.common.utils import abundance_cost_penalty
     from pipeline.screening.genetic_optimizer import _extract_elements_from_genome
     primary, _ = ranker.predict(genomes, uncertainty=False)
@@ -109,6 +182,15 @@ def turquoise_tree_objectives(genomes, ranker: TreeRanker) -> np.ndarray:
 
 
 def orr_tree_objectives(genomes, ranker: TreeRanker) -> np.ndarray:
+    """Extract ORR ranking targets from a screening frame.
+
+    Args:
+        genomes: Encoded catalyst candidates to score.
+        ranker: Fitted tree ranker used for objective prediction.
+
+    Returns:
+        A `np.ndarray` containing the orr tree objectives result.
+    """
     from pipeline.screening.fc_genetic_optimizer import _cost_from_genome, _fenton_from_genome
     from pipeline.common.application_scope import pemfc_cathode_scope
     primary, _ = ranker.predict(genomes, uncertainty=False)

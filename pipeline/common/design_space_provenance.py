@@ -10,12 +10,12 @@ from __future__ import annotations
 SOURCES = {
     "project_turquoise_review": {
         "kind": "curated_project_review",
-        "citation": "TURQUOISE_HYDROGEN.md",
+        "citation": "docs/TURQUOISE_HYDROGEN.md",
         "scope": "methane-pyrolysis catalyst families, reactors, and operating ranges",
     },
     "project_fuel_cell_review": {
         "kind": "curated_project_review",
-        "citation": "FUEL_CELL.md",
+        "citation": "docs/FUEL_CELL.md",
         "scope": "ORR catalyst families, coordination motifs, MEAs, and stacks",
     },
     "materials_project": {
@@ -94,7 +94,14 @@ DESIGN_AXIS_PROVENANCE = {
 
 
 def validate_provenance(material_classes) -> dict:
-    """Fail closed if a class, axis, or referenced source lacks provenance."""
+    """Fail closed if a class, axis, or referenced source lacks provenance.
+
+    Args:
+        material_classes: Material classes used by this operation.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     failures = []
     for material_class in material_classes:
         axes = DESIGN_AXIS_PROVENANCE.get(material_class)

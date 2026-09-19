@@ -29,7 +29,7 @@ logger = logging.getLogger('surrogate_model')
 class CatalystSurrogate(nn.Module):
     """
     Multi-task neural network for catalyst property prediction.
-    
+
     Architecture: Shared feature extractor → task-specific heads
     """
 
@@ -67,6 +67,14 @@ class CatalystSurrogate(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, ...]:
+        """Evaluate the neural-network forward pass.
+
+        Args:
+            x: Feature matrix or tensor consumed by the fitted model.
+
+        Returns:
+            The network output tensor for the supplied batch.
+        """
         features = self.backbone(x)
         valid_logit = self.head_valid(features)
         de_split = self.head_de_split(features)
@@ -160,7 +168,22 @@ def train_surrogate(X: np.ndarray, y_valid: np.ndarray,
                     epochs: int = 30, batch_size: int = 2048,
                     lr: float = 0.003, device: str = 'cuda:0') -> CatalystSurrogate:
     """
-    Train the surrogate model on Fairchem screening data.
+        Train the surrogate model on Fairchem screening data.
+
+    Args:
+        X: Input feature tensor or matrix.
+        y_valid: Target values for valid.
+        y_de_split: Target values for de split.
+        y_coking: Target values for coking.
+        y_seg: Target values for seg.
+        y_e_act: Target values for e act.
+        epochs: Epochs used by this operation.
+        batch_size: Maximum systems evaluated together.
+        lr: Lr used by this operation.
+        device: CPU or GPU device requested for execution.
+
+    Returns:
+        Computed `CatalystSurrogate` result.
     """
     model = CatalystSurrogate(input_dim=X.shape[1]).to(device)
     _train_model_inplace(model, X, y_valid, y_de_split, y_coking, y_seg, y_e_act,
@@ -172,7 +195,15 @@ def train_surrogate(X: np.ndarray, y_valid: np.ndarray,
 def predict_batch(model: CatalystSurrogate, X: np.ndarray,
                   device: str = 'cuda:0') -> dict:
     """
-    Predict catalyst properties for a batch of feature vectors.
+        Predict catalyst properties for a batch of feature vectors.
+
+    Args:
+        model: Fitted model used for inference.
+        X: Input feature tensor or matrix.
+        device: CPU or GPU device requested for execution.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
     """
     model.eval()
     X_t = torch.tensor(X, dtype=torch.float32).to(device)
@@ -205,7 +236,24 @@ def train_ensemble(X: np.ndarray, y_valid: np.ndarray,
                    y_seg: np.ndarray, y_e_act: np.ndarray,
                    n_models: int = 3, epochs: int = 30, batch_size: int = 2048,
                    lr: float = 0.003, device: str = 'cuda:0') -> SurrogateEnsemble:
-    """Train an ensemble of surrogate models on bootstrapped subsets."""
+    """Train an ensemble of surrogate models on bootstrapped subsets.
+
+    Args:
+        X: Input feature tensor or matrix.
+        y_valid: Target values for valid.
+        y_de_split: Target values for de split.
+        y_coking: Target values for coking.
+        y_seg: Target values for seg.
+        y_e_act: Target values for e act.
+        n_models: Number of models to use.
+        epochs: Epochs used by this operation.
+        batch_size: Maximum systems evaluated together.
+        lr: Lr used by this operation.
+        device: CPU or GPU device requested for execution.
+
+    Returns:
+        Computed `SurrogateEnsemble` result.
+    """
     ensemble = SurrogateEnsemble(n_models=n_models, input_dim=X.shape[1]).to(device)
     n_samples = len(X)
 
@@ -234,7 +282,15 @@ def train_ensemble(X: np.ndarray, y_valid: np.ndarray,
 def predict_ensemble(ensemble: SurrogateEnsemble, X: np.ndarray,
                      device: str = 'cuda:0') -> dict:
     """
-    Predict properties using the ensemble, returning both mean and standard deviation.
+        Predict properties using the ensemble, returning both mean and standard deviation.
+
+    Args:
+        ensemble: Ensemble used by this operation.
+        X: Input feature tensor or matrix.
+        device: CPU or GPU device requested for execution.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
     """
     preds_list = []
     for model in ensemble.models:

@@ -18,6 +18,16 @@ FAIL = 0
 ERRORS = []
 
 def check(name, condition, detail=""):
+    """Record a named audit assertion and retain any failure details.
+
+    Args:
+        name: Human-readable identifier used in diagnostics and output.
+        condition: Boolean outcome of the audited condition.
+        detail: Diagnostic detail reported when the condition fails.
+
+    Returns:
+        The computed check result.
+    """
     global PASS, FAIL
     if condition:
         PASS += 1
@@ -120,8 +130,8 @@ check("All elements in METAL_PRICE_USD_KG",
       len(missing_price) == 0,
       f"Missing: {sorted(missing_price)}")
 
-missing_ood_elem = [e for e in all_elements 
-                     if e not in _ELEMENT_COVERAGE 
+missing_ood_elem = [e for e in all_elements
+                     if e not in _ELEMENT_COVERAGE
                      and e not in ('N', 'O', 'C', 'F', 'Cl', 'Br', 'I', 'S', 'P', 'H', 'B', 'Si')]
 # Note: non-metals are expected to not be in OOD element coverage (they're not metals)
 # But metals should be there
@@ -269,7 +279,7 @@ check("CH4 surrogate: no NaN (280 preds)",
       len(ch4_nan_classes) == 0,
       f"NaN in: {ch4_nan_classes}")
 
-# ORR surrogate  
+# ORR surrogate
 orr_model = ORRCatalystSurrogate(input_dim=FEATURE_DIM)
 orr_model.eval()
 orr_nan_classes = []
@@ -426,7 +436,7 @@ cathode_failures = []
 for c in candidates:
     genome = c['genome']
     cls = genome[0]
-    
+
     # Verify genome can be encoded
     try:
         enc = encode_genome(genome)

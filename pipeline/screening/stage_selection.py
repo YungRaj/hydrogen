@@ -17,7 +17,15 @@ QUANTITATIVE_SCREENING = 'quantitative_screening'
 
 
 def evidence_disposition(row, primary: str) -> str:
-    """Classify evidence without conflating calculation failure with chemistry."""
+    """Classify evidence without conflating calculation failure with chemistry.
+
+    Args:
+        row: Row used by this operation.
+        primary: Primary used by this operation.
+
+    Returns:
+        Computed `str` result.
+    """
     declared = str(row.get('candidate_disposition', '') or '')
     if declared == HARD_EXCLUSION:
         return HARD_EXCLUSION
@@ -36,6 +44,15 @@ def evidence_disposition(row, primary: str) -> str:
 
 
 def annotate_evidence(frame: pd.DataFrame, primary: str) -> pd.DataFrame:
+    """Attach explicit evidence authority and limitations to a result.
+
+    Args:
+        frame: Tabular candidate records to annotate or evaluate.
+        primary: Primary objective column used to order evidence.
+
+    Returns:
+        A `pd.DataFrame` containing the annotate evidence result.
+    """
     result = frame.copy()
     result['candidate_disposition'] = [
         evidence_disposition(row, primary) for _, row in result.iterrows()]
@@ -94,7 +111,17 @@ def _class_preserving(frame: pd.DataFrame, n_select: int, primary: str,
 
 def select_for_reactor(frame: pd.DataFrame, n_select: int, primary: str,
                        min_per_class: int = 1) -> pd.DataFrame:
-    """Select only complete numerical evidence, retaining class champions."""
+    """Select only complete numerical evidence, retaining class champions.
+
+    Args:
+        frame: Tabular candidate or result records.
+        n_select: Number of select to use.
+        primary: Primary used by this operation.
+        min_per_class: Bound controlling min per class.
+
+    Returns:
+        Computed `pd.DataFrame` result.
+    """
     annotated = annotate_evidence(frame, primary)
     eligible = annotated[
         annotated['candidate_disposition'].eq(QUANTITATIVE_SCREENING)]
@@ -104,7 +131,17 @@ def select_for_reactor(frame: pd.DataFrame, n_select: int, primary: str,
 
 def select_for_validation(frame: pd.DataFrame, n_select: int, primary: str,
                           min_per_class: int = 1) -> pd.DataFrame:
-    """Select a diverse rescue/confirmation slate, excluding only hard hazards."""
+    """Select a diverse rescue/confirmation slate, excluding only hard hazards.
+
+    Args:
+        frame: Tabular candidate or result records.
+        n_select: Number of select to use.
+        primary: Primary used by this operation.
+        min_per_class: Bound controlling min per class.
+
+    Returns:
+        Computed `pd.DataFrame` result.
+    """
     annotated = annotate_evidence(frame, primary)
     eligible = annotated[~annotated['candidate_disposition'].eq(HARD_EXCLUSION)]
     return _class_preserving(

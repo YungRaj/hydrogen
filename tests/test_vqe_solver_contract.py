@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """CUDA-Q environment contract: compare VQE with exact diagonalization."""
 
+from pathlib import Path
+import sys
+
 import numpy as np
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from pipeline.validation.vqe_transition_state import (
     build_ch_splitting_hamiltonian, run_vqe)

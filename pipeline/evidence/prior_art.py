@@ -1,5 +1,6 @@
 """Versioned evidence registry for literature, patents, and experiments."""
 
+import argparse
 import ast
 import csv
 import hashlib
@@ -12,6 +13,8 @@ from pipeline.search.discovery import candidate_id, discovery_region
 
 
 class PriorArtRegistry:
+    """Store and query curated, dated prior-art records.
+    """
     def __init__(self, database: str):
         Path(database).parent.mkdir(parents=True, exist_ok=True)
         self.database = database
@@ -50,6 +53,19 @@ class PriorArtRegistry:
     def add(self, genome: tuple, source_type: str, source_id: str,
             citation: str = '', evidence_level: str = 'reported',
             publication_year: int | None = None):
+        """Insert or replace one prior-art record.
+
+        Args:
+            genome: Encoded catalyst composition and structural configuration.
+            source_type: Kind of publication or database supplying the prior-art record.
+            source_id: Stable DOI, accession, or source identifier.
+            citation: Human-readable citation for the prior-art source.
+            evidence_level: Authority level supported by the source record.
+            publication_year: Year used for time-split novelty evaluation.
+
+        Returns:
+            The computed add result.
+        """
         if not str(source_id).strip():
             raise ValueError('prior-art source_id is required')
         if publication_year is not None and not 1800 <= int(publication_year) <= 2200:
@@ -75,6 +91,14 @@ class PriorArtRegistry:
                  record_hash, time.time()))
 
     def import_csv(self, path: str) -> int:
+        """Import curated prior-art records from CSV.
+
+        Args:
+            path: Input or output filesystem path.
+
+        Returns:
+            The computed import csv numeric value.
+        """
         count = 0
         with open(path, newline='') as handle:
             for row in csv.DictReader(handle):
@@ -87,7 +111,79 @@ class PriorArtRegistry:
                 count += 1
         return count
 
+    def import_curated_manifest(self, path: str) -> dict:
+        """Validate and import a checksum-bound, time-split prior-art corpus.
+
+        Args:
+            path: Filesystem path to the input or output artifact.
+
+        Returns:
+            Dictionary containing the computed values, status, and supporting metadata.
+        """
+        manifest_path = Path(path).expanduser().resolve()
+        payload = json.loads(manifest_path.read_text())
+        if payload.get('schema_version') != 1:
+            raise ValueError('prior-art manifest schema_version must be 1')
+        cutoff = int(payload['training_cutoff_year'])
+        records = payload.get('records')
+        if not isinstance(records, list) or not records:
+            raise ValueError('prior-art manifest records must be a nonempty list')
+        validated, identities = [], set()
+        for index, row in enumerate(records):
+            label = f'records[{index}]'
+            required = ('genome', 'source_type', 'source_id', 'citation',
+                        'evidence_level', 'publication_year', 'split',
+                        'source_path', 'source_sha256')
+            missing = [key for key in required if row.get(key) in (None, '')]
+            if missing:
+                raise ValueError(f'{label} missing {missing}')
+            genome = ast.literal_eval(row['genome']) if isinstance(
+                row['genome'], str) else tuple(row['genome'])
+            genome = tuple(genome)
+            # These calls prove that the record maps into the encoded space.
+            cid = candidate_id(genome)
+            discovery_region(genome)
+            year, split = int(row['publication_year']), str(row['split'])
+            if split not in ('training', 'holdout'):
+                raise ValueError(f'{label} split must be training or holdout')
+            if (split == 'training' and year > cutoff) or (
+                    split == 'holdout' and year <= cutoff):
+                raise ValueError(f'{label} violates the declared time split')
+            source = Path(row['source_path']).expanduser()
+            if not source.is_absolute():
+                source = manifest_path.parent / source
+            if not source.is_file():
+                raise ValueError(f'{label} source file is missing')
+            digest = hashlib.sha256(source.read_bytes()).hexdigest()
+            if digest != str(row['source_sha256']).lower():
+                raise ValueError(f'{label} source checksum mismatch')
+            identity = (cid, str(row['source_id']))
+            if identity in identities:
+                raise ValueError(f'{label} duplicates candidate/source identity')
+            identities.add(identity)
+            validated.append((genome, row))
+        # Validation is completed before the first database mutation.
+        for genome, row in validated:
+            self.add(genome, row['source_type'], row['source_id'],
+                     row['citation'], row['evidence_level'],
+                     int(row['publication_year']))
+        return {
+            'imported': len(validated), 'training_cutoff_year': cutoff,
+            'training': sum(r['split'] == 'training' for _, r in validated),
+            'holdout': sum(r['split'] == 'holdout' for _, r in validated),
+            'manifest_sha256': hashlib.sha256(
+                manifest_path.read_bytes()).hexdigest(),
+        }
+
     def classify(self, genome: tuple) -> dict:
+        """Classify a candidate against dated prior-art records.
+
+        Args:
+            genome: Encoded catalyst composition and structural configuration.
+
+        Returns:
+            The prior-art classification and matching source records.
+        """
         cid = candidate_id(genome)
         region = '|'.join(discovery_region(genome))
         with self._connect() as conn:
@@ -103,12 +199,26 @@ class PriorArtRegistry:
                 'novelty_status': 'known' if exact else ('region_known' if related else 'unseen')}
 
     def count(self) -> int:
+        """Count stored prior-art records.
+
+        Returns:
+            The number of records currently stored.
+        """
         with self._connect() as conn:
             return int(conn.execute(
                 "SELECT COUNT(*) FROM prior_art_records").fetchone()[0])
 
 
 def annotate_prior_art(frame, database: str):
+    """Attach prior-art classifications to candidate records.
+
+    Args:
+        frame: Tabular candidate records to annotate or evaluate.
+        database: Path to the persistent campaign database.
+
+    Returns:
+        The computed annotate prior art result.
+    """
     if frame is None or 'genome' not in frame.columns:
         return frame
     registry = PriorArtRegistry(database)
@@ -127,3 +237,19 @@ def annotate_prior_art(frame, database: str):
     frame['exact_prior_art'] = exact
     frame['region_prior_art_count'] = related
     return frame
+
+
+def main() -> None:
+    """Run the module command-line entry point.
+    """
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--database', required=True)
+    parser.add_argument('--curated-manifest', required=True)
+    args = parser.parse_args()
+    report = PriorArtRegistry(args.database).import_curated_manifest(
+        args.curated_manifest)
+    print(json.dumps(report, indent=2, sort_keys=True))
+
+
+if __name__ == '__main__':
+    main()

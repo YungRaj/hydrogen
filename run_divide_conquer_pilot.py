@@ -81,6 +81,15 @@ def _training_frame(application: str) -> pd.DataFrame:
 
 
 def prepare(per_class: int = 4, extra_slots: int = 6) -> None:
+    """Load and validate the inputs required by this command stage.
+
+    Args:
+        per_class: Reserved validation requests per material class.
+        extra_slots: Additional requests allocated by adaptive priority.
+
+    Returns:
+        The computed prepare result.
+    """
     import torch
     from pipeline.search.adaptive_validation import allocate_validation_batch
     from pipeline.screening.genetic_optimizer import (_train_ensemble_from_db,
@@ -198,6 +207,11 @@ def prepare(per_class: int = 4, extra_slots: int = 6) -> None:
 
 
 def evaluate(application: str) -> None:
+    """Evaluate one candidate for the pilot strategy.
+
+    Args:
+        application: Scientific application or objective family.
+    """
     payload = json.loads(MANIFEST.read_text())
     record = next(x for x in payload["records"] if x["application"] == application)
     allowed = set(record["eligible_ids"])
@@ -215,6 +229,11 @@ def evaluate(application: str) -> None:
 
 
 def analyze() -> None:
+    """Aggregate completed pilot observations into comparison metrics.
+
+    Returns:
+        The computed analyze result.
+    """
     payload = json.loads(MANIFEST.read_text())
     paths = {"turquoise_hydrogen": Path(f"results/screening/pilot/divide_conquer_{ROUND}_pyrolysis.csv"),
              "fuel_cell_orr": Path(f"results/fuel_cell/pilot/divide_conquer_{ROUND}_orr.csv")}

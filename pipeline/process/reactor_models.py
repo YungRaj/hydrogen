@@ -3,19 +3,31 @@
 """
 Cantera Reactor-Scale Simulation Models for Methane Pyrolysis.
 
-Three reactor archetypes with distinct carbon-handling physics:
-  A. MMBCR — continuous buoyant/transport carbon removal (steady; no site lattice claim)
-  B. PFR — one shared surface marched through stages (time-on-stream, not axial);
-     optional discrete non-oxidative regen
-  C. Fluidized — explicit batch_regen vs circulating mode
+Three Cantera-backed reactor archetypes with distinct carbon-handling physics:
+  A. MMBCR — melt ODE to tabulated X_eq with bubble-area flotation. Residence
+     time is column height over the Mendelson bubble rise velocity; gas holdup
+     is derived, not an input. Carbon leaves the bubble; no site lattice.
+  B. PFR — one shared Langmuir surface marched through stages (θ_C is
+     time-on-stream, not axial); optional discrete non-oxidative regen.
+  C. Fluidized — emulsion pass with in-step C_s removal (circulating) or
+     batch regen, then bubble bypass mixed on molar flows via the Ar tracer.
+
+NTEC and electrochemical pathways consume validated external multiphysics
+artifacts. Cantera supplies chemistry within those coupled calculations, but
+does not itself solve their mechanical/electrical/charge-transport physics.
 
 Solid carbon is never a gas-phase species. Surface C_s blocks sites on solid
-paths until removed by a named policy. Oxidative regen requires co2_permitted.
+paths until removed by a named policy or a gated off-site channel (B6).
+Oxidative regen requires co2_permitted. Γ is a monolayer and is locked (B1).
+
+Reactor routing is owned by ``pipeline.process.pathway_modes``: a reactor
+type must belong to the selected pathway mode, and MMBCR is applicable only
+to MoltenMetal candidates.
 """
 
 import json
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -32,6 +44,9 @@ from pipeline.common.utils import (
     REACTOR_DIR,
     setup_logger, print_banner, save_json,
 )
+from pipeline.process.pathway_modes import (
+    DEFAULT_MODE, REACTOR_MODELS, reactor_applicability,
+    reactor_types_for_mode, validate_mode_reactors)
 from pipeline.process.reactor_mechanisms import MONOLAYER_SITE_DENSITY_MOL_CM2
 
 logger = setup_logger('reactor_models', 'reactor/reactor_simulation.log')
@@ -57,7 +72,32 @@ MMBCR_INTERFACIAL_K0_MAX_KIND = 'guardrail_not_physical_bound'
 # None = unconstrained flotation (carbon leaves as produced). 0 = fouled
 # interface. Finite = k_float / (k_float + k_if * a) on the ODE.
 MMBCR_FLOTATION_UNCONSTRAINED = None
+# Melt properties for the Mendelson bubble rise velocity. Ni-Bi order of
+# magnitude (σ ~ 0.4 N/m, ρ ~ 9000 kg/m³); not fitted to any column.
+MMBCR_MELT_SURFACE_TENSION_N_M = 0.4
+MMBCR_MELT_DENSITY_KG_M3 = 9000.0
+# Above this derived holdup the column is churn-turbulent and the bubbly-flow
+# CSTR-cascade / single-bubble ODE picture no longer holds. Fail closed.
+MMBCR_MAX_GAS_HOLDUP = 0.3
+MMBCR_BUBBLE_RISE_BASIS = 'mendelson_sqrt(2*sigma/(rho*d_b) + g*d_b/2)'
+MMBCR_RESIDENCE_BASIS = 'column_height_over_bubble_rise_velocity'
+MMBCR_ARTIFACT_RESIDENCE_BASIS = 'gas_holdup_times_column_height_over_superficial_velocity'
+G_M_S2 = 9.80665
 FLUIDIZED_REMOVAL_SUBSTEPS = 20
+
+# Closure tiers for the two Cantera reactors whose hydrodynamics upstream
+# expects from an external solver. A validated OpenFOAM artifact or a
+# calibrated surrogate always wins; absent both, these reactors run on an
+# explicitly labelled analytical bubbly-flow closure that can never exclude
+# a candidate. NTEC / Electrochemical have no analytical closure.
+ANALYTICAL_CLOSURE_SOURCE = 'analytical_hydrodynamic_closure'
+ANALYTICAL_CLOSURE_REACTORS = frozenset({'Fluidized', 'MMBCR'})
+ANALYTICAL_CLOSURE_BASIS = {
+    'Fluidized': 'bubble_fraction = clip((u0-umf)/u0, 0.01, 0.5); emulsion at umf',
+    'MMBCR': MMBCR_BUBBLE_RISE_BASIS + '; eps_g = u_sup/u_b; tau = H/u_b',
+}
+EXTERNAL_CLOSURE_SOURCES = frozenset({
+    'validated_full_physics', 'calibrated_transport_surrogate'})
 
 # Production solids particle size (B1-3). ROI map: last Ergun-legal
 # envelope cell with margin is 0.10 mm (0.67 bar); 0.08 mm fails.
@@ -90,22 +130,35 @@ INVENTORY_ROI_REASON = (
 )
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# REACTOR CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════════════
+
 @dataclass
 class ReactorConfig:
     """Configuration for reactor simulation."""
-    T_inlet_K: float = 1000.0
-    P_inlet_Pa: float = 101325.0
-    inlet_composition: str = 'CH4:0.95, Ar:0.05'
+    # Operating conditions
+    T_inlet_K: float = 1000.0        # Inlet temperature
+    P_inlet_Pa: float = 101325.0     # Inlet pressure (1 atm)
+    inlet_composition: str = 'CH4:0.95, Ar:0.05'  # Feed composition (Ar tracer)
 
-    column_height_m: float = 1.5
-    bubble_diameter_mm: float = 5.0
-    gas_velocity_m_s: float = 0.05
-    n_cstr_stages: int = 20
+    # Bubble column specific. Column height is the residence-time design
+    # lever: τ = H / u_b with u_b from Mendelson (melt σ, ρ, d_b). Gas holdup
+    # is derived as u_sup / u_b and must not be set by the caller.
+    column_height_m: float = 1.5     # Molten metal column height
+    column_diameter_m: float = 0.10  # Internal column diameter
+    bubble_diameter_mm: float = 5.0  # Average bubble diameter
+    gas_velocity_m_s: float = 0.05   # Superficial gas velocity
+    gas_holdup_fraction: Optional[float] = None  # DERIVED (u_sup / u_b); None only
+    n_cstr_stages: int = 20          # Number of melt ODE stages
+    melt_surface_tension_N_m: float = MMBCR_MELT_SURFACE_TENSION_N_M
+    melt_density_kg_m3: float = MMBCR_MELT_DENSITY_KG_M3
 
-    bed_length_m: float = 0.5
-    bed_diameter_m: float = 0.05
+    # Packed bed specific
+    bed_length_m: float = 0.5        # Catalyst bed length
+    bed_diameter_m: float = 0.05     # Bed diameter (lab-scale tube reactor)
     catalyst_particle_mm: float = DEFAULT_SOLIDS_PARTICLE_MM
-    bed_porosity: float = 0.4
+    bed_porosity: float = 0.4        # Void fraction
     # Γ is a monolayer. Do not raise to force Da (B1).
     site_density_mol_cm2: float = MONOLAYER_SITE_DENSITY_MOL_CM2
     # Fraction of geometric pellet surface that is metal, and of that metal
@@ -115,15 +168,25 @@ class ReactorConfig:
     metal_loading: float = DEFAULT_METAL_LOADING
     metal_dispersion: float = DEFAULT_METAL_DISPERSION
 
-    u_mf_m_s: float = 0.02
-    bed_height_m: float = 0.8
-    catalyst_density_kg_m3: float = 2500.0
+    # Fluidized bed specific
+    u_mf_m_s: float = 0.02          # Minimum fluidization velocity
+    bed_height_m: float = 0.8       # Static bed height
+    catalyst_density_kg_m3: float = 2500.0  # Catalyst particle density
+    fluidized_bubble_fraction: Optional[float] = None  # None = (u0-umf)/u0 clipped
 
-    reactor_type: str = 'MMBCR'
+    # General
+    reactor_type: str = 'PFR'
     mechanism_file: str = ''
     catalyst_name: str = 'test'
+    material_class: Optional[str] = None
+    pathway_mode: str = DEFAULT_MODE
+    candidate_id: str = 'unknown'
+    multiphysics_results_dir: Optional[str] = None
+    multiphysics_artifact: Optional[dict] = None
+    closure_features: Optional[dict] = None
+    reactor_closure_evidence: Optional[dict] = None
     max_residence_time_s: float = 60.0
-    catalyst_E_act_eV: float = 0.8
+    catalyst_E_act_eV: float = 0.8   # Catalyst activation barrier (mock + MMBCR k_if)
     catalyst_dE_H_eV: float = 0.0
 
     # --- Carbon handling (reactor-specific; not one shared "decoke" flag) ---
@@ -180,6 +243,32 @@ def _validate_carbon_policy(config: ReactorConfig) -> None:
             'mmbcr_carbon_removal_rate_1_s must be None (unconstrained) or >= 0')
     if config.circulating_carbon_removal_rate_1_s < 0.0:
         raise ValueError('circulating_carbon_removal_rate_1_s must be >= 0')
+
+
+def _validate_reactor_config(config: ReactorConfig) -> None:
+    """Reject geometries that do not represent the selected physical bed."""
+    if config.T_inlet_K <= 0 or config.P_inlet_Pa <= 0:
+        raise ValueError('reactor temperature and pressure must be positive')
+    if config.reactor_type == 'PFR':
+        if config.bed_length_m <= 0 or config.bed_diameter_m <= 0 or \
+                config.catalyst_particle_mm <= 0 or config.gas_velocity_m_s <= 0:
+            raise ValueError('packed-bed dimensions, particle size, and flow must be positive')
+        if not 0 < config.bed_porosity < 1:
+            raise ValueError('packed-bed porosity must lie strictly between zero and one')
+    elif config.reactor_type == 'Fluidized':
+        if config.bed_height_m <= 0 or config.catalyst_particle_mm <= 0 or \
+                config.u_mf_m_s <= 0:
+            raise ValueError('fluidized-bed dimensions, particle size, and umf must be positive')
+        if config.gas_velocity_m_s <= config.u_mf_m_s:
+            raise ValueError('gas velocity must exceed minimum fluidization velocity')
+    elif config.reactor_type == 'MMBCR':
+        if config.column_height_m <= 0 or config.column_diameter_m <= 0 or \
+                config.bubble_diameter_mm <= 0 or config.gas_velocity_m_s <= 0 or \
+                config.n_cstr_stages < 1:
+            raise ValueError('MMBCR dimensions, flow, bubbles, and stage count must be positive')
+        if config.melt_surface_tension_N_m <= 0 or config.melt_density_kg_m3 <= 0:
+            raise ValueError('MMBCR melt surface tension and density must be positive')
+        _mmbcr_hydrodynamics(config)  # rejects caller-set holdup and churn-turbulent flow
 
 
 def _mechanism_metadata(config: ReactorConfig) -> dict:
@@ -239,6 +328,7 @@ def _policy_metadata(config: ReactorConfig) -> Dict:
         'circulating_carbon_removal_rate_1_s': float(
             config.circulating_carbon_removal_rate_1_s),
         'circulating_carbon_removal_when': 'during_integrate_substeps',
+        'fluidized_bypass_basis': 'ar_tracer_molar_mix',
         'carbon_phase_model': 'condensed_graphite_plus_surface_C_s',
         'mmbcr_rate_model': 'bubble_area_flotation',
         'mmbcr_interfacial_k0_m_s': float(config.mmbcr_interfacial_k0_m_s),
@@ -248,6 +338,13 @@ def _policy_metadata(config: ReactorConfig) -> Dict:
         'mmbcr_interfacial_k0_max_m_s': MMBCR_INTERFACIAL_K0_MAX,
         'mmbcr_interfacial_k0_max_kind': MMBCR_INTERFACIAL_K0_MAX_KIND,
         'mmbcr_flotation_default': 'unconstrained (eta=1); knob wired but off',
+        'mmbcr_bubble_rise_basis': MMBCR_BUBBLE_RISE_BASIS,
+        'mmbcr_residence_time_basis': MMBCR_RESIDENCE_BASIS,
+        'mmbcr_gas_holdup_basis': 'derived u_sup / u_b; not an input',
+        'mmbcr_max_gas_holdup': MMBCR_MAX_GAS_HOLDUP,
+        'melt_surface_tension_N_m': float(config.melt_surface_tension_N_m),
+        'melt_density_kg_m3': float(config.melt_density_kg_m3),
+        'melt_property_basis': 'Ni-Bi order of magnitude; not fitted',
         'solids_thermal_mode': 'isothermal_energy_disabled',
         'solids_conversion_basis': 'argon_tracer',
         'h2_metric_note': (
@@ -521,6 +618,71 @@ def _mmbcr_flotation_eta(k_if_m_s: float, sv_ratio_1_m: float,
     return float(k_float_1_s / denom)
 
 
+def mendelson_bubble_rise_velocity_m_s(d_b_m: float, sigma_N_m: float,
+                                       rho_kg_m3: float) -> float:
+    """Mendelson (1967) terminal rise velocity: sqrt(2σ/(ρ d_b) + g d_b/2)."""
+    if d_b_m <= 0 or sigma_N_m <= 0 or rho_kg_m3 <= 0:
+        raise ValueError('bubble diameter, melt surface tension, and density must be positive')
+    return float(np.sqrt(2.0 * sigma_N_m / (rho_kg_m3 * d_b_m) + G_M_S2 * d_b_m / 2.0))
+
+
+def _mmbcr_hydrodynamics(config: ReactorConfig) -> Dict:
+    """Derive u_b, τ, and gas holdup from geometry; fail closed outside bubbly flow.
+
+    Column height is the residence-time lever (τ = H / u_b). Gas holdup is
+    ε_g = u_sup / u_b and is not an input; above MMBCR_MAX_GAS_HOLDUP the
+    column is churn-turbulent and the single-bubble ODE no longer applies.
+    """
+    d_b = config.bubble_diameter_mm * 1e-3
+    evidence = config.reactor_closure_evidence or {}
+    external = evidence.get('source') in EXTERNAL_CLOSURE_SOURCES
+    if config.gas_holdup_fraction is not None and not external:
+        raise ValueError(
+            f'gas_holdup_fraction={config.gas_holdup_fraction} was set explicitly '
+            'without a validated artifact or calibrated surrogate; MMBCR holdup '
+            'is derived as gas_velocity_m_s / u_b (Mendelson) and must be left '
+            'as None')
+    if external and config.gas_holdup_fraction is not None:
+        # Artifact / surrogate closure wins: eps_g is an external output,
+        # u_b follows from it, tau = eps_g * H / u_sup (gas residence).
+        eps_g = float(config.gas_holdup_fraction)
+        if not 0.0 < eps_g < 1.0:
+            raise ValueError(
+                f'artifact gas_holdup_fraction={eps_g} must lie in (0, 1)')
+        u_b = config.gas_velocity_m_s / eps_g
+        tau_total = config.column_height_m * eps_g / config.gas_velocity_m_s
+        rise_basis = f'u_sup / eps_g from {evidence.get("source")}'
+        holdup_basis = evidence.get('source')
+        residence_basis = MMBCR_ARTIFACT_RESIDENCE_BASIS
+    else:
+        u_b = mendelson_bubble_rise_velocity_m_s(
+            d_b, config.melt_surface_tension_N_m, config.melt_density_kg_m3)
+        eps_g = config.gas_velocity_m_s / u_b
+        if eps_g > MMBCR_MAX_GAS_HOLDUP:
+            raise ValueError(
+                f'derived gas holdup eps_g={eps_g:.3f} exceeds {MMBCR_MAX_GAS_HOLDUP} '
+                f'(churn-turbulent; bubbly-flow melt ODE invalid). u_b={u_b:.3f} m/s '
+                f'from Mendelson at d_b={config.bubble_diameter_mm} mm. Reduce '
+                f'gas_velocity_m_s={config.gas_velocity_m_s} or raise column_height_m'
+                f'={config.column_height_m} for residence time instead')
+        tau_total = config.column_height_m / u_b
+        rise_basis = MMBCR_BUBBLE_RISE_BASIS
+        holdup_basis = 'derived u_sup / u_b'
+        residence_basis = MMBCR_RESIDENCE_BASIS
+    return {
+        'bubble_rise_velocity_m_s': float(u_b),
+        'bubble_rise_basis': rise_basis,
+        'gas_holdup_fraction': float(eps_g),
+        'gas_holdup_basis': holdup_basis,
+        'residence_time_s': float(tau_total),
+        'residence_time_basis': residence_basis,
+        'interfacial_sv_ratio_1_m': 6.0 / d_b,
+        'melt_surface_tension_N_m': float(config.melt_surface_tension_N_m),
+        'melt_density_kg_m3': float(config.melt_density_kg_m3),
+        'melt_property_basis': 'Ni-Bi order of magnitude; not fitted',
+    }
+
+
 def _ch4_extent(gas, x_ch4_feed: float, x_ar_feed: float) -> float:
     from pipeline.process.equilibrium_check import ch4_conversion_from_argon_tracer
     return ch4_conversion_from_argon_tracer(
@@ -562,12 +724,44 @@ def _set_gas_from_ch4_conversion(gas, T_K: float, P_Pa: float,
     gas.TPX = T_K, P_Pa, f'CH4:{n_ch4 / n_tot}, H2:{n_h2 / n_tot}, Ar:{n_ar / n_tot}'
 
 
+def _mix_bubble_bypass(gas, inlet_x: np.ndarray, delta: float,
+                       x_ar_feed: float) -> None:
+    """Mix a bypass stream (fraction δ of feed, unreacted) with the emulsion outlet
+    on a molar basis. Ar is conserved, so the emulsion stream's molar expansion
+    per mole of feed is x_Ar,feed / x_Ar,emulsion."""
+    x_em = np.array(gas.X, dtype=float)
+    x_ar_em = _species_x(gas, 'Ar')
+    if x_ar_em <= 0:
+        raise RuntimeError('Ar tracer vanished from emulsion outlet; cannot mix bypass')
+    expansion = x_ar_feed / x_ar_em
+    moles = delta * np.asarray(inlet_x, dtype=float) + (1.0 - delta) * expansion * x_em
+    total = float(moles.sum())
+    if total <= 0:
+        raise RuntimeError('bubble bypass mixing produced no moles')
+    gas.TPX = gas.T, gas.P, moles / total
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # A. MMBCR — bubble area + carbon flotation (no solid site lattice)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def simulate_mmbcr(config: ReactorConfig) -> Dict:
+    """Melt ODE to tabulated X_eq with bubble-area flotation (B3).
+
+    dX/dz-style first-order approach: per stage
+    ``X ← X_eq − (X_eq − X)·exp(−Da_stage)`` with
+    ``Da = k_if(E_act, T)·(6/d_b)·τ·η``. τ = H / u_b (Mendelson). Column
+    height is the design lever; gas holdup is derived. Carbon floats out of
+    the bubble and is reconstructed from the CH4/H2/Ar balance.
+
+    Args:
+        config: Configuration controlling this operation.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     _validate_carbon_policy(config)
+    hydro = _mmbcr_hydrodynamics(config)
     if not HAS_CANTERA:
         return _mock_reactor_result(config, 'MMBCR')
 
@@ -579,10 +773,9 @@ def simulate_mmbcr(config: ReactorConfig) -> Dict:
     if x_ar_feed <= 0:
         x_ar_feed = max(0.0, 1.0 - x_ch4_feed)
 
-    tau_total = config.column_height_m / config.gas_velocity_m_s
+    tau_total = hydro['residence_time_s']
     tau_stage = tau_total / config.n_cstr_stages
-    d_b = config.bubble_diameter_mm * 1e-3
-    sv_ratio = 6.0 / d_b  # bubble S/V (m² interface / m³ bubble)
+    sv_ratio = hydro['interfacial_sv_ratio_1_m']  # bubble S/V (m² interface / m³ gas)
     x_eq = _tabulated_x_eq(config.T_inlet_K)
     k_if = _mmbcr_interfacial_k_m_s(
         config.catalyst_E_act_eV, config.T_inlet_K, config.mmbcr_interfacial_k0_m_s)
@@ -618,10 +811,10 @@ def simulate_mmbcr(config: ReactorConfig) -> Dict:
         'T_K': config.T_inlet_K,
         'P_Pa': config.P_inlet_Pa,
         'column_height_m': config.column_height_m,
+        'column_diameter_m': config.column_diameter_m,
         'gas_velocity_m_s': config.gas_velocity_m_s,
         'bubble_diameter_mm': config.bubble_diameter_mm,
-        'interfacial_sv_ratio_1_m': sv_ratio,
-        'residence_time_s': tau_total,
+        **hydro,
         'CH4_conversion': float(final_conv),
         'H2_atom_balance': _h2_atom_balance_metric(x_ch4_feed, final_conv, x_h2),
         # Backward-compatible alias; not true selectivity.
@@ -655,7 +848,9 @@ def simulate_mmbcr(config: ReactorConfig) -> Dict:
     }
     logger.info(
         f"  MMBCR result: conversion={final_conv:.2%}, "
-        f"H2_atom_balance={result['H2_atom_balance']:.2%}, τ={tau_total:.1f}s"
+        f"H2_atom_balance={result['H2_atom_balance']:.2%}, "
+        f"τ={tau_total:.1f}s (u_b={hydro['bubble_rise_velocity_m_s']:.3f} m/s, "
+        f"eps_g={hydro['gas_holdup_fraction']:.3f})"
     )
     return result
 
@@ -665,6 +860,19 @@ def simulate_mmbcr(config: ReactorConfig) -> Dict:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def simulate_pfr(config: ReactorConfig) -> Dict:
+    """Packed bed as a staged Lagrangian PFR with one shared surface.
+
+    Surface area per stage is ``sv·V_bed_stage`` where ``sv = 6(1−ε)/d_p``
+    is area per *bed* volume (not ε-scaled), times loading × dispersion.
+    The gas parcel volume is ``ε·V_bed_stage``. Stages are isothermal at
+    ``T_inlet``; CH4 conversion is the Ar-tracer extent.
+
+    Args:
+        config: Configuration controlling this operation.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     _validate_carbon_policy(config)
     if not HAS_CANTERA:
         return _mock_reactor_result(config, 'PFR')
@@ -674,7 +882,7 @@ def simulate_pfr(config: ReactorConfig) -> Dict:
     gas.TPX = config.T_inlet_K, config.P_inlet_Pa, config.inlet_composition
 
     eps = config.bed_porosity
-    sv_ratio = active_sv(geometric_sv_pfr(config), config)
+    sv_ratio = active_sv(geometric_sv_pfr(config), config)  # m² active / m³ bed
     ch4_initial = _species_x(gas, 'CH4') or 1.0
     ar_initial = _species_x(gas, 'Ar')
     _require_ar_tracer(ch4_initial, ar_initial)
@@ -682,7 +890,9 @@ def simulate_pfr(config: ReactorConfig) -> Dict:
     n_stages = 50
     bed_cross_area = np.pi * (config.bed_diameter_m / 2) ** 2
     stage_length = config.bed_length_m / n_stages
-    stage_volume = bed_cross_area * stage_length * eps
+    stage_bed_volume = bed_cross_area * stage_length
+    stage_gas_volume = stage_bed_volume * eps
+    stage_surface_area = sv_ratio * stage_bed_volume
     u_sup = config.gas_velocity_m_s if config.gas_velocity_m_s > 0 else 0.1
     tau_total = config.bed_length_m * eps / u_sup
     tau_stage = tau_total / n_stages
@@ -706,10 +916,10 @@ def simulate_pfr(config: ReactorConfig) -> Dict:
         theta_C_tos.append(_coverage(surf, 'C_s'))
         for _ in range(n_stages):
             reactor = ct.IdealGasReactor(gas)
-            reactor.volume = stage_volume
+            reactor.volume = stage_gas_volume
             _disable_reactor_energy(reactor)
             if surf is not None:
-                ct.ReactorSurface(surf, reactor, A=sv_ratio * stage_volume)
+                ct.ReactorSurface(surf, reactor, A=stage_surface_area)
             net = ct.ReactorNet([reactor])
             net.advance(tau_stage)
             gas.TPX = reactor.thermo.T, reactor.thermo.P, reactor.thermo.X
@@ -758,6 +968,9 @@ def simulate_pfr(config: ReactorConfig) -> Dict:
         'CH4_mole_fraction_drop': _mole_fraction_drop(gas, ch4_initial),
         'conversion_basis': 'argon_tracer',
         'thermal_mode': 'isothermal_energy_disabled',
+        'surface_area_basis': 'sv_per_bed_volume_times_bed_volume',
+        'stage_surface_area_m2': float(stage_surface_area),
+        'stage_gas_volume_m3': float(stage_gas_volume),
         'per_cycle_CH4_conversion': per_cycle_conversion,
         'regen_cycles_completed': cycles_completed,
         'exit_x_H2': x_h2,
@@ -809,6 +1022,20 @@ def _integrate_fluidized_pass(gas, surf, tau: float, sv_ratio: float,
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def simulate_fluidized_bed(config: ReactorConfig) -> Dict:
+    """Two-phase fluidized bed: reacting emulsion plus bubble bypass.
+
+    The emulsion phase reacts at the minimum-fluidization residence time with
+    in-step C_s removal (circulating) or batch regen. A bubble fraction δ of
+    the feed bypasses unreacted and is mixed with the emulsion outlet on molar
+    flows via the Ar tracer, so ``CH4_conversion = (1−δ)·X_emulsion``.
+    Interphase mass transfer is not resolved; this is a screening approximation.
+
+    Args:
+        config: Configuration controlling this operation.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     _validate_carbon_policy(config)
     if not HAS_CANTERA:
         return _mock_reactor_result(config, 'Fluidized')
@@ -819,13 +1046,18 @@ def simulate_fluidized_bed(config: ReactorConfig) -> Dict:
     )
     gas, graphite, surf = _load_gas_and_surface(config)
     gas.TPX = config.T_inlet_K, config.P_inlet_Pa, config.inlet_composition
+    inlet_x = np.array(gas.X, dtype=float)
     ch4_initial = _species_x(gas, 'CH4') or 1.0
     ar_initial = _species_x(gas, 'Ar')
     _require_ar_tracer(ch4_initial, ar_initial)
 
     u0 = max(config.gas_velocity_m_s, 0.05)
     umf = config.u_mf_m_s
-    delta = min(0.5, max(0.01, (u0 - umf) / u0))
+    delta = (float(config.fluidized_bubble_fraction)
+             if config.fluidized_bubble_fraction is not None
+             else min(0.5, max(0.01, (u0 - umf) / u0)))
+    if not 0 <= delta < 1:
+        raise ValueError('fluidized-bed bubble fraction must lie in [0, 1)')
     tau_emulsion = config.bed_height_m * (1 - delta) / umf
 
     sv_ratio = active_sv(geometric_sv_fluidized(config), config)
@@ -853,7 +1085,17 @@ def simulate_fluidized_bed(config: ReactorConfig) -> Dict:
             regen_cycles += 1
             per_cycle.append(_ch4_extent(gas, ch4_initial, ar_initial))
 
+    emulsion_conv = _ch4_extent(gas, ch4_initial, ar_initial)
+    exit_theta_c = _coverage(surf, 'C_s')
+
+    # Bubble bypass: δ of the feed passes unreacted; mix on molar flows (Ar tracer).
+    _mix_bubble_bypass(gas, inlet_x, delta, ar_initial)
     final_conv = _ch4_extent(gas, ch4_initial, ar_initial)
+    expected = (1.0 - delta) * emulsion_conv
+    if abs(final_conv - expected) > 1e-6 + 1e-6 * abs(expected):
+        raise RuntimeError(
+            f'bypass mixing inconsistent: X_mixed={final_conv:.6f} vs '
+            f'(1-delta)*X_em={expected:.6f}')
     x_h2 = _species_x(gas, 'H2')
 
     result = {
@@ -865,28 +1107,40 @@ def simulate_fluidized_bed(config: ReactorConfig) -> Dict:
         'u0_m_s': u0,
         'umf_m_s': umf,
         'bubble_fraction': delta,
+        'bubble_fraction_basis': (
+            'override' if config.fluidized_bubble_fraction is not None
+            else 'clip((u0-umf)/u0, 0.01, 0.5)'),
         'residence_time_s': tau_emulsion,
         'WHSV_h-1': reciprocal_residence_h(tau_emulsion),
+        'emulsion_CH4_conversion': float(emulsion_conv),
         'CH4_conversion': float(final_conv),
         'single_pass_CH4_conversion': float(final_conv),
+        'bypass_basis': 'ar_tracer_molar_mix',
         'CH4_mole_fraction_drop': _mole_fraction_drop(gas, ch4_initial),
         'conversion_basis': 'argon_tracer',
         'thermal_mode': 'isothermal_energy_disabled',
         'exit_x_H2': float(x_h2),
         'exit_T_K': float(gas.T),
-        'exit_theta_C': _coverage(surf, 'C_s'),
+        'exit_theta_C': exit_theta_c,
         'carbon_removed_coverage_proxy': float(carbon_removed),
         'regen_cycles_completed': regen_cycles,
         'per_cycle_CH4_conversion': per_cycle,
+        'per_cycle_basis': 'emulsion_only_before_bypass_mix',
         **kinetics_fields(config),
         **solids_inventory_fields(config, geometric_sv_fluidized(config)),
         **_kinetics_evidence(config),
         **_policy_metadata(config),
         **_load_status_fields(config, graphite, surf),
     }
-    logger.info(f"  Fluidized result: conversion={final_conv:.2%} mode={config.fluidized_mode}")
+    logger.info(
+        f"  Fluidized result: conversion={final_conv:.2%} "
+        f"(emulsion {emulsion_conv:.2%}, delta={delta:.2f}) mode={config.fluidized_mode}")
     return result
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MOCK RESULTS (for testing without Cantera)
+# ═══════════════════════════════════════════════════════════════════════════════
 
 def _mock_reactor_result(config: ReactorConfig, reactor_type: str) -> Dict:
     logger.warning(f"Cantera not available. Generating mock {reactor_type} results.")
@@ -894,8 +1148,11 @@ def _mock_reactor_result(config: ReactorConfig, reactor_type: str) -> Dict:
     E_act = config.catalyst_E_act_eV
     k_B_eV = 8.617e-5
     k = 1e13 * np.exp(-E_act / (k_B_eV * config.T_inlet_K))
+    extra: Dict = {}
     if reactor_type == 'MMBCR':
-        tau = config.column_height_m / config.gas_velocity_m_s
+        hydro = _mmbcr_hydrodynamics(config)
+        tau = hydro['residence_time_s']
+        extra = hydro
     elif reactor_type == 'PFR':
         tau = config.bed_length_m * config.bed_porosity / max(config.gas_velocity_m_s, 0.1)
     else:
@@ -907,6 +1164,7 @@ def _mock_reactor_result(config: ReactorConfig, reactor_type: str) -> Dict:
         'T_K': config.T_inlet_K,
         'catalyst_E_act_eV': E_act,
         'residence_time_s': tau,
+        **extra,
         'WHSV_h-1': reciprocal_residence_h(tau),
         'CH4_conversion': conversion,
         'single_pass_CH4_conversion': conversion,
@@ -928,17 +1186,248 @@ def _mock_reactor_result(config: ReactorConfig, reactor_type: str) -> Dict:
     }
 
 
-def simulate_reactor(config: ReactorConfig) -> Dict:
+# ═══════════════════════════════════════════════════════════════════════════════
+# UNIFIED SIMULATION INTERFACE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def simulate_ntec_pathway(config: ReactorConfig) -> Dict:
+    """Describe NTEC readiness without substituting an unrelated reactor model.
+
+    Args:
+        config: Configuration controlling this operation.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
+    from pipeline.process.ntec_model import (
+        conditions_from_environment, ntec_assistance)
+
+    assistance = ntec_assistance(conditions_from_environment())
+    if config.multiphysics_artifact:
+        evidence = config.multiphysics_artifact
+        artifact = evidence['artifact']
+        outputs = artifact['outputs']
+        return {
+            'status': 'complete', 'valid': True,
+            'reactor_type': 'NTEC', 'pathway_mode': 'ntec',
+            'catalyst_name': config.catalyst_name,
+            'candidate_id': config.candidate_id,
+            'T_K': config.T_inlet_K,
+            'CH4_conversion': float(outputs['CH4_conversion']),
+            'H2_selectivity': float(outputs['H2_selectivity']),
+            'solid_C_selectivity': float(outputs['solid_C_selectivity']),
+            'specific_energy_kWh_kg_H2': float(
+                outputs['specific_energy_kWh_kg_H2']),
+            'ntec_assistance': assistance,
+            'multiphysics_evidence': evidence,
+            'reactor_evidence_tier': 'calibrated_multiphysics_screening',
+            'can_exclude_candidate': False,
+        }
+    return {
+        'status': 'validation_required',
+        'valid': False,
+        'reactor_type': 'NTEC',
+        'pathway_mode': 'ntec',
+        'catalyst_name': config.catalyst_name,
+        'T_K': config.T_inlet_K,
+        'ntec_assistance': assistance,
+        'reactor_evidence_tier': 'pathway_model_pending',
+        'can_exclude_candidate': False,
+        'limitations': [
+            'candidate_specific_ntec_pathway_kinetics_required',
+            'liquid_solid_hydrodynamic_model_required',
+        ],
+    }
+
+
+def simulate_electrochemical_pathway(config: ReactorConfig) -> Dict:
+    """Report electrochemical evidence without inventing a Cantera conversion.
+
+    Args:
+        config: Configuration controlling this operation.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
+    from pipeline.process.electrochemical_model import (
+        conditions_from_environment, electrochemical_evidence)
+
+    evidence = electrochemical_evidence(conditions_from_environment())
+    phase = evidence['conditions'].get('electrolyte_phase')
+    if config.multiphysics_artifact:
+        solver_evidence = config.multiphysics_artifact
+        artifact = solver_evidence['artifact']
+        outputs = artifact['outputs']
+        phase = artifact.get('electrolyte_phase', phase)
+        return {
+            'status': 'complete', 'valid': True,
+            'reactor_type': 'Electrochemical',
+            'pathway_mode': 'electrochemical',
+            'electrolyte_phase': phase,
+            'catalyst_name': config.catalyst_name,
+            'candidate_id': config.candidate_id,
+            'T_K': config.T_inlet_K,
+            **{name: float(outputs[name]) for name in (
+                'CH4_conversion', 'H2_selectivity',
+                'faradaic_efficiency_H2', 'current_density_A_cm2',
+                'cell_voltage_V', 'electrical_power_density_W_cm2')},
+            'electrochemical_evidence': evidence,
+            'multiphysics_evidence': solver_evidence,
+            'reactor_evidence_tier': 'mechanistic_multiphysics_screening',
+            'can_exclude_candidate': False,
+        }
+    return {
+        'status': 'validation_required',
+        'valid': False,
+        'reactor_type': 'Electrochemical',
+        'pathway_mode': 'electrochemical',
+        'electrolyte_phase': phase,
+        'catalyst_name': config.catalyst_name,
+        'T_K': config.T_inlet_K,
+        'electrochemical_evidence': evidence,
+        'reactor_evidence_tier': 'pathway_model_pending',
+        'can_exclude_candidate': False,
+        'limitations': [
+            'candidate_specific_electrochemical_kinetics_required',
+            f'{phase or "unspecified"}_electrolyte_transport_model_required',
+        ],
+    }
+
+
+def simulate_reactor(config: ReactorConfig, coupling_services=None) -> Dict:
+    """Run the appropriate reactor simulation based on config.reactor_type.
+
+    Args:
+        config: Configuration controlling this operation.
+        coupling_services: Coupling services used by this operation.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     simulators = {
         'MMBCR': simulate_mmbcr,
         'PFR': simulate_pfr,
         'Fluidized': simulate_fluidized_bed,
+        'NTEC': simulate_ntec_pathway,
+        'Electrochemical': simulate_electrochemical_pathway,
     }
-    sim = simulators.get(config.reactor_type, simulate_mmbcr)
-    result = sim(config)
+    if config.reactor_type not in simulators:
+        raise ValueError(f'unsupported reactor type: {config.reactor_type}')
+    selected_mode = reactor_types_for_mode(config.pathway_mode)
+    if config.reactor_type not in selected_mode:
+        raise ValueError(
+            f'reactor {config.reactor_type!r} is not valid for pathway mode '
+            f'{config.pathway_mode!r}; expected {selected_mode}')
+    applicable, reason = reactor_applicability(
+        config.reactor_type, config.material_class)
+    spec = REACTOR_MODELS[config.reactor_type]
+    if not applicable:
+        result = {
+            'status': 'not_applicable', 'valid': False,
+            'reactor_type': config.reactor_type,
+            'pathway_mode': config.pathway_mode,
+            'catalyst_name': config.catalyst_name,
+            'material_class': config.material_class,
+            'reason': reason, 'can_exclude_candidate': False,
+            'reactor_evidence_tier': 'not_applicable_non_excluding',
+            'bed_or_interface': spec.bed_or_interface,
+            'cantera_reactor_model': spec.cantera_model,
+            'reaction_domain': spec.reaction_domain,
+            'reactor_model_fidelity': spec.fidelity,
+        }
+    else:
+        from pipeline.process.multiphysics_contract import EXTERNAL_SOLVERS
+        if config.reactor_type in EXTERNAL_SOLVERS:
+            from pipeline.process.reactor_coupling import (
+                default_reactor_coupling_services)
+            coupling_services = (coupling_services or
+                                 default_reactor_coupling_services())
+            loaded = coupling_services.load_artifact(
+                config.multiphysics_results_dir, config.candidate_id,
+                config.pathway_mode, config.reactor_type, config.T_inlet_K)
+            loaded = coupling_services.validate_compatibility(config, loaded)
+            if not loaded['valid']:
+                from pipeline.process.closure_provider import (
+                    resolve_reactor_closure)
+                surrogate = (coupling_services.load_surrogate(
+                    config.pathway_mode, config.reactor_type)
+                    if coupling_services.load_surrogate else None)
+                closure = resolve_reactor_closure(
+                    full_physics=loaded, surrogate=surrogate,
+                    features=config.closure_features,
+                    pathway_mode=config.pathway_mode,
+                    reactor_type=config.reactor_type,
+                    temperature_K=config.T_inlet_K)
+                if closure['available']:
+                    from pipeline.process.reactor_coupling import (
+                        couple_surrogate_closure)
+                    couple_surrogate_closure(config, closure)
+                else:
+                    loaded = {**loaded, 'closure_resolution': closure}
+            if (not loaded['valid'] and not config.reactor_closure_evidence
+                    and config.reactor_type in ANALYTICAL_CLOSURE_REACTORS):
+                # No validated artifact or calibrated surrogate. Fluidized and
+                # MMBCR carry an explicit analytical bubbly-flow closure
+                # (Mendelson u_b / derived eps_g; clipped (u0-umf)/u0) so the
+                # screening run can proceed with its provenance labelled.
+                # It can never exclude a candidate. NTEC / Electrochemical
+                # have no such closure and stay validation_required.
+                config.reactor_closure_evidence = {
+                    'source': ANALYTICAL_CLOSURE_SOURCE,
+                    'candidate_exclusion_authorized': False,
+                    'basis': ANALYTICAL_CLOSURE_BASIS[config.reactor_type],
+                    'multiphysics_evidence': loaded,
+                }
+            if not loaded['valid'] and not config.reactor_closure_evidence:
+                result = {
+                    'status': 'validation_required', 'valid': False,
+                    'reactor_type': config.reactor_type,
+                    'pathway_mode': config.pathway_mode,
+                    'catalyst_name': config.catalyst_name,
+                    'candidate_id': config.candidate_id,
+                    'material_class': config.material_class,
+                    'multiphysics_evidence': loaded,
+                    'can_exclude_candidate': False,
+                    'reactor_evidence_tier': 'required_solver_evidence_missing',
+                    'bed_or_interface': spec.bed_or_interface,
+                    'cantera_reactor_model': spec.cantera_model,
+                    'reaction_domain': spec.reaction_domain,
+                    'reactor_model_fidelity': spec.fidelity,
+                }
+                REACTOR_DIR.mkdir(parents=True, exist_ok=True)
+                fname = (f"{config.reactor_type}_{config.catalyst_name}_"
+                         f"{int(config.T_inlet_K)}K.json")
+                save_json(result, fname, subdir='reactor')
+                return result
+            if loaded['valid']:
+                coupling_services.couple_evidence(config, loaded)
+        _validate_reactor_config(config)
+        _validate_carbon_policy(config)
+        result = simulators[config.reactor_type](config)
+        result.setdefault('status', 'complete')
+        result.update({
+            'pathway_mode': config.pathway_mode,
+            'material_class': config.material_class,
+            'bed_or_interface': spec.bed_or_interface,
+            'cantera_reactor_model': spec.cantera_model,
+            'reaction_domain': spec.reaction_domain,
+            'reactor_model_fidelity': spec.fidelity,
+            'multiphysics_evidence': config.multiphysics_artifact,
+            'reactor_closure_evidence': config.reactor_closure_evidence,
+        })
+        if spec.fidelity != 'validated_predictive':
+            limitations = list(result.get('reactor_evidence_limitations', []))
+            limitation = f'{config.reactor_type.lower()}_screening_model_not_validated'
+            if limitation not in limitations:
+                limitations.append(limitation)
+            result['reactor_evidence_limitations'] = limitations
+            result['can_exclude_candidate'] = False
+
+    # Save result
     REACTOR_DIR.mkdir(parents=True, exist_ok=True)
     fname = f"{config.reactor_type}_{config.catalyst_name}_{int(config.T_inlet_K)}K.json"
     save_json(result, fname, subdir='reactor')
+
     return result
 
 
@@ -946,12 +1435,45 @@ def run_reactor_sweep(catalyst_name: str, mechanism_file: str,
                       temperatures: List[float] = None,
                       reactor_types: List[str] = None,
                       catalyst_E_act_eV: float = 0.8,
+                      pathway_mode: str = DEFAULT_MODE,
+                      material_class: Optional[str] = None,
+                      candidate_id: str = 'unknown',
+                      multiphysics_results_dir: Optional[str] = None,
+                      coupling_services=None,
                       catalyst_dE_H_eV: float = 0.0,
                       reactor_config_kwargs: Optional[Dict] = None) -> List[Dict]:
+    """Sweep operating conditions across the reactors owned by a pathway.
+
+    Args:
+        catalyst_name: Human-readable catalyst identifier used in output names.
+        mechanism_file: Candidate-specific Cantera mechanism path.
+        temperatures: Absolute operating temperatures in kelvin; defaults to the
+            standard four-point screening sweep.
+        reactor_types: Ordered reactor implementations; defaults to those owned
+            by ``pathway_mode``.
+        catalyst_E_act_eV: Activation barrier in eV. Used by the MMBCR melt
+            k_if and by the explicitly labeled mock path.
+        pathway_mode: Methane-conversion pathway controlling valid reactors.
+        material_class: Catalyst class used for physical-bed compatibility.
+        candidate_id: Stable identity required by multiphysics evidence.
+        multiphysics_results_dir: Root containing validated external artifacts.
+        coupling_services: Optional injected evidence-loading/coupling adapters.
+        catalyst_dE_H_eV: Screening H adsorption energy, carried into results.
+        reactor_config_kwargs: Extra ``ReactorConfig`` fields (carbon policy,
+            solids inventory, melt properties) applied to every condition.
+
+    Returns:
+        One result record per requested reactor and temperature. Individual
+        condition failures remain non-excluding records rather than aborting the
+        complete sweep.
+    """
     if temperatures is None:
         temperatures = [773.15, 900.0, 1100.0, 1300.0]
     if reactor_types is None:
-        reactor_types = ['MMBCR', 'PFR', 'Fluidized']
+        # The default family is conventional thermocatalysis. MMBCR, NTEC, and
+        # electrochemical physics must be selected explicitly.
+        reactor_types = list(reactor_types_for_mode(pathway_mode))
+    validate_mode_reactors(pathway_mode, reactor_types)
     extra = dict(reactor_config_kwargs or {})
 
     results = []
@@ -964,18 +1486,53 @@ def run_reactor_sweep(catalyst_name: str, mechanism_file: str,
                 catalyst_name=catalyst_name,
                 catalyst_E_act_eV=catalyst_E_act_eV,
                 catalyst_dE_H_eV=catalyst_dE_H_eV,
+                pathway_mode=pathway_mode,
+                material_class=material_class,
+                candidate_id=candidate_id,
+                multiphysics_results_dir=multiphysics_results_dir,
                 **extra,
             )
-            results.append(simulate_reactor(config))
+            try:
+                result = (simulate_reactor(config) if coupling_services is None
+                          else simulate_reactor(
+                              config, coupling_services=coupling_services))
+            except Exception as exc:
+                # A stiff condition must not discard the other temperatures or
+                # reactor types. Preserve it as non-excluding failed evidence.
+                result = {
+                    'status': 'failed',
+                    'valid': False,
+                    'reactor_type': rt,
+                    'pathway_mode': pathway_mode,
+                    'material_class': material_class,
+                    'temperature_K': float(T),
+                    'catalyst': catalyst_name,
+                    'error_type': type(exc).__name__,
+                    'error': str(exc),
+                    'can_exclude_candidate': False,
+                    'reactor_evidence_tier': 'failed_simulation',
+                }
+                REACTOR_DIR.mkdir(parents=True, exist_ok=True)
+                fname = f"{rt}_{catalyst_name}_{int(T)}K.json"
+                save_json(result, fname, subdir='reactor')
+                logger.error(
+                    'Reactor condition failed without excluding candidate: '
+                    f'{rt} {catalyst_name} {T} K: {exc}')
+            results.append(result)
+
     return results
 
 
 if __name__ == '__main__':
     print_banner("REACTOR SIMULATION TEST")
+
+    # Test with mock data (no Cantera needed)
     config = ReactorConfig(
         T_inlet_K=1000.0,
         reactor_type='MMBCR',
         catalyst_name='NiBi_test',
+        material_class='MoltenMetal',
+        pathway_mode='mmbcr',
     )
     result = simulate_reactor(config)
     print(json.dumps(result, indent=2))

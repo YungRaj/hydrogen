@@ -11,11 +11,33 @@ from pathlib import Path
 
 
 def emit(status_queue, kind: str, worker_id: int, payload=None):
+    """Publish a structured worker-status event.
+
+    Args:
+        status_queue: Queue receiving worker-status events.
+        kind: Worker-event category.
+        worker_id: Stable worker identifier.
+        payload: JSON-compatible evidence stored in the event.
+
+    Returns:
+        The computed emit result.
+    """
     status_queue.put((kind, worker_id, time.monotonic(), payload))
 
 
 def start_heartbeat(status_queue, worker_id: int, stop_event,
                     interval_s: float = 10.0) -> threading.Thread:
+    """Start periodic worker-liveness events.
+
+    Args:
+        status_queue: Queue receiving worker-status events.
+        worker_id: Stable worker identifier.
+        stop_event: Signal used to stop the heartbeat thread.
+        interval_s: Seconds between heartbeat events.
+
+    Returns:
+        A `threading.Thread` containing the start heartbeat result.
+    """
     def beat():
         while not stop_event.wait(interval_s):
             emit(status_queue, 'heartbeat', worker_id)
@@ -27,6 +49,21 @@ def start_heartbeat(status_queue, worker_id: int, stop_event,
 def write_health_manifest(path, application: str, status: str, workers: dict,
                           completed: int, expected: int, events: list,
                           error: str | None = None):
+    """Atomically write the final worker-health record.
+
+    Args:
+        path: Input or output filesystem path.
+        application: Scientific application or objective family.
+        status: Terminal worker or task status.
+        workers: Worker processes being supervised.
+        completed: Number of candidates completed successfully.
+        expected: Total number of candidates expected.
+        events: Collected worker-status events.
+        error: Failure detail, if execution did not succeed.
+
+    Returns:
+        Path or serialized object produced by the operation.
+    """
     payload = {
         'schema_version': 1,
         'generated_utc': datetime.now(timezone.utc).isoformat(),
@@ -58,7 +95,26 @@ def collect_results(status_queue, task_queue, stop_event, workers: dict,
                     result_timeout_s: float = 1800.0,
                     max_restarts_per_worker: int = 1,
                     progress=None):
-    """Collect results with startup/heartbeat checks and bounded task recovery."""
+    """Collect results with startup/heartbeat checks and bounded task recovery.
+
+    Args:
+        status_queue: Status queue used by this operation.
+        task_queue: Task queue used by this operation.
+        stop_event: Stop event used by this operation.
+        workers: Number or collection of parallel workers.
+        spawn_replacement: Spawn replacement used by this operation.
+        genomes: Sequence of encoded catalyst candidates.
+        application: Scientific objective, such as pyrolysis or ORR.
+        manifest_path: Filesystem location used for manifest path.
+        startup_timeout_s: Startup timeout in seconds.
+        heartbeat_timeout_s: Heartbeat timeout in seconds.
+        result_timeout_s: Result timeout in seconds.
+        max_restarts_per_worker: Bound controlling max restarts per worker.
+        progress: Progress used by this operation.
+
+    Returns:
+        Computed result described above.
+    """
     expected = len(genomes)
     pending = set(range(expected))
     results = {}

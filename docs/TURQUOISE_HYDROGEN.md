@@ -66,6 +66,19 @@ where $\alpha \approx 0.75$ and $\beta \approx 0.95\text{ eV}$ for FCC/BCC facet
 
 ## 3. Non-Equilibrium Nanotribo-Mechano-Electrochemical (NTEC) Pyrolysis
 
+> **Implementation boundary:** Cantera is used by this repository for the
+> heterogeneous kinetics inside idealized thermal PFR, fluidized-bed, and
+> MMBCR control volumes. Cantera can represent explicitly declared
+> electrochemical interface reactions and phase potentials, but it does not by
+> itself provide this project's methane-specific aqueous/molten mechanism,
+> complete charge-transport reactor, or NTEC contact-electrification/mechanical
+> coupling. The repository routes these equations through mode-owned
+> OpenFOAM/FEniCSx cases and accepts their artifacts only after physical-input,
+> provenance, convergence, conservation, mesh-independence, and held-out
+> calibration checks. Candidate-specific mechanisms, apparatus parameters, and
+> real NTEC paired-control measurements must still be supplied; absent evidence
+> remains non-excluding. A thermal calculation is only a declared control.
+
 NTEC pyrolysis represents a major departure from traditional thermal cracking. Instead of high temperatures, it utilizes mechanical agitation (such as cavitation, shear, or fluidization) at solid-liquid boundaries to drive reaction pathways.
 
 ```

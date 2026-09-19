@@ -33,7 +33,14 @@ logger = setup_logger('dft_fuel_cell', 'dft/dft_fuel_cell.log')
 
 
 def converged_energy(output_file: Path | str) -> Optional[float]:
-    """Return the final QE energy only for a cleanly converged calculation."""
+    """Return the final QE energy only for a cleanly converged calculation.
+
+    Args:
+        output_file: Filesystem location used for output file.
+
+    Returns:
+        Computed `Optional[float]` result.
+    """
     path = str(output_file)
     if not parse_convergence(path, require_ionic=True):
         return None
@@ -68,15 +75,15 @@ def compute_dG_adsorbate(E_slab_ads: float, E_slab_clean: float,
                           E_ref: float, ads_type: str) -> float:
     """
     Compute adsorption free energy using CHE method.
-    
+
     ΔG = ΔE + ΔZPE − TΔS
-    
+
     Args:
         E_slab_ads: DFT energy of slab + adsorbate (eV)
         E_slab_clean: DFT energy of clean slab (eV)
         E_ref: Reference molecule energy (eV)
         ads_type: 'OH*', 'O*', or 'OOH*'
-    
+
     Returns: Adsorption free energy (eV)
     """
     dE = E_slab_ads - E_slab_clean - E_ref
@@ -88,14 +95,22 @@ def compute_dG_adsorbate(E_slab_ads: float, E_slab_clean: float,
 def validate_orr_catalyst(catalyst_name: str, genome: tuple,
                            run_dft: bool = True) -> Dict:
     """
-    Full ORR catalyst validation workflow.
-    
-    1. Clean slab/cluster SCF
-    2. OH* adsorption SCF
-    3. O* adsorption SCF  
-    4. OOH* adsorption SCF
-    5. Compute free energy diagram
-    6. Compute overpotential
+        Full ORR catalyst validation workflow.
+
+        1. Clean slab/cluster SCF
+        2. OH* adsorption SCF
+        3. O* adsorption SCF
+        4. OOH* adsorption SCF
+        5. Compute free energy diagram
+        6. Compute overpotential
+
+    Args:
+        catalyst_name: Catalyst name used by this operation.
+        genome: Encoded catalyst composition and structural configuration.
+        run_dft: Whether to enable run dft.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
     """
     from pipeline.validation.dft_validator import validate_catalyst
 

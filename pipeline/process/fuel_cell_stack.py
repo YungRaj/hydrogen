@@ -64,7 +64,13 @@ class StackConfig:
 
 def model_stack(config: StackConfig) -> Dict:
     """
-    Compute stack-level performance, weight, volume, cost, and efficiency.
+        Compute stack-level performance, weight, volume, cost, and efficiency.
+
+    Args:
+        config: Configuration controlling this operation.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
     """
     logger.info(f"Modeling {config.n_cells}-cell fuel cell stack")
 

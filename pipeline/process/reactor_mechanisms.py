@@ -58,8 +58,21 @@ class CandidateKinetics:
     sources: Mapping[str, str] = field(default_factory=dict)
 
     @classmethod
-    def from_screening_row(cls, row, candidate_id: str = 'unknown'):
-        """Build kinetics from a pandas Series or ordinary mapping."""
+    def from_screening_row(cls, row, candidate_id: str = 'unknown',
+                           validation: Optional[Mapping] = None):
+        """Build kinetics from screening and optional converged NEB evidence.
+
+        Validation values replace templates only when the candidate identity
+        matches and the complete campaign carries the required evidence level.
+
+        Args:
+            row: pandas Series or ordinary mapping from the screening database.
+            candidate_id: Stable candidate identifier.
+            validation: Candidate-specific validation evidence.
+
+        Returns:
+            A ``CandidateKinetics`` with per-field provenance in ``sources``.
+        """
         def finite(name):
             value = row.get(name)
             try:
@@ -90,12 +103,43 @@ class CandidateKinetics:
             material_class = genome[0] if genome else None
         elif material_class is not None:
             material_class = str(material_class)
+        if validation is not None:
+            if str(validation.get('candidate_id')) != str(candidate_id):
+                raise ValueError('kinetics validation candidate_id mismatch')
+            if not validation.get('complete') or validation.get(
+                    'evidence_level') != 'converged_dft_neb_frequency':
+                raise ValueError('kinetics validation campaign is incomplete')
+            resolved = validation.get('resolved_kinetics_eV', {})
+            allowed = {
+                'methane_activation_eV', 'ch3_dehydrogenation_eV',
+                'ch2_dehydrogenation_eV', 'ch_dehydrogenation_eV',
+                'h2_desorption_eV', 'carbon_transfer_eV',
+                'carbon_encapsulation_eV',
+            }
+            unknown = set(resolved) - allowed
+            if unknown:
+                raise ValueError(f'unknown validated kinetics fields: {sorted(unknown)}')
+            for name, raw_value in resolved.items():
+                value = float(raw_value)
+                if not np.isfinite(value) or value < 0:
+                    raise ValueError(f'invalid validated barrier for {name}')
+                if name == 'methane_activation_eV':
+                    barrier = value
+                else:
+                    values[name] = value
+                sources[name] = 'candidate_specific:converged_dft_neb_frequency'
         return cls(methane_activation_eV=barrier, candidate_id=candidate_id,
                    screening_protocol=protocol, sources=sources,
                    material_class=material_class, genome=genome, **values)
 
     def resolved(self) -> dict:
-        """Return numerical values plus whether each was observed or templated."""
+        """Return numerical values plus whether each was observed or templated.
+
+        Returns:
+            Dictionary of resolved barriers, per-field ``provenance``, and
+            ``quantitative_status`` (``candidate_specific`` or
+            ``screening_template_incomplete``).
+        """
         defaults = {
             'ch3_dehydrogenation_eV': self.methane_activation_eV + 0.10,
             'ch2_dehydrogenation_eV': self.methane_activation_eV + 0.15,
@@ -113,9 +157,16 @@ class CandidateKinetics:
             else:
                 provenance.setdefault(name, 'candidate_specific')
         values['provenance'] = provenance
+        # The Cδ (encapsulation) barrier is only written into the mechanism
+        # when the B6 class gate admits off-site carbon. For every other
+        # candidate it is not part of the kinetics and must not downgrade
+        # the status of an otherwise complete converged-NEB set.
+        required = set(defaults)
+        if not off_site_carbon_allowed(self.genome, self.material_class):
+            required.discard('carbon_encapsulation_eV')
         values['quantitative_status'] = (
             'candidate_specific' if not any(
-                provenance.get(name) == 'template_default' for name in defaults)
+                provenance.get(name) == 'template_default' for name in required)
             else 'screening_template_incomplete')
         return values
 
@@ -272,7 +323,11 @@ _GAS_SPECIES_YAML = """\
 
 
 def write_gas_only_mechanism() -> Path:
-    """Write gas + condensed graphite (no surface) for equilibrium checks."""
+    """Write gas + condensed graphite (no surface) for equilibrium checks.
+
+    Returns:
+        Filesystem path of the written mechanism YAML.
+    """
     MECHANISMS_DIR.mkdir(parents=True, exist_ok=True)
 
     yaml_content = f"""\
@@ -326,6 +381,22 @@ def write_full_mechanism(catalyst_name: str, E_act_CH4: float = None,
     Cγ / Cδ (nanoparticle Ni/Fe/Co only). There is no gas-phase carbon
     product. Condensed C(gr) is for multiphase equilibrium and, when
     gated, the Cγ product.
+
+    Args:
+        catalyst_name: Name used for the surface phase and output file.
+        E_act_CH4: Legacy CH4 activation barrier (eV); ignored if ``kinetics``.
+        E_act_H_desorb: Legacy H2 desorption barrier (eV).
+        E_act_C_diffuse: Legacy carbon transfer barrier (eV).
+        site_density: Site density (mol/cm^2); must equal the B1 monolayer lock.
+        T_ref: Reference temperature written into the phase states (K).
+        include_surface_sites: Write the Langmuir surface phase.
+        kinetics: Typed candidate kinetics with provenance.
+        off_site_carbon: ``None`` = class gate decides; ``True`` on a denied
+            class raises; ``False`` suppresses Cγ / Cδ.
+
+    Returns:
+        Filesystem path of the written mechanism YAML; a ``.kinetics.json``
+        sidecar is written alongside it.
     """
     MECHANISMS_DIR.mkdir(parents=True, exist_ok=True)
     if kinetics is None:

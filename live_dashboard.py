@@ -30,11 +30,20 @@ FAIRCHEM_LOG = SCREENING / "surface_screening.log"
 
 
 def clear():
+    """Clear the terminal before redrawing the live dashboard.
+
+    Returns:
+        The computed clear result.
+    """
     os.system('clear')
 
 
 def gpu_status():
-    """Get GPU utilization via nvidia-smi."""
+    """Get GPU utilization via nvidia-smi.
+
+    Returns:
+        Computed result described above.
+    """
     try:
         out = subprocess.check_output([
             'nvidia-smi',
@@ -59,7 +68,11 @@ def gpu_status():
 
 
 def parse_ga_log():
-    """Parse the GA log for generation progress."""
+    """Parse the GA log for generation progress.
+
+    Returns:
+        Computed result described above.
+    """
     if not GA_LOG.exists():
         return []
     entries = []
@@ -97,7 +110,11 @@ def parse_ga_log():
 
 
 def parse_fairchem_log():
-    """Parse the Fairchem log for throughput info."""
+    """Parse the Fairchem log for throughput info.
+
+    Returns:
+        Computed result described above.
+    """
     if not FAIRCHEM_LOG.exists():
         return {}
     info = {}
@@ -127,7 +144,11 @@ def parse_fairchem_log():
 
 
 def count_csvs():
-    """Count total Fairchem evaluations from CSV files."""
+    """Count total Fairchem evaluations from CSV files.
+
+    Returns:
+        Computed result described above.
+    """
     total = 0
     n_files = 0
     class_counts = {}
@@ -150,7 +171,18 @@ def count_csvs():
 
 
 def bar(value, max_val, width=30, filled='█', empty='░'):
-    """Render a progress bar."""
+    """Render a progress bar.
+
+    Args:
+        value: Value used by this operation.
+        max_val: Bound controlling max val.
+        width: Width used by this operation.
+        filled: Filled used by this operation.
+        empty: Empty used by this operation.
+
+    Returns:
+        Computed result described above.
+    """
     if max_val <= 0:
         return empty * width
     ratio = min(value / max_val, 1.0)
@@ -159,12 +191,27 @@ def bar(value, max_val, width=30, filled='█', empty='░'):
 
 
 def colorize(text, code):
-    """ANSI color wrapper."""
+    """ANSI color wrapper.
+
+    Args:
+        text: Text used by this operation.
+        code: Code used by this operation.
+
+    Returns:
+        Computed result described above.
+    """
     return f"\033[{code}m{text}\033[0m"
 
 
 def gpu_bar(util):
-    """Colored GPU utilization bar."""
+    """Colored GPU utilization bar.
+
+    Args:
+        util: Util used by this operation.
+
+    Returns:
+        Computed result described above.
+    """
     b = bar(util, 100, width=20)
     if util > 60:
         return colorize(b, '92')  # green
@@ -175,6 +222,8 @@ def gpu_bar(util):
 
 
 def main():
+    """Run the module command-line entry point.
+    """
     print("Starting live dashboard... (Ctrl+C to exit)\n")
     time.sleep(1)
 

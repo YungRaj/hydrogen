@@ -33,7 +33,18 @@ def _connect(database: str):
 def record_validation(database: str, application: str, genome: tuple,
                       predicted: float, observed: float, fidelity: str,
                       productive: bool, provenance: Mapping) -> None:
-    """Persist a paired prediction/observation; provenance is mandatory."""
+    """Persist a paired prediction/observation; provenance is mandatory.
+
+    Args:
+        database: Database used by this operation.
+        application: Scientific objective, such as pyrolysis or ORR.
+        genome: Encoded catalyst composition and structural configuration.
+        predicted: Predicted used by this operation.
+        observed: Observed used by this operation.
+        fidelity: Fidelity used by this operation.
+        productive: Whether to enable productive.
+        provenance: Mapping supplying provenance.
+    """
     if not provenance or not provenance.get('source_id'):
         raise ValueError('validation provenance requires source_id')
     values = (predicted, observed)
@@ -49,7 +60,15 @@ def record_validation(database: str, application: str, genome: tuple,
 
 
 def regional_calibration(database: str, application: str) -> dict:
-    """Return MAE, bias, disagreement, and productivity for each chemistry region."""
+    """Return MAE, bias, disagreement, and productivity for each chemistry region.
+
+    Args:
+        database: Database used by this operation.
+        application: Scientific objective, such as pyrolysis or ORR.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     with _connect(database) as conn:
         rows = conn.execute("""SELECT region, COUNT(*), AVG(absolute_error),
             AVG(observed-predicted), AVG(productive), MIN(observed) FROM validation_observations
@@ -60,7 +79,15 @@ def regional_calibration(database: str, application: str) -> dict:
 
 
 def class_calibration(database: str, application: str) -> dict:
-    """Aggregate calibration when an exact chemistry region is still unseen."""
+    """Aggregate calibration when an exact chemistry region is still unseen.
+
+    Args:
+        database: Database used by this operation.
+        application: Scientific objective, such as pyrolysis or ORR.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
+    """
     with _connect(database) as conn:
         rows = conn.execute("""SELECT material_class, COUNT(*), AVG(absolute_error),
             AVG(observed-predicted), AVG(productive), MIN(observed) FROM validation_observations
@@ -76,7 +103,16 @@ def _calibration_for(genome: tuple, regional: dict, by_class: dict) -> dict:
 
 
 def priority_adjustment(database: str, application: str, genomes: Sequence[tuple]) -> float:
-    """Lower disagreement priority; defer repeatedly unproductive regions."""
+    """Lower disagreement priority; defer repeatedly unproductive regions.
+
+    Args:
+        database: Database used by this operation.
+        application: Scientific objective, such as pyrolysis or ORR.
+        genomes: Sequence of encoded catalyst candidates.
+
+    Returns:
+        Computed `float` value in the units documented above.
+    """
     stats = regional_calibration(database, application)
     classes = class_calibration(database, application)
     matched = [_calibration_for(g, stats, classes) for g in genomes]
@@ -94,7 +130,20 @@ def allocate_validation_batch(candidates: Sequence[tuple], objectives: np.ndarra
                               n_select: int, database: str, application: str,
                               min_per_class: int = 1,
                               uncertainties=None) -> list[int]:
-    """Guarantee class quotas, then allocate by improvement/error/uncertainty."""
+    """Guarantee class quotas, then allocate by improvement/error/uncertainty.
+
+    Args:
+        candidates: Candidate records to process.
+        objectives: Objectives used by this operation.
+        n_select: Number of select to use.
+        database: Database used by this operation.
+        application: Scientific objective, such as pyrolysis or ORR.
+        min_per_class: Bound controlling min per class.
+        uncertainties: Uncertainties used by this operation.
+
+    Returns:
+        List of computed or validated records.
+    """
     if n_select <= 0 or not candidates:
         return []
     n_select = min(n_select, len(candidates))
@@ -146,7 +195,16 @@ def allocate_validation_batch(candidates: Sequence[tuple], objectives: np.ndarra
 
 def experimental_slate(candidates: Sequence[tuple], objectives: np.ndarray,
                        n_select: int) -> list[int]:
-    """Preserve chemistry diversity: one regional champion before repeats."""
+    """Preserve chemistry diversity: one regional champion before repeats.
+
+    Args:
+        candidates: Candidate records to process.
+        objectives: Objectives used by this operation.
+        n_select: Number of select to use.
+
+    Returns:
+        List of computed or validated records.
+    """
     quality = _quality_score(np.asarray(objectives, float))
     ids = [candidate_id(g) for g in candidates]
     by_region = defaultdict(list)
@@ -167,7 +225,20 @@ def record_screening_frame(database: str, application: str,
                            predictions: Mapping[str, float], frame,
                            observed_column: str, fidelity: str,
                            productive_threshold: float) -> int:
-    """Ingest paired surrogate/high-fidelity rows from a screening DataFrame."""
+    """Ingest paired surrogate/high-fidelity rows from a screening DataFrame.
+
+    Args:
+        database: Database used by this operation.
+        application: Scientific objective, such as pyrolysis or ORR.
+        predictions: Mapping supplying predictions.
+        frame: Tabular candidate or result records.
+        observed_column: Observed column used by this operation.
+        fidelity: Fidelity used by this operation.
+        productive_threshold: Productive threshold used by this operation.
+
+    Returns:
+        Computed `int` value in the units documented above.
+    """
     recorded = 0
     if frame is None or 'genome' not in frame.columns or observed_column not in frame.columns:
         return recorded
@@ -190,7 +261,15 @@ def record_screening_frame(database: str, application: str,
 def persist_experimental_slate(database: str, application: str,
                                candidates: Sequence[tuple], objectives: np.ndarray,
                                indices: Sequence[int]) -> None:
-    """Persist the diverse shortlist for synthesis/experimental handoff."""
+    """Persist the diverse shortlist for synthesis/experimental handoff.
+
+    Args:
+        database: Database used by this operation.
+        application: Scientific objective, such as pyrolysis or ORR.
+        candidates: Candidate records to process.
+        objectives: Objectives used by this operation.
+        indices: Ordered values supplying indices.
+    """
     with _connect(database) as conn:
         conn.execute("""CREATE TABLE IF NOT EXISTS experimental_slate (
             application TEXT NOT NULL, rank INTEGER NOT NULL, candidate_id TEXT NOT NULL,

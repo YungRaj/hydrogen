@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "dataset_id": "REPLACE_WITH_IMMUTABLE_DATASET_ID",
+  "protocol_id": "REPLACE_WITH_PROTOCOL_REVISION",
+  "run_log_path": "raw/run_log.csv",
+  "run_log_sha256": "REPLACE_WITH_SHA256",
+  "analysis_plan": {
+    "plan_id": "REPLACE_WITH_PREREGISTERED_PLAN_ID",
+    "locked_at_utc": "2026-01-01T00:00:00Z",
+    "source_path": "raw/analysis_plan.pdf",
+    "source_sha256": "REPLACE_WITH_SHA256",
+    "minimum_calibration_units": 3,
+    "minimum_holdout_units": 3
+  },
+  "records": [
+    {
+      "measurement_id": "experiment-001",
+      "experimental_unit_id": "catalyst-batch-001",
+      "candidate_id": "REPLACE_WITH_CANONICAL_CANDIDATE_ID",
+      "application": "turquoise_hydrogen",
+      "measurement_type": "pyrolysis_reactor",
+      "split": "calibration",
+      "replicate_id": "replicate-1",
+      "apparatus_id": "reactor-rig-1",
+      "measured_at_utc": "2026-01-02T12:00:00Z",
+      "split_assigned_at_utc": "2026-01-01T12:00:00Z",
+      "split_assignment_source": "REPLACE_WITH_RANDOMIZATION_RECORD",
+      "raw_source_path": "raw/experiment-001.csv",
+      "raw_source_sha256": "REPLACE_WITH_SHA256",
+      "uncertainty_type": "standard_deviation",
+      "conditions": {
+        "temperature_K": 1000.0,
+        "pressure_Pa": 101325.0,
+        "inlet_CH4_mol_s": 0.001,
+        "duration_h": 10.0,
+        "feed_mole_fraction": {"CH4": 0.95, "Ar": 0.05}
+      },
+      "observations": {
+        "CH4_conversion_fraction": 0.75,
+        "H2_selectivity_fraction": 0.97,
+        "solid_carbon_yield_fraction": 0.70,
+        "carbon_balance_closure_fraction": 0.99,
+        "hydrogen_balance_closure_fraction": 0.98,
+        "net_energy_kWh_kg_H2": 14.0,
+        "deactivation_fraction_per_h": 0.005
+      },
+      "uncertainties": {
+        "CH4_conversion_fraction": 0.02,
+        "H2_selectivity_fraction": 0.01,
+        "solid_carbon_yield_fraction": 0.03,
+        "carbon_balance_closure_fraction": 0.01,
+        "hydrogen_balance_closure_fraction": 0.01,
+        "net_energy_kWh_kg_H2": 0.5,
+        "deactivation_fraction_per_h": 0.001
+      }
+    }
+  ]
+}

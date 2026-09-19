@@ -11,6 +11,8 @@ from pipeline.search.discovery import candidate_id
 
 
 class ValidationTaskQueue:
+    """Manage durable, candidate-keyed validation work leases.
+    """
     def __init__(self, database: str | Path):
         self.database = str(database)
         Path(self.database).parent.mkdir(parents=True, exist_ok=True)
@@ -32,6 +34,17 @@ class ValidationTaskQueue:
 
     def enqueue(self, application: str, genome: tuple, task_type: str,
                 protocol_id: str) -> str:
+        """Insert a candidate-specific validation task if it is not already queued.
+
+        Args:
+            application: Scientific application or objective family.
+            genome: Encoded catalyst composition and structural configuration.
+            task_type: Validation calculation category.
+            protocol_id: Scientific protocol identifier.
+
+        Returns:
+            The durable identifier of the queued validation task.
+        """
         cid = candidate_id(genome)
         now = time.time()
         with self._connect() as conn:
@@ -43,6 +56,14 @@ class ValidationTaskQueue:
         return cid
 
     def recover_stale(self, stale_after_s: float = 86400) -> int:
+        """Return expired task leases to the pending queue.
+
+        Args:
+            stale_after_s: Lease age after which an unfinished task may be recovered.
+
+        Returns:
+            The computed recover stale numeric value.
+        """
         cutoff = time.time() - stale_after_s
         with self._connect() as conn:
             cursor = conn.execute(
@@ -54,6 +75,17 @@ class ValidationTaskQueue:
 
     def claim(self, application: str, candidate: str, task_type: str,
               protocol_id: str) -> bool:
+        """Atomically lease the next pending validation task.
+
+        Args:
+            application: Scientific application or objective family.
+            candidate: Candidate record being evaluated.
+            task_type: Validation calculation category.
+            protocol_id: Scientific protocol identifier.
+
+        Returns:
+            The leased task record, or `None` when no task is available.
+        """
         with self._connect() as conn:
             cursor = conn.execute(
                 "UPDATE validation_tasks SET status='running', attempts=attempts+1, "
@@ -65,6 +97,17 @@ class ValidationTaskQueue:
     def finish(self, application: str, candidate: str, task_type: str,
                protocol_id: str, converged: bool,
                result_path: str | None = None, error: str | None = None) -> None:
+        """Record the terminal status and result for a leased task.
+
+        Args:
+            application: Scientific application or objective family.
+            candidate: Candidate record being evaluated.
+            task_type: Validation calculation category.
+            protocol_id: Scientific protocol identifier.
+            converged: Whether the external calculation met its convergence contract.
+            result_path: Path to the validated calculation result.
+            error: Failure detail, if execution did not succeed.
+        """
         with self._connect() as conn:
             conn.execute(
                 "UPDATE validation_tasks SET status=?, result_path=?, error=?, "
@@ -75,6 +118,15 @@ class ValidationTaskQueue:
                  time.time(), application, candidate, task_type, protocol_id))
 
     def summary(self, application: str, task_type: str) -> dict:
+        """Count validation tasks by status.
+
+        Args:
+            application: Scientific application or objective family.
+            task_type: Validation calculation category.
+
+        Returns:
+            Counts of validation tasks grouped by status.
+        """
         with self._connect() as conn:
             rows = conn.execute(
                 "SELECT status, COUNT(*) FROM validation_tasks "

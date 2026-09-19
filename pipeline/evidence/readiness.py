@@ -12,7 +12,20 @@ def campaign_readiness(coverage_certificate: str, prior_art_db: str,
                        require_complete_coverage: bool = True,
                        evidence_manifest: str | None = None,
                        application: str | None = None,
-                       pyrolysis_mode: str = 'ntec') -> dict:
+                       pyrolysis_mode: str = 'thermocatalytic') -> dict:
+    """Evaluate whether all required discovery evidence gates have passed.
+
+    Args:
+        coverage_certificate: Search certificate describing visited intervals and gaps.
+        prior_art_db: Path to the curated prior-art registry.
+        require_complete_coverage: Whether incomplete search coverage blocks readiness.
+        evidence_manifest: Manifest containing required experimental and computational evidence.
+        application: Scientific application or objective family.
+        pyrolysis_mode: Methane-conversion pathway used for evaluation.
+
+    Returns:
+        A readiness record listing passed and missing scientific gates.
+    """
     failures, warnings = [], []
     cert_path = Path(coverage_certificate)
     if not cert_path.exists():

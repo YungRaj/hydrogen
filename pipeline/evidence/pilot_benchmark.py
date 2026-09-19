@@ -22,6 +22,16 @@ from pipeline.common.catalyst_spaces import encode_population
 
 @dataclass(frozen=True)
 class PilotSpec:
+    """Define one reproducible pilot-selection strategy and budget.
+
+    Attributes:
+        application: Configured application value.
+        paths: Configured paths value.
+        outcome: Configured outcome value.
+        folds: Configured folds value.
+        selection_fraction: Configured selection fraction value.
+        random_trials: Configured random trials value.
+    """
     application: str
     paths: tuple[str, ...]
     outcome: str
@@ -42,7 +52,14 @@ def _identity(genome: tuple) -> str:
 
 
 def load_legacy_outcomes(spec: PilotSpec) -> pd.DataFrame:
-    """Load and candidate-deduplicate valid legacy outcomes."""
+    """Load and candidate-deduplicate valid legacy outcomes.
+
+    Args:
+        spec: Spec used by this operation.
+
+    Returns:
+        Computed `pd.DataFrame` result.
+    """
     frames = [pd.read_csv(path) for path in spec.paths if Path(path).is_file()]
     if not frames:
         raise FileNotFoundError(f"no pilot inputs found for {spec.application}")
@@ -102,7 +119,15 @@ def _elements(genome: tuple) -> set[str]:
 
 
 def expert_score(genome: tuple, application: str) -> float:
-    """Frozen outcome-blind conventional-chemistry baseline; lower is better."""
+    """Frozen outcome-blind conventional-chemistry baseline; lower is better.
+
+    Args:
+        genome: Encoded catalyst composition and structural configuration.
+        application: Scientific objective, such as pyrolysis or ORR.
+
+    Returns:
+        Computed `float` value in the units documented above.
+    """
     cls, elems = genome[0], _elements(genome)
     if application == "turquoise_hydrogen":
         prior = {"MoltenMetal": 0.0, "SolidCatalyst": 0.1, "SAA": 0.2,
@@ -126,6 +151,14 @@ def _stats(outcomes: np.ndarray, selected: np.ndarray, cutoff: float) -> dict:
 
 
 def run_pilot(spec: PilotSpec) -> dict:
+    """Benchmark a selection strategy against a fixed candidate population.
+
+    Args:
+        spec: Pilot strategy, budget, and reproducibility settings.
+
+    Returns:
+        A dictionary containing run pilot outputs, status, and supporting metadata.
+    """
     data = load_legacy_outcomes(spec)
     if len(data) < max(20, spec.folds * 3):
         raise ValueError("too few deduplicated valid outcomes for pilot")
@@ -188,6 +221,11 @@ def run_pilot(spec: PilotSpec) -> dict:
 
 
 def default_specs() -> tuple[PilotSpec, PilotSpec]:
+    """Build the reproducible default pilot strategies.
+
+    Returns:
+        An ordered tuple containing the default specs result.
+    """
     return (
         PilotSpec("turquoise_hydrogen", (
             "results/screening/ga_initial_screening.csv", "results/screening/ga_fairchem_gen1.csv",
@@ -201,6 +239,15 @@ def default_specs() -> tuple[PilotSpec, PilotSpec]:
 
 
 def write_report(results: list[dict], output_dir: str = "results/pilot") -> tuple[Path, Path]:
+    """Persist the pilot results as a JSON report.
+
+    Args:
+        results: Completed strategy results to aggregate or persist.
+        output_dir: Directory that receives the generated report.
+
+    Returns:
+        Path or serialized object produced by the operation.
+    """
     root = Path(output_dir); root.mkdir(parents=True, exist_ok=True)
     json_path, md_path = root / "selection_benchmark.json", root / "selection_benchmark.md"
     json_path.write_text(json.dumps({"schema_version": 1, "results": results}, indent=2) + "\n")

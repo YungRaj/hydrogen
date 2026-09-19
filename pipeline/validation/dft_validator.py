@@ -9,7 +9,7 @@ For champion catalysts from the MACE screening / genetic algorithm:
   3. Adsorption energy calculations (H*, CH₃*, C*)
   4. NEB transition state for CH₄ → CH₃* + H*
   5. Electronic structure analysis (PDOS, d-band center)
-  
+
 Generates QE input files and submits calculations via pw.x.
 """
 
@@ -107,7 +107,21 @@ def generate_bulk_scf_input(elements: List[str], positions_frac: List[Tuple],
                              ecutwfc: float = 50.0,
                              ecutrho: float = 400.0,
                              kpoints: Tuple = (6, 6, 6)) -> str:
-    """Generate a QE scf input for a bulk crystal."""
+    """Generate a QE scf input for a bulk crystal.
+
+    Args:
+        elements: Ordered values supplying elements.
+        positions_frac: Ordered values supplying positions frac.
+        celldm_bohr: Celldm bohr used by this operation.
+        ibrav: Ibrav used by this operation.
+        calc_name: Calc name used by this operation.
+        ecutwfc: Ecutwfc used by this operation.
+        ecutrho: Ecutrho used by this operation.
+        kpoints: Ordered values supplying kpoints.
+
+    Returns:
+        Computed `str` result.
+    """
     nat = len(positions_frac)
     ntyp = len(set(elements))
     kshift = tuple(0 if mesh == 1 else 1 for mesh in kpoints)
@@ -169,7 +183,19 @@ def generate_slab_scf_input(elements: List[str], positions_ang: List[Tuple],
                              calc_name: str = "slab_scf",
                              ecutwfc: float = 50.0,
                              kpoints: Tuple = (4, 4, 1)) -> str:
-    """Generate QE scf input for a surface slab (ibrav=0)."""
+    """Generate QE scf input for a surface slab (ibrav=0).
+
+    Args:
+        elements: Ordered values supplying elements.
+        positions_ang: Ordered values supplying positions ang.
+        cell_params: Ordered values supplying cell params.
+        calc_name: Calc name used by this operation.
+        ecutwfc: Ecutwfc used by this operation.
+        kpoints: Ordered values supplying kpoints.
+
+    Returns:
+        Computed `str` result.
+    """
     nat = len(positions_ang)
     ntyp = len(set(elements))
     kshift = tuple(0 if mesh == 1 else 1 for mesh in kpoints)
@@ -250,9 +276,20 @@ def generate_molecule_input(elements: List[str], positions_ang: List[Tuple],
                             calculation: str = 'relax') -> str:
     """Generate a closed-shell, Gamma-only molecular QE input.
 
-    Gas-phase CHE references must not inherit metallic slab smearing or an
-    unnecessary second spin channel.  Production pseudopotential cutoffs and
-    the final convergence threshold remain unchanged.
+        Gas-phase CHE references must not inherit metallic slab smearing or an
+        unnecessary second spin channel.  Production pseudopotential cutoffs and
+        the final convergence threshold remain unchanged.
+
+    Args:
+        elements: Ordered values supplying elements.
+        positions_ang: Ordered values supplying positions ang.
+        cell_size_ang: Cell size ang used by this operation.
+        calc_name: Calc name used by this operation.
+        ecutwfc: Ecutwfc used by this operation.
+        calculation: Calculation used by this operation.
+
+    Returns:
+        Computed `str` result.
     """
     if calculation not in ('scf', 'relax'):
         raise ValueError('molecular calculation must be scf or relax')
@@ -312,7 +349,14 @@ K_POINTS {{gamma}}
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def parse_total_energy(output_file: str) -> Optional[float]:
-    """Parse total energy from QE output file (Ry)."""
+    """Parse total energy from QE output file (Ry).
+
+    Args:
+        output_file: Filesystem location used for output file.
+
+    Returns:
+        Computed `Optional[float]` result.
+    """
     if not os.path.exists(output_file):
         return None
     with open(output_file, 'r') as f:
@@ -326,7 +370,14 @@ def parse_total_energy(output_file: str) -> Optional[float]:
 
 
 def parse_forces(output_file: str) -> Optional[float]:
-    """Parse maximum force from QE output (Ry/bohr)."""
+    """Parse maximum force from QE output (Ry/bohr).
+
+    Args:
+        output_file: Filesystem location used for output file.
+
+    Returns:
+        Computed `Optional[float]` result.
+    """
     if not os.path.exists(output_file):
         return None
     with open(output_file, 'r') as f:
@@ -336,7 +387,15 @@ def parse_forces(output_file: str) -> Optional[float]:
 
 
 def parse_convergence(output_file: str, *, require_ionic: bool = False) -> bool:
-    """Require clean QE termination and the requested convergence level."""
+    """Require clean QE termination and the requested convergence level.
+
+    Args:
+        output_file: Filesystem location used for output file.
+        require_ionic: Whether to enable require ionic.
+
+    Returns:
+        True when the documented condition holds; otherwise False.
+    """
     if not os.path.exists(output_file):
         return False
     with open(output_file, 'r') as f:
@@ -366,14 +425,23 @@ def validate_catalyst(catalyst_name: str, genome: tuple,
                        run_dft: bool = True,
                        restart_incomplete: bool = False) -> Dict:
     """
-    Full DFT validation workflow for a champion catalyst.
-    
-    Steps:
-      1. Generate bulk structure input
-      2. Run SCF (if run_dft=True)
-      3. Parse results
-      
-    Returns dict with DFT validation results.
+        Full DFT validation workflow for a champion catalyst.
+
+        Steps:
+          1. Generate bulk structure input
+          2. Run SCF (if run_dft=True)
+          3. Parse results
+
+        Returns dict with DFT validation results.
+
+    Args:
+        catalyst_name: Catalyst name used by this operation.
+        genome: Encoded catalyst composition and structural configuration.
+        run_dft: Whether to enable run dft.
+        restart_incomplete: Whether to enable restart incomplete.
+
+    Returns:
+        Dictionary containing the computed values, status, and supporting metadata.
     """
     print_banner(f"DFT VALIDATION: {catalyst_name}")
 

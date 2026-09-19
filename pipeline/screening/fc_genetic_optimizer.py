@@ -27,7 +27,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from pipeline.common.utils import setup_logger, save_json, BASE_DIR
+from pipeline.common.utils import setup_logger, save_json, FUEL_CELL_DIR
 from pipeline.common.catalyst_spaces import (
     generate_population, crossover, mutate, encode_genome, encode_population,
     ALL_MATERIAL_CLASSES, FEATURE_DIM, generate_hierarchical_htvs_pool,
@@ -60,7 +60,7 @@ class FCGAConfig:
     exhaustive_start: int = 0
     exhaustive_stop: Optional[int] = None
     exhaustive_batch_size: int = 65536
-    exhaustive_db: str = str(BASE_DIR / 'results' / 'fuel_cell' / 'indexed_scan.sqlite')
+    exhaustive_db: str = str(FUEL_CELL_DIR / 'indexed_scan.sqlite')
     exhaustive_worker_id: int = 0
     exhaustive_num_workers: int = 1
     branch_search: bool = False
@@ -72,13 +72,35 @@ class FCGAConfig:
 
 @dataclass
 class FCBranchDiscoveryConfig:
+    """Configure the ORR branch-search adapter.
+
+    Attributes:
+        initial_fairchem_samples: Configured initial fairchem samples value.
+        fairchem_eval_top_k: Configured fairchem eval top k value.
+        n_models: Configured n models value.
+        htvs_pool_size: Configured htvs pool size value.
+        device: Configured device value.
+        exhaustive_batch_size: Configured exhaustive batch size value.
+        exhaustive_db: Configured exhaustive db value.
+        branch_leaf_size: Configured branch leaf size value.
+        branch_probe_count: Configured branch probe count value.
+        branch_max_leaves: Configured branch max leaves value.
+        expected_space_size: Configured expected space size value.
+        max_runtime_s: Configured max runtime s value.
+        prior_art_db: Configured prior art db value.
+        min_validation_per_class: Configured min validation per class value.
+        min_resolved_leaves_per_class: Configured min resolved leaves per class value.
+        branch_exploration_interval: Configured branch exploration interval value.
+        refresh_pending_priorities: Configured refresh pending priorities value.
+        scan_workers: Configured scan workers value.
+    """
     initial_fairchem_samples: int = 500
     fairchem_eval_top_k: int = 500
     n_models: int = 3
     htvs_pool_size: int = 20000
     device: str = 'cuda'
     exhaustive_batch_size: int = 65536
-    exhaustive_db: str = str(BASE_DIR / 'results' / 'fuel_cell' / 'indexed_scan.sqlite')
+    exhaustive_db: str = str(FUEL_CELL_DIR / 'indexed_scan.sqlite')
     branch_leaf_size: int = 1_000_000
     branch_probe_count: int = 9
     branch_max_leaves: Optional[int] = None
@@ -126,6 +148,14 @@ class ORRCatalystSurrogate(torch.nn.Module):
         )
 
     def forward(self, x: torch.Tensor):
+        """Evaluate the neural-network forward pass.
+
+        Args:
+            x: Feature matrix or tensor consumed by the fitted model.
+
+        Returns:
+            The network output tensor for the supplied batch.
+        """
         features = self.backbone(x)
         valid_logit = self.head_valid(features)
         orr_eta = self.head_orr_eta(features)
@@ -153,7 +183,15 @@ def _fenton_from_genome(genome: tuple) -> float:
 
 def compute_orr_objectives_surrogate(population: List[tuple], model, device: str) -> np.ndarray:
     """
-    Compute 4 ORR objectives for a population using the ORR surrogate NN or Ensemble.
+        Compute 4 ORR objectives for a population using the ORR surrogate NN or Ensemble.
+
+    Args:
+        population: Ordered values supplying population.
+        model: Fitted model used for inference.
+        device: CPU or GPU device requested for execution.
+
+    Returns:
+        Computed `np.ndarray` result.
     """
     from pipeline.common.ood_detector import compute_model_confidence, confidence_penalty
 
@@ -172,7 +210,7 @@ def compute_orr_objectives_surrogate(population: List[tuple], model, device: str
             p_valid_list.append(torch.sigmoid(valid_logit).cpu().numpy().flatten())
             preds_eta_list.append(pred_eta.cpu().numpy().flatten())
             preds_bind_list.append(pred_binding.cpu().numpy().flatten())
-        
+
         # Aggregate with acquisition UCB/LCB (kappa = 1.0)
         p_valid = np.column_stack(p_valid_list).mean(axis=1)
         eta_arr = np.column_stack(preds_eta_list)
@@ -212,7 +250,7 @@ def compute_orr_objectives_surrogate(population: List[tuple], model, device: str
 
 def _cost_from_genome(genome: tuple) -> float:
     """Compute cost penalty from genome elements.
-    
+
     abundance_cost_penalty() returns [-2, 0] where 0 = abundant, -2 = rare.
     Since NSGA-II minimizes all objectives, we negate so that:
       abundant → 0 (good)    rare → +2 (bad, penalized)
@@ -267,7 +305,14 @@ def _extract_elements_from_genome(genome: tuple) -> List[str]:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def fast_non_dominated_sort(objectives: np.ndarray) -> List[List[int]]:
-    """NSGA-II fast non-dominated sorting using vectorized Pareto front extraction."""
+    """NSGA-II fast non-dominated sorting using vectorized Pareto front extraction.
+
+    Args:
+        objectives: Objectives used by this operation.
+
+    Returns:
+        List of computed or validated records.
+    """
     n = len(objectives)
     remaining_indices = np.arange(n)
     fronts = []
@@ -290,7 +335,15 @@ def fast_non_dominated_sort(objectives: np.ndarray) -> List[List[int]]:
 
 
 def crowding_distance(objectives: np.ndarray, front: List[int]) -> np.ndarray:
-    """Compute crowding distances for a Pareto front."""
+    """Compute crowding distances for a Pareto front.
+
+    Args:
+        objectives: Objectives used by this operation.
+        front: Ordered values supplying front.
+
+    Returns:
+        Computed `np.ndarray` result.
+    """
     n = len(front)
     if n <= 2:
         return np.full(n, np.inf)
@@ -318,7 +371,16 @@ def crowding_distance(objectives: np.ndarray, front: List[int]) -> np.ndarray:
 
 
 def nsga2_select(population, objectives, n_select):
-    """NSGA-II selection with non-dominated sorting + crowding distance."""
+    """NSGA-II selection with non-dominated sorting + crowding distance.
+
+    Args:
+        population: Population used by this operation.
+        objectives: Objectives used by this operation.
+        n_select: Number of select to use.
+
+    Returns:
+        Computed result described above.
+    """
     fronts = fast_non_dominated_sort(objectives)
     selected = []
 
@@ -438,7 +500,15 @@ def _train_orr_ensemble_from_db(db: pd.DataFrame, device: str, n_models: int = 3
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def run_fc_branch_discovery(config: FCBranchDiscoveryConfig, existing_db=None):
-    """Single supported ORR production search: deterministic branch-and-bound."""
+    """Single supported ORR production search: deterministic branch-and-bound.
+
+    Args:
+        config: Configuration controlling this operation.
+        existing_db: Existing db used by this operation.
+
+    Returns:
+        Computed result described above.
+    """
     from pipeline.search.indexed_space import deterministic_tree_probes
     from pipeline.search.branch_search import BranchConfig, run_branch_and_bound
     from pipeline.search.exhaustive_search import load_archive_genomes
@@ -451,12 +521,33 @@ def run_fc_branch_discovery(config: FCBranchDiscoveryConfig, existing_db=None):
         evidence = run_orr_screening(
             probes, db_filename='fc_branch_calibration.csv', workers_per_gpu=2)
     from pipeline.screening.small_data_ranker import (
-        fit_tree_ranker, merge_compatible_evidence, orr_tree_objectives)
+        MIN_TRAINING_ROWS, fit_tree_ranker, merge_compatible_evidence,
+        orr_tree_objectives, valid_training_row_count)
     from pipeline.common.utils import load_screening_db, save_screening_db
     prior_evidence = load_screening_db(
         'fc_branch_ranker_evidence.csv', subdir='fuel_cell')
     evidence = merge_compatible_evidence(
         evidence, prior_evidence, SCREENING_PROTOCOL_ID)
+    attempted = {str(value) for value in evidence.get('genome', [])}
+    refill_limit = max(config.initial_fairchem_samples * 3,
+                       config.initial_fairchem_samples + MIN_TRAINING_ROWS)
+    probe_pool = deterministic_tree_probes(refill_limit)
+    refill_round = 0
+    while valid_training_row_count(evidence, 'fuel_cell_orr') < MIN_TRAINING_ROWS:
+        refill = [genome for genome in probe_pool if repr(genome) not in attempted][:MIN_TRAINING_ROWS]
+        if not refill:
+            valid = valid_training_row_count(evidence, 'fuel_cell_orr')
+            raise RuntimeError(
+                f'calibration exhausted after {len(attempted)} distinct probes; '
+                f'only {valid}/{MIN_TRAINING_ROWS} valid ORR rows')
+        refill_round += 1
+        attempted.update(repr(genome) for genome in refill)
+        extra = run_orr_screening(
+            refill, db_filename=f'fc_branch_calibration_refill_{refill_round}.csv',
+            workers_per_gpu=2)
+        evidence = merge_compatible_evidence(
+            extra, evidence, SCREENING_PROTOCOL_ID)
+    save_screening_db(evidence, 'fc_branch_calibration.csv', subdir='fuel_cell')
     model = fit_tree_ranker(evidence, 'fuel_cell_orr')
     score_population = lambda pop: orr_tree_objectives(pop, model)
     summary = run_branch_and_bound(BranchConfig(
@@ -465,7 +556,7 @@ def run_fc_branch_discovery(config: FCBranchDiscoveryConfig, existing_db=None):
         scan_batch_size=config.exhaustive_batch_size,
         max_leaves=config.branch_max_leaves,
         expected_population=config.expected_space_size,
-        certificate_path=str(BASE_DIR / 'results' / 'fuel_cell' / 'coverage_certificate.json'),
+        certificate_path=str(FUEL_CELL_DIR / 'coverage_certificate.json'),
         max_runtime_s=config.max_runtime_s,
         min_resolved_leaves_per_class=config.min_resolved_leaves_per_class,
         exploration_interval=config.branch_exploration_interval,
@@ -511,7 +602,14 @@ def run_fc_branch_discovery(config: FCBranchDiscoveryConfig, existing_db=None):
 
 def run_fc_genetic_algorithm(config: FCGAConfig, existing_db=None):
     """
-    Run NSGA-II genetic algorithm for ORR fuel cell cathode catalyst discovery.
+        Run NSGA-II genetic algorithm for ORR fuel cell cathode catalyst discovery.
+
+    Args:
+        config: Configuration controlling this operation.
+        existing_db: Existing db used by this operation.
+
+    Returns:
+        Computed result described above.
     """
     raise RuntimeError("Genetic/random candidate search was retired; use run_fc_branch_discovery()")
     random.seed(config.seed)
@@ -546,7 +644,7 @@ def run_fc_genetic_algorithm(config: FCGAConfig, existing_db=None):
             scan_batch_size=config.exhaustive_batch_size,
             max_leaves=config.branch_max_leaves,
             expected_population=config.expected_space_size,
-            certificate_path=str(BASE_DIR / 'results' / 'fuel_cell' / 'coverage_certificate.json'),
+            certificate_path=str(FUEL_CELL_DIR / 'coverage_certificate.json'),
         ), lambda pop: compute_orr_objectives_surrogate(pop, model, config.device))
         logger.info(f"Branch-and-bound ORR scan: {summary}")
         indexed_seeds = load_archive_genomes(

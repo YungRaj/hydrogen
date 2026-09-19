@@ -6,7 +6,16 @@ from pipeline.search.indexed_space import TOTAL_SIZE
 from pipeline.evidence.manifest import verify_evidence_manifest
 
 
-def assess_campaign(results_dir='results', pyrolysis_mode='ntec') -> dict:
+def assess_campaign(results_dir='results', pyrolysis_mode='thermocatalytic') -> dict:
+    """Combine campaign evidence into a fail-closed readiness assessment.
+
+    Args:
+        results_dir: Directory containing campaign result artifacts.
+        pyrolysis_mode: Methane-conversion pathway used for evaluation.
+
+    Returns:
+        A campaign-status record with evidence-qualified readiness.
+    """
     root = Path(results_dir)
     coverage = []
     for path in (root / 'screening/turquoise_hydrogen_coverage_certificate.json',
