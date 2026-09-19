@@ -88,6 +88,23 @@ Dated working-tree entries for the carbon-model / reactor-physics track.
 Durable rule: [ADR 0001](docs/adr/0001-pyrolysis-phase-admissibility.md).
 Open work: [`docs/backlog/`](docs/backlog/README.md) B1–B6.
 
+#### 2026-09-19 — Sweep callers on pathway modes; emulsion area basis
+
+`yaml_sweep`, `inventory_sweep`, and `eact_sensitivity` route each reactor
+through its pathway mode (`SINGLE_REACTOR_MODE`), carry `material_class` /
+`candidate_id` from the screening row (or `catalyst.material_class` +
+`genome` for kinetics-only specs), and keep `not_applicable` /
+`validation_required` / `failed` rows as records with a `status` column.
+`phase2_scorecard` admits only `status == complete`. Fluidized emulsion area is
+now per emulsion volume with gas volume `ε_mf = 0.45` (same basis as PFR;
+the old pairing undercounted area by `1/ε_mf`). `inventory_sweep` builds the
+probe / control mechanisms from `CandidateKinetics.from_screening_row`, so
+the "cat_9 probe" is the same catalyst as the headline sweep (the template
+path had default adsorbate enthalpies and gave ~100× lower X under the same
+name). Headline `cat_9` 1300 K production cell: PFR 2.90 %, fluidized 1.19 %
+(emulsion 2.38 %), MMBCR `not_applicable` (SAC). `run_eact_sweep` takes a
+`kinetics=` record for B6-6.
+
 #### 2026-09-19 — Merge onto upstream pathway-mode architecture
 
 Upstream is the base. `reactor_models` keeps his `pathway_modes` routing,

@@ -84,6 +84,10 @@ MMBCR_RESIDENCE_BASIS = 'column_height_over_bubble_rise_velocity'
 MMBCR_ARTIFACT_RESIDENCE_BASIS = 'gas_holdup_times_column_height_over_superficial_velocity'
 G_M_S2 = 9.80665
 FLUIDIZED_REMOVAL_SUBSTEPS = 20
+# Emulsion voidage at minimum fluidization (Geldart B order of magnitude).
+# Emulsion area is per emulsion volume; the reacting gas volume in 1 m³ of
+# emulsion is ε_mf. Same area basis as PFR (area per bed volume × bed volume).
+FLUIDIZED_EMULSION_VOIDAGE = 0.45
 
 # Closure tiers for the two Cantera reactors whose hydrodynamics upstream
 # expects from an external solver. A validated OpenFOAM artifact or a
@@ -98,6 +102,22 @@ ANALYTICAL_CLOSURE_BASIS = {
 }
 EXTERNAL_CLOSURE_SOURCES = frozenset({
     'validated_full_physics', 'calibrated_transport_surrogate'})
+
+# Single-reactor pathway mode for callers that sweep a reactor list one
+# reactor at a time (yaml_sweep, inventory_sweep, eact_sensitivity).
+# Upstream rejects a sweep that mixes solids and melt modes.
+SINGLE_REACTOR_MODE = {
+    'PFR': 'thermocatalytic_pfr',
+    'Fluidized': 'thermocatalytic_fluidized',
+    'MMBCR': 'mmbcr',
+}
+# Material class for synthetic template-kinetics diagnostics (E_act sweeps,
+# ablations) that have no screening row. Labelled diagnostic, not a candidate.
+DIAGNOSTIC_MATERIAL_CLASS = {
+    'PFR': 'SolidCatalyst',
+    'Fluidized': 'SolidCatalyst',
+    'MMBCR': 'MoltenMetal',
+}
 
 # Production solids particle size (B1-3). ROI map: last Ergun-legal
 # envelope cell with margin is 0.10 mm (0.67 bar); 0.08 mm fails.
@@ -370,11 +390,11 @@ def geometric_sv_pfr(config: ReactorConfig) -> float:
 
 
 def geometric_sv_fluidized(config: ReactorConfig) -> float:
-    """Emulsion solids area per emulsion volume: 6×0.55/d_p."""
+    """Emulsion solids area per emulsion volume: 6·(1−ε_mf)/d_p."""
     d_p = config.catalyst_particle_mm * 1e-3
     if d_p <= 0:
         raise ValueError('catalyst_particle_mm must be positive')
-    return 6.0 * 0.55 / d_p
+    return 6.0 * (1.0 - FLUIDIZED_EMULSION_VOIDAGE) / d_p
 
 
 def active_area_multiplier(config: ReactorConfig) -> float:
@@ -996,9 +1016,14 @@ def simulate_pfr(config: ReactorConfig) -> Dict:
 
 def _integrate_fluidized_pass(gas, surf, tau: float, sv_ratio: float,
                               removal_rate_1_s: float) -> float:
-    """Advance emulsion residence with C_s removal *during* integrate (B2)."""
+    """Advance emulsion residence with C_s removal *during* integrate (B2).
+
+    Basis: 1 m³ of emulsion. Gas volume is ε_mf; solids area is
+    ``sv_ratio`` (area per emulsion volume). Pairing per-emulsion-volume
+    area with 1 m³ of gas would undercount area by 1/ε_mf.
+    """
     reactor_em = ct.IdealGasReactor(gas)
-    reactor_em.volume = 1.0
+    reactor_em.volume = FLUIDIZED_EMULSION_VOIDAGE
     _disable_reactor_energy(reactor_em)
     if surf is not None:
         ct.ReactorSurface(surf, reactor_em, A=sv_ratio)
@@ -1112,6 +1137,8 @@ def simulate_fluidized_bed(config: ReactorConfig) -> Dict:
             else 'clip((u0-umf)/u0, 0.01, 0.5)'),
         'residence_time_s': tau_emulsion,
         'WHSV_h-1': reciprocal_residence_h(tau_emulsion),
+        'emulsion_voidage': FLUIDIZED_EMULSION_VOIDAGE,
+        'surface_area_basis': 'sv_per_emulsion_volume_times_emulsion_volume',
         'emulsion_CH4_conversion': float(emulsion_conv),
         'CH4_conversion': float(final_conv),
         'single_pass_CH4_conversion': float(final_conv),
@@ -1327,6 +1354,7 @@ def simulate_reactor(config: ReactorConfig, coupling_services=None) -> Dict:
             'reactor_type': config.reactor_type,
             'pathway_mode': config.pathway_mode,
             'catalyst_name': config.catalyst_name,
+            'T_K': config.T_inlet_K,
             'material_class': config.material_class,
             'reason': reason, 'can_exclude_candidate': False,
             'reactor_evidence_tier': 'not_applicable_non_excluding',
@@ -1384,6 +1412,7 @@ def simulate_reactor(config: ReactorConfig, coupling_services=None) -> Dict:
                     'reactor_type': config.reactor_type,
                     'pathway_mode': config.pathway_mode,
                     'catalyst_name': config.catalyst_name,
+                    'T_K': config.T_inlet_K,
                     'candidate_id': config.candidate_id,
                     'material_class': config.material_class,
                     'multiphysics_evidence': loaded,

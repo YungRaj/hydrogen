@@ -1528,6 +1528,7 @@ def test_yaml_sweep_rejects_invented_area():
 name: bad_loading
 catalyst:
   name: explicit
+  material_class: SolidCatalyst
   kinetics:
     E_act: 0.43
     dE_H: -0.90
@@ -1549,6 +1550,28 @@ cells:
             assert 'metal_loading' in str(exc)
         else:
             raise AssertionError('loading > 1 must fail closed')
+        # Kinetics-only sweeps must declare the class: reactor applicability
+        # and the B6 gate depend on it, and upstream refuses a reactor
+        # without one.
+        no_class = spec.replace('  material_class: SolidCatalyst\n', '')
+        no_class = no_class.replace('metal_loading: 1.5', 'metal_loading: 0.5')
+        path.write_text(no_class, encoding='utf-8')
+        try:
+            parse_sweep(path)
+        except ValueError as exc:
+            assert 'material_class' in str(exc)
+        else:
+            raise AssertionError('kinetics-only sweep without a class must fail closed')
+
+
+def test_yaml_sweep_splits_reactors_by_pathway_mode():
+    from pipeline.process.yaml_sweep import _reactors_by_mode
+    groups = dict(_reactors_by_mode(['PFR', 'Fluidized', 'MMBCR']))
+    assert groups == {
+        'thermocatalytic_pfr': ['PFR'],
+        'thermocatalytic_fluidized': ['Fluidized'],
+        'mmbcr': ['MMBCR'],
+    }
 
 
 def test_solids_scorecard_judges_cat_9_not_h_parked():
@@ -1938,6 +1961,7 @@ if __name__ == '__main__':
     test("Inventory levers preserve baseline area", test_inventory_levers_preserve_baseline_area)
     test("YAML sweep parses headline example", test_yaml_sweep_parses_headline_example)
     test("YAML sweep rejects invented area", test_yaml_sweep_rejects_invented_area)
+    test("YAML sweep splits reactors by pathway mode", test_yaml_sweep_splits_reactors_by_pathway_mode)
     test("Solids scorecard takes named judge as argument", test_solids_scorecard_judges_cat_9_not_h_parked)
     test("Solids run requires loaded surface", test_solids_run_requires_loaded_surface)
     test("Mismatched catalyst name fails closed", test_mismatched_catalyst_name_fails_closed)

@@ -19,7 +19,9 @@ import numpy as np
 
 from pipeline.common.utils import REACTOR_DIR, setup_logger, save_json
 from pipeline.process.reactor_mechanisms import write_full_mechanism
-from pipeline.process.reactor_models import ReactorConfig, simulate_reactor
+from pipeline.process.reactor_models import (
+    DIAGNOSTIC_MATERIAL_CLASS, SINGLE_REACTOR_MODE, ReactorConfig,
+    simulate_reactor)
 from pipeline.process.equilibrium_check import TABULATED_X_CH4_1BAR
 
 logger = setup_logger('eact_sensitivity', 'reactor/eact_sensitivity.log')
@@ -31,7 +33,16 @@ def run_eact_sweep(
     reactor_types: Optional[List[str]] = None,
     reactor_config_kwargs: Optional[Dict] = None,
     catalyst_stub: str = 'eact_sweep',
+    material_class: Optional[str] = None,
+    kinetics=None,
 ) -> Dict:
+    """Sweep E_act on a template mechanism (or a fixed ``kinetics`` record with
+    only the CH4 barrier varied) across reactors.
+
+    ``material_class`` applies to every reactor; None uses the per-reactor
+    diagnostic class (SolidCatalyst for beds, MoltenMetal for MMBCR). A
+    real candidate class makes incompatible reactors ``not_applicable``.
+    """
     if temperatures is None:
         temperatures = [1300.0]
     if e_acts_eV is None:
@@ -48,14 +59,23 @@ def run_eact_sweep(
     rows = []
     for E in e_acts_eV:
         cat = f'{catalyst_stub}_{E:.3f}'.replace('.', 'p')
-        mech = write_full_mechanism(cat, E_act_CH4=float(E), T_ref=temperatures[0])
+        if kinetics is not None:
+            from dataclasses import replace as _replace
+            varied = _replace(kinetics, methane_activation_eV=float(E))
+            mech = write_full_mechanism(cat, kinetics=varied, T_ref=temperatures[0])
+        else:
+            mech = write_full_mechanism(cat, E_act_CH4=float(E), T_ref=temperatures[0])
         for rt in reactor_types:
+            rt_class = material_class or DIAGNOSTIC_MATERIAL_CLASS[rt]
             for T in temperatures:
                 cfg = ReactorConfig(
                     T_inlet_K=float(T),
                     reactor_type=rt,
+                    pathway_mode=SINGLE_REACTOR_MODE[rt],
+                    material_class=rt_class,
                     mechanism_file=str(mech),
                     catalyst_name=cat,
+                    candidate_id=cat,
                     catalyst_E_act_eV=float(E),
                     **extra,
                 )
@@ -68,6 +88,9 @@ def run_eact_sweep(
                     'E_act_eV': float(E),
                     'T_K': float(T),
                     'reactor_type': rt,
+                    'material_class': rt_class,
+                    'status': result.get('status'),
+                    'reason': result.get('reason'),
                     'CH4_conversion': float(result.get('CH4_conversion', 0.0) or 0.0),
                     'X_eq_table': float(x_eq),
                     'exit_theta_C': result.get('exit_theta_C'),
@@ -164,8 +187,11 @@ def run_detachment_ablation(T_K: float = 1300.0, E_act_eV: float = 0.1) -> Dict:
             cfg = ReactorConfig(
                 T_inlet_K=T_K,
                 reactor_type=rt,
+                pathway_mode=SINGLE_REACTOR_MODE[rt],
+                material_class=DIAGNOSTIC_MATERIAL_CLASS[rt],
                 mechanism_file=str(mech),
                 catalyst_name=cat,
+                candidate_id=cat,
                 catalyst_E_act_eV=E_act_eV,
                 co2_permitted=False,
                 max_regen_cycles=0,

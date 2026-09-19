@@ -50,9 +50,17 @@ Two modes, chosen by `fluidized_mode`:
 
 A 1.5 m melt column. Gas rises as bubbles. There is **no site lattice** and no `C_s` inventory. Carbon leaves by flotation / transport, not by clearing a packed-bed surface.
 
-The ODE is `dX/dt = k(E_act, T) · a_bubble · (X_eq − X)`, with `a_bubble = 6 / d_bubble`. For a large `k · a · τ` the conversion **is** `X_eq` by construction. At 1300 K that is ~98.5%. That number is not a catalyst rank and does not use the cell’s loading or dispersion. The table leaves *a*, WHSV, and ΔP blank.
+The ODE is `dX/dt = k(E_act, T) · a_bubble · (X_eq − X)`, with `a_bubble = 6 / d_bubble` and residence `τ = H / u_b` (Mendelson bubble rise; ~7.3 s for the default column). For a large `k · a · τ` the conversion **is** `X_eq` by construction; the default column is Da-limited (~23% at 1300 K on a 0.43 eV melt). That number is not a catalyst rank and does not use the cell’s loading or dispersion. The table leaves *a*, WHSV, and ΔP blank.
+
+**MMBCR only runs for `MoltenMetal` catalysts.** For any solids class (SAC, SolidCatalyst, HEA, …) the cell is reported as `not_applicable` with the reason, not dropped and not zero. `cat_9` is a SAC, so its MMBCR cells are `not_applicable`.
 
 Use MMBCR as the melt contrast, not as a third solids score.
+
+### Pathway modes and hydrodynamic closure
+
+Upstream routes each reactor through a pathway mode (`thermocatalytic_pfr`, `thermocatalytic_fluidized`, `mmbcr`) and refuses a run that mixes solids and melt modes. A sweep file may still list all three reactors; the runner splits them into one call per mode.
+
+Fluidized and MMBCR hydrodynamics are external-solver quantities upstream. When a validated OpenFOAM artifact or calibrated surrogate is present it is used. Without one the run proceeds on the labelled `analytical_hydrodynamic_closure` (Mendelson `u_b` / derived holdup for the melt; clipped `(u0−umf)/u0` bubble bypass for the bed) and records `closure_source`. Such a run can never exclude a candidate.
 
 ## What to set vs leave alone
 
@@ -63,6 +71,7 @@ Use MMBCR as the melt contrast, not as a third solids score.
 | `name` | Output folder name under `results/sweeps/`. |
 | `catalyst.name` | Cantera surface suffix (`mechanism_<name>.yaml`). |
 | `catalyst.screening` **or** `catalyst.kinetics` | Where the barriers / adsorption energies come from. |
+| `catalyst.material_class` (+ `genome`) | Required with `kinetics`. Reactor applicability (MMBCR = `MoltenMetal` only) and the B6 nanoparticle gate depend on it. Taken from the CSV row with `screening`. |
 | `conditions.temperatures_K` | Which T points to run. |
 | `conditions.reactors` | Which of the three reactor archetypes to run (see above). |
 | `cells[]` inventory | Particle size, loading, and dispersion for that cell. |
@@ -101,6 +110,8 @@ Use **one** source. Screening wins for the row; explicit `kinetics` is for a fil
 | `screening.index` | Integer ≥ 0 | 0-based pandas index after `read_csv`. `cat_9` is `index: 9`. |
 | `kinetics.E_act` | Finite **eV > 0** | Methane activation barrier. Required if there is no screening row. |
 | `kinetics.dE_H`, `.dE_CH3`, `.dE_C` | Finite eV, optional | Adsorption energies → surface enthalpies. **Not** barriers. Do not treat `\|dE_H\|` as H₂ desorption. |
+| `material_class` | One of the 14 classes, or `MoltenMetal` | **Required with `kinetics`**; ignored with `screening` (the row wins). Decides which reactors apply and whether the B6 Cγ/Cδ channels are written. |
+| `genome` | Genome tuple as a string, optional | e.g. `"('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)"`. Only the B6 gate reads it (metal must be Ni/Fe/Co on an extended particle). Omit for SAC / melts. |
 
 ### Conditions
 
@@ -144,7 +155,9 @@ catalyst:
   screening:
     csv: results/screening/ga_full_database.csv
     index: 9
-  # Or, if there is no CSV:
+  # Or, if there is no CSV (material_class is then required):
+  # material_class: SolidCatalyst
+  # genome: "('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)"
   # kinetics:
   #   E_act: 0.43
   #   dE_H: -0.90
@@ -177,7 +190,10 @@ cells:
 | Field | Meaning |
 |---|---|
 | `cell` | `cells[].name` |
-| `X` | Ar-tracer CH₄ conversion |
+| `X` | Ar-tracer CH₄ conversion. Fluidized: after bubble bypass, `(1−δ)·X_emulsion`; `emulsion_CH4_conversion` is in the JSON. Blank when the cell did not run. |
 | `a_1/m` | Active solids area; blank for MMBCR |
 | `WHSV` | 1/τ in h⁻¹ (historical name) |
 | `dP_bar` | Ergun ΔP; blank for MMBCR |
+| `status` | `complete`, `not_applicable (reason)`, `validation_required`, or `failed (error)`. Only `complete` rows are catalyst evidence. |
+
+The JSON also records `pathway_mode`, `material_class`, `closure_source`, `residence_time_s`, and `can_exclude_candidate` per row.

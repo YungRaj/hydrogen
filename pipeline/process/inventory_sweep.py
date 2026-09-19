@@ -8,16 +8,18 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Optional
 
 import pandas as pd
 
 from pipeline.common.utils import (
     REACTOR_DIR, SCREENING_DIR, setup_logger,
 )
-from pipeline.process.reactor_mechanisms import write_full_mechanism
+from pipeline.process.reactor_mechanisms import (
+    CandidateKinetics, write_full_mechanism)
 from pipeline.process.reactor_models import (
     INVENTORY_METAL_DISPERSION, INVENTORY_METAL_LOADING, INVENTORY_PARTICLE_MM,
-    ReactorConfig, run_reactor_sweep, simulate_reactor,
+    SINGLE_REACTOR_MODE, ReactorConfig, run_reactor_sweep, simulate_reactor,
 )
 from pipeline.process.staged_sweep import (
     SweepSpec, cartesian_cells, import_existing_stage, load_stage,
@@ -73,13 +75,22 @@ def _row_for_index(idx: int):
 
 
 def _write_mech(idx: int, row) -> Path:
-    e_act = float(row.get('E_act', 0.8))
-    dE_H = float(row.get('dE_H', -0.5))
-    return write_full_mechanism(
-        f'inv_cat_{idx}',
-        E_act_CH4=e_act,
-        E_act_H_desorb=max(0.3, abs(dE_H)),
-    )
+    """Write the probe/control mechanism from its screening row.
+
+    Uses the same ``CandidateKinetics`` path as the headline YAML sweep and
+    the orchestrator, so the inventory probe carries the row's adsorbate
+    thermochemistry (dE_H, dE_CH3, dE_C) and B6 class gate. The template
+    path (``E_act_CH4=``) has default enthalpies and gave a different
+    catalyst under the same name.
+    """
+    kinetics = CandidateKinetics.from_screening_row(
+        row, candidate_id=f'cat_{idx}')
+    return write_full_mechanism(f'inv_cat_{idx}', kinetics=kinetics)
+
+
+def _material_class(row) -> Optional[str]:
+    value = row.get('material_class')
+    return str(value) if isinstance(value, str) and value else None
 
 
 def _record(role: str, cat: str, r: dict, cell: dict = None) -> dict:
@@ -88,6 +99,9 @@ def _record(role: str, cat: str, r: dict, cell: dict = None) -> dict:
         'role': role,
         'cat': cat,
         'reactor_type': r.get('reactor_type'),
+        'status': r.get('status'),
+        'reason': r.get('reason'),
+        'material_class': r.get('material_class'),
         'T_K': r.get('T_K'),
         'CH4_conversion': r.get('CH4_conversion'),
         'single_pass_CH4_conversion': r.get(
@@ -115,13 +129,19 @@ def _evaluate_cells(cells, temperatures, probe, control, probe_mech, control_mec
         'regen_mechanism': 'mechanical',
     }
     records = []
+    probe_class = _material_class(probe)
+    control_class = _material_class(control)
     for cell in cells:
+        # Both solids reactors share the thermocatalytic mode.
         results = run_reactor_sweep(
             f'inv_cat_{PROBE_INDEX}',
             str(probe_mech),
             temperatures=list(temperatures),
             reactor_types=list(SOLIDS_TYPES),
             catalyst_E_act_eV=float(probe.get('E_act', 0.8)),
+            pathway_mode='thermocatalytic',
+            material_class=probe_class,
+            candidate_id=f'cat_{PROBE_INDEX}',
             catalyst_dE_H_eV=float(probe.get('dE_H', 0.0)),
             reactor_config_kwargs={**policy, **cell},
         )
@@ -133,11 +153,16 @@ def _evaluate_cells(cells, temperatures, probe, control, probe_mech, control_mec
     else:
         leak_cells = ()
     for cell in leak_cells:
+        # MMBCR on a solids probe is not_applicable under the class gate; the
+        # record is kept so the leak check is visible, not silently dropped.
         r = simulate_reactor(ReactorConfig(
             T_inlet_K=1300.0,
             reactor_type='MMBCR',
+            pathway_mode=SINGLE_REACTOR_MODE['MMBCR'],
+            material_class=probe_class,
             mechanism_file=str(probe_mech),
             catalyst_name=f'inv_cat_{PROBE_INDEX}',
+            candidate_id=f'cat_{PROBE_INDEX}',
             catalyst_E_act_eV=float(probe.get('E_act', 0.8)),
             catalyst_dE_H_eV=float(probe.get('dE_H', 0.0)),
             **policy,
@@ -147,8 +172,11 @@ def _evaluate_cells(cells, temperatures, probe, control, probe_mech, control_mec
         r = simulate_reactor(ReactorConfig(
             T_inlet_K=1300.0,
             reactor_type='PFR',
+            pathway_mode=SINGLE_REACTOR_MODE['PFR'],
+            material_class=control_class,
             mechanism_file=str(control_mech),
             catalyst_name=f'inv_cat_{CONTROL_INDEX}',
+            candidate_id=f'cat_{CONTROL_INDEX}',
             catalyst_E_act_eV=float(control.get('E_act', 0.01)),
             catalyst_dE_H_eV=float(control.get('dE_H', 0.0)),
             **policy,

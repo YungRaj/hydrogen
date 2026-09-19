@@ -5,6 +5,8 @@ description: >
   Solids judge cat_9 at 1300 K: production fractional cell
   (0.13 mm × 0.5 × 0.3) vs 1×1 envelope. PFR, circulating
   fluidized, and MMBCR. Same cells as the repeated headline runs.
+  cat_9 is a SAC, so the MMBCR cells report not_applicable; they
+  are kept as the melt-applicability record, not a third solids score.
 
 catalyst:
   name: cat_9

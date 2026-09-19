@@ -50,6 +50,10 @@ class SweepJob:
     screening_csv: Optional[str] = None
     screening_index: Optional[int] = None
     kinetics: dict = field(default_factory=dict)
+    # Explicit class / genome for kinetics-only sweeps (B6 gate, reactor
+    # applicability). Screening sweeps take both from the CSV row.
+    material_class: Optional[str] = None
+    genome: Optional[str] = None
 
 
 def _require_mapping(value: Any, label: str) -> dict:
@@ -158,6 +162,14 @@ def parse_sweep(yaml_path: Path) -> SweepJob:
     if screening is None and 'E_act' not in kinetics:
         raise ValueError(
             'catalyst needs screening: {csv, index} or kinetics: {E_act}')
+    material_class = catalyst.get('material_class')
+    material_class = str(material_class).strip() if material_class else None
+    genome = catalyst.get('genome')
+    genome = str(genome).strip() if genome else None
+    if screening is None and material_class is None:
+        raise ValueError(
+            'kinetics-only sweeps need catalyst.material_class (reactor '
+            'applicability and the B6 gate depend on it)')
 
     conditions = _require_mapping(root.get('conditions'), 'conditions')
     if 'temperatures_K' in conditions:
@@ -220,12 +232,16 @@ def parse_sweep(yaml_path: Path) -> SweepJob:
         screening_csv=screening_csv,
         screening_index=screening_index,
         kinetics=kinetics,
+        material_class=material_class,
+        genome=genome,
     )
 
 
 def _load_kinetics_row(job: SweepJob):
+    """Return (row, kinetics, material_class, candidate_id)."""
     import pandas as pd
-    from pipeline.process.reactor_mechanisms import CandidateKinetics
+    from pipeline.process.reactor_mechanisms import (
+        CandidateKinetics, parse_catalyst_genome)
 
     if job.screening_csv is not None:
         path = _resolve(job.screening_csv)
@@ -236,15 +252,39 @@ def _load_kinetics_row(job: SweepJob):
             raise KeyError(
                 f'screening row {job.screening_index} missing from {path}')
         row = frame.loc[job.screening_index]
-        return row, CandidateKinetics.from_screening_row(
+        kinetics = CandidateKinetics.from_screening_row(
             row, candidate_id=job.catalyst_name)
-    return job.kinetics, CandidateKinetics(
+        material_class = row.get('material_class')
+        material_class = (str(material_class) if isinstance(material_class, str)
+                          else None)
+        candidate_id = row.get('candidate_id')
+        candidate_id = (str(candidate_id) if isinstance(candidate_id, str)
+                        else job.catalyst_name)
+        return row, kinetics, material_class, candidate_id
+    kinetics = CandidateKinetics(
         methane_activation_eV=float(job.kinetics['E_act']),
         h_adsorption_eV=job.kinetics.get('dE_H'),
         ch3_adsorption_eV=job.kinetics.get('dE_CH3'),
         c_adsorption_eV=job.kinetics.get('dE_C'),
+        candidate_id=job.catalyst_name,
         sources={'methane_activation_eV': 'sweep_yaml'},
+        material_class=job.material_class,
+        genome=parse_catalyst_genome(job.genome) if job.genome else None,
     )
+    return job.kinetics, kinetics, job.material_class, job.catalyst_name
+
+
+def _reactors_by_mode(reactor_types: List[str]) -> List[tuple]:
+    """Group a sweep's reactor list into (pathway_mode, [reactors]) runs.
+
+    Upstream routes reactors through pathway modes and rejects a sweep that
+    mixes solids and melt modes; a spec may list both, so we split.
+    """
+    from pipeline.process.reactor_models import SINGLE_REACTOR_MODE
+    groups: dict = {}
+    for reactor in reactor_types:
+        groups.setdefault(SINGLE_REACTOR_MODE[reactor], []).append(reactor)
+    return list(groups.items())
 
 
 def _print_table(job: SweepJob, records: list) -> None:
@@ -253,28 +293,44 @@ def _print_table(job: SweepJob, records: list) -> None:
         print(job.description)
     print(
         f"{'cell':<22} {'reactor':<10} {'T_K':>7} {'X':>10} "
-        f"{'a_1/m':>12} {'WHSV':>8} {'dP_bar':>8}"
+        f"{'a_1/m':>12} {'WHSV':>8} {'dP_bar':>8}  status"
     )
     for rec in records:
         a = rec.get('active_sv_1_m')
         whsv = rec.get('WHSV_h-1')
         dp = rec.get('ergun_delta_p_bar')
+        x = rec.get('CH4_conversion')
+        status = rec.get('status') or '?'
+        if rec.get('reason'):
+            status = f"{status} ({rec['reason']})"
+        t_k = rec.get('T_K')
         print(
             f"{rec['cell']:<22} {rec['reactor_type']:<10} "
-            f"{rec['T_K']:7.1f} {rec['CH4_conversion']:9.4%} "
+            f"{(f'{t_k:.1f}' if t_k is not None else '—'):>7} "
+            f"{(f'{x:.4%}' if x is not None else '—'):>10} "
             f"{(f'{a:.1f}' if a is not None else '—'):>12} "
             f"{(f'{whsv:.1f}' if whsv is not None else '—'):>8} "
-            f"{(f'{dp:.3f}' if dp is not None else '—'):>8}"
+            f"{(f'{dp:.3f}' if dp is not None else '—'):>8}  {status}"
         )
 
 
+def _closure_source(result: dict) -> Optional[str]:
+    closure = result.get('reactor_closure_evidence')
+    return closure.get('source') if isinstance(closure, dict) else None
+
+
 def run_sweep(yaml_path: Path) -> dict:
-    """Parse YAML, write one mechanism, run every cell × T × reactor, persist JSON."""
+    """Parse YAML, write one mechanism, run every cell × T × reactor, persist JSON.
+
+    Reactors are grouped by pathway mode (solids vs melt) because upstream
+    rejects mixed-mode sweeps. Non-applicable cells (e.g. MMBCR on a
+    SolidCatalyst) are kept as ``not_applicable`` records, not dropped.
+    """
     from pipeline.process.reactor_mechanisms import write_full_mechanism
     from pipeline.process.reactor_models import run_reactor_sweep
 
     job = parse_sweep(yaml_path)
-    row, kinetics = _load_kinetics_row(job)
+    row, kinetics, material_class, candidate_id = _load_kinetics_row(job)
     try:
         e_act = float(row.get('E_act', kinetics.methane_activation_eV))
         dE_H = float(row.get('dE_H', 0.0) or 0.0)
@@ -285,37 +341,51 @@ def run_sweep(yaml_path: Path) -> dict:
     mech = write_full_mechanism(job.catalyst_name, kinetics=kinetics)
     records = []
     for cell in job.cells:
-        results = run_reactor_sweep(
-            job.catalyst_name, str(mech),
-            temperatures=list(job.temperatures_K),
-            reactor_types=list(job.reactor_types),
-            catalyst_E_act_eV=e_act,
-            catalyst_dE_H_eV=dE_H,
-            reactor_config_kwargs={
-                **job.policy,
-                'catalyst_particle_mm': cell.catalyst_particle_mm,
-                'metal_loading': cell.metal_loading,
-                'metal_dispersion': cell.metal_dispersion,
-            },
-        )
-        for result in results:
-            records.append({
-                'cell': cell.name,
-                'catalyst_particle_mm': cell.catalyst_particle_mm,
-                'metal_loading': cell.metal_loading,
-                'metal_dispersion': cell.metal_dispersion,
-                'reactor_type': result.get('reactor_type'),
-                'T_K': result.get('T_K'),
-                'CH4_conversion': result.get('CH4_conversion'),
-                'active_sv_1_m': result.get('active_sv_1_m'),
-                'WHSV_h-1': result.get('WHSV_h-1'),
-                'ergun_delta_p_bar': result.get('ergun_delta_p_bar'),
-                'surface_loaded': result.get('surface_loaded'),
-                'graphite_loaded': result.get('graphite_loaded'),
-            })
+        for pathway_mode, reactors in _reactors_by_mode(job.reactor_types):
+            results = run_reactor_sweep(
+                job.catalyst_name, str(mech),
+                temperatures=list(job.temperatures_K),
+                reactor_types=reactors,
+                catalyst_E_act_eV=e_act,
+                pathway_mode=pathway_mode,
+                material_class=material_class,
+                candidate_id=candidate_id,
+                catalyst_dE_H_eV=dE_H,
+                reactor_config_kwargs={
+                    **job.policy,
+                    'catalyst_particle_mm': cell.catalyst_particle_mm,
+                    'metal_loading': cell.metal_loading,
+                    'metal_dispersion': cell.metal_dispersion,
+                },
+            )
+            for result in results:
+                records.append({
+                    'cell': cell.name,
+                    'catalyst_particle_mm': cell.catalyst_particle_mm,
+                    'metal_loading': cell.metal_loading,
+                    'metal_dispersion': cell.metal_dispersion,
+                    'reactor_type': result.get('reactor_type'),
+                    'pathway_mode': pathway_mode,
+                    'material_class': material_class,
+                    'T_K': result.get('T_K'),
+                    'status': result.get('status'),
+                    'reason': result.get('reason') or result.get('error'),
+                    'CH4_conversion': result.get('CH4_conversion'),
+                    'emulsion_CH4_conversion': result.get('emulsion_CH4_conversion'),
+                    'active_sv_1_m': result.get('active_sv_1_m'),
+                    'WHSV_h-1': result.get('WHSV_h-1'),
+                    'residence_time_s': result.get('residence_time_s'),
+                    'ergun_delta_p_bar': result.get('ergun_delta_p_bar'),
+                    'closure_source': _closure_source(result),
+                    'can_exclude_candidate': result.get('can_exclude_candidate'),
+                    'surface_loaded': result.get('surface_loaded'),
+                    'graphite_loaded': result.get('graphite_loaded'),
+                })
 
     payload = {
         'job': asdict(job),
+        'material_class': material_class,
+        'candidate_id': candidate_id,
         'mechanism_file': str(mech),
         'written_at': datetime.now(timezone.utc).isoformat(),
         'records': records,

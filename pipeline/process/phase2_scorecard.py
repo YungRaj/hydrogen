@@ -23,10 +23,16 @@ def is_h_parked(record: dict) -> bool:
 
 
 def is_production_reactor_record(record: dict) -> bool:
+    """A completed single-condition run. Upstream's non-run records
+    (``not_applicable``, ``validation_required``, ``failed``) carry a
+    ``status`` and no conversion; they are evidence about the workflow, not
+    the catalyst, and never enter the scorecard. Legacy JSON has no
+    ``status`` and is accepted on the conversion key."""
     return (
         isinstance(record, dict)
         and record.get('reactor_type') in {'PFR', 'Fluidized', 'MMBCR'}
-        and record.get('catalyst_name')
+        and bool(record.get('catalyst_name'))
+        and record.get('status', 'complete') == 'complete'
         and 'CH4_conversion' in record
         and 'records' not in record
     )
