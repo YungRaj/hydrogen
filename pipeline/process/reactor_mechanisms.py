@@ -7,14 +7,16 @@ Generates YAML mechanism files for methane pyrolysis surface kinetics
 using DFT/MACE-derived activation barriers.
 
 Solid carbon is a condensed fixed-stoichiometry graphite phase (C(gr)),
-not a gas-phase tracer. Surface carbon remains as C_s (site-blocking).
+not a gas-phase tracer. Surface carbon remains as C_s (site-blocking)
+unless the class gate admits off-site Cγ / Cδ (nanoparticle Ni/Fe/Co).
 Output follows the Cantera 3.x YAML format.
 """
 
+import ast
 import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Mapping, Optional
+from typing import Any, Mapping, Optional
 
 import numpy as np
 
@@ -47,9 +49,12 @@ class CandidateKinetics:
     ch_dehydrogenation_eV: Optional[float] = None
     h2_desorption_eV: Optional[float] = None
     carbon_transfer_eV: Optional[float] = None
+    carbon_encapsulation_eV: Optional[float] = None
     site_density_mol_cm2: float = 2.5e-9
     screening_protocol: str = 'unknown'
     candidate_id: str = 'unknown'
+    material_class: Optional[str] = None
+    genome: Optional[tuple] = None
     sources: Mapping[str, str] = field(default_factory=dict)
 
     @classmethod
@@ -78,8 +83,16 @@ class CandidateKinetics:
             values[target] = finite(source)
             if values[target] is not None:
                 sources[target] = f'screening:{protocol}:{source}'
+        genome = parse_catalyst_genome(row.get('genome'))
+        material_class = row.get('material_class')
+        if material_class is None or (
+                isinstance(material_class, float) and not np.isfinite(material_class)):
+            material_class = genome[0] if genome else None
+        elif material_class is not None:
+            material_class = str(material_class)
         return cls(methane_activation_eV=barrier, candidate_id=candidate_id,
-                   screening_protocol=protocol, sources=sources, **values)
+                   screening_protocol=protocol, sources=sources,
+                   material_class=material_class, genome=genome, **values)
 
     def resolved(self) -> dict:
         """Return numerical values plus whether each was observed or templated."""
@@ -89,6 +102,7 @@ class CandidateKinetics:
             'ch_dehydrogenation_eV': self.methane_activation_eV + 0.05,
             'h2_desorption_eV': 0.8,
             'carbon_transfer_eV': 1.5,
+            'carbon_encapsulation_eV': 1.53,
         }
         values = asdict(self)
         provenance = dict(self.sources)
@@ -110,6 +124,72 @@ class CandidateKinetics:
 # Do not raise this to force Damköhler (B1). Extra sites come from
 # particle S/V, loading, and dispersion only.
 MONOLAYER_SITE_DENSITY_MOL_CM2 = 2.5e-9
+
+# Baker / Helveg cycle needs an extended metal particle (B6-3).
+OFF_SITE_CARBON_METALS = frozenset({'Ni', 'Fe', 'Co'})
+OFF_SITE_CARBON_DENIED_CLASSES = frozenset({
+    'SAC', 'DAC', 'MetalFreeCarbon', 'MoltenMetal',
+    'MOF', 'COF', 'Perovskite', 'MetalHydride', 'MXene',
+    'MAXPhase', 'Spinel',
+})
+C_GAMMA_PROVENANCE = 'template_default: Abild-Pedersen 2006 / Baker 1972'
+C_DELTA_PROVENANCE = 'template_default: Amin 2011 encapsulating-carbon'
+
+
+def parse_catalyst_genome(raw: Any) -> Optional[tuple]:
+    if raw is None:
+        return None
+    if isinstance(raw, tuple):
+        return raw
+    if isinstance(raw, list):
+        return tuple(raw)
+    if isinstance(raw, str):
+        try:
+            parsed = ast.literal_eval(raw)
+        except (ValueError, SyntaxError):
+            return None
+        if isinstance(parsed, tuple):
+            return parsed
+        if isinstance(parsed, list):
+            return tuple(parsed)
+    return None
+
+
+def _nanoparticle_metals(genome: Optional[tuple], material_class: Optional[str]) -> frozenset:
+    if not genome:
+        return frozenset()
+    cls = material_class or genome[0]
+    if cls == 'SolidCatalyst' and len(genome) > 1:
+        return frozenset({genome[1]})
+    if cls == 'SAA' and len(genome) > 2:
+        return frozenset({genome[2]})
+    if cls == 'HEA' and len(genome) > 1:
+        metals = genome[1]
+        if isinstance(metals, (tuple, list)):
+            return frozenset(metals)
+        return frozenset({metals})
+    return frozenset()
+
+
+def off_site_carbon_allowed(genome: Any = None, material_class: Optional[str] = None) -> bool:
+    """True only for nanoparticle Ni/Fe/Co (SolidCatalyst / HEA / SAA host)."""
+    parsed = parse_catalyst_genome(genome)
+    cls = material_class
+    if parsed:
+        cls = parsed[0]
+    if not cls or cls in OFF_SITE_CARBON_DENIED_CLASSES:
+        return False
+    return bool(_nanoparticle_metals(parsed, cls) & OFF_SITE_CARBON_METALS)
+
+
+def _jsonable(obj: Any) -> Any:
+    if isinstance(obj, tuple):
+        return [_jsonable(x) for x in obj]
+    if isinstance(obj, dict):
+        return {k: _jsonable(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_jsonable(x) for x in obj]
+    return obj
 
 # NASA-7 graphite (C(gr)) from Cantera's graphite.yaml / NASA thermo.
 _GRAPHITE_SPECIES_YAML = """\
@@ -237,13 +317,15 @@ def write_full_mechanism(catalyst_name: str, E_act_CH4: float = None,
                           site_density: float = MONOLAYER_SITE_DENSITY_MOL_CM2,
                           T_ref: float = 1000.0,
                           include_surface_sites: bool = True,
-                          kinetics: CandidateKinetics = None) -> Path:
+                          kinetics: CandidateKinetics = None,
+                          off_site_carbon: Optional[bool] = None) -> Path:
     """
     Write a Cantera mechanism (gas + condensed graphite + optional surface).
 
-    Surface carbon remains as C_s (occupies sites). There is no gas-phase
-    carbon product and no continuous C_s → gas sink. Condensed C(gr) is for
-    multiphase equilibrium / external carbon accounting.
+    Surface carbon remains as C_s unless the class gate admits off-site
+    Cγ / Cδ (nanoparticle Ni/Fe/Co only). There is no gas-phase carbon
+    product. Condensed C(gr) is for multiphase equilibrium and, when
+    gated, the Cγ product.
     """
     MECHANISMS_DIR.mkdir(parents=True, exist_ok=True)
     if kinetics is None:
@@ -257,6 +339,16 @@ def write_full_mechanism(catalyst_name: str, E_act_CH4: float = None,
             sources={'methane_activation_eV': 'legacy_argument',
                      'h2_desorption_eV': 'legacy_argument',
                      'carbon_transfer_eV': 'legacy_argument'})
+    allowed = off_site_carbon_allowed(
+        kinetics.genome, kinetics.material_class)
+    if off_site_carbon is True and not allowed:
+        raise ValueError(
+            'off-site carbon is nanoparticle Ni/Fe/Co only '
+            '(SolidCatalyst / HEA / SAA host); not SAC/DAC/cat_9')
+    include_off_site = (
+        include_surface_sites
+        and (allowed if off_site_carbon is None else bool(off_site_carbon) and allowed)
+    )
     values = kinetics.resolved()
     site_density = float(values['site_density_mol_cm2'])
     if abs(site_density - MONOLAYER_SITE_DENSITY_MOL_CM2) > 1e-15:
@@ -272,8 +364,8 @@ def write_full_mechanism(catalyst_name: str, E_act_CH4: float = None,
     Ea_CH2 = values['ch2_dehydrogenation_eV'] * EV_TO_J_MOL
     Ea_CH = values['ch_dehydrogenation_eV'] * EV_TO_J_MOL
     Ea_H2 = values['h2_desorption_eV'] * EV_TO_J_MOL
-    # carbon_transfer_eV is recorded in the sidecar. It is not mapped to
-    # C_s => C(gr) + site (B6 is not implemented).
+    Ea_Cgamma = values['carbon_transfer_eV'] * EV_TO_J_MOL
+    Ea_Cdelta = values['carbon_encapsulation_eV'] * EV_TO_J_MOL
     h0_h = (values['h_adsorption_eV'] * EV_TO_J_MOL
             if values['h_adsorption_eV'] is not None else -25000.0)
     h0_ch3 = (values['ch3_adsorption_eV'] * EV_TO_J_MOL
@@ -283,6 +375,12 @@ def write_full_mechanism(catalyst_name: str, E_act_CH4: float = None,
     E_act_CH4 = float(values['methane_activation_eV'])
 
     if include_surface_sites:
+        surf_species = (
+            '[site, CH3_s, CH2_s, CH_s, H_s, C_s, C_encap_s]'
+            if include_off_site else
+            '[site, CH3_s, CH2_s, CH_s, H_s, C_s]'
+        )
+        adjacent = '[gas, graphite]' if include_off_site else '[gas]'
         phases_and_surface = f"""\
 - name: gas
   thermo: ideal-gas
@@ -300,11 +398,11 @@ def write_full_mechanism(catalyst_name: str, E_act_CH4: float = None,
 - name: {catalyst_name}_surface
   thermo: ideal-surface
   elements: [C, H]
-  species: [site, CH3_s, CH2_s, CH_s, H_s, C_s]
+  species: {surf_species}
   kinetics: surface
   reactions: [{catalyst_name}_surface-reactions]
   site-density: {site_density:.3e} mol/cm^2
-  adjacent-phases: [gas]
+  adjacent-phases: {adjacent}
 """
         surface_species = f"""\
 - name: site
@@ -349,7 +447,28 @@ def write_full_mechanism(catalyst_name: str, E_act_CH4: float = None,
     h0: {h0_c:.8g} J/mol
     s0: 10.0 J/mol/K
   sites: 1
-  note: Surface carbon; occupies catalytic sites (coking) until removed by policy
+  note: Surface carbon (Cα); occupies catalytic sites until removed by policy or off-site Cγ
+"""
+        if include_off_site:
+            surface_species += f"""\
+- name: C_encap_s
+  composition: {{C: 1}}
+  thermo:
+    model: constant-cp
+    h0: {h0_c:.8g} J/mol
+    s0: 10.0 J/mol/K
+  sites: 1
+  note: Encapsulating carbon (Cδ); occupies the site; no off-site return
+"""
+        off_site_rxns = ""
+        if include_off_site:
+            off_site_rxns = f"""\
+- equation: C_s => C(gr) + site
+  rate-constant: {{A: 1.0e+13, b: 0.0, Ea: {Ea_Cgamma:.1f}}}
+  note: Cα → Cγ transport-to-edge lump (Baker / Abild-Pedersen); not nucleation
+- equation: C_s => C_encap_s
+  rate-constant: {{A: 1.0e+13, b: 0.0, Ea: {Ea_Cdelta:.1f}}}
+  note: Cα → Cδ encapsulating; site stays blocked
 """
         surface_rxns = f"""\
 {catalyst_name}_surface-reactions:
@@ -363,7 +482,7 @@ def write_full_mechanism(catalyst_name: str, E_act_CH4: float = None,
   rate-constant: {{A: 1.0e+13, b: 0.0, Ea: {Ea_CH:.1f}}}
 - equation: 2 H_s <=> H2 + 2 site
   rate-constant: {{A: 5.0e+13, b: 0.0, Ea: {Ea_H2:.1f}}}
-"""
+{off_site_rxns}"""
     else:
         phases_and_surface = f"""\
 - name: gas
@@ -406,17 +525,39 @@ reactions:
     with open(filepath, 'w', encoding='utf-8') as f:
         f.write(yaml_content)
     sidecar = filepath.with_suffix('.kinetics.json')
-    sidecar.write_text(json.dumps({
+    carbon_model = (
+        'condensed_graphite_plus_surface_C_s_off_site_Cgamma_Cdelta'
+        if include_off_site else
+        'condensed_graphite_plus_surface_C_s'
+    )
+    sidecar.write_text(json.dumps(_jsonable({
         'schema_version': 1,
         'catalyst_name': catalyst_name,
         'mechanism_file': str(filepath),
         'inputs': values,
-        'carbon_phase_model': 'condensed_graphite_plus_surface_C_s',
-    }, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+        'carbon_phase_model': carbon_model,
+        'off_site_carbon': include_off_site,
+        'coking_index_mapped_to_off_site': False,
+        'off_site_channels': ({
+            'C_gamma': {
+                'equation': 'C_s => C(gr) + site',
+                'barrier_eV': float(values['carbon_transfer_eV']),
+                'kind': 'transport_to_edge',
+                'source': C_GAMMA_PROVENANCE,
+            },
+            'C_delta': {
+                'equation': 'C_s => C_encap_s',
+                'barrier_eV': float(values['carbon_encapsulation_eV']),
+                'kind': 'encapsulating',
+                'source': C_DELTA_PROVENANCE,
+            },
+        } if include_off_site else {}),
+    }), indent=2, sort_keys=True) + '\n', encoding='utf-8')
 
     logger.info(
         f"Wrote mechanism: {filepath} "
         f"(E_act={E_act_CH4:.3f} eV, "
+        f"off_site_carbon={include_off_site}, "
         f"status={values['quantitative_status']})")
     return filepath
 

@@ -87,7 +87,7 @@ Omitting `policy` entirely uses those same four defaults. You do not need the bl
 | Pressure, feed | 1 bar, `CH4:0.95, Ar:0.05`. |
 | Bed geometry / velocity | `ReactorConfig` defaults (0.5 m PFR bed, 0.05 m/s, …). |
 | MMBCR interfacial k₀ / flotation | Melt-side defaults. Not a DFT barrier. |
-| `C_s => C(gr) + site` | Not implemented (B6). Surface YAML ends at `C_s`. |
+| `C_s => C(gr) + site` | Not a sweep key. Writer emits Cγ/Cδ only for nanoparticle Ni/Fe/Co. SAC/`cat_9` YAML still ends at `C_s`. |
 
 ## Options and ranges
 

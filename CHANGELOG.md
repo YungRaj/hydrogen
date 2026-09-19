@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### 2026-09-07 — B6-1–4: gated Cγ / Cδ on nanoparticle Ni/Fe/Co
+
+`write_full_mechanism` emits `C_s => C(gr) + site` (1.5 eV, transport-to-edge) and `C_s => C_encap_s` (1.53 eV, encapsulating) only when the genome is SolidCatalyst / HEA / SAA-host Ni, Fe, or Co. SAC/DAC/`cat_9`/ungated names still end at `C_s`. Sidecar records the channels and `coking_index_mapped_to_off_site: false`. B5 judge is still `cat_9` at 1300 K (B6-5 open).
+
 ### 2026-09-06 — Surface/graphite load fail-closed
 
 `_load_gas_and_surface` no longer swallows a missing Langmuir surface or graphite phase. A `catalyst_name` that does not match the YAML (or a stale mechanism) raises unless `ReactorConfig.gas_only=True`. Results record `surface_loaded` / `graphite_loaded`; `is_solids_run` requires `surface_loaded is True`, so a blank X cannot enter the scorecard. Remaining Phase 2 cleanups (PFR nonlocal closure, unused imports, hand-rolled test harness, `_ch4_extent` import cycle) are listed in the README, not done.

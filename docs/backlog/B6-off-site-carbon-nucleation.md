@@ -1,8 +1,8 @@
 # B6 — Off-site carbon nucleation (Cα → Cγ / Cδ)
 
-**Type:** Implementation. Not started. Do not ship a universal `C_s => C(gr) + site` until the class gate and the encapsulating competitor are specified in the same change.
+**Type:** Implementation. B6-1–3 in the writer. Do not ship a universal `C_s => C(gr) + site`.
 
-**Status:** Documented 2026-09-06. Mechanism YAML still ends at `C_s`. `carbon_transfer_eV` defaults to 1.5 eV and is discarded.
+**Status:** Gated extra block in `write_full_mechanism`. Ungated YAML still ends at `C_s`. Nanoparticle Ni/Fe/Co emit Cγ (`C_s => C(gr) + site`, 1.5 eV) and Cδ (`C_s => C_encap_s`, 1.53 eV). Not mapped to `coking_index`. B6-5 / B5 still open.
 
 **Depends on:** B1 (done; Γ locked). **Blocks:** B5. **Does not replace:** B2 (between-pass outfeed) or B4 (packed-bed ΔP / τ).
 
@@ -64,10 +64,10 @@ MetalFreeCarbon is a different kinetics (the carbon *is* the site) [Muradov, TUR
 
 ## Acceptance (when we implement)
 
-- [ ] **B6-1** Cγ lump `C_s => C(gr) + site` with its own barrier (`carbon_transfer_eV`, default 1.5 eV, provenance Baker / Abild-Pedersen). Labeled as transport-to-edge, not “nucleation.”
-- [ ] **B6-2** Competing Cδ channel that does **not** return the site. Without this, the coking index still does no work.
-- [ ] **B6-3** Class gate: nanoparticle metals (Ni, Fe, Co, and alloys / exsolved particles) only. Not SAC/DAC. Not MetalFreeCarbon. Melt unchanged.
-- [ ] **B6-4** Do not map either barrier onto `coking_index` unless the map is declared in the `.kinetics.json` sidecar.
+- [x] **B6-1** Cγ lump `C_s => C(gr) + site` with its own barrier (`carbon_transfer_eV`, default 1.5 eV, provenance Baker / Abild-Pedersen). Labeled as transport-to-edge, not “nucleation.”
+- [x] **B6-2** Competing Cδ channel that does **not** return the site. Without this, the coking index still does no work.
+- [x] **B6-3** Class gate: nanoparticle metals (Ni, Fe, Co, and alloys / exsolved particles) only. Not SAC/DAC. Not MetalFreeCarbon. Melt unchanged.
+- [x] **B6-4** Do not map either barrier onto `coking_index` unless the map is declared in the `.kinetics.json` sidecar.
 - [ ] **B6-5** B5 judge moves off `cat_9` at 1300 K. Closure experiment: a supported-Ni-like genome at **650–700 °C**, where filaments actually win [1, 29]. Alves says Ni at 1300 K encapsulates — a fast off-site step that drives SAC Rh to X_eq there would contradict [1].
 - [ ] **B6-6** After B6-1–3: E_act sweep on that Ni-like solids cell is no longer flat, and X is no longer linear in `a` alone (function of `k(E_act)·k_Cγ·a·τ` and the Cγ/Cδ branch). Particle size remains first-order in the literature [3, 29] and is **not** in the genome except as dispersion; a single k for every genome will still rank inventory. Document that residual.
 

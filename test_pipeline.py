@@ -1325,7 +1325,57 @@ def test_mechanism_has_condensed_graphite_not_gas_carbon():
     assert 'thermo: fixed-stoichiometry' in gas_txt
     assert 'C(gr)' in gas_txt and 'C(gr)' in full_txt
     assert 'C_s => C_graphite' not in full_txt
+    assert 'C_s => C(gr)' not in full_txt
     assert 'name: C_s' in full_txt
+
+
+def test_off_site_carbon_gated_to_nanoparticle_metals():
+    import json
+    from pipeline.process.reactor_mechanisms import (
+        CandidateKinetics, off_site_carbon_allowed, write_full_mechanism)
+
+    ni = ('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)
+    pd = ('SolidCatalyst', 'Pd', 'SiO2', 'fcc111', 0.0, (), 1, 0)
+    sac = ('SAC', 'Fe', 'N4', 'N-graphene', 'none')
+    saa_host = ('SAA', 'Rh', 'Ni', '111', 1000)
+    saa_guest = ('SAA', 'Ni', 'Sn', '111', 1000)
+    hea = ('HEA', ('V', 'Fe', 'Ni', 'Ag', 'Hf', 'Al'), 'fcc', '111', 800)
+    assert off_site_carbon_allowed(ni) is True
+    assert off_site_carbon_allowed(pd) is False
+    assert off_site_carbon_allowed(sac) is False
+    assert off_site_carbon_allowed(saa_host) is True
+    assert off_site_carbon_allowed(saa_guest) is False
+    assert off_site_carbon_allowed(hea) is True
+
+    ungated = write_full_mechanism('test_cat_scope', E_act_CH4=0.9)
+    ungated_txt = ungated.read_text(encoding='utf-8')
+    assert 'C_s => C(gr) + site' not in ungated_txt
+    assert 'C_encap_s' not in ungated_txt
+
+    ni_kin = CandidateKinetics(
+        methane_activation_eV=0.65, material_class='SolidCatalyst', genome=ni)
+    ni_path = write_full_mechanism('ni_np', kinetics=ni_kin)
+    ni_txt = ni_path.read_text(encoding='utf-8')
+    assert 'C_s => C(gr) + site' in ni_txt
+    assert 'C_s => C_encap_s' in ni_txt
+    assert 'adjacent-phases: [gas, graphite]' in ni_txt
+    assert 'transport-to-edge' in ni_txt
+    meta = json.loads(ni_path.with_suffix('.kinetics.json').read_text(encoding='utf-8'))
+    assert meta['off_site_carbon'] is True
+    assert meta['coking_index_mapped_to_off_site'] is False
+    assert meta['off_site_channels']['C_gamma']['barrier_eV'] == 1.5
+    assert abs(meta['off_site_channels']['C_delta']['barrier_eV'] - 1.53) < 1e-12
+
+    sac_kin = CandidateKinetics(
+        methane_activation_eV=0.43, material_class='SAC', genome=sac)
+    sac_path = write_full_mechanism('test_sac_fe', kinetics=sac_kin)
+    assert 'C_s => C(gr) + site' not in sac_path.read_text(encoding='utf-8')
+    try:
+        write_full_mechanism('test_sac_forced', kinetics=sac_kin, off_site_carbon=True)
+    except ValueError as exc:
+        assert 'Ni/Fe/Co' in str(exc)
+    else:
+        raise AssertionError('forcing off-site carbon on SAC must fail closed')
 
 
 def test_staged_sweep_preserves_coarse_and_proposes_roi():
@@ -1868,6 +1918,7 @@ if __name__ == '__main__':
     test("Pyrolysis select excludes unstable phases", test_turquoise_pyrolysis_select_excludes_metal_hydride)
     test("Slab coking excludes melts", test_slab_coking_scope_excludes_molten_metal)
     test("Mechanism uses condensed graphite", test_mechanism_has_condensed_graphite_not_gas_carbon)
+    test("Off-site carbon gated to nanoparticle metals", test_off_site_carbon_gated_to_nanoparticle_metals)
     test("Site density locked to monolayer", test_site_density_locked_to_monolayer)
     test("Inventory levers preserve baseline area", test_inventory_levers_preserve_baseline_area)
     test("YAML sweep parses headline example", test_yaml_sweep_parses_headline_example)

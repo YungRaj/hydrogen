@@ -8,7 +8,7 @@ A GPU-accelerated computational pipeline for autonomous catalyst discovery targe
 
 * 🔬 **[Turquoise Hydrogen Reference Guide](TURQUOISE_HYDROGEN.md)**: Exhaustive literature review of thermocatalytic and nanotribo-mechano-electrochemical (NTEC) methane splitting.
 * ⚡ **[Fuel Cell ORR & MEA Guide](FUEL_CELL.md)**: Comprehensive description of state-of-the-art catalysts, MEA designs, and large-scale PEMFC stack configurations.
-* 📋 **Phase 2 solids:** surface path ends at `C_s` — no intra-pass turnovers. Plan and citations: [B6](docs/backlog/B6-off-site-carbon-nucleation.md), refs [24]–[34] in [ADR 0001](docs/adr/0001-pyrolysis-phase-admissibility.md). Do not send Phase 2 X to DFT (B5) until that exists.
+* 📋 **Phase 2 solids:** default surface path ends at `C_s`. Nanoparticle Ni/Fe/Co get gated Cγ/Cδ ([B6](docs/backlog/B6-off-site-carbon-nucleation.md)). Do not send Phase 2 X to DFT (B5) until B6-5.
 
 ---
 
@@ -280,7 +280,7 @@ ranking whenever an uncensored candidate is available.
 |-------|---------------|
 | Rate constants | Arrhenius: `k = A × exp(-E_act / k_B T)`, A from TST |
 | Surface reactions | Cantera `ReactorSurface` with custom YAML mechanism |
-| Solid carbon | Condensed `C(gr)` plus site-blocking `C_s`. Surface path **ends at `C_s`**. No off-site `C_s => C(gr) + site` (B6, not started). |
+| Solid carbon | Condensed `C(gr)` plus site-blocking `C_s`. Ungated YAML **ends at `C_s`**. Nanoparticle Ni/Fe/Co also get `C_s => C(gr) + site` (Cγ) and `C_s => C_encap_s` (Cδ). Not SAC/`cat_9`. |
 | Solids inventory | Geometric `a = 6(1−ε)/d_p` × loading × dispersion (both ≤ 1). Γ locked at a monolayer (`2.5×10⁻⁹ mol/cm²`). Production defaults: `d_p = 0.13 mm`, loading `0.5`, dispersion `0.3`. |
 | Reactor types | MMBCR (bubble-area flotation ODE), PFR, fluidized bed |
 
@@ -1023,25 +1023,25 @@ python -m pipeline.orchestrator --phase 2
 
 For each pyrolysis-admissible catalyst (`phase_stable_at_application_T`; [ADR 0001](docs/adr/0001-pyrolysis-phase-admissibility.md)):
 1. Build a typed `CandidateKinetics` record from the screening row. `E_act`, H*, CH3*, and C* adsorption descriptors keep protocol provenance; missing elementary barriers are labeled `template_default`.
-2. Write a Cantera YAML with condensed `C(gr)` and a Langmuir surface **ending at `C_s`**. There is **no** gas-phase `C_graphite` tracer and **no** off-site `C_s => C(gr) + site`. Γ is a monolayer (`2.5×10⁻⁹ mol/cm²`); do not raise it to force Damköhler. A `.kinetics.json` sidecar records every resolved parameter. `carbon_transfer_eV` defaults to 1.5 eV (Baker / Abild-Pedersen Ni transport) and is **discarded**.
+2. Write a Cantera YAML with condensed `C(gr)` and a Langmuir surface. There is **no** gas-phase `C_graphite` tracer. The default surface **ends at `C_s`**. Nanoparticle Ni/Fe/Co (SolidCatalyst / HEA / SAA host) also get Cγ `C_s => C(gr) + site` (`carbon_transfer_eV` = 1.5 eV, Baker / Abild-Pedersen transport-to-edge) and Cδ `C_s => C_encap_s` (1.53 eV, Amin). SAC/`cat_9` do not. Γ is a monolayer (`2.5×10⁻⁹ mol/cm²`); do not raise it to force Damköhler. A `.kinetics.json` sidecar records every resolved parameter and `coking_index_mapped_to_off_site: false`.
 3. Simulate MMBCR, PFR, and circulating fluidized bed at 773.15, 900, 1100, and 1300 K, 1 bar, flowing CH₄.
 4. Report single-pass X from the Ar tracer already in the feed: `X = 1 - (x_CH4/x_Ar)/(x_CH4,0/x_Ar,0)`. That is exact whether carbon leaves as C(s) or stays in the C2 chain. Do not use `1 - x_CH4/x_CH4,0` (`2X/(1+X)` on a CH4/H2 mix) or `1 - x_CH4/(x_CH4 + 0.5 x_H2)` (wrong once C2s form). Also report active `a`, WHSV (1/τ in h⁻¹), Ergun ΔP, and exit T. A named solids judge is a campaign argument; H-parked 0.01 eV cats are not ranks.
 
 **Honest status.** MMBCR rate is `k(E_act,T)·a_bubble·(X_eq−X)`. It cannot exceed X_eq and reaches X_eq for large `k·a·τ` **by construction**. The 98.5% at 1300 K is a sanity check, not kinetic closure or a catalyst rank. Do not send Phase 2 X to DFT until B5 passes. B5 is blocked by **B6**.
 
-**Solids path has no intra-pass turnovers.** The surface YAML ends at `C_s`. H₂ can leave; carbon cannot. Real Ni TCD runs for hours because C leaves the active face, travels through or across the particle, and nucleates graphite at a **different** place (Baker filament / Helveg step-edge; [B6](docs/backlog/B6-off-site-carbon-nucleation.md), refs [24]–[34] in [ADR 0001](docs/adr/0001-pyrolysis-phase-admissibility.md)). That step is not in the mechanism. Three identities follow, and no amount of inventory or reporting work will break them:
+**Ungated solids path has no intra-pass turnovers.** Default / SAC YAML still ends at `C_s`. H₂ can leave; carbon cannot. Real Ni TCD runs for hours because C leaves the active face, travels through or across the particle, and nucleates graphite at a **different** place (Baker filament / Helveg step-edge; [B6](docs/backlog/B6-off-site-carbon-nucleation.md), refs [24]–[34] in [ADR 0001](docs/adr/0001-pyrolysis-phase-admissibility.md)). That pair of lumps is now in the writer **only** for nanoparticle Ni/Fe/Co. On ungated genomes the three identities still hold:
 
 1. **E_act sweep cannot discriminate on solids.** Once the pass parks C on the available sites, `X ≈ n_sites / n_CH4 = (Γ · a · V) / n_CH4`. The barrier is not in the answer.
 2. **X is linear in `a` by construction.** B1’s corr ≈ 1 is that identity — 100% loading, 0% barrier — the opposite of the B5 criterion.
 3. **Melt vs bed is turnovers vs no turnovers**, not continuous-C-removal vs coking. B2 / decoke restores sites **between** passes. The deficit is **within** a pass. Adding B2 will not close B5.
 
-Coking resistance in the TCD literature is the **Cγ (filament, site returned) vs Cδ (encapsulating, site blocked)** branch, not `coking_index = ΔE_C − 2ΔE_H`. Ni filaments win around 650–700 °C and on particles ≳ 20 nm; above ~650 °C cracking outruns diffusion and Ni encapsulates (Alves). Phase 2’s upper band (to 1300 K) is that encapsulation regime. A SAC (`cat_9`) has no bulk and no step edge — Akri: isolated Ni cannot complete CH₄ to C — so a universal `C_s => C(gr) + site` would let B5 pass on the wrong catalyst. Plan: [B6](docs/backlog/B6-off-site-carbon-nucleation.md). Not started.
+Coking resistance in the TCD literature is the **Cγ (filament, site returned) vs Cδ (encapsulating, site blocked)** branch, not `coking_index = ΔE_C − 2ΔE_H`. Ni filaments win around 650–700 °C and on particles ≳ 20 nm; above ~650 °C cracking outruns diffusion and Ni encapsulates (Alves). Phase 2’s upper band (to 1300 K) is that encapsulation regime. A SAC (`cat_9`) has no bulk and no step edge — Akri: isolated Ni cannot complete CH₄ to C — so those steps are **not** written for SAC. B5 still needs a supported-Ni-like judge at 650–700 °C (B6-5).
 
 **Thermal mode (all three reactors are isothermal at `T_inlet`).** MMBCR is isothermal by construction: the ODE uses `X_eq(T_inlet)` and `temperature_profile` is `T_inlet` repeated. PFR and fluidized *do* have a Cantera energy equation; a default `IdealGasReactor` is adiabatic, and CH₄ pyrolysis is ~90 kJ/mol endothermic at 1300 K, so an untreated bed would self-quench (~100 K per 10 points of X) while the melt stayed at nominal T. That is why solids stages set `energy_enabled = False` — same isothermal boundary as the melt, not “no energy balance.” Exit T is reported (must stay at `T_inlet`).
 
 What is still missing is **melt thermal duty**: wall and free-surface losses, interface T sag, and the extra bulk T a real column needs to keep the interface hot. That argument cannot be tested inside `simulate_mmbcr` and belongs in a separate duty account. Scorecard melt-vs-bed gaps are isothermal kinetic/inventory gaps, not a heat-loss comparison.
 
-Solids inventory defaults (B1): `d_p = 0.13 mm`, metal loading `0.5`, dispersion `0.3`. Area law: `a = a_geom × loading × dispersion` (both ≤ 1). On that cell, isothermal Ar-tracer X at 1300 K is PFR **1.13%**, fluidized **1.06%** (`cat_9`; envelope 1×1 is 7.49% / 7.02%). Those percents are monolayer inventory, not kinetics. MMBCR stays 98.46% by construction. Flotation default is unconstrained (`η = 1`). Open work: [`docs/backlog/`](docs/backlog/) — B6 before B5.
+Solids inventory defaults (B1): `d_p = 0.13 mm`, metal loading `0.5`, dispersion `0.3`. Area law: `a = a_geom × loading × dispersion` (both ≤ 1). On that cell, isothermal Ar-tracer X at 1300 K is PFR **1.13%**, fluidized **1.06%** (`cat_9`; envelope 1×1 is 7.49% / 7.02%). Those percents are monolayer inventory, not kinetics. MMBCR stays 98.46% by construction. Flotation default is unconstrained (`η = 1`). Open work: [`docs/backlog/`](docs/backlog/) — B6-5 before B5.
 
 **Known Phase 2 cleanups (not B6).** Surface and graphite load are fail-closed: a `catalyst_name` that does not match the YAML surface, or a missing graphite phase, raises unless `gas_only=True`. Results record `surface_loaded` / `graphite_loaded`; `is_solids_run` requires `surface_loaded is True` (legacy JSON without the field is excluded). Still open:
 

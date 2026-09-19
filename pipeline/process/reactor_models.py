@@ -392,7 +392,13 @@ def _load_gas_and_surface(config: ReactorConfig):
     surf = None
     surf_name = f'{config.catalyst_name}_surface'
     try:
-        surf = ct.Interface(config.mechanism_file, surf_name, [gas])
+        adjacent = [gas]
+        if graphite is not None:
+            adjacent.append(graphite)
+        try:
+            surf = ct.Interface(config.mechanism_file, surf_name, adjacent)
+        except Exception:
+            surf = ct.Interface(config.mechanism_file, surf_name, [gas])
     except Exception as exc:
         if not config.gas_only:
             raise RuntimeError(
