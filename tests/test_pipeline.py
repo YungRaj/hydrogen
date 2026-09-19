@@ -1392,6 +1392,137 @@ def test_off_site_carbon_gated_to_nanoparticle_metals():
         raise AssertionError('forcing off-site carbon on SAC must fail closed')
 
 
+def test_surface_thermo_references_and_tst_prefactors():
+    """Writer puts adsorption energies on Cantera's absolute scale and uses
+    TST prefactors for bimolecular surface steps (B6-5 corrections)."""
+    import json
+    from pipeline.process.reactor_mechanisms import (
+        EV_TO_J_MOL, H_F_CH3_RADICAL_J_MOL, H_F_CH4_J_MOL,
+        MONOLAYER_SITE_DENSITY_MOL_CM2, CandidateKinetics, write_full_mechanism)
+
+    ni = ('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)
+    kin = CandidateKinetics(
+        methane_activation_eV=1.0, h_adsorption_eV=-0.5, ch3_adsorption_eV=-1.95,
+        c_adsorption_eV=1.3, encapsulation_crossover_coverage=0.5,
+        material_class='SolidCatalyst', genome=ni)
+    path = write_full_mechanism('test_ni_refs', kinetics=kin)
+    meta = json.loads(path.with_suffix('.kinetics.json').read_text(encoding='utf-8'))
+    h = meta['surface_enthalpies_J_mol']
+    assert abs(h['H_s'] - (-0.5 * EV_TO_J_MOL)) < 1e-6
+    assert abs(h['CH3_s'] - (-1.95 * EV_TO_J_MOL + H_F_CH3_RADICAL_J_MOL)) < 1e-6
+    assert abs(h['C_s'] - (1.3 * EV_TO_J_MOL + H_F_CH4_J_MOL)) < 1e-6
+    # ladder interpolation on the same scale
+    assert abs(h['CH2_s'] - (h['CH3_s'] + (h['C_s'] - h['CH3_s']) / 3)) < 1e-6
+    assert abs(h['CH_s'] - (h['CH3_s'] + 2 * (h['C_s'] - h['CH3_s']) / 3)) < 1e-6
+    # bimolecular prefactor is k_TST / Gamma in cm^2/mol/s
+    a_bimol = meta['surface_prefactors']['bimolecular_cm2_mol_s']
+    assert abs(a_bimol - 1e13 / MONOLAYER_SITE_DENSITY_MOL_CM2) / a_bimol < 1e-12
+    txt = path.read_text(encoding='utf-8')
+    assert txt.count('A: 4e+21') == 3          # three dehydrogenation steps
+    assert 'A: 2e+22' in txt                    # H2 desorption
+    # C_delta is theta_C^2 via Cantera's power-law coverage dependency (m, not a)
+    assert 'C_s: {a: 0.0, m: 1.0, E: 0.0}' in txt
+    cd = meta['off_site_channels']['C_delta']
+    assert cd['form'] == 'coverage_dependent_theta_C_squared'
+    assert cd['crossover_coverage_theta_star'] == 0.5
+    assert abs(cd['preexponential_1_s'] - 2e13) < 1e-3   # A_gamma / theta*
+    assert meta['off_site_channels']['C_gamma']['preexponential_1_s'] == 1e13
+
+    # the mechanism loads in Cantera and the C_delta rate really is second order
+    import cantera as ct
+    gas = ct.Solution(str(path), 'gas')
+    graphite = ct.Solution(str(path), 'graphite')
+    surf = ct.Interface(str(path), 'test_ni_refs_surface', [gas, graphite])
+    surf.TP = 923.15, ct.one_atm
+    i_d = [r.equation for r in surf.reactions()].index('C_s => C_encap_s')
+    surf.coverages = {'site': 0.8, 'C_s': 0.2}
+    r1 = surf.net_rates_of_progress[i_d]
+    surf.coverages = {'site': 0.6, 'C_s': 0.4}
+    r2 = surf.net_rates_of_progress[i_d]
+    assert abs(r2 / r1 - 4.0) < 1e-6
+
+    # a declared prefactor is honoured and labelled
+    kin2 = CandidateKinetics(
+        methane_activation_eV=1.0, carbon_transfer_prefactor_1_s=1e9,
+        material_class='SolidCatalyst', genome=ni)
+    p2 = write_full_mechanism('test_ni_ag', kinetics=kin2)
+    m2 = json.loads(p2.with_suffix('.kinetics.json').read_text(encoding='utf-8'))
+    assert m2['off_site_channels']['C_gamma']['preexponential_1_s'] == 1e9
+    assert m2['off_site_channels']['C_delta']['preexponential_1_s'] == 2e9
+    assert m2['inputs']['provenance']['carbon_transfer_prefactor_1_s'] == 'declared_not_measured'
+
+
+def test_mechanical_regen_never_clears_encapsulating_carbon():
+    import cantera as ct
+    from pipeline.process.reactor_mechanisms import CandidateKinetics, write_full_mechanism
+    from pipeline.process.reactor_models import _reset_surface_carbon
+
+    ni = ('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)
+    path = write_full_mechanism('test_ni_regen', kinetics=CandidateKinetics(
+        methane_activation_eV=1.0, material_class='SolidCatalyst', genome=ni))
+    gas = ct.Solution(str(path), 'gas')
+    graphite = ct.Solution(str(path), 'graphite')
+    surf = ct.Interface(str(path), 'test_ni_regen_surface', [gas, graphite])
+    surf.coverages = {'site': 0.3, 'C_s': 0.4, 'H_s': 0.1, 'C_encap_s': 0.2}
+    _reset_surface_carbon(surf)
+    cov = dict(zip(surf.species_names, surf.coverages))
+    assert abs(cov['C_encap_s'] - 0.2) < 1e-12
+    assert abs(cov['site'] - 0.8) < 1e-12
+    assert cov['C_s'] == 0.0 and cov['H_s'] == 0.0
+
+
+def test_yaml_sweep_kinetics_keys_for_b6():
+    import tempfile
+    from pathlib import Path
+    from pipeline.process.yaml_sweep import parse_sweep, _load_kinetics_row
+
+    body = """
+name: b6_keys
+catalyst:
+  name: ni_keys
+  material_class: SolidCatalyst
+  genome: "('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)"
+  kinetics:
+    E_act: 1.0
+    dE_H: -0.5
+    dE_CH3: -1.95
+    dE_C: 1.3
+    carbon_transfer_eV: 1.5
+    carbon_encapsulation_eV: 1.53
+    encapsulation_crossover_coverage: 0.5
+    carbon_transfer_prefactor_1_s: 1.0e9
+    provenance:
+      E_act: Bengaard 2002
+conditions:
+  temperatures_K: [923.15]
+  reactors: [PFR]
+cells:
+  - name: c
+    catalyst_particle_mm: 0.13
+    metal_loading: 0.5
+    metal_dispersion: 0.3
+"""
+    with tempfile.TemporaryDirectory() as tmp:
+        p = Path(tmp) / 'b6.yaml'
+        p.write_text(body, encoding='utf-8')
+        job = parse_sweep(p)
+        assert job.kinetics['carbon_transfer_prefactor_1_s'] == 1e9
+        assert job.kinetics['encapsulation_crossover_coverage'] == 0.5
+        _, kin, cls, cid = _load_kinetics_row(job)
+        assert cls == 'SolidCatalyst' and cid == 'ni_keys'
+        assert kin.carbon_transfer_prefactor_1_s == 1e9
+        assert kin.sources['methane_activation_eV'] == 'sweep_yaml: Bengaard 2002'
+        assert kin.sources['carbon_transfer_prefactor_1_s'] == 'sweep_yaml'
+        # unknown kinetics keys fail closed
+        p.write_text(body.replace('carbon_transfer_prefactor_1_s: 1.0e9', 'k_bogus: 2'), encoding='utf-8')
+        try:
+            parse_sweep(p)
+        except ValueError as exc:
+            assert 'k_bogus' in str(exc)
+        else:
+            raise AssertionError('unknown kinetics key must be rejected')
+
+
 def test_staged_sweep_preserves_coarse_and_proposes_roi():
     import tempfile
     from pathlib import Path
@@ -1957,6 +2088,9 @@ if __name__ == '__main__':
     test("Slab coking excludes melts", test_slab_coking_scope_excludes_molten_metal)
     test("Mechanism uses condensed graphite", test_mechanism_has_condensed_graphite_not_gas_carbon)
     test("Off-site carbon gated to nanoparticle metals", test_off_site_carbon_gated_to_nanoparticle_metals)
+    test("Surface thermo references and TST prefactors", test_surface_thermo_references_and_tst_prefactors)
+    test("Mechanical regen never clears C_encap_s", test_mechanical_regen_never_clears_encapsulating_carbon)
+    test("YAML sweep B6 kinetics keys", test_yaml_sweep_kinetics_keys_for_b6)
     test("Site density locked to monolayer", test_site_density_locked_to_monolayer)
     test("Inventory levers preserve baseline area", test_inventory_levers_preserve_baseline_area)
     test("YAML sweep parses headline example", test_yaml_sweep_parses_headline_example)

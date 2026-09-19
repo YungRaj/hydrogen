@@ -50,6 +50,13 @@ class CandidateKinetics:
     h2_desorption_eV: Optional[float] = None
     carbon_transfer_eV: Optional[float] = None
     carbon_encapsulation_eV: Optional[float] = None
+    # B6: C_s coverage at which encapsulation (Cδ, ∝ θ_C²) overtakes
+    # transport-to-edge (Cγ, ∝ θ_C). Declared, not measured; swept in B6-6.
+    encapsulation_crossover_coverage: Optional[float] = None
+    # B6: Cγ prefactor (1/s). 1e13 is a single-hop TST label; the real
+    # channel is transport + precipitation (D0/L², particle-size dependent)
+    # and is swept in B6-6. Cδ inherits A_γ / θ*.
+    carbon_transfer_prefactor_1_s: Optional[float] = None
     site_density_mol_cm2: float = 2.5e-9
     screening_protocol: str = 'unknown'
     candidate_id: str = 'unknown'
@@ -156,6 +163,19 @@ class CandidateKinetics:
                 provenance[name] = 'template_default'
             else:
                 provenance.setdefault(name, 'candidate_specific')
+        if values['encapsulation_crossover_coverage'] is None:
+            values['encapsulation_crossover_coverage'] = (
+                DEFAULT_ENCAPSULATION_CROSSOVER_COVERAGE)
+            provenance['encapsulation_crossover_coverage'] = THETA_STAR_PROVENANCE
+        else:
+            provenance.setdefault(
+                'encapsulation_crossover_coverage', THETA_STAR_PROVENANCE)
+        if values['carbon_transfer_prefactor_1_s'] is None:
+            values['carbon_transfer_prefactor_1_s'] = OFF_SITE_PREEXPONENTIAL_1_S
+            provenance['carbon_transfer_prefactor_1_s'] = C_GAMMA_PREFACTOR_PROVENANCE
+        else:
+            provenance.setdefault(
+                'carbon_transfer_prefactor_1_s', 'declared_not_measured')
         values['provenance'] = provenance
         # The Cδ (encapsulation) barrier is only written into the mechanism
         # when the B6 class gate admits off-site carbon. For every other
@@ -185,6 +205,51 @@ OFF_SITE_CARBON_DENIED_CLASSES = frozenset({
 })
 C_GAMMA_PROVENANCE = 'template_default: Abild-Pedersen 2006 / Baker 1972'
 C_DELTA_PROVENANCE = 'template_default: Amin 2011 encapsulating-carbon'
+# Cδ is second order in θ_C (mean-field island nucleation; Snoeck
+# supersaturation picture). θ* is the coverage where k_δ θ_C² = k_γ θ_C at
+# equal barriers; A_δ = A_γ / θ*. With Ea_δ − Ea_γ = 0.03 eV the effective
+# crossover is θ*·exp(0.03 eV / kT) (~0.73 at 923 K for θ* = 0.5).
+DEFAULT_ENCAPSULATION_CROSSOVER_COVERAGE = 0.5
+THETA_STAR_PROVENANCE = 'declared_not_measured: swept in B6-6'
+C_DELTA_FORM = 'coverage_dependent_theta_C_squared'
+OFF_SITE_PREEXPONENTIAL_1_S = 1.0e13
+C_GAMMA_PREFACTOR_PROVENANCE = (
+    'template_default: single-hop TST 1e13/s; transport+precipitation lump '
+    'is D0/L^2 and particle-size dependent; swept in B6-6')
+
+# Surface rate constants. Unimolecular surface steps (C_s => ...) take A in
+# 1/s. Bimolecular steps (X_s + site, 2 H_s) are mass-action in surface
+# concentrations (mol/cm^2), so A is in cm^2/mol/s and the TST prefactor is
+# k_TST / Γ = 1e13 / 2.5e-9 = 4e21 cm^2/mol/s (Deutschmann convention;
+# Cantera's methane_pox_on_pt uses 3.7e21). Writing 1e13 cm^2/mol/s gives an
+# effective 2.5e4 1/s and freezes the dehydrogenation ladder.
+SURFACE_TST_PREFACTOR_1_S = 1.0e13
+H2_DESORPTION_PREFACTOR_1_S = 5.0e13
+
+
+def bimolecular_surface_prefactor_cm2_mol_s(k_1_s: float,
+                                            site_density_mol_cm2: float) -> float:
+    return float(k_1_s) / float(site_density_mol_cm2)
+
+# Surface species enthalpies must sit on Cantera's absolute scale, where the
+# elements' standard states (H2, graphite) are zero. The screener reports
+# adsorption energies against gas references, so each needs the reference's
+# formation enthalpy added back:
+#   H_s   = dE_H                 (½ H2 reference; h_f = 0)
+#   CH3_s = dE_CH3 + h_f(CH3•)   (CH3 radical reference)
+#   C_s   = dE_C + h_f(CH4)      (screener C reference is CH4 − 2 H2)
+# Values are 298 K standard formation enthalpies (NIST / ATcT).
+H_F_CH3_RADICAL_J_MOL = 145700.0
+H_F_CH4_J_MOL = -74600.0
+SURFACE_THERMO_REFERENCE = {
+    'scale': 'cantera_absolute_elements_zero',
+    'H_s': 'dE_H (reference 1/2 H2)',
+    'CH3_s': 'dE_CH3 + h_f(CH3 radical) = dE_CH3 + 145.7 kJ/mol',
+    'C_s': 'dE_C + h_f(CH4) = dE_C - 74.6 kJ/mol (screener C reference is CH4 - 2 H2)',
+    'CH2_s': 'template: CH3_s + (C_s - CH3_s)/3',
+    'CH_s': 'template: CH3_s + 2 (C_s - CH3_s)/3',
+    'C_encap_s': 'same as C_s',
+}
 
 
 def parse_catalyst_genome(raw: Any) -> Optional[tuple]:
@@ -437,12 +502,31 @@ def write_full_mechanism(catalyst_name: str, E_act_CH4: float = None,
     Ea_H2 = values['h2_desorption_eV'] * EV_TO_J_MOL
     Ea_Cgamma = values['carbon_transfer_eV'] * EV_TO_J_MOL
     Ea_Cdelta = values['carbon_encapsulation_eV'] * EV_TO_J_MOL
+    theta_star = float(values['encapsulation_crossover_coverage'])
+    if not 0.0 < theta_star <= 1.0:
+        raise ValueError(
+            f'encapsulation_crossover_coverage={theta_star} must be in (0, 1]')
+    A_Cgamma = float(values['carbon_transfer_prefactor_1_s'])
+    if A_Cgamma <= 0:
+        raise ValueError('carbon_transfer_prefactor_1_s must be positive')
+    A_Cdelta = A_Cgamma / theta_star
+    A_bimol = bimolecular_surface_prefactor_cm2_mol_s(
+        SURFACE_TST_PREFACTOR_1_S, site_density)
+    A_h2_des = bimolecular_surface_prefactor_cm2_mol_s(
+        H2_DESORPTION_PREFACTOR_1_S, site_density)
+    # Adsorption energies → absolute surface enthalpies (see
+    # SURFACE_THERMO_REFERENCE). Template h0 values apply when the screener
+    # gave no adsorption energy; they are diagnostic, not candidate data.
     h0_h = (values['h_adsorption_eV'] * EV_TO_J_MOL
             if values['h_adsorption_eV'] is not None else -25000.0)
-    h0_ch3 = (values['ch3_adsorption_eV'] * EV_TO_J_MOL
+    h0_ch3 = (values['ch3_adsorption_eV'] * EV_TO_J_MOL + H_F_CH3_RADICAL_J_MOL
               if values['ch3_adsorption_eV'] is not None else -20000.0)
-    h0_c = (values['c_adsorption_eV'] * EV_TO_J_MOL
+    h0_c = (values['c_adsorption_eV'] * EV_TO_J_MOL + H_F_CH4_J_MOL
             if values['c_adsorption_eV'] is not None else -40000.0)
+    # CH2_s / CH_s have no screening descriptor: interpolate the
+    # dehydrogenation ladder between CH3_s and C_s on the same scale.
+    h0_ch2 = h0_ch3 + (h0_c - h0_ch3) / 3.0
+    h0_ch = h0_ch3 + 2.0 * (h0_c - h0_ch3) / 3.0
     E_act_CH4 = float(values['methane_activation_eV'])
 
     if include_surface_sites:
@@ -494,16 +578,18 @@ def write_full_mechanism(catalyst_name: str, E_act_CH4: float = None,
   composition: {{C: 1, H: 2}}
   thermo:
     model: constant-cp
-    h0: -15000.0 J/mol
+    h0: {h0_ch2:.8g} J/mol
     s0: 40.0 J/mol/K
   sites: 1
+  note: template enthalpy, CH3_s + (C_s - CH3_s)/3
 - name: CH_s
   composition: {{C: 1, H: 1}}
   thermo:
     model: constant-cp
-    h0: -10000.0 J/mol
+    h0: {h0_ch:.8g} J/mol
     s0: 30.0 J/mol/K
   sites: 1
+  note: template enthalpy, CH3_s + 2 (C_s - CH3_s)/3
 - name: H_s
   composition: {{H: 1}}
   thermo:
@@ -535,24 +621,27 @@ def write_full_mechanism(catalyst_name: str, E_act_CH4: float = None,
         if include_off_site:
             off_site_rxns = f"""\
 - equation: C_s => C(gr) + site
-  rate-constant: {{A: 1.0e+13, b: 0.0, Ea: {Ea_Cgamma:.1f}}}
+  rate-constant: {{A: {A_Cgamma:.6g}, b: 0.0, Ea: {Ea_Cgamma:.1f}}}
   note: Cα → Cγ transport-to-edge lump (Baker / Abild-Pedersen); not nucleation
 - equation: C_s => C_encap_s
-  rate-constant: {{A: 1.0e+13, b: 0.0, Ea: {Ea_Cdelta:.1f}}}
-  note: Cα → Cδ encapsulating; site stays blocked
+  rate-constant: {{A: {A_Cdelta:.6g}, b: 0.0, Ea: {Ea_Cdelta:.1f}}}
+  coverage-dependencies:
+    C_s: {{a: 0.0, m: 1.0, E: 0.0}}
+  note: Cα → Cδ encapsulating, rate ∝ θ_C² (Cantera k·10^(a θ)·θ^m with m=1 times [C_s]); A = A_γ/θ*, θ* = {theta_star:g}; site stays blocked
 """
         surface_rxns = f"""\
 {catalyst_name}_surface-reactions:
 - equation: CH4 + 2 site <=> CH3_s + H_s
   sticking-coefficient: {{A: 0.01, b: 0.0, Ea: {Ea_CH4:.1f}}}
 - equation: CH3_s + site <=> CH2_s + H_s
-  rate-constant: {{A: 1.0e+13, b: 0.0, Ea: {Ea_CH3:.1f}}}
+  rate-constant: {{A: {A_bimol:.6g}, b: 0.0, Ea: {Ea_CH3:.1f}}}
+  note: A = 1e13/s / Γ in cm^2/mol/s (bimolecular surface TST)
 - equation: CH2_s + site <=> CH_s + H_s
-  rate-constant: {{A: 1.0e+13, b: 0.0, Ea: {Ea_CH2:.1f}}}
+  rate-constant: {{A: {A_bimol:.6g}, b: 0.0, Ea: {Ea_CH2:.1f}}}
 - equation: CH_s + site <=> C_s + H_s
-  rate-constant: {{A: 1.0e+13, b: 0.0, Ea: {Ea_CH:.1f}}}
+  rate-constant: {{A: {A_bimol:.6g}, b: 0.0, Ea: {Ea_CH:.1f}}}
 - equation: 2 H_s <=> H2 + 2 site
-  rate-constant: {{A: 5.0e+13, b: 0.0, Ea: {Ea_H2:.1f}}}
+  rate-constant: {{A: {A_h2_des:.6g}, b: 0.0, Ea: {Ea_H2:.1f}}}
 {off_site_rxns}"""
     else:
         phases_and_surface = f"""\
@@ -607,18 +696,38 @@ reactions:
         'mechanism_file': str(filepath),
         'inputs': values,
         'carbon_phase_model': carbon_model,
+        'surface_thermo_reference': SURFACE_THERMO_REFERENCE,
+        'surface_prefactors': ({
+            'bimolecular_cm2_mol_s': A_bimol,
+            'h2_desorption_cm2_mol_s': A_h2_des,
+            'basis': 'k_TST(1/s) / site_density(mol/cm^2)',
+        } if include_surface_sites else {}),
+        'surface_enthalpies_J_mol': ({
+            'H_s': h0_h, 'CH3_s': h0_ch3, 'CH2_s': h0_ch2,
+            'CH_s': h0_ch, 'C_s': h0_c,
+        } if include_surface_sites else {}),
         'off_site_carbon': include_off_site,
         'coking_index_mapped_to_off_site': False,
         'off_site_channels': ({
             'C_gamma': {
                 'equation': 'C_s => C(gr) + site',
                 'barrier_eV': float(values['carbon_transfer_eV']),
+                'preexponential_1_s': A_Cgamma,
+                'form': 'first_order_theta_C',
                 'kind': 'transport_to_edge',
                 'source': C_GAMMA_PROVENANCE,
             },
             'C_delta': {
                 'equation': 'C_s => C_encap_s',
                 'barrier_eV': float(values['carbon_encapsulation_eV']),
+                'preexponential_1_s': A_Cdelta,
+                'form': C_DELTA_FORM,
+                'crossover_coverage_theta_star': theta_star,
+                'crossover_coverage_source': values['provenance'].get(
+                    'encapsulation_crossover_coverage', THETA_STAR_PROVENANCE),
+                'effective_crossover_note': (
+                    'theta_x(T) = theta_star * exp((Ea_delta - Ea_gamma) / kT); '
+                    'C_gamma wins below theta_x, C_delta above'),
                 'kind': 'encapsulating',
                 'source': C_DELTA_PROVENANCE,
             },

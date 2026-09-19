@@ -83,6 +83,7 @@ MMBCR_BUBBLE_RISE_BASIS = 'mendelson_sqrt(2*sigma/(rho*d_b) + g*d_b/2)'
 MMBCR_RESIDENCE_BASIS = 'column_height_over_bubble_rise_velocity'
 MMBCR_ARTIFACT_RESIDENCE_BASIS = 'gas_holdup_times_column_height_over_superficial_velocity'
 G_M_S2 = 9.80665
+R_J_MOL_K = 8.314462618  # ct.gas_constant is per kmol; do not mix
 FLUIDIZED_REMOVAL_SUBSTEPS = 20
 # Emulsion voidage at minimum fluidization (Geldart B order of magnitude).
 # Emulsion area is per emulsion volume; the reacting gas volume in 1 m³ of
@@ -576,13 +577,131 @@ def _apply_continuous_carbon_removal(surf, rate_1_s: float, dt: float) -> float:
 
 
 def _reset_surface_carbon(surf) -> None:
-    """Mechanical / consumable regen: clear C_s and restore free sites."""
+    """Mechanical / consumable regen: clear adsorbates and restore free sites.
+
+    Encapsulating carbon (``C_encap_s``, B6 Cδ) is time-on-stream death and
+    is never cleared: mechanical outfeed moves the particle, it does not
+    strip graphene off the face. Only oxidative burn-off would, and that is
+    not modelled (non-turquoise).
+    """
     if surf is None or 'C_s' not in surf.species_names:
         return
+    encap = _coverage(surf, 'C_encap_s') if 'C_encap_s' in surf.species_names else 0.0
     cov = np.zeros(surf.n_species)
+    if 'C_encap_s' in surf.species_names:
+        cov[surf.species_index('C_encap_s')] = encap
     if 'site' in surf.species_names:
-        cov[surf.species_index('site')] = 1.0
+        cov[surf.species_index('site')] = max(0.0, 1.0 - encap)
     surf.coverages = cov
+
+
+METAL_MOLAR_MASS_G_MOL = {'Ni': 58.6934, 'Fe': 55.845, 'Co': 58.9332}
+# Ermakova 2000 / Takenaka: 40-384 gC/gNi over 4-50 h on high-Ni/SiO2 -> ~8-10 gC/(gNi h).
+NI_FILAMENT_YIELD_BAND_G_C_PER_G_NI_H = (8.0, 10.0)
+
+
+def _surface_carbon_coverage(surf, cov: np.ndarray) -> float:
+    """Total θ of carbon-bearing site-occupying species (C_s, CH_x_s, C_encap_s)."""
+    total = 0.0
+    for k in range(surf.n_species):
+        sp = surf.species(k)
+        if sp.size > 0 and sp.composition.get('C', 0) > 0:
+            total += float(cov[k])
+    return total
+
+
+def _off_site_carbon_metrics(config: ReactorConfig, gas, surf, *,
+                             ch4_initial: float, ar_initial: float,
+                             pass_conversion: float, n_sites_mol: float,
+                             n_ch4_fed_mol: float, n_parcel_in_mol: float,
+                             pass_time_s: float,
+                             cov_start: Optional[np.ndarray]) -> Dict:
+    """Per-pass carbon accounting for the B5/B6 closure criterion.
+
+    ``site_inventory_bound_X`` is the conversion a stoichiometric monolayer
+    can deliver (Γ·a / (ε·c_CH4) on the PFR parcel basis). Turnovers above
+    1 need Cγ returning sites. Cγ is obtained by carbon balance (solid carbon
+    from the Ar tracer minus carbon still on the surface); Cδ is the change
+    in ``C_encap_s`` coverage. The yield rate is pass-averaged.
+    """
+    x_bound = n_sites_mol / n_ch4_fed_mol if n_ch4_fed_mol > 0 else None
+    x_eq = _tabulated_x_eq(config.T_inlet_K)
+    out = {
+        'site_inventory_bound_X': x_bound,
+        'site_inventory_bound_basis': 'Gamma*A_stage / (c_CH4*eps*V_stage), PFR parcel',
+        # Cγ is irreversible into a graphite sink; the surface mechanism
+        # does not enforce CH4 <=> C(gr) + 2 H2 from the solid side, so a
+        # fast Cγ can overshoot equilibrium. Flagged, never clipped.
+        'X_eq_table': x_eq,
+        'exceeds_equilibrium': bool(pass_conversion > x_eq + 1e-6),
+    }
+    if surf is None:
+        return out
+    cov_end = np.array(surf.coverages, dtype=float)
+    if cov_start is None:
+        cov_start = np.zeros_like(cov_end)
+    # Solid carbon this pass: CH4 converted minus carbon left in C2 gas (Ar basis).
+    x_ar = _species_x(gas, 'Ar') or ar_initial
+    n_ar = ar_initial * n_parcel_in_mol
+    n_c2 = sum(
+        2.0 * (_species_x(gas, sp) or 0.0) / max(x_ar, 1e-30) * n_ar
+        for sp in ('C2H2', 'C2H4', 'C2H6'))
+    n_solid = max(0.0, pass_conversion * n_ch4_fed_mol - n_c2)
+    d_surface_c = (_surface_carbon_coverage(surf, cov_end)
+                   - _surface_carbon_coverage(surf, cov_start)) * n_sites_mol
+    n_gamma = max(0.0, n_solid - d_surface_c)
+    has_encap = 'C_encap_s' in surf.species_names
+    n_delta = 0.0
+    if has_encap:
+        i = surf.species_index('C_encap_s')
+        n_delta = max(0.0, float(cov_end[i] - cov_start[i])) * n_sites_mol
+    turnovers = n_solid / n_sites_mol if n_sites_mol > 0 else None
+    out.update({
+        'carbon_turnovers_per_site': turnovers,
+        'turnover_factor_vs_bound': (
+            pass_conversion / x_bound if x_bound else None),
+        'solid_carbon_mol_per_pass': n_solid,
+        'c_gamma_mol_per_pass': n_gamma if has_encap else None,
+        'c_delta_mol_per_pass': n_delta if has_encap else None,
+        'c_gamma_to_c_delta_ratio': (
+            (n_gamma / n_delta) if (has_encap and n_delta > 0) else None),
+        'exit_theta_C_encap': (
+            float(cov_end[surf.species_index('C_encap_s')]) if has_encap else None),
+        'off_site_carbon_active': has_encap,
+    })
+    if has_encap:
+        metadata = _mechanism_metadata(config)
+        genome = metadata.get('inputs', {}).get('genome')
+        metal = None
+        try:
+            from pipeline.process.reactor_mechanisms import (
+                OFF_SITE_CARBON_METALS, _nanoparticle_metals, parse_catalyst_genome)
+            metals = _nanoparticle_metals(
+                parse_catalyst_genome(genome),
+                metadata.get('inputs', {}).get('material_class')) & OFF_SITE_CARBON_METALS
+            if len(metals) == 1:
+                metal = next(iter(metals))
+        except Exception:
+            metal = None
+        dispersion = float(config.metal_dispersion)
+        yield_rate = None
+        if metal and dispersion > 0 and pass_time_s > 0 and n_sites_mol > 0:
+            n_metal = n_sites_mol / dispersion
+            yield_rate = (n_gamma / pass_time_s) * 3600.0 * 12.011 / (
+                n_metal * METAL_MOLAR_MASS_G_MOL[metal])
+        out.update({
+            'filament_metal': metal,
+            'filament_yield_gC_per_gMetal_h': yield_rate,
+            'filament_yield_basis': (
+                'pass-averaged C_gamma rate; metal moles = sites / dispersion'),
+            'filament_yield_literature_band_gC_per_gNi_h': list(
+                NI_FILAMENT_YIELD_BAND_G_C_PER_G_NI_H),
+            'filament_yield_within_band': (
+                None if yield_rate is None else bool(
+                    NI_FILAMENT_YIELD_BAND_G_C_PER_G_NI_H[0] <= yield_rate
+                    <= NI_FILAMENT_YIELD_BAND_G_C_PER_G_NI_H[1])),
+        })
+    return out
 
 
 def _h2_atom_balance_metric(ch4_initial: float, final_conv: float, x_h2: float) -> float:
@@ -925,6 +1044,7 @@ def simulate_pfr(config: ReactorConfig) -> Dict:
     cycles_completed = 0
     per_cycle_conversion: List[float] = []
     produce_time_s = 0.0
+    pass_start_cov: List[Optional[np.ndarray]] = [None]
 
     def _advance_bed():
         nonlocal produce_time_s
@@ -934,6 +1054,8 @@ def simulate_pfr(config: ReactorConfig) -> Dict:
         temperature_profile.append(config.T_inlet_K)
         theta_C_tos.clear()
         theta_C_tos.append(_coverage(surf, 'C_s'))
+        pass_start_cov[0] = (np.array(surf.coverages, dtype=float)
+                             if surf is not None else None)
         for _ in range(n_stages):
             reactor = ct.IdealGasReactor(gas)
             reactor.volume = stage_gas_volume
@@ -972,6 +1094,19 @@ def simulate_pfr(config: ReactorConfig) -> Dict:
     final_conv = conversion_profile[-1]
     x_h2 = _species_x(gas, 'H2')
 
+    # Carbon accounting on the parcel basis (last pass).
+    gamma_mol_m2 = float(config.site_density_mol_cm2) * 1e4
+    n_sites_mol = gamma_mol_m2 * stage_surface_area
+    c_total = config.P_inlet_Pa / (R_J_MOL_K * config.T_inlet_K)  # mol/m³
+    n_parcel_in_mol = c_total * stage_gas_volume
+    n_ch4_fed_mol = ch4_initial * n_parcel_in_mol
+    off_site = _off_site_carbon_metrics(
+        config, gas, surf,
+        ch4_initial=ch4_initial, ar_initial=ar_initial,
+        pass_conversion=float(final_conv), n_sites_mol=n_sites_mol,
+        n_ch4_fed_mol=n_ch4_fed_mol, n_parcel_in_mol=n_parcel_in_mol,
+        pass_time_s=tau_total, cov_start=pass_start_cov[0])
+
     result = {
         'reactor_type': 'PFR',
         'catalyst_name': config.catalyst_name,
@@ -1003,6 +1138,8 @@ def simulate_pfr(config: ReactorConfig) -> Dict:
         'theta_C_axial': theta_C_tos,
         'inlet_theta_C': float(theta_C_tos[1] if len(theta_C_tos) > 1 else 0.0),
         'max_theta_C': float(max(theta_C_tos) if theta_C_tos else 0.0),
+        'exit_theta_C': float(theta_C_tos[-1]) if theta_C_tos else None,
+        **off_site,
         **kinetics_fields(config),
         **solids_inventory_fields(config, geometric_sv_pfr(config)),
         **_kinetics_evidence(config),

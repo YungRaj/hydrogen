@@ -2,7 +2,7 @@
 
 **Type:** Implementation. B6-1–3 in the writer. Do not ship a universal `C_s => C(gr) + site`.
 
-**Status:** Gated extra block in `write_full_mechanism`. Ungated YAML still ends at `C_s`. Nanoparticle Ni/Fe/Co emit Cγ (`C_s => C(gr) + site`, 1.5 eV) and Cδ (`C_s => C_encap_s`, 1.53 eV). Not mapped to `coking_index`. B6-5 / B5 still open.
+**Status:** Gated extra block in `write_full_mechanism`. Ungated YAML still ends at `C_s`. Nanoparticle Ni/Fe/Co emit Cγ (`C_s => C(gr) + site`, 1.5 eV, `A_γ` declared, default 10¹³ s⁻¹) and Cδ (`C_s => C_encap_s`, 1.53 eV, **∝ θ_C²**, `A_δ = A_γ/θ*`, θ\* = 0.5 declared). Not mapped to `coking_index`. **B6-5 run (PFR only)**: see "B6-5 result" below. B6-6 and B5 open.
 
 **Depends on:** B1 (done; Γ locked). **Blocks:** B5. **Does not replace:** B2 (between-pass outfeed) or B4 (packed-bed ΔP / τ).
 
@@ -68,8 +68,34 @@ MetalFreeCarbon is a different kinetics (the carbon *is* the site) [Muradov, TUR
 - [x] **B6-2** Competing Cδ channel that does **not** return the site. Without this, the coking index still does no work.
 - [x] **B6-3** Class gate: nanoparticle metals (Ni, Fe, Co, and alloys / exsolved particles) only. Not SAC/DAC. Not MetalFreeCarbon. Melt unchanged.
 - [x] **B6-4** Do not map either barrier onto `coking_index` unless the map is declared in the `.kinetics.json` sidecar.
-- [ ] **B6-5** B5 judge moves off `cat_9` at 1300 K. Closure experiment: a supported-Ni-like genome at **650–700 °C**, where filaments actually win [1, 29]. Alves says Ni at 1300 K encapsulates — a fast off-site step that drives SAC Rh to X_eq there would contradict [1].
-- [ ] **B6-6** After B6-1–3: E_act sweep on that Ni-like solids cell is no longer flat, and X is no longer linear in `a` alone (function of `k(E_act)·k_Cγ·a·τ` and the Cγ/Cδ branch). Particle size remains first-order in the literature [3, 29] and is **not** in the genome except as dispersion; a single k for every genome will still rank inventory. Document that residual.
+- [x] **B6-5** Closure experiment run: a supported-Ni-like literature cell at **650–700 °C** (plus the full ADR band), PFR, zero regen. Result below. The judge move off `cat_9` is a separate reviewed change after B6-6 (not done here). **Open inside B6-5:** Fluidized Ni (PFR only was run), and a surrogate screening row for the Ni genome (`fairchem` is not installed on the build machine; the cell is literature-valued, provenance `sweep_yaml_literature`).
+- [ ] **B6-6** E_act sweep on the Ni cell (`run_eact_sweep(kinetics=…)`), jointly with `A_γ` over 10⁶–10¹³ s⁻¹ and θ\* over 0.2–0.8: report turnovers, Cγ/Cδ, yield in gC/(gNi·h) against the 8–10 band, encapsulation onset T. Confirm X is no longer flat in E_act and no longer linear in `a` alone. Particle size remains first-order in the literature [3, 29] and enters only as dispersion and, implicitly, as `A_γ = D₀/L²`; document that residual.
+
+## Cδ rate form (decided 2026-09-19)
+
+Both channels first-order with equal 10¹³ prefactors fixes the per-carbon encapsulation fraction at `f_δ = 1/(1 + exp(0.03 eV/kT)) ≈ 0.41`, independent of coverage, E_act, and effectively T. That form (a) moves the bound by 1/f_δ ≈ 2.5× and leaves X stoichiometric, (b) contradicts Ni TOS data by 3–4 orders (Ermakova's 384 gC/gNi is ~4×10⁴ carbons per surface site, so f_δ ≲ 10⁻⁴), and (c) has no supply/removal switch, so E_act can never matter. Cδ is therefore written **second order in θ_C** (Cantera `coverage-dependencies: {C_s: {m: 1.0}}`, mean-field island nucleation; Snoeck's supersaturation picture) with `A_δ = A_γ/θ*`. θ\* is the C_s coverage where encapsulation overtakes transport at equal barriers; with the 0.03 eV difference the effective crossover is `θ*·exp(0.03 eV/kT)` (0.73 at 923 K for θ\* = 0.5), recorded in the sidecar. θ\* = 0.5 is **declared, not measured**, and is a B6-6 sweep variable. Mechanical / consumable regen and circulating removal clear `C_s` only; `C_encap_s` is TOS death and is never cleared (oxidative burn-off is non-turquoise and not modelled).
+
+## Writer corrections found by B6-5 (apply to every candidate)
+
+1. **Reference states.** Cantera `constant-cp` surface species sit on the absolute scale where H₂ and graphite are zero. `H_s = dE_H` was right; `CH3_s` lacked `h_f(CH3•) = +145.7 kJ/mol` (every CH₃\* ~1.5 eV too stable); `C_s` lacked `h_f(CH4) = −74.6 kJ/mol` (the screener's C reference is CH₄ − 2H₂; every C\* ~0.8 eV too unstable). `CH2_s`/`CH_s` had hard-coded −15/−10 kJ/mol; they now interpolate the ladder between the corrected `CH3_s` and `C_s` (template, declared).
+2. **Bimolecular prefactors.** `A = 10¹³` under `units: {length: cm, quantity: mol}` for `X_s + site` and `2 H_s` steps is cm²/mol/s, an effective `A·Γ = 2.5×10⁴ s⁻¹`. Now `A = 10¹³/Γ = 4×10²¹ cm²/mol/s` (H₂ desorption 2×10²²), the Deutschmann / Cantera `methane_pox_on_pt` convention. Unimolecular Cγ/Cδ (1/s) were already right.
+3. Consequence: the pre-correction `cat_9` headline (2.90% at 1300 K) was **CH₃\*/H\* parking behind a frozen ladder**, θ_C ≈ 10⁻¹⁴, not a carbon monolayer. Corrected: PFR 0.65%, fluidized 0.29%, θ_C = 0.10, 0.22 of the site-inventory bound. Identities 1–3 above still hold for `cat_9` (inventory corr(X, a) = 0.999); the parked species changed, the physics claim did not.
+
+## B6-5 result (2026-09-19, PFR, `sweeps/ni_np_b65_closure.yaml`)
+
+Literature Ni(111)/SiO₂ cell: `E_act 1.00` (Bengaard 2002 TS; BEP from the adsorption energies would give 0.68), `dE_H −0.50`, `dE_CH3 −1.95`, `dE_C +1.30` (screener conventions), `A_γ = 10¹³`, θ\* = 0.5. Cells: production (0.13 mm / 0.5 / 0.3) and large-particle Ni (0.13 / 0.9 / 0.05). Zero regen. `ni_np_b65_production.yaml` (3 mechanical cycles) is identical because θ_C never reaches the regen threshold.
+
+| cell | T (K) | X | bound | turnovers/site | θ_C exit | θ_encap exit | Cγ/Cδ | gC/(gNi·h) |
+|---|---|---|---|---|---|---|---|---|
+| production | 923 | 14.6% | 2.07% | 7.0 | 1.8e-5 | 3.0e-4 | 2.3e4 | 389 |
+| production | 973 | 26.3% | 2.18% | 12.1 | 1.1e-5 | 3.5e-4 | 3.4e4 | 667 |
+| production | 1300 | 99.97% (> X_eq 98.5%, flagged) | 2.92% | 34.3 | 1e-9 | 1.7e-4 | 2e5 | 1895 |
+| large-particle | 923 | 6.2% | 0.62% | 10.0 | 2.9e-5 | 5.7e-4 | 1.7e4 | 92 |
+| large-particle | 973 | 11.6% | 0.65% | 17.7 | 1.9e-5 | 7.1e-4 | 2.5e4 | 163 |
+
+**Read.** Turnovers ≫ 1 with zero regen: the closure criterion (X above the monolayer bound from intra-pass Cγ) is met in-model, and X now depends on the adsorption kinetics (every ladder step runs at the CH₄ sticking TOF, 4.7 → 1.2 s⁻¹ over the pass as H\* builds to 0.35). The yield is 50× above the Ermakova/Takenaka band and the encapsulation regime is unreachable at any T: with a single-hop `A_γ = 10¹³`, `k_γ(923 K) = 6.5×10⁴ s⁻¹` against an arrival rate of ~5 s⁻¹, so θ_C never approaches θ\*. `A_γ` is a transport + precipitation lump: at 10⁹ s⁻¹ (`D₀/L²` for a ~10 nm particle) θ_C crosses θ\* mid-pass and Cδ takes over (923 K: X 6.1%, θ_encap 0.40, 137 gC/(gNi·h)); at 10⁷ the surface starves (X 1.9%, turnovers 0.9, 8.5 gC/(gNi·h), inside the band but dead within the pass). No single `(A_γ, θ*)` pair matches both the yield band and a multi-hour lifetime with the current arrival rate, which points at the CH₄ sticking prefactor (template 0.01) and E_act as the other half of B6-6. The 1300 K overshoot of X_eq is Cγ irreversibility into a graphite sink (`exceeds_equilibrium` flag, never clipped).
+
+**Residuals.** Arrival rate is set by the template sticking prefactor (0.01) and the literature E_act; H\* coverage by template `s0` values; the surrogate row for this genome does not exist; Fluidized not run; B5 judge still `cat_9`.
 
 ## What this is not
 

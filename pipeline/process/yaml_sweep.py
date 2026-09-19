@@ -21,6 +21,15 @@ from pipeline.common.utils import BASE_DIR, SWEEPS_DIR, setup_logger
 logger = setup_logger('yaml_sweep', 'reactor/yaml_sweep.log')
 
 ALLOWED_REACTORS = ('PFR', 'Fluidized', 'MMBCR')
+# catalyst.kinetics keys (kinetics-only sweeps). Adsorption energies use the
+# screener's conventions (dE_H vs 1/2 H2, dE_CH3 vs CH3 radical, dE_C vs
+# CH4 - 2 H2); the writer puts them on Cantera's absolute scale. The three
+# B6 keys are only written for gated (Ni/Fe/Co nanoparticle) genomes.
+KINETICS_KEYS = (
+    'E_act', 'dE_H', 'dE_CH3', 'dE_C',
+    'carbon_transfer_eV', 'carbon_encapsulation_eV',
+    'encapsulation_crossover_coverage', 'carbon_transfer_prefactor_1_s',
+)
 DEFAULT_POLICY = {
     'co2_permitted': False,
     'fluidized_mode': 'circulating',
@@ -155,10 +164,20 @@ def parse_sweep(yaml_path: Path) -> SweepJob:
         screening_index = int(index_val)
     if kinetics_raw is not None:
         kinetics_raw = _require_mapping(kinetics_raw, 'catalyst.kinetics')
-        for key in ('E_act', 'dE_H', 'dE_CH3', 'dE_C'):
+        for key in KINETICS_KEYS:
             raw = kinetics_raw.get(key)
             if raw is not None and raw != '':
                 kinetics[key] = float(raw)
+        unknown_keys = set(kinetics_raw) - set(KINETICS_KEYS) - {'provenance'}
+        if unknown_keys:
+            raise ValueError(
+                f'unknown catalyst.kinetics key(s) {sorted(unknown_keys)}; '
+                f'allowed {list(KINETICS_KEYS)}')
+        provenance = kinetics_raw.get('provenance')
+        if provenance is not None:
+            kinetics['provenance'] = {
+                str(k): str(v) for k, v in _require_mapping(
+                    provenance, 'catalyst.kinetics.provenance').items()}
     if screening is None and 'E_act' not in kinetics:
         raise ValueError(
             'catalyst needs screening: {csv, index} or kinetics: {E_act}')
@@ -261,13 +280,36 @@ def _load_kinetics_row(job: SweepJob):
         candidate_id = (str(candidate_id) if isinstance(candidate_id, str)
                         else job.catalyst_name)
         return row, kinetics, material_class, candidate_id
+    field_for_key = {
+        'E_act': 'methane_activation_eV',
+        'dE_H': 'h_adsorption_eV',
+        'dE_CH3': 'ch3_adsorption_eV',
+        'dE_C': 'c_adsorption_eV',
+        'carbon_transfer_eV': 'carbon_transfer_eV',
+        'carbon_encapsulation_eV': 'carbon_encapsulation_eV',
+        'encapsulation_crossover_coverage': 'encapsulation_crossover_coverage',
+        'carbon_transfer_prefactor_1_s': 'carbon_transfer_prefactor_1_s',
+    }
+    declared = job.kinetics.get('provenance', {})
+    sources = {}
+    for key, field_name in field_for_key.items():
+        if key in job.kinetics:
+            sources[field_name] = 'sweep_yaml' + (
+                f': {declared[key]}' if key in declared else '')
     kinetics = CandidateKinetics(
         methane_activation_eV=float(job.kinetics['E_act']),
         h_adsorption_eV=job.kinetics.get('dE_H'),
         ch3_adsorption_eV=job.kinetics.get('dE_CH3'),
         c_adsorption_eV=job.kinetics.get('dE_C'),
+        carbon_transfer_eV=job.kinetics.get('carbon_transfer_eV'),
+        carbon_encapsulation_eV=job.kinetics.get('carbon_encapsulation_eV'),
+        encapsulation_crossover_coverage=job.kinetics.get(
+            'encapsulation_crossover_coverage'),
+        carbon_transfer_prefactor_1_s=job.kinetics.get(
+            'carbon_transfer_prefactor_1_s'),
         candidate_id=job.catalyst_name,
-        sources={'methane_activation_eV': 'sweep_yaml'},
+        screening_protocol='sweep_yaml_literature',
+        sources=sources,
         material_class=job.material_class,
         genome=parse_catalyst_genome(job.genome) if job.genome else None,
     )
@@ -291,26 +333,37 @@ def _print_table(job: SweepJob, records: list) -> None:
     print(f'\nSweep: {job.name}')
     if job.description:
         print(job.description)
+    off_site = any(rec.get('off_site_carbon_active') for rec in records)
+    extra_hdr = (f" {'X_bound':>8} {'turnov':>7} {'γ/δ':>8} {'gC/gM/h':>8}"
+                 if off_site else '')
     print(
         f"{'cell':<22} {'reactor':<10} {'T_K':>7} {'X':>10} "
-        f"{'a_1/m':>12} {'WHSV':>8} {'dP_bar':>8}  status"
+        f"{'a_1/m':>12} {'WHSV':>8} {'dP_bar':>8}{extra_hdr}  status"
     )
+
+    def fmt(value, spec):
+        return format(value, spec) if value is not None else '—'
+
     for rec in records:
-        a = rec.get('active_sv_1_m')
-        whsv = rec.get('WHSV_h-1')
-        dp = rec.get('ergun_delta_p_bar')
-        x = rec.get('CH4_conversion')
         status = rec.get('status') or '?'
         if rec.get('reason'):
             status = f"{status} ({rec['reason']})"
-        t_k = rec.get('T_K')
+        if rec.get('exceeds_equilibrium'):
+            status += ' [X > X_eq]'
+        extra = ''
+        if off_site:
+            extra = (
+                f" {fmt(rec.get('site_inventory_bound_X'), '.4%'):>8}"
+                f" {fmt(rec.get('carbon_turnovers_per_site'), '.2f'):>7}"
+                f" {fmt(rec.get('c_gamma_to_c_delta_ratio'), '.3g'):>8}"
+                f" {fmt(rec.get('filament_yield_gC_per_gMetal_h'), '.3g'):>8}")
         print(
             f"{rec['cell']:<22} {rec['reactor_type']:<10} "
-            f"{(f'{t_k:.1f}' if t_k is not None else '—'):>7} "
-            f"{(f'{x:.4%}' if x is not None else '—'):>10} "
-            f"{(f'{a:.1f}' if a is not None else '—'):>12} "
-            f"{(f'{whsv:.1f}' if whsv is not None else '—'):>8} "
-            f"{(f'{dp:.3f}' if dp is not None else '—'):>8}  {status}"
+            f"{fmt(rec.get('T_K'), '.1f'):>7} "
+            f"{fmt(rec.get('CH4_conversion'), '.4%'):>10} "
+            f"{fmt(rec.get('active_sv_1_m'), '.1f'):>12} "
+            f"{fmt(rec.get('WHSV_h-1'), '.1f'):>8} "
+            f"{fmt(rec.get('ergun_delta_p_bar'), '.3f'):>8}{extra}  {status}"
         )
 
 
@@ -380,6 +433,20 @@ def run_sweep(yaml_path: Path) -> dict:
                     'can_exclude_candidate': result.get('can_exclude_candidate'),
                     'surface_loaded': result.get('surface_loaded'),
                     'graphite_loaded': result.get('graphite_loaded'),
+                    # B5/B6 closure accounting (PFR); None elsewhere.
+                    'site_inventory_bound_X': result.get('site_inventory_bound_X'),
+                    'X_eq_table': result.get('X_eq_table'),
+                    'exceeds_equilibrium': result.get('exceeds_equilibrium'),
+                    'carbon_turnovers_per_site': result.get('carbon_turnovers_per_site'),
+                    'turnover_factor_vs_bound': result.get('turnover_factor_vs_bound'),
+                    'off_site_carbon_active': result.get('off_site_carbon_active'),
+                    'c_gamma_to_c_delta_ratio': result.get('c_gamma_to_c_delta_ratio'),
+                    'exit_theta_C': result.get('exit_theta_C'),
+                    'exit_theta_C_encap': result.get('exit_theta_C_encap'),
+                    'filament_yield_gC_per_gMetal_h': result.get(
+                        'filament_yield_gC_per_gMetal_h'),
+                    'filament_yield_within_band': result.get('filament_yield_within_band'),
+                    'regen_cycles_completed': result.get('regen_cycles_completed'),
                 })
 
     payload = {

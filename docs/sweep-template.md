@@ -109,7 +109,12 @@ Use **one** source. Screening wins for the row; explicit `kinetics` is for a fil
 | `screening.csv` | Path relative to the repo root | Typical: `results/screening/ga_full_database.csv`. |
 | `screening.index` | Integer ≥ 0 | 0-based pandas index after `read_csv`. `cat_9` is `index: 9`. |
 | `kinetics.E_act` | Finite **eV > 0** | Methane activation barrier. Required if there is no screening row. |
-| `kinetics.dE_H`, `.dE_CH3`, `.dE_C` | Finite eV, optional | Adsorption energies → surface enthalpies. **Not** barriers. Do not treat `\|dE_H\|` as H₂ desorption. |
+| `kinetics.dE_H`, `.dE_CH3`, `.dE_C` | Finite eV, optional | Adsorption energies in the **screener's conventions**: `dE_H` vs ½H₂, `dE_CH3` vs the CH₃ radical, `dE_C` vs CH₄ − 2H₂. The writer adds the reference formation enthalpies to put them on Cantera's absolute scale. **Not** barriers. Do not treat `\|dE_H\|` as H₂ desorption. |
+| `kinetics.carbon_transfer_eV` | Finite eV, optional (default 1.50) | Cγ barrier (Abild-Pedersen / Baker transport-to-edge). Only written for gated genomes. |
+| `kinetics.carbon_encapsulation_eV` | Finite eV, optional (default 1.53) | Cδ barrier (Amin encapsulating carbon). Only written for gated genomes. |
+| `kinetics.encapsulation_crossover_coverage` | (0, 1], optional (default 0.5) | θ\*: the C_s coverage where Cδ (∝ θ_C²) overtakes Cγ (∝ θ_C). Declared, not measured; a B6-6 sweep variable. |
+| `kinetics.carbon_transfer_prefactor_1_s` | > 0, optional (default 1e13) | `A_γ`. 1e13 is a single-hop TST label; the real channel is a transport + precipitation lump (`D₀/L²`, particle-size dependent). Decides whether the Alves encapsulation regime is reachable. Cδ inherits `A_γ/θ*`. |
+| `kinetics.provenance` | Mapping key → free text, optional | Recorded into the sidecar `sources` as `sweep_yaml: <text>`. Use it: a kinetics-only sweep is a literature cell and should say where each number came from. |
 | `material_class` | One of the 14 classes, or `MoltenMetal` | **Required with `kinetics`**; ignored with `screening` (the row wins). Decides which reactors apply and whether the B6 Cγ/Cδ channels are written. |
 | `genome` | Genome tuple as a string, optional | e.g. `"('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)"`. Only the B6 gate reads it (metal must be Ni/Fe/Co on an extended particle). Omit for SAC / melts. |
 
@@ -194,6 +199,19 @@ cells:
 | `a_1/m` | Active solids area; blank for MMBCR |
 | `WHSV` | 1/τ in h⁻¹ (historical name) |
 | `dP_bar` | Ergun ΔP; blank for MMBCR |
-| `status` | `complete`, `not_applicable (reason)`, `validation_required`, or `failed (error)`. Only `complete` rows are catalyst evidence. |
+| `status` | `complete`, `not_applicable (reason)`, `validation_required`, or `failed (error)`. Only `complete` rows are catalyst evidence. `[X > X_eq]` is appended when the run overshoots tabulated equilibrium (Cγ is irreversible into a graphite sink; flagged, never clipped). |
 
-The JSON also records `pathway_mode`, `material_class`, `closure_source`, `residence_time_s`, and `can_exclude_candidate` per row.
+When any row has the B6 channels active the table adds four columns (PFR only):
+
+| Field | Meaning |
+|---|---|
+| `X_bound` | Site-inventory bound `Γ·a / (ε·c_CH4)` on the PFR parcel basis: the X one stoichiometric monolayer can deliver. |
+| `turnov` | Carbon turnovers per site per pass = solid carbon / sites. > 1 needs Cγ returning sites within the pass. |
+| `γ/δ` | Cγ : Cδ carbon per pass (Cγ from the carbon balance, Cδ from the change in `C_encap_s`). |
+| `gC/gM/h` | Pass-averaged Cγ rate in gC per g metal per hour, metal moles = sites / dispersion. Compare with the Ermakova / Takenaka Ni band 8–10. |
+
+The JSON also records `pathway_mode`, `material_class`, `closure_source`, `residence_time_s`, `can_exclude_candidate`, `site_inventory_bound_X`, `X_eq_table`, `exceeds_equilibrium`, `carbon_turnovers_per_site`, `off_site_carbon_active`, `c_gamma_to_c_delta_ratio`, `exit_theta_C`, `exit_theta_C_encap`, `filament_yield_gC_per_gMetal_h`, `filament_yield_within_band`, and `regen_cycles_completed` per row.
+
+## B6-5 sweep files
+
+`sweeps/ni_np_b65_closure.yaml` (zero regen; the B5/B6 closure question) and `sweeps/ni_np_b65_production.yaml` (3 mechanical cycles; scorecard-comparable). Both are **PFR only**: Fluidized Ni is an open B6 item, and MMBCR is `not_applicable` for a SolidCatalyst. Mechanical regen never clears `C_encap_s`.

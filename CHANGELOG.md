@@ -88,6 +88,42 @@ Dated working-tree entries for the carbon-model / reactor-physics track.
 Durable rule: [ADR 0001](docs/adr/0001-pyrolysis-phase-admissibility.md).
 Open work: [`docs/backlog/`](docs/backlog/README.md) B1–B6.
 
+#### 2026-09-19 — B6-5 Ni closure sweep; writer reference-state and prefactor corrections
+
+Three writer defects surfaced while building the Ni cell, all pre-existing
+and affecting every candidate. (i) Surface enthalpies were off their
+reference states: `CH3_s` lacked `h_f(CH3•)` (+145.7 kJ/mol), `C_s` lacked
+`h_f(CH4)` (−74.6 kJ/mol; the screener's C reference is CH₄ − 2H₂).
+`CH2_s`/`CH_s` templates (−15/−10 kJ/mol) now interpolate the ladder.
+(ii) Bimolecular surface steps had `A = 1e13` in cm²/mol/s, an effective
+2.5e4 s⁻¹ that froze the dehydrogenation ladder; now `A = 1e13/Γ = 4e21`
+(H₂ desorption 2e22), the Deutschmann convention. (iii) Cδ was first-order
+with a fixed 0.41 per-carbon encapsulation fraction; it is now ∝ θ_C²
+(Cantera `coverage-dependencies` `m: 1`) with `A_δ = A_γ/θ*`, θ\* = 0.5
+declared. The pre-correction `cat_9` headline (2.90 % PFR, 1.19 %
+fluidized at 1300 K) was CH₃\*/H\* parking behind the frozen ladder
+(θ_C ≈ 1e-14); corrected it is 0.65 % / 0.29 %, θ_C = 0.10, 0.22 of the
+site-inventory bound. E_act template verdicts unchanged (PFR/fluidized
+`flat_or_weak`, MMBCR discriminating); inventory corr(X, a) = 0.999 for `cat_9`.
+
+New: `CandidateKinetics.encapsulation_crossover_coverage` and
+`carbon_transfer_prefactor_1_s` (YAML keys `kinetics.*`, plus
+`kinetics.provenance`); sidecar records surface enthalpies, prefactors,
+reference conventions, Cδ form and θ\*. PFR results carry
+`site_inventory_bound_X`, `carbon_turnovers_per_site`, `c_gamma_mol_per_pass`,
+`c_delta_mol_per_pass`, `c_gamma_to_c_delta_ratio`, `exit_theta_C(_encap)`,
+`filament_yield_gC_per_gMetal_h` (band 8–10 for Ni), `X_eq_table`, and
+`exceeds_equilibrium` (flagged, never clipped). `_reset_surface_carbon`
+preserves `C_encap_s` (encapsulation is TOS death). `ct.gas_constant` is per
+kmol; `R_J_MOL_K` added. Sweeps `sweeps/ni_np_b65_closure.yaml` (zero regen)
+and `ni_np_b65_production.yaml`, PFR only; Fluidized Ni and the Ni surrogate
+row are open B6 items. Result: production cell 923 K X = 14.6 % against a
+2.07 % bound, 7 turnovers/site, θ_encap 3e-4, yield 389 gC/(gNi·h) — 50×
+above the Ermakova band, encapsulation unreachable with a single-hop `A_γ`;
+`A_γ = 1e9` gives the regime switch (θ_encap 0.40), `1e7` lands in the band
+but dies within the pass. B6-6 sweeps `A_γ`, θ\*, E_act. Judge move is a
+separate change.
+
 #### 2026-09-19 — Sweep callers on pathway modes; emulsion area basis
 
 `yaml_sweep`, `inventory_sweep`, and `eact_sensitivity` route each reactor

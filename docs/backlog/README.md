@@ -11,7 +11,7 @@ Reference numbering matches [ADR 0001](../adr/0001-pyrolysis-phase-admissibility
 | [B3](B3-mmbcr-bubble-flotation.md) | MMBCR k·a·τ is a sanity check, not kinetic closure | docs + tests |
 | [B4](B4-pfr-residence-time-limits.md) | PFR τ limits | implementation |
 | [B5](B5-phase2-x-gate-before-dft.md) | **Gate:** do not send Phase 2 X to DFT until PFR/fluidized closure | milestone blocker |
-| [B6](B6-off-site-carbon-nucleation.md) | Off-site carbon nucleation (Cα → Cγ / Cδ) | implementation (**blocks B5**; B6-1–4 in writer; B6-5 open) |
+| [B6](B6-off-site-carbon-nucleation.md) | Off-site carbon nucleation (Cα → Cγ / Cδ) | implementation (**blocks B5**; B6-1–5 done, PFR only; Cδ ∝ θ_C²; B6-6 `A_γ`/θ\*/E_act sweep, Fluidized Ni, and the Ni surrogate row open) |
 
 After `gh auth login`:
 
