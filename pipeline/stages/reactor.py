@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Mapping, Sequence
 
+from pipeline.common.utils import repo_relative
 from pipeline.process.pathway_modes import DEFAULT_MODE, resolve_pathway_mode
 
 
@@ -130,7 +131,7 @@ def simulate_candidate(row: Mapping, catalyst_name: str,
         'material_class': row.get('material_class'),
         'pathway_mode': pathway_mode,
         'E_act': barrier,
-        'mechanism_file': str(mechanism) if mechanism is not None else None,
+        'mechanism_file': repo_relative(mechanism) if mechanism is not None else None,
         'sweep': sweep,
         **summary,
     }

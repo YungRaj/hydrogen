@@ -427,7 +427,7 @@ reactions:
     filepath = MECHANISMS_DIR / "gri30_ch4_subset.yaml"
     with open(filepath, 'w', encoding='utf-8') as f:
         f.write(yaml_content)
-    logger.info(f"Wrote gas-phase + graphite mechanism: {filepath}")
+    logger.info(f"Wrote gas-phase + graphite mechanism: {repo_relative(filepath)}")
     return filepath
 
 
@@ -735,7 +735,7 @@ reactions:
     }), indent=2, sort_keys=True) + '\n', encoding='utf-8')
 
     logger.info(
-        f"Wrote mechanism: {filepath} "
+        f"Wrote mechanism: {repo_relative(filepath)} "
         f"(E_act={E_act_CH4:.3f} eV, "
         f"off_site_carbon={include_off_site}, "
         f"status={values['quantitative_status']})")

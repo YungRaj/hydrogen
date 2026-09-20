@@ -464,7 +464,7 @@ def run_sweep(yaml_path: Path) -> dict:
     out_json = out_dir / 'run.json'
     out_json.write_text(json.dumps(payload, indent=2) + '\n', encoding='utf-8')
     shutil.copy2(job.source_file, out_dir / 'input.yaml')
-    logger.info(f'Wrote {out_json} ({len(records)} records)')
+    logger.info(f'Wrote {repo_relative(out_json)} ({len(records)} records)')
     _print_table(job, records)
-    print(f'\nWrote {out_json}')
+    print(f'\nWrote {repo_relative(out_json)}')
     return payload
