@@ -402,6 +402,30 @@ def test_dft_stage_parses_genomes_and_isolates_candidate_failures():
     assert calls[-1] == ('dft_cat_2', ('other', 3), False)
 
 
+def test_dft_stage_reads_genome_from_dataframe_rows():
+    import pandas as pd
+    from pipeline.stages.dft import run_dft_stage
+
+    calls = []
+
+    def validator(name, genome, *, run_dft):
+        calls.append(genome)
+        return {'candidate': name, 'converged': True}
+
+    frame = pd.DataFrame([
+        {'genome': "('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)",
+         'valid': False},
+        {'genome': "('SAC', 'Fe', 'N4', 'graphene', 0.0, (), 1, 0)",
+         'valid': True},
+    ])
+    outcome = run_dft_stage(
+        frame, top_k=2, execute_dft=False, validator=validator)
+    assert outcome.state['n_validated'] == 2
+    assert outcome.state['n_failed'] == 0
+    assert calls[0][0] == 'SolidCatalyst'
+    assert calls[1][0] == 'SAC'
+
+
 def test_discovery_stage_components_preserve_selection_products():
     import pandas as pd
     from pipeline.stages.discovery import DiscoveryServices, run_discovery_stage

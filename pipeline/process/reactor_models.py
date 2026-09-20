@@ -663,7 +663,14 @@ def _off_site_carbon_metrics(config: ReactorConfig, gas, surf, *,
     n_solid = max(0.0, pass_conversion * n_ch4_fed_mol - n_c2)
     d_surface_c = (_surface_carbon_coverage(surf, cov_end)
                    - _surface_carbon_coverage(surf, cov_start)) * n_sites_mol
-    n_removed = max(0.0, float(removed_surface_carbon_mol))
+    n_removed_raw = max(0.0, float(removed_surface_carbon_mol))
+    # Exported carbon cannot exceed CH4 converted onto the solids this pass
+    # minus carbon that remained on the surface. A raw outfeed larger than
+    # that is a state-accounting leak (B2 circulating Interface vs
+    # ReactorSurface), not extra Cγ. Conserve before scoring filaments.
+    available_to_export = max(0.0, n_solid - d_surface_c)
+    n_removed = min(n_removed_raw, available_to_export)
+    balance_residual = n_solid - d_surface_c - n_removed_raw
     n_gamma = max(0.0, n_solid - d_surface_c - n_removed)
     has_encap = 'C_encap_s' in surf.species_names
     n_delta = 0.0
@@ -687,6 +694,10 @@ def _off_site_carbon_metrics(config: ReactorConfig, gas, surf, *,
             pass_conversion / x_bound if x_bound else None),
         'solid_carbon_mol_per_pass': n_solid,
         'outfeed_carbon_mol_per_pass': n_removed,
+        'outfeed_carbon_mol_raw': n_removed_raw,
+        'carbon_balance_residual_mol': balance_residual,
+        'carbon_balance_ok': bool(
+            balance_residual >= -1e-3 * max(n_sites_mol, n_solid, 1e-12)),
         'c_gamma_mol_per_pass': n_gamma if has_encap else None,
         'c_delta_mol_per_pass': n_delta if has_encap else None,
         'c_gamma_to_c_delta_ratio': ratio,
@@ -1199,24 +1210,28 @@ def _integrate_fluidized_pass(gas, surf, tau: float, sv_ratio: float,
     Basis: 1 m³ of emulsion. Gas volume is ε_mf; solids area is
     ``sv_ratio`` (area per emulsion volume). Pairing per-emulsion-volume
     area with 1 m³ of gas would undercount area by 1/ε_mf.
+
+    Each substep builds a new ``ReactorNet`` from the current Interface
+    state. Mutating ``Interface.coverages`` on a live ``ReactorSurface``
+    does not change the integrated surface; the next ``advance`` would
+    restore the pre-removal coverages and report outfeed that never left
+    the reactor.
     """
-    reactor_em = ct.IdealGasReactor(gas)
-    reactor_em.volume = FLUIDIZED_EMULSION_VOIDAGE
-    _disable_reactor_energy(reactor_em)
-    if surf is not None:
-        ct.ReactorSurface(surf, reactor_em, A=sv_ratio)
-    net = ct.ReactorNet([reactor_em])
     carbon_removed = 0.0
     n = max(1, int(FLUIDIZED_REMOVAL_SUBSTEPS))
     dt = tau / n
-    t = 0.0
     for _ in range(n):
-        t += dt
-        net.advance(t)
+        reactor_em = ct.IdealGasReactor(gas)
+        reactor_em.volume = FLUIDIZED_EMULSION_VOIDAGE
+        _disable_reactor_energy(reactor_em)
+        if surf is not None:
+            ct.ReactorSurface(surf, reactor_em, A=sv_ratio)
+        net = ct.ReactorNet([reactor_em])
+        net.advance(dt)
+        gas.TPX = reactor_em.thermo.T, reactor_em.thermo.P, reactor_em.thermo.X
         if removal_rate_1_s > 0 and surf is not None:
             carbon_removed += _apply_continuous_carbon_removal(
                 surf, removal_rate_1_s, dt)
-    gas.TPX = reactor_em.thermo.T, reactor_em.thermo.P, reactor_em.thermo.X
     return carbon_removed
 
 

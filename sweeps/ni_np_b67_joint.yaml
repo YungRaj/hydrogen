@@ -1,15 +1,12 @@
-name: ni_np_b66_agamma
+name: ni_np_b67_joint
 description: >
-  B6-6 star sweep, A_gamma axis. Literature Ni(111)/SiO2 nanoparticle cell
-  (ni_np_b65_closure) with E_act 1.0, theta* 0.5, s0 0.01 held at the B6-5
-  base point. A_gamma every decade 1e6-1e13 plus half-decades 1e8-1e10
-  (the B6-5 encapsulation switch lives near 1e9). Full ADR band, PFR and
-  circulating Fluidized, both cells, zero regen and mechanical x3.
-  Particle-size derivation is supported but not cartesian-swept: A_gamma =
-  D0/L^2 with D0 = 2.48e-4 m^2/s (Lander 1952 C-in-Ni). On that scale
-  5 nm ~ 1e13, 10 nm = 2.48e12, 50 nm ~ 1e11, 500 nm ~ 1e9. Set
-  carbon_transfer_particle_nm instead of carbon_transfer_prefactor_1_s
-  (mutually exclusive) to write a derived point; do not list both.
+  B6-7 joint-band cube: A_gamma × theta* × s0 at 923.15 and 973.15 K
+  (the 650–700 °C filament ROI). Same literature Ni(111)/SiO2 cell as
+  B6-5/B6-6. Exhausts the (A_γ, θ*, s0) combinations that the B6-6 star
+  and 2-D did not cross. A hit is one scorable row in both the Ermakova
+  8–10 gC/(gNi·h) band and the 4–50 h TOS band. No new physics. PFR and
+  circulating Fluidized, both cells, regen 0 and 3. Scored by
+  pipeline/process/b67_joint_band.py.
 catalyst:
   name: ni_np_lit
   material_class: SolidCatalyst
@@ -21,25 +18,23 @@ catalyst:
     dE_C: 1.30
     carbon_transfer_eV: 1.50
     carbon_encapsulation_eV: 1.53
-    encapsulation_crossover_coverage: 0.5
-    ch4_sticking_coefficient: 0.01
     provenance:
       E_act: Bengaard 2002 J.Catal. 209 365-384; Ni(111) terrace TS 101 kJ/mol (1.05 eV), recorded 1.00
       dE_H: Greeley & Mavrikakis JPCB 2005 109 3460; TPD -0.50 eV vs 1/2 H2
       dE_CH3: screener convention; Watwe 2000 J.Catal. 189 16 Ni(111) fcc vs CH3 (typical PW91 -1.84)
       dE_C: screener mapping; Abild-Pedersen PRB 2006 73 115419 terrace vs graphene + 0.8 eV CH4-2H2
-      carbon_transfer_eV: template default
-      carbon_encapsulation_eV: template default
-      encapsulation_crossover_coverage: declared; B6-5 base point
-      ch4_sticking_coefficient: template default; B6-5 base point
+      carbon_transfer_eV: Baker 1972 J.Catal. 26 51-62 33 kcal/mol = 1.43 eV; Abild-Pedersen 1.42/1.55 eV; template 1.50
+      carbon_encapsulation_eV: Amin IEC Res 2011 50 12460; 147-149 kJ/mol = 1.52-1.55 eV
 sweep:
   kinetics:
     carbon_transfer_prefactor_1_s:
       [1.0e6, 1.0e7, 1.0e8, 3.0e8, 1.0e9, 3.0e9, 1.0e10, 1.0e11, 1.0e12, 1.0e13]
+    encapsulation_crossover_coverage: [0.2, 0.35, 0.5, 0.65, 0.8]
+    ch4_sticking_coefficient: [0.001, 0.003, 0.01, 0.03, 0.1]
   policy:
     max_regen_cycles: [0, 3]
 conditions:
-  temperatures_K: [773.15, 900, 923.15, 948.15, 973.15, 1100, 1300]
+  temperatures_K: [923.15, 973.15]
   reactors: [PFR, Fluidized]
 policy:
   co2_permitted: false

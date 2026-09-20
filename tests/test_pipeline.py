@@ -1652,6 +1652,41 @@ def test_encapsulation_lifetime_on_pfr_and_fluidized():
         assert 'lifetime_within_tos_band' in result
 
 
+def test_circulating_removal_updates_integrated_state_and_conserves_carbon():
+    """B2 outfeed must change the ReactorSurface, not only Interface.coverages."""
+    try:
+        import cantera  # noqa: F401
+    except ImportError:
+        return
+    from pipeline.process.reactor_mechanisms import write_full_mechanism
+    from pipeline.process.reactor_models import ReactorConfig, simulate_fluidized_bed
+
+    path = write_full_mechanism('test_circ_state', E_act_CH4=0.9)
+    shared = dict(
+        mechanism_file=str(path), catalyst_name='test_circ_state',
+        T_inlet_K=1300.0, max_regen_cycles=0, fluidized_mode='circulating')
+
+    def run(rate):
+        return simulate_fluidized_bed(ReactorConfig(
+            reactor_type='Fluidized',
+            circulating_carbon_removal_rate_1_s=rate, **shared))
+
+    zero = run(0.0)
+    mid = run(0.5)
+    high = run(50.0)
+    produced = mid.get('solid_carbon_mol_per_pass') or 0.0
+    removed = mid.get('outfeed_carbon_mol_per_pass') or 0.0
+    removed_high = high.get('outfeed_carbon_mol_per_pass') or 0.0
+    produced_high = high.get('solid_carbon_mol_per_pass') or 0.0
+    assert mid.get('carbon_balance_ok') is True
+    assert high.get('carbon_balance_ok') is True
+    assert removed <= produced + 1e-12
+    assert removed_high <= produced_high + 1e-12
+    # Ungated SAC: X is inventory-limited unless outfeed actually frees sites.
+    assert mid['CH4_conversion'] > zero['CH4_conversion'] + 1e-6
+    assert high['CH4_conversion'] > mid['CH4_conversion'] + 1e-6
+
+
 def test_b66_criteria_on_synthetic_payload():
     from pipeline.process.b66_criteria import (
         d_lnX_d_Eact, evaluate_criteria, linearity_relative_diff)
@@ -1721,6 +1756,135 @@ def test_b66_criteria_on_synthetic_payload():
     assert summary['n_flagged_X_gt_Xeq'] == 1
     # the 1300 K overshoot row must not count as a lifetime or yield hit
     assert crit['lifetime']['example']['T_K'] == 923.15
+
+
+def test_b67_joint_band_declares_no_simultaneous_hit():
+    from pipeline.process.b67_joint_band import search_joint_band
+
+    def rec(**kwargs):
+        row = {
+            'cell': 'production', 'reactor_type': 'PFR', 'T_K': 923.15,
+            'status': 'complete', 'exceeds_equilibrium': False,
+            'sweep': {
+                'carbon_transfer_prefactor_1_s': 1e13,
+                'encapsulation_crossover_coverage': 0.5,
+                'ch4_sticking_coefficient': 0.01,
+            },
+            'filament_yield_gC_per_gMetal_h': 389.0,
+            'encapsulation_lifetime_h': 1.8,
+        }
+        row.update(kwargs)
+        if 'sweep' in kwargs:
+            merged = dict(row['sweep'])
+            merged.update(kwargs['sweep'])
+            row['sweep'] = merged
+        return row
+
+    yield_only = rec(
+        sweep={'carbon_transfer_prefactor_1_s': 1e7},
+        filament_yield_gC_per_gMetal_h=8.5,
+        encapsulation_lifetime_h=0.004)
+    life_only = rec(
+        filament_yield_gC_per_gMetal_h=389.0,
+        encapsulation_lifetime_h=5.0)
+    overshoot = rec(
+        T_K=1300.0, exceeds_equilibrium=True,
+        filament_yield_gC_per_gMetal_h=9.0,
+        encapsulation_lifetime_h=10.0)
+    summary = search_joint_band({
+        'ni_np_b66_agamma': {'records': [yield_only, life_only, overshoot]},
+    })
+    assert summary['declaration'] == 'no_simultaneous_hit_in_filament_ROI'
+    assert summary['n_both'] == 0
+    assert summary['n_both_roi'] == 0
+    assert summary['n_yield_only'] == 1
+    assert summary['n_lifetime_only'] == 1
+    both = rec(
+        sweep={'carbon_transfer_prefactor_1_s': 3e8},
+        filament_yield_gC_per_gMetal_h=9.0,
+        encapsulation_lifetime_h=8.0)
+    hit = search_joint_band({'cube': {'records': [both]}})
+    assert hit['declaration'] == 'simultaneous_hit'
+    assert hit['n_both'] == 1
+
+
+def test_solids_scorecard_ni_judge_uses_filament_roi_not_1300():
+    from pipeline.process.phase2_scorecard import (
+        NI_JUDGE_CATALYST, NI_JUDGE_HEADLINE_T_MAX, NI_JUDGE_HEADLINE_T_MIN,
+        build_solids_scorecard)
+
+    def row(T, X, *, overshoot=False):
+        return {
+            'reactor_type': 'PFR', 'catalyst_name': NI_JUDGE_CATALYST,
+            'T_K': T, 'CH4_conversion': X, 'single_pass_CH4_conversion': X,
+            'catalyst_E_act_eV': 1.0, 'catalyst_dE_H_eV': -0.50,
+            'active_sv_1_m': 4153.8, 'WHSV_h-1': 900.0,
+            'ergun_delta_p_bar': 0.32, 'ergun_ok': True,
+            'surface_loaded': True, 'exceeds_equilibrium': overshoot,
+        }
+
+    fluid = row(923.15, 0.1694)
+    fluid['reactor_type'] = 'Fluidized'
+    fluid['WHSV_h-1'] = 180.0
+    card = build_solids_scorecard(
+        [row(923.15, 0.1456), row(973.15, 0.2633),
+         row(1300.0, 0.9997, overshoot=True), fluid],
+        judge_catalyst=NI_JUDGE_CATALYST,
+        headline_t_min=NI_JUDGE_HEADLINE_T_MIN,
+        headline_t_max=NI_JUDGE_HEADLINE_T_MAX)
+    assert card['judge_catalyst'] == NI_JUDGE_CATALYST
+    assert abs(card['headline']['PFR']['T_K'] - 973.15) < 1e-9
+    assert abs(card['headline_solids_conversion'] - 0.2633) < 1e-9
+    assert abs(card['headline']['Fluidized']['single_pass_CH4_conversion']
+               - 0.1694) < 1e-9
+    assert card['headline']['PFR']['T_K'] <= NI_JUDGE_HEADLINE_T_MAX
+
+
+def test_scorecard_excludes_equilibrium_overshoot_from_every_rank():
+    from pipeline.process.phase2_scorecard import build_solids_scorecard
+
+    def row(name, T, X, *, overshoot=False):
+        return {
+            'reactor_type': 'PFR', 'catalyst_name': name,
+            'T_K': T, 'CH4_conversion': X, 'single_pass_CH4_conversion': X,
+            'catalyst_E_act_eV': 1.0, 'catalyst_dE_H_eV': -0.50,
+            'active_sv_1_m': 4153.8, 'WHSV_h-1': 900.0,
+            'ergun_delta_p_bar': 0.40, 'ergun_ok': True,
+            'surface_loaded': True, 'exceeds_equilibrium': overshoot,
+        }
+
+    card = build_solids_scorecard([
+        row('ni_np_lit', 1300.0, 0.9997, overshoot=True),
+        row('ni_np_lit', 1300.0, 0.0065),
+    ])
+    assert abs(card['headline']['PFR']['single_pass_CH4_conversion'] - 0.0065) < 1e-12
+    assert card['headline']['PFR']['exceeds_equilibrium'] is False
+    assert abs(card['solids_max_excluding_h_parked']['single_pass_CH4_conversion']
+               - 0.0065) < 1e-12
+    assert card['n_solids_records'] == 2
+
+
+def test_ni_literature_screening_row_is_not_fairchem():
+    import pandas as pd
+    from pipeline.common.application_scope import scope_pyrolysis_pool
+    from pipeline.common.utils import BASE_DIR
+    from pipeline.process.reactor_mechanisms import CandidateKinetics
+
+    path = BASE_DIR / 'sweeps' / 'ni_np_lit_screening_row.csv'
+    frame = pd.read_csv(path)
+    assert len(frame) == 1
+    row = frame.iloc[0]
+    assert str(row['candidate_id']) == 'ni_np_lit'
+    assert bool(row['fairchem_evaluated']) is False
+    assert 'literature' in str(row['screening_protocol'])
+    kinetics = CandidateKinetics.from_screening_row(row, candidate_id='ni_np_lit')
+    assert abs(kinetics.methane_activation_eV - 1.00) < 1e-12
+    assert abs(kinetics.h_adsorption_eV - (-0.50)) < 1e-12
+    assert abs(kinetics.ch3_adsorption_eV - (-1.95)) < 1e-12
+    assert abs(kinetics.c_adsorption_eV - 1.30) < 1e-12
+    pool, note = scope_pyrolysis_pool(frame)
+    assert note['admissible_count'] == 1
+    assert len(pool) == 1
 
 
 def test_staged_sweep_preserves_coarse_and_proposes_roi():
@@ -2295,7 +2459,14 @@ if __name__ == '__main__':
     test("CH4 sticking written to YAML and sidecar", test_ch4_sticking_coefficient_written_to_yaml_and_sidecar)
     test("A_gamma derivation from particle_nm", test_agamma_derivation_from_particle_nm)
     test("Lifetime metric on PFR and Fluidized", test_encapsulation_lifetime_on_pfr_and_fluidized)
+    test("Circulating removal updates ReactorSurface and conserves C",
+         test_circulating_removal_updates_integrated_state_and_conserves_carbon)
     test("B6-6 criteria on synthetic payload", test_b66_criteria_on_synthetic_payload)
+    test("B6-7 joint band declares no simultaneous hit", test_b67_joint_band_declares_no_simultaneous_hit)
+    test("Ni judge headline is filament ROI not 1300 K", test_solids_scorecard_ni_judge_uses_filament_roi_not_1300)
+    test("Scorecard excludes X>X_eq from headline and max",
+         test_scorecard_excludes_equilibrium_overshoot_from_every_rank)
+    test("Ni literature screening row is not fairchem", test_ni_literature_screening_row_is_not_fairchem)
     test("Site density locked to monolayer", test_site_density_locked_to_monolayer)
     test("Inventory levers preserve baseline area", test_inventory_levers_preserve_baseline_area)
     test("YAML sweep parses headline example", test_yaml_sweep_parses_headline_example)

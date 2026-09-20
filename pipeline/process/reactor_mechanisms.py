@@ -240,7 +240,9 @@ OFF_SITE_CARBON_DENIED_CLASSES = frozenset({
     'MAXPhase', 'Spinel',
 })
 C_GAMMA_PROVENANCE = 'template_default: Abild-Pedersen 2006 / Baker 1972'
-C_DELTA_PROVENANCE = 'template_default: Amin 2011 encapsulating-carbon'
+C_DELTA_PROVENANCE = (
+    'template_default: Amin IEC Res 2011 50 12460; '
+    '147-149 kJ/mol encapsulating-carbon')
 # Cδ is second order in θ_C (mean-field island nucleation; Snoeck
 # supersaturation picture). θ* is the coverage where k_δ θ_C² = k_γ θ_C at
 # equal barriers; A_δ = A_γ / θ*. With Ea_δ − Ea_γ = 0.03 eV the effective
@@ -260,7 +262,8 @@ C_GAMMA_PREFACTOR_PROVENANCE = (
 # order-of-magnitude; the sweep, not the derivation, carries the result.
 CARBON_DIFFUSION_PREFACTOR_M2_S = 2.48e-4
 CARBON_DIFFUSION_PREFACTOR_PROVENANCE = (
-    'template_default: Lander 1952 C-in-Ni bulk diffusion D0 = 2.48 cm^2/s')
+    'template_default: Lander J.Appl.Phys. 1952 23 1305; '
+    'D0 = 2.48 cm^2/s (ln D = 0.909 - 20200/T)')
 # B6-6: CH4 dissociative sticking prefactor. Template order of magnitude
 # (Deutschmann-style methane_pox_on_pt uses 0.01 on Pt); Ni(111) molecular-
 # beam values span 1e-4 .. 1e-2 at these T. Sets the carbon arrival rate.

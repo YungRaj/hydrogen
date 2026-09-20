@@ -882,6 +882,28 @@ def test_stage_selection_rescues_incomplete_evidence_without_feeding_reactor():
     assert 'C' not in set(validation.material_class)
 
 
+def test_production_validation_slate_does_not_drop_unresolved_rows():
+    """run_production_campaign must match discovery: admissibility first."""
+    import pandas as pd
+    from pipeline.common.application_scope import scope_pyrolysis_pool
+    from pipeline.screening.stage_selection import (
+        select_for_reactor, select_for_validation)
+
+    ni = "('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)"
+    fe = "('SAC', 'Fe', 'N4', 'graphene', 0.0, (), 1, 0)"
+    frame = pd.DataFrame([
+        {'genome': ni, 'material_class': 'SolidCatalyst', 'valid': True,
+         'E_act': 1.00},
+        {'genome': fe, 'material_class': 'SAC', 'valid': False,
+         'error': 'Unconverged clean relaxation', 'needs_dft_validation': True},
+    ])
+    pool, _ = scope_pyrolysis_pool(frame)
+    reactor = select_for_reactor(pool, 10, 'E_act')
+    validation = select_for_validation(pool, 10, 'E_act')
+    assert set(reactor['material_class']) == {'SolidCatalyst'}
+    assert set(validation['material_class']) == {'SolidCatalyst', 'SAC'}
+
+
 def test_refactored_protocol_executor_and_reactor_stage_contracts():
     from pipeline.screening.gpu_executor import execution_layout
     from pipeline.screening.protocols import ORR_PROTOCOL, PYROLYSIS_PROTOCOL

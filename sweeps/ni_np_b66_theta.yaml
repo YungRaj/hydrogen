@@ -19,10 +19,10 @@ catalyst:
     carbon_transfer_prefactor_1_s: 1.0e13
     ch4_sticking_coefficient: 0.01
     provenance:
-      E_act: Bengaard 2002 Ni(111) DFT TS
-      dE_H: Greeley & Mavrikakis 2004 Ni(111)
-      dE_CH3: Bengaard 2002 Ni(111) fcc site
-      dE_C: Abild-Pedersen 2006 terrace C vs graphene, +0.8 eV CH4-2H2 reference shift
+      E_act: Bengaard 2002 J.Catal. 209 365-384; Ni(111) terrace TS 101 kJ/mol (1.05 eV), recorded 1.00
+      dE_H: Greeley & Mavrikakis JPCB 2005 109 3460; TPD -0.50 eV vs 1/2 H2
+      dE_CH3: screener convention; Watwe 2000 J.Catal. 189 16 Ni(111) fcc vs CH3 (typical PW91 -1.84)
+      dE_C: screener mapping; Abild-Pedersen PRB 2006 73 115419 terrace vs graphene + 0.8 eV CH4-2H2
       carbon_transfer_eV: template default
       carbon_encapsulation_eV: template default
       carbon_transfer_prefactor_1_s: template default (single-hop TST); B6-5 base point

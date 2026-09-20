@@ -88,6 +88,23 @@ Dated working-tree entries for the carbon-model / reactor-physics track.
 Durable rule: [ADR 0001](docs/adr/0001-pyrolysis-phase-admissibility.md).
 Open work: [`docs/backlog/`](docs/backlog/README.md) B1–B6.
 
+#### 2026-09-20 — B6-7 judge, literature stub, joint-band declaration
+
+Named solids judge is `ni_np_lit` (Bengaard [35] / Greeley [37] /
+Abild-Pedersen [26] literature base point; citations corrected
+2026-09-20: Amin is *Ind. Eng. Chem. Res.* not *Appl. Catal. A*;
+Greeley H-on-Ni is *J. Phys. Chem. B* 2005, 109, 3460, not a 2004
+*108*, 18140 paper; E_act 1.00 is the recorded 1.05 eV Bengaard
+terrace TS). Headline band is the 650–700 °C filament ROI
+(923.15–973.15 K); 1300 K remains the ADR 0001 ceiling and the X>X_eq
+flag, not the Ni headline. Tracked CSV stub
+`sweeps/ni_np_lit_screening_row.csv` is literature-valued,
+`fairchem_evaluated=False`. Joint-band search (B6-6 records plus
+`ni_np_b67_joint.yaml` 4000-row A_γ × θ\* × s0 cube at 923/973 K)
+declares no simultaneous Ermakova-yield and TOS-lifetime hit in the
+filament ROI. One 773 K large-particle edge hit (Y=9.3, τ=4.12 h) is
+recorded, not scored as an ROI success. B5 stays closed.
+
 #### 2026-09-19 — B6-6 star + 2-D Ni sweep; sticking, A_γ = D₀/L², encapsulation lifetime
 
 `sweep:` is a cartesian product over kinetics and policy lists (one

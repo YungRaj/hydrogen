@@ -50,10 +50,13 @@ class PipelineConfig:
     reactor_temperatures: tuple = (800, 900, 1000, 1100, 1200)
     reactor_types: Optional[tuple] = None  # None derives routing from mode
     multiphysics_results_dir: Optional[str] = None
-    # Named solids judge is a campaign choice (pilot used cat_9). None =
-    # best non-H-parked solids at the headline T band.
-    solids_judge_catalyst: Optional[str] = None
-    solids_headline_t_min: float = 1200.0
+    # Named solids judge. B6-7: literature Ni cell (ni_np_lit), not cat_9.
+    # None = best non-H-parked solids at the headline T band.
+    solids_judge_catalyst: Optional[str] = 'ni_np_lit'
+    # Ni judge headline is the 650–700 °C filament ROI. 1300 K is the ADR
+    # ceiling, not this headline (X>X_eq at the hot end is a flag).
+    solids_headline_t_min: float = 923.15
+    solids_headline_t_max: Optional[float] = 973.15
 
     # Phase 5: Fuel Cell
     fc_top_k_pemfc: int = 20            # Top cathode catalysts → PEMFC model
@@ -183,7 +186,8 @@ def run_pipeline(config: PipelineConfig | None = None,
             multiphysics_results_dir=multiphysics_results_dir,
             allow_mock_inputs=config.allow_mock_inputs,
             judge_catalyst=config.solids_judge_catalyst,
-            headline_t_min=config.solids_headline_t_min), stage='reactor_batch',
+            headline_t_min=config.solids_headline_t_min,
+            headline_t_max=config.solids_headline_t_max), stage='reactor_batch',
             required_products=('reactor_results',))
         reactor_results = outcome.products['reactor_results']
         pipeline_state['phase2'] = {

@@ -261,17 +261,20 @@ def main():
 
     pareto_genomes, screening_db = run_branch_discovery(branch_config)
 
-    from pipeline.common.application_scope import select_turquoise_pyrolysis_candidates
+    from pipeline.common.application_scope import scope_pyrolysis_pool
     from pipeline.screening.stage_selection import (
         annotate_evidence, select_for_reactor, select_for_validation)
     valid_db = screening_db[screening_db['valid'] == True].copy()
     evidence_db = annotate_evidence(screening_db, 'E_act')
-    admissible = select_turquoise_pyrolysis_candidates(valid_db, top_k=None)
+    # Same split as run_discovery_stage: admissibility on the full table,
+    # then each slate applies its own validity rule. Filtering valid==True
+    # here drops unresolved rows the DFT rescue path is supposed to keep.
+    pool, _ = scope_pyrolysis_pool(screening_db)
     top_catalysts = select_for_reactor(
-        admissible, args.top_k, 'E_act',
+        pool, args.top_k, 'E_act',
         min_per_class=args.min_validation_per_class)
     dft_candidates = select_for_validation(
-        admissible, min(args.validation_batch, max(len(admissible), 1)), 'E_act',
+        pool, min(args.validation_batch, max(len(pool), 1)), 'E_act',
         min_per_class=args.min_validation_per_class)
 
     pipeline_state['phase1'] = {

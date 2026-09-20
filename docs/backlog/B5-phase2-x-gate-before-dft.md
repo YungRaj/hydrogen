@@ -1,6 +1,6 @@
 # B5 — Do not send Phase 2 conversion to DFT until solids closure passes
 
-**Type:** Gate. Blocks the DFT / Phase 3 milestone. **Blocked by [B6](B6-off-site-carbon-nucleation.md).**
+**Type:** Gate. Blocks the DFT / Phase 3 milestone. **Blocked by [B6](B6-off-site-carbon-nucleation.md).** B6-7 moved the named solids judge to `ni_np_lit` at the 650–700 °C ROI; that does **not** lift this gate. Ni at 923 K is 14.6 % / 16.9 % (PFR / Fluidized), not X_eq.
 
 **Acceptance**
 

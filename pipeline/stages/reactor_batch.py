@@ -65,6 +65,7 @@ def run_reactor_batch_stage(
         multiphysics_results_dir: str, allow_mock_inputs: bool,
         judge_catalyst: Optional[str] = None,
         headline_t_min: float = 1200.0,
+        headline_t_max: float | None = None,
         services: ReactorBatchServices | None = None) -> StageOutcome:
     """Run candidate sweeps; mock inputs require the existing explicit opt-in.
 
@@ -78,6 +79,8 @@ def run_reactor_batch_stage(
         judge_catalyst: Named solids judge for the scorecard (campaign
             choice; None = best non-H-parked solids at the headline band).
         headline_t_min: Lowest T (K) counted as the headline band.
+        headline_t_max: Highest T (K) counted as the headline band, or
+            None for no upper bound (legacy 4-point sweep uses 1200+).
         services: Services used by this operation.
 
     Returns:
@@ -125,7 +128,8 @@ def run_reactor_batch_stage(
         # solids catalyst. MMBCR X_eq is reported separately and never ranks.
         scorecard = services.build_scorecard(
             results, judge_catalyst=judge_catalyst,
-            headline_t_min=headline_t_min)
+            headline_t_min=headline_t_min,
+            headline_t_max=headline_t_max)
         if services.persist_scorecard is not None:
             services.persist_scorecard(scorecard)
         judge_name = (scorecard.get('judge_catalyst')

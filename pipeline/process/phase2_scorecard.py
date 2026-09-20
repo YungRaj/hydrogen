@@ -10,8 +10,14 @@ from __future__ import annotations
 SOLIDS_TYPES = frozenset({'PFR', 'Fluidized'})
 H_PARKED_E_ACT_MAX = 0.05
 H_PARKED_ABS_DEH_MIN = 2.0
-# High-T end of the standard 4-point pyrolysis sweep. Campaigns may override.
+# High-T end of the standard 4-point pyrolysis sweep (773, 900, 1100, 1300).
+# 1300 K is the ADR 0001 band ceiling, not the B5/B6-7 Ni headline. The Ni
+# judge uses the 650–700 °C filament ROI (headline_t_min/max = 923.15/973.15).
 DEFAULT_HEADLINE_T_MIN = 1200.0
+# Alves 2021 / Xu 2021: Ni filaments win at 650–700 °C. Inclusive window.
+NI_JUDGE_HEADLINE_T_MIN = 923.15
+NI_JUDGE_HEADLINE_T_MAX = 973.15
+NI_JUDGE_CATALYST = 'ni_np_lit'
 
 
 def is_h_parked(record: dict) -> bool:
@@ -50,6 +56,15 @@ def is_solids_run(record: dict) -> bool:
     )
 
 
+def is_scoreable_solids(record: dict) -> bool:
+    """Solids run that may enter a headline or max-X rank.
+
+    ``exceeds_equilibrium`` stays on the metric row and in ``n_solids_records``
+    so the flag is visible; it is never a rank.
+    """
+    return is_solids_run(record) and not bool(record.get('exceeds_equilibrium'))
+
+
 def single_pass_x(record: dict) -> float:
     value = record.get('single_pass_CH4_conversion', record.get('CH4_conversion'))
     return float(value or 0.0)
@@ -60,6 +75,17 @@ def _t_k(record: dict) -> float:
         return float(record.get('T_K') or 0.0)
     except (TypeError, ValueError):
         return 0.0
+
+
+def in_headline_band(record: dict, t_min: float,
+                     t_max: float | None = None) -> bool:
+    """True if T is in [t_min, t_max]. ``t_max is None`` means no upper bound."""
+    temperature = _t_k(record)
+    if temperature < float(t_min) - 1e-9:
+        return False
+    if t_max is not None and temperature > float(t_max) + 1e-6:
+        return False
+    return True
 
 
 def metric_row(record: dict) -> dict:
@@ -79,12 +105,14 @@ def metric_row(record: dict) -> dict:
         'catalyst_particle_mm': record.get('catalyst_particle_mm'),
         'metal_loading': record.get('metal_loading'),
         'metal_dispersion': record.get('metal_dispersion'),
+        'exceeds_equilibrium': bool(record.get('exceeds_equilibrium')),
     }
 
 
 def build_solids_scorecard(results, *,
                            judge_catalyst: str | None = None,
-                           headline_t_min: float = DEFAULT_HEADLINE_T_MIN) -> dict:
+                           headline_t_min: float = DEFAULT_HEADLINE_T_MIN,
+                           headline_t_max: float | None = None) -> dict:
     solids = [metric_row(r) for r in results if is_solids_run(r)]
     mmbcr = [
         r for r in results
@@ -92,7 +120,10 @@ def build_solids_scorecard(results, *,
         and r.get('reactor_type') == 'MMBCR'
         and not r.get('mock', False)
     ]
-    eligible = [r for r in solids if not r['h_parked']]
+    eligible = [
+        r for r in solids
+        if not r['h_parked'] and not r.get('exceeds_equilibrium')
+    ]
     judge_rows = (
         [r for r in solids if r['catalyst_name'] == judge_catalyst]
         if judge_catalyst else []
@@ -120,7 +151,9 @@ def build_solids_scorecard(results, *,
     for reactor_type in ('PFR', 'Fluidized'):
         candidates = [
             r for r in pool
-            if r['reactor_type'] == reactor_type and _t_k(r) >= headline_t_min
+            if r['reactor_type'] == reactor_type
+            and in_headline_band(r, headline_t_min, headline_t_max)
+            and not r.get('exceeds_equilibrium')
         ]
         if candidates:
             headline[reactor_type] = max(candidates, key=rank_key)
@@ -152,6 +185,13 @@ def build_solids_scorecard(results, *,
         'judge_catalyst_requested': judge_catalyst,
         'judge_reason': judge_reason,
         'headline_t_min': float(headline_t_min),
+        'headline_t_max': None if headline_t_max is None else float(headline_t_max),
+        'headline_band_note': (
+            '1300 K is the ADR 0001 ceiling (773–1300 K), used as the '
+            'legacy 4-point headline when t_min=1200 and t_max is open. '
+            'The Ni judge headline is the 650–700 °C filament ROI '
+            f'({NI_JUDGE_HEADLINE_T_MIN:g}–{NI_JUDGE_HEADLINE_T_MAX:g} K); '
+            'X>X_eq rows are never the headline.'),
         'headline': headline,
         'headline_solids_conversion': judge_x,
         'solids_max_excluding_h_parked': solids_max,
