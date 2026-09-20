@@ -9,6 +9,7 @@ conditions / cells. Mechanism YAML lives under mechanisms/.
 
 from __future__ import annotations
 
+import itertools
 import json
 import shutil
 from dataclasses import asdict, dataclass, field
@@ -29,13 +30,33 @@ KINETICS_KEYS = (
     'E_act', 'dE_H', 'dE_CH3', 'dE_C',
     'carbon_transfer_eV', 'carbon_encapsulation_eV',
     'encapsulation_crossover_coverage', 'carbon_transfer_prefactor_1_s',
+    'carbon_transfer_particle_nm', 'carbon_diffusion_prefactor_m2_s',
+    'ch4_sticking_coefficient',
 )
+KINETICS_FIELD_FOR_KEY = {
+    'E_act': 'methane_activation_eV',
+    'dE_H': 'h_adsorption_eV',
+    'dE_CH3': 'ch3_adsorption_eV',
+    'dE_C': 'c_adsorption_eV',
+    'carbon_transfer_eV': 'carbon_transfer_eV',
+    'carbon_encapsulation_eV': 'carbon_encapsulation_eV',
+    'encapsulation_crossover_coverage': 'encapsulation_crossover_coverage',
+    'carbon_transfer_prefactor_1_s': 'carbon_transfer_prefactor_1_s',
+    'carbon_transfer_particle_nm': 'carbon_transfer_particle_nm',
+    'carbon_diffusion_prefactor_m2_s': 'carbon_diffusion_prefactor_m2_s',
+    'ch4_sticking_coefficient': 'ch4_sticking_coefficient',
+}
 DEFAULT_POLICY = {
     'co2_permitted': False,
     'fluidized_mode': 'circulating',
     'max_regen_cycles': 3,
     'regen_mechanism': 'mechanical',
 }
+# `sweep:` block. Kinetics keys take a list of numbers; policy keys take a
+# list of values of the policy field's type. The grid is the cartesian
+# product over every listed key. co2_permitted is deliberately not
+# sweepable (turquoise policy, not a design variable).
+SWEEPABLE_POLICY_KEYS = ('max_regen_cycles', 'fluidized_mode', 'regen_mechanism')
 
 
 @dataclass
@@ -63,6 +84,37 @@ class SweepJob:
     # applicability). Screening sweeps take both from the CSV row.
     material_class: Optional[str] = None
     genome: Optional[str] = None
+    # `sweep:` block: key -> list of values. Empty when the spec is a single
+    # point. Kinetics keys write one mechanism per grid point.
+    sweep_kinetics: dict = field(default_factory=dict)
+    sweep_policy: dict = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class GridPoint:
+    index: int
+    kinetics: dict
+    policy: dict
+
+    @property
+    def values(self) -> dict:
+        return {**self.kinetics, **self.policy}
+
+
+def grid_points(job: SweepJob) -> List[GridPoint]:
+    """Cartesian product of the `sweep:` lists; one point for a single spec."""
+    keys = list(job.sweep_kinetics) + list(job.sweep_policy)
+    if not keys:
+        return [GridPoint(0, {}, {})]
+    lists = [job.sweep_kinetics.get(k, job.sweep_policy.get(k)) for k in keys]
+    points = []
+    for i, combo in enumerate(itertools.product(*lists)):
+        chosen = dict(zip(keys, combo))
+        points.append(GridPoint(
+            i,
+            {k: chosen[k] for k in job.sweep_kinetics},
+            {k: chosen[k] for k in job.sweep_policy}))
+    return points
 
 
 def _require_mapping(value: Any, label: str) -> dict:
@@ -178,7 +230,46 @@ def parse_sweep(yaml_path: Path) -> SweepJob:
             kinetics['provenance'] = {
                 str(k): str(v) for k, v in _require_mapping(
                     provenance, 'catalyst.kinetics.provenance').items()}
-    if screening is None and 'E_act' not in kinetics:
+    sweep_kinetics: dict = {}
+    sweep_policy: dict = {}
+    sweep_raw = root.get('sweep')
+    if sweep_raw is not None:
+        sweep_raw = _require_mapping(sweep_raw, 'sweep')
+        unknown_blocks = set(sweep_raw) - {'kinetics', 'policy'}
+        if unknown_blocks:
+            raise ValueError(
+                f'unknown sweep block(s) {sorted(unknown_blocks)}; '
+                "allowed ['kinetics', 'policy']")
+        kin_block = sweep_raw.get('kinetics')
+        if kin_block is not None:
+            kin_block = _require_mapping(kin_block, 'sweep.kinetics')
+            for key, raw in kin_block.items():
+                if key not in KINETICS_KEYS:
+                    raise ValueError(
+                        f'unknown sweep.kinetics key {key!r}; allowed {list(KINETICS_KEYS)}')
+                if key in kinetics:
+                    raise ValueError(
+                        f'{key} is fixed in catalyst.kinetics and swept in '
+                        'sweep.kinetics; choose one')
+                sweep_kinetics[key] = _as_float_list(raw, f'sweep.kinetics.{key}')
+            if screening is not None and sweep_kinetics:
+                raise ValueError(
+                    'sweep.kinetics needs a kinetics-only catalyst (no screening row)')
+        pol_block = sweep_raw.get('policy')
+        if pol_block is not None:
+            pol_block = _require_mapping(pol_block, 'sweep.policy')
+            for key, raw in pol_block.items():
+                if key not in SWEEPABLE_POLICY_KEYS:
+                    raise ValueError(
+                        f'unknown or non-sweepable sweep.policy key {key!r}; '
+                        f'allowed {list(SWEEPABLE_POLICY_KEYS)}')
+                if not isinstance(raw, list) or not raw:
+                    raise ValueError(f'sweep.policy.{key} must be a non-empty list')
+                if key == 'max_regen_cycles':
+                    sweep_policy[key] = [int(v) for v in raw]
+                else:
+                    sweep_policy[key] = [str(v).strip() for v in raw]
+    if screening is None and 'E_act' not in kinetics and 'E_act' not in sweep_kinetics:
         raise ValueError(
             'catalyst needs screening: {csv, index} or kinetics: {E_act}')
     material_class = catalyst.get('material_class')
@@ -253,11 +344,19 @@ def parse_sweep(yaml_path: Path) -> SweepJob:
         kinetics=kinetics,
         material_class=material_class,
         genome=genome,
+        sweep_kinetics=sweep_kinetics,
+        sweep_policy=sweep_policy,
     )
 
 
-def _load_kinetics_row(job: SweepJob):
-    """Return (row, kinetics, material_class, candidate_id)."""
+def _load_kinetics_row(job: SweepJob, overrides: Optional[dict] = None,
+                       candidate_name: Optional[str] = None):
+    """Return (row, kinetics, material_class, candidate_id).
+
+    ``overrides`` are grid-point kinetics values (sweep.kinetics) layered on
+    the fixed catalyst.kinetics; ``candidate_name`` names that point's
+    mechanism. Screening-row sweeps take neither.
+    """
     import pandas as pd
     from pipeline.process.reactor_mechanisms import (
         CandidateKinetics, parse_catalyst_genome)
@@ -280,40 +379,31 @@ def _load_kinetics_row(job: SweepJob):
         candidate_id = (str(candidate_id) if isinstance(candidate_id, str)
                         else job.catalyst_name)
         return row, kinetics, material_class, candidate_id
-    field_for_key = {
-        'E_act': 'methane_activation_eV',
-        'dE_H': 'h_adsorption_eV',
-        'dE_CH3': 'ch3_adsorption_eV',
-        'dE_C': 'c_adsorption_eV',
-        'carbon_transfer_eV': 'carbon_transfer_eV',
-        'carbon_encapsulation_eV': 'carbon_encapsulation_eV',
-        'encapsulation_crossover_coverage': 'encapsulation_crossover_coverage',
-        'carbon_transfer_prefactor_1_s': 'carbon_transfer_prefactor_1_s',
-    }
+    values = {k: v for k, v in job.kinetics.items() if k != 'provenance'}
+    overrides = dict(overrides or {})
+    values.update(overrides)
     declared = job.kinetics.get('provenance', {})
     sources = {}
-    for key, field_name in field_for_key.items():
-        if key in job.kinetics:
+    for key, field_name in KINETICS_FIELD_FOR_KEY.items():
+        if key in overrides:
+            sources[field_name] = 'sweep_yaml_grid: sweep.kinetics'
+        elif key in values:
             sources[field_name] = 'sweep_yaml' + (
                 f': {declared[key]}' if key in declared else '')
+    kwargs = {
+        field_name: values.get(key)
+        for key, field_name in KINETICS_FIELD_FOR_KEY.items()
+        if key != 'E_act'}
     kinetics = CandidateKinetics(
-        methane_activation_eV=float(job.kinetics['E_act']),
-        h_adsorption_eV=job.kinetics.get('dE_H'),
-        ch3_adsorption_eV=job.kinetics.get('dE_CH3'),
-        c_adsorption_eV=job.kinetics.get('dE_C'),
-        carbon_transfer_eV=job.kinetics.get('carbon_transfer_eV'),
-        carbon_encapsulation_eV=job.kinetics.get('carbon_encapsulation_eV'),
-        encapsulation_crossover_coverage=job.kinetics.get(
-            'encapsulation_crossover_coverage'),
-        carbon_transfer_prefactor_1_s=job.kinetics.get(
-            'carbon_transfer_prefactor_1_s'),
-        candidate_id=job.catalyst_name,
+        methane_activation_eV=float(values['E_act']),
+        candidate_id=candidate_name or job.catalyst_name,
         screening_protocol='sweep_yaml_literature',
         sources=sources,
         material_class=job.material_class,
         genome=parse_catalyst_genome(job.genome) if job.genome else None,
+        **kwargs,
     )
-    return job.kinetics, kinetics, job.material_class, job.catalyst_name
+    return values, kinetics, job.material_class, job.catalyst_name
 
 
 def _reactors_by_mode(reactor_types: List[str]) -> List[tuple]:
@@ -329,20 +419,45 @@ def _reactors_by_mode(reactor_types: List[str]) -> List[tuple]:
     return list(groups.items())
 
 
+# Short column headers for swept keys.
+_SWEEP_COLUMN = {
+    'E_act': 'E_act', 'dE_H': 'dE_H', 'dE_CH3': 'dE_CH3', 'dE_C': 'dE_C',
+    'carbon_transfer_eV': 'Eγ', 'carbon_encapsulation_eV': 'Eδ',
+    'encapsulation_crossover_coverage': 'θ*',
+    'carbon_transfer_prefactor_1_s': 'A_γ',
+    'carbon_transfer_particle_nm': 'L_nm',
+    'carbon_diffusion_prefactor_m2_s': 'D0',
+    'ch4_sticking_coefficient': 's0',
+    'max_regen_cycles': 'regen', 'fluidized_mode': 'fl_mode',
+    'regen_mechanism': 'regen_by',
+}
+
+
 def _print_table(job: SweepJob, records: list) -> None:
     print(f'\nSweep: {job.name}')
     if job.description:
         print(job.description)
+    swept = list(job.sweep_kinetics) + list(job.sweep_policy)
+    if swept:
+        n_points = len(grid_points(job))
+        print(f'grid: {n_points} points over {swept}; {len(records)} records')
     off_site = any(rec.get('off_site_carbon_active') for rec in records)
     extra_hdr = (f" {'X_bound':>8} {'turnov':>7} {'γ/δ':>8} {'gC/gM/h':>8}"
+                 f" {'θ_enc':>7} {'life_h':>8}"
                  if off_site else '')
+    sweep_hdr = ''.join(f" {_SWEEP_COLUMN.get(k, k)[:9]:>9}" for k in swept)
     print(
-        f"{'cell':<22} {'reactor':<10} {'T_K':>7} {'X':>10} "
+        f"{'cell':<22} {'reactor':<10} {'T_K':>7}{sweep_hdr} {'X':>10} "
         f"{'a_1/m':>12} {'WHSV':>8} {'dP_bar':>8}{extra_hdr}  status"
     )
 
     def fmt(value, spec):
         return format(value, spec) if value is not None else '—'
+
+    def fmt_swept(value):
+        if isinstance(value, float):
+            return format(value, '.3g')
+        return str(value)
 
     for rec in records:
         status = rec.get('status') or '?'
@@ -356,10 +471,14 @@ def _print_table(job: SweepJob, records: list) -> None:
                 f" {fmt(rec.get('site_inventory_bound_X'), '.4%'):>8}"
                 f" {fmt(rec.get('carbon_turnovers_per_site'), '.2f'):>7}"
                 f" {fmt(rec.get('c_gamma_to_c_delta_ratio'), '.3g'):>8}"
-                f" {fmt(rec.get('filament_yield_gC_per_gMetal_h'), '.3g'):>8}")
+                f" {fmt(rec.get('filament_yield_gC_per_gMetal_h'), '.3g'):>8}"
+                f" {fmt(rec.get('exit_theta_C_encap'), '.2g'):>7}"
+                f" {fmt(rec.get('encapsulation_lifetime_h'), '.3g'):>8}")
+        sweep_cols = ''.join(
+            f" {fmt_swept(rec.get('sweep', {}).get(k)):>9}" for k in swept)
         print(
             f"{rec['cell']:<22} {rec['reactor_type']:<10} "
-            f"{fmt(rec.get('T_K'), '.1f'):>7} "
+            f"{fmt(rec.get('T_K'), '.1f'):>7}{sweep_cols} "
             f"{fmt(rec.get('CH4_conversion'), '.4%'):>10} "
             f"{fmt(rec.get('active_sv_1_m'), '.1f'):>12} "
             f"{fmt(rec.get('WHSV_h-1'), '.1f'):>8} "
@@ -383,71 +502,56 @@ def run_sweep(yaml_path: Path) -> dict:
     from pipeline.process.reactor_models import run_reactor_sweep
 
     job = parse_sweep(yaml_path)
-    row, kinetics, material_class, candidate_id = _load_kinetics_row(job)
-    try:
-        e_act = float(row.get('E_act', kinetics.methane_activation_eV))
-        dE_H = float(row.get('dE_H', 0.0) or 0.0)
-    except (TypeError, ValueError, AttributeError):
-        e_act = float(kinetics.methane_activation_eV)
-        dE_H = float(job.kinetics.get('dE_H') or 0.0)
+    points = grid_points(job)
+    swept = bool(job.sweep_kinetics or job.sweep_policy)
 
-    mech = write_full_mechanism(job.catalyst_name, kinetics=kinetics)
+    # One mechanism per distinct kinetics combination (policy points share it).
+    mech_for_kinetics: dict = {}
+    mechanism_files: List[str] = []
     records = []
-    for cell in job.cells:
-        for pathway_mode, reactors in _reactors_by_mode(job.reactor_types):
-            results = run_reactor_sweep(
-                job.catalyst_name, str(mech),
-                temperatures=list(job.temperatures_K),
-                reactor_types=reactors,
-                catalyst_E_act_eV=e_act,
-                pathway_mode=pathway_mode,
-                material_class=material_class,
-                candidate_id=candidate_id,
-                catalyst_dE_H_eV=dE_H,
-                reactor_config_kwargs={
-                    **job.policy,
-                    'catalyst_particle_mm': cell.catalyst_particle_mm,
-                    'metal_loading': cell.metal_loading,
-                    'metal_dispersion': cell.metal_dispersion,
-                },
-            )
-            for result in results:
-                records.append({
-                    'cell': cell.name,
-                    'catalyst_particle_mm': cell.catalyst_particle_mm,
-                    'metal_loading': cell.metal_loading,
-                    'metal_dispersion': cell.metal_dispersion,
-                    'reactor_type': result.get('reactor_type'),
-                    'pathway_mode': pathway_mode,
-                    'material_class': material_class,
-                    'T_K': result.get('T_K'),
-                    'status': result.get('status'),
-                    'reason': result.get('reason') or result.get('error'),
-                    'CH4_conversion': result.get('CH4_conversion'),
-                    'emulsion_CH4_conversion': result.get('emulsion_CH4_conversion'),
-                    'active_sv_1_m': result.get('active_sv_1_m'),
-                    'WHSV_h-1': result.get('WHSV_h-1'),
-                    'residence_time_s': result.get('residence_time_s'),
-                    'ergun_delta_p_bar': result.get('ergun_delta_p_bar'),
-                    'closure_source': _closure_source(result),
-                    'can_exclude_candidate': result.get('can_exclude_candidate'),
-                    'surface_loaded': result.get('surface_loaded'),
-                    'graphite_loaded': result.get('graphite_loaded'),
-                    # B5/B6 closure accounting (PFR); None elsewhere.
-                    'site_inventory_bound_X': result.get('site_inventory_bound_X'),
-                    'X_eq_table': result.get('X_eq_table'),
-                    'exceeds_equilibrium': result.get('exceeds_equilibrium'),
-                    'carbon_turnovers_per_site': result.get('carbon_turnovers_per_site'),
-                    'turnover_factor_vs_bound': result.get('turnover_factor_vs_bound'),
-                    'off_site_carbon_active': result.get('off_site_carbon_active'),
-                    'c_gamma_to_c_delta_ratio': result.get('c_gamma_to_c_delta_ratio'),
-                    'exit_theta_C': result.get('exit_theta_C'),
-                    'exit_theta_C_encap': result.get('exit_theta_C_encap'),
-                    'filament_yield_gC_per_gMetal_h': result.get(
-                        'filament_yield_gC_per_gMetal_h'),
-                    'filament_yield_within_band': result.get('filament_yield_within_band'),
-                    'regen_cycles_completed': result.get('regen_cycles_completed'),
-                })
+    material_class = candidate_id = None
+    for point in points:
+        kin_key = tuple(sorted(point.kinetics.items()))
+        if kin_key not in mech_for_kinetics:
+            name = (f'{job.catalyst_name}_p{len(mech_for_kinetics):03d}'
+                    if job.sweep_kinetics else job.catalyst_name)
+            row, kinetics, material_class, candidate_id = _load_kinetics_row(
+                job, overrides=point.kinetics, candidate_name=name)
+            try:
+                e_act = float(row.get('E_act', kinetics.methane_activation_eV))
+                dE_H = float(row.get('dE_H', 0.0) or 0.0)
+            except (TypeError, ValueError, AttributeError):
+                e_act = float(kinetics.methane_activation_eV)
+                dE_H = float(job.kinetics.get('dE_H') or 0.0)
+            mech = write_full_mechanism(name, kinetics=kinetics)
+            mech_for_kinetics[kin_key] = (name, mech, e_act, dE_H)
+            mechanism_files.append(repo_relative(mech))
+        # The surface phase is '<name>_surface'; the reactor must load by
+        # the same name the writer used for this grid point.
+        mech_name, mech, e_act, dE_H = mech_for_kinetics[kin_key]
+        policy = {**job.policy, **point.policy}
+        for cell in job.cells:
+            for pathway_mode, reactors in _reactors_by_mode(job.reactor_types):
+                results = run_reactor_sweep(
+                    mech_name, str(mech),
+                    temperatures=list(job.temperatures_K),
+                    reactor_types=reactors,
+                    catalyst_E_act_eV=e_act,
+                    pathway_mode=pathway_mode,
+                    material_class=material_class,
+                    candidate_id=candidate_id,
+                    catalyst_dE_H_eV=dE_H,
+                    reactor_config_kwargs={
+                        **policy,
+                        'catalyst_particle_mm': cell.catalyst_particle_mm,
+                        'metal_loading': cell.metal_loading,
+                        'metal_dispersion': cell.metal_dispersion,
+                    },
+                )
+                for result in results:
+                    records.append(_record(
+                        cell, point, policy, pathway_mode, material_class,
+                        repo_relative(mech), result))
 
     job_record = asdict(job)
     job_record['source_file'] = repo_relative(job.source_file)
@@ -455,7 +559,11 @@ def run_sweep(yaml_path: Path) -> dict:
         'job': job_record,
         'material_class': material_class,
         'candidate_id': candidate_id,
-        'mechanism_file': repo_relative(mech),
+        'mechanism_file': mechanism_files[0] if mechanism_files else None,
+        'mechanism_files': mechanism_files,
+        'grid_points': [
+            {'index': p.index, 'kinetics': p.kinetics, 'policy': p.policy}
+            for p in points] if swept else [],
         'written_at': datetime.now(timezone.utc).isoformat(),
         'records': records,
     }
@@ -468,3 +576,57 @@ def run_sweep(yaml_path: Path) -> dict:
     _print_table(job, records)
     print(f'\nWrote {repo_relative(out_json)}')
     return payload
+
+
+def _record(cell: SweepCell, point: GridPoint, policy: dict, pathway_mode: str,
+            material_class: Optional[str], mechanism_file: str,
+            result: dict) -> dict:
+    return {
+        'cell': cell.name,
+        'catalyst_particle_mm': cell.catalyst_particle_mm,
+        'metal_loading': cell.metal_loading,
+        'metal_dispersion': cell.metal_dispersion,
+        'reactor_type': result.get('reactor_type'),
+        'pathway_mode': pathway_mode,
+        'material_class': material_class,
+        'point': point.index,
+        'sweep': point.values,
+        'max_regen_cycles': policy.get('max_regen_cycles'),
+        'fluidized_mode': policy.get('fluidized_mode'),
+        'regen_mechanism': policy.get('regen_mechanism'),
+        'mechanism_file': mechanism_file,
+        'T_K': result.get('T_K'),
+        'status': result.get('status'),
+        'reason': result.get('reason') or result.get('error'),
+        'CH4_conversion': result.get('CH4_conversion'),
+        'emulsion_CH4_conversion': result.get('emulsion_CH4_conversion'),
+        'active_sv_1_m': result.get('active_sv_1_m'),
+        'WHSV_h-1': result.get('WHSV_h-1'),
+        'residence_time_s': result.get('residence_time_s'),
+        'ergun_delta_p_bar': result.get('ergun_delta_p_bar'),
+        'closure_source': _closure_source(result),
+        'can_exclude_candidate': result.get('can_exclude_candidate'),
+        'surface_loaded': result.get('surface_loaded'),
+        'graphite_loaded': result.get('graphite_loaded'),
+        # B5/B6 closure accounting (PFR and Fluidized emulsion); None elsewhere.
+        'site_inventory_bound_X': result.get('site_inventory_bound_X'),
+        'site_inventory_bound_basis': result.get('site_inventory_bound_basis'),
+        'X_eq_table': result.get('X_eq_table'),
+        'exceeds_equilibrium': result.get('exceeds_equilibrium'),
+        'carbon_turnovers_per_site': result.get('carbon_turnovers_per_site'),
+        'turnover_factor_vs_bound': result.get('turnover_factor_vs_bound'),
+        'off_site_carbon_active': result.get('off_site_carbon_active'),
+        'c_gamma_to_c_delta_ratio': result.get('c_gamma_to_c_delta_ratio'),
+        'exit_theta_C': result.get('exit_theta_C'),
+        'exit_theta_C_encap': result.get('exit_theta_C_encap'),
+        'filament_yield_gC_per_gMetal_h': result.get(
+            'filament_yield_gC_per_gMetal_h'),
+        'filament_yield_within_band': result.get('filament_yield_within_band'),
+        # B6-6 encapsulation onset and lifetime.
+        'encapsulation_onset': result.get('encapsulation_onset'),
+        'c_delta_competitive': result.get('c_delta_competitive'),
+        'encapsulation_lifetime_h': result.get('encapsulation_lifetime_h'),
+        'lifetime_within_tos_band': result.get('lifetime_within_tos_band'),
+        'outfeed_carbon_mol_per_pass': result.get('outfeed_carbon_mol_per_pass'),
+        'regen_cycles_completed': result.get('regen_cycles_completed'),
+    }

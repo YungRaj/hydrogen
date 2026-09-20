@@ -1523,6 +1523,206 @@ cells:
             raise AssertionError('unknown kinetics key must be rejected')
 
 
+def test_yaml_sweep_block_cartesian_and_rejects():
+    """sweep: cartesian product; unknown keys and fixed+swept fail closed."""
+    import tempfile
+    from pathlib import Path
+    from pipeline.process.yaml_sweep import grid_points, parse_sweep
+
+    body = """
+name: b66_grid
+catalyst:
+  name: ni_grid
+  material_class: SolidCatalyst
+  genome: "('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)"
+  kinetics:
+    dE_H: -0.5
+    carbon_transfer_prefactor_1_s: 1.0e13
+    provenance:
+      dE_H: test
+sweep:
+  kinetics:
+    E_act: [0.9, 1.0, 1.1]
+  policy:
+    max_regen_cycles: [0, 3]
+conditions:
+  temperatures_K: [923.15]
+  reactors: [PFR]
+cells:
+  - name: c
+    catalyst_particle_mm: 0.13
+    metal_loading: 0.5
+    metal_dispersion: 0.3
+"""
+    with tempfile.TemporaryDirectory() as tmp:
+        p = Path(tmp) / 'grid.yaml'
+        p.write_text(body, encoding='utf-8')
+        job = parse_sweep(p)
+        points = grid_points(job)
+        assert len(points) == 6
+        assert [pt.kinetics['E_act'] for pt in points] == [
+            0.9, 0.9, 1.0, 1.0, 1.1, 1.1]
+        assert [pt.policy['max_regen_cycles'] for pt in points] == [
+            0, 3, 0, 3, 0, 3]
+        p.write_text(body.replace(
+            'E_act: [0.9, 1.0, 1.1]', 'k_bogus: [1, 2]'), encoding='utf-8')
+        try:
+            parse_sweep(p)
+        except ValueError as exc:
+            assert 'k_bogus' in str(exc)
+        else:
+            raise AssertionError('unknown sweep.kinetics key must be rejected')
+        p.write_text(body.replace(
+            'dE_H: -0.5\n    carbon_transfer_prefactor_1_s: 1.0e13',
+            'E_act: 1.0\n    carbon_transfer_prefactor_1_s: 1.0e13',
+        ), encoding='utf-8')
+        try:
+            parse_sweep(p)
+        except ValueError as exc:
+            assert 'E_act' in str(exc) and 'fixed' in str(exc)
+        else:
+            raise AssertionError('key both fixed and swept must be rejected')
+
+
+def test_ch4_sticking_coefficient_written_to_yaml_and_sidecar():
+    import json
+    from pipeline.process.reactor_mechanisms import (
+        CandidateKinetics, write_full_mechanism)
+
+    ni = ('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)
+    kin = CandidateKinetics(
+        methane_activation_eV=1.0, ch4_sticking_coefficient=0.03,
+        material_class='SolidCatalyst', genome=ni)
+    path = write_full_mechanism('test_ni_s0', kinetics=kin)
+    txt = path.read_text(encoding='utf-8')
+    assert 'sticking-coefficient: {A: 0.03' in txt
+    meta = json.loads(path.with_suffix('.kinetics.json').read_text(encoding='utf-8'))
+    assert meta['surface_prefactors']['ch4_sticking_coefficient'] == 0.03
+    assert meta['inputs']['ch4_sticking_coefficient'] == 0.03
+
+
+def test_agamma_derivation_from_particle_nm():
+    from pipeline.process.reactor_mechanisms import (
+        CARBON_DIFFUSION_PREFACTOR_M2_S, CandidateKinetics,
+        carbon_transfer_prefactor_from_particle)
+
+    ni = ('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)
+    expected = carbon_transfer_prefactor_from_particle(
+        10.0, CARBON_DIFFUSION_PREFACTOR_M2_S)
+    assert abs(expected - 2.48e12) / 2.48e12 < 1e-12
+    kin = CandidateKinetics(
+        methane_activation_eV=1.0, carbon_transfer_particle_nm=10.0,
+        material_class='SolidCatalyst', genome=ni)
+    values = kin.resolved()
+    assert abs(values['carbon_transfer_prefactor_1_s'] - expected) / expected < 1e-12
+    assert 'D0/L^2' in values['provenance']['carbon_transfer_prefactor_1_s']
+    both = CandidateKinetics(
+        methane_activation_eV=1.0, carbon_transfer_particle_nm=10.0,
+        carbon_transfer_prefactor_1_s=1e13,
+        material_class='SolidCatalyst', genome=ni)
+    try:
+        both.resolved()
+    except ValueError as exc:
+        assert 'carbon_transfer_particle_nm' in str(exc)
+        assert 'carbon_transfer_prefactor_1_s' in str(exc)
+    else:
+        raise AssertionError('particle_nm and explicit A_gamma must fail closed')
+
+
+def test_encapsulation_lifetime_on_pfr_and_fluidized():
+    try:
+        import cantera  # noqa: F401
+    except ImportError:
+        return
+    from pipeline.process.reactor_mechanisms import CandidateKinetics, write_full_mechanism
+    from pipeline.process.reactor_models import (
+        ReactorConfig, simulate_fluidized_bed, simulate_pfr)
+
+    ni = ('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)
+    path = write_full_mechanism('test_ni_life', kinetics=CandidateKinetics(
+        methane_activation_eV=1.0, material_class='SolidCatalyst', genome=ni))
+    shared = dict(
+        mechanism_file=str(path), catalyst_name='test_ni_life',
+        T_inlet_K=923.15, max_regen_cycles=0, fluidized_mode='circulating')
+    pfr = simulate_pfr(ReactorConfig(reactor_type='PFR', **shared))
+    fl = simulate_fluidized_bed(ReactorConfig(reactor_type='Fluidized', **shared))
+    for result, name in ((pfr, 'PFR'), (fl, 'Fluidized')):
+        assert 'encapsulation_lifetime_h' in result, name
+        assert result.get('off_site_carbon_active') is True
+        assert 'lifetime_within_tos_band' in result
+
+
+def test_b66_criteria_on_synthetic_payload():
+    from pipeline.process.b66_criteria import (
+        d_lnX_d_Eact, evaluate_criteria, linearity_relative_diff)
+
+    assert abs(d_lnX_d_Eact(0.20, 0.05) - abs(__import__('math').log(0.05 / 0.20) / 0.2)) < 1e-12
+    assert abs(linearity_relative_diff(7.0, 10.0) - 3.0 / 8.5) < 1e-12
+
+    def rec(**kwargs):
+        sweep = {
+            'E_act': 1.0, 'max_regen_cycles': 0,
+            'carbon_transfer_prefactor_1_s': 1e13,
+            'encapsulation_crossover_coverage': 0.5,
+            'ch4_sticking_coefficient': 0.01,
+        }
+        sweep.update(kwargs.pop('sweep', {}))
+        base = {
+            'cell': 'production', 'reactor_type': 'PFR', 'T_K': 923.15,
+            'status': 'complete', 'exceeds_equilibrium': False,
+            'sweep': sweep,
+            'CH4_conversion': 0.1456,
+            'carbon_turnovers_per_site': 7.0,
+            'exit_theta_C_encap': 3e-4,
+            'c_gamma_to_c_delta_ratio': 2e4,
+            'encapsulation_lifetime_h': 1.8,
+            'filament_yield_gC_per_gMetal_h': 389.0,
+        }
+        base.update(kwargs)
+        return base
+
+    eact = [
+        rec(sweep={'E_act': 0.9}, CH4_conversion=0.3121),
+        rec(sweep={'E_act': 1.0}, CH4_conversion=0.1456,
+            carbon_turnovers_per_site=7.0),
+        rec(sweep={'E_act': 1.1}, CH4_conversion=0.0597),
+        rec(cell='large_particle_ni', sweep={'E_act': 1.0},
+            carbon_turnovers_per_site=10.0, CH4_conversion=0.062),
+        rec(T_K=1300.0, sweep={'E_act': 1.0}, CH4_conversion=0.999,
+            exceeds_equilibrium=True, exit_theta_C_encap=0.2,
+            encapsulation_lifetime_h=10.0,
+            filament_yield_gC_per_gMetal_h=9.0),
+    ]
+    agamma = [
+        rec(sweep={'carbon_transfer_prefactor_1_s': 1e7},
+            exit_theta_C_encap=0.40, c_gamma_to_c_delta_ratio=2.0,
+            encapsulation_lifetime_h=12.0,
+            filament_yield_gC_per_gMetal_h=8.5),
+        rec(sweep={'carbon_transfer_prefactor_1_s': 1e13},
+            exit_theta_C_encap=3e-4),
+    ]
+    empty = {'records': []}
+    summary = evaluate_criteria({
+        'ni_np_b66_eact': {'records': eact},
+        'ni_np_b66_agamma': {'records': agamma},
+        'ni_np_b66_theta': empty,
+        'ni_np_b66_sticking': empty,
+        'ni_np_b66_agamma_theta': empty,
+    })
+    crit = summary['criteria']
+    assert crit['flat']['pass'] is True
+    assert crit['flat']['value'] > 5.0
+    assert crit['linearity']['pass'] is True
+    assert crit['encapsulation_onset']['pass'] is True
+    assert crit['encapsulation_onset']['first_A_gamma_theta_encap'][
+        'sweep_values']['carbon_transfer_prefactor_1_s'] == 1e7
+    assert crit['lifetime']['pass'] is True and crit['lifetime']['n_hits'] == 1
+    assert crit['yield']['pass'] is True and crit['yield']['n_hits'] == 1
+    assert summary['n_flagged_X_gt_Xeq'] == 1
+    # the 1300 K overshoot row must not count as a lifetime or yield hit
+    assert crit['lifetime']['example']['T_K'] == 923.15
+
+
 def test_staged_sweep_preserves_coarse_and_proposes_roi():
     import tempfile
     from pathlib import Path
@@ -2091,6 +2291,11 @@ if __name__ == '__main__':
     test("Surface thermo references and TST prefactors", test_surface_thermo_references_and_tst_prefactors)
     test("Mechanical regen never clears C_encap_s", test_mechanical_regen_never_clears_encapsulating_carbon)
     test("YAML sweep B6 kinetics keys", test_yaml_sweep_kinetics_keys_for_b6)
+    test("YAML sweep block cartesian and rejects", test_yaml_sweep_block_cartesian_and_rejects)
+    test("CH4 sticking written to YAML and sidecar", test_ch4_sticking_coefficient_written_to_yaml_and_sidecar)
+    test("A_gamma derivation from particle_nm", test_agamma_derivation_from_particle_nm)
+    test("Lifetime metric on PFR and Fluidized", test_encapsulation_lifetime_on_pfr_and_fluidized)
+    test("B6-6 criteria on synthetic payload", test_b66_criteria_on_synthetic_payload)
     test("Site density locked to monolayer", test_site_density_locked_to_monolayer)
     test("Inventory levers preserve baseline area", test_inventory_levers_preserve_baseline_area)
     test("YAML sweep parses headline example", test_yaml_sweep_parses_headline_example)

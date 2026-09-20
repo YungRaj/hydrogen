@@ -2,7 +2,7 @@
 
 **Type:** Implementation. B6-1–3 in the writer. Do not ship a universal `C_s => C(gr) + site`.
 
-**Status:** Gated extra block in `write_full_mechanism`. Ungated YAML still ends at `C_s`. Nanoparticle Ni/Fe/Co emit Cγ (`C_s => C(gr) + site`, 1.5 eV, `A_γ` declared, default 10¹³ s⁻¹) and Cδ (`C_s => C_encap_s`, 1.53 eV, **∝ θ_C²**, `A_δ = A_γ/θ*`, θ\* = 0.5 declared). Not mapped to `coking_index`. **B6-5 run (PFR only)**: see "B6-5 result" below. B6-6 and B5 open.
+**Status:** Gated extra block in `write_full_mechanism`. Ungated YAML still ends at `C_s`. Nanoparticle Ni/Fe/Co emit Cγ (`C_s => C(gr) + site`, 1.5 eV, `A_γ` declared, default 10¹³ s⁻¹) and Cδ (`C_s => C_encap_s`, 1.53 eV, **∝ θ_C²**, `A_δ = A_γ/θ*`, θ\* = 0.5 declared). Not mapped to `coking_index`. **B6-5 run (PFR)**: see "B6-5 result" below. **B6-6 run (PFR + Fluidized)**: see "B6-6 result" below; all five acceptance gates pass. B5 judge is still `cat_9`. The Ni surrogate screening row remains open.
 
 **Depends on:** B1 (done; Γ locked). **Blocks:** B5. **Does not replace:** B2 (between-pass outfeed) or B4 (packed-bed ΔP / τ).
 
@@ -68,8 +68,8 @@ MetalFreeCarbon is a different kinetics (the carbon *is* the site) [Muradov, TUR
 - [x] **B6-2** Competing Cδ channel that does **not** return the site. Without this, the coking index still does no work.
 - [x] **B6-3** Class gate: nanoparticle metals (Ni, Fe, Co, and alloys / exsolved particles) only. Not SAC/DAC. Not MetalFreeCarbon. Melt unchanged.
 - [x] **B6-4** Do not map either barrier onto `coking_index` unless the map is declared in the `.kinetics.json` sidecar.
-- [x] **B6-5** Closure experiment run: a supported-Ni-like literature cell at **650–700 °C** (plus the full ADR band), PFR, zero regen. Result below. The judge move off `cat_9` is a separate reviewed change after B6-6 (not done here). **Open inside B6-5:** Fluidized Ni (PFR only was run), and a surrogate screening row for the Ni genome (`fairchem` is not installed on the build machine; the cell is literature-valued, provenance `sweep_yaml_literature`).
-- [ ] **B6-6** E_act sweep on the Ni cell (`run_eact_sweep(kinetics=…)`), jointly with `A_γ` over 10⁶–10¹³ s⁻¹ and θ\* over 0.2–0.8: report turnovers, Cγ/Cδ, yield in gC/(gNi·h) against the 8–10 band, encapsulation onset T. Confirm X is no longer flat in E_act and no longer linear in `a` alone. Particle size remains first-order in the literature [3, 29] and enters only as dispersion and, implicitly, as `A_γ = D₀/L²`; document that residual.
+- [x] **B6-5** Closure experiment run: a supported-Ni-like literature cell at **650–700 °C** (plus the full ADR band), PFR, zero regen. Result below. The judge move off `cat_9` is a separate reviewed change after B6-6 (not done here). **Open inside B6-5, closed in B6-6:** Fluidized Ni. Still open: a surrogate screening row for the Ni genome (`fairchem` is not installed on the build machine; the cell is literature-valued, provenance `sweep_yaml_literature`).
+- [x] **B6-6** Star + 2-D sweep on the Ni cell (`sweeps/ni_np_b66_*.yaml`): E_act 0.7–1.3, `A_γ` 10⁶–10¹³ plus half-decades 10⁸–10¹⁰, θ\* 0.2–0.8, s0 10⁻³–10⁻¹, and `A_γ` × θ\* at 923.15 / 973.15 K. PFR and circulating Fluidized, both cells, regen 0 and 3. Scored by `pipeline/process/b66_criteria.py`. Result below. Particle size remains first-order in the literature [3, 29] and enters as dispersion and, optionally, as `A_γ = D₀/L²` (`carbon_transfer_particle_nm`; Lander D₀ = 2.48×10⁻⁴ m²/s). Judge stays on `cat_9`.
 
 ## Cδ rate form (decided 2026-09-19)
 
@@ -95,7 +95,21 @@ Literature Ni(111)/SiO₂ cell: `E_act 1.00` (Bengaard 2002 TS; BEP from the ads
 
 **Read.** Turnovers ≫ 1 with zero regen: the closure criterion (X above the monolayer bound from intra-pass Cγ) is met in-model, and X now depends on the adsorption kinetics (every ladder step runs at the CH₄ sticking TOF, 4.7 → 1.2 s⁻¹ over the pass as H\* builds to 0.35). The yield is 50× above the Ermakova/Takenaka band and the encapsulation regime is unreachable at any T: with a single-hop `A_γ = 10¹³`, `k_γ(923 K) = 6.5×10⁴ s⁻¹` against an arrival rate of ~5 s⁻¹, so θ_C never approaches θ\*. `A_γ` is a transport + precipitation lump: at 10⁹ s⁻¹ (`D₀/L²` for a ~10 nm particle) θ_C crosses θ\* mid-pass and Cδ takes over (923 K: X 6.1%, θ_encap 0.40, 137 gC/(gNi·h)); at 10⁷ the surface starves (X 1.9%, turnovers 0.9, 8.5 gC/(gNi·h), inside the band but dead within the pass). No single `(A_γ, θ*)` pair matches both the yield band and a multi-hour lifetime with the current arrival rate, which points at the CH₄ sticking prefactor (template 0.01) and E_act as the other half of B6-6. The 1300 K overshoot of X_eq is Cγ irreversibility into a graphite sink (`exceeds_equilibrium` flag, never clipped).
 
-**Residuals.** Arrival rate is set by the template sticking prefactor (0.01) and the literature E_act; H\* coverage by template `s0` values; the surrogate row for this genome does not exist; Fluidized not run; B5 judge still `cat_9`.
+**Residuals (closed or bounded in B6-6).** Arrival rate and E_act are now swept; Fluidized Ni is run. Still open: the surrogate row for this genome does not exist; B5 judge still `cat_9`.
+
+## B6-6 result (2026-09-19, PFR + circulating Fluidized)
+
+Same literature Ni(111)/SiO₂ cell as B6-5. Base point when not swept: E_act 1.0, `A_γ` 10¹³, θ\* 0.5, s0 0.01. Five specs, 2312 complete records (eact 392, A_γ 560, θ\* 280, s0 280, 2-D 800). 208 rows flag `exceeds_equilibrium` (almost all 1300 K with fast Cγ) and are not scored as successes. `pipeline/process/b66_criteria.py` → `results/sweeps/b66_summary.json`.
+
+| criterion | value | gate | result |
+|---|---|---|---|
+| Flat | \|d ln X / d E_act\| = **8.27 eV⁻¹** at production PFR 923 K regen 0 (X(0.9) = 31.21 %, X(1.0) = 14.56 %, X(1.1) = 5.97 %) | ≥ 5 eV⁻¹ | PASS |
+| Linearity | turnovers 7.03 (production) vs 9.95 (large-particle), relative difference **34.3 %** | > 20 % | PASS |
+| Encapsulation onset | no T onset at `A_γ` = 10¹³; first `A_γ` with exit θ_enc ≥ 0.1 is **10⁷ s⁻¹** (923 K: X 1.87 %, θ_enc 0.145, Cγ/Cδ 1.06). Secondary Cγ/Cδ < 10 first at **10⁶ s⁻¹** (ratio 0.39, θ_enc 0.019) | report first T or `A_γ` | PASS |
+| Lifetime | **244** scorable rows with `encapsulation_lifetime_h` in 4–50 h (example: E_act 1.0, 773 K, 4.34 h; Fluidized base 923 K, 5.03 h) | vs 4–50 h | PASS |
+| Yield | **54** scorable rows in 8–10 gC/(gNi·h) (example: large-particle PFR 773 K, 9.30; `A_γ` = 10⁷ at 923 K, 8.47) | vs Ermakova 8–10 | PASS |
+
+**Read.** X is no longer flat in the barrier and no longer a-scaling (turnovers differ by a third between the two cells at identical kinetics). Encapsulation is a transport-limited regime: it never appears on the T axis at the single-hop `A_γ` = 10¹³, and switches on around 10⁷–10⁹ s⁻¹ (`D₀/L²` for ~500 nm–5 µm on the Lander D₀, or a slow precipitation lump on a 10 nm particle). At `A_γ` = 10⁹ and 923 K the B6-5 switch is reproduced (X 6.06 %, θ_enc 0.40, Cγ/Cδ 6.1, 137 gC/(gNi·h)) and the pass dies (lifetime 0.001 h). The 8–10 yield band and the 4–50 h TOS band are populated, but not by the same rows: in-band yield at `A_γ` = 10⁷ is already encapsulated (lifetime ≪ 1 h), and in-band lifetimes sit at high `A_γ` / low T / low s0 where Cδ is a trickle. Fluidized Ni at the base point is X = 16.94 % (emulsion turnovers 20) versus PFR 14.56 % (7 turnovers); circulating outfeed is subtracted as B2, not counted as Cγ. 1300 K X > X_eq is flagged, never clipped, and never a success. Judge stays on `cat_9`.
 
 ## What this is not
 

@@ -598,6 +598,16 @@ def _reset_surface_carbon(surf) -> None:
 METAL_MOLAR_MASS_G_MOL = {'Ni': 58.6934, 'Fe': 55.845, 'Co': 58.9332}
 # Ermakova 2000 / Takenaka: 40-384 gC/gNi over 4-50 h on high-Ni/SiO2 -> ~8-10 gC/(gNi h).
 NI_FILAMENT_YIELD_BAND_G_C_PER_G_NI_H = (8.0, 10.0)
+# Same TOS literature: the catalyst dies (encapsulated) after 4-50 h.
+NI_TOS_LIFETIME_BAND_H = (4.0, 50.0)
+# B6-6 encapsulation-onset markers. Primary: θ_encap at the bed exit has
+# reached ENCAP_ONSET_THETA. Secondary: Cγ/Cδ below ENCAP_ONSET_RATIO.
+# Lifetime: hours for θ_encap to reach ENCAP_DEAD_THETA at the pass-
+# averaged Cδ rate (linear extrapolation; Cδ ∝ θ_C² makes this a lower
+# bound while θ_C is still climbing).
+ENCAP_ONSET_THETA = 0.1
+ENCAP_ONSET_RATIO = 10.0
+ENCAP_DEAD_THETA = 0.5
 
 
 def _surface_carbon_coverage(surf, cov: np.ndarray) -> float:
@@ -615,20 +625,24 @@ def _off_site_carbon_metrics(config: ReactorConfig, gas, surf, *,
                              pass_conversion: float, n_sites_mol: float,
                              n_ch4_fed_mol: float, n_parcel_in_mol: float,
                              pass_time_s: float,
-                             cov_start: Optional[np.ndarray]) -> Dict:
+                             cov_start: Optional[np.ndarray],
+                             removed_surface_carbon_mol: float = 0.0,
+                             basis: str = 'Gamma*A_stage / (c_CH4*eps*V_stage), PFR parcel'
+                             ) -> Dict:
     """Per-pass carbon accounting for the B5/B6 closure criterion.
 
     ``site_inventory_bound_X`` is the conversion a stoichiometric monolayer
     can deliver (Γ·a / (ε·c_CH4) on the PFR parcel basis). Turnovers above
     1 need Cγ returning sites. Cγ is obtained by carbon balance (solid carbon
-    from the Ar tracer minus carbon still on the surface); Cδ is the change
-    in ``C_encap_s`` coverage. The yield rate is pass-averaged.
+    from the Ar tracer minus carbon still on the surface minus carbon taken
+    off by a circulating outfeed, ``removed_surface_carbon_mol``); Cδ is
+    the change in ``C_encap_s`` coverage. The yield rate is pass-averaged.
     """
     x_bound = n_sites_mol / n_ch4_fed_mol if n_ch4_fed_mol > 0 else None
     x_eq = _tabulated_x_eq(config.T_inlet_K)
     out = {
         'site_inventory_bound_X': x_bound,
-        'site_inventory_bound_basis': 'Gamma*A_stage / (c_CH4*eps*V_stage), PFR parcel',
+        'site_inventory_bound_basis': basis,
         # Cγ is irreversible into a graphite sink; the surface mechanism
         # does not enforce CH4 <=> C(gr) + 2 H2 from the solid side, so a
         # fast Cγ can overshoot equilibrium. Flagged, never clipped.
@@ -649,26 +663,53 @@ def _off_site_carbon_metrics(config: ReactorConfig, gas, surf, *,
     n_solid = max(0.0, pass_conversion * n_ch4_fed_mol - n_c2)
     d_surface_c = (_surface_carbon_coverage(surf, cov_end)
                    - _surface_carbon_coverage(surf, cov_start)) * n_sites_mol
-    n_gamma = max(0.0, n_solid - d_surface_c)
+    n_removed = max(0.0, float(removed_surface_carbon_mol))
+    n_gamma = max(0.0, n_solid - d_surface_c - n_removed)
     has_encap = 'C_encap_s' in surf.species_names
     n_delta = 0.0
     if has_encap:
         i = surf.species_index('C_encap_s')
         n_delta = max(0.0, float(cov_end[i] - cov_start[i])) * n_sites_mol
     turnovers = n_solid / n_sites_mol if n_sites_mol > 0 else None
+    ratio = (n_gamma / n_delta) if (has_encap and n_delta > 0) else None
+    theta_encap = (
+        float(cov_end[surf.species_index('C_encap_s')]) if has_encap else None)
+    # Lifetime: θ_encap → ENCAP_DEAD_THETA at the pass-averaged Cδ rate.
+    lifetime_h = None
+    if has_encap and n_sites_mol > 0 and pass_time_s > 0:
+        d_theta_dt = n_delta / n_sites_mol / pass_time_s
+        # None when no Cδ happened this pass (no finite lifetime to report).
+        lifetime_h = (ENCAP_DEAD_THETA / d_theta_dt / 3600.0
+                      if d_theta_dt > 0 else None)
     out.update({
         'carbon_turnovers_per_site': turnovers,
         'turnover_factor_vs_bound': (
             pass_conversion / x_bound if x_bound else None),
         'solid_carbon_mol_per_pass': n_solid,
+        'outfeed_carbon_mol_per_pass': n_removed,
         'c_gamma_mol_per_pass': n_gamma if has_encap else None,
         'c_delta_mol_per_pass': n_delta if has_encap else None,
-        'c_gamma_to_c_delta_ratio': (
-            (n_gamma / n_delta) if (has_encap and n_delta > 0) else None),
-        'exit_theta_C_encap': (
-            float(cov_end[surf.species_index('C_encap_s')]) if has_encap else None),
+        'c_gamma_to_c_delta_ratio': ratio,
+        'exit_theta_C_encap': theta_encap,
         'off_site_carbon_active': has_encap,
     })
+    if has_encap:
+        out.update({
+            'encapsulation_onset': bool(theta_encap >= ENCAP_ONSET_THETA),
+            'encapsulation_onset_basis': f'exit theta_encap >= {ENCAP_ONSET_THETA}',
+            'c_delta_competitive': (
+                None if ratio is None else bool(ratio < ENCAP_ONSET_RATIO)),
+            'c_delta_competitive_basis': f'C_gamma/C_delta < {ENCAP_ONSET_RATIO}',
+            'encapsulation_lifetime_h': lifetime_h,
+            'encapsulation_lifetime_basis': (
+                f'theta_encap -> {ENCAP_DEAD_THETA} at the pass-averaged '
+                'C_delta rate; linear extrapolation'),
+            'tos_lifetime_literature_band_h': list(NI_TOS_LIFETIME_BAND_H),
+            'lifetime_within_tos_band': (
+                None if lifetime_h is None else bool(
+                    NI_TOS_LIFETIME_BAND_H[0] <= lifetime_h
+                    <= NI_TOS_LIFETIME_BAND_H[1])),
+        })
     if has_encap:
         metadata = _mechanism_metadata(config)
         genome = metadata.get('inputs', {}).get('genome')
@@ -1225,8 +1266,13 @@ def simulate_fluidized_bed(config: ReactorConfig) -> Dict:
     sv_ratio = active_sv(geometric_sv_fluidized(config), config)
     circulating = config.fluidized_mode == FLUIDIZED_CIRCULATING
     removal_rate = config.circulating_carbon_removal_rate_1_s if circulating else 0.0
+    if surf is not None:
+        _reset_surface_carbon(surf)
+    pass_start_cov = (np.array(surf.coverages, dtype=float)
+                      if surf is not None else None)
     carbon_removed = _integrate_fluidized_pass(
         gas, surf, tau_emulsion, sv_ratio, removal_rate)
+    last_pass_removed = carbon_removed
 
     regen_cycles = 0
     per_cycle = []
@@ -1241,14 +1287,34 @@ def simulate_fluidized_bed(config: ReactorConfig) -> Dict:
                 raise RuntimeError('oxidative regen blocked (co2_permitted=False)')
             _reset_surface_carbon(surf)
             gas.TPX = config.T_inlet_K, config.P_inlet_Pa, config.inlet_composition
-            carbon_removed += _integrate_fluidized_pass(
+            pass_start_cov = np.array(surf.coverages, dtype=float)
+            last_pass_removed = _integrate_fluidized_pass(
                 gas, surf, tau_emulsion, sv_ratio, 0.0)
+            carbon_removed += last_pass_removed
             theta = _coverage(surf, 'C_s')
             regen_cycles += 1
             per_cycle.append(_ch4_extent(gas, ch4_initial, ar_initial))
 
     emulsion_conv = _ch4_extent(gas, ch4_initial, ar_initial)
     exit_theta_c = _coverage(surf, 'C_s')
+
+    # B5/B6 carbon accounting on the emulsion basis (1 m³ emulsion: gas
+    # volume ε_mf, area sv_ratio), before the bubble bypass is mixed in.
+    # Carbon taken off by the circulating outfeed is B2 solids product,
+    # not Cγ, and is subtracted from the filament balance.
+    gamma_mol_m2 = float(config.site_density_mol_cm2) * 1e4
+    n_sites_mol = gamma_mol_m2 * sv_ratio
+    c_total = config.P_inlet_Pa / (R_J_MOL_K * config.T_inlet_K)
+    n_parcel_in_mol = c_total * FLUIDIZED_EMULSION_VOIDAGE
+    n_ch4_fed_mol = ch4_initial * n_parcel_in_mol
+    off_site = _off_site_carbon_metrics(
+        config, gas, surf,
+        ch4_initial=ch4_initial, ar_initial=ar_initial,
+        pass_conversion=float(emulsion_conv), n_sites_mol=n_sites_mol,
+        n_ch4_fed_mol=n_ch4_fed_mol, n_parcel_in_mol=n_parcel_in_mol,
+        pass_time_s=tau_emulsion, cov_start=pass_start_cov,
+        removed_surface_carbon_mol=last_pass_removed * n_sites_mol,
+        basis='Gamma*sv_emulsion / (c_CH4*eps_mf), emulsion parcel before bypass')
 
     # Bubble bypass: δ of the feed passes unreacted; mix on molar flows (Ar tracer).
     _mix_bubble_bypass(gas, inlet_x, delta, ar_initial)
@@ -1290,6 +1356,7 @@ def simulate_fluidized_bed(config: ReactorConfig) -> Dict:
         'regen_cycles_completed': regen_cycles,
         'per_cycle_CH4_conversion': per_cycle,
         'per_cycle_basis': 'emulsion_only_before_bypass_mix',
+        **off_site,
         **kinetics_fields(config),
         **solids_inventory_fields(config, geometric_sv_fluidized(config)),
         **_kinetics_evidence(config),

@@ -1,0 +1,56 @@
+name: ni_np_b66_agamma
+description: >
+  B6-6 star sweep, A_gamma axis. Literature Ni(111)/SiO2 nanoparticle cell
+  (ni_np_b65_closure) with E_act 1.0, theta* 0.5, s0 0.01 held at the B6-5
+  base point. A_gamma every decade 1e6-1e13 plus half-decades 1e8-1e10
+  (the B6-5 encapsulation switch lives near 1e9). Full ADR band, PFR and
+  circulating Fluidized, both cells, zero regen and mechanical x3.
+  Particle-size derivation is supported but not cartesian-swept: A_gamma =
+  D0/L^2 with D0 = 2.48e-4 m^2/s (Lander 1952 C-in-Ni). On that scale
+  5 nm ~ 1e13, 10 nm = 2.48e12, 50 nm ~ 1e11, 500 nm ~ 1e9. Set
+  carbon_transfer_particle_nm instead of carbon_transfer_prefactor_1_s
+  (mutually exclusive) to write a derived point; do not list both.
+catalyst:
+  name: ni_np_lit
+  material_class: SolidCatalyst
+  genome: "('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)"
+  kinetics:
+    E_act: 1.00
+    dE_H: -0.50
+    dE_CH3: -1.95
+    dE_C: 1.30
+    carbon_transfer_eV: 1.50
+    carbon_encapsulation_eV: 1.53
+    encapsulation_crossover_coverage: 0.5
+    ch4_sticking_coefficient: 0.01
+    provenance:
+      E_act: Bengaard 2002 Ni(111) DFT TS
+      dE_H: Greeley & Mavrikakis 2004 Ni(111)
+      dE_CH3: Bengaard 2002 Ni(111) fcc site
+      dE_C: Abild-Pedersen 2006 terrace C vs graphene, +0.8 eV CH4-2H2 reference shift
+      carbon_transfer_eV: template default
+      carbon_encapsulation_eV: template default
+      encapsulation_crossover_coverage: declared; B6-5 base point
+      ch4_sticking_coefficient: template default; B6-5 base point
+sweep:
+  kinetics:
+    carbon_transfer_prefactor_1_s:
+      [1.0e6, 1.0e7, 1.0e8, 3.0e8, 1.0e9, 3.0e9, 1.0e10, 1.0e11, 1.0e12, 1.0e13]
+  policy:
+    max_regen_cycles: [0, 3]
+conditions:
+  temperatures_K: [773.15, 900, 923.15, 948.15, 973.15, 1100, 1300]
+  reactors: [PFR, Fluidized]
+policy:
+  co2_permitted: false
+  fluidized_mode: circulating
+  regen_mechanism: mechanical
+cells:
+  - name: production
+    catalyst_particle_mm: 0.13
+    metal_loading: 0.5
+    metal_dispersion: 0.3
+  - name: large_particle_ni
+    catalyst_particle_mm: 0.13
+    metal_loading: 0.9
+    metal_dispersion: 0.05

@@ -8,9 +8,13 @@ $env:PYTHONUTF8="1"
 python runsweep.py sweeps/headline_cat9_1300K.yaml
 ```
 
-`runsweep.py` loads the file, writes one `CandidateKinetics` mechanism, and
-runs every cell at every listed temperature and reactor. That product is
-the whole job: **cells × temperatures × reactors**. Results go to
+`runsweep.py` loads the file, writes one `CandidateKinetics` mechanism per
+distinct kinetics point, and runs every cell at every listed temperature and
+reactor. Without a `sweep:` block that product is **cells × temperatures ×
+reactors**. With `sweep:` it is that times the cartesian product of the listed
+kinetics and policy values (one mechanism per kinetics combination; policy
+points share it). The surface phase is `<point_name>_surface` — the runner
+must load that point name, not the template `catalyst.name`. Results go to
 `results/sweeps/<name>/run.json` (plus a copy of the input YAML). Specs under
 `sweeps/` are git-tracked; run products under `results/sweeps/` are not.
 
@@ -113,7 +117,10 @@ Use **one** source. Screening wins for the row; explicit `kinetics` is for a fil
 | `kinetics.carbon_transfer_eV` | Finite eV, optional (default 1.50) | Cγ barrier (Abild-Pedersen / Baker transport-to-edge). Only written for gated genomes. |
 | `kinetics.carbon_encapsulation_eV` | Finite eV, optional (default 1.53) | Cδ barrier (Amin encapsulating carbon). Only written for gated genomes. |
 | `kinetics.encapsulation_crossover_coverage` | (0, 1], optional (default 0.5) | θ\*: the C_s coverage where Cδ (∝ θ_C²) overtakes Cγ (∝ θ_C). Declared, not measured; a B6-6 sweep variable. |
-| `kinetics.carbon_transfer_prefactor_1_s` | > 0, optional (default 1e13) | `A_γ`. 1e13 is a single-hop TST label; the real channel is a transport + precipitation lump (`D₀/L²`, particle-size dependent). Decides whether the Alves encapsulation regime is reachable. Cδ inherits `A_γ/θ*`. |
+| `kinetics.carbon_transfer_prefactor_1_s` | > 0, optional (default 1e13) | `A_γ`. 1e13 is a single-hop TST label; the real channel is a transport + precipitation lump (`D₀/L²`, particle-size dependent). Decides whether the Alves encapsulation regime is reachable. Cδ inherits `A_γ/θ*`. Do not set this together with `carbon_transfer_particle_nm`. |
+| `kinetics.carbon_transfer_particle_nm` | > 0 nm, optional | Derives `A_γ = D₀ / L²`. Mutually exclusive with an explicit `carbon_transfer_prefactor_1_s`. |
+| `kinetics.carbon_diffusion_prefactor_m2_s` | > 0, optional (default 2.48e-4) | `D₀` for the particle-nm derivation. Default is Lander 1952 C-in-Ni bulk diffusion (2.48 cm²/s). Ignored unless `carbon_transfer_particle_nm` is set. |
+| `kinetics.ch4_sticking_coefficient` | (0, 1], optional (default 0.01) | CH₄ dissociative sticking prefactor `s0`. Sets the carbon arrival rate. Written into the YAML as `sticking-coefficient: {A: s0, …}` and into the sidecar. |
 | `kinetics.provenance` | Mapping key → free text, optional | Recorded into the sidecar `sources` as `sweep_yaml: <text>`. Use it: a kinetics-only sweep is a literature cell and should say where each number came from. |
 | `material_class` | One of the 14 classes, or `MoltenMetal` | **Required with `kinetics`**; ignored with `screening` (the row wins). Decides which reactors apply and whether the B6 Cγ/Cδ channels are written. |
 | `genome` | Genome tuple as a string, optional | e.g. `"('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)"`. Only the B6 gate reads it (metal must be Ni/Fe/Co on an extended particle). Omit for SAC / melts. |
@@ -133,6 +140,23 @@ Use **one** source. Screening wins for the row; explicit `kinetics` is for a fil
 | `regen_mechanism` | `mechanical`, `consumable`, `oxidative` | Leave `mechanical`. `consumable` also clears `C_s` without CO₂. `oxidative` **requires** `co2_permitted: true` and is not a turquoise claim. |
 | `fluidized_mode` | `circulating`, `batch_regen` | Leave `circulating`. `batch_regen` is the parked-bed contrast. Ignored by PFR and MMBCR. |
 | `max_regen_cycles` | Integer. `0` disables discrete regen | Leave `3` unless you are probing the regen cap. |
+
+### Sweep block
+
+Optional `sweep:` is a cartesian product over listed keys. Kinetics keys take a list of numbers and write one mechanism per combination (`<catalyst.name>_pNNN`). Policy keys take a list of values of that field's type. A key may be fixed in `catalyst.kinetics` **or** swept, not both. Unknown keys fail closed. `co2_permitted` is not sweepable.
+
+```yaml
+sweep:
+  kinetics:
+    E_act: [0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3]
+    # carbon_transfer_prefactor_1_s: [1.0e6, 1.0e7, 1.0e8, 3.0e8, 1.0e9, 3.0e9, 1.0e10, 1.0e11, 1.0e12, 1.0e13]
+    # encapsulation_crossover_coverage: [0.2, 0.35, 0.5, 0.65, 0.8]
+    # ch4_sticking_coefficient: [1.0e-3, 3.0e-3, 1.0e-2, 3.0e-2, 1.0e-1]
+  policy:
+    max_regen_cycles: [0, 3]
+```
+
+Swept policy keys: `max_regen_cycles`, `fluidized_mode`, `regen_mechanism`. Each record stores the chosen values under `sweep`.
 
 ### Cells
 
@@ -201,17 +225,19 @@ cells:
 | `dP_bar` | Ergun ΔP; blank for MMBCR |
 | `status` | `complete`, `not_applicable (reason)`, `validation_required`, or `failed (error)`. Only `complete` rows are catalyst evidence. `[X > X_eq]` is appended when the run overshoots tabulated equilibrium (Cγ is irreversible into a graphite sink; flagged, never clipped). |
 
-When any row has the B6 channels active the table adds four columns (PFR only):
+When any row has the B6 channels active the table adds six columns (PFR and Fluidized emulsion):
 
 | Field | Meaning |
 |---|---|
-| `X_bound` | Site-inventory bound `Γ·a / (ε·c_CH4)` on the PFR parcel basis: the X one stoichiometric monolayer can deliver. |
+| `X_bound` | Site-inventory bound `Γ·a / (ε·c_CH4)` on the PFR (or emulsion) parcel basis: the X one stoichiometric monolayer can deliver. |
 | `turnov` | Carbon turnovers per site per pass = solid carbon / sites. > 1 needs Cγ returning sites within the pass. |
-| `γ/δ` | Cγ : Cδ carbon per pass (Cγ from the carbon balance, Cδ from the change in `C_encap_s`). |
+| `γ/δ` | Cγ : Cδ carbon per pass (Cγ from the carbon balance minus circulating outfeed, Cδ from the change in `C_encap_s`). |
 | `gC/gM/h` | Pass-averaged Cγ rate in gC per g metal per hour, metal moles = sites / dispersion. Compare with the Ermakova / Takenaka Ni band 8–10. |
+| `θ_enc` | Exit encapsulating coverage `C_encap_s`. Onset is `θ_enc ≥ 0.1`; secondary `γ/δ < 10`. |
+| `life_h` | Hours for `θ_enc` to reach 0.5 at the pass-averaged Cδ rate (linear extrapolation). Compare with the Ni TOS band 4–50 h. Blank when no Cδ accumulated this pass. |
 
-The JSON also records `pathway_mode`, `material_class`, `closure_source`, `residence_time_s`, `can_exclude_candidate`, `site_inventory_bound_X`, `X_eq_table`, `exceeds_equilibrium`, `carbon_turnovers_per_site`, `off_site_carbon_active`, `c_gamma_to_c_delta_ratio`, `exit_theta_C`, `exit_theta_C_encap`, `filament_yield_gC_per_gMetal_h`, `filament_yield_within_band`, and `regen_cycles_completed` per row.
+The JSON also records `pathway_mode`, `material_class`, `closure_source`, `residence_time_s`, `can_exclude_candidate`, `site_inventory_bound_X`, `X_eq_table`, `exceeds_equilibrium`, `carbon_turnovers_per_site`, `off_site_carbon_active`, `c_gamma_to_c_delta_ratio`, `exit_theta_C`, `exit_theta_C_encap`, `filament_yield_gC_per_gMetal_h`, `filament_yield_within_band`, `encapsulation_onset`, `c_delta_competitive`, `encapsulation_lifetime_h`, `lifetime_within_tos_band`, `outfeed_carbon_mol_per_pass`, `regen_cycles_completed`, and the swept `sweep` map per row.
 
-## B6-5 sweep files
+## B6-5 and B6-6 sweep files
 
-`sweeps/ni_np_b65_closure.yaml` (zero regen; the B5/B6 closure question) and `sweeps/ni_np_b65_production.yaml` (3 mechanical cycles; scorecard-comparable). Both are **PFR only**: Fluidized Ni is an open B6 item, and MMBCR is `not_applicable` for a SolidCatalyst. Mechanical regen never clears `C_encap_s`.
+`sweeps/ni_np_b65_closure.yaml` (zero regen; the B5/B6 closure question) and `sweeps/ni_np_b65_production.yaml` (3 mechanical cycles; scorecard-comparable) are **PFR only**. B6-6 star + 2-D files (`sweeps/ni_np_b66_eact.yaml`, `ni_np_b66_agamma.yaml`, `ni_np_b66_theta.yaml`, `ni_np_b66_sticking.yaml`, `ni_np_b66_agamma_theta.yaml`) run PFR and circulating Fluidized, both cells, `max_regen_cycles` [0, 3]. Score them with `python -m pipeline.process.b66_criteria`. MMBCR is `not_applicable` for a SolidCatalyst. Mechanical regen never clears `C_encap_s`. The B5 judge is still `cat_9`.

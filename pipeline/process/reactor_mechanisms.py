@@ -57,6 +57,14 @@ class CandidateKinetics:
     # channel is transport + precipitation (D0/L², particle-size dependent)
     # and is swept in B6-6. Cδ inherits A_γ / θ*.
     carbon_transfer_prefactor_1_s: Optional[float] = None
+    # B6-6: A_γ may instead be derived as D0 / L² from a metal particle
+    # diameter (nm) and a carbon bulk-diffusion prefactor (m²/s). Setting
+    # both the particle size and an explicit prefactor is an error.
+    carbon_transfer_particle_nm: Optional[float] = None
+    carbon_diffusion_prefactor_m2_s: Optional[float] = None
+    # B6-6: CH4 dissociative sticking prefactor s0 (dimensionless). Sets the
+    # carbon arrival rate at the surface; template 0.01 until swept.
+    ch4_sticking_coefficient: Optional[float] = None
     site_density_mol_cm2: float = 2.5e-9
     screening_protocol: str = 'unknown'
     candidate_id: str = 'unknown'
@@ -170,12 +178,40 @@ class CandidateKinetics:
         else:
             provenance.setdefault(
                 'encapsulation_crossover_coverage', THETA_STAR_PROVENANCE)
-        if values['carbon_transfer_prefactor_1_s'] is None:
+        particle_nm = values['carbon_transfer_particle_nm']
+        if particle_nm is not None:
+            if values['carbon_transfer_prefactor_1_s'] is not None:
+                raise ValueError(
+                    'set carbon_transfer_particle_nm or '
+                    'carbon_transfer_prefactor_1_s, not both')
+            if not particle_nm > 0:
+                raise ValueError('carbon_transfer_particle_nm must be positive')
+            d0 = values['carbon_diffusion_prefactor_m2_s']
+            if d0 is None:
+                d0 = CARBON_DIFFUSION_PREFACTOR_M2_S
+                values['carbon_diffusion_prefactor_m2_s'] = d0
+                provenance['carbon_diffusion_prefactor_m2_s'] = (
+                    CARBON_DIFFUSION_PREFACTOR_PROVENANCE)
+            elif not d0 > 0:
+                raise ValueError('carbon_diffusion_prefactor_m2_s must be positive')
+            else:
+                provenance.setdefault(
+                    'carbon_diffusion_prefactor_m2_s', 'declared_not_measured')
+            values['carbon_transfer_prefactor_1_s'] = (
+                carbon_transfer_prefactor_from_particle(particle_nm, d0))
+            provenance['carbon_transfer_prefactor_1_s'] = (
+                f'derived: D0/L^2 with D0={d0:.3g} m^2/s, L={particle_nm:g} nm')
+        elif values['carbon_transfer_prefactor_1_s'] is None:
             values['carbon_transfer_prefactor_1_s'] = OFF_SITE_PREEXPONENTIAL_1_S
             provenance['carbon_transfer_prefactor_1_s'] = C_GAMMA_PREFACTOR_PROVENANCE
         else:
             provenance.setdefault(
                 'carbon_transfer_prefactor_1_s', 'declared_not_measured')
+        if values['ch4_sticking_coefficient'] is None:
+            values['ch4_sticking_coefficient'] = DEFAULT_CH4_STICKING_COEFFICIENT
+            provenance['ch4_sticking_coefficient'] = CH4_STICKING_PROVENANCE
+        else:
+            provenance.setdefault('ch4_sticking_coefficient', 'declared_not_measured')
         values['provenance'] = provenance
         # The Cδ (encapsulation) barrier is only written into the mechanism
         # when the B6 class gate admits off-site carbon. For every other
@@ -216,6 +252,29 @@ OFF_SITE_PREEXPONENTIAL_1_S = 1.0e13
 C_GAMMA_PREFACTOR_PROVENANCE = (
     'template_default: single-hop TST 1e13/s; transport+precipitation lump '
     'is D0/L^2 and particle-size dependent; swept in B6-6')
+# B6-6: A_γ = D0 / L² from a particle diameter. Carbon bulk diffusion in
+# Ni (Lander, Kern & Beach 1952): D = 2.48 cm²/s · exp(−40.2 kcal/mol / RT),
+# i.e. D0 = 2.48e-4 m²/s with E ≈ 1.74 eV (close to carbon_transfer_eV
+# 1.5). This D0 puts a 10 nm particle at 2.5e12 1/s, within a decade of the
+# TST label; A_γ ~ 1e9 corresponds to L ≈ 500 nm on this scale. The lump is
+# order-of-magnitude; the sweep, not the derivation, carries the result.
+CARBON_DIFFUSION_PREFACTOR_M2_S = 2.48e-4
+CARBON_DIFFUSION_PREFACTOR_PROVENANCE = (
+    'template_default: Lander 1952 C-in-Ni bulk diffusion D0 = 2.48 cm^2/s')
+# B6-6: CH4 dissociative sticking prefactor. Template order of magnitude
+# (Deutschmann-style methane_pox_on_pt uses 0.01 on Pt); Ni(111) molecular-
+# beam values span 1e-4 .. 1e-2 at these T. Sets the carbon arrival rate.
+DEFAULT_CH4_STICKING_COEFFICIENT = 0.01
+CH4_STICKING_PROVENANCE = (
+    'template_default: s0 = 0.01 (methane_pox_on_pt order of magnitude); '
+    'swept in B6-6')
+
+
+def carbon_transfer_prefactor_from_particle(particle_nm: float,
+                                            d0_m2_s: float) -> float:
+    """A_γ = D0 / L² (1/s) for a metal particle of diameter ``particle_nm``."""
+    length_m = float(particle_nm) * 1e-9
+    return float(d0_m2_s) / (length_m * length_m)
 
 # Surface rate constants. Unimolecular surface steps (C_s => ...) take A in
 # 1/s. Bimolecular steps (X_s + site, 2 H_s) are mass-action in surface
@@ -510,6 +569,10 @@ def write_full_mechanism(catalyst_name: str, E_act_CH4: float = None,
     if A_Cgamma <= 0:
         raise ValueError('carbon_transfer_prefactor_1_s must be positive')
     A_Cdelta = A_Cgamma / theta_star
+    s0_ch4 = float(values['ch4_sticking_coefficient'])
+    if not 0.0 < s0_ch4 <= 1.0:
+        raise ValueError(
+            f'ch4_sticking_coefficient={s0_ch4} must be in (0, 1]')
     A_bimol = bimolecular_surface_prefactor_cm2_mol_s(
         SURFACE_TST_PREFACTOR_1_S, site_density)
     A_h2_des = bimolecular_surface_prefactor_cm2_mol_s(
@@ -632,7 +695,8 @@ def write_full_mechanism(catalyst_name: str, E_act_CH4: float = None,
         surface_rxns = f"""\
 {catalyst_name}_surface-reactions:
 - equation: CH4 + 2 site <=> CH3_s + H_s
-  sticking-coefficient: {{A: 0.01, b: 0.0, Ea: {Ea_CH4:.1f}}}
+  sticking-coefficient: {{A: {s0_ch4:.6g}, b: 0.0, Ea: {Ea_CH4:.1f}}}
+  note: s0 sets the carbon arrival rate; provenance in the .kinetics.json sidecar
 - equation: CH3_s + site <=> CH2_s + H_s
   rate-constant: {{A: {A_bimol:.6g}, b: 0.0, Ea: {Ea_CH3:.1f}}}
   note: A = 1e13/s / Γ in cm^2/mol/s (bimolecular surface TST)
@@ -701,6 +765,9 @@ reactions:
             'bimolecular_cm2_mol_s': A_bimol,
             'h2_desorption_cm2_mol_s': A_h2_des,
             'basis': 'k_TST(1/s) / site_density(mol/cm^2)',
+            'ch4_sticking_coefficient': s0_ch4,
+            'ch4_sticking_source': values['provenance'].get(
+                'ch4_sticking_coefficient', CH4_STICKING_PROVENANCE),
         } if include_surface_sites else {}),
         'surface_enthalpies_J_mol': ({
             'H_s': h0_h, 'CH3_s': h0_ch3, 'CH2_s': h0_ch2,
@@ -713,6 +780,9 @@ reactions:
                 'equation': 'C_s => C(gr) + site',
                 'barrier_eV': float(values['carbon_transfer_eV']),
                 'preexponential_1_s': A_Cgamma,
+                'preexponential_source': values['provenance'].get(
+                    'carbon_transfer_prefactor_1_s', C_GAMMA_PREFACTOR_PROVENANCE),
+                'particle_nm': values.get('carbon_transfer_particle_nm'),
                 'form': 'first_order_theta_C',
                 'kind': 'transport_to_edge',
                 'source': C_GAMMA_PROVENANCE,

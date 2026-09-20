@@ -88,6 +88,27 @@ Dated working-tree entries for the carbon-model / reactor-physics track.
 Durable rule: [ADR 0001](docs/adr/0001-pyrolysis-phase-admissibility.md).
 Open work: [`docs/backlog/`](docs/backlog/README.md) B1–B6.
 
+#### 2026-09-19 — B6-6 star + 2-D Ni sweep; sticking, A_γ = D₀/L², encapsulation lifetime
+
+`sweep:` is a cartesian product over kinetics and policy lists (one
+mechanism per kinetics point, named `<catalyst>_pNNN`; the reactor loads
+that point's `<name>_surface`). New writer keys: `ch4_sticking_coefficient`
+(default 0.01, into YAML + sidecar) and `carbon_transfer_particle_nm` /
+`carbon_diffusion_prefactor_m2_s` (`A_γ = D₀/L²`, D₀ = 2.48e-4 m²/s
+Lander 1952; mutually exclusive with an explicit `A_γ`). PFR and Fluidized
+off-site metrics now include encapsulation onset (exit θ_enc ≥ 0.1;
+secondary Cγ/Cδ < 10) and `encapsulation_lifetime_h` (θ_enc → 0.5 at the
+pass-averaged Cδ rate). Fluidized runs the accounting on the emulsion
+parcel before bypass; circulating outfeed is B2, not Cγ.
+
+Five Ni specs (`sweeps/ni_np_b66_{eact,agamma,theta,sticking,agamma_theta}.yaml`):
+same literature cell as B6-5, PFR + circulating Fluidized, both cells,
+regen 0 and 3. 2312/2312 complete. Criteria (`pipeline/process/b66_criteria.py`):
+|d ln X / d E_act| = 8.27 eV⁻¹ (gate ≥ 5); turnover relative difference
+34.3 % (gate > 20 %); first encapsulation onset at `A_γ` = 1e7 s⁻¹;
+244 lifetime hits in 4–50 h; 54 yield hits in 8–10 gC/(gNi·h). 208
+X > X_eq rows flagged, not scored. Judge remains `cat_9`.
+
 #### 2026-09-19 — B6-5 Ni closure sweep; writer reference-state and prefactor corrections
 
 Three writer defects surfaced while building the Ni cell, all pre-existing

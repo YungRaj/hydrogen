@@ -1,0 +1,51 @@
+name: ni_np_b66_eact
+description: >
+  B6-6 star sweep, E_act axis. Literature Ni(111)/SiO2 nanoparticle cell
+  (ni_np_b65_closure) with A_gamma 1e13, theta* 0.5, s0 0.01 held at the
+  B6-5 base point and E_act swept 0.7-1.3 eV (BEP value 0.68 and +0.3 eV
+  above Bengaard's 1.00 both inside). Full ADR band, PFR and circulating
+  Fluidized, both cells, zero regen and mechanical x3. Acceptance: |d ln X /
+  d E_act| at the base point >= 5 /eV (X not flat in the barrier).
+catalyst:
+  name: ni_np_lit
+  material_class: SolidCatalyst
+  genome: "('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)"
+  kinetics:
+    dE_H: -0.50
+    dE_CH3: -1.95
+    dE_C: 1.30
+    carbon_transfer_eV: 1.50
+    carbon_encapsulation_eV: 1.53
+    encapsulation_crossover_coverage: 0.5
+    carbon_transfer_prefactor_1_s: 1.0e13
+    ch4_sticking_coefficient: 0.01
+    provenance:
+      dE_H: Greeley & Mavrikakis 2004 Ni(111)
+      dE_CH3: Bengaard 2002 Ni(111) fcc site
+      dE_C: Abild-Pedersen 2006 terrace C vs graphene, +0.8 eV CH4-2H2 reference shift
+      carbon_transfer_eV: template default
+      carbon_encapsulation_eV: template default
+      encapsulation_crossover_coverage: declared; B6-5 base point
+      carbon_transfer_prefactor_1_s: template default (single-hop TST); B6-5 base point
+      ch4_sticking_coefficient: template default; B6-5 base point
+sweep:
+  kinetics:
+    E_act: [0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3]
+  policy:
+    max_regen_cycles: [0, 3]
+conditions:
+  temperatures_K: [773.15, 900, 923.15, 948.15, 973.15, 1100, 1300]
+  reactors: [PFR, Fluidized]
+policy:
+  co2_permitted: false
+  fluidized_mode: circulating
+  regen_mechanism: mechanical
+cells:
+  - name: production
+    catalyst_particle_mm: 0.13
+    metal_loading: 0.5
+    metal_dispersion: 0.3
+  - name: large_particle_ni
+    catalyst_particle_mm: 0.13
+    metal_loading: 0.9
+    metal_dispersion: 0.05
