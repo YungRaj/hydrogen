@@ -38,6 +38,20 @@ FUEL_CELL_DIR = RESULTS_DIR / "fuel_cell"
 REPORTS_DIR = RESULTS_DIR / "reports"
 QE_PSEUDO_DIR = BASE_DIR / "quantum_espresso" / "pseudo"
 
+
+def repo_relative(path) -> str:
+    """Path for recording in artifacts: repo-relative with forward slashes.
+
+    Written JSON must not carry machine-specific absolute paths. Paths
+    outside the repo (e.g. a redirected ``HYDROGEN_RESULTS_DIR``) are kept
+    as given.
+    """
+    p = Path(path)
+    try:
+        return p.resolve().relative_to(BASE_DIR).as_posix()
+    except ValueError:
+        return p.as_posix()
+
 # ─── Conda Environments ─────────────────────────────────────────────────────────
 
 ENV_MACE = "deepmd-env"         # MACE-MP-0, PyTorch, ASE

@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, List, Optional
 
-from pipeline.common.utils import BASE_DIR, SWEEPS_DIR, setup_logger
+from pipeline.common.utils import BASE_DIR, SWEEPS_DIR, repo_relative, setup_logger
 
 logger = setup_logger('yaml_sweep', 'reactor/yaml_sweep.log')
 
@@ -449,11 +449,13 @@ def run_sweep(yaml_path: Path) -> dict:
                     'regen_cycles_completed': result.get('regen_cycles_completed'),
                 })
 
+    job_record = asdict(job)
+    job_record['source_file'] = repo_relative(job.source_file)
     payload = {
-        'job': asdict(job),
+        'job': job_record,
         'material_class': material_class,
         'candidate_id': candidate_id,
-        'mechanism_file': str(mech),
+        'mechanism_file': repo_relative(mech),
         'written_at': datetime.now(timezone.utc).isoformat(),
         'records': records,
     }

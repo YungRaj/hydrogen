@@ -17,7 +17,7 @@ from itertools import product
 from pathlib import Path
 from typing import Callable, Mapping, Optional, Sequence
 
-from pipeline.common.utils import SWEEPS_DIR
+from pipeline.common.utils import SWEEPS_DIR, repo_relative
 
 RecordFilter = Callable[[dict], bool]
 
@@ -106,8 +106,11 @@ def _update_manifest(name: str, stage: str, path: Path, payload: dict) -> None:
     if man_path.exists():
         manifest = json.loads(man_path.read_text(encoding='utf-8'))
     stages = dict(manifest.get('stages') or {})
+    for entry in stages.values():
+        if isinstance(entry, dict) and entry.get('path'):
+            entry['path'] = repo_relative(entry['path'])
     stages[stage] = {
-        'path': str(path),
+        'path': repo_relative(path),
         'written_at': datetime.now(timezone.utc).isoformat(),
         'n_records': len(payload.get('records') or []),
         'n_grid_cells': payload.get('n_grid_cells'),

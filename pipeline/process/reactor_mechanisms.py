@@ -21,7 +21,7 @@ from typing import Any, Mapping, Optional
 import numpy as np
 
 from pipeline.common.utils import (
-    eV_to_J, MECHANISMS_DIR, setup_logger,
+    eV_to_J, MECHANISMS_DIR, repo_relative, setup_logger,
 )
 
 logger = setup_logger('reactor_mechanisms', 'reactor/mechanism_generation.log')
@@ -693,7 +693,7 @@ reactions:
     sidecar.write_text(json.dumps(_jsonable({
         'schema_version': 1,
         'catalyst_name': catalyst_name,
-        'mechanism_file': str(filepath),
+        'mechanism_file': repo_relative(filepath),
         'inputs': values,
         'carbon_phase_model': carbon_model,
         'surface_thermo_reference': SURFACE_THERMO_REFERENCE,
