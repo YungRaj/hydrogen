@@ -4,7 +4,7 @@ Input specs live under sweeps/*.yaml (git-tracked). Run products go to
 results/sweeps/<name>/ (gitignored). See docs/sweep-template.md.
 
 This is not a Cantera mechanism file. Root keys are name / catalyst /
-conditions / cells. Mechanism YAML lives under mechanisms/.
+conditions / cells. Generated mechanisms live in each job's output directory.
 """
 
 from __future__ import annotations
@@ -502,6 +502,7 @@ def run_sweep(yaml_path: Path) -> dict:
     from pipeline.process.reactor_models import run_reactor_sweep
 
     job = parse_sweep(yaml_path)
+    out_dir = SWEEPS_DIR / job.name
     points = grid_points(job)
     swept = bool(job.sweep_kinetics or job.sweep_policy)
 
@@ -523,7 +524,8 @@ def run_sweep(yaml_path: Path) -> dict:
             except (TypeError, ValueError, AttributeError):
                 e_act = float(kinetics.methane_activation_eV)
                 dE_H = float(job.kinetics.get('dE_H') or 0.0)
-            mech = write_full_mechanism(name, kinetics=kinetics)
+            mech = write_full_mechanism(
+                name, kinetics=kinetics, output_dir=out_dir / 'mechanisms')
             mech_for_kinetics[kin_key] = (name, mech, e_act, dE_H)
             mechanism_files.append(repo_relative(mech))
         # The surface phase is '<name>_surface'; the reactor must load by
@@ -567,7 +569,6 @@ def run_sweep(yaml_path: Path) -> dict:
         'written_at': datetime.now(timezone.utc).isoformat(),
         'records': records,
     }
-    out_dir = SWEEPS_DIR / job.name
     out_dir.mkdir(parents=True, exist_ok=True)
     out_json = out_dir / 'run.json'
     out_json.write_text(json.dumps(payload, indent=2) + '\n', encoding='utf-8')

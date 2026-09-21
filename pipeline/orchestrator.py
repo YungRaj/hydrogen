@@ -47,7 +47,8 @@ class PipelineConfig:
     top_k_vqe: int = 3                   # Top K → VQE
 
     # Phase 2: Reactor
-    reactor_temperatures: tuple = (800, 900, 1000, 1100, 1200)
+    # Preserve the broad screening points and include the Ni reference band.
+    reactor_temperatures: tuple = (773.15, 900.0, 923.15, 973.15, 1100.0, 1300.0)
     reactor_types: Optional[tuple] = None  # None derives routing from mode
     multiphysics_results_dir: Optional[str] = None
     # Named solids judge. B6-7: literature Ni cell (ni_np_lit), not cat_9.
@@ -71,7 +72,7 @@ class PipelineConfig:
 
 
 def normalized_pipeline_config(config: PipelineConfig) -> PipelineConfig:
-    """Return the legacy effective settings without mutating caller state.
+    """Apply runtime presets while preserving the caller's reactor conditions.
 
     Args:
         config: Configuration controlling this operation.
@@ -79,8 +80,7 @@ def normalized_pipeline_config(config: PipelineConfig) -> PipelineConfig:
     Returns:
         Computed `PipelineConfig` result.
     """
-    effective = replace(
-        config, reactor_temperatures=(773.15, 900.0, 1100.0, 1300.0))
+    effective = replace(config)
     if effective.quick_mode:
         effective = replace(
             effective, initial_fairchem_samples=50, branch_leaf_size=10_000,

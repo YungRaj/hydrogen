@@ -15,11 +15,15 @@ reactors**. With `sweep:` it is that times the cartesian product of the listed
 kinetics and policy values (one mechanism per kinetics combination; policy
 points share it). The surface phase is `<point_name>_surface` — the runner
 must load that point name, not the template `catalyst.name`. Results go to
-`results/sweeps/<name>/run.json` (plus a copy of the input YAML). Specs under
-`sweeps/` are git-tracked; run products under `results/sweeps/` are not.
+`results/sweeps/<name>/run.json` (plus a copy of the input YAML). Each job writes
+its mechanism YAML and kinetics sidecars under
+`results/sweeps/<name>/mechanisms/`, so distinct job names can reuse catalyst
+and point names without overwriting each other's mechanisms. Reusing a job
+name replaces that job's outputs. Specs under `sweeps/` are git-tracked;
+run products under `results/sweeps/` are not.
 
-This file is **not** a Cantera mechanism. Mechanism YAML lives under
-`mechanisms/` (`phases:`, `species:`, `reactions:`). A sweep document uses
+This file is **not** a Cantera mechanism. Generated mechanism YAML uses
+`phases:`, `species:`, and `reactions:`. A sweep document uses
 `name`, `catalyst`, `conditions`, and `cells`.
 
 The stored example is [`sweeps/headline_cat9_1300K.yaml`](../sweeps/headline_cat9_1300K.yaml)

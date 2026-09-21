@@ -27,6 +27,8 @@ class ReactorBatchServices:
             present it replaces the raw ``max(CH4_conversion)`` headline,
             which would otherwise rank MMBCR X_eq as "best".
         persist_scorecard: Optional ``(scorecard) -> None`` writer.
+        load_reference_candidate: Optional loader for a missing named solids
+            judge. Its row is added only to this batch, not the discovery slate.
     """
     prepare_gas_mechanism: Callable
     simulate_candidate: Callable
@@ -35,6 +37,7 @@ class ReactorBatchServices:
     check_equilibrium: Optional[Callable] = None
     build_scorecard: Optional[Callable] = None
     persist_scorecard: Optional[Callable] = None
+    load_reference_candidate: Optional[Callable] = None
 
 
 def default_reactor_batch_services() -> ReactorBatchServices:
@@ -50,13 +53,15 @@ def default_reactor_batch_services() -> ReactorBatchServices:
         write_full_mechanism, write_gri30_subset)
     from pipeline.process.reactor_models import run_reactor_sweep
     from pipeline.stages.reactor import simulate_candidate
+    from pipeline.stages.candidate_io import load_reactor_reference
     return ReactorBatchServices(
         write_gri30_subset, simulate_candidate,
         write_full_mechanism, run_reactor_sweep,
         check_equilibrium=run_equilibrium_sweep,
         build_scorecard=build_solids_scorecard,
         persist_scorecard=lambda scorecard: save_json(
-            scorecard, 'phase2_solids_scorecard.json', subdir='reactor'))
+            scorecard, 'phase2_solids_scorecard.json', subdir='reactor'),
+        load_reference_candidate=load_reactor_reference)
 
 
 def run_reactor_batch_stage(
@@ -97,9 +102,21 @@ def run_reactor_batch_stage(
                 f"(worst_abs_error={equilibrium.get('worst_abs_error')})")
     results = []
     if candidates is not None:
+        named_rows = []
         for index, row in candidates.iterrows():
+            name = (judge_catalyst
+                    if judge_catalyst and str(row.get('candidate_id')) == judge_catalyst
+                    else f'cat_{index}')
+            named_rows.append((name, row))
+        if (judge_catalyst and services.load_reference_candidate is not None
+                and {'PFR', 'Fluidized'}.intersection(reactor_types)
+                and not any(name == judge_catalyst for name, _ in named_rows)):
+            reference = services.load_reference_candidate(judge_catalyst)
+            if reference is not None:
+                named_rows.append((judge_catalyst, reference))
+        for name, row in named_rows:
             candidate = services.simulate_candidate(
-                row, f'cat_{index}', temperatures, reactor_types,
+                row, name, temperatures, reactor_types,
                 forbid_mock=not allow_mock_inputs, pathway_mode=pathway_mode,
                 multiphysics_results_dir=multiphysics_results_dir)
             results.extend(candidate['sweep'])

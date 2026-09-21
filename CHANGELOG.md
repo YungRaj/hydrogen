@@ -88,6 +88,15 @@ Dated working-tree entries for the carbon-model / reactor-physics track.
 Durable rule: [ADR 0001](docs/adr/0001-pyrolysis-phase-admissibility.md).
 Open work: [`docs/backlog/`](docs/backlog/README.md) B1–B6.
 
+#### 2026-09-21 — Ni reference in the default campaign
+
+Default `reactor_temperatures` include the 923.15 / 973.15 K filament ROI.
+`normalized_pipeline_config` no longer overwrites an explicit T list.
+The reactor batch loads the tracked `ni_np_lit` row when the named judge
+is missing from the discovery slate, and keeps that name on the results.
+Sweep jobs write mechanism YAML under `results/sweeps/<name>/mechanisms/`
+so two jobs cannot overwrite each other.
+
 #### 2026-09-21 — Shared usable-result baseline
 
 Scorecard, joint-band search, `best_condition`, the report solids table,

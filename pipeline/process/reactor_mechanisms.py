@@ -500,7 +500,8 @@ def write_full_mechanism(catalyst_name: str, E_act_CH4: float = None,
                           T_ref: float = 1000.0,
                           include_surface_sites: bool = True,
                           kinetics: CandidateKinetics = None,
-                          off_site_carbon: Optional[bool] = None) -> Path:
+                          off_site_carbon: Optional[bool] = None,
+                          output_dir: Optional[Path] = None) -> Path:
     """
     Write a Cantera mechanism (gas + condensed graphite + optional surface).
 
@@ -520,12 +521,15 @@ def write_full_mechanism(catalyst_name: str, E_act_CH4: float = None,
         kinetics: Typed candidate kinetics with provenance.
         off_site_carbon: ``None`` = class gate decides; ``True`` on a denied
             class raises; ``False`` suppresses Cγ / Cδ.
+        output_dir: Directory for the YAML and kinetics sidecar. Defaults to
+            the shared mechanism directory; sweep jobs supply their own.
 
     Returns:
         Filesystem path of the written mechanism YAML; a ``.kinetics.json``
         sidecar is written alongside it.
     """
-    MECHANISMS_DIR.mkdir(parents=True, exist_ok=True)
+    output_dir = MECHANISMS_DIR if output_dir is None else Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
     if kinetics is None:
         if E_act_CH4 is None:
             raise ValueError('E_act_CH4 or kinetics is required')
@@ -748,7 +752,7 @@ reactions:
 {surface_rxns}
 """
 
-    filepath = MECHANISMS_DIR / f"mechanism_{catalyst_name}.yaml"
+    filepath = output_dir / f"mechanism_{catalyst_name}.yaml"
     with open(filepath, 'w', encoding='utf-8') as f:
         f.write(yaml_content)
     sidecar = filepath.with_suffix('.kinetics.json')
