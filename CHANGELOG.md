@@ -88,6 +88,17 @@ Dated working-tree entries for the carbon-model / reactor-physics track.
 Durable rule: [ADR 0001](docs/adr/0001-pyrolysis-phase-admissibility.md).
 Open work: [`docs/backlog/`](docs/backlog/README.md) B1–B6.
 
+#### 2026-09-21 — Shared usable-result baseline
+
+Scorecard, joint-band search, `best_condition`, the report solids table,
+and hydrogen-cost estimates now share `is_usable_result`: complete run,
+not mock, no X>X_eq, finite conversion when reported, and a passing
+carbon balance when the field is present. Sweep `run.json` now persists
+`carbon_balance_ok` so the filter can see it. Ranking and TEA then
+require a finite X. Scorecard still adds solids-surface, headline-T,
+and named-judge filters on top. An overshooting or carbon-fail row can
+no longer lose the scorecard and then set a $/kg estimate.
+
 #### 2026-09-20 — B6-7 judge, literature stub, joint-band declaration
 
 Named solids judge is `ni_np_lit` (Bengaard [35] / Greeley [37] /

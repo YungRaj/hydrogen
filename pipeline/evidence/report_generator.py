@@ -211,6 +211,7 @@ def generate_full_report(pipeline_state: Dict = None) -> Path:
     from pipeline.process.phase2_scorecard import (
         is_production_reactor_record, is_solids_run, single_pass_x,
     )
+    from pipeline.process.result_eligibility import is_usable_result
     scorecard = p2.get('solids_scorecard') or load_json(
         'phase2_solids_scorecard.json', subdir='reactor') or {}
     if scorecard.get('headline'):
@@ -239,7 +240,7 @@ def generate_full_report(pipeline_state: Dict = None) -> Path:
         x for x in data['reactor']
         if is_production_reactor_record(x) and not x.get('mock', False)
     ]
-    solids = [x for x in real_reactor if is_solids_run(x)]
+    solids = [x for x in real_reactor if is_solids_run(x) and is_usable_result(x)]
     if solids:
         r("### Solids runs (single-pass)\n")
         r("| Catalyst | Reactor | T (K) | Single-pass X | a (m⁻¹) | WHSV (h⁻¹) | ΔP (bar) |")

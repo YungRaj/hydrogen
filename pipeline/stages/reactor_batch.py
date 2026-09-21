@@ -142,6 +142,8 @@ def run_reactor_batch_stage(
             'mmbcr_max_conversion': scorecard.get('mmbcr_max_conversion'),
         })
     elif results:
+        from pipeline.process.result_eligibility import rankable_results
+        rankable = rankable_results(results)
         state['best_conversion'] = max(
-            row.get('CH4_conversion', 0) for row in results)
+            (row['CH4_conversion'] for row in rankable), default=None)
     return StageOutcome(state=state, products={'reactor_results': results})

@@ -7,6 +7,7 @@ from typing import Callable, Mapping, Sequence
 
 from pipeline.common.utils import repo_relative
 from pipeline.process.pathway_modes import DEFAULT_MODE, resolve_pathway_mode
+from pipeline.process.result_eligibility import rankable_results, usable_results
 
 
 @dataclass(frozen=True)
@@ -51,8 +52,10 @@ def summarize_reactor_sweep(sweep: Sequence[Mapping]) -> dict:
     failed = by_status.get('failed', [])
     pending = by_status.get('validation_required', [])
     not_applicable = by_status.get('not_applicable', [])
-    best = max(completed, key=lambda result: result.get('CH4_conversion', 0.0)) \
-        if completed else {}
+    usable = usable_results(completed)
+    rankable = rankable_results(usable)
+    best = max(rankable, key=lambda result: result['CH4_conversion']) \
+        if rankable else {}
     return {
         'best_condition': best,
         'sweep_status': (
@@ -61,6 +64,7 @@ def summarize_reactor_sweep(sweep: Sequence[Mapping]) -> dict:
             'validation_required' if pending else
             'not_applicable' if not_applicable else 'failed'),
         'completed_conditions': len(completed),
+        'usable_conditions': len(usable),
         'failed_conditions': len(failed),
         'pending_conditions': len(pending),
         'not_applicable_conditions': len(not_applicable),

@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterable, Optional
 
 from pipeline.common.utils import SWEEPS_DIR, repo_relative
+from pipeline.process.result_eligibility import is_usable_result
 
 SWEEP_NAMES = (
     'ni_np_b66_eact',
@@ -76,8 +77,8 @@ def exceeds_equilibrium(record: dict) -> bool:
 
 
 def is_scorable(record: dict) -> bool:
-    """Complete rows that did not overshoot X_eq. 1300 K overshoots are flags."""
-    return is_complete(record) and not exceeds_equilibrium(record)
+    """Shared usable baseline: complete, not mock, no X>X_eq, carbon OK."""
+    return is_usable_result(record)
 
 
 def match_kinetics(record: dict, kinetics: Optional[dict] = None) -> bool:

@@ -98,7 +98,8 @@ def search_joint_band(payloads: dict) -> dict:
     return {
         'schema_version': 1,
         'definition': (
-            'A joint hit is one scorable row (complete, not X>X_eq) with '
+            'A joint hit is one scorable row (usable baseline: complete, '
+            'not mock, not X>X_eq, carbon balance when reported) with '
             f'filament_yield in {list(NI_FILAMENT_YIELD_BAND)} gC/(gNi·h) '
             f'AND encapsulation_lifetime_h in {list(NI_TOS_LIFETIME_BAND_H)}. '
             'Same cell, reactor, T, and (A_γ, θ*, s0).'

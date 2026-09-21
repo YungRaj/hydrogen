@@ -1864,6 +1864,74 @@ def test_scorecard_excludes_equilibrium_overshoot_from_every_rank():
     assert card['n_solids_records'] == 2
 
 
+def test_usable_result_baseline_shared_across_consumers():
+    """Overshoot and carbon-fail cannot rank, cost, or win best-condition."""
+    from pipeline.process.b66_criteria import is_scorable
+    from pipeline.process.b67_joint_band import search_joint_band
+    from pipeline.process.phase2_scorecard import (
+        build_solids_scorecard, is_scoreable_solids)
+    from pipeline.process.result_eligibility import (
+        is_rankable_result, is_usable_result)
+    from pipeline.process.tea import estimate_scenario_range
+    from pipeline.stages.reactor import summarize_reactor_sweep
+
+    def solids(X, **kwargs):
+        row = {
+            'reactor_type': 'PFR', 'catalyst_name': 'ni_np_lit',
+            'T_K': 1300.0, 'CH4_conversion': X, 'single_pass_CH4_conversion': X,
+            'catalyst_E_act_eV': 1.0, 'catalyst_dE_H_eV': -0.50,
+            'status': 'complete', 'surface_loaded': True,
+            'exceeds_equilibrium': False,
+        }
+        row.update(kwargs)
+        return row
+
+    ok = solids(0.20)
+    overshoot = solids(0.999, exceeds_equilibrium=True)
+    carbon_fail = solids(0.80, carbon_balance_ok=False)
+    nan_x = solids(float('nan'))
+    assert is_usable_result(ok) and is_scoreable_solids(ok) and is_scorable(ok)
+    assert is_rankable_result(ok)
+    yield_only = {
+        'status': 'complete', 'exceeds_equilibrium': False,
+        'filament_yield_gC_per_gMetal_h': 8.5,
+        'encapsulation_lifetime_h': 0.004,
+    }
+    assert is_usable_result(yield_only) and is_scorable(yield_only)
+    assert not is_rankable_result(yield_only)
+    for bad in (overshoot, carbon_fail, nan_x):
+        assert not is_usable_result(bad)
+        assert not is_scoreable_solids(bad)
+        assert not is_scorable(bad)
+        assert not is_rankable_result(bad)
+
+    summary = summarize_reactor_sweep([overshoot, carbon_fail, ok, nan_x])
+    assert summary['completed_conditions'] == 4
+    assert summary['usable_conditions'] == 1
+    assert abs(summary['best_condition']['CH4_conversion'] - 0.20) < 1e-12
+    estimate = estimate_scenario_range(
+        summary['best_condition']['CH4_conversion'])
+    assert estimate['estimates']['base']['h2_cost_usd_kg'] > 0
+
+    card = build_solids_scorecard([overshoot, carbon_fail, ok])
+    assert abs(card['headline']['PFR']['single_pass_CH4_conversion'] - 0.20) < 1e-12
+    assert abs(card['solids_max_excluding_h_parked']['single_pass_CH4_conversion']
+               - 0.20) < 1e-12
+    assert card['n_solids_records'] == 3
+
+    hit = {
+        'cell': 'production', 'reactor_type': 'PFR', 'T_K': 923.15,
+        'status': 'complete', 'exceeds_equilibrium': False,
+        'CH4_conversion': 0.08,
+        'filament_yield_gC_per_gMetal_h': 9.0,
+        'encapsulation_lifetime_h': 8.0,
+        'carbon_balance_ok': False,
+    }
+    joint = search_joint_band({'cube': {'records': [hit]}})
+    assert joint['n_both'] == 0
+    assert joint['declaration'] == 'no_simultaneous_hit_in_filament_ROI'
+
+
 def test_ni_literature_screening_row_is_not_fairchem():
     import pandas as pd
     from pipeline.common.application_scope import scope_pyrolysis_pool
@@ -2466,6 +2534,8 @@ if __name__ == '__main__':
     test("Ni judge headline is filament ROI not 1300 K", test_solids_scorecard_ni_judge_uses_filament_roi_not_1300)
     test("Scorecard excludes X>X_eq from headline and max",
          test_scorecard_excludes_equilibrium_overshoot_from_every_rank)
+    test("Usable-result baseline shared across consumers",
+         test_usable_result_baseline_shared_across_consumers)
     test("Ni literature screening row is not fairchem", test_ni_literature_screening_row_is_not_fairchem)
     test("Site density locked to monolayer", test_site_density_locked_to_monolayer)
     test("Inventory levers preserve baseline area", test_inventory_levers_preserve_baseline_area)

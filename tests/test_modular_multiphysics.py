@@ -231,6 +231,21 @@ def test_reactor_sweep_summary_preserves_non_excluding_partial_failure():
     assert summary['can_exclude_candidate'] is False
 
 
+def test_reactor_sweep_summary_best_condition_uses_usable_baseline():
+    from pipeline.stages.reactor import summarize_reactor_sweep
+
+    summary = summarize_reactor_sweep([
+        {'status': 'complete', 'CH4_conversion': 0.99,
+         'exceeds_equilibrium': True},
+        {'status': 'complete', 'CH4_conversion': 0.70,
+         'carbon_balance_ok': False},
+        {'status': 'complete', 'CH4_conversion': 0.40},
+    ])
+    assert summary['completed_conditions'] == 3
+    assert summary['usable_conditions'] == 1
+    assert summary['best_condition']['CH4_conversion'] == 0.40
+
+
 def test_orchestrator_runtime_is_injectable_and_config_is_not_mutated():
     from pipeline.orchestrator import (
         PipelineConfig, normalized_pipeline_config, run_pipeline)

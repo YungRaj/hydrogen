@@ -7,6 +7,8 @@ argument, not a module constant.
 
 from __future__ import annotations
 
+from pipeline.process.result_eligibility import is_usable_result
+
 SOLIDS_TYPES = frozenset({'PFR', 'Fluidized'})
 H_PARKED_E_ACT_MAX = 0.05
 H_PARKED_ABS_DEH_MIN = 2.0
@@ -59,10 +61,11 @@ def is_solids_run(record: dict) -> bool:
 def is_scoreable_solids(record: dict) -> bool:
     """Solids run that may enter a headline or max-X rank.
 
-    ``exceeds_equilibrium`` stays on the metric row and in ``n_solids_records``
-    so the flag is visible; it is never a rank.
+    Shared usable baseline (complete, not mock, no X>X_eq, carbon
+    balance when reported) plus the solids surface filters. Overshoot
+    and carbon-fail rows stay in ``n_solids_records``; they never rank.
     """
-    return is_solids_run(record) and not bool(record.get('exceeds_equilibrium'))
+    return is_solids_run(record) and is_usable_result(record)
 
 
 def single_pass_x(record: dict) -> float:
@@ -106,6 +109,7 @@ def metric_row(record: dict) -> dict:
         'metal_loading': record.get('metal_loading'),
         'metal_dispersion': record.get('metal_dispersion'),
         'exceeds_equilibrium': bool(record.get('exceeds_equilibrium')),
+        'carbon_balance_ok': record.get('carbon_balance_ok'),
     }
 
 
@@ -113,24 +117,23 @@ def build_solids_scorecard(results, *,
                            judge_catalyst: str | None = None,
                            headline_t_min: float = DEFAULT_HEADLINE_T_MIN,
                            headline_t_max: float | None = None) -> dict:
-    solids = [metric_row(r) for r in results if is_solids_run(r)]
+    solids_src = [r for r in results if is_solids_run(r)]
+    solids = [metric_row(r) for r in solids_src]
     mmbcr = [
         r for r in results
         if is_production_reactor_record(r)
         and r.get('reactor_type') == 'MMBCR'
-        and not r.get('mock', False)
+        and is_usable_result(r)
     ]
-    eligible = [
-        r for r in solids
-        if not r['h_parked'] and not r.get('exceeds_equilibrium')
-    ]
-    judge_rows = (
-        [r for r in solids if r['catalyst_name'] == judge_catalyst]
+    eligible = [metric_row(r) for r in solids_src
+                if is_scoreable_solids(r) and not is_h_parked(r)]
+    judge_src = (
+        [r for r in solids_src if r.get('catalyst_name') == judge_catalyst]
         if judge_catalyst else []
     )
-    named_present = bool(judge_rows)
+    named_present = bool(judge_src)
     if named_present:
-        pool = judge_rows
+        pool = [metric_row(r) for r in judge_src if is_scoreable_solids(r)]
         rank_key = _t_k
         judge_reason = (
             'named judge catalyst; not 0.01 eV H-parked; '
@@ -153,7 +156,6 @@ def build_solids_scorecard(results, *,
             r for r in pool
             if r['reactor_type'] == reactor_type
             and in_headline_band(r, headline_t_min, headline_t_max)
-            and not r.get('exceeds_equilibrium')
         ]
         if candidates:
             headline[reactor_type] = max(candidates, key=rank_key)
@@ -191,7 +193,7 @@ def build_solids_scorecard(results, *,
             'legacy 4-point headline when t_min=1200 and t_max is open. '
             'The Ni judge headline is the 650–700 °C filament ROI '
             f'({NI_JUDGE_HEADLINE_T_MIN:g}–{NI_JUDGE_HEADLINE_T_MAX:g} K); '
-            'X>X_eq rows are never the headline.'),
+            'X>X_eq and carbon-balance failures are never the headline.'),
         'headline': headline,
         'headline_solids_conversion': judge_x,
         'solids_max_excluding_h_parked': solids_max,
