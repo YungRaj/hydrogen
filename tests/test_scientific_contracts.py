@@ -803,8 +803,10 @@ def test_candidate_cantera_mechanism_records_kinetics_provenance():
     }
     kinetics = CandidateKinetics.from_screening_row(row, candidate_id='abc')
     path = write_full_mechanism('contract_candidate', kinetics=kinetics)
-    text = path.read_text()
-    assert 'species: [CH4, H2, C2H2, C2H4, C2H6, Ar, C_graphite]' in text
+    text = path.read_text(encoding='utf-8')
+    assert 'species: [CH4, H2, C2H2, C2H4, C2H6, Ar]' in text
+    assert 'C_graphite' not in text
+    assert 'C(gr)' in text
     assert 'adjacent-phases: [gas]' in text
     assert 'carbon_phase_model' not in text
     metadata = __import__('json').loads(
@@ -828,10 +830,29 @@ def test_candidate_cantera_mechanism_records_kinetics_provenance():
         return
     gas = ct.Solution(str(path), 'gas')
     surface = ct.Interface(str(path), 'contract_candidate_surface', [gas])
-    assert 'C_graphite' in gas.species_names
-    reactions = surface.reactions()
-    assert all(reaction.reversible for reaction in reactions[:-1])
-    assert reactions[-1].reversible is False
+    assert 'C_graphite' not in gas.species_names
+    graphite = ct.Solution(str(path), 'graphite')
+    assert 'C(gr)' in graphite.species_names
+    assert 'C_s' in surface.species_names
+
+
+def test_reactor_surface_load_fails_closed_on_name_mismatch():
+    try:
+        import cantera  # noqa: F401
+    except ImportError:
+        return
+    from pipeline.process.reactor_mechanisms import write_full_mechanism
+    from pipeline.process.reactor_models import ReactorConfig, simulate_pfr
+    path = write_full_mechanism('t_0_05', E_act_CH4=0.9)
+    cfg = ReactorConfig(
+        mechanism_file=str(path), catalyst_name='t',
+        reactor_type='PFR', T_inlet_K=1000.0)
+    try:
+        simulate_pfr(cfg)
+    except RuntimeError as exc:
+        assert 't_surface' in str(exc)
+    else:
+        raise AssertionError('name mismatch must not return a blank X')
 
 
 def test_stage_selection_rescues_incomplete_evidence_without_feeding_reactor():
@@ -859,6 +880,28 @@ def test_stage_selection_rescues_incomplete_evidence_without_feeding_reactor():
     validation = select_for_validation(frame, 10, 'E_act')
     assert {'Z', 'B'}.issubset(set(validation.material_class))
     assert 'C' not in set(validation.material_class)
+
+
+def test_production_validation_slate_does_not_drop_unresolved_rows():
+    """run_production_campaign must match discovery: admissibility first."""
+    import pandas as pd
+    from pipeline.common.application_scope import scope_pyrolysis_pool
+    from pipeline.screening.stage_selection import (
+        select_for_reactor, select_for_validation)
+
+    ni = "('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)"
+    fe = "('SAC', 'Fe', 'N4', 'graphene', 0.0, (), 1, 0)"
+    frame = pd.DataFrame([
+        {'genome': ni, 'material_class': 'SolidCatalyst', 'valid': True,
+         'E_act': 1.00},
+        {'genome': fe, 'material_class': 'SAC', 'valid': False,
+         'error': 'Unconverged clean relaxation', 'needs_dft_validation': True},
+    ])
+    pool, _ = scope_pyrolysis_pool(frame)
+    reactor = select_for_reactor(pool, 10, 'E_act')
+    validation = select_for_validation(pool, 10, 'E_act')
+    assert set(reactor['material_class']) == {'SolidCatalyst'}
+    assert set(validation['material_class']) == {'SolidCatalyst', 'SAC'}
 
 
 def test_refactored_protocol_executor_and_reactor_stage_contracts():

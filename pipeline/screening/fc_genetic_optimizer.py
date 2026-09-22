@@ -717,7 +717,10 @@ def run_fc_genetic_algorithm(config: FCGAConfig, existing_db=None):
             class_counts[cls] = class_counts.get(cls, 0) + 1
 
         diversity_injections = []
+        from pipeline.common.application_scope import VALIDATION_QUOTA_EXEMPT_CLASSES
         for cls in ALL_MATERIAL_CLASSES:
+            if cls in VALIDATION_QUOTA_EXEMPT_CLASSES:
+                continue
             deficit = min_per_class - class_counts.get(cls, 0)
             if deficit > 0:
                 fresh = generate_population(deficit, material_class=cls)
@@ -761,7 +764,10 @@ def run_fc_genetic_algorithm(config: FCGAConfig, existing_db=None):
             # ── Exploration Shots: probe EVERY class with real GNN ───────
             if fairchem_round % config.explore_interval == 0:
                 explore_genomes = []
+                from pipeline.common.application_scope import VALIDATION_QUOTA_EXEMPT_CLASSES
                 for cls in ALL_MATERIAL_CLASSES:
+                    if cls in VALIDATION_QUOTA_EXEMPT_CLASSES:
+                        continue
                     explore_genomes.extend(
                         generate_population(config.explore_per_class, material_class=cls)
                     )

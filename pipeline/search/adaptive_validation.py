@@ -173,14 +173,16 @@ def allocate_validation_batch(candidates: Sequence[tuple], objectives: np.ndarra
              0.15 * error + 0.10 * productivity)
     ids = [candidate_id(g) for g in candidates]
 
+    from pipeline.common.application_scope import is_validation_quota_class
     by_class = defaultdict(list)
     for i, genome in enumerate(candidates):
         by_class[genome[0]].append(i)
-    quota_required = min_per_class * len(by_class)
+    quota_classes = [c for c in by_class if is_validation_quota_class(c, application)]
+    quota_required = min_per_class * len(quota_classes)
     if quota_required > n_select:
         raise ValueError(f'validation budget {n_select} cannot satisfy class quota {quota_required}')
     selected = []
-    for material_class in sorted(by_class):
+    for material_class in sorted(quota_classes):
         ranked = sorted(by_class[material_class], key=lambda i: (-score[i], ids[i]))
         selected.extend(ranked[:min(min_per_class, len(ranked))])
     selected = sorted(set(selected), key=lambda i: (-score[i], ids[i]))

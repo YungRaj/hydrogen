@@ -261,15 +261,20 @@ def main():
 
     pareto_genomes, screening_db = run_branch_discovery(branch_config)
 
+    from pipeline.common.application_scope import scope_pyrolysis_pool
     from pipeline.screening.stage_selection import (
         annotate_evidence, select_for_reactor, select_for_validation)
     valid_db = screening_db[screening_db['valid'] == True].copy()
     evidence_db = annotate_evidence(screening_db, 'E_act')
+    # Same split as run_discovery_stage: admissibility on the full table,
+    # then each slate applies its own validity rule. Filtering valid==True
+    # here drops unresolved rows the DFT rescue path is supposed to keep.
+    pool, _ = scope_pyrolysis_pool(screening_db)
     top_catalysts = select_for_reactor(
-        screening_db, args.top_k, 'E_act',
+        pool, args.top_k, 'E_act',
         min_per_class=args.min_validation_per_class)
     dft_candidates = select_for_validation(
-        screening_db, min(args.validation_batch, len(screening_db)), 'E_act',
+        pool, min(args.validation_batch, max(len(pool), 1)), 'E_act',
         min_per_class=args.min_validation_per_class)
 
     pipeline_state['phase1'] = {
@@ -294,10 +299,17 @@ def main():
         t2 = time.time()
         try:
             from pipeline.stages.reactor import simulate_candidate
+            from pipeline.process.equilibrium_check import run_equilibrium_sweep
+            from pipeline.process.phase2_scorecard import (
+                build_solids_scorecard, log_solids_scorecard)
 
             reactor_temps = [773.15, 900.0, 1100.0, 1300.0]
+            eq_result = run_equilibrium_sweep()
+            print(f"  Equilibrium check within_tol={eq_result.get('within_tolerance')} "
+                  f"worst_err={eq_result.get('worst_abs_error')}")
 
             reactor_results = []
+            reactor_sweep_records = []
             n_reactor = min(20, len(top_catalysts))
             for i, (_, row) in enumerate(top_catalysts.head(n_reactor).iterrows()):
                 e_act = row.get('E_act', 1.0)
@@ -322,6 +334,7 @@ def main():
                         pathway_mode=args.mode,
                         multiphysics_results_dir=args.multiphysics_results_dir)
                     sweep = stage_result['sweep']
+                    reactor_sweep_records.extend(sweep)
                     best_condition = stage_result['best_condition']
                     best_conv = best_condition.get('CH4_conversion', 0)
                     reactor_results.append({
@@ -355,6 +368,12 @@ def main():
                         **estimate,
                     })
 
+            scorecard = build_solids_scorecard(reactor_sweep_records)
+            save_json(scorecard, 'phase2_solids_scorecard.json', subdir='reactor')
+            class _PrintLogger:
+                def info(self, msg):
+                    print(f"  {msg}")
+            log_solids_scorecard(scorecard, _PrintLogger())
             pipeline_state['phase2'] = {
                 'catalysts_attempted': n_reactor,
                 'catalysts_simulated': len(reactor_results),
@@ -365,6 +384,11 @@ def main():
                 'failed_sweeps': sum(
                     r.get('sweep_status') == 'failed' for r in reactor_results),
                 'elapsed_s': time.time() - t2,
+                'equilibrium_check': {
+                    'within_tolerance': eq_result.get('within_tolerance'),
+                    'worst_abs_error': eq_result.get('worst_abs_error'),
+                },
+                'solids_scorecard': scorecard,
             }
             from pipeline.validation.viability import evaluate_turquoise
             viability = [evaluate_turquoise(r) for r in reactor_results]

@@ -11,6 +11,7 @@ pandas>=2.0
 
 # ─── Phase 2: Reactor Simulation (cp2k-env) ────────────────────────────────────
 cantera>=3.0
+# Sweep specs: ruamel.yaml (pulled in by Cantera) or PyYAML
 
 # ─── Phase 3: DFT Validation (qe-env) ──────────────────────────────────────────
 # Quantum ESPRESSO pw.x — install via conda or system package manager

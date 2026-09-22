@@ -47,9 +47,17 @@ class PipelineConfig:
     top_k_vqe: int = 3                   # Top K → VQE
 
     # Phase 2: Reactor
-    reactor_temperatures: tuple = (800, 900, 1000, 1100, 1200)
+    # Preserve the broad screening points and include the Ni reference band.
+    reactor_temperatures: tuple = (773.15, 900.0, 923.15, 973.15, 1100.0, 1300.0)
     reactor_types: Optional[tuple] = None  # None derives routing from mode
     multiphysics_results_dir: Optional[str] = None
+    # Named solids judge. B6-7: literature Ni cell (ni_np_lit), not cat_9.
+    # None = best non-H-parked solids at the headline T band.
+    solids_judge_catalyst: Optional[str] = 'ni_np_lit'
+    # Ni judge headline is the 650–700 °C filament ROI. 1300 K is the ADR
+    # ceiling, not this headline (X>X_eq at the hot end is a flag).
+    solids_headline_t_min: float = 923.15
+    solids_headline_t_max: Optional[float] = 973.15
 
     # Phase 5: Fuel Cell
     fc_top_k_pemfc: int = 20            # Top cathode catalysts → PEMFC model
@@ -64,7 +72,7 @@ class PipelineConfig:
 
 
 def normalized_pipeline_config(config: PipelineConfig) -> PipelineConfig:
-    """Return the legacy effective settings without mutating caller state.
+    """Apply runtime presets while preserving the caller's reactor conditions.
 
     Args:
         config: Configuration controlling this operation.
@@ -72,8 +80,7 @@ def normalized_pipeline_config(config: PipelineConfig) -> PipelineConfig:
     Returns:
         Computed `PipelineConfig` result.
     """
-    effective = replace(
-        config, reactor_temperatures=(773.15, 900.0, 1100.0, 1300.0))
+    effective = replace(config)
     if effective.quick_mode:
         effective = replace(
             effective, initial_fairchem_samples=50, branch_leaf_size=10_000,
@@ -177,7 +184,10 @@ def run_pipeline(config: PipelineConfig | None = None,
             reactor_types=selected_reactors,
             pathway_mode=config.pyrolysis_mode,
             multiphysics_results_dir=multiphysics_results_dir,
-            allow_mock_inputs=config.allow_mock_inputs), stage='reactor_batch',
+            allow_mock_inputs=config.allow_mock_inputs,
+            judge_catalyst=config.solids_judge_catalyst,
+            headline_t_min=config.solids_headline_t_min,
+            headline_t_max=config.solids_headline_t_max), stage='reactor_batch',
             required_products=('reactor_results',))
         reactor_results = outcome.products['reactor_results']
         pipeline_state['phase2'] = {

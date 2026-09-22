@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, Optional
 
 from pipeline.stages.contracts import StageOutcome
 
@@ -19,6 +19,10 @@ class DiscoveryServices:
         annotate_evidence: Configured annotate evidence value.
         select_reactor: Configured select reactor value.
         select_validation: Configured select validation value.
+        select_admissible: Optional application-scope filter
+            ``(frame) -> (pool, note)`` applied before either slate is drawn
+            (ADR 0001: encoded phase must be stable at the pyrolysis T
+            band). Selection-only; the coverage denominator is untouched.
     """
     estimate_space: Callable
     build_config: Callable
@@ -26,6 +30,7 @@ class DiscoveryServices:
     annotate_evidence: Callable
     select_reactor: Callable
     select_validation: Callable
+    select_admissible: Optional[Callable] = None
 
 
 def default_discovery_services() -> DiscoveryServices:
@@ -34,6 +39,7 @@ def default_discovery_services() -> DiscoveryServices:
     Returns:
         A `DiscoveryServices` containing the default discovery services result.
     """
+    from pipeline.common.application_scope import scope_pyrolysis_pool
     from pipeline.common.catalyst_spaces import estimate_design_space_size
     from pipeline.screening.genetic_optimizer import (
         BranchDiscoveryConfig, run_branch_discovery)
@@ -42,7 +48,8 @@ def default_discovery_services() -> DiscoveryServices:
     return DiscoveryServices(
         estimate_design_space_size, BranchDiscoveryConfig,
         run_branch_discovery, annotate_evidence,
-        select_for_reactor, select_for_validation)
+        select_for_reactor, select_for_validation,
+        select_admissible=scope_pyrolysis_pool)
 
 
 def run_discovery_stage(*, initial_samples: int, leaf_size: int,
@@ -71,14 +78,22 @@ def run_discovery_stage(*, initial_samples: int, leaf_size: int,
     pareto, database = services.run_search(config)
     valid = database[database['valid'] == True].copy()
     evidence = services.annotate_evidence(database, 'E_act')
+    # Admissibility first (ADR 0001), then both slates from the same pool.
+    # Validity is applied per route by the selectors (the validation route
+    # may rescue invalid rows), so the pool is drawn from the full table.
+    if services.select_admissible is not None:
+        pool, admissibility = services.select_admissible(database)
+    else:
+        pool, admissibility = database, {'filter': None}
     reactor = services.select_reactor(
-        database, top_k_reactor, 'E_act', min_per_class=1)
+        pool, top_k_reactor, 'E_act', min_per_class=1)
     validation = services.select_validation(
-        database, top_k_dft, 'E_act', min_per_class=1)
+        pool, top_k_dft, 'E_act', min_per_class=1)
     state = {
         'pareto_size': len(pareto), 'total_evaluated': len(database),
         'valid_count': len(valid), 'top_catalysts_count': len(reactor),
         'dft_resolution_count': len(validation),
+        'admissibility': admissibility,
         'candidate_dispositions': evidence[
             'candidate_disposition'].value_counts().to_dict(),
     }

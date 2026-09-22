@@ -1,0 +1,64 @@
+# B6-5 closure experiment: supported-Ni nanoparticle, PFR, zero regen.
+# Any X above the site-inventory bound must come from Cgamma returning
+# sites within the pass. Not a Cantera mechanism file.
+name: ni_np_b65_closure
+description: >
+  B6-5 closure: literature Ni(111)/SiO2 nanoparticle cell in the PFR with
+  max_regen_cycles 0, so X above the monolayer bound is intra-pass site
+  turnover (Cγ), not between-pass regen. Full ADR band plus the 650–700 °C
+  ROI where filaments win (Alves 2021, Xu 2021). PFR only; Fluidized is an
+  open B6 item. cat_9 is the SAC control in sweeps/headline_cat9_1300K.yaml.
+
+catalyst:
+  name: ni_np_lit
+  material_class: SolidCatalyst
+  # B6 gate reads genome[1] (metal). Support / facet / strain / dopants are
+  # labels here; the surrogate row for this genome is an open item.
+  genome: "('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)"
+  kinetics:
+    # Bengaard 2002 Ni(111) terrace CH4 TS is 101 kJ/mol (1.05 eV, no ZPE);
+    # recorded as 1.00. BEP from the adsorption energies below would give
+    # ~0.68 eV; that is the screening-consistency cross-check, not the TS.
+    E_act: 1.00
+    # Screener conventions: dE_H vs 1/2 H2; dE_CH3 vs CH3 radical;
+    # dE_C vs CH4 - 2 H2 (terrace C ~ +0.5 eV above graphene + 0.8 reference).
+    dE_H: -0.50
+    dE_CH3: -1.95
+    dE_C: 1.30
+    # B6 channels: template defaults, written explicitly so the file is the record.
+    carbon_transfer_eV: 1.50          # Cgamma, Abild-Pedersen 2006 / Baker 1972
+    carbon_encapsulation_eV: 1.53     # Cdelta, Amin 2011
+    encapsulation_crossover_coverage: 0.5   # theta*, declared not measured
+    carbon_transfer_prefactor_1_s: 1.0e13    # Cgamma prefactor; single-hop TST label; transport lump swept in B6-6
+    provenance:
+      E_act: Bengaard 2002 J.Catal. 209 365-384; Ni(111) terrace TS 101 kJ/mol (1.05 eV), recorded 1.00
+      dE_H: Greeley & Mavrikakis JPCB 2005 109 3460; TPD -0.50 eV vs 1/2 H2
+      dE_CH3: screener convention; Watwe 2000 J.Catal. 189 16 Ni(111) fcc vs CH3 (typical PW91 -1.84)
+      dE_C: screener mapping; Abild-Pedersen PRB 2006 73 115419 terrace vs graphene + 0.8 eV CH4-2H2
+      carbon_transfer_eV: template default
+      carbon_encapsulation_eV: template default
+      encapsulation_crossover_coverage: declared; swept in B6-6
+      carbon_transfer_prefactor_1_s: template default (single-hop TST); swept in B6-6
+
+conditions:
+  temperatures_K: [773.15, 900, 923.15, 948.15, 973.15, 1100, 1300]
+  reactors: [PFR]
+
+policy:
+  co2_permitted: false
+  fluidized_mode: circulating
+  max_regen_cycles: 0
+  regen_mechanism: mechanical
+
+cells:
+  # Same cell as the cat_9 headline: like-for-like judge comparison.
+  - name: production
+    catalyst_particle_mm: 0.13
+    metal_loading: 0.5
+    metal_dispersion: 0.3
+  # Large-particle Ni (>20 nm: CNTs, long life; Xu 2021 / Gili 2024).
+  # Dispersion is the only particle-size proxy in the inventory model.
+  - name: large_particle_ni
+    catalyst_particle_mm: 0.13
+    metal_loading: 0.9
+    metal_dispersion: 0.05

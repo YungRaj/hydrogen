@@ -1,0 +1,51 @@
+name: ni_np_b67_joint
+description: >
+  B6-7 joint-band cube: A_gamma × theta* × s0 at 923.15 and 973.15 K
+  (the 650–700 °C filament ROI). Same literature Ni(111)/SiO2 cell as
+  B6-5/B6-6. Exhausts the (A_γ, θ*, s0) combinations that the B6-6 star
+  and 2-D did not cross. A hit is one scorable row in both the Ermakova
+  8–10 gC/(gNi·h) band and the 4–50 h TOS band. No new physics. PFR and
+  circulating Fluidized, both cells, regen 0 and 3. Scored by
+  pipeline/process/b67_joint_band.py.
+catalyst:
+  name: ni_np_lit
+  material_class: SolidCatalyst
+  genome: "('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)"
+  kinetics:
+    E_act: 1.00
+    dE_H: -0.50
+    dE_CH3: -1.95
+    dE_C: 1.30
+    carbon_transfer_eV: 1.50
+    carbon_encapsulation_eV: 1.53
+    provenance:
+      E_act: Bengaard 2002 J.Catal. 209 365-384; Ni(111) terrace TS 101 kJ/mol (1.05 eV), recorded 1.00
+      dE_H: Greeley & Mavrikakis JPCB 2005 109 3460; TPD -0.50 eV vs 1/2 H2
+      dE_CH3: screener convention; Watwe 2000 J.Catal. 189 16 Ni(111) fcc vs CH3 (typical PW91 -1.84)
+      dE_C: screener mapping; Abild-Pedersen PRB 2006 73 115419 terrace vs graphene + 0.8 eV CH4-2H2
+      carbon_transfer_eV: Baker 1972 J.Catal. 26 51-62 33 kcal/mol = 1.43 eV; Abild-Pedersen 1.42/1.55 eV; template 1.50
+      carbon_encapsulation_eV: Amin IEC Res 2011 50 12460; 147-149 kJ/mol = 1.52-1.55 eV
+sweep:
+  kinetics:
+    carbon_transfer_prefactor_1_s:
+      [1.0e6, 1.0e7, 1.0e8, 3.0e8, 1.0e9, 3.0e9, 1.0e10, 1.0e11, 1.0e12, 1.0e13]
+    encapsulation_crossover_coverage: [0.2, 0.35, 0.5, 0.65, 0.8]
+    ch4_sticking_coefficient: [0.001, 0.003, 0.01, 0.03, 0.1]
+  policy:
+    max_regen_cycles: [0, 3]
+conditions:
+  temperatures_K: [923.15, 973.15]
+  reactors: [PFR, Fluidized]
+policy:
+  co2_permitted: false
+  fluidized_mode: circulating
+  regen_mechanism: mechanical
+cells:
+  - name: production
+    catalyst_particle_mm: 0.13
+    metal_loading: 0.5
+    metal_dispersion: 0.3
+  - name: large_particle_ni
+    catalyst_particle_mm: 0.13
+    metal_loading: 0.9
+    metal_dispersion: 0.05

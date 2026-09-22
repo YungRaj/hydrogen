@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import ast
-from typing import Callable, Iterable, Mapping
+from typing import Callable, Iterable, Mapping, MutableMapping
 
 from pipeline.stages.contracts import StageOutcome
 
@@ -13,6 +13,24 @@ def _indexed_rows(candidates):
         yield from candidates.iterrows()
     else:
         yield from enumerate(candidates)
+
+
+def _row_as_mapping(row):
+    """Accept a dict, Mapping, or pandas Series. A Series is not a Mapping."""
+    if isinstance(row, MutableMapping) or isinstance(row, Mapping):
+        return row
+    if hasattr(row, 'to_dict'):
+        return row.to_dict()
+    return None
+
+
+def _genome_from_row(row):
+    mapping = _row_as_mapping(row)
+    if mapping is None:
+        return row
+    if 'genome' in mapping:
+        return mapping['genome']
+    raise KeyError('candidate row has no genome')
 
 
 def run_dft_stage(candidates, *, top_k: int, execute_dft: bool,
@@ -42,7 +60,7 @@ def run_dft_stage(candidates, *, top_k: int, execute_dft: bool,
     results, failures = [], []
     for index, row in _indexed_rows(selected):
         try:
-            genome = row['genome'] if isinstance(row, Mapping) else row
+            genome = _genome_from_row(row)
             if isinstance(genome, str):
                 genome = ast.literal_eval(genome)
             result = validator(

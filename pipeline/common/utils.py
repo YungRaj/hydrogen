@@ -31,11 +31,26 @@ RESULTS_DIR = Path(os.environ.get(
     "HYDROGEN_RESULTS_DIR", str(BASE_DIR / "results"))).expanduser().resolve()
 SCREENING_DIR = RESULTS_DIR / "screening"
 REACTOR_DIR = RESULTS_DIR / "reactor"
+SWEEPS_DIR = RESULTS_DIR / "sweeps"
 DFT_DIR = RESULTS_DIR / "dft"
 VQE_DIR = RESULTS_DIR / "vqe"
 FUEL_CELL_DIR = RESULTS_DIR / "fuel_cell"
 REPORTS_DIR = RESULTS_DIR / "reports"
 QE_PSEUDO_DIR = BASE_DIR / "quantum_espresso" / "pseudo"
+
+
+def repo_relative(path) -> str:
+    """Path for recording in artifacts: repo-relative with forward slashes.
+
+    Written JSON must not carry machine-specific absolute paths. Paths
+    outside the repo (e.g. a redirected ``HYDROGEN_RESULTS_DIR``) are kept
+    as given.
+    """
+    p = Path(path)
+    try:
+        return p.resolve().relative_to(BASE_DIR).as_posix()
+    except ValueError:
+        return p.as_posix()
 
 # ─── Conda Environments ─────────────────────────────────────────────────────────
 
@@ -305,20 +320,18 @@ TOXIC_ELEMENTS = {
     'As',  # Carcinogenic
 }
 
-# Material classes valid for each application
-# All classes are included to ensure exhaustive exploration.
-# Physical viability is already handled by OOD confidence and
-# the multi-fidelity validation pipeline (Tier 3 DFT for champions).
+# Enumerated coverage sets (14-class indexed space / 21.1B denominator).
+# These lists are not reactor admissibility. Encoded-phase checks live in
+# pipeline.common.application_scope.phase_stable_at_application_T (ADR 0001).
 VALID_CLASSES_PYROLYSIS = {
     'SolidCatalyst', 'MoltenMetal', 'HEA', 'MAXPhase',
     'Perovskite', 'MetalHydride',
-    'Spinel',          # Earth-abundant oxides, stable at pyrolysis temps
-    'MXene',           # Ti₃C₂ stable to ~800°C, catalytically active
-    'SAA',             # Dilute alloys, same stability as SolidCatalyst
-    'SAC',             # Carbon support marginal at >700°C — flag in report
-    'DAC',             # Same caveat as SAC
-    'MetalFreeCarbon', # N-carbon stable to ~600°C — flag in report
-    # MOF/COF: decompose at >300°C but included for completeness — OOD handles
+    'Spinel',
+    'MXene',
+    'SAA',
+    'SAC',
+    'DAC',
+    'MetalFreeCarbon',
     'MOF', 'COF',
 }
 

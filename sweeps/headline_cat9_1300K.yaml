@@ -1,0 +1,35 @@
+# Solids judge cat_9 at 1300 K: production fractional cell
+# (0.13 mm × 0.5 × 0.3) vs 1×1 envelope. Not a Cantera mechanism file.
+name: headline_cat9_1300K
+description: >
+  Solids judge cat_9 at 1300 K: production fractional cell
+  (0.13 mm × 0.5 × 0.3) vs 1×1 envelope. PFR, circulating
+  fluidized, and MMBCR. Same cells as the repeated headline runs.
+  cat_9 is a SAC, so the MMBCR cells report not_applicable; they
+  are kept as the melt-applicability record, not a third solids score.
+
+catalyst:
+  name: cat_9
+  screening:
+    csv: results/screening/ga_full_database.csv
+    index: 9
+
+conditions:
+  temperatures_K: [1300]
+  reactors: [PFR, Fluidized, MMBCR]
+
+policy:
+  co2_permitted: false
+  fluidized_mode: circulating
+  max_regen_cycles: 3
+  regen_mechanism: mechanical
+
+cells:
+  - name: fractional
+    catalyst_particle_mm: 0.13
+    metal_loading: 0.5
+    metal_dispersion: 0.3
+  - name: envelope_1x1
+    catalyst_particle_mm: 0.13
+    metal_loading: 1.0
+    metal_dispersion: 1.0

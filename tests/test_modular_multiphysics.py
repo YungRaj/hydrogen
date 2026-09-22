@@ -231,6 +231,21 @@ def test_reactor_sweep_summary_preserves_non_excluding_partial_failure():
     assert summary['can_exclude_candidate'] is False
 
 
+def test_reactor_sweep_summary_best_condition_uses_usable_baseline():
+    from pipeline.stages.reactor import summarize_reactor_sweep
+
+    summary = summarize_reactor_sweep([
+        {'status': 'complete', 'CH4_conversion': 0.99,
+         'exceeds_equilibrium': True},
+        {'status': 'complete', 'CH4_conversion': 0.70,
+         'carbon_balance_ok': False},
+        {'status': 'complete', 'CH4_conversion': 0.40},
+    ])
+    assert summary['completed_conditions'] == 3
+    assert summary['usable_conditions'] == 1
+    assert summary['best_condition']['CH4_conversion'] == 0.40
+
+
 def test_orchestrator_runtime_is_injectable_and_config_is_not_mutated():
     from pipeline.orchestrator import (
         PipelineConfig, normalized_pipeline_config, run_pipeline)
@@ -400,6 +415,30 @@ def test_dft_stage_parses_genomes_and_isolates_candidate_failures():
     assert len(outcome.products['failures']) == 1
     assert calls[0] == ('dft_cat_0', ('good', 1), False)
     assert calls[-1] == ('dft_cat_2', ('other', 3), False)
+
+
+def test_dft_stage_reads_genome_from_dataframe_rows():
+    import pandas as pd
+    from pipeline.stages.dft import run_dft_stage
+
+    calls = []
+
+    def validator(name, genome, *, run_dft):
+        calls.append(genome)
+        return {'candidate': name, 'converged': True}
+
+    frame = pd.DataFrame([
+        {'genome': "('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)",
+         'valid': False},
+        {'genome': "('SAC', 'Fe', 'N4', 'graphene', 0.0, (), 1, 0)",
+         'valid': True},
+    ])
+    outcome = run_dft_stage(
+        frame, top_k=2, execute_dft=False, validator=validator)
+    assert outcome.state['n_validated'] == 2
+    assert outcome.state['n_failed'] == 0
+    assert calls[0][0] == 'SolidCatalyst'
+    assert calls[1][0] == 'SAC'
 
 
 def test_discovery_stage_components_preserve_selection_products():
@@ -598,8 +637,9 @@ def test_simulate_reactor_accepts_in_injected_coupling_services():
         validate_compatibility=lambda config, value: value,
         couple_evidence=lambda *args: (_ for _ in ()).throw(
             AssertionError('invalid evidence must not couple')))
+    # NTEC has no analytical closure, so missing evidence stays fail-closed.
     result = simulate_reactor(ReactorConfig(
-        reactor_type='MMBCR', pathway_mode='mmbcr',
+        reactor_type='NTEC', pathway_mode='ntec',
         material_class='MoltenMetal', candidate_id='candidate',
         catalyst_name='candidate', T_inlet_K=900.0,
         multiphysics_results_dir='/portable'), coupling_services=services)
@@ -607,6 +647,29 @@ def test_simulate_reactor_accepts_in_injected_coupling_services():
     assert result['status'] == 'validation_required'
     assert result['can_exclude_candidate'] is False
     assert result['multiphysics_evidence']['reason'] == 'injected_missing'
+
+    # MMBCR without evidence proceeds on the labelled analytical closure;
+    # the injected loader is still consulted first and invalid evidence is
+    # still never coupled.
+    calls.clear()
+    from unittest.mock import patch
+    with patch('pipeline.process.reactor_models.simulate_mmbcr',
+               return_value={'CH4_conversion': 0.1}) as run, \
+            patch('pipeline.process.reactor_models._validate_reactor_config'), \
+            patch('pipeline.process.reactor_models.save_json'):
+        result = simulate_reactor(ReactorConfig(
+            reactor_type='MMBCR', pathway_mode='mmbcr',
+            material_class='MoltenMetal', candidate_id='candidate',
+            catalyst_name='candidate', T_inlet_K=900.0,
+            multiphysics_results_dir='/portable'), coupling_services=services)
+    assert calls and calls[0][0] == 'load'
+    assert run.called
+    assert result['status'] == 'complete'
+    assert result['can_exclude_candidate'] is False
+    closure = result['reactor_closure_evidence']
+    assert closure['source'] == 'analytical_hydrodynamic_closure'
+    assert closure['candidate_exclusion_authorized'] is False
+    assert closure['multiphysics_evidence']['reason'] == 'injected_missing'
 
 
 def test_closure_provider_prefers_full_physics_and_rejects_temperature_mismatch():

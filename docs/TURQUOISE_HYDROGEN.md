@@ -187,6 +187,48 @@ The following reference database outlines the state-of-the-art publications on m
 * **Reactor Configuration:** Fixed-bed reactor.
 * **Key Findings:** Shows that introducing pyridinic and pyrrolic nitrogen defects into carbon networks decreases the activation energy of the first C–H bond cleavage.
 
+#### 9. Nucleation and growth of carbon deposits from the nickel catalyzed decomposition of acetylene
+* **Authors:** R. T. K. Baker, M. A. Barber, P. S. Harris, F. S. Feates, and R. J. Waite
+* **Journal / Year:** *Journal of Catalysis* (1972)
+* **DOI / Reference Link:** [10.1016/0021-9517(72)90032-2](https://doi.org/10.1016/0021-9517(72)90032-2)
+* **Catalyst System:** Nickel particles; acetylene (the filament mechanism later used for CH₄ TCD).
+* **Key Findings:** Carbon dissolves and diffuses through the metal particle, then precipitates at the rear face as a filament. Growth Ea ≈ 33 kcal/mol matches bulk C diffusion in Ni. This is why a Ni site can turn over for hours instead of one monolayer.
+
+#### 10. Atomic-scale imaging of carbon nanofibre growth
+* **Authors:** S. Helveg, C. López-Cartes, J. Sehested, et al.
+* **Journal / Year:** *Nature* (2004)
+* **DOI / Reference Link:** [10.1038/nature02278](https://doi.org/10.1038/nature02278)
+* **Catalyst System:** Supported Ni nanocrystals; methane.
+* **Key Findings:** In situ TEM: graphene nucleates at dynamic Ni step edges; the particle reshapes as the fibre grows. DFT follow-up (Abild-Pedersen, *Phys. Rev. B* **2006**, [10.1103/PhysRevB.73.115419](https://doi.org/10.1103/PhysRevB.73.115419)) gives overall C transport barriers of 1.42 eV (surface) and 1.55 eV (subsurface) from the terrace to the graphene–Ni interface — the unused `carbon_transfer_eV = 1.5` default.
+
+#### 11. Filamentous carbon from methane cracking on nickel — thermodynamics and kinetics
+* **Authors:** J.-W. Snoeck, G. F. Froment, and M. Fowles
+* **Journal / Year:** *Journal of Catalysis* (1997), two papers
+* **DOI / Reference Link:** [10.1006/jcat.1997.1634](https://doi.org/10.1006/jcat.1997.1634), [10.1006/jcat.1997.1635](https://doi.org/10.1006/jcat.1997.1635)
+* **Catalyst System:** Ni steam-reforming catalyst; CH₄ cracking.
+* **Key Findings:** Driving force is a concentration gradient (different C solubility at gas/Ni vs Ni/filament), not a temperature gradient. Nucleation of how many filaments depends on carbon affinity; steady growth is separate. The kinetic companion paper is the rate form for Cα → Cγ.
+
+#### 12. Structure sensitivity of Ni TCD: particle size, TOF, and carbon type
+* **Authors:** M. Xu, J. A. Lopez-Ruiz, L. Kovarik, et al. (PNNL / WVU)
+* **Journal / Year:** *Applied Catalysis A* (2021)
+* **DOI / Reference Link:** [10.1016/j.apcata.2020.117967](https://doi.org/10.1016/j.apcata.2020.117967)
+* **Catalyst System:** Ni on Al₂O₃ and MgAl₂O₄; TCD at 650 °C.
+* **Key Findings:** >20 nm Ni → CNTs, higher TOF, longer life. <10 nm → encapsulating graphitic layers, dies. TOS death is fragmentation then encapsulation. The structure-sensitivity result reviewed in Gili, *ChemCatChem* (2024), [10.1002/cctc.202301629](https://doi.org/10.1002/cctc.202301629). Alves (2021): Ni filaments lose to encapsulation above ~650 °C.
+
+#### 13. In situ XRD of carbon dissolution and precipitation in Ni nanoparticles
+* **Authors:** A. Gili, L. Schlicker, M. F. Bekheet, et al.
+* **Journal / Year:** *ACS Catalysis* (2019)
+* **DOI / Reference Link:** [10.1021/acscatal.9b00733](https://doi.org/10.1021/acscatal.9b00733)
+* **Catalyst System:** 5% Ni/MnO; methane CVD at 873 and 1073 K.
+* **Key Findings:** fcc Ni lattice expands as C dissolves interstitially (NiCₓ), then contracts when graphite precipitates. Dissolved C exceeds film solubility (nanoparticle effect). NEB: surface diffusion dominates, subsurface is secondary.
+
+#### 14. Atomically dispersed Ni is coke-resistant because it cannot complete CH₄ to C
+* **Authors:** M. Akri et al.
+* **Journal / Year:** *Nature Communications* (2019)
+* **DOI / Reference Link:** [10.1038/s41467-019-12843-w](https://doi.org/10.1038/s41467-019-12843-w)
+* **Catalyst System:** Ni single atoms on Ce-doped hydroxyapatite; dry reforming (the carbon-fate result transfers).
+* **Key Findings:** Isolated Ni only activates the first C–H bond. No bulk, no step edge, no filament. A SAC that stays a SAC cannot use the Baker/Helveg path. Do not give every genome `C_s => C(gr) + site`.
+
 ---
 
 ## 5. Bubble Dynamics & Reactor Sizing Equations (MMBCR)

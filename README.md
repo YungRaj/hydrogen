@@ -15,6 +15,7 @@ A GPU-accelerated computational pipeline for autonomous catalyst discovery targe
 * 🔁 **[Modular Multi-Fidelity Workflow](docs/MODULAR_MULTIFIDELITY_WORKFLOW.md)**: How representative OpenFOAM/FEniCSx cases can train auditable transport closures for cheaper Cantera screening, with uncertain cases referred back to full physics.
 * 📏 **[Experimental Data](docs/EXPERIMENTAL_DATA.md)**: Raw-data provenance, uncertainty, preregistration, independent-unit, NTEC/control, and blinded-holdout contract.
 * ⚡ **[Fuel Cell ORR & MEA Guide](docs/FUEL_CELL.md)**: Comprehensive description of state-of-the-art catalysts, MEA designs, and large-scale PEMFC stack configurations.
+* 📋 **[Phase 2 backlog](docs/backlog/README.md)** and **[ADR 0001](docs/adr/0001-pyrolysis-phase-admissibility.md)**: default solids surface path ends at `C_s`; nanoparticle Ni/Fe/Co get gated Cγ/Cδ ([B6](docs/backlog/B6-off-site-carbon-nucleation.md)). B6-1–7 are run. The named solids judge is the literature Ni cell `ni_np_lit` at the 650–700 °C filament ROI (not `cat_9` at 1300 K). Do not send Phase 2 X to DFT (B5): Ni at 923 K is 14.6 % / 16.9 %, not X_eq.
 
 ---
 
@@ -163,8 +164,14 @@ Inside `pipeline/`, source is grouped by responsibility:
   `surrogate_model.py`, and `small_data_ranker.py`.
 - **`validation/`:** `qe_workflows.py`, `orr_workflows.py`,
   `dft_validator.py`, and `dft_fuel_cell.py`.
-- **`process/`:** reactor/pathway routing, physical-case and multiphysics
-  contracts/runners, NTEC/electrochemical evidence, PEMFC, and stack models.
+- **`process/`:** reactor/pathway routing (`reactor_models.py`,
+  `reactor_mechanisms.py`, `pathway_modes.py`), physical-case and multiphysics
+  contracts/runners, Phase 2 sweeps and scorecard (`yaml_sweep.py`,
+  `inventory_sweep.py`, `staged_sweep.py`, `phase2_scorecard.py`,
+  `equilibrium_check.py`), NTEC/electrochemical evidence, PEMFC, and stack
+  models.
+- **`stages/`:** injectable stage boundaries (discovery, reactor batch, DFT,
+  VQE, fuel cell, report) and the candidate-to-Cantera handoff.
 - **`evidence/`:** `prior_art.py`, `novelty_benchmark.py`,
   `readiness.py`, `campaign_status.py`, and `report_generator.py`.
 - **`common/`:** design-space definitions, scope rules, confidence policy,
@@ -371,7 +378,7 @@ Each genome encodes into a **353-dimensional** feature vector for the surrogate 
 | **E_act** (activation barrier) | Class-specific BEP correlation `intercept + slope × ΔE_split`; provisional until candidate NEB validation | < 0.8 eV |
 | **ΔE_H** (H* adsorption) | `E(slab+H) - E(slab) - 0.5×E(H₂)` | -0.3 to -0.5 eV |
 | **ΔE_C** (C* adsorption) | `E(slab+C) - E(slab) - E(C)` | > -4.0 eV (resist coking) |
-| **Coking index** | `ΔE_C - 2×ΔE_H` | Positive = resistant |
+| **Coking index** | `ΔE_C - 2×ΔE_H` | Slab binding descriptor only. Not the filament (Cγ) vs encapsulating (Cδ) branch. See [B6](docs/backlog/B6-off-site-carbon-nucleation.md). |
 | **Segregation energy** | `E_clean - E_swapped` (dopant→surface preference) | Negative = stable |
 
 Activation barriers at the numerical bounds (0.01 or 5.0 eV) are marked
@@ -384,8 +391,10 @@ ranking whenever an uncensored candidate is available.
 |-------|---------------|
 | Rate constants | Arrhenius: `k = A × exp(-E_act / k_B T)`, A from TST |
 | Surface reactions | Cantera `ReactorSurface` with custom YAML mechanism |
-| Solid carbon | Modeled as `C_graphite` gas-phase tracer species |
-| Reactor types | PFR screening; OpenFOAM-coupled fluidized/MMBCR; OpenFOAM+FEniCSx+Cantera NTEC; FEniCSx+Cantera electrochemical; external modes fail closed on missing evidence |
+| Solid carbon | Condensed `C(gr)` plus site-blocking `C_s`. Ungated YAML **ends at `C_s`**. Nanoparticle Ni/Fe/Co also get `C_s => C(gr) + site` (Cγ) and `C_s => C_encap_s` (Cδ). Not SAC/`cat_9`. No gas-phase carbon tracer. |
+| Solids inventory | Geometric `a = 6(1−ε)/d_p` × loading × dispersion (both ≤ 1), applied per bed volume (`A = a · V_bed`). Γ locked at a monolayer (`2.5×10⁻⁹ mol/cm²`). Production defaults: `d_p = 0.13 mm`, loading `0.5`, dispersion `0.3`. |
+| Hydrodynamic closure | Fluidized / MMBCR take validated OpenFOAM artifacts or calibrated surrogates first; absent both they run on a labelled `analytical_hydrodynamic_closure` (Mendelson `u_b`, derived holdup ≤ 0.3; clipped `(u0−umf)/u0` bypass) that can never exclude a candidate. |
+| Reactor types | PFR (shared surface, time-on-stream, discrete regen); circulating / batch-regen fluidized bed with Ar-tracer bubble bypass; MMBCR melt ODE to `X_eq` with `τ = H / u_b` (MoltenMetal only); OpenFOAM+FEniCSx+Cantera NTEC; FEniCSx+Cantera electrochemical. NTEC / electrochemical fail closed on missing evidence. |
 
 ### Fuel Cell Models
 
@@ -1375,30 +1384,83 @@ The eSen screener builds physically realistic, periodic atomic structures for al
 
 ### Phase 2: Cantera Reactor Simulation
 
-For each top-K catalyst from Phase 1:
+For each pyrolysis-admissible top-K catalyst from Phase 1
+(`phase_stable_at_application_T`; [ADR 0001](docs/adr/0001-pyrolysis-phase-admissibility.md)):
 1. Build a typed candidate-kinetics record from the convergence-qualified
    screening row. `E_act`, H*, CH3*, and C* adsorption descriptors retain their
    protocol and candidate provenance; unavailable elementary barriers are
    explicitly labeled `template_default`, never presented as candidate-specific.
 2. Generate a Cantera YAML mechanism in which surface steps are reversible, so
    reverse rates follow the declared surface thermochemistry and detailed
-   balance. A JSON sidecar records every resolved parameter and whether the
+   balance. Carbon is condensed `C(gr)` plus site-blocking `C_s`; there is
+   **no** gas-phase `C_graphite` tracer. The default surface **ends at `C_s`**.
+   Nanoparticle Ni/Fe/Co (SolidCatalyst / HEA / SAA host) also get Cγ
+   `C_s => C(gr) + site` (`carbon_transfer_eV` = 1.5 eV, Baker /
+   Abild-Pedersen transport-to-edge) and Cδ `C_s => C_encap_s` (1.53 eV,
+   Amin). SAC/`cat_9` do not. Γ is a monolayer (`2.5×10⁻⁹ mol/cm²`); do not
+   raise it to force Damköhler. A JSON sidecar records every resolved
+   parameter, `coking_index_mapped_to_off_site: false`, and whether the
    mechanism remains an incomplete screening template.
 3. Route the selected pathway to its compatible reactor model(s). The default
    runs packed-bed PFR and fluidized-bed paths; `mmbcr` runs only the
-   molten-metal path. Thermal modes sweep the standardized four temperatures
-   (500°C to 1300 K / 773.15–1300 K). Fluidized/MMBCR hydrodynamics require
-   OpenFOAM artifacts; NTEC requires OpenFOAM + FEniCSx + Cantera;
+   molten-metal path and is `not_applicable` for non-`MoltenMetal` classes.
+   Thermal modes sweep the standardized four temperatures
+   (500°C to 1300 K / 773.15–1300 K). Fluidized/MMBCR hydrodynamics take
+   validated OpenFOAM artifacts or calibrated surrogates first; without them
+   they run on the labelled `analytical_hydrodynamic_closure`, which can never
+   exclude a candidate. NTEC requires OpenFOAM + FEniCSx + Cantera;
    electrochemical requires FEniCSx + Cantera. Every external path requires a
    sourced `hydrogen_case.json`, disjoint calibration/holdout records, and a
    held-out error within its declared acceptance threshold.
-4. Record CH₄ conversion, H₂ selectivity, carbon-yield bookkeeping,
-   residence time, and kinetic-completeness status.
+4. Report single-pass X from the Ar tracer already in the feed:
+   `X = 1 - (x_CH4/x_Ar)/(x_CH4,0/x_Ar,0)`. That is exact whether carbon
+   leaves as C(s) or stays in the C2 chain. Do not use `1 - x_CH4/x_CH4,0`
+   (`2X/(1+X)` on a CH4/H2 mix) or `1 - x_CH4/(x_CH4 + 0.5 x_H2)` (wrong once
+   C2s form). Also report active `a`, WHSV (1/τ in h⁻¹), Ergun ΔP, exit T,
+   carbon-yield bookkeeping, residence time, closure provenance, and
+   kinetic-completeness status. A named solids judge is a campaign argument;
+   H-parked 0.01 eV cats are not ranks.
 
-The current mechanism retains the legacy ideal-gas `C_graphite` tracer for
-carbon bookkeeping. It must not be interpreted as a physically validated
-condensed-carbon chemical potential, deposit inventory, morphology, pore
-blockage, or time-dependent site-loss model.
+Phase 2-only (pilot CSV already present):
+
+```powershell
+conda activate cp2k-env
+$env:PYTHONUTF8="1"
+python -m pipeline.orchestrator --phase 2
+```
+
+**Honest status.** MMBCR rate is `k(E_act,T)·a_bubble·(X_eq−X)` with `τ = H / u_b` (Mendelson bubble rise). It cannot exceed X_eq and reaches X_eq for large `k·a·τ` **by construction**; with a physical rise velocity the 1.5 m default column is Da-limited (~23% at 1300 K), and column height is the design lever. MMBCR X is a sanity check on `k0`, area, and hydrodynamics, not kinetic closure or a catalyst rank. Do not send Phase 2 X to DFT until B5 passes. B5 is blocked by **B6**.
+
+**Ungated solids path has no intra-pass turnovers.** Default / SAC YAML still ends at `C_s`. H₂ can leave; carbon cannot. Real Ni TCD runs for hours because C leaves the active face, travels through or across the particle, and nucleates graphite at a **different** place (Baker filament / Helveg step-edge; [B6](docs/backlog/B6-off-site-carbon-nucleation.md), refs [24]–[38] in [ADR 0001](docs/adr/0001-pyrolysis-phase-admissibility.md)). That pair of lumps is now in the writer **only** for nanoparticle Ni/Fe/Co. On ungated genomes the three identities still hold:
+
+1. **E_act sweep cannot discriminate on solids.** Once the pass parks C on the available sites, `X ≈ n_sites / n_CH4 = (Γ · a · V) / n_CH4`. The barrier is not in the answer.
+2. **X is linear in `a` by construction.** B1’s corr ≈ 1 is that identity — 100% loading, 0% barrier — the opposite of the B5 criterion.
+3. **Melt vs bed is turnovers vs no turnovers**, not continuous-C-removal vs coking. B2 / decoke restores sites **between** passes. The deficit is **within** a pass. Adding B2 will not close B5.
+
+Coking resistance in the TCD literature is the **Cγ (filament, site returned) vs Cδ (encapsulating, site blocked)** branch, not `coking_index = ΔE_C − 2ΔE_H`. Ni filaments win around 650–700 °C and on particles ≳ 20 nm; above ~650 °C cracking outruns diffusion and Ni encapsulates (Alves). Phase 2’s upper band (to 1300 K) is that encapsulation regime. A SAC (`cat_9`) has no bulk and no step edge — Akri: isolated Ni cannot complete CH₄ to C — so those steps are **not** written for SAC. The named solids judge is that supported-Ni cell (`ni_np_lit`) at 650–700 °C (B6-7). B5 stays closed: 14.6 % / 16.9 % is not X_eq.
+
+**Thermal mode (all three reactors are isothermal at `T_inlet`).** MMBCR is isothermal by construction: the ODE uses `X_eq(T_inlet)` and `temperature_profile` is `T_inlet` repeated. PFR and fluidized *do* have a Cantera energy equation; a default `IdealGasReactor` is adiabatic, and CH₄ pyrolysis is ~90 kJ/mol endothermic at 1300 K, so an untreated bed would self-quench (~100 K per 10 points of X) while the melt stayed at nominal T. That is why solids stages set `energy_enabled = False` — same isothermal boundary as the melt, not “no energy balance.” Exit T is reported (must stay at `T_inlet`).
+
+What is still missing is **melt thermal duty**: wall and free-surface losses, interface T sag, and the extra bulk T a real column needs to keep the interface hot. That argument cannot be tested inside `simulate_mmbcr` and belongs in a separate duty account. Scorecard melt-vs-bed gaps are isothermal kinetic/inventory gaps, not a heat-loss comparison.
+
+Solids inventory defaults (B1): `d_p = 0.13 mm`, metal loading `0.5`, dispersion `0.3`. Area law: `a = a_geom × loading × dispersion` (both ≤ 1), applied per bed volume (`A = a · V_bed`; PFR) and per emulsion volume (fluidized, `ε_mf = 0.45`). The pre-merge per-gas-volume basis undercounted area by `1/ε ≈ 2.5×`. On the production cell, isothermal Ar-tracer X at 1300 K is PFR **0.65%**, fluidized **0.29%** (emulsion 0.58%, bubble bypass δ = 0.5) for `cat_9`; envelope 1×1 is 2.35% / 1.00%. The site-inventory bound `Γ·a / (ε·P/RT)` is 2.92% on the production cell; `cat_9` reaches 0.22 of it with exit θ_C = 0.10, i.e. a SAC that parks as carbon inside one pass and has no off-site path. `cat_9` is a SAC, so its MMBCR cells are `not_applicable`. Flotation default is unconstrained (`η = 1`).
+
+**Three writer corrections (B6-5, 2026-09-19) changed every solids number.** (i) Surface enthalpies are now on Cantera's absolute scale: `CH3_s = dE_CH3 + h_f(CH3•)` (+145.7 kJ/mol) and `C_s = dE_C + h_f(CH4)` (−74.6 kJ/mol; the screener's C reference is CH₄ − 2H₂); `CH2_s`/`CH_s` interpolate the ladder. (ii) Bimolecular surface steps use `A = 10¹³/Γ = 4×10²¹ cm²/mol/s` (Deutschmann convention); the old `A = 10¹³` in cm²/mol/s was an effective 2.5×10⁴ s⁻¹ and froze the dehydrogenation ladder. (iii) Cδ is second order in θ_C. Before (i)–(ii) the headline 2.90% was **CH₃\*/H\* parking** behind a frozen ladder (θ_C ≈ 10⁻¹⁴), not a carbon monolayer; the arithmetic of the bound was right, the mechanism was not.
+
+**B6-5 (Ni closure, PFR).** A literature Ni(111)/SiO₂ nanoparticle cell ([`sweeps/ni_np_b65_closure.yaml`](sweeps/ni_np_b65_closure.yaml), zero regen) gives X = **14.6%** at 923 K and 26.3% at 973 K on the production cell against a 2.1% site-inventory bound: **7–12 carbon turnovers per site per pass**, θ_C ≈ 10⁻⁵, θ_encap ≈ 3×10⁻⁴. Sites turn over because Cγ returns them; B2/regen never fires (`regen_cycles_completed = 0`). The pass-averaged yield is 390–670 gC/(gNi·h), **50× above** the Ermakova/Takenaka 8–10 band, and at 1300 K X = 99.97% overshoots `X_eq` (flagged `exceeds_equilibrium`, not clipped): with the single-hop `A_γ = 10¹³ s⁻¹` transport never limits, so the surface runs at the clean-Ni(111) dissociation rate and the Alves encapsulation regime is unreachable.
+
+**B6-6 (star + 2-D, PFR and circulating Fluidized).** Same cell, `sweeps/ni_np_b66_*.yaml`: E_act 0.7–1.3, `A_γ` 10⁶–10¹³ plus half-decades 10⁸–10¹⁰, θ\* 0.2–0.8, s0 10⁻³–10⁻¹, and `A_γ` × θ\* at 923 / 973 K. 2312/2312 complete. At the base point (E_act 1.0, `A_γ` 10¹³, θ\* 0.5, s0 0.01, production, 923 K, regen 0) PFR X is still **14.56%** and Fluidized is **16.94%**. Criteria (`python -m pipeline.process.b66_criteria`): \|d ln X / d E_act\| = **8.27 eV⁻¹** (gate ≥ 5); production vs large-particle turnovers differ by **34%** (gate > 20%, so not pure *a*-scaling); encapsulation onset is `A_γ` = **10⁷ s⁻¹** (θ_enc 0.145), never a T onset at 10¹³; 244 lifetime hits in the 4–50 h TOS band and 54 yield hits in 8–10 gC/(gNi·h). 208 rows with X > X_eq are flagged and not scored. `A_γ` may be derived as `D₀/L²` (`carbon_transfer_particle_nm`, Lander [38] D₀).
+
+**B6-7 (judge, literature stub, joint band).** Named solids judge is `ni_np_lit` at 923.15–973.15 K. Literature values and provenance: Bengaard [35] (E_act 1.00 is the recorded 1.05 eV terrace TS), Greeley [37] (dE_H −0.50 is TPD, not their −0.61 DFT), Watwe [36] / screener convention for dE_CH3, Abild-Pedersen [26] mapping for dE_C, Amin [32] for Cδ, Baker [24] / Abild-Pedersen for Cγ. Tracked stub `sweeps/ni_np_lit_screening_row.csv` is `fairchem_evaluated=False`. Joint-band search (`python -m pipeline.process.b67_joint_band`) declares **no simultaneous Ermakova-yield and TOS-lifetime hit in the filament ROI**. Scorecard, joint-band, `best_condition`, the report solids table, and hydrogen-cost estimates share `is_usable_result` (complete, not mock, no X>X_eq, finite X and carbon balance when reported). Ranking and TEA then require a finite X. B5 stays closed. Open work: [`docs/backlog/`](docs/backlog/).
+
+The default orchestrator includes 923.15 and 973.15 K alongside the broad screening temperatures. Explicit `PipelineConfig.reactor_temperatures` are preserved, including in quick mode. In solids campaigns, the reactor batch loads the tracked `ni_np_lit` row when the named judge is missing and retains its name in results. This reference is added only to the reactor batch; discovery and DFT candidate selections are unchanged. Set `solids_judge_catalyst=None` to disable automatic reference loading.
+
+**Known Phase 2 cleanups (not B6).** Surface and graphite load are fail-closed: a `catalyst_name` that does not match the YAML surface, or a missing graphite phase, raises unless `gas_only=True`. Results record `surface_loaded` / `graphite_loaded`; `is_solids_run` requires `surface_loaded is True` (legacy JSON without the field is excluded). Still open:
+
+- `simulate_pfr` (~113 lines) mutates three nonlocals inside a produce/regen closure. Split into a small class or two functions.
+- Unused imports in `reactor_models.py` (and siblings). Run a linter; do not treat silence as review.
+- `test_pipeline.py` hand-rolled `test()` catches `Exception` and prints a checkmark. Inherited from upstream; pytest fixtures / parametrize / selective running are Ilhan's call. `SystemExit` / `KeyboardInterrupt` would escape it.
+- `_ch4_extent` imports `equilibrium_check` inside the function body (called once per PFR stage). Harmless, but it is an import-cycle workaround, not a resolved cycle.
 
 Fidelity boundaries use evidence-aware admission. A converged, finite,
 uncensored atomistic row may enter quantitative Cantera screening. An

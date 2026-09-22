@@ -1,0 +1,50 @@
+name: ni_np_b66_sticking
+description: >
+  B6-6 star sweep, CH4 sticking-coefficient axis. Literature Ni(111)/SiO2
+  nanoparticle cell (ni_np_b65_closure) with E_act 1.0, A_gamma 1e13,
+  theta* 0.5 held at the B6-5 base point and s0 swept 1e-3-1e-1 (template
+  0.01 is the B6-5 arrival-rate residual). Full ADR band, PFR and
+  circulating Fluidized, both cells, zero regen and mechanical x3.
+catalyst:
+  name: ni_np_lit
+  material_class: SolidCatalyst
+  genome: "('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)"
+  kinetics:
+    E_act: 1.00
+    dE_H: -0.50
+    dE_CH3: -1.95
+    dE_C: 1.30
+    carbon_transfer_eV: 1.50
+    carbon_encapsulation_eV: 1.53
+    encapsulation_crossover_coverage: 0.5
+    carbon_transfer_prefactor_1_s: 1.0e13
+    provenance:
+      E_act: Bengaard 2002 J.Catal. 209 365-384; Ni(111) terrace TS 101 kJ/mol (1.05 eV), recorded 1.00
+      dE_H: Greeley & Mavrikakis JPCB 2005 109 3460; TPD -0.50 eV vs 1/2 H2
+      dE_CH3: screener convention; Watwe 2000 J.Catal. 189 16 Ni(111) fcc vs CH3 (typical PW91 -1.84)
+      dE_C: screener mapping; Abild-Pedersen PRB 2006 73 115419 terrace vs graphene + 0.8 eV CH4-2H2
+      carbon_transfer_eV: template default
+      carbon_encapsulation_eV: template default
+      encapsulation_crossover_coverage: declared; B6-5 base point
+      carbon_transfer_prefactor_1_s: template default (single-hop TST); B6-5 base point
+sweep:
+  kinetics:
+    ch4_sticking_coefficient: [1.0e-3, 3.0e-3, 1.0e-2, 3.0e-2, 1.0e-1]
+  policy:
+    max_regen_cycles: [0, 3]
+conditions:
+  temperatures_K: [773.15, 900, 923.15, 948.15, 973.15, 1100, 1300]
+  reactors: [PFR, Fluidized]
+policy:
+  co2_permitted: false
+  fluidized_mode: circulating
+  regen_mechanism: mechanical
+cells:
+  - name: production
+    catalyst_particle_mm: 0.13
+    metal_loading: 0.5
+    metal_dispersion: 0.3
+  - name: large_particle_ni
+    catalyst_particle_mm: 0.13
+    metal_loading: 0.9
+    metal_dispersion: 0.05

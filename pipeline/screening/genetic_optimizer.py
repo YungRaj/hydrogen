@@ -203,16 +203,23 @@ def compute_objectives_surrogate(population: List[tuple],
     # Objective 1: E_act (minimize) × confidence penalty
     obj1 = e_act_pred.copy()
 
-    # Objective 2: Coking resistance (maximize → negate for minimization)
+    # Objective 2: Coking resistance (maximize → negate for minimization).
+    # Neutralize for classes with no slab (e.g. MoltenMetal).
+    from pipeline.common.application_scope import slab_coking_index_scope
     coking = coking_pred.copy()
     py_mode = os.environ.get('PYROLYSIS_MODE', 'thermocatalytic')
     if py_mode == 'ntec':
         from pipeline.process.ntec_model import conditions_from_environment, ntec_assistance
         assistance = ntec_assistance(conditions_from_environment())
         for i, g in enumerate(population):
+            if slab_coking_index_scope(g)['status'] != 'candidate':
+                continue
             if any(e in {'Ga', 'In', 'Sn', 'Bi'} for e in _extract_elements_from_genome(g)):
                 coking[i] += assistance['coking_bonus']
     obj2 = -coking
+    for i, g in enumerate(population):
+        if slab_coking_index_scope(g)['status'] == 'out_of_scope':
+            obj2[i] = 0.0
 
     # Objective 3: Stability (minimize segregation energy — more negative = more stable)
     obj3 = seg_pred.copy()  # already: negative = good
@@ -756,7 +763,8 @@ def run_genetic_algorithm(config: GAConfig = GAConfig(),
 
 def _train_ensemble_from_db(df: pd.DataFrame, device: str, n_models: int = 3) -> SurrogateEnsemble:
     """Train surrogate ensemble from a Fairchem screening database DataFrame."""
-    valid_df = df.dropna(subset=['E_act', 'coking_index', 'segregation_energy', 'dE_split'])
+    # coking_index may be NaN for out-of-scope classes (e.g. MoltenMetal); do not drop those rows.
+    valid_df = df.dropna(subset=['E_act', 'segregation_energy', 'dE_split'])
 
     if len(valid_df) < 10:
         logger.warning(f"Only {len(valid_df)} valid samples. Ensemble quality may be low.")
@@ -777,7 +785,11 @@ def _train_ensemble_from_db(df: pd.DataFrame, device: str, n_models: int = 3) ->
 
     y_valid = df['valid'].astype(float).values
     y_de_split = df.get('dE_split', pd.Series(np.zeros(len(df)))).fillna(0.0).values
-    y_coking = df.get('coking_index', pd.Series(np.zeros(len(df)))).fillna(0.0).values
+    if 'coking_index' not in df.columns:
+        raise ValueError('coking_index is required to train the surrogate')
+    # Keep NaN for out-of-scope slab coking (MoltenMetal). train_ensemble
+    # masks the coking head on non-finite targets; do not fill with 0.
+    y_coking = np.asarray(df['coking_index'], dtype=float)
     y_seg = df.get('segregation_energy', pd.Series(np.zeros(len(df)))).fillna(0.0).values
     y_e_act = df.get('E_act', pd.Series(np.ones(len(df)))).fillna(1.0).values
 

@@ -25,11 +25,15 @@ class TurquoiseHydrogenBounds:
     """
     min_temperature_K: float = 700.0
     max_temperature_K: float = 1300.0
+    # Legacy field name: gated quantity is an H-atom balance / reported metric,
+    # not true branching H2 selectivity from competing C2 pathways.
     min_h2_selectivity: float = 0.95
+    enforce_h2_selectivity_gate: bool = False
     min_ch4_conversion: float = 0.70
     max_deactivation_fraction_per_h: float = 0.01
     max_coke_fraction: float = 0.05
     max_net_energy_kWh_kg_h2: float = 15.0
+    reject_co2_permitted_runs: bool = True
 
 
 @dataclass(frozen=True)
@@ -77,8 +81,6 @@ def evaluate_turquoise(record: Mapping,
     checks = {
         'temperature': (_number(record, ('temperature_K', 'T_K', 'temperature')),
                         bounds.min_temperature_K, bounds.max_temperature_K),
-        'h2_selectivity': (_number(record, ('H2_selectivity', 'h2_selectivity')),
-                           bounds.min_h2_selectivity, None),
         'ch4_conversion': (_number(record, ('CH4_conversion', 'ch4_conversion')),
                            bounds.min_ch4_conversion, None),
         'deactivation': (_number(record, ('deactivation_fraction_per_h', 'deactivation_rate_per_h')),
@@ -89,7 +91,15 @@ def evaluate_turquoise(record: Mapping,
                        None, bounds.max_net_energy_kWh_kg_h2),
         'experimental_reactor': (_number(record, ('measured_reactor',)), 1.0, None),
     }
-    return _evaluate(checks, asdict(bounds))
+    if bounds.enforce_h2_selectivity_gate:
+        checks['h2_selectivity'] = (
+            _number(record, ('H2_selectivity', 'h2_selectivity', 'H2_atom_balance')),
+            bounds.min_h2_selectivity, None)
+    result = _evaluate(checks, asdict(bounds))
+    if bounds.reject_co2_permitted_runs and record.get('co2_permitted') is True:
+        result['failed'] = list(result.get('failed') or []) + ['co2_permitted=True']
+        result['status'] = 'fail'
+    return result
 
 
 def evaluate_fuel_cell(record: Mapping,

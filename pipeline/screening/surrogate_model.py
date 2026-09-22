@@ -84,17 +84,32 @@ class CatalystSurrogate(nn.Module):
         return valid_logit, de_split, coking, seg, e_act
 
 
+def _row_mask(flag: torch.Tensor) -> torch.Tensor:
+    return flag.reshape(-1)
+
+
+def _masked_mse(pred: torch.Tensor, target: torch.Tensor, row_mask: torch.Tensor,
+                mse_loss: nn.MSELoss) -> torch.Tensor:
+    """MSE on rows that are selected and have a finite target; 0 if none."""
+    mask = row_mask & torch.isfinite(target.reshape(-1))
+    if mask.sum() == 0:
+        return pred.new_zeros(())
+    return mse_loss(pred[mask], target[mask])
+
+
 def _train_model_inplace(model: CatalystSurrogate, X: np.ndarray, y_valid: np.ndarray,
                          y_de_split: np.ndarray, y_coking: np.ndarray,
                          y_seg: np.ndarray, y_e_act: np.ndarray,
                          epochs: int = 30, batch_size: int = 2048,
                          lr: float = 0.003, device: str = 'cuda:0'):
     """In-place training of a single CatalystSurrogate model."""
-    # Convert to tensors
+    # Convert to tensors. y_coking may contain NaN (slab descriptor out of scope);
+    # those rows must not be filled — the coking head is masked below.
     X_t = torch.tensor(X, dtype=torch.float32).to(device)
     y_val_t = torch.tensor(y_valid, dtype=torch.float32).unsqueeze(1).to(device)
     y_de_t = torch.tensor(y_de_split, dtype=torch.float32).unsqueeze(1).to(device)
-    y_cok_t = torch.tensor(y_coking, dtype=torch.float32).unsqueeze(1).to(device)
+    y_cok_t = torch.tensor(np.asarray(y_coking, dtype=np.float32),
+                           dtype=torch.float32).unsqueeze(1).to(device)
     y_seg_t = torch.tensor(y_seg, dtype=torch.float32).unsqueeze(1).to(device)
     y_act_t = torch.tensor(y_e_act, dtype=torch.float32).unsqueeze(1).to(device)
 
@@ -120,13 +135,15 @@ def _train_model_inplace(model: CatalystSurrogate, X: np.ndarray, y_valid: np.nd
             # Classification loss for validity
             loss_v = bce_loss(valid_logit, bV)
 
-            # Regression losses only for valid candidates
-            mask = (bV > 0.5).squeeze()
-            if mask.sum() > 0:
-                loss_d = mse_loss(de_split[mask], bD[mask])
-                loss_c = mse_loss(coking[mask], bC[mask])
-                loss_s = mse_loss(seg[mask], bS[mask])
-                loss_a = mse_loss(e_act[mask], bA[mask])
+            # Regression losses only for valid candidates. Coking is additionally
+            # masked where the target is NaN (MoltenMetal / no slab descriptor)
+            # so those rows still train E_act and the other heads.
+            valid_mask = _row_mask(bV > 0.5)
+            if valid_mask.any():
+                loss_d = _masked_mse(de_split, bD, valid_mask, mse_loss)
+                loss_c = _masked_mse(coking, bC, valid_mask, mse_loss)
+                loss_s = _masked_mse(seg, bS, valid_mask, mse_loss)
+                loss_a = _masked_mse(e_act, bA, valid_mask, mse_loss)
                 loss = loss_v + 2.0 * (loss_d + loss_c + loss_s + loss_a)
             else:
                 loss = loss_v
