@@ -17,7 +17,7 @@ def load_reactor_reference(candidate_id: str):
     if candidate_id != 'ni_np_lit':
         return None
     import pandas as pd
-    from pipeline.common.utils import BASE_DIR
+    from pipeline.utils import BASE_DIR
 
     path = BASE_DIR / 'sweeps' / 'ni_np_lit_screening_row.csv'
     table = pd.read_csv(path)
@@ -40,7 +40,7 @@ def load_selected_candidates(path: str | Path, *, top_k_reactor: int,
         Computed result described above.
     """
     import pandas as pd
-    from pipeline.common.application_scope import scope_pyrolysis_pool
+    from pipeline.search.scope import scope_pyrolysis_pool
     from pipeline.screening.stage_selection import (
         select_for_reactor, select_for_validation)
 

@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from pipeline.common.utils import (
+from pipeline.utils import (
     setup_logger, print_banner, save_screening_db, FUEL_CELL_DIR,
     orr_overpotential, abundance_cost_penalty,
     ZPE_H2, TS_H2, CRUSTAL_ABUNDANCE_PPM,

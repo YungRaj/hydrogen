@@ -37,7 +37,7 @@ from ase.calculators.calculator import Calculator, all_changes
 from ase.io import write as ase_write
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from pipeline.common.utils import setup_logger, save_json, BASE_DIR
+from pipeline.utils import setup_logger, save_json, BASE_DIR
 
 logger = setup_logger('surface_calculator', 'screening/surface_calculator.log')
 
@@ -317,7 +317,7 @@ def get_qe_calculator(atoms: Atoms, config: QEConfig = None) -> Optional[Calcula
         from ase.calculators.espresso import Espresso, EspressoProfile
 
         # Locate pw.x without assuming a Conda installation directory.
-        from pipeline.common.executables import resolve_executable
+        from pipeline.simulation.executables import resolve_executable
         pw_path = resolve_executable(
             'pw.x', env_var='PW_X', conda_env='qe-env', required=False)
         if pw_path is None:

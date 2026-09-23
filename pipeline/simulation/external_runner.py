@@ -17,7 +17,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from pipeline.common.executables import resolve_executable
+from pipeline.simulation.executables import resolve_executable
 from pipeline.simulation.result_contract import (
     EXTERNAL_SOLVERS, SCHEMA_VERSION, artifact_path, load_validated_artifact,
     mode_preflight, verify_numerics, verify_physical_outputs)

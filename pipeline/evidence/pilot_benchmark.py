@@ -17,7 +17,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from pipeline.common.catalyst_spaces import encode_population
+from pipeline.search.design_space import encode_population
 
 
 @dataclass(frozen=True)

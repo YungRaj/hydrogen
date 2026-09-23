@@ -17,8 +17,8 @@ from ase.build import molecule
 from ase.mep import NEB
 from ase.io import read as ase_read
 
-from pipeline.common.utils import BASE_DIR
-from pipeline.common.executables import resolve_executable, resolve_qe_executable
+from pipeline.utils import BASE_DIR
+from pipeline.simulation.executables import resolve_executable, resolve_qe_executable
 
 SSSP_DIR = BASE_DIR / 'quantum_espresso/sssp/1.3.0-pbe-efficiency'
 SSSP_MANIFEST = SSSP_DIR / 'SSSP_1.3.0_PBE_efficiency.json'

@@ -17,7 +17,7 @@ from itertools import product
 from pathlib import Path
 from typing import Callable, Mapping, Optional, Sequence
 
-from pipeline.common.utils import SWEEPS_DIR, repo_relative
+from pipeline.utils import SWEEPS_DIR, repo_relative
 
 RecordFilter = Callable[[dict], bool]
 

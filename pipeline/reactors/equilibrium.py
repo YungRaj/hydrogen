@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional
 
-from pipeline.common.utils import MECHANISMS_DIR, setup_logger
+from pipeline.utils import MECHANISMS_DIR, setup_logger
 from pipeline.reactors.mechanisms import write_gas_only_mechanism
 
 logger = setup_logger('equilibrium_check', 'reactor/equilibrium_check.log')
@@ -173,7 +173,7 @@ def run_equilibrium_sweep(
 
 
 if __name__ == '__main__':
-    from pipeline.common.utils import print_banner
+    from pipeline.utils import print_banner
     print_banner('EQUILIBRIUM CHECK: CH4 = C(gr) + 2 H2')
     result = run_equilibrium_sweep()
     print(f"within_tolerance={result['within_tolerance']} "

@@ -27,8 +27,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from pipeline.common.utils import setup_logger, save_json, FUEL_CELL_DIR
-from pipeline.common.catalyst_spaces import (
+from pipeline.utils import setup_logger, save_json, FUEL_CELL_DIR
+from pipeline.search.design_space import (
     generate_population, crossover, mutate, encode_genome, encode_population,
     ALL_MATERIAL_CLASSES, FEATURE_DIM, generate_hierarchical_htvs_pool,
 )
@@ -193,7 +193,7 @@ def compute_orr_objectives_surrogate(population: List[tuple], model, device: str
     Returns:
         Computed `np.ndarray` result.
     """
-    from pipeline.common.ood_detector import compute_model_confidence, confidence_penalty
+    from pipeline.screening.ood import compute_model_confidence, confidence_penalty
 
     features = encode_population(population)
     import torch
@@ -231,7 +231,7 @@ def compute_orr_objectives_surrogate(population: List[tuple], model, device: str
     objectives = np.zeros((n, 4))
 
     for i in range(n):
-        from pipeline.common.application_scope import pemfc_cathode_scope
+        from pipeline.search.scope import pemfc_cathode_scope
         in_scope = pemfc_cathode_scope(population[i])['status'] == 'candidate'
         if p_valid[i] > 0.3 and in_scope:
             elements = _extract_elements_from_genome(population[i])
@@ -255,7 +255,7 @@ def _cost_from_genome(genome: tuple) -> float:
     Since NSGA-II minimizes all objectives, we negate so that:
       abundant → 0 (good)    rare → +2 (bad, penalized)
     """
-    from pipeline.common.utils import abundance_cost_penalty
+    from pipeline.utils import abundance_cost_penalty
     elements = _extract_elements_from_genome(genome)
     return -abundance_cost_penalty(elements)
 
@@ -523,7 +523,7 @@ def run_fc_branch_discovery(config: FCBranchDiscoveryConfig, existing_db=None):
     from pipeline.screening.small_data_ranker import (
         MIN_TRAINING_ROWS, fit_tree_ranker, merge_compatible_evidence,
         orr_tree_objectives, valid_training_row_count)
-    from pipeline.common.utils import load_screening_db, save_screening_db
+    from pipeline.utils import load_screening_db, save_screening_db
     prior_evidence = load_screening_db(
         'fc_branch_ranker_evidence.csv', subdir='fuel_cell')
     evidence = merge_compatible_evidence(
@@ -717,7 +717,7 @@ def run_fc_genetic_algorithm(config: FCGAConfig, existing_db=None):
             class_counts[cls] = class_counts.get(cls, 0) + 1
 
         diversity_injections = []
-        from pipeline.common.application_scope import VALIDATION_QUOTA_EXEMPT_CLASSES
+        from pipeline.search.scope import VALIDATION_QUOTA_EXEMPT_CLASSES
         for cls in ALL_MATERIAL_CLASSES:
             if cls in VALIDATION_QUOTA_EXEMPT_CLASSES:
                 continue
@@ -740,7 +740,7 @@ def run_fc_genetic_algorithm(config: FCGAConfig, existing_db=None):
             logger.info(f"  Gen {gen}: Running Fairchem ORR validation on top {config.fairchem_eval_top_k}...")
 
             fronts = fast_non_dominated_sort(final_obj)
-            from pipeline.common.ood_detector import compute_model_confidence
+            from pipeline.screening.ood import compute_model_confidence
             confidences = [compute_model_confidence(g, _extract_elements_from_genome(g)) for g in population]
             evaluated = []
             if 'genome' in all_fairchem_results.columns:
@@ -764,7 +764,7 @@ def run_fc_genetic_algorithm(config: FCGAConfig, existing_db=None):
             # ── Exploration Shots: probe EVERY class with real GNN ───────
             if fairchem_round % config.explore_interval == 0:
                 explore_genomes = []
-                from pipeline.common.application_scope import VALIDATION_QUOTA_EXEMPT_CLASSES
+                from pipeline.search.scope import VALIDATION_QUOTA_EXEMPT_CLASSES
                 for cls in ALL_MATERIAL_CLASSES:
                     if cls in VALIDATION_QUOTA_EXEMPT_CLASSES:
                         continue

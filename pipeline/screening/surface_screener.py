@@ -30,7 +30,7 @@ from ase.constraints import FixAtoms
 from pipeline.screening.relaxation import relax_with_record, require_relaxation
 from pipeline.screening.protocols import PYROLYSIS_PROTOCOL
 
-from pipeline.common.utils import (
+from pipeline.utils import (
     BASE_DIR, SCREENING_DIR, setup_logger,
     k_B_eV, bep_activation_energy, arrhenius_rate,
     abundance_cost_penalty,
@@ -797,7 +797,7 @@ def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
         result['E_act'] = E_act
 
         # 7. Coking resistance index (slab descriptor — out of scope for melts)
-        from pipeline.common.application_scope import slab_coking_index_scope
+        from pipeline.search.scope import slab_coking_index_scope
         coking_scope = slab_coking_index_scope(genome)
         result['coking_index_scope'] = coking_scope['status']
         result['coking_index_scope_reason'] = coking_scope.get('reason')
@@ -853,7 +853,7 @@ def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
             return result
 
         # 10c. Encoded-phase admissibility (ADR 0001). Coverage lists stay 14-class.
-        from pipeline.common.application_scope import phase_stable_at_application_T
+        from pipeline.search.scope import phase_stable_at_application_T
         result['pyrolysis_viable'] = (
             phase_stable_at_application_T(genome)['status'] == 'candidate')
 
@@ -890,7 +890,7 @@ def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
             result['coking_index'] = max(-20.0, min(float(coking_val), 20.0))
 
         # 12. OOD confidence — how much we trust this prediction
-        from pipeline.common.ood_detector import compute_model_confidence
+        from pipeline.screening.ood import compute_model_confidence
         conf = compute_model_confidence(genome, elements)
         result['model_confidence'] = float(conf)
         result['needs_dft_validation'] = result.get('needs_dft_validation', False) or conf < 0.5

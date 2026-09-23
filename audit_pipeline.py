@@ -38,7 +38,7 @@ def check(name, condition, detail=""):
         print(f"  ❌ {name}: {detail}")
 
 
-from pipeline.common.catalyst_spaces import (
+from pipeline.search.design_space import (
     ALL_MATERIAL_CLASSES, generate_random_genome,
     GENERATORS, encode_genome, FEATURE_DIM,
     crossover, mutate, CLASS_WEIGHTS,
@@ -68,13 +68,13 @@ check("TAFEL_SLOPE covers all classes",
       f"Missing: {[c for c in ALL_14 if c not in TAFEL_SLOPE_BY_CLASS]}")
 
 # 1d. OOD CLASS_CONFIDENCE
-from pipeline.common.ood_detector import CLASS_CONFIDENCE
+from pipeline.screening.ood import CLASS_CONFIDENCE
 check("OOD CLASS_CONFIDENCE covers all classes",
       all(c in CLASS_CONFIDENCE for c in ALL_14),
       f"Missing: {[c for c in ALL_14 if c not in CLASS_CONFIDENCE]}")
 
 # 1e. BEP_PARAMS (embedded in function — extract programmatically)
-from pipeline.common.utils import bep_activation_energy
+from pipeline.utils import bep_activation_energy
 # Test that each class produces a DIFFERENT result than default
 default_e = bep_activation_energy(0.5)
 bep_missing = []
@@ -89,7 +89,7 @@ check("BEP_PARAMS handles all classes",
       f"Failed: {bep_missing}")
 
 # 1f. VALID_CLASSES sets
-from pipeline.common.utils import VALID_CLASSES_PYROLYSIS, VALID_CLASSES_FUEL_CELL
+from pipeline.utils import VALID_CLASSES_PYROLYSIS, VALID_CLASSES_FUEL_CELL
 check("VALID_CLASSES_PYROLYSIS covers all",
       all(c in VALID_CLASSES_PYROLYSIS for c in ALL_14),
       f"Missing: {[c for c in ALL_14 if c not in VALID_CLASSES_PYROLYSIS]}")
@@ -103,9 +103,9 @@ check("VALID_CLASSES_FUEL_CELL covers all",
 # ═══════════════════════════════════════════════════════════════════════════════
 print("\n═══ ELEMENT TABLE COVERAGE ═══")
 
-from pipeline.common.utils import CRUSTAL_ABUNDANCE_PPM, METAL_PRICE_USD_KG
+from pipeline.utils import CRUSTAL_ABUNDANCE_PPM, METAL_PRICE_USD_KG
 from pipeline.screening.fc_genetic_optimizer import _extract_elements_from_genome
-from pipeline.common.ood_detector import _ELEMENT_COVERAGE
+from pipeline.screening.ood import _ELEMENT_COVERAGE
 
 # Generate many genomes and collect all possible elements
 all_elements = set()
@@ -260,7 +260,7 @@ print("\n═══ SURROGATE PREDICTIONS ═══")
 import torch
 from pipeline.screening.genetic_optimizer import CatalystSurrogate, predict_batch
 from pipeline.screening.fc_genetic_optimizer import ORRCatalystSurrogate
-from pipeline.common.catalyst_spaces import encode_population
+from pipeline.search.design_space import encode_population
 
 # CH4 surrogate
 ch4_model = CatalystSurrogate(input_dim=FEATURE_DIM)
@@ -345,7 +345,7 @@ check("CH4 NSGA-II objectives (280 candidates, no NaN)",
 # ═══════════════════════════════════════════════════════════════════════════════
 print("\n═══ OOD CONFIDENCE ═══")
 
-from pipeline.common.ood_detector import compute_model_confidence, confidence_penalty
+from pipeline.screening.ood import compute_model_confidence, confidence_penalty
 
 ood_failures = []
 for cls in ALL_14:
@@ -372,7 +372,7 @@ check("OOD confidence (280 genomes, all in range)",
 # ═══════════════════════════════════════════════════════════════════════════════
 print("\n═══ COST & FENTON SCORING ═══")
 
-from pipeline.common.utils import abundance_cost_penalty
+from pipeline.utils import abundance_cost_penalty
 from pipeline.screening.fc_genetic_optimizer import _fenton_from_genome, _cost_from_genome
 
 cost_fenton_failures = []

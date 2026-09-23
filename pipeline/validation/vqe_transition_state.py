@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Dict, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from pipeline.common.utils import (
+from pipeline.utils import (
     VQE_DIR, Ha_to_eV, setup_logger, print_banner, save_json,
 )
 

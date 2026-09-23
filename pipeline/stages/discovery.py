@@ -39,8 +39,8 @@ def default_discovery_services() -> DiscoveryServices:
     Returns:
         A `DiscoveryServices` containing the default discovery services result.
     """
-    from pipeline.common.application_scope import scope_pyrolysis_pool
-    from pipeline.common.catalyst_spaces import estimate_design_space_size
+    from pipeline.search.scope import scope_pyrolysis_pool
+    from pipeline.search.design_space import estimate_design_space_size
     from pipeline.screening.genetic_optimizer import (
         BranchDiscoveryConfig, run_branch_discovery)
     from pipeline.screening.stage_selection import (

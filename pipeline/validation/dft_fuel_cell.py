@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Dict, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from pipeline.common.utils import (
+from pipeline.utils import (
     DFT_DIR, Ry_to_eV, E_ORR_eq,
     setup_logger, save_json, orr_overpotential,
 )

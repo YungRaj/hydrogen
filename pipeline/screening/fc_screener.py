@@ -28,7 +28,7 @@ from ase import Atoms, Atom
 from pipeline.screening.relaxation import relax_with_record, require_relaxation
 from pipeline.screening.protocols import ORR_PROTOCOL
 
-from pipeline.common.utils import (
+from pipeline.utils import (
     BASE_DIR, FUEL_CELL_DIR, setup_logger,
     orr_overpotential, abundance_cost_penalty,
     check_element_safety, is_valid_for_application,
@@ -244,7 +244,7 @@ def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> di
         result['orr_overpotential_V'] = max(0.0, min(result.get('orr_overpotential_V', 3.0), 3.0))
 
         # 10. OOD confidence — how much we trust this prediction
-        from pipeline.common.ood_detector import compute_model_confidence
+        from pipeline.screening.ood import compute_model_confidence
         conf = compute_model_confidence(genome, elements)
         result['model_confidence'] = float(conf)
         result['needs_dft_validation'] = conf < 0.5

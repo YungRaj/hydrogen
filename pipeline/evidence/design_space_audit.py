@@ -7,8 +7,8 @@ import json
 from math import comb
 from pathlib import Path
 
-from pipeline.common import catalyst_spaces as cs
-from pipeline.common.design_space_provenance import validate_provenance
+from pipeline.search import design_space as cs
+from pipeline.evidence.design_space_provenance import validate_provenance
 from pipeline.search.discovery import candidate_id
 from pipeline.search.indexed_space import CLASS_ORDER, CLASS_SIZES, candidate_at_class, is_physically_admissible
 

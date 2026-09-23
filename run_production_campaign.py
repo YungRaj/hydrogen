@@ -181,8 +181,8 @@ def main():
         print(f"  ⚠ No HF token — using MACE-MP-0 (bulk model) only")
 
     # ─── Design space ────────────────────────────────────────────────────────
-    from pipeline.common.catalyst_spaces import estimate_design_space_size, ALL_MATERIAL_CLASSES
-    from pipeline.common.utils import print_banner, save_json, load_json
+    from pipeline.search.design_space import estimate_design_space_size, ALL_MATERIAL_CLASSES
+    from pipeline.utils import print_banner, save_json, load_json
 
     sizes = estimate_design_space_size()
     if args.expected_space_size != sizes['TOTAL']:
@@ -261,7 +261,7 @@ def main():
 
     pareto_genomes, screening_db = run_branch_discovery(branch_config)
 
-    from pipeline.common.application_scope import scope_pyrolysis_pool
+    from pipeline.search.scope import scope_pyrolysis_pool
     from pipeline.screening.stage_selection import (
         annotate_evidence, select_for_reactor, select_for_validation)
     valid_db = screening_db[screening_db['valid'] == True].copy()

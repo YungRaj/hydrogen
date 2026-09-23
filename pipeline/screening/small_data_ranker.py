@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from pipeline.common.catalyst_spaces import encode_population
+from pipeline.search.design_space import encode_population
 
 TREE_ENSEMBLE_SIZE = 256
 MIN_TRAINING_ROWS = 20
@@ -170,7 +170,7 @@ def turquoise_tree_objectives(genomes, ranker: TreeRanker) -> np.ndarray:
     Returns:
         A `np.ndarray` containing the turquoise tree objectives result.
     """
-    from pipeline.common.utils import abundance_cost_penalty
+    from pipeline.utils import abundance_cost_penalty
     from pipeline.screening.genetic_optimizer import _extract_elements_from_genome
     primary, _ = ranker.predict(genomes, uncertainty=False)
     costs = [
@@ -192,7 +192,7 @@ def orr_tree_objectives(genomes, ranker: TreeRanker) -> np.ndarray:
         A `np.ndarray` containing the orr tree objectives result.
     """
     from pipeline.screening.fc_genetic_optimizer import _cost_from_genome, _fenton_from_genome
-    from pipeline.common.application_scope import pemfc_cathode_scope
+    from pipeline.search.scope import pemfc_cathode_scope
     primary, _ = ranker.predict(genomes, uncertainty=False)
     objectives = np.column_stack([
         primary, [-_fenton_from_genome(g) for g in genomes],

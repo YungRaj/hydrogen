@@ -304,7 +304,7 @@ redundant Cartesian combinations as rejected rather than silently removing them.
 | **SAA** | 1,680 | 1,680 | Dilute trace metals in hosts, facets, and loadings |
 
 Every design axis has machine-readable provenance in
-`pipeline/common/design_space_provenance.py`. The references support the
+`pipeline/evidence/design_space_provenance.py`. The references support the
 material families and descriptor choices; the individual Cartesian products
 remain project-curated hypotheses, not claims of prior synthesis. Generate a
 deterministic per-class size, canonicalization, and sampled-admissibility report
@@ -851,7 +851,7 @@ conda run -n fairchem-env python -m pipeline.orchestrator --start 1 --end 3
 
 ```bash
 # Test design space
-conda run -n battery-env python -m pipeline.common.catalyst_spaces
+conda run -n battery-env python -m pipeline.search.design_space
 
 # Test eSen screening with deterministic tree probes
 conda run -n fairchem-env python -m pipeline.screening.surface_screener

@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, List, Optional
 
-from pipeline.common.utils import BASE_DIR, SWEEPS_DIR, repo_relative, setup_logger
+from pipeline.utils import BASE_DIR, SWEEPS_DIR, repo_relative, setup_logger
 
 logger = setup_logger('yaml_sweep', 'reactor/yaml_sweep.log')
 

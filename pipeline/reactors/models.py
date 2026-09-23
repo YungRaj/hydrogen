@@ -40,7 +40,7 @@ except ImportError:
     HAS_CANTERA = False
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from pipeline.common.utils import (
+from pipeline.utils import (
     REACTOR_DIR,
     setup_logger, print_banner, save_json,
 )

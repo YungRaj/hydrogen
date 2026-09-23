@@ -22,7 +22,7 @@ import numpy as np
 from typing import List, Tuple, Dict, Optional
 from dataclasses import dataclass, field
 
-from pipeline.common.utils import (
+from pipeline.utils import (
     CRUSTAL_ABUNDANCE_PPM, MELTING_POINT_K, METAL_PRICE_USD_KG,
     is_molten_at_temperature, TOXIC_ELEMENTS,
 )

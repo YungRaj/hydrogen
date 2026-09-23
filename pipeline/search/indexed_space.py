@@ -15,7 +15,7 @@ import heapq
 
 import numpy as np
 
-from pipeline.common import catalyst_spaces as cs
+from pipeline.search import design_space as cs
 
 
 ADMISSIBILITY_POLICY_VERSION = "canonical-chemistry-v1"

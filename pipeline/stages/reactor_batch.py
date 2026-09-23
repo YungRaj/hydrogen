@@ -46,7 +46,7 @@ def default_reactor_batch_services() -> ReactorBatchServices:
     Returns:
         A `ReactorBatchServices` containing the default reactor batch services result.
     """
-    from pipeline.common.utils import save_json
+    from pipeline.utils import save_json
     from pipeline.reactors.equilibrium import run_equilibrium_sweep
     from pipeline.reactors.scorecard import build_solids_scorecard
     from pipeline.reactors.mechanisms import (

@@ -15,7 +15,7 @@ import numpy as np
 from typing import Dict, List, Optional
 from dataclasses import dataclass
 
-from pipeline.common.utils import (
+from pipeline.utils import (
     setup_logger, save_json, F_const, R_gas, FUEL_CELL_DIR,
     METAL_PRICE_USD_KG,
 )
@@ -196,7 +196,7 @@ def model_stack(config: StackConfig) -> Dict:
 
 
 if __name__ == '__main__':
-    from pipeline.common.utils import print_banner
+    from pipeline.utils import print_banner
     print_banner("FUEL CELL STACK MODEL")
 
     config = StackConfig(

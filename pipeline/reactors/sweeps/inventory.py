@@ -12,7 +12,7 @@ from typing import Optional
 
 import pandas as pd
 
-from pipeline.common.utils import (
+from pipeline.utils import (
     REACTOR_DIR, SCREENING_DIR, setup_logger,
 )
 from pipeline.reactors.mechanisms import (

@@ -21,7 +21,7 @@ import numpy as np
 from pipeline.search.exhaustive_search import ScanConfig, run_sharded_scan
 from pipeline.search.indexed_space import (CLASS_OFFSETS, CLASS_ORDER, CLASS_SIZES,
                                     TOTAL_SIZE, candidate_at, is_physically_admissible)
-from pipeline.common.ood_detector import CLASS_CONFIDENCE
+from pipeline.screening.ood import CLASS_CONFIDENCE
 
 
 @dataclass

@@ -14,7 +14,7 @@ import math
 from pathlib import Path
 from typing import Any, Callable, Iterable, Optional
 
-from pipeline.common.utils import SWEEPS_DIR, repo_relative
+from pipeline.utils import SWEEPS_DIR, repo_relative
 from pipeline.reactors.eligibility import is_usable_result
 
 SWEEP_NAMES = (

@@ -44,7 +44,7 @@ def default_pipeline_runtime() -> PipelineRuntime:
     Returns:
         Computed `PipelineRuntime` result.
     """
-    from pipeline.common.utils import load_json, print_banner, save_json
+    from pipeline.utils import load_json, print_banner, save_json
 
     def load() -> dict:
         return load_json('pipeline_state.json') or {}

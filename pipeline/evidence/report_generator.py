@@ -21,7 +21,7 @@ from typing import Dict, List, Optional
 from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from pipeline.common.utils import (
+from pipeline.utils import (
     RESULTS_DIR, SCREENING_DIR, REACTOR_DIR, DFT_DIR,
     VQE_DIR, FUEL_CELL_DIR, REPORTS_DIR,
     setup_logger, save_json, load_json,

@@ -173,7 +173,7 @@ def allocate_validation_batch(candidates: Sequence[tuple], objectives: np.ndarra
              0.15 * error + 0.10 * productivity)
     ids = [candidate_id(g) for g in candidates]
 
-    from pipeline.common.application_scope import is_validation_quota_class
+    from pipeline.search.scope import is_validation_quota_class
     by_class = defaultdict(list)
     for i, genome in enumerate(candidates):
         by_class[genome[0]].append(i)

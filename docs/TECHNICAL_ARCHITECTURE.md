@@ -239,7 +239,7 @@ progress. It is observational. It does not schedule work or alter evidence.
 
 | Directory or file | Responsibility |
 |---|---|
-| `pipeline/common/` | Paths, constants, executable discovery, catalyst definitions, provenance, applicability, confidence/OOD logic |
+| `pipeline/utils.py` | Cross-cutting paths, constants, logging, serialization, and scientific helper functions |
 | `pipeline/search/` | Indexed population, deterministic branch traversal, persistent scans, coverage, adaptive validation, diverse discovery batches |
 | `pipeline/screening/` | eSen/fairchem structure construction and energy evaluation, relaxation, surrogate models, GPU worker runtime, stage admission |
 | `pipeline/reactors/` | Cantera mechanisms, thermal reactor models, routing, equilibrium checks, result eligibility, scorecards, and focused sweeps |
@@ -265,7 +265,7 @@ than silently changing scientific results.
 
 ### 5.1 What the number means
 
-`pipeline/common/catalyst_spaces.py::estimate_design_space_size` computes the
+`pipeline/search/design_space.py::estimate_design_space_size` computes the
 raw Cartesian population. The current declared total is **21,092,645,031 raw
 encoded configurations** across 14 classes. Some encodings represent the same
 canonical chemistry—for example, ordering a dopant pair in two ways—so the
@@ -297,7 +297,7 @@ The class genes include combinations of active metals, hosts, promoters,
 supports, facets, strain, dopants, vacancies, coordination environments,
 framework linkers, pore/cavity types, crystal families, surface terminations,
 loadings, and temperatures. The exact axes live next to each class definition
-in `pipeline/common/catalyst_spaces.py`; their deterministic inverse mapping
+in `pipeline/search/design_space.py`; their deterministic inverse mapping
 lives in `pipeline/search/indexed_space.py::candidate_at_class`.
 
 ### 5.2 O(1) indexed addressing
@@ -515,7 +515,7 @@ states relative to reference calculations. It derives adsorption energies,
 the methane reaction-energy split, a BEP-estimated activation barrier,
 segregation/binding diagnostics where available, and a coking index.
 
-The relevant physical helper functions are in `pipeline/common/utils.py`:
+The relevant physical helper functions are in `pipeline/utils.py`:
 
 ```text
 k = A exp(-Ea / (kB T))                 Arrhenius rate, Ea in eV
@@ -533,7 +533,7 @@ energies. The computational hydrogen electrode constructs free-energy steps for
 the four-electron oxygen-reduction pathway and calculates the limiting step and
 overpotential.
 
-`pipeline/common/utils.py::orr_overpotential` performs the core screening
+`pipeline/utils.py::orr_overpotential` performs the core screening
 calculation. `pipeline/validation/orr_workflows.py` provides site enumeration,
 explicit ORR corrections, and lowest-energy-site selection for higher-fidelity
 work.
@@ -544,7 +544,7 @@ a measured half-cell or MEA result.
 
 ### 8.7 Confidence and out-of-distribution behavior
 
-`pipeline/common/ood_detector.py` combines elemental training coverage and,
+`pipeline/screening/ood.py` combines elemental training coverage and,
 when available, disagreement between independent calculators. Confidence can
 change priority and request DFT. It does not grant permission to erase unfamiliar
 chemistry. This is central to finding candidates outside familiar regions.
@@ -810,7 +810,7 @@ writes QE inputs, launches executables, and validates outputs.
 
 ### 13.2 Portable executable resolution
 
-`pipeline/common/executables.py::resolve_qe_executable` resolves tools in this
+`pipeline/simulation/executables.py::resolve_qe_executable` resolves tools in this
 order:
 
 1. explicit environment override (`PW_X` or `NEB_X`);
@@ -1179,7 +1179,7 @@ converged Quantum ESPRESSO calculations, and physical measurements.
 ### 15.1 Cathode screening
 
 Fuel-cell branch discovery uses the same indexed classes and coverage policy,
-subject to `pipeline/common/application_scope.py::pemfc_cathode_scope`.
+subject to `pipeline/search/scope.py::pemfc_cathode_scope`.
 Chemistries that are not meaningful as a solid PEMFC cathode are marked out of
 scope with an explicit reason instead of being mis-scored.
 
@@ -1358,7 +1358,7 @@ machine.
 ## 20. Artifacts and provenance
 
 All base paths are derived from the repository location in
-`pipeline/common/utils.py`; no user-home layout is assumed.
+`pipeline/utils.py`; no user-home layout is assumed.
 
 Typical generated artifacts are:
 
@@ -1563,7 +1563,7 @@ development.
 ### Add a catalyst class
 
 1. Add its axes, generator, validation, encoding, and size calculation in
-   `pipeline/common/catalyst_spaces.py`.
+   `pipeline/search/design_space.py`.
 2. Add deterministic inverse mapping in `candidate_at_class`.
 3. Add canonical-count logic and provenance in the design-space audit.
 4. Add a physically meaningful ASE screening representation.

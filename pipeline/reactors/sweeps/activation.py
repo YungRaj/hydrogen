@@ -17,7 +17,7 @@ from typing import Dict, List, Optional
 
 import numpy as np
 
-from pipeline.common.utils import REACTOR_DIR, setup_logger, save_json
+from pipeline.utils import REACTOR_DIR, setup_logger, save_json
 from pipeline.reactors.mechanisms import write_full_mechanism
 from pipeline.reactors.models import (
     DIAGNOSTIC_MATERIAL_CLASS, SINGLE_REACTOR_MODE, ReactorConfig,
@@ -270,7 +270,7 @@ def run_detachment_ablation(T_K: float = 1300.0, E_act_eV: float = 0.1) -> Dict:
 
 
 if __name__ == '__main__':
-    from pipeline.common.utils import print_banner
+    from pipeline.utils import print_banner
     print_banner('E_ACT SENSITIVITY SWEEP')
     sweep = run_eact_sweep()
     print(json.dumps(sweep['summaries'], indent=2))

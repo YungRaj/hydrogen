@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Mapping, Sequence
 
-from pipeline.common.utils import repo_relative
+from pipeline.utils import repo_relative
 from pipeline.reactors.modes import DEFAULT_MODE, resolve_pathway_mode
 from pipeline.reactors.eligibility import rankable_results, usable_results
 

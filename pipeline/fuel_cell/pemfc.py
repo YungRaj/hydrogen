@@ -17,7 +17,7 @@ import numpy as np
 from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
 
-from pipeline.common.utils import (
+from pipeline.utils import (
     R_gas, F_const, E_ORR_eq, k_B_eV, eV_to_J,
     setup_logger, save_json, FUEL_CELL_DIR,
 )
@@ -396,7 +396,7 @@ def sweep_membranes(cathode_name: str, orr_eta: float, membranes: List[Dict] = N
 
 
 if __name__ == '__main__':
-    from pipeline.common.utils import print_banner
+    from pipeline.utils import print_banner
     print_banner("PEMFC SINGLE-CELL SIMULATION")
 
     # Test: simulate a Pt/C cathode with Nafion membrane

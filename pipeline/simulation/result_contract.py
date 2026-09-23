@@ -159,7 +159,7 @@ def solver_preflight() -> dict:
     Returns:
         Dictionary containing the computed values, status, and supporting metadata.
     """
-    from pipeline.common.executables import resolve_executable
+    from pipeline.simulation.executables import resolve_executable
 
     cantera = (importlib.util.find_spec('cantera') is not None or
                _conda_module_available('cp2k-env', 'cantera') or

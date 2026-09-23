@@ -21,7 +21,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from typing import Optional, Tuple
 import logging
 
-from pipeline.common.catalyst_spaces import FEATURE_DIM
+from pipeline.search.design_space import FEATURE_DIM
 
 logger = logging.getLogger('surrogate_model')
 

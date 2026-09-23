@@ -20,7 +20,7 @@ from typing import Any, Mapping, Optional
 
 import numpy as np
 
-from pipeline.common.utils import (
+from pipeline.utils import (
     eV_to_J, MECHANISMS_DIR, repo_relative, setup_logger,
 )
 

@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Sequence
 
-from pipeline.common.utils import print_banner, save_screening_db
+from pipeline.utils import print_banner, save_screening_db
 from pipeline.screening.worker_supervisor import collect_results, emit, start_heartbeat
 
 

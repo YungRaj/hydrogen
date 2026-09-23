@@ -885,7 +885,7 @@ def test_stage_selection_rescues_incomplete_evidence_without_feeding_reactor():
 def test_production_validation_slate_does_not_drop_unresolved_rows():
     """run_production_campaign must match discovery: admissibility first."""
     import pandas as pd
-    from pipeline.common.application_scope import scope_pyrolysis_pool
+    from pipeline.search.scope import scope_pyrolysis_pool
     from pipeline.screening.stage_selection import (
         select_for_reactor, select_for_validation)
 
@@ -934,7 +934,7 @@ def test_refactored_protocol_executor_and_reactor_stage_contracts():
 
 
 def test_arrhenius_matches_joule_and_ev_forms():
-    from pipeline.common.utils import (
+    from pipeline.utils import (
         R_gas, eV_to_J, arrhenius_rate, k_B_eV, tst_prefactor)
 
     prefactor, barrier_ev, temperature = 2.5e13, 0.83, 973.15
@@ -952,7 +952,7 @@ def test_arrhenius_matches_joule_and_ev_forms():
 
 
 def test_bep_is_linear_inside_bounds_and_explicitly_censored_outside():
-    from pipeline.common.utils import bep_activation_energy
+    from pipeline.utils import bep_activation_energy
 
     # Default relation: Ea = 0.87 + 0.75*dE, until the declared screen bounds.
     for reaction_energy in (-0.5, 0.0, 1.0):
@@ -970,7 +970,7 @@ def _independent_orr(dg_oh, dg_o, dg_ooh):
 
 
 def test_che_stoichiometry_limiting_potential_and_nernst_terms():
-    from pipeline.common.utils import orr_overpotential
+    from pipeline.utils import orr_overpotential
     from pipeline.validation.orr_workflows import ORRCorrections, apply_orr_corrections
 
     names = ('step_1_OOH', 'step_2_O', 'step_3_OH', 'step_4_H2O')
@@ -1162,7 +1162,7 @@ def test_qe_inputs_use_verified_cutoffs_references_and_parallel_contracts():
 
 
 def test_external_executable_resolution_is_machine_portable():
-    from pipeline.common.executables import resolve_executable
+    from pipeline.simulation.executables import resolve_executable
 
     with tempfile.TemporaryDirectory() as tmp:
         executable = Path(tmp) / 'portable-tool'
@@ -1181,7 +1181,7 @@ def test_external_executable_resolution_is_machine_portable():
             else:
                 raise AssertionError('invalid executable override was accepted')
         with patch.dict(os.environ, {}, clear=True), \
-             patch('pipeline.common.executables.shutil.which', return_value=None):
+             patch('pipeline.simulation.executables.shutil.which', return_value=None):
             try:
                 resolve_executable(
                     'absent-tool', env_var='ABSENT_TOOL', conda_env='tool-env')

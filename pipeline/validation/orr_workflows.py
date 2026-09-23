@@ -6,7 +6,7 @@ from typing import Sequence
 import numpy as np
 from ase import Atoms
 
-from pipeline.common.utils import orr_overpotential
+from pipeline.utils import orr_overpotential
 
 
 @dataclass(frozen=True)

@@ -15,7 +15,7 @@ import math
 from pathlib import Path
 from typing import Optional
 
-from pipeline.common.utils import SWEEPS_DIR, repo_relative
+from pipeline.utils import SWEEPS_DIR, repo_relative
 from pipeline.reactors.sweeps.carbon_criteria import (
     NI_FILAMENT_YIELD_BAND,
     NI_TOS_LIFETIME_BAND_H,

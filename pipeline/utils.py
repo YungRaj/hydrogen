@@ -23,7 +23,7 @@ from typing import Dict, List, Tuple, Optional, Any
 
 # ─── Project Paths ──────────────────────────────────────────────────────────────
 
-BASE_DIR = Path(__file__).resolve().parents[2]
+BASE_DIR = Path(__file__).resolve().parents[1]
 PIPELINE_DIR = BASE_DIR / "pipeline"
 MECHANISMS_DIR = Path(os.environ.get(
     "HYDROGEN_MECHANISMS_DIR", str(BASE_DIR / "mechanisms"))).expanduser().resolve()
@@ -325,7 +325,7 @@ TOXIC_ELEMENTS = {
 
 # Enumerated coverage sets (14-class indexed space / 21.1B denominator).
 # These lists are not reactor admissibility. Encoded-phase checks live in
-# pipeline.common.application_scope.phase_stable_at_application_T (ADR 0001).
+# pipeline.search.scope.phase_stable_at_application_T (ADR 0001).
 VALID_CLASSES_PYROLYSIS = {
     'SolidCatalyst', 'MoltenMetal', 'HEA', 'MAXPhase',
     'Perovskite', 'MetalHydride',

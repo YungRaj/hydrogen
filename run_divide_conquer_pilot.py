@@ -15,9 +15,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from pipeline.common.application_scope import pemfc_cathode_scope
+from pipeline.search.scope import pemfc_cathode_scope
 from pipeline.search.branch_search import _probe_indices
-from pipeline.common.catalyst_spaces import encode_population
+from pipeline.search.design_space import encode_population
 from pipeline.search.discovery import candidate_id
 from pipeline.search.indexed_space import CLASS_ORDER, CLASS_SIZES, candidate_at_class
 from pipeline.evidence.pilot_benchmark import default_specs, load_legacy_outcomes

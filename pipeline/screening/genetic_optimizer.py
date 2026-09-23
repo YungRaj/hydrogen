@@ -26,11 +26,11 @@ import logging
 from typing import List, Tuple, Dict, Optional
 from dataclasses import dataclass
 
-from pipeline.common.utils import (
+from pipeline.utils import (
     setup_logger, print_banner, save_screening_db, load_screening_db,
     abundance_cost_penalty, SCREENING_DIR,
 )
-from pipeline.common.catalyst_spaces import (
+from pipeline.search.design_space import (
     generate_population, crossover, mutate, encode_genome, encode_population,
     ALL_MATERIAL_CLASSES, FEATURE_DIM, generate_hierarchical_htvs_pool,
 )
@@ -182,7 +182,7 @@ def compute_objectives_surrogate(population: List[tuple],
         model: Fitted model used for inference.
         device: CPU or GPU device requested for execution.
     """
-    from pipeline.common.ood_detector import compute_model_confidence, confidence_penalty
+    from pipeline.screening.ood import compute_model_confidence, confidence_penalty
 
     X = encode_population(population)
 
@@ -205,7 +205,7 @@ def compute_objectives_surrogate(population: List[tuple],
 
     # Objective 2: Coking resistance (maximize → negate for minimization).
     # Neutralize for classes with no slab (e.g. MoltenMetal).
-    from pipeline.common.application_scope import slab_coking_index_scope
+    from pipeline.search.scope import slab_coking_index_scope
     coking = coking_pred.copy()
     py_mode = os.environ.get('PYROLYSIS_MODE', 'thermocatalytic')
     if py_mode == 'ntec':
@@ -644,7 +644,7 @@ def run_genetic_algorithm(config: GAConfig = GAConfig(),
             logger.info(f"  Gen {gen+1}: Running Fairchem validation on top {config.fairchem_eval_top_k}...")
             # Validate viable region champions as well as global Pareto leaders.
             # Low model confidence is an acquisition signal here, not a penalty.
-            from pipeline.common.ood_detector import compute_model_confidence
+            from pipeline.screening.ood import compute_model_confidence
             confidences = [compute_model_confidence(g, _extract_elements_from_genome(g)) for g in population]
             evaluated = []
             if 'genome' in all_fairchem_results.columns:
