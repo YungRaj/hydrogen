@@ -37,6 +37,14 @@ class SweepSpec:
 
 
 def cartesian_cells(levers: Mapping[str, Sequence]) -> list[dict]:
+    """Expand named lever levels into deterministic Cartesian cells.
+
+    Args:
+        levers: Input controlling levers.
+
+    Returns:
+        Validated list[dict] output for this operation.
+    """
     keys = list(levers)
     if not keys:
         return [{}]
@@ -47,16 +55,42 @@ def cartesian_cells(levers: Mapping[str, Sequence]) -> list[dict]:
 
 
 def sweep_dir(name: str) -> Path:
+    """Resolve the result directory for a named staged sweep.
+
+    Args:
+        name: Input controlling name.
+
+    Returns:
+        Validated Path output for this operation.
+    """
     return SWEEPS_DIR / name
 
 
 def stage_path(name: str, stage: str) -> Path:
+    """Resolve the JSON artifact path for a named sweep stage.
+
+    Args:
+        name: Input controlling name.
+        stage: Input controlling stage.
+
+    Returns:
+        Validated Path output for this operation.
+    """
     if stage not in ('coarse', 'targeted'):
         raise ValueError(f'stage must be coarse or targeted, got {stage!r}')
     return sweep_dir(name) / f'{stage}.json'
 
 
 def load_stage(name: str, stage: str) -> Optional[dict]:
+    """Load a staged sweep artifact when it exists.
+
+    Args:
+        name: Input controlling name.
+        stage: Input controlling stage.
+
+    Returns:
+        Validated Optional[dict] output for this operation.
+    """
     path = stage_path(name, stage)
     if not path.exists():
         return None
@@ -64,6 +98,14 @@ def load_stage(name: str, stage: str) -> Optional[dict]:
 
 
 def load_manifest(name: str) -> Optional[dict]:
+    """Load a staged sweep manifest when it exists.
+
+    Args:
+        name: Input controlling name.
+
+    Returns:
+        Validated Optional[dict] output for this operation.
+    """
     path = sweep_dir(name) / 'manifest.json'
     if not path.exists():
         return None
@@ -71,7 +113,14 @@ def load_manifest(name: str) -> Optional[dict]:
 
 
 def load_sweep(name: str) -> dict:
-    """Both stages plus the manifest. Coarse is never dropped when targeted exists."""
+    """Both stages plus the manifest. Coarse is never dropped when targeted exists.
+
+    Args:
+        name: Input controlling name.
+
+    Returns:
+        Validated dict output for this operation.
+    """
     return {
         'name': name,
         'coarse': load_stage(name, 'coarse'),
@@ -82,7 +131,15 @@ def load_sweep(name: str) -> dict:
 
 def write_stage(name: str, stage: str, payload: dict,
                 overwrite: bool = False) -> Path:
-    """Persist one stage. Coarse refuses overwrite unless explicitly forced."""
+    """Persist one stage. Coarse refuses overwrite unless explicitly forced.
+
+    Args:
+        name: Input controlling name.
+        payload: Input controlling payload.
+
+    Returns:
+        Validated Path output for this operation.
+    """
     if stage not in ('coarse', 'targeted'):
         raise ValueError(f'stage must be coarse or targeted, got {stage!r}')
     d = sweep_dir(name)
@@ -167,6 +224,17 @@ def _clip_hard(name: str, lo: float, hi: float,
 
 def densify_levels(coarse_levels: Sequence[float], lo: float, hi: float,
                    n: int) -> list[float]:
+    """Create bounded refined lever levels around a proposed interval.
+
+    Args:
+        coarse_levels: Input controlling coarse levels.
+        lo: Input controlling lo.
+        hi: Input controlling hi.
+        n: Input controlling n.
+
+    Returns:
+        Validated list[float] output for this operation.
+    """
     kept = [float(x) for x in coarse_levels if lo - 1e-12 <= float(x) <= hi + 1e-12]
     if n < 2:
         n = 2
@@ -181,6 +249,13 @@ def propose_roi(coarse_payload: dict, spec: SweepSpec) -> dict:
 
     If the best cells sit on a coarse-grid edge, extend one step past that
     edge (so the targeted sweep can find a constraint wall the grid missed).
+
+    Args:
+        coarse_payload: Input controlling coarse payload.
+        spec: Input controlling spec.
+
+    Returns:
+        Validated dict output for this operation.
     """
     records = coarse_payload.get('records') or []
     feasible = _feasible_records(records, spec)
@@ -223,6 +298,16 @@ def propose_roi(coarse_payload: dict, spec: SweepSpec) -> dict:
 
 def import_existing_stage(name: str, stage: str, source: Path,
                           overwrite: bool = False) -> Path:
-    """Copy an already-run JSON into the write-once archive without resimulating."""
+    """Copy an already-run JSON into the write-once archive without resimulating.
+
+    Args:
+        name: Input controlling name.
+        stage: Input controlling stage.
+        source: Input controlling source.
+        overwrite: Input controlling overwrite.
+
+    Returns:
+        Validated Path output for this operation.
+    """
     payload = json.loads(Path(source).read_text(encoding='utf-8'))
     return write_stage(name, stage, payload, overwrite=overwrite)

@@ -383,7 +383,14 @@ def _policy_metadata(config: ReactorConfig) -> Dict:
 
 
 def geometric_sv_pfr(config: ReactorConfig) -> float:
-    """External pellet area per bed volume: 6(1−ε)/d_p."""
+    """External pellet area per bed volume: 6(1−ε)/d_p.
+
+    Args:
+        config: Input controlling config.
+
+    Returns:
+        Validated float output for this operation.
+    """
     d_p = config.catalyst_particle_mm * 1e-3
     if d_p <= 0:
         raise ValueError('catalyst_particle_mm must be positive')
@@ -391,7 +398,14 @@ def geometric_sv_pfr(config: ReactorConfig) -> float:
 
 
 def geometric_sv_fluidized(config: ReactorConfig) -> float:
-    """Emulsion solids area per emulsion volume: 6·(1−ε_mf)/d_p."""
+    """Emulsion solids area per emulsion volume: 6·(1−ε_mf)/d_p.
+
+    Args:
+        config: Input controlling config.
+
+    Returns:
+        Validated float output for this operation.
+    """
     d_p = config.catalyst_particle_mm * 1e-3
     if d_p <= 0:
         raise ValueError('catalyst_particle_mm must be positive')
@@ -399,28 +413,69 @@ def geometric_sv_fluidized(config: ReactorConfig) -> float:
 
 
 def active_area_multiplier(config: ReactorConfig) -> float:
+    """Return the loading-times-dispersion active-area fraction.
+
+    Args:
+        config: Input controlling config.
+
+    Returns:
+        Validated float output for this operation.
+    """
     return float(config.metal_loading) * float(config.metal_dispersion)
 
 
 def active_sv(geometric_sv: float, config: ReactorConfig) -> float:
+    """Apply catalyst utilization to a geometric surface-to-volume ratio.
+
+    Args:
+        geometric_sv: Input controlling geometric sv.
+        config: Input controlling config.
+
+    Returns:
+        Validated float output for this operation.
+    """
     return float(geometric_sv) * active_area_multiplier(config)
 
 
 def ch4_feed_density_kg_m3(T_K: float, P_Pa: float) -> float:
-    """Ideal-gas density for CH4:0.95 / Ar:0.05."""
+    """Ideal-gas density for CH4:0.95 / Ar:0.05.
+
+    Args:
+        T_K: Input controlling T K.
+        P_Pa: Input controlling P Pa.
+
+    Returns:
+        Validated float output for this operation.
+    """
     M = 0.01604 * 0.95 + 0.03995 * 0.05
     return P_Pa * M / (8.314462618 * T_K)
 
 
 def ch4_viscosity_pa_s(T_K: float) -> float:
-    """Sutherland estimate for CH4 (μ0=1.03e-5 Pa·s at 273.15 K, S=164 K)."""
+    """Sutherland estimate for CH4 (μ0=1.03e-5 Pa·s at 273.15 K, S=164 K).
+
+    Args:
+        T_K: Input controlling T K.
+
+    Returns:
+        Validated float output for this operation.
+    """
     T0, mu0, S = 273.15, 1.03e-5, 164.0
     return mu0 * (T_K / T0) ** 1.5 * (T0 + S) / (T_K + S)
 
 
 def ergun_delta_p_pa(config: ReactorConfig, T_K: float = None,
                      P_Pa: float = None) -> float:
-    """Packed-bed Ergun ΔP over bed_length_m (B4). Not used for MMBCR."""
+    """Packed-bed Ergun ΔP over bed_length_m (B4). Not used for MMBCR.
+
+    Args:
+        config: Input controlling config.
+        T_K: Input controlling T K.
+        P_Pa: Input controlling P Pa.
+
+    Returns:
+        Validated float output for this operation.
+    """
     T = config.T_inlet_K if T_K is None else T_K
     P = config.P_inlet_Pa if P_Pa is None else P_Pa
     d_p = config.catalyst_particle_mm * 1e-3
@@ -434,11 +489,26 @@ def ergun_delta_p_pa(config: ReactorConfig, T_K: float = None,
 
 
 def reciprocal_residence_h(tau_s: float) -> float:
-    """Space velocity as 1/τ in h⁻¹. Field name WHSV is historical."""
+    """Space velocity as 1/τ in h⁻¹. Field name WHSV is historical.
+
+    Args:
+        tau_s: Input controlling tau s.
+
+    Returns:
+        Validated float output for this operation.
+    """
     return 3600.0 / float(tau_s) if tau_s and float(tau_s) > 0 else 0.0
 
 
 def kinetics_fields(config: ReactorConfig) -> Dict:
+    """Read candidate kinetic provenance fields from mechanism metadata.
+
+    Args:
+        config: Input controlling config.
+
+    Returns:
+        Validated Dict output for this operation.
+    """
     return {
         'catalyst_E_act_eV': float(config.catalyst_E_act_eV),
         'catalyst_dE_H_eV': float(config.catalyst_dE_H_eV),
@@ -446,6 +516,15 @@ def kinetics_fields(config: ReactorConfig) -> Dict:
 
 
 def solids_inventory_fields(config: ReactorConfig, geometric_sv: float) -> Dict:
+    """Calculate catalyst inventory, area, WHSV, and pressure-drop fields.
+
+    Args:
+        config: Input controlling config.
+        geometric_sv: Input controlling geometric sv.
+
+    Returns:
+        Validated Dict output for this operation.
+    """
     a = active_sv(geometric_sv, config)
     dp = ergun_delta_p_pa(config)
     return {
@@ -459,7 +538,13 @@ def solids_inventory_fields(config: ReactorConfig, geometric_sv: float) -> Dict:
 
 
 def inventory_grid_cells(particle_mm=None, loadings=None, dispersions=None):
-    """Quantized (d_p, loading, dispersion) grid. Defaults to the coarse B1-2 set."""
+    """Quantized (d_p, loading, dispersion) grid. Defaults to the coarse B1-2 set.
+
+    Args:
+        particle_mm: Input controlling particle mm.
+        loadings: Input controlling loadings.
+        dispersions: Input controlling dispersions.
+    """
     d_levels = INVENTORY_PARTICLE_MM if particle_mm is None else particle_mm
     w_levels = INVENTORY_METAL_LOADING if loadings is None else loadings
     s_levels = INVENTORY_METAL_DISPERSION if dispersions is None else dispersions
@@ -476,6 +561,8 @@ def inventory_grid_cells(particle_mm=None, loadings=None, dispersions=None):
 
 
 def inventory_roi_grid_cells():
+    """Return the predefined region-of-interest inventory grid.
+    """
     return inventory_grid_cells(
         INVENTORY_ROI_PARTICLE_MM,
         INVENTORY_ROI_METAL_LOADING,
@@ -811,7 +898,16 @@ def _mmbcr_flotation_eta(k_if_m_s: float, sv_ratio_1_m: float,
 
 def mendelson_bubble_rise_velocity_m_s(d_b_m: float, sigma_N_m: float,
                                        rho_kg_m3: float) -> float:
-    """Mendelson (1967) terminal rise velocity: sqrt(2σ/(ρ d_b) + g d_b/2)."""
+    """Mendelson (1967) terminal rise velocity: sqrt(2σ/(ρ d_b) + g d_b/2).
+
+    Args:
+        d_b_m: Input controlling d b m.
+        sigma_N_m: Input controlling sigma N m.
+        rho_kg_m3: Input controlling rho kg m3.
+
+    Returns:
+        Validated float output for this operation.
+    """
     if d_b_m <= 0 or sigma_N_m <= 0 or rho_kg_m3 <= 0:
         raise ValueError('bubble diameter, melt surface tension, and density must be positive')
     return float(np.sqrt(2.0 * sigma_N_m / (rho_kg_m3 * d_b_m) + G_M_S2 * d_b_m / 2.0))

@@ -42,6 +42,16 @@ def run_eact_sweep(
     ``material_class`` applies to every reactor; None uses the per-reactor
     diagnostic class (SolidCatalyst for beds, MoltenMetal for MMBCR). A
     real candidate class makes incompatible reactors ``not_applicable``.
+
+    Args:
+        temperatures: Input controlling temperatures.
+        e_acts_eV: Input controlling e acts eV.
+        reactor_types: Input controlling reactor types.
+        reactor_config_kwargs: Input controlling reactor config kwargs.
+        catalyst_stub: Input controlling catalyst stub.
+
+    Returns:
+        Validated Dict output for this operation.
     """
     if temperatures is None:
         temperatures = [1300.0]
@@ -172,6 +182,13 @@ def run_detachment_ablation(T_K: float = 1300.0, E_act_eV: float = 0.1) -> Dict:
     applied during integrate (substeps), not after ``net.advance()``.
     PFR: discrete regen only. Rows are kept with
     ``responds_to_ablated_variable=false``.
+
+    Args:
+        T_K: Input controlling T K.
+        E_act_eV: Input controlling E act eV.
+
+    Returns:
+        Validated Dict output for this operation.
     """
     cat = 'ablation_cat'
     mech = write_full_mechanism(cat, E_act_CH4=E_act_eV, T_ref=T_K)

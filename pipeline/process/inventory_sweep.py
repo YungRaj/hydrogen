@@ -39,6 +39,11 @@ LEGACY_TARGETED = 'inventory_sweep_b1_2_roi.json'
 
 
 def inventory_spec() -> SweepSpec:
+    """Build the staged site-inventory sweep specification.
+
+    Returns:
+        Validated SweepSpec output for this operation.
+    """
     return SweepSpec(
         name=SWEEP_NAME,
         levers={
@@ -207,12 +212,29 @@ def _load_coarse_payload() -> dict:
 
 
 def propose_inventory_roi(coarse_payload: dict = None) -> dict:
+    """Propose a refined inventory region from a coarse sweep.
+
+    Args:
+        coarse_payload: Input controlling coarse payload.
+
+    Returns:
+        Validated dict output for this operation.
+    """
     payload = coarse_payload if coarse_payload is not None else _load_coarse_payload()
     return propose_roi(payload, inventory_spec())
 
 
 def run_inventory_sweep(stage: str = 'coarse',
                         overwrite_coarse: bool = False) -> dict:
+    """Execute or refine the deterministic catalyst-inventory sweep.
+
+    Args:
+        stage: Input controlling stage.
+        overwrite_coarse: Input controlling overwrite coarse.
+
+    Returns:
+        Validated dict output for this operation.
+    """
     spec = inventory_spec()
     if stage == 'propose':
         roi = propose_inventory_roi()

@@ -92,7 +92,14 @@ def pemfc_cathode_scope(genome: tuple) -> dict:
 
 
 def slab_coking_index_scope(genome: tuple) -> dict:
-    """Reject slab coking_index for classes with no solid-slab realization."""
+    """Reject slab coking_index for classes with no solid-slab realization.
+
+    Args:
+        genome: Input controlling genome.
+
+    Returns:
+        Validated dict output for this operation.
+    """
     material_class = genome[0] if genome else None
     if material_class in OUT_OF_SCOPE_SLAB_COKING_CLASSES:
         return {
@@ -113,6 +120,13 @@ def phase_stable_at_application_T(genome: tuple, T_K: float = None,
 
     See ADR 0001. Applied at candidate selection only — not to the coverage
     certificate denominator.
+
+    Args:
+        genome: Input controlling genome.
+        T_K: Input controlling T K.
+
+    Returns:
+        Validated dict output for this operation.
     """
     material_class = genome[0] if genome else None
     if application == APPLICATION_PEMFC:
@@ -134,12 +148,24 @@ def phase_stable_at_application_T(genome: tuple, T_K: float = None,
 
 
 def turquoise_pyrolysis_scope(genome: tuple, T_K: float = None) -> dict:
-    """Admissibility for turquoise methane-pyrolysis ranking / Phase 2."""
+    """Admissibility for turquoise methane-pyrolysis ranking / Phase 2.
+
+    Args:
+        genome: Input controlling genome.
+        T_K: Input controlling T K.
+
+    Returns:
+        Validated dict output for this operation.
+    """
     return phase_stable_at_application_T(genome, T_K, APPLICATION_PYROLYSIS)
 
 
 def parse_encoded_genome(raw):
-    """Parse a screening-row genome (tuple or literal string) or return None."""
+    """Parse a screening-row genome (tuple or literal string) or return None.
+
+    Args:
+        raw: Input controlling raw.
+    """
     if isinstance(raw, str):
         try:
             raw = ast.literal_eval(raw)
@@ -153,7 +179,15 @@ def parse_encoded_genome(raw):
 
 
 def is_turquoise_pyrolysis_candidate(raw, T_K: float = None) -> bool:
-    """True only if the genome is admissible for turquoise pyrolysis reactors."""
+    """True only if the genome is admissible for turquoise pyrolysis reactors.
+
+    Args:
+        raw: Input controlling raw.
+        T_K: Input controlling T K.
+
+    Returns:
+        Validated bool output for this operation.
+    """
     genome = parse_encoded_genome(raw)
     if genome is None:
         return False
@@ -165,6 +199,10 @@ def select_turquoise_pyrolysis_candidates(df, top_k=None, genome_col: str = 'gen
     Drop phase-unstable rows then optionally take top_k by E_act.
 
     Candidate-selection filter only. Does not alter coverage certificates.
+
+    Args:
+        df: Input controlling df.
+        genome_col: Input controlling genome col.
     """
     if df is None:
         raise ValueError('screening frame is required for turquoise pyrolysis scope')
@@ -188,6 +226,10 @@ def scope_pyrolysis_pool(df, genome_col: str = 'genome'):
     applies ``valid`` for the reactor route. A frame without a genome column
     (synthetic tables, fixtures) is returned unchanged with the reason
     recorded so the omission is visible rather than silent.
+
+    Args:
+        df: Input controlling df.
+        genome_col: Input controlling genome col.
     """
     if df is None:
         raise ValueError('screening frame is required for turquoise pyrolysis scope')
@@ -205,6 +247,12 @@ def is_validation_quota_class(material_class: str, application: str = None) -> b
 
     MetalHydride is exempt on every application. Pyrolysis additionally
     exempts every class whose encoded phase is out of scope (ADR 0001).
+
+    Args:
+        material_class: Input controlling material class.
+
+    Returns:
+        Validated bool output for this operation.
     """
     if material_class in VALIDATION_QUOTA_EXEMPT_CLASSES:
         return False
@@ -214,7 +262,15 @@ def is_validation_quota_class(material_class: str, application: str = None) -> b
 
 
 def validation_quota_class_count(material_classes, application: str = None) -> int:
-    """How many classes consume --min-validation-per-class reserved slots."""
+    """How many classes consume --min-validation-per-class reserved slots.
+
+    Args:
+        material_classes: Input controlling material classes.
+        application: Input controlling application.
+
+    Returns:
+        Validated int output for this operation.
+    """
     return sum(
         1 for cls in material_classes
         if is_validation_quota_class(cls, application)

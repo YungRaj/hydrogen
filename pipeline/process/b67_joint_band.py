@@ -56,6 +56,14 @@ def _normalized_miss(record: dict) -> Optional[float]:
 
 
 def search_joint_band(payloads: dict) -> dict:
+    """Search completed sweep records for simultaneous yield and lifetime hits.
+
+    Args:
+        payloads: Input controlling payloads.
+
+    Returns:
+        Validated dict output for this operation.
+    """
     records = []
     for name, payload in payloads.items():
         for rec in payload.get('records') or []:
@@ -126,6 +134,14 @@ def search_joint_band(payloads: dict) -> dict:
 
 
 def load_joint_payloads(sweeps_dir: Optional[Path] = None) -> dict:
+    """Load all sweep payloads used by the joint-band search.
+
+    Args:
+        sweeps_dir: Input controlling sweeps dir.
+
+    Returns:
+        Validated dict output for this operation.
+    """
     root = Path(sweeps_dir) if sweeps_dir is not None else SWEEPS_DIR
     payloads = load_runs(root)
     joint = root / JOINT_SWEEP / 'run.json'
@@ -135,6 +151,15 @@ def load_joint_payloads(sweeps_dir: Optional[Path] = None) -> dict:
 
 
 def write_summary(summary: dict, path: Optional[Path] = None) -> Path:
+    """Persist a B6-6 criteria summary as JSON.
+
+    Args:
+        summary: Input controlling summary.
+        path: Input controlling path.
+
+    Returns:
+        Validated Path output for this operation.
+    """
     out = Path(path) if path is not None else SWEEPS_DIR / 'b67_joint_band.json'
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(summary, indent=2) + '\n', encoding='utf-8')
@@ -142,6 +167,11 @@ def write_summary(summary: dict, path: Optional[Path] = None) -> Path:
 
 
 def print_table(summary: dict) -> None:
+    """Print a compact human-readable B6-6 criteria summary.
+
+    Args:
+        summary: Input controlling summary.
+    """
     print('B6-7 joint band')
     print(f"declaration: {summary['declaration']}")
     print(
@@ -170,6 +200,11 @@ def print_table(summary: dict) -> None:
 
 
 def main() -> dict:
+    """Run the module command-line workflow.
+
+    Returns:
+        Validated dict output for this operation.
+    """
     payloads = load_joint_payloads()
     summary = search_joint_band(payloads)
     out = write_summary(summary)

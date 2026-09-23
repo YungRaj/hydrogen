@@ -21,6 +21,14 @@ from typing import Any, Optional
 
 
 def finite_number(value: Any) -> Optional[float]:
+    """Convert a value to a finite float or return None.
+
+    Args:
+        value: Input controlling value.
+
+    Returns:
+        Validated Optional[float] output for this operation.
+    """
     try:
         number = float(value)
     except (TypeError, ValueError):
@@ -29,7 +37,11 @@ def finite_number(value: Any) -> Optional[float]:
 
 
 def is_usable_result(record: dict) -> bool:
-    """True if *record* may enter a rank, table sort, or TEA estimate."""
+    """True if *record* may enter a rank, table sort, or TEA estimate.
+
+    Returns:
+        Validated bool output for this operation.
+    """
     if not isinstance(record, dict):
         return False
     if record.get('status', 'complete') != 'complete':
@@ -46,13 +58,36 @@ def is_usable_result(record: dict) -> bool:
 
 
 def is_rankable_result(record: dict) -> bool:
-    """Usable baseline plus a finite conversion — used to pick best_condition."""
+    """Usable baseline plus a finite conversion — used to pick best_condition.
+
+    Args:
+        record: Input controlling record.
+
+    Returns:
+        Validated bool output for this operation.
+    """
     return is_usable_result(record) and finite_number(record.get('CH4_conversion')) is not None
 
 
 def usable_results(records) -> list:
+    """Filter records through the shared result-eligibility baseline.
+
+    Args:
+        records: Input controlling records.
+
+    Returns:
+        Validated list output for this operation.
+    """
     return [record for record in records if is_usable_result(record)]
 
 
 def rankable_results(records) -> list:
+    """Filter records that are both usable and conversion-rankable.
+
+    Args:
+        records: Input controlling records.
+
+    Returns:
+        Validated list output for this operation.
+    """
     return [record for record in records if is_rankable_result(record)]

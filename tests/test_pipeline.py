@@ -831,10 +831,13 @@ def test_pyrolysis_mode_coking_bonus():
         del os.environ['PYROLYSIS_MODE']
     os.environ.pop('NTEC_CONDITIONS_JSON', None)
 
-    # For Ga molten metal candidate, NTEC coking index objective (index 1) should be lower (more negative = better coking resistance)
-    # Since obj2 = -(coking_index + bonus), objs_ntec[0, 1] = objs_thermo[0, 1] - 3.0
+    # Molten metals have no slab, so the slab-derived coking descriptor is
+    # deliberately neutral in every mode. Measured NTEC detachment must be
+    # represented by pathway evidence, not attached to an inapplicable slab
+    # quantity.
     diff_ga = objs_ntec[0, 1] - objs_thermo[0, 1]
-    assert np.isclose(diff_ga, -3.0), f"Liquid metal Ga coking bonus not applied correctly, got diff: {diff_ga}"
+    assert np.isclose(diff_ga, 0.0), \
+        f"Out-of-scope molten-metal slab coking objective was modified: {diff_ga}"
     assert np.isclose(objs_unknown[0, 1], objs_thermo[0, 1]), \
         "NTEC without measured inputs must receive zero bonus"
     assert np.isclose(objs_uncalibrated[0, 1], objs_thermo[0, 1]), \

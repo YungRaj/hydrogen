@@ -45,6 +45,9 @@ def repo_relative(path) -> str:
     Written JSON must not carry machine-specific absolute paths. Paths
     outside the repo (e.g. a redirected ``HYDROGEN_RESULTS_DIR``) are kept
     as given.
+
+    Returns:
+        Validated str output for this operation.
     """
     p = Path(path)
     try:

@@ -18,6 +18,8 @@ from pipeline.process.yaml_sweep import run_sweep
 
 
 def main() -> None:
+    """Run the module command-line workflow.
+    """
     parser = argparse.ArgumentParser(
         description='Run a Cantera reactor-cell sweep from YAML')
     parser.add_argument(

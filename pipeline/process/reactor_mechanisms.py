@@ -275,7 +275,14 @@ CH4_STICKING_PROVENANCE = (
 
 def carbon_transfer_prefactor_from_particle(particle_nm: float,
                                             d0_m2_s: float) -> float:
-    """A_γ = D0 / L² (1/s) for a metal particle of diameter ``particle_nm``."""
+    """A_γ = D0 / L² (1/s) for a metal particle of diameter ``particle_nm``.
+
+    Args:
+        d0_m2_s: Input controlling d0 m2 s.
+
+    Returns:
+        Validated float output for this operation.
+    """
     length_m = float(particle_nm) * 1e-9
     return float(d0_m2_s) / (length_m * length_m)
 
@@ -291,6 +298,15 @@ H2_DESORPTION_PREFACTOR_1_S = 5.0e13
 
 def bimolecular_surface_prefactor_cm2_mol_s(k_1_s: float,
                                             site_density_mol_cm2: float) -> float:
+    """Convert a first-order site rate into Cantera surface-reaction units.
+
+    Args:
+        k_1_s: Input controlling k 1 s.
+        site_density_mol_cm2: Input controlling site density mol cm2.
+
+    Returns:
+        Validated float output for this operation.
+    """
     return float(k_1_s) / float(site_density_mol_cm2)
 
 # Surface species enthalpies must sit on Cantera's absolute scale, where the
@@ -315,6 +331,14 @@ SURFACE_THERMO_REFERENCE = {
 
 
 def parse_catalyst_genome(raw: Any) -> Optional[tuple]:
+    """Parse a serialized or tuple catalyst genome without evaluating arbitrary code.
+
+    Args:
+        raw: Input controlling raw.
+
+    Returns:
+        Validated Optional[tuple] output for this operation.
+    """
     if raw is None:
         return None
     if isinstance(raw, tuple):
@@ -350,7 +374,15 @@ def _nanoparticle_metals(genome: Optional[tuple], material_class: Optional[str])
 
 
 def off_site_carbon_allowed(genome: Any = None, material_class: Optional[str] = None) -> bool:
-    """True only for nanoparticle Ni/Fe/Co (SolidCatalyst / HEA / SAA host)."""
+    """True only for nanoparticle Ni/Fe/Co (SolidCatalyst / HEA / SAA host).
+
+    Args:
+        genome: Input controlling genome.
+        material_class: Input controlling material class.
+
+    Returns:
+        Validated bool output for this operation.
+    """
     parsed = parse_catalyst_genome(genome)
     cls = material_class
     if parsed:

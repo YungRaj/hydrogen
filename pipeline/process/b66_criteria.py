@@ -61,7 +61,14 @@ def _close(a: Any, b: Any, rel: float = 1e-6, abs_tol: float = 1e-12) -> bool:
 
 
 def sweep_value(record: dict, key: str) -> Any:
-    """Grid-point value, falling back to the record / job-fixed field."""
+    """Grid-point value, falling back to the record / job-fixed field.
+
+    Args:
+        key: Input controlling key.
+
+    Returns:
+        Validated Any output for this operation.
+    """
     swept = record.get('sweep') or {}
     if key in swept and swept[key] is not None:
         return swept[key]
@@ -69,19 +76,51 @@ def sweep_value(record: dict, key: str) -> Any:
 
 
 def is_complete(record: dict) -> bool:
+    """Return whether a sweep record completed successfully.
+
+    Args:
+        record: Input controlling record.
+
+    Returns:
+        Validated bool output for this operation.
+    """
     return record.get('status') == 'complete'
 
 
 def exceeds_equilibrium(record: dict) -> bool:
+    """Return whether a record violates its equilibrium conversion limit.
+
+    Args:
+        record: Input controlling record.
+
+    Returns:
+        Validated bool output for this operation.
+    """
     return bool(record.get('exceeds_equilibrium'))
 
 
 def is_scorable(record: dict) -> bool:
-    """Shared usable baseline: complete, not mock, no X>X_eq, carbon OK."""
+    """Shared usable baseline: complete, not mock, no X>X_eq, carbon OK.
+
+    Args:
+        record: Input controlling record.
+
+    Returns:
+        Validated bool output for this operation.
+    """
     return is_usable_result(record)
 
 
 def match_kinetics(record: dict, kinetics: Optional[dict] = None) -> bool:
+    """Return whether a record matches every requested kinetic parameter.
+
+    Args:
+        record: Input controlling record.
+        kinetics: Input controlling kinetics.
+
+    Returns:
+        Validated bool output for this operation.
+    """
     target = BASE_KINETICS if kinetics is None else kinetics
     for key, expected in target.items():
         got = sweep_value(record, key)
@@ -103,6 +142,21 @@ def select_records(
     complete_only: bool = True,
     scorable_only: bool = False,
 ) -> list:
+    """Filter sweep records by operating cell, reactor, kinetics, and validity.
+
+    Args:
+        records: Input controlling records.
+        cell: Input controlling cell.
+        reactor: Input controlling reactor.
+        T_K: Input controlling T K.
+        regen: Input controlling regen.
+        kinetics: Input controlling kinetics.
+        complete_only: Input controlling complete only.
+        scorable_only: Input controlling scorable only.
+
+    Returns:
+        Validated list output for this operation.
+    """
     out = []
     for rec in records:
         if complete_only and not is_complete(rec):
@@ -127,7 +181,17 @@ def select_records(
 
 def d_lnX_d_Eact(x_lo: float, x_hi: float, e_lo: float = FLAT_E_LO,
                  e_hi: float = FLAT_E_HI) -> float:
-    """Central difference |d ln X / d E_act| from two neighbour conversions."""
+    """Central difference |d ln X / d E_act| from two neighbour conversions.
+
+    Args:
+        x_lo: Input controlling x lo.
+        x_hi: Input controlling x hi.
+        e_lo: Input controlling e lo.
+        e_hi: Input controlling e hi.
+
+    Returns:
+        Validated float output for this operation.
+    """
     if x_lo <= 0 or x_hi <= 0:
         raise ValueError('conversions must be positive for ln X')
     denom = float(e_hi) - float(e_lo)
@@ -137,7 +201,15 @@ def d_lnX_d_Eact(x_lo: float, x_hi: float, e_lo: float = FLAT_E_LO,
 
 
 def linearity_relative_diff(turnovers_a: float, turnovers_b: float) -> float:
-    """|t_a - t_b| / mean. Pure a-scaling gives 0 (equal turnovers)."""
+    """|t_a - t_b| / mean. Pure a-scaling gives 0 (equal turnovers).
+
+    Args:
+        turnovers_a: Input controlling turnovers a.
+        turnovers_b: Input controlling turnovers b.
+
+    Returns:
+        Validated float output for this operation.
+    """
     mean = 0.5 * (float(turnovers_a) + float(turnovers_b))
     if mean == 0:
         raise ValueError('mean turnovers is zero')
@@ -145,6 +217,16 @@ def linearity_relative_diff(turnovers_a: float, turnovers_b: float) -> float:
 
 
 def in_band(value: Optional[float], lo: float, hi: float) -> bool:
+    """Return whether a finite value lies inside an inclusive interval.
+
+    Args:
+        value: Input controlling value.
+        lo: Input controlling lo.
+        hi: Input controlling hi.
+
+    Returns:
+        Validated bool output for this operation.
+    """
     number = _finite(value)
     return False if number is None else (lo <= number <= hi)
 
@@ -154,6 +236,16 @@ def first_where(
     predicate: Callable[[dict], bool],
     sort_key: Callable[[dict], float],
 ) -> Optional[dict]:
+    """Return the first sorted record satisfying a predicate.
+
+    Args:
+        records: Input controlling records.
+        predicate: Input controlling predicate.
+        sort_key: Input controlling sort key.
+
+    Returns:
+        Validated Optional[dict] output for this operation.
+    """
     ranked = sorted(
         (rec for rec in records if predicate(rec)),
         key=sort_key)
@@ -190,7 +282,11 @@ def _row_brief(record: Optional[dict]) -> Optional[dict]:
 
 
 def evaluate_criteria(payloads: dict) -> dict:
-    """Score the five B6-6 gates on already-loaded run payloads."""
+    """Score the five B6-6 gates on already-loaded run payloads.
+
+    Returns:
+        Validated dict output for this operation.
+    """
     records = _all_records(payloads)
     flagged_overshoot = [
         _row_brief(rec) for rec in records
@@ -351,6 +447,14 @@ def evaluate_criteria(payloads: dict) -> dict:
 
 
 def load_runs(sweeps_dir: Optional[Path] = None) -> dict:
+    """Load the B6-6 sweep payloads required by the criteria evaluator.
+
+    Args:
+        sweeps_dir: Input controlling sweeps dir.
+
+    Returns:
+        Validated dict output for this operation.
+    """
     root = Path(sweeps_dir) if sweeps_dir is not None else SWEEPS_DIR
     payloads = {}
     missing = []
@@ -367,6 +471,11 @@ def load_runs(sweeps_dir: Optional[Path] = None) -> dict:
 
 
 def print_table(summary: dict) -> None:
+    """Print a compact human-readable B6-6 criteria summary.
+
+    Args:
+        summary: Input controlling summary.
+    """
     print('B6-6 criteria')
     print(f"flagged X>X_eq rows: {summary['n_flagged_X_gt_Xeq']} "
           '(not scored as successes)')
@@ -410,6 +519,15 @@ def print_table(summary: dict) -> None:
 
 
 def write_summary(summary: dict, path: Optional[Path] = None) -> Path:
+    """Persist a B6-6 criteria summary as JSON.
+
+    Args:
+        summary: Input controlling summary.
+        path: Input controlling path.
+
+    Returns:
+        Validated Path output for this operation.
+    """
     out = Path(path) if path is not None else SWEEPS_DIR / 'b66_summary.json'
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(summary, indent=2) + '\n', encoding='utf-8')
@@ -417,6 +535,11 @@ def write_summary(summary: dict, path: Optional[Path] = None) -> Path:
 
 
 def main() -> dict:
+    """Run the module command-line workflow.
+
+    Returns:
+        Validated dict output for this operation.
+    """
     payloads = load_runs()
     summary = evaluate_criteria(payloads)
     out = write_summary(summary)

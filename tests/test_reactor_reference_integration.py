@@ -3,9 +3,13 @@
 from dataclasses import replace
 import json
 from pathlib import Path
+import sys
+import tempfile
+from unittest.mock import patch
 
 import pandas as pd
-import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from pipeline.orchestrator import PipelineConfig, normalized_pipeline_config
 from pipeline.process import reactor_mechanisms, reactor_models, yaml_sweep
@@ -15,14 +19,15 @@ from pipeline.stages.reactor_batch import (
 )
 
 
-@pytest.mark.parametrize('quick_mode', [False, True])
-def test_normalization_preserves_requested_reference_temperatures(quick_mode):
-    config = PipelineConfig(
-        reactor_temperatures=(923.15, 973.15), quick_mode=quick_mode)
-    effective = normalized_pipeline_config(config)
-    assert effective is not config
-    assert effective.reactor_temperatures == (923.15, 973.15)
-    assert config.reactor_temperatures == (923.15, 973.15)
+def test_normalization_preserves_requested_reference_temperatures():
+    """Preserve explicit reference temperatures in normal and quick modes."""
+    for quick_mode in (False, True):
+        config = PipelineConfig(
+            reactor_temperatures=(923.15, 973.15), quick_mode=quick_mode)
+        effective = normalized_pipeline_config(config)
+        assert effective is not config
+        assert effective.reactor_temperatures == (923.15, 973.15)
+        assert config.reactor_temperatures == (923.15, 973.15)
 
 
 def test_existing_reference_keeps_its_name_and_does_not_mutate_candidates():
@@ -61,59 +66,69 @@ def test_existing_reference_keeps_its_name_and_does_not_mutate_candidates():
     pd.testing.assert_frame_equal(candidates, original)
 
 
-def test_default_campaign_loads_ni_reference_and_produces_a_real_headline(
-        tmp_path, monkeypatch):
-    pytest.importorskip('cantera')
-    monkeypatch.setattr(reactor_mechanisms, 'MECHANISMS_DIR', tmp_path)
-    monkeypatch.setattr(reactor_models, 'save_json', lambda *args, **kwargs: None)
-    config = normalized_pipeline_config(PipelineConfig())
-    candidates = pd.DataFrame(columns=['candidate_id', 'E_act'])
-    services = replace(
-        default_reactor_batch_services(), prepare_gas_mechanism=lambda: None,
-        check_equilibrium=None, persist_scorecard=None)
-    result = run_reactor_batch_stage(
-        candidates, temperatures=config.reactor_temperatures,
-        reactor_types=('PFR',), pathway_mode='thermocatalytic_pfr',
-        multiphysics_results_dir=str(tmp_path), allow_mock_inputs=False,
-        judge_catalyst=config.solids_judge_catalyst,
-        headline_t_min=config.solids_headline_t_min,
-        headline_t_max=config.solids_headline_t_max, services=services)
-    card = result.state['solids_scorecard']
-    assert card['judge_catalyst'] == 'ni_np_lit'
-    assert card['headline']['PFR']['T_K'] == 973.15
-    assert 0 < result.state['best_conversion'] < 1
-    rows = result.products['reactor_results']
-    assert len(rows) == len(config.reactor_temperatures)
-    assert all(row['status'] == 'complete' and not row.get('mock') for row in rows)
-    assert candidates.empty
+def test_default_campaign_loads_ni_reference_and_produces_a_real_headline():
+    """Load and execute the default Ni reference through real Cantera."""
+    import cantera  # noqa: F401 - availability is part of this suite's contract
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        with patch.object(reactor_mechanisms, 'MECHANISMS_DIR', tmp_path), \
+                patch.object(reactor_models, 'save_json',
+                             lambda *args, **kwargs: None):
+            config = normalized_pipeline_config(PipelineConfig())
+            candidates = pd.DataFrame(columns=['candidate_id', 'E_act'])
+            services = replace(
+                default_reactor_batch_services(),
+                prepare_gas_mechanism=lambda: None,
+                check_equilibrium=None, persist_scorecard=None)
+            result = run_reactor_batch_stage(
+                candidates, temperatures=config.reactor_temperatures,
+                reactor_types=('PFR',), pathway_mode='thermocatalytic_pfr',
+                multiphysics_results_dir=str(tmp_path), allow_mock_inputs=False,
+                judge_catalyst=config.solids_judge_catalyst,
+                headline_t_min=config.solids_headline_t_min,
+                headline_t_max=config.solids_headline_t_max, services=services)
+        card = result.state['solids_scorecard']
+        assert card['judge_catalyst'] == 'ni_np_lit'
+        assert card['headline']['PFR']['T_K'] == 973.15
+        assert 0 < result.state['best_conversion'] < 1
+        rows = result.products['reactor_results']
+        assert len(rows) == len(config.reactor_temperatures)
+        assert all(row['status'] == 'complete' and not row.get('mock') for row in rows)
+        assert candidates.empty
 
 
-@pytest.mark.parametrize('reactor_type,judge', [
-    ('MMBCR', 'ni_np_lit'), ('PFR', None),
-])
-def test_reference_is_only_added_to_enabled_solids_campaigns(reactor_type, judge):
+def test_reference_is_only_added_to_enabled_solids_campaigns():
+    """Do not inject the Ni judge into MMBCR or judge-disabled campaigns."""
     def unexpected_reference_load(name):
         raise AssertionError('this campaign must not load the solids reference')
 
-    services = replace(
-        default_reactor_batch_services(), prepare_gas_mechanism=lambda: None,
-        check_equilibrium=None, persist_scorecard=None,
-        load_reference_candidate=unexpected_reference_load)
-    result = run_reactor_batch_stage(
-        pd.DataFrame(), temperatures=(973.15,), reactor_types=(reactor_type,),
-        pathway_mode=reactor_models.SINGLE_REACTOR_MODE[reactor_type],
-        multiphysics_results_dir='', allow_mock_inputs=False,
-        judge_catalyst=judge, services=services)
-    assert result.products['reactor_results'] == []
+    for reactor_type, judge in (('MMBCR', 'ni_np_lit'), ('PFR', None)):
+        services = replace(
+            default_reactor_batch_services(), prepare_gas_mechanism=lambda: None,
+            check_equilibrium=None, persist_scorecard=None,
+            load_reference_candidate=unexpected_reference_load)
+        result = run_reactor_batch_stage(
+            pd.DataFrame(), temperatures=(973.15,), reactor_types=(reactor_type,),
+            pathway_mode=reactor_models.SINGLE_REACTOR_MODE[reactor_type],
+            multiphysics_results_dir='', allow_mock_inputs=False,
+            judge_catalyst=judge, services=services)
+        assert result.products['reactor_results'] == []
 
 
-@pytest.mark.parametrize('swept', [False, True])
-def test_different_sweep_jobs_cannot_replace_each_others_mechanisms(
-        tmp_path, monkeypatch, swept):
-    ct = pytest.importorskip('cantera')
-    monkeypatch.setattr(reactor_mechanisms, 'MECHANISMS_DIR', tmp_path / 'shared')
-    monkeypatch.setattr(yaml_sweep, 'SWEEPS_DIR', tmp_path / 'sweeps')
-    monkeypatch.setattr(yaml_sweep, '_print_table', lambda *args: None)
+def test_different_sweep_jobs_cannot_replace_each_others_mechanisms():
+    """Keep every static or swept job's mechanism immutable and distinct."""
+    import cantera as ct
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        for swept in (False, True):
+            _exercise_isolated_sweep(tmp_path / str(swept), swept, ct)
+
+
+def _exercise_isolated_sweep(tmp_path: Path, swept: bool, ct) -> None:
+    """Execute one isolated mechanism test case without pytest fixtures."""
+    tmp_path.mkdir()
 
     def simulate(name, mechanism, temperatures, reactor_types, **kwargs):
         gas = ct.Solution(mechanism, 'gas')
@@ -123,32 +138,50 @@ def test_different_sweep_jobs_cannot_replace_each_others_mechanisms(
         return [dict(catalyst_name=name, reactor_type='PFR', T_K=temperatures[0],
                      status='complete', CH4_conversion=0.1, surface_loaded=True)]
 
-    monkeypatch.setattr(reactor_models, 'run_reactor_sweep', simulate)
-    snapshots = []
-    for name, barrier in [('first', 0.7), ('second', 1.3)]:
-        activation = '' if swept else f'    E_act: {barrier}\n'
-        grid = (f'sweep:\n  kinetics:\n    E_act: [{barrier}]\n'
-                '  policy:\n    max_regen_cycles: [0, 3]\n') if swept else ''
-        source = tmp_path / f'{name}.yaml'
-        source.write_text(
-            f'name: {name}\ncatalyst:\n  name: ni_np_lit\n'
-            '  material_class: SolidCatalyst\n'
-            '  genome: "(\'SolidCatalyst\', \'Ni\', \'SiO2\', \'fcc111\', 0.0, (), 1, 0)"\n'
-            '  kinetics:\n' + activation + '    dE_H: -0.5\n' + grid +
-            'conditions:\n  temperatures_K: [923.15]\n  reactors: [PFR]\n'
-            'cells:\n  - name: production\n    catalyst_particle_mm: 0.13\n'
-            '    metal_loading: 0.5\n    metal_dispersion: 0.3\n',
-            encoding='utf-8')
-        result = yaml_sweep.run_sweep(source)
-        assert len(result['mechanism_files']) == 1
-        mechanism = Path(result['mechanism_file'])
-        assert all(Path(row['mechanism_file']) == mechanism
-                   for row in result['records'])
-        sidecar = mechanism.with_suffix('.kinetics.json')
-        assert json.loads(sidecar.read_text())['inputs']['methane_activation_eV'] == barrier
-        snapshots.append((mechanism, mechanism.read_bytes(), sidecar.read_bytes()))
+    with patch.object(reactor_mechanisms, 'MECHANISMS_DIR', tmp_path / 'shared'), \
+            patch.object(yaml_sweep, 'SWEEPS_DIR', tmp_path / 'sweeps'), \
+            patch.object(yaml_sweep, '_print_table', lambda *args: None), \
+            patch.object(reactor_models, 'run_reactor_sweep', simulate):
+        snapshots = []
+        for name, barrier in [('first', 0.7), ('second', 1.3)]:
+            activation = '' if swept else f'    E_act: {barrier}\n'
+            grid = (f'sweep:\n  kinetics:\n    E_act: [{barrier}]\n'
+                    '  policy:\n    max_regen_cycles: [0, 3]\n') if swept else ''
+            source = tmp_path / f'{name}.yaml'
+            source.write_text(
+                f'name: {name}\ncatalyst:\n  name: ni_np_lit\n'
+                '  material_class: SolidCatalyst\n'
+                '  genome: "(\'SolidCatalyst\', \'Ni\', \'SiO2\', \'fcc111\', 0.0, (), 1, 0)"\n'
+                '  kinetics:\n' + activation + '    dE_H: -0.5\n' + grid +
+                'conditions:\n  temperatures_K: [923.15]\n  reactors: [PFR]\n'
+                'cells:\n  - name: production\n    catalyst_particle_mm: 0.13\n'
+                '    metal_loading: 0.5\n    metal_dispersion: 0.3\n',
+                encoding='utf-8')
+            result = yaml_sweep.run_sweep(source)
+            assert len(result['mechanism_files']) == 1
+            mechanism = Path(result['mechanism_file'])
+            assert all(Path(row['mechanism_file']) == mechanism
+                       for row in result['records'])
+            sidecar = mechanism.with_suffix('.kinetics.json')
+            assert json.loads(sidecar.read_text())[\
+                'inputs']['methane_activation_eV'] == barrier
+            snapshots.append((mechanism, mechanism.read_bytes(), sidecar.read_bytes()))
 
     assert snapshots[0][0] != snapshots[1][0]
     for mechanism, yaml_bytes, metadata_bytes in snapshots:
         assert mechanism.read_bytes() == yaml_bytes
         assert mechanism.with_suffix('.kinetics.json').read_bytes() == metadata_bytes
+
+
+def main() -> None:
+    """Run reference-integration contracts without a pytest dependency."""
+    tests = [value for name, value in sorted(globals().items())
+             if name.startswith('test_') and callable(value)]
+    for test in tests:
+        test()
+        print('PASS', test.__name__)
+    print(f'{len(tests)}/{len(tests)} reactor reference contracts passed')
+
+
+if __name__ == '__main__':
+    main()

@@ -28,6 +28,13 @@ def ch4_conversion_from_mole_fractions(x_ch4: float, x_h2: float) -> float:
     Exact only when H2 comes from that stoichiometry. The solids mechanism
     has an active C2 chain; do not use this for PFR/fluidized. Those use
     ``ch4_conversion_from_argon_tracer``.
+
+    Args:
+        x_ch4: Input controlling x ch4.
+        x_h2: Input controlling x h2.
+
+    Returns:
+        Validated float output for this operation.
     """
     denom = float(x_ch4) + 0.5 * float(x_h2)
     if denom <= 0:
@@ -41,6 +48,15 @@ def ch4_conversion_from_argon_tracer(x_ch4: float, x_ar: float,
 
     X = 1 - (x_CH4/x_Ar) / (x_CH4,0/x_Ar,0). Carbon to C(s) or C2 does not
     change Ar moles, so mole expansion and the C2 chain cancel.
+
+    Args:
+        x_ch4: Input controlling x ch4.
+        x_ar: Input controlling x ar.
+        x_ch4_feed: Input controlling x ch4 feed.
+        x_ar_feed: Input controlling x ar feed.
+
+    Returns:
+        Validated float output for this operation.
     """
     if x_ar_feed <= 0 or x_ar <= 0 or x_ch4_feed <= 0:
         raise ValueError(
@@ -76,6 +92,16 @@ def run_equilibrium_sweep(
     Equilibrate gas + condensed graphite at fixed T,P and compare to tables.
 
     Uses Cantera Mixture (Cantera 3.0) of ideal-gas + fixed-stoichiometry graphite.
+
+    Args:
+        mechanism_file: Input controlling mechanism file.
+        temperatures: Input controlling temperatures.
+        pressure_Pa: Input controlling pressure Pa.
+        tabulated: Input controlling tabulated.
+        abs_tol: Input controlling abs tol.
+
+    Returns:
+        Validated Dict output for this operation.
     """
     try:
         import cantera as ct

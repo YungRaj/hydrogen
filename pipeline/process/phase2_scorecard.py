@@ -23,6 +23,14 @@ NI_JUDGE_CATALYST = 'ni_np_lit'
 
 
 def is_h_parked(record: dict) -> bool:
+    """Return whether excessive hydrogen coverage invalidates a solids rank.
+
+    Args:
+        record: Input controlling record.
+
+    Returns:
+        Validated bool output for this operation.
+    """
     e_act = record.get('catalyst_E_act_eV')
     dE_H = record.get('catalyst_dE_H_eV')
     if e_act is None or dE_H is None:
@@ -35,7 +43,11 @@ def is_production_reactor_record(record: dict) -> bool:
     (``not_applicable``, ``validation_required``, ``failed``) carry a
     ``status`` and no conversion; they are evidence about the workflow, not
     the catalyst, and never enter the scorecard. Legacy JSON has no
-    ``status`` and is accepted on the conversion key."""
+    ``status`` and is accepted on the conversion key.
+
+    Returns:
+        Validated bool output for this operation.
+    """
     return (
         isinstance(record, dict)
         and record.get('reactor_type') in {'PFR', 'Fluidized', 'MMBCR'}
@@ -48,7 +60,14 @@ def is_production_reactor_record(record: dict) -> bool:
 
 def is_solids_run(record: dict) -> bool:
     """PFR/fluidized with a loaded Langmuir surface. Missing surface_loaded
-    (legacy JSON) or gas_only/mock is not a solids result."""
+    (legacy JSON) or gas_only/mock is not a solids result.
+
+    Args:
+        record: Input controlling record.
+
+    Returns:
+        Validated bool output for this operation.
+    """
     return (
         is_production_reactor_record(record)
         and record.get('reactor_type') in SOLIDS_TYPES
@@ -64,11 +83,22 @@ def is_scoreable_solids(record: dict) -> bool:
     Shared usable baseline (complete, not mock, no X>X_eq, carbon
     balance when reported) plus the solids surface filters. Overshoot
     and carbon-fail rows stay in ``n_solids_records``; they never rank.
+
+    Returns:
+        Validated bool output for this operation.
     """
     return is_solids_run(record) and is_usable_result(record)
 
 
 def single_pass_x(record: dict) -> float:
+    """Read the canonical single-pass methane conversion from a record.
+
+    Args:
+        record: Input controlling record.
+
+    Returns:
+        Validated float output for this operation.
+    """
     value = record.get('single_pass_CH4_conversion', record.get('CH4_conversion'))
     return float(value or 0.0)
 
@@ -82,7 +112,14 @@ def _t_k(record: dict) -> float:
 
 def in_headline_band(record: dict, t_min: float,
                      t_max: float | None = None) -> bool:
-    """True if T is in [t_min, t_max]. ``t_max is None`` means no upper bound."""
+    """True if T is in [t_min, t_max]. ``t_max is None`` means no upper bound.
+
+    Args:
+        record: Input controlling record.
+
+    Returns:
+        Validated bool output for this operation.
+    """
     temperature = _t_k(record)
     if temperature < float(t_min) - 1e-9:
         return False
@@ -92,6 +129,14 @@ def in_headline_band(record: dict, t_min: float,
 
 
 def metric_row(record: dict) -> dict:
+    """Project a reactor result into the solids-scorecard metric schema.
+
+    Args:
+        record: Input controlling record.
+
+    Returns:
+        Validated dict output for this operation.
+    """
     return {
         'catalyst_name': record.get('catalyst_name'),
         'reactor_type': record.get('reactor_type'),
@@ -117,6 +162,17 @@ def build_solids_scorecard(results, *,
                            judge_catalyst: str | None = None,
                            headline_t_min: float = DEFAULT_HEADLINE_T_MIN,
                            headline_t_max: float | None = None) -> dict:
+    """Build fail-closed PFR, fluidized, and MMBCR comparison summaries.
+
+    Args:
+        results: Input controlling results.
+        judge_catalyst: Input controlling judge catalyst.
+        headline_t_min: Input controlling headline t min.
+        headline_t_max: Input controlling headline t max.
+
+    Returns:
+        Validated dict output for this operation.
+    """
     solids_src = [r for r in results if is_solids_run(r)]
     solids = [metric_row(r) for r in solids_src]
     mmbcr = [
@@ -206,6 +262,12 @@ def build_solids_scorecard(results, *,
 
 
 def log_solids_scorecard(scorecard: dict, logger) -> None:
+    """Write the principal scorecard decisions to a supplied logger.
+
+    Args:
+        scorecard: Input controlling scorecard.
+        logger: Input controlling logger.
+    """
     logger.info(
         f"B1-5 solids scorecard: judge={scorecard.get('judge_catalyst')} "
         f"({scorecard.get('judge_reason')})"

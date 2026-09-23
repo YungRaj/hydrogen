@@ -61,6 +61,8 @@ SWEEPABLE_POLICY_KEYS = ('max_regen_cycles', 'fluidized_mode', 'regen_mechanism'
 
 @dataclass
 class SweepCell:
+    """Define one named reactor-geometry and catalyst-inventory sweep cell.
+    """
     name: str
     catalyst_particle_mm: float
     metal_loading: float
@@ -69,6 +71,8 @@ class SweepCell:
 
 @dataclass
 class SweepJob:
+    """Define a validated YAML sweep job and its operating conditions.
+    """
     name: str
     description: str
     catalyst_name: str
@@ -92,17 +96,31 @@ class SweepJob:
 
 @dataclass(frozen=True)
 class GridPoint:
+    """Bind one deterministic kinetic/policy combination to its index.
+    """
     index: int
     kinetics: dict
     policy: dict
 
     @property
     def values(self) -> dict:
+        """Merge the kinetic and policy values represented by this grid point.
+
+        Returns:
+            Validated dict output for this operation.
+        """
         return {**self.kinetics, **self.policy}
 
 
 def grid_points(job: SweepJob) -> List[GridPoint]:
-    """Cartesian product of the `sweep:` lists; one point for a single spec."""
+    """Cartesian product of the `sweep:` lists; one point for a single spec.
+
+    Args:
+        job: Input controlling job.
+
+    Returns:
+        Validated List[GridPoint] output for this operation.
+    """
     keys = list(job.sweep_kinetics) + list(job.sweep_policy)
     if not keys:
         return [GridPoint(0, {}, {})]
@@ -187,7 +205,14 @@ def _load_yaml(path: Path) -> dict:
 
 
 def parse_sweep(yaml_path: Path) -> SweepJob:
-    """Parse one sweep spec. Does not touch Cantera or write mechanisms."""
+    """Parse one sweep spec. Does not touch Cantera or write mechanisms.
+
+    Args:
+        yaml_path: Input controlling yaml path.
+
+    Returns:
+        Validated SweepJob output for this operation.
+    """
     yaml_path = Path(yaml_path)
     if yaml_path.suffix.lower() == '.xml':
         raise ValueError(
@@ -497,6 +522,12 @@ def run_sweep(yaml_path: Path) -> dict:
     Reactors are grouped by pathway mode (solids vs melt) because upstream
     rejects mixed-mode sweeps. Non-applicable cells (e.g. MMBCR on a
     SolidCatalyst) are kept as ``not_applicable`` records, not dropped.
+
+    Args:
+        yaml_path: Input controlling yaml path.
+
+    Returns:
+        Validated dict output for this operation.
     """
     from pipeline.process.reactor_mechanisms import write_full_mechanism
     from pipeline.process.reactor_models import run_reactor_sweep

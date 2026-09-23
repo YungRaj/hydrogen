@@ -10,6 +10,9 @@ def load_reactor_reference(candidate_id: str):
 
     Reference rows are separate from discovery and DFT candidate selection.
     Unknown names may still identify a judge already supplied by the caller.
+
+    Args:
+        candidate_id: Input controlling candidate id.
     """
     if candidate_id != 'ni_np_lit':
         return None
