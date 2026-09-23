@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import Dict, List, Optional
 
 from pipeline.common.utils import MECHANISMS_DIR, setup_logger
-from pipeline.process.reactor_mechanisms import write_gas_only_mechanism
+from pipeline.reactors.mechanisms import write_gas_only_mechanism
 
 logger = setup_logger('equilibrium_check', 'reactor/equilibrium_check.log')
 

@@ -140,7 +140,7 @@ parcel before bypass; circulating outfeed is B2, not Cγ.
 
 Five Ni specs (`sweeps/ni_np_b66_{eact,agamma,theta,sticking,agamma_theta}.yaml`):
 same literature cell as B6-5, PFR + circulating Fluidized, both cells,
-regen 0 and 3. 2312/2312 complete. Criteria (`pipeline/process/b66_criteria.py`):
+regen 0 and 3. 2312/2312 complete. Criteria (`pipeline/reactors/sweeps/carbon_criteria.py`):
 |d ln X / d E_act| = 8.27 eV⁻¹ (gate ≥ 5); turnover relative difference
 34.3 % (gate > 20 %); first encapsulation onset at `A_γ` = 1e7 s⁻¹;
 244 lifetime hits in 4–50 h; 54 yield hits in 8–10 gC/(gNi·h). 208

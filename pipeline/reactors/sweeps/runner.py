@@ -383,7 +383,7 @@ def _load_kinetics_row(job: SweepJob, overrides: Optional[dict] = None,
     mechanism. Screening-row sweeps take neither.
     """
     import pandas as pd
-    from pipeline.process.reactor_mechanisms import (
+    from pipeline.reactors.mechanisms import (
         CandidateKinetics, parse_catalyst_genome)
 
     if job.screening_csv is not None:
@@ -437,7 +437,7 @@ def _reactors_by_mode(reactor_types: List[str]) -> List[tuple]:
     Upstream routes reactors through pathway modes and rejects a sweep that
     mixes solids and melt modes; a spec may list both, so we split.
     """
-    from pipeline.process.reactor_models import SINGLE_REACTOR_MODE
+    from pipeline.reactors.models import SINGLE_REACTOR_MODE
     groups: dict = {}
     for reactor in reactor_types:
         groups.setdefault(SINGLE_REACTOR_MODE[reactor], []).append(reactor)
@@ -529,8 +529,8 @@ def run_sweep(yaml_path: Path) -> dict:
     Returns:
         Validated dict output for this operation.
     """
-    from pipeline.process.reactor_mechanisms import write_full_mechanism
-    from pipeline.process.reactor_models import run_reactor_sweep
+    from pipeline.reactors.mechanisms import write_full_mechanism
+    from pipeline.reactors.models import run_reactor_sweep
 
     job = parse_sweep(yaml_path)
     out_dir = SWEEPS_DIR / job.name

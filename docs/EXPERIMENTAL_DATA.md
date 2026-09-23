@@ -80,7 +80,7 @@ positive `shear_rate_s_inv` and `mechanical_power_W`.
 
 This dataset establishes trustworthy observations. Predictions are generated
 separately by the frozen computational model. The existing
-`pipeline.process.model_validation.score_holdout` routine compares those
+`pipeline.simulation.model_validation.score_holdout` routine compares those
 predictions with declared holdout IDs and computes the error itself. Predictions
 must never be written into the raw experimental source or used to change the
 holdout assignment.

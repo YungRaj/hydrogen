@@ -62,7 +62,7 @@ check("CLASS_WEIGHTS covers all classes",
       f"Missing: {[c for c in ALL_14 if c not in CLASS_WEIGHTS]}")
 
 # 1c. TAFEL_SLOPE_BY_CLASS
-from pipeline.process.pemfc_model import TAFEL_SLOPE_BY_CLASS
+from pipeline.fuel_cell.pemfc import TAFEL_SLOPE_BY_CLASS
 check("TAFEL_SLOPE covers all classes",
       all(c in TAFEL_SLOPE_BY_CLASS for c in ALL_14),
       f"Missing: {[c for c in ALL_14 if c not in TAFEL_SLOPE_BY_CLASS]}")
@@ -401,7 +401,7 @@ check("Cost & Fenton scoring (700 genomes, no NaN)",
 # ═══════════════════════════════════════════════════════════════════════════════
 print("\n═══ PEMFC MODEL ═══")
 
-from pipeline.process.pemfc_model import sweep_membranes
+from pipeline.fuel_cell.pemfc import sweep_membranes
 
 pemfc_failures = []
 for cls in ALL_14:

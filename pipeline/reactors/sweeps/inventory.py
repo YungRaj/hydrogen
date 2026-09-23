@@ -15,13 +15,13 @@ import pandas as pd
 from pipeline.common.utils import (
     REACTOR_DIR, SCREENING_DIR, setup_logger,
 )
-from pipeline.process.reactor_mechanisms import (
+from pipeline.reactors.mechanisms import (
     CandidateKinetics, write_full_mechanism)
-from pipeline.process.reactor_models import (
+from pipeline.reactors.models import (
     INVENTORY_METAL_DISPERSION, INVENTORY_METAL_LOADING, INVENTORY_PARTICLE_MM,
     SINGLE_REACTOR_MODE, ReactorConfig, run_reactor_sweep, simulate_reactor,
 )
-from pipeline.process.staged_sweep import (
+from pipeline.reactors.sweeps.staged import (
     SweepSpec, cartesian_cells, import_existing_stage, load_stage,
     propose_roi, write_stage,
 )

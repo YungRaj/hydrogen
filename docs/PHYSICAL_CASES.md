@@ -144,10 +144,10 @@ This contract establishes reproducible computational machinery. Predictive
 validation still requires real measurements and candidate-specific kinetics;
 the repository intentionally cannot synthesize either as ground truth.
 
-Use `python -m pipeline.process.physical_case init ...` to generate a complete
-key skeleton and `python -m pipeline.process.physical_case validate ...` for a
+Use `python -m pipeline.simulation.physical_case init ...` to generate a complete
+key skeleton and `python -m pipeline.simulation.physical_case validate ...` for a
 standalone preflight. Use
-`python -m pipeline.process.multiphysics_prepare MANIFEST.json --create` to
+`python -m pipeline.simulation.case_preparation MANIFEST.json --create` to
 create missing batch skeletons and report why each case is not ready.
 
 A batch manifest has this minimal form:

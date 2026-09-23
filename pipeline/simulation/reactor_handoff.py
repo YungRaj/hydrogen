@@ -44,7 +44,7 @@ def validate_evidence_compatibility(config, loaded: dict) -> dict:
         Dictionary containing the computed values, status, and supporting metadata.
     """
     if loaded.get('valid') and config.reactor_type == 'Electrochemical':
-        from pipeline.process.electrochemical_model import (
+        from pipeline.electrochemistry.model import (
             conditions_from_environment)
         requested = conditions_from_environment()
         artifact_phase = loaded['artifact'].get('electrolyte_phase')
@@ -63,7 +63,7 @@ def default_reactor_coupling_services() -> ReactorCouplingServices:
     Returns:
         A `ReactorCouplingServices` containing the default reactor coupling services result.
     """
-    from pipeline.process.multiphysics_contract import load_validated_artifact
+    from pipeline.simulation.result_contract import load_validated_artifact
     return ReactorCouplingServices(
         load_artifact=load_validated_artifact,
         validate_compatibility=validate_evidence_compatibility,

@@ -31,8 +31,8 @@ def default_fuel_cell_services() -> FuelCellServices:
         A `FuelCellServices` containing the default fuel cell services result.
     """
     from pipeline.screening.fc_cathode_screener import run_cathode_screening
-    from pipeline.process.pemfc_model import sweep_membranes
-    from pipeline.process.fuel_cell_stack import StackConfig, model_stack
+    from pipeline.fuel_cell.pemfc import sweep_membranes
+    from pipeline.fuel_cell.stack import StackConfig, model_stack
     return FuelCellServices(
         run_cathode_screening, sweep_membranes, StackConfig, model_stack)
 

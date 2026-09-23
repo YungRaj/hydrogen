@@ -18,18 +18,18 @@ import sys
 from pathlib import Path
 
 from pipeline.common.executables import resolve_executable
-from pipeline.process.multiphysics_contract import (
+from pipeline.simulation.result_contract import (
     EXTERNAL_SOLVERS, SCHEMA_VERSION, artifact_path, load_validated_artifact,
     mode_preflight, verify_numerics, verify_physical_outputs)
-from pipeline.process.pathway_modes import MODE_CHOICES, reactor_types_for_mode
-from pipeline.process.physical_case import (
+from pipeline.reactors.modes import MODE_CHOICES, reactor_types_for_mode
+from pipeline.simulation.physical_case import (
     case_summary, load_physical_case, surrogate_inputs)
-from pipeline.process.model_validation import score_holdout
-from pipeline.process.coupling_contract import (
+from pipeline.simulation.model_validation import score_holdout
+from pipeline.simulation.solver_handoff import (
     require_pristine_case, sha256, validate_hydrodynamic_handoff,
     validate_coupling_state, validate_solver_coupling)
-from pipeline.process.solver_execution import SolverExecutionServices
-from pipeline.process.artifact_store import persist_validated_artifact
+from pipeline.simulation.solver_execution import SolverExecutionServices
+from pipeline.simulation.artifact_store import persist_validated_artifact
 
 
 def _tree_digest(path: Path, extra_files: tuple[Path, ...] = ()) -> str:

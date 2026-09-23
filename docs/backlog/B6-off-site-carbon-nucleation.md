@@ -69,7 +69,7 @@ MetalFreeCarbon is a different kinetics (the carbon *is* the site) [Muradov, TUR
 - [x] **B6-3** Class gate: nanoparticle metals (Ni, Fe, Co, and alloys / exsolved particles) only. Not SAC/DAC. Not MetalFreeCarbon. Melt unchanged.
 - [x] **B6-4** Do not map either barrier onto `coking_index` unless the map is declared in the `.kinetics.json` sidecar.
 - [x] **B6-5** Closure experiment run: a supported-Ni-like literature cell at **650–700 °C** (plus the full ADR band), PFR, zero regen. Result below. Judge stayed on `cat_9` here. **Closed in B6-6:** Fluidized Ni. **Closed in B6-7:** judge moved to `ni_np_lit`; literature CSV stub (`fairchem_evaluated=False`).
-- [x] **B6-6** Star + 2-D sweep on the Ni cell (`sweeps/ni_np_b66_*.yaml`): E_act 0.7–1.3, `A_γ` 10⁶–10¹³ plus half-decades 10⁸–10¹⁰, θ\* 0.2–0.8, s0 10⁻³–10⁻¹, and `A_γ` × θ\* at 923.15 / 973.15 K. PFR and circulating Fluidized, both cells, regen 0 and 3. Scored by `pipeline/process/b66_criteria.py`. Result below. Particle size remains first-order in the literature [3, 29] and enters as dispersion and, optionally, as `A_γ = D₀/L²` (`carbon_transfer_particle_nm`; Lander D₀ = 2.48×10⁻⁴ m²/s). Judge stays on `cat_9`.
+- [x] **B6-6** Star + 2-D sweep on the Ni cell (`sweeps/ni_np_b66_*.yaml`): E_act 0.7–1.3, `A_γ` 10⁶–10¹³ plus half-decades 10⁸–10¹⁰, θ\* 0.2–0.8, s0 10⁻³–10⁻¹, and `A_γ` × θ\* at 923.15 / 973.15 K. PFR and circulating Fluidized, both cells, regen 0 and 3. Scored by `pipeline/reactors/sweeps/carbon_criteria.py`. Result below. Particle size remains first-order in the literature [3, 29] and enters as dispersion and, optionally, as `A_γ = D₀/L²` (`carbon_transfer_particle_nm`; Lander D₀ = 2.48×10⁻⁴ m²/s). Judge stays on `cat_9`.
 - [x] **B6-7** Collective remainder after B6-6, one ticket. (1) Named solids judge is `ni_np_lit` (literature base point below); headline band is the 650–700 °C ROI, not 1300 K. (2) Tracked literature CSV stub `sweeps/ni_np_lit_screening_row.csv` (`fairchem_evaluated=False`; no fake UMA energies). (3) Joint-band search over B6-6 plus `sweeps/ni_np_b67_joint.yaml` (4000-row A_γ × θ\* × s0 cube at 923.15 / 973.15 K): **no simultaneous hit in the filament ROI**. One edge hit exists at 773 K / large-particle / θ\*=0.8 (Y=9.3, τ=4.12 h). B5 stays closed.
 
 ## Cδ rate form (decided 2026-09-19)
@@ -100,7 +100,7 @@ Literature Ni(111)/SiO₂ cell: `E_act 1.00` (Bengaard [35] terrace TS is 101 kJ
 
 ## B6-6 result (2026-09-19, PFR + circulating Fluidized)
 
-Same literature Ni(111)/SiO₂ cell as B6-5. Base point when not swept: E_act 1.0, `A_γ` 10¹³, θ\* 0.5, s0 0.01. Five specs, 2312 complete records (eact 392, A_γ 560, θ\* 280, s0 280, 2-D 800). 208 rows flag `exceeds_equilibrium` (almost all 1300 K with fast Cγ) and are not scored as successes. `pipeline/process/b66_criteria.py` → `results/sweeps/b66_summary.json`.
+Same literature Ni(111)/SiO₂ cell as B6-5. Base point when not swept: E_act 1.0, `A_γ` 10¹³, θ\* 0.5, s0 0.01. Five specs, 2312 complete records (eact 392, A_γ 560, θ\* 280, s0 280, 2-D 800). 208 rows flag `exceeds_equilibrium` (almost all 1300 K with fast Cγ) and are not scored as successes. `pipeline/reactors/sweeps/carbon_criteria.py` → `results/sweeps/b66_summary.json`.
 
 | criterion | value | gate | result |
 |---|---|---|---|
@@ -140,7 +140,7 @@ These are the standard Ni(111) numbers used across steam-reforming / TCD DFT, no
 
 ### Joint band
 
-`pipeline/process/b67_joint_band.py` over the five B6-6 runs plus `sweeps/ni_np_b67_joint.yaml` (4000 complete records: A_γ × θ\* × s0 × {0,3} regen × both cells × PFR/Fluidized at 923.15 / 973.15 K).
+`pipeline/reactors/sweeps/joint_band.py` over the five B6-6 runs plus `sweeps/ni_np_b67_joint.yaml` (4000 complete records: A_γ × θ\* × s0 × {0,3} regen × both cells × PFR/Fluidized at 923.15 / 973.15 K).
 
 **Declaration: no simultaneous hit in the 650–700 °C ROI.** The 4000-row cube is empty of joint hits. Across all T, one edge pair exists: `large_particle_ni` PFR at **773 K**, θ\*=0.8, A_γ=10¹³, s0=0.01, Y=9.31 gC/(gNi·h), τ=4.12 h (regen 0 and 3 are identical). That is the cold end of the ADR band, not the filament ROI, on the low-area cell with encapsulation suppressed. Closest ROI misses still sit on opposite sides of the trade-off (in-band yield already dead; in-band lifetime a Cδ trickle). No extra DOF was added to force an ROI overlap. B5 stays closed: 14.6 % / 16.9 % at 923 K is not X_eq.
 

@@ -16,7 +16,7 @@ from typing import Iterable, Mapping
 
 import numpy as np
 
-from pipeline.process.multiphysics_contract import REQUIRED_OUTPUTS
+from pipeline.simulation.result_contract import REQUIRED_OUTPUTS
 
 
 MODEL_SCHEMA_VERSION = 1

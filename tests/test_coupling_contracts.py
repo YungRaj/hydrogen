@@ -9,10 +9,10 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from pipeline.process.coupling_contract import (
+from pipeline.simulation.solver_handoff import (
     require_pristine_case, validate_hydrodynamic_handoff,
     validate_solver_coupling)
-from pipeline.process.multiphysics_runner import _tree_digest
+from pipeline.simulation.external_runner import _tree_digest
 
 
 def _sha(path):

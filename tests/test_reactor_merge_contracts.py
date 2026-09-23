@@ -9,10 +9,10 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from pipeline.process.pathway_modes import (
+from pipeline.reactors.modes import (
     reactor_applicability, reactor_types_for_mode, validate_mode_reactors)
-from pipeline.process.reactor_mechanisms import CandidateKinetics
-from pipeline.process.reactor_models import ReactorConfig, _kinetics_evidence
+from pipeline.reactors.mechanisms import CandidateKinetics
+from pipeline.reactors.models import ReactorConfig, _kinetics_evidence
 
 
 def _raises(message, exception_type=Exception):
@@ -85,7 +85,7 @@ def test_candidate_specific_kinetics_identity_and_provenance_are_complete():
 
 def test_generated_mechanism_is_balanced_and_matches_carbon_provenance():
     import cantera as ct
-    import pipeline.process.reactor_mechanisms as mechanisms
+    import pipeline.reactors.mechanisms as mechanisms
 
     with tempfile.TemporaryDirectory() as tmp, patch.object(
             mechanisms, "MECHANISMS_DIR", Path(tmp)):

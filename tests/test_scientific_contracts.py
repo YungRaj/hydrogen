@@ -97,7 +97,7 @@ def test_worker_supervisor_requeues_leased_task_and_writes_manifest():
 
 
 def test_reactor_sweep_isolates_failed_conditions_without_exclusion():
-    from pipeline.process import reactor_models
+    from pipeline.reactors import models as reactor_models
 
     calls = []
     def simulate(config):
@@ -125,9 +125,9 @@ def test_reactor_sweep_isolates_failed_conditions_without_exclusion():
     assert all(row['status'] == 'complete' for row in rows[1:])
     save.assert_called_once()
 
-    with patch('pipeline.process.reactor_mechanisms.write_full_mechanism',
+    with patch('pipeline.reactors.mechanisms.write_full_mechanism',
                return_value=Path('unused.yaml')), \
-            patch('pipeline.process.reactor_models.run_reactor_sweep',
+            patch('pipeline.reactors.models.run_reactor_sweep',
                   return_value=rows):
         from pipeline.stages.reactor import simulate_candidate
         stage = simulate_candidate(
@@ -141,7 +141,7 @@ def test_reactor_sweep_isolates_failed_conditions_without_exclusion():
 
 
 def test_pathway_modes_route_explicit_physics_and_default_to_thermal():
-    from pipeline.process.pathway_modes import (
+    from pipeline.reactors.modes import (
         DEFAULT_MODE, MODE_CHOICES, reactor_applicability,
         reactor_types_for_mode, validate_mode_reactors)
 
@@ -167,7 +167,7 @@ def test_pathway_modes_route_explicit_physics_and_default_to_thermal():
 
 
 def test_incompatible_bed_is_non_excluding_and_never_simulated():
-    from pipeline.process import reactor_models
+    from pipeline.reactors import models as reactor_models
 
     config = reactor_models.ReactorConfig(
         reactor_type='PFR', pathway_mode='thermocatalytic_pfr',
@@ -181,7 +181,7 @@ def test_incompatible_bed_is_non_excluding_and_never_simulated():
 
 
 def test_reactor_geometry_contract_rejects_nonphysical_beds():
-    from pipeline.process.reactor_models import (
+    from pipeline.reactors.models import (
         ReactorConfig, _validate_reactor_config)
 
     _validate_reactor_config(ReactorConfig(
@@ -200,7 +200,7 @@ def test_reactor_geometry_contract_rejects_nonphysical_beds():
 
 
 def test_specialized_pathways_fail_closed_without_validated_models():
-    from pipeline.process.reactor_models import ReactorConfig, simulate_reactor
+    from pipeline.reactors.models import ReactorConfig, simulate_reactor
 
     with patch.dict(os.environ, {}, clear=False):
         os.environ.pop('NTEC_CONDITIONS_JSON', None)
@@ -214,7 +214,7 @@ def test_specialized_pathways_fail_closed_without_validated_models():
             assert result['can_exclude_candidate'] is False
             assert 'CH4_conversion' not in result
 
-    with patch('pipeline.process.reactor_mechanisms.write_full_mechanism') as write:
+    with patch('pipeline.reactors.mechanisms.write_full_mechanism') as write:
         from pipeline.stages.reactor import simulate_candidate
         stage = simulate_candidate(
             {'E_act': 0.5, 'candidate_id': 'specialized',
@@ -229,7 +229,7 @@ def test_specialized_pathways_fail_closed_without_validated_models():
 
 
 def test_electrochemical_phase_is_configuration_not_a_mode():
-    from pipeline.process.electrochemical_model import (
+    from pipeline.electrochemistry.model import (
         conditions_from_environment, electrochemical_evidence)
 
     payload = {
@@ -306,7 +306,7 @@ def _stored_coupling_proof():
 
 def test_multiphysics_artifacts_are_identity_convergence_and_solver_gated():
     import json
-    from pipeline.process.multiphysics_contract import (
+    from pipeline.simulation.result_contract import (
         artifact_path, load_validated_artifact)
 
     artifact = {
@@ -348,7 +348,7 @@ def test_multiphysics_artifacts_are_identity_convergence_and_solver_gated():
 
 def test_validated_specialized_artifact_completes_without_thermal_yaml():
     import json
-    from pipeline.process.multiphysics_contract import artifact_path
+    from pipeline.simulation.result_contract import artifact_path
     from pipeline.stages.reactor import simulate_candidate
 
     base = {
@@ -390,7 +390,7 @@ def test_validated_specialized_artifact_completes_without_thermal_yaml():
         'solver_coupling': _stored_coupling_proof(),
     }
     with tempfile.TemporaryDirectory() as tmp, \
-            patch('pipeline.process.reactor_mechanisms.write_full_mechanism') as write:
+            patch('pipeline.reactors.mechanisms.write_full_mechanism') as write:
         path = artifact_path(
             tmp, 'ntec-candidate', 'ntec', 'NTEC', 300.0)
         path.parent.mkdir(parents=True)
@@ -493,7 +493,7 @@ def _write_contract_physical_case(path, reactor_type, mode, candidate_id,
 
 def test_physical_case_contract_covers_every_external_reactor_and_holdout():
     import json
-    from pipeline.process.physical_case import load_physical_case
+    from pipeline.simulation.physical_case import load_physical_case
 
     modes = {
         'Fluidized': 'thermocatalytic_fluidized', 'MMBCR': 'mmbcr',
@@ -521,7 +521,7 @@ def test_physical_case_contract_covers_every_external_reactor_and_holdout():
 
 
 def test_case_templates_are_complete_guides_but_never_runnable_defaults():
-    from pipeline.process.physical_case import case_template, load_physical_case
+    from pipeline.simulation.physical_case import case_template, load_physical_case
 
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / 'hydrogen_case.json'
@@ -539,7 +539,7 @@ def test_case_templates_are_complete_guides_but_never_runnable_defaults():
 
 
 def test_holdout_error_is_computed_from_raw_disjoint_records():
-    from pipeline.process.model_validation import score_holdout
+    from pipeline.simulation.model_validation import score_holdout
 
     calibration = {
         'training_ids': ['train-1'], 'validation_ids': ['holdout-1'],
@@ -557,7 +557,7 @@ def test_holdout_error_is_computed_from_raw_disjoint_records():
 
 
 def test_mesh_and_conservation_are_recomputed_not_self_attested():
-    from pipeline.process.multiphysics_contract import verify_numerics
+    from pipeline.simulation.result_contract import verify_numerics
 
     forged = _contract_convergence(outlet=1.1)
     forged.update({'mesh_independent': True,
@@ -571,7 +571,7 @@ def test_mesh_and_conservation_are_recomputed_not_self_attested():
 
 
 def test_external_mode_physical_identities_are_enforced():
-    from pipeline.process.multiphysics_contract import verify_physical_outputs
+    from pipeline.simulation.result_contract import verify_physical_outputs
 
     assert verify_physical_outputs('Fluidized', {
         'gas_velocity_m_s': 0.01, 'u_mf_m_s': 0.02,
@@ -588,10 +588,10 @@ def test_external_mode_physical_identities_are_enforced():
 
 
 def test_multiphysics_batch_preparation_reports_ready_and_templates():
-    from pipeline.process.multiphysics_prepare import prepare_manifest
+    from pipeline.simulation.case_preparation import prepare_manifest
 
     with tempfile.TemporaryDirectory() as tmp, patch(
-            'pipeline.process.multiphysics_prepare.mode_preflight',
+            'pipeline.simulation.case_preparation.mode_preflight',
             return_value={'missing': []}):
         root = Path(tmp)
         ready = root / 'ready'
@@ -614,7 +614,7 @@ def test_multiphysics_batch_preparation_reports_ready_and_templates():
 
 def test_multiphysics_runner_executes_and_revalidates_electrochemical_output():
     import json
-    from pipeline.process.multiphysics_runner import run_backend
+    from pipeline.simulation.external_runner import run_backend
 
     calls = {'fenicsx': 0}
 
@@ -647,13 +647,13 @@ def test_multiphysics_runner_executes_and_revalidates_electrochemical_output():
             'electrolyte_phase': 'aqueous'}))
 
     with tempfile.TemporaryDirectory() as tmp, \
-            patch('pipeline.process.multiphysics_runner.mode_preflight',
+            patch('pipeline.simulation.external_runner.mode_preflight',
                   return_value={
                       'missing': [], 'solvers': {
                           'openfoam': {'executable': '/unused'}}}), \
-            patch('pipeline.process.multiphysics_runner._fenics_command',
+            patch('pipeline.simulation.external_runner._fenics_command',
                   return_value=(['fenics-model'], 'contract-fenicsx')), \
-            patch('pipeline.process.multiphysics_runner._run', completed_model):
+            patch('pipeline.simulation.external_runner._run', completed_model):
         case = Path(tmp) / 'case'
         case.mkdir()
         _write_contract_physical_case(
@@ -674,7 +674,7 @@ def test_multiphysics_runner_executes_and_revalidates_electrochemical_output():
 
 def test_multiphysics_runner_rejects_nonconservative_solver_output():
     import json
-    from pipeline.process.multiphysics_runner import run_backend
+    from pipeline.simulation.external_runner import run_backend
 
     def nonconservative_model(_command, cwd, _timeout, _backend='solver'):
         (cwd / 'hydrogen_outputs.json').write_text(json.dumps({
@@ -688,13 +688,13 @@ def test_multiphysics_runner_rejects_nonconservative_solver_output():
                 'acceptance_threshold': 0.1, 'passed': True}}))
 
     with tempfile.TemporaryDirectory() as tmp, \
-            patch('pipeline.process.multiphysics_runner.mode_preflight',
+            patch('pipeline.simulation.external_runner.mode_preflight',
                   return_value={
                       'missing': [], 'solvers': {
                           'openfoam': {'executable': '/contract/openfoam'}}}), \
-            patch('pipeline.process.multiphysics_runner._run',
+            patch('pipeline.simulation.external_runner._run',
                   nonconservative_model), \
-            patch('pipeline.process.multiphysics_runner._openfoam_version',
+            patch('pipeline.simulation.external_runner._openfoam_version',
                   return_value='contract-openfoam'):
         case = Path(tmp) / 'case'
         case.mkdir()
@@ -714,19 +714,19 @@ def test_multiphysics_runner_rejects_nonconservative_solver_output():
 
 
 def test_ntec_runner_requires_explicit_openfoam_hydrodynamic_handoff():
-    from pipeline.process.multiphysics_runner import run_backend
+    from pipeline.simulation.external_runner import run_backend
 
     def openfoam_without_handoff(_command, _cwd, _timeout, _backend='solver'):
         return None
 
     with tempfile.TemporaryDirectory() as tmp, \
-            patch('pipeline.process.multiphysics_runner.mode_preflight',
+            patch('pipeline.simulation.external_runner.mode_preflight',
                   return_value={
                       'missing': [], 'solvers': {
                           'openfoam': {'executable': '/contract/openfoam'}}}), \
-            patch('pipeline.process.multiphysics_runner._run',
+            patch('pipeline.simulation.external_runner._run',
                   openfoam_without_handoff), \
-            patch('pipeline.process.multiphysics_runner._openfoam_version',
+            patch('pipeline.simulation.external_runner._openfoam_version',
                   return_value='contract-openfoam'):
         case = Path(tmp) / 'case'
         case.mkdir()
@@ -748,14 +748,14 @@ def test_ntec_runner_requires_explicit_openfoam_hydrodynamic_handoff():
 
 
 def test_electrochemical_artifact_phase_mismatch_is_non_excluding():
-    from pipeline.process.reactor_models import ReactorConfig, simulate_reactor
+    from pipeline.reactors.models import ReactorConfig, simulate_reactor
 
     loaded = {
         'valid': True, 'path': '/contract/artifact.json',
         'artifact': {'electrolyte_phase': 'aqueous'}}
     conditions = json.dumps({'electrolyte_phase': 'molten'})
     with patch(
-            'pipeline.process.multiphysics_contract.load_validated_artifact',
+            'pipeline.simulation.result_contract.load_validated_artifact',
             return_value=loaded), patch.dict(
                 os.environ, {'ELECTROCHEMICAL_CONDITIONS_JSON': conditions}):
         result = simulate_reactor(ReactorConfig(
@@ -769,7 +769,7 @@ def test_electrochemical_artifact_phase_mismatch_is_non_excluding():
 
 
 def test_multiphysics_input_digest_includes_mode_input_and_precedes_outputs():
-    from pipeline.process.multiphysics_runner import _tree_digest
+    from pipeline.simulation.external_runner import _tree_digest
 
     with tempfile.TemporaryDirectory() as tmp:
         case = Path(tmp)
@@ -794,7 +794,7 @@ def test_ranker_counts_only_finite_valid_training_rows():
 
 
 def test_candidate_cantera_mechanism_records_kinetics_provenance():
-    from pipeline.process.reactor_mechanisms import (
+    from pipeline.reactors.mechanisms import (
         CandidateKinetics, write_full_mechanism)
 
     row = {
@@ -818,7 +818,7 @@ def test_candidate_cantera_mechanism_records_kinetics_provenance():
     assert inputs['c_adsorption_eV'] == -1.10
     assert inputs['quantitative_status'] == 'screening_template_incomplete'
     assert inputs['provenance']['ch2_dehydrogenation_eV'] == 'template_default'
-    from pipeline.process.reactor_models import ReactorConfig, _kinetics_evidence
+    from pipeline.reactors.models import ReactorConfig, _kinetics_evidence
     evidence = _kinetics_evidence(ReactorConfig(
         mechanism_file=str(path), catalyst_name='contract_candidate'))
     assert evidence['reactor_evidence_tier'] == 'diagnostic_screening_template'
@@ -841,8 +841,8 @@ def test_reactor_surface_load_fails_closed_on_name_mismatch():
         import cantera  # noqa: F401
     except ImportError:
         return
-    from pipeline.process.reactor_mechanisms import write_full_mechanism
-    from pipeline.process.reactor_models import ReactorConfig, simulate_pfr
+    from pipeline.reactors.mechanisms import write_full_mechanism
+    from pipeline.reactors.models import ReactorConfig, simulate_pfr
     path = write_full_mechanism('t_0_05', E_act_CH4=0.9)
     cfg = ReactorConfig(
         mechanism_file=str(path), catalyst_name='t',
@@ -921,9 +921,9 @@ def test_refactored_protocol_executor_and_reactor_stage_contracts():
         {'CH4_conversion': 0.1, 'mock': False},
         {'CH4_conversion': 0.4, 'mock': False},
     ]
-    with patch('pipeline.process.reactor_mechanisms.write_full_mechanism',
+    with patch('pipeline.reactors.mechanisms.write_full_mechanism',
                return_value=Path('contract.yaml')) as write, \
-         patch('pipeline.process.reactor_models.run_reactor_sweep',
+         patch('pipeline.reactors.models.run_reactor_sweep',
                return_value=fake_sweep) as sweep:
         result = simulate_candidate(
             row, 'contract', [800.0, 900.0], ['PFR'], forbid_mock=True)
@@ -1085,7 +1085,7 @@ def test_qe_relax_and_neb_preserve_fixed_slab_atoms():
 
 def test_pyrolysis_manifest_preserves_unresolved_steps_and_validated_identity():
     import json
-    from pipeline.process.reactor_mechanisms import CandidateKinetics
+    from pipeline.reactors.mechanisms import CandidateKinetics
     from pipeline.validation.production_workflow import (
         PYROLYSIS_ELEMENTARY_STEPS, pyrolysis_campaign_status)
 

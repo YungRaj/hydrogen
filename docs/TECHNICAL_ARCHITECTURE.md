@@ -242,7 +242,13 @@ progress. It is observational. It does not schedule work or alter evidence.
 | `pipeline/common/` | Paths, constants, executable discovery, catalyst definitions, provenance, applicability, confidence/OOD logic |
 | `pipeline/search/` | Indexed population, deterministic branch traversal, persistent scans, coverage, adaptive validation, diverse discovery batches |
 | `pipeline/screening/` | eSen/fairchem structure construction and energy evaluation, relaxation, surrogate models, GPU worker runtime, stage admission |
-| `pipeline/process/` | Candidate mechanisms, Cantera reactor models, NTEC transfer model, PEMFC model, stack model, techno-economics |
+| `pipeline/reactors/` | Cantera mechanisms, thermal reactor models, routing, equilibrium checks, result eligibility, scorecards, and focused sweeps |
+| `pipeline/simulation/` | Physical cases, external solver execution, validated artifacts, and solver/reactor handoffs |
+| `pipeline/transport/` | Representative-case design, transport closures, registries, training, and surrogates |
+| `pipeline/electrochemistry/` | NTEC and broader electrochemical pathway models and evidence |
+| `pipeline/fuel_cell/` | PEMFC polarization and system-level stack models |
+| `pipeline/campaigns/` | Persistent ledgers and resumable multi-fidelity/full-physics scheduling |
+| `pipeline/economics/` | Techno-economic analysis |
 | `pipeline/stages/` | Explicit boundaries that translate one phase's record into the next phase's inputs |
 | `pipeline/validation/` | Quantum ESPRESSO input/execution/parsing, ORR corrections, production validation sequencing, task queue, viability, CUDA-Q VQE |
 | `pipeline/evidence/` | Coverage/readiness, prior art, manifests, novelty and pilot benchmarks, status and reports |
@@ -251,9 +257,9 @@ progress. It is observational. It does not schedule work or alter evidence.
 | `results/` | Generated screening databases, certificates, calculations, reports, logs, and run state |
 
 The dependency direction is intentionally mostly one-way: common definitions
-support search and screening; selected screening records feed process and
-validation stages; evidence modules inspect artifacts rather than silently
-changing scientific results.
+support search and screening; selected screening records feed reactor,
+simulation, and validation stages; evidence modules inspect artifacts rather
+than silently changing scientific results.
 
 ## 5. The 21.1-billion-candidate design space
 
@@ -590,7 +596,7 @@ a selected screening row to Cantera. It:
 
 ### 10.2 What is candidate-specific today
 
-`pipeline/process/reactor_mechanisms.py::CandidateKinetics` consumes:
+`pipeline/reactors/mechanisms.py::CandidateKinetics` consumes:
 
 - `E_act` as the candidate's methane activation estimate;
 - `dE_H` as H adsorption thermochemistry;
@@ -625,8 +631,8 @@ evaluation, reactor-network integration, and surface chemistry for that scale.
 
 The integration lives in:
 
-- `pipeline/process/reactor_mechanisms.py` for Cantera YAML generation;
-- `pipeline/process/reactor_models.py` for loading phases and simulating reactor
+- `pipeline/reactors/mechanisms.py` for Cantera YAML generation;
+- `pipeline/reactors/models.py` for loading phases and simulating reactor
   configurations;
 - `pipeline/stages/reactor.py` for the screening-to-reactor boundary.
 
@@ -763,7 +769,7 @@ Thermocatalytic screening uses the unassisted atomistic descriptors. NTEC uses
 the same candidate base calculation and optionally applies a bounded transfer
 from measured operating conditions and paired NTEC/control calibration.
 
-`pipeline/process/ntec_model.py` requires:
+`pipeline/electrochemistry/ntec.py` requires:
 
 - shear rate;
 - interfacial electric field;
@@ -1185,7 +1191,7 @@ and validation requirements.
 
 ### 15.2 PEMFC model
 
-`pipeline/process/pemfc_model.py` implements a one-dimensional, lumped
+`pipeline/fuel_cell/pemfc.py` implements a one-dimensional, lumped
 through-MEA electrochemical model. For each current density it computes:
 
 ```text
@@ -1211,7 +1217,7 @@ The result is `modeled` and `requires_mea_validation = true`.
 
 ### 15.3 Stack model
 
-`pipeline/process/fuel_cell_stack.py` scales a selected cell operating point to
+`pipeline/fuel_cell/stack.py` scales a selected cell operating point to
 an N-cell stack. It estimates gross and net power, compressor/pump/blower/control
 parasitics, heat rejection, radiator area, hydrogen consumption, stack/system
 efficiency, mass, volume, gravimetric/volumetric power, catalyst and membrane
@@ -1232,7 +1238,7 @@ the required testing explicit.
 
 ## 16. Techno-economics
 
-`pipeline/process/tea.py` converts modeled conversion and operating assumptions
+`pipeline/economics/tea.py` converts modeled conversion and operating assumptions
 into hydrogen-cost scenarios. It explicitly labels results
 `screening_scenario_not_measured_tea` or `screening_sensitivity_range`.
 
@@ -1448,7 +1454,7 @@ First populate a sourced solver case as specified in
 [`PHYSICAL_CASES.md`](PHYSICAL_CASES.md), then generate its validated artifact:
 
 ```bash
-python -m pipeline.process.multiphysics_runner \
+python -m pipeline.simulation.external_runner \
   --mode ntec \
   --reactor-type NTEC \
   --candidate-id CANONICAL_ID \

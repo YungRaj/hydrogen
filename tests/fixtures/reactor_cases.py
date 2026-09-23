@@ -11,7 +11,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from pipeline.process.solver_execution import SolverExecutionServices
+from pipeline.simulation.solver_execution import SolverExecutionServices
 
 MODES = {"Fluidized": "thermocatalytic_fluidized", "MMBCR": "mmbcr",
          "NTEC": "ntec", "Electrochemical": "electrochemical"}

@@ -14,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from pipeline.process.yaml_sweep import run_sweep
+from pipeline.reactors.sweeps.runner import run_sweep
 
 
 def main() -> None:

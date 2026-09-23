@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterable, Optional
 
 from pipeline.common.utils import SWEEPS_DIR, repo_relative
-from pipeline.process.result_eligibility import is_usable_result
+from pipeline.reactors.eligibility import is_usable_result
 
 SWEEP_NAMES = (
     'ni_np_b66_eact',

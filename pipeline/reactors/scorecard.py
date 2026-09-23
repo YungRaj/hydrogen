@@ -7,7 +7,7 @@ argument, not a module constant.
 
 from __future__ import annotations
 
-from pipeline.process.result_eligibility import is_usable_result
+from pipeline.reactors.eligibility import is_usable_result
 
 SOLIDS_TYPES = frozenset({'PFR', 'Fluidized'})
 H_PARKED_E_ACT_MAX = 0.05

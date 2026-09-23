@@ -7,13 +7,13 @@ import hashlib
 import json
 from typing import Callable, Iterable, Mapping
 
-from pipeline.process.campaign_ledger import CampaignLedger
-from pipeline.process.full_physics_scheduler import (
+from pipeline.campaigns.ledger import CampaignLedger
+from pipeline.campaigns.full_physics import (
     FullPhysicsRequest, schedule_full_physics_cases)
-from pipeline.process.multiphysics_runner import run_backend
-from pipeline.process.transport_model_registry import TransportModelRegistry
-from pipeline.process.transport_training import CaseArtifactReference
-from pipeline.process.transport_training import train_and_publish_transport_model
+from pipeline.simulation.external_runner import run_backend
+from pipeline.transport.registry import TransportModelRegistry
+from pipeline.transport.training import CaseArtifactReference
+from pipeline.transport.training import train_and_publish_transport_model
 
 
 @dataclass(frozen=True)

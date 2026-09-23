@@ -208,10 +208,10 @@ def generate_full_report(pipeline_state: Dict = None) -> Path:
         except (TypeError, ValueError):
             return unavailable
 
-    from pipeline.process.phase2_scorecard import (
+    from pipeline.reactors.scorecard import (
         is_production_reactor_record, is_solids_run, single_pass_x,
     )
-    from pipeline.process.result_eligibility import is_usable_result
+    from pipeline.reactors.eligibility import is_usable_result
     scorecard = p2.get('solids_scorecard') or load_json(
         'phase2_solids_scorecard.json', subdir='reactor') or {}
     if scorecard.get('headline'):

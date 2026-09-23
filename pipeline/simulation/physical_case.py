@@ -76,7 +76,7 @@ def load_physical_case(path: str | Path, *, candidate_id: str, mode: str,
         raise ValueError(f'physical case is unreadable: {exc}') from exc
     if reactor_type not in _REQUIRED:
         raise ValueError(f'no physical-case contract for {reactor_type}')
-    from pipeline.process.pathway_modes import reactor_types_for_mode
+    from pipeline.reactors.modes import reactor_types_for_mode
     try:
         routed = reactor_type in reactor_types_for_mode(mode)
     except ValueError:
@@ -180,7 +180,7 @@ def case_template(*, candidate_id: str, mode: str, reactor_type: str,
     Returns:
         Dictionary containing the computed values, status, and supporting metadata.
     """
-    from pipeline.process.pathway_modes import reactor_types_for_mode
+    from pipeline.reactors.modes import reactor_types_for_mode
     if reactor_type not in reactor_types_for_mode(mode):
         raise ValueError(f'{reactor_type} is not routed by mode {mode}')
     sections = {}

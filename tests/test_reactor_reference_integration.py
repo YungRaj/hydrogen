@@ -12,8 +12,10 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from pipeline.orchestrator import PipelineConfig, normalized_pipeline_config
-from pipeline.process import reactor_mechanisms, reactor_models, yaml_sweep
-from pipeline.process.phase2_scorecard import build_solids_scorecard
+from pipeline.reactors import mechanisms as reactor_mechanisms
+from pipeline.reactors import models as reactor_models
+from pipeline.reactors.sweeps import runner as yaml_sweep
+from pipeline.reactors.scorecard import build_solids_scorecard
 from pipeline.stages.reactor_batch import (
     ReactorBatchServices, default_reactor_batch_services, run_reactor_batch_stage,
 )

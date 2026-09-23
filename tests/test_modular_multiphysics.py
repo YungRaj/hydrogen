@@ -13,10 +13,10 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from pipeline.process.multifidelity_surrogate import (
+from pipeline.transport.surrogate import (
     PhysicsRecord, TransportSurrogate, fit_transport_surrogate,
     record_from_artifact)
-from pipeline.process.physical_case import case_template, surrogate_inputs
+from pipeline.simulation.physical_case import case_template, surrogate_inputs
 from pipeline.stages.reactor import (
     ReactorStageServices, simulate_candidate, summarize_reactor_sweep)
 from pipeline.stages.orchestration import PipelineComponents, PipelineRuntime
@@ -554,7 +554,7 @@ def test_reactor_batch_mock_path_remains_explicitly_gated():
 
 
 def test_artifact_store_is_independent_and_removes_rejected_evidence():
-    from pipeline.process.artifact_store import persist_validated_artifact
+    from pipeline.simulation.artifact_store import persist_validated_artifact
 
     with tempfile.TemporaryDirectory() as tmp:
         target = Path(tmp) / 'artifact.json'
@@ -578,8 +578,8 @@ def test_artifact_store_is_independent_and_removes_rejected_evidence():
 
 
 def test_multiphysics_solver_discovery_is_injectable_before_case_access():
-    from pipeline.process.multiphysics_runner import run_backend
-    from pipeline.process.solver_execution import SolverExecutionServices
+    from pipeline.simulation.external_runner import run_backend
+    from pipeline.simulation.solver_execution import SolverExecutionServices
 
     execution = SolverExecutionServices(
         preflight=lambda mode: {
@@ -598,7 +598,7 @@ def test_multiphysics_solver_discovery_is_injectable_before_case_access():
 
 def test_reactor_coupling_adapter_maps_only_validated_identity_matched_fields():
     from types import SimpleNamespace
-    from pipeline.process.reactor_coupling import couple_multiphysics_evidence
+    from pipeline.simulation.reactor_handoff import couple_multiphysics_evidence
 
     config = SimpleNamespace(
         candidate_id='candidate', pathway_mode='mmbcr', reactor_type='MMBCR',
@@ -623,8 +623,8 @@ def test_reactor_coupling_adapter_maps_only_validated_identity_matched_fields():
 
 
 def test_simulate_reactor_accepts_in_injected_coupling_services():
-    from pipeline.process.reactor_coupling import ReactorCouplingServices
-    from pipeline.process.reactor_models import ReactorConfig, simulate_reactor
+    from pipeline.simulation.reactor_handoff import ReactorCouplingServices
+    from pipeline.reactors.models import ReactorConfig, simulate_reactor
 
     calls = []
 
@@ -653,10 +653,10 @@ def test_simulate_reactor_accepts_in_injected_coupling_services():
     # still never coupled.
     calls.clear()
     from unittest.mock import patch
-    with patch('pipeline.process.reactor_models.simulate_mmbcr',
+    with patch('pipeline.reactors.models.simulate_mmbcr',
                return_value={'CH4_conversion': 0.1}) as run, \
-            patch('pipeline.process.reactor_models._validate_reactor_config'), \
-            patch('pipeline.process.reactor_models.save_json'):
+            patch('pipeline.reactors.models._validate_reactor_config'), \
+            patch('pipeline.reactors.models.save_json'):
         result = simulate_reactor(ReactorConfig(
             reactor_type='MMBCR', pathway_mode='mmbcr',
             material_class='MoltenMetal', candidate_id='candidate',
@@ -673,7 +673,7 @@ def test_simulate_reactor_accepts_in_injected_coupling_services():
 
 
 def test_closure_provider_prefers_full_physics_and_rejects_temperature_mismatch():
-    from pipeline.process.closure_provider import resolve_reactor_closure
+    from pipeline.transport.closure_provider import resolve_reactor_closure
 
     class MustNotRun:
         pathway_mode = 'mmbcr'
@@ -697,8 +697,8 @@ def test_closure_provider_prefers_full_physics_and_rejects_temperature_mismatch(
 
 
 def test_calibrated_surrogate_closure_flows_into_reduced_reactor_without_relabeling():
-    from pipeline.process.reactor_coupling import ReactorCouplingServices
-    from pipeline.process.reactor_models import ReactorConfig, simulate_reactor
+    from pipeline.simulation.reactor_handoff import ReactorCouplingServices
+    from pipeline.reactors.models import ReactorConfig, simulate_reactor
 
     model = _fit()
     services = ReactorCouplingServices(
@@ -713,7 +713,7 @@ def test_calibrated_surrogate_closure_flows_into_reduced_reactor_without_relabel
         catalyst_name='candidate', T_inlet_K=400.0,
         closure_features=dict(_record('query', 400).features),
         multiphysics_results_dir='/portable')
-    with patch('pipeline.process.reactor_models.HAS_CANTERA', False):
+    with patch('pipeline.reactors.models.HAS_CANTERA', False):
         result = simulate_reactor(config, coupling_services=services)
     evidence = result['reactor_closure_evidence']
     assert result['status'] == 'complete'
@@ -725,7 +725,7 @@ def test_calibrated_surrogate_closure_flows_into_reduced_reactor_without_relabel
 
 
 def test_transport_model_registry_round_trip_and_tamper_rejection():
-    from pipeline.process.transport_model_registry import TransportModelRegistry
+    from pipeline.transport.registry import TransportModelRegistry
 
     with tempfile.TemporaryDirectory() as tmp:
         registry = TransportModelRegistry(tmp)
@@ -744,7 +744,7 @@ def test_transport_model_registry_round_trip_and_tamper_rejection():
 
 
 def test_representative_case_design_is_deterministic_stratified_and_anchored():
-    from pipeline.process.representative_cases import (
+    from pipeline.transport.representative_cases import (
         ParameterRange, design_representative_cases)
 
     ranges = {
@@ -779,7 +779,7 @@ def test_representative_case_design_is_deterministic_stratified_and_anchored():
 
 
 def test_representative_case_design_rejects_bad_anchors():
-    from pipeline.process.representative_cases import (
+    from pipeline.transport.representative_cases import (
         ParameterRange, design_representative_cases)
 
     with _raises('outside range'):
@@ -791,8 +791,8 @@ def test_representative_case_design_rejects_bad_anchors():
 
 
 def test_training_workflow_validates_partitions_before_atomic_publish():
-    from pipeline.process.transport_model_registry import TransportModelRegistry
-    from pipeline.process.transport_training import (
+    from pipeline.transport.registry import TransportModelRegistry
+    from pipeline.transport.training import (
         CaseArtifactReference, train_and_publish_transport_model)
 
     records = [_record(f'case-{index}', 300 + index * 20)
@@ -832,8 +832,8 @@ def test_training_workflow_validates_partitions_before_atomic_publish():
 
 
 def test_training_workflow_never_publishes_a_partial_invalid_dataset():
-    from pipeline.process.transport_model_registry import TransportModelRegistry
-    from pipeline.process.transport_training import (
+    from pipeline.transport.registry import TransportModelRegistry
+    from pipeline.transport.training import (
         CaseArtifactReference, train_and_publish_transport_model)
 
     references = [CaseArtifactReference(
@@ -857,7 +857,7 @@ def test_training_workflow_never_publishes_a_partial_invalid_dataset():
 
 
 def test_full_physics_scheduler_preserves_coverage_then_uses_feedback():
-    from pipeline.process.full_physics_scheduler import (
+    from pipeline.campaigns.full_physics import (
         FullPhysicsRequest, schedule_full_physics_cases)
 
     requests = [
@@ -880,7 +880,7 @@ def test_full_physics_scheduler_preserves_coverage_then_uses_feedback():
 
 
 def test_full_physics_scheduler_fails_when_coverage_budget_is_impossible():
-    from pipeline.process.full_physics_scheduler import (
+    from pipeline.campaigns.full_physics import (
         FullPhysicsRequest, schedule_full_physics_cases)
 
     with _raises('fixed regional coverage'):
@@ -890,7 +890,7 @@ def test_full_physics_scheduler_fails_when_coverage_budget_is_impossible():
 
 
 def test_case_partitions_are_deterministic_preassigned_and_nonmutating():
-    from pipeline.process.representative_cases import assign_case_partitions
+    from pipeline.transport.representative_cases import assign_case_partitions
 
     source = [{'case_id': f'case-{index}', 'features': {'x': index}}
               for index in range(8)]
@@ -902,7 +902,7 @@ def test_case_partitions_are_deterministic_preassigned_and_nonmutating():
 
 
 def test_campaign_ledger_detects_lineage_tampering():
-    from pipeline.process.campaign_ledger import CampaignLedger
+    from pipeline.campaigns.ledger import CampaignLedger
 
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / 'campaign.json'
@@ -919,10 +919,10 @@ def test_campaign_ledger_detects_lineage_tampering():
 
 
 def test_complete_multifidelity_iteration_executes_trains_screens_and_refers():
-    from pipeline.process.campaign_ledger import CampaignLedger
-    from pipeline.process.multifidelity_campaign import (
+    from pipeline.campaigns.ledger import CampaignLedger
+    from pipeline.campaigns.multifidelity import (
         MultiFidelityCampaignServices, run_multifidelity_iteration)
-    from pipeline.process.transport_training import CaseArtifactReference
+    from pipeline.transport.training import CaseArtifactReference
 
     model = _fit()
     plans = [{'case_id': f'case-{index}',
@@ -976,9 +976,9 @@ def test_complete_multifidelity_iteration_executes_trains_screens_and_refers():
 
 
 def test_multifidelity_iteration_retrains_with_prior_validated_cases():
-    from pipeline.process.multifidelity_campaign import (
+    from pipeline.campaigns.multifidelity import (
         MultiFidelityCampaignServices, run_multifidelity_iteration)
-    from pipeline.process.transport_training import CaseArtifactReference
+    from pipeline.transport.training import CaseArtifactReference
 
     model = _fit()
     prior = CaseArtifactReference(
@@ -1009,7 +1009,7 @@ def test_multifidelity_iteration_retrains_with_prior_validated_cases():
 
 
 def test_default_campaign_services_bind_portable_production_inputs():
-    from pipeline.process.multifidelity_campaign import default_campaign_services
+    from pipeline.campaigns.multifidelity import default_campaign_services
 
     observed = {}
 

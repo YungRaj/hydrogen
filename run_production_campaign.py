@@ -16,7 +16,7 @@ import subprocess
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from pipeline.process.pathway_modes import (
+from pipeline.reactors.modes import (
     DEFAULT_MODE, MODE_CHOICES, reactor_types_for_mode)
 
 
@@ -299,8 +299,8 @@ def main():
         t2 = time.time()
         try:
             from pipeline.stages.reactor import simulate_candidate
-            from pipeline.process.equilibrium_check import run_equilibrium_sweep
-            from pipeline.process.phase2_scorecard import (
+            from pipeline.reactors.equilibrium import run_equilibrium_sweep
+            from pipeline.reactors.scorecard import (
                 build_solids_scorecard, log_solids_scorecard)
 
             reactor_temps = [773.15, 900.0, 1100.0, 1300.0]
@@ -355,7 +355,7 @@ def main():
                     print(f"    Reactor error: {e}")
 
             # ── Pyrolysis TEA ($/kg H₂) ──────────────────────────────────
-            from pipeline.process.tea import estimate_scenario_range
+            from pipeline.economics.tea import estimate_scenario_range
             tea_results = []
             for r in reactor_results:
                 conv = r.get('best_conversion', 0)
@@ -592,8 +592,8 @@ def main():
         # ─── PEMFC Stack Modeling on top ORR catalysts ────────────────────
         if time.time() < t_deadline and len(top_fc) > 0:
             print_banner("PHASE 5B: PEMFC STACK MODELING")
-            from pipeline.process.pemfc_model import sweep_membranes
-            from pipeline.process.fuel_cell_stack import StackConfig, model_stack
+            from pipeline.fuel_cell.pemfc import sweep_membranes
+            from pipeline.fuel_cell.stack import StackConfig, model_stack
 
             pemfc_results = []
             for _, row in top_fc.iterrows():

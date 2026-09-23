@@ -525,13 +525,13 @@ def test_structure_generation_is_deterministic_and_genome_sensitive():
 
 def test_tafel_covers_all_classes():
     from pipeline.common.catalyst_spaces import ALL_MATERIAL_CLASSES
-    from pipeline.process.pemfc_model import TAFEL_SLOPE_BY_CLASS
+    from pipeline.fuel_cell.pemfc import TAFEL_SLOPE_BY_CLASS
     for cls in ALL_MATERIAL_CLASSES:
         assert cls in TAFEL_SLOPE_BY_CLASS, f"Missing Tafel slope for {cls}"
 
 
 def test_pemfc_power_monotonic_with_eta():
-    from pipeline.process.pemfc_model import simulate_pemfc, PEMFCConfig
+    from pipeline.fuel_cell.pemfc import simulate_pemfc, PEMFCConfig
     etas = [0.25, 0.30, 0.35, 0.40, 0.50, 0.60, 0.80]
     results = [simulate_pemfc(PEMFCConfig(orr_overpotential_V=e)) for e in etas]
     powers = [r['peak_power_W_cm2'] for r in results]
@@ -540,7 +540,7 @@ def test_pemfc_power_monotonic_with_eta():
 
 
 def test_tafel_slope_affects_power():
-    from pipeline.process.pemfc_model import simulate_pemfc, PEMFCConfig
+    from pipeline.fuel_cell.pemfc import simulate_pemfc, PEMFCConfig
     r_low = simulate_pemfc(PEMFCConfig(orr_overpotential_V=0.35, orr_tafel_slope_mV_dec=65))
     r_high = simulate_pemfc(PEMFCConfig(orr_overpotential_V=0.35, orr_tafel_slope_mV_dec=130))
     assert r_low['peak_power_W_cm2'] > r_high['peak_power_W_cm2'], \
@@ -548,7 +548,7 @@ def test_tafel_slope_affects_power():
 
 
 def test_pemfc_efficiency_in_range():
-    from pipeline.process.pemfc_model import simulate_pemfc, PEMFCConfig
+    from pipeline.fuel_cell.pemfc import simulate_pemfc, PEMFCConfig
     r = simulate_pemfc(PEMFCConfig(orr_overpotential_V=0.35))
     eff = r['efficiency_at_peak']
     assert 0.10 < eff < 0.60, f"Efficiency {eff} out of physical range"
@@ -559,7 +559,7 @@ def test_pemfc_efficiency_in_range():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def test_stack_model():
-    from pipeline.process.fuel_cell_stack import model_stack, StackConfig
+    from pipeline.fuel_cell.stack import model_stack, StackConfig
     stack = model_stack(StackConfig(cell_voltage_V=0.65, current_density_A_cm2=1.5))
     assert stack['net_power_kW'] > 0, f"Negative net power: {stack['net_power_kW']}"
     assert 0 < stack['system_efficiency'] < 1, f"Efficiency out of range: {stack['system_efficiency']}"
@@ -567,7 +567,7 @@ def test_stack_model():
 
 
 def test_tea_is_scenario_labelled_and_unclamped():
-    from pipeline.process.tea import estimate_scenario_range
+    from pipeline.economics.tea import estimate_scenario_range
     low_conversion = estimate_scenario_range(0.10)
     high_conversion = estimate_scenario_range(0.90)
     assert low_conversion['max_usd_kg'] > low_conversion['min_usd_kg']
@@ -769,7 +769,7 @@ def test_ood_confidence_all_classes():
 
 def test_tafel_all_classes():
     from pipeline.common.catalyst_spaces import ALL_MATERIAL_CLASSES
-    from pipeline.process.pemfc_model import TAFEL_SLOPE_BY_CLASS
+    from pipeline.fuel_cell.pemfc import TAFEL_SLOPE_BY_CLASS
     for cls in ALL_MATERIAL_CLASSES:
         assert cls in TAFEL_SLOPE_BY_CLASS, f"TAFEL_SLOPE missing: {cls}"
 
@@ -1333,7 +1333,7 @@ def test_turquoise_pyrolysis_select_excludes_metal_hydride():
 
 
 def test_mechanism_has_condensed_graphite_not_gas_carbon():
-    from pipeline.process.reactor_mechanisms import write_full_mechanism, write_gas_only_mechanism
+    from pipeline.reactors.mechanisms import write_full_mechanism, write_gas_only_mechanism
     gas_path = write_gas_only_mechanism()
     full_path = write_full_mechanism('test_cat_scope', E_act_CH4=0.9)
     gas_txt = gas_path.read_text(encoding='utf-8')
@@ -1348,7 +1348,7 @@ def test_mechanism_has_condensed_graphite_not_gas_carbon():
 
 def test_off_site_carbon_gated_to_nanoparticle_metals():
     import json
-    from pipeline.process.reactor_mechanisms import (
+    from pipeline.reactors.mechanisms import (
         CandidateKinetics, off_site_carbon_allowed, write_full_mechanism)
 
     ni = ('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)
@@ -1399,7 +1399,7 @@ def test_surface_thermo_references_and_tst_prefactors():
     """Writer puts adsorption energies on Cantera's absolute scale and uses
     TST prefactors for bimolecular surface steps (B6-5 corrections)."""
     import json
-    from pipeline.process.reactor_mechanisms import (
+    from pipeline.reactors.mechanisms import (
         EV_TO_J_MOL, H_F_CH3_RADICAL_J_MOL, H_F_CH4_J_MOL,
         MONOLAYER_SITE_DENSITY_MOL_CM2, CandidateKinetics, write_full_mechanism)
 
@@ -1457,8 +1457,8 @@ def test_surface_thermo_references_and_tst_prefactors():
 
 def test_mechanical_regen_never_clears_encapsulating_carbon():
     import cantera as ct
-    from pipeline.process.reactor_mechanisms import CandidateKinetics, write_full_mechanism
-    from pipeline.process.reactor_models import _reset_surface_carbon
+    from pipeline.reactors.mechanisms import CandidateKinetics, write_full_mechanism
+    from pipeline.reactors.models import _reset_surface_carbon
 
     ni = ('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)
     path = write_full_mechanism('test_ni_regen', kinetics=CandidateKinetics(
@@ -1477,7 +1477,7 @@ def test_mechanical_regen_never_clears_encapsulating_carbon():
 def test_yaml_sweep_kinetics_keys_for_b6():
     import tempfile
     from pathlib import Path
-    from pipeline.process.yaml_sweep import parse_sweep, _load_kinetics_row
+    from pipeline.reactors.sweeps.runner import parse_sweep, _load_kinetics_row
 
     body = """
 name: b6_keys
@@ -1530,7 +1530,7 @@ def test_yaml_sweep_block_cartesian_and_rejects():
     """sweep: cartesian product; unknown keys and fixed+swept fail closed."""
     import tempfile
     from pathlib import Path
-    from pipeline.process.yaml_sweep import grid_points, parse_sweep
+    from pipeline.reactors.sweeps.runner import grid_points, parse_sweep
 
     body = """
 name: b66_grid
@@ -1589,7 +1589,7 @@ cells:
 
 def test_ch4_sticking_coefficient_written_to_yaml_and_sidecar():
     import json
-    from pipeline.process.reactor_mechanisms import (
+    from pipeline.reactors.mechanisms import (
         CandidateKinetics, write_full_mechanism)
 
     ni = ('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)
@@ -1605,7 +1605,7 @@ def test_ch4_sticking_coefficient_written_to_yaml_and_sidecar():
 
 
 def test_agamma_derivation_from_particle_nm():
-    from pipeline.process.reactor_mechanisms import (
+    from pipeline.reactors.mechanisms import (
         CARBON_DIFFUSION_PREFACTOR_M2_S, CandidateKinetics,
         carbon_transfer_prefactor_from_particle)
 
@@ -1637,8 +1637,8 @@ def test_encapsulation_lifetime_on_pfr_and_fluidized():
         import cantera  # noqa: F401
     except ImportError:
         return
-    from pipeline.process.reactor_mechanisms import CandidateKinetics, write_full_mechanism
-    from pipeline.process.reactor_models import (
+    from pipeline.reactors.mechanisms import CandidateKinetics, write_full_mechanism
+    from pipeline.reactors.models import (
         ReactorConfig, simulate_fluidized_bed, simulate_pfr)
 
     ni = ('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)
@@ -1661,8 +1661,8 @@ def test_circulating_removal_updates_integrated_state_and_conserves_carbon():
         import cantera  # noqa: F401
     except ImportError:
         return
-    from pipeline.process.reactor_mechanisms import write_full_mechanism
-    from pipeline.process.reactor_models import ReactorConfig, simulate_fluidized_bed
+    from pipeline.reactors.mechanisms import write_full_mechanism
+    from pipeline.reactors.models import ReactorConfig, simulate_fluidized_bed
 
     path = write_full_mechanism('test_circ_state', E_act_CH4=0.9)
     shared = dict(
@@ -1691,7 +1691,7 @@ def test_circulating_removal_updates_integrated_state_and_conserves_carbon():
 
 
 def test_b66_criteria_on_synthetic_payload():
-    from pipeline.process.b66_criteria import (
+    from pipeline.reactors.sweeps.carbon_criteria import (
         d_lnX_d_Eact, evaluate_criteria, linearity_relative_diff)
 
     assert abs(d_lnX_d_Eact(0.20, 0.05) - abs(__import__('math').log(0.05 / 0.20) / 0.2)) < 1e-12
@@ -1762,7 +1762,7 @@ def test_b66_criteria_on_synthetic_payload():
 
 
 def test_b67_joint_band_declares_no_simultaneous_hit():
-    from pipeline.process.b67_joint_band import search_joint_band
+    from pipeline.reactors.sweeps.joint_band import search_joint_band
 
     def rec(**kwargs):
         row = {
@@ -1812,7 +1812,7 @@ def test_b67_joint_band_declares_no_simultaneous_hit():
 
 
 def test_solids_scorecard_ni_judge_uses_filament_roi_not_1300():
-    from pipeline.process.phase2_scorecard import (
+    from pipeline.reactors.scorecard import (
         NI_JUDGE_CATALYST, NI_JUDGE_HEADLINE_T_MAX, NI_JUDGE_HEADLINE_T_MIN,
         build_solids_scorecard)
 
@@ -1844,7 +1844,7 @@ def test_solids_scorecard_ni_judge_uses_filament_roi_not_1300():
 
 
 def test_scorecard_excludes_equilibrium_overshoot_from_every_rank():
-    from pipeline.process.phase2_scorecard import build_solids_scorecard
+    from pipeline.reactors.scorecard import build_solids_scorecard
 
     def row(name, T, X, *, overshoot=False):
         return {
@@ -1869,13 +1869,13 @@ def test_scorecard_excludes_equilibrium_overshoot_from_every_rank():
 
 def test_usable_result_baseline_shared_across_consumers():
     """Overshoot and carbon-fail cannot rank, cost, or win best-condition."""
-    from pipeline.process.b66_criteria import is_scorable
-    from pipeline.process.b67_joint_band import search_joint_band
-    from pipeline.process.phase2_scorecard import (
+    from pipeline.reactors.sweeps.carbon_criteria import is_scorable
+    from pipeline.reactors.sweeps.joint_band import search_joint_band
+    from pipeline.reactors.scorecard import (
         build_solids_scorecard, is_scoreable_solids)
-    from pipeline.process.result_eligibility import (
+    from pipeline.reactors.eligibility import (
         is_rankable_result, is_usable_result)
-    from pipeline.process.tea import estimate_scenario_range
+    from pipeline.economics.tea import estimate_scenario_range
     from pipeline.stages.reactor import summarize_reactor_sweep
 
     def solids(X, **kwargs):
@@ -1939,7 +1939,7 @@ def test_ni_literature_screening_row_is_not_fairchem():
     import pandas as pd
     from pipeline.common.application_scope import scope_pyrolysis_pool
     from pipeline.common.utils import BASE_DIR
-    from pipeline.process.reactor_mechanisms import CandidateKinetics
+    from pipeline.reactors.mechanisms import CandidateKinetics
 
     path = BASE_DIR / 'sweeps' / 'ni_np_lit_screening_row.csv'
     frame = pd.read_csv(path)
@@ -1961,7 +1961,7 @@ def test_ni_literature_screening_row_is_not_fairchem():
 def test_staged_sweep_preserves_coarse_and_proposes_roi():
     import tempfile
     from pathlib import Path
-    from pipeline.process import staged_sweep
+    from pipeline.reactors.sweeps import staged as staged_sweep
     old = staged_sweep.SWEEPS_DIR
     with tempfile.TemporaryDirectory() as tmp:
         staged_sweep.SWEEPS_DIR = Path(tmp)
@@ -2008,10 +2008,10 @@ def test_staged_sweep_preserves_coarse_and_proposes_roi():
 
 
 def test_inventory_levers_preserve_baseline_area():
-    from pipeline.process.reactor_models import (
+    from pipeline.reactors.models import (
         ReactorConfig, _validate_carbon_policy, active_sv, ergun_delta_p_pa,
         geometric_sv_pfr, inventory_grid_cells)
-    from pipeline.process.reactor_models import (
+    from pipeline.reactors.models import (
         DEFAULT_METAL_DISPERSION, DEFAULT_METAL_LOADING,
         DEFAULT_SOLIDS_PARTICLE_MM)
     assert abs(DEFAULT_SOLIDS_PARTICLE_MM - 0.13) < 1e-15
@@ -2040,7 +2040,7 @@ def test_inventory_levers_preserve_baseline_area():
     assert len(cells) == 36
     assert cells[0] == {
         'catalyst_particle_mm': 2.0, 'metal_loading': 1.0, 'metal_dispersion': 1.0}
-    from pipeline.process.reactor_models import inventory_roi_grid_cells
+    from pipeline.reactors.models import inventory_roi_grid_cells
     roi = inventory_roi_grid_cells()
     assert len(roi) == 54
     assert roi[0]['catalyst_particle_mm'] == 0.25
@@ -2056,7 +2056,7 @@ def test_inventory_levers_preserve_baseline_area():
 
 def test_yaml_sweep_parses_headline_example():
     from pipeline.common.utils import BASE_DIR
-    from pipeline.process.yaml_sweep import parse_sweep
+    from pipeline.reactors.sweeps.runner import parse_sweep
     job = parse_sweep(BASE_DIR / 'sweeps' / 'headline_cat9_1300K.yaml')
     assert job.name == 'headline_cat9_1300K'
     assert job.catalyst_name == 'cat_9'
@@ -2089,7 +2089,7 @@ def test_yaml_sweep_parses_headline_example():
 def test_yaml_sweep_rejects_invented_area():
     import tempfile
     from pathlib import Path
-    from pipeline.process.yaml_sweep import parse_sweep
+    from pipeline.reactors.sweeps.runner import parse_sweep
     spec = """
 name: bad_loading
 catalyst:
@@ -2131,7 +2131,7 @@ cells:
 
 
 def test_yaml_sweep_splits_reactors_by_pathway_mode():
-    from pipeline.process.yaml_sweep import _reactors_by_mode
+    from pipeline.reactors.sweeps.runner import _reactors_by_mode
     groups = dict(_reactors_by_mode(['PFR', 'Fluidized', 'MMBCR']))
     assert groups == {
         'thermocatalytic_pfr': ['PFR'],
@@ -2141,7 +2141,7 @@ def test_yaml_sweep_splits_reactors_by_pathway_mode():
 
 
 def test_solids_scorecard_judges_cat_9_not_h_parked():
-    from pipeline.process.phase2_scorecard import build_solids_scorecard, is_h_parked
+    from pipeline.reactors.scorecard import build_solids_scorecard, is_h_parked
     h_parked = {
         'reactor_type': 'PFR', 'catalyst_name': 'cat_40', 'T_K': 1300.0,
         'CH4_conversion': 0.003, 'single_pass_CH4_conversion': 0.003,
@@ -2187,7 +2187,7 @@ def test_solids_scorecard_judges_cat_9_not_h_parked():
 
 
 def test_solids_run_requires_loaded_surface():
-    from pipeline.process.phase2_scorecard import is_solids_run, build_solids_scorecard
+    from pipeline.reactors.scorecard import is_solids_run, build_solids_scorecard
     base = {
         'reactor_type': 'PFR', 'catalyst_name': 't', 'T_K': 1300.0,
         'CH4_conversion': 1e-5, 'single_pass_CH4_conversion': 1e-5,
@@ -2208,8 +2208,8 @@ def test_mismatched_catalyst_name_fails_closed():
         import cantera  # noqa: F401
     except ImportError:
         return
-    from pipeline.process.reactor_mechanisms import write_full_mechanism
-    from pipeline.process.reactor_models import ReactorConfig, simulate_pfr
+    from pipeline.reactors.mechanisms import write_full_mechanism
+    from pipeline.reactors.models import ReactorConfig, simulate_pfr
     path = write_full_mechanism('t_0_05', E_act_CH4=0.9)
     cfg = ReactorConfig(
         mechanism_file=str(path), catalyst_name='t',
@@ -2224,7 +2224,7 @@ def test_mismatched_catalyst_name_fails_closed():
 
 
 def test_ch4_conversion_uses_argon_tracer_when_c2_present():
-    from pipeline.process.equilibrium_check import (
+    from pipeline.reactors.equilibrium import (
         ch4_conversion_from_argon_tracer, ch4_conversion_from_mole_fractions)
     # Feed CH4:0.95 / Ar:0.05. Solid route p, C2 route q (each CH4 → 0.5 C2H6 + 0.5 H2).
     x_ch4_0, x_ar_0 = 0.95, 0.05
@@ -2250,7 +2250,7 @@ def test_ch4_conversion_uses_argon_tracer_when_c2_present():
 
 
 def test_mmbcr_k0_and_flotation_fail_closed():
-    from pipeline.process.reactor_models import ReactorConfig, _validate_carbon_policy
+    from pipeline.reactors.models import ReactorConfig, _validate_carbon_policy
     _validate_carbon_policy(ReactorConfig())
     try:
         _validate_carbon_policy(ReactorConfig(mmbcr_interfacial_k0_m_s=0.0))
@@ -2273,9 +2273,9 @@ def test_mmbcr_k0_and_flotation_fail_closed():
 
 
 def test_site_density_locked_to_monolayer():
-    from pipeline.process.reactor_mechanisms import (
+    from pipeline.reactors.mechanisms import (
         MONOLAYER_SITE_DENSITY_MOL_CM2, write_full_mechanism)
-    from pipeline.process.reactor_models import ReactorConfig, _validate_carbon_policy
+    from pipeline.reactors.models import ReactorConfig, _validate_carbon_policy
     assert abs(MONOLAYER_SITE_DENSITY_MOL_CM2 - 2.5e-9) < 1e-15
     path = write_full_mechanism('test_gamma_lock', E_act_CH4=0.9)
     assert 'site-density: 2.500e-09 mol/cm^2' in path.read_text(encoding='utf-8')
@@ -2294,7 +2294,7 @@ def test_site_density_locked_to_monolayer():
 
 
 def test_oxidative_regen_requires_co2_permitted():
-    from pipeline.process.reactor_models import ReactorConfig, simulate_pfr
+    from pipeline.reactors.models import ReactorConfig, simulate_pfr
     cfg = ReactorConfig(
         reactor_type='PFR', catalyst_name='x', mechanism_file='',
         max_regen_cycles=1, regen_mechanism='oxidative', co2_permitted=False)

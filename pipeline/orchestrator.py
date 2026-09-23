@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from pipeline.common.utils import (
     RESULTS_DIR, SCREENING_DIR, setup_logger,
 )
-from pipeline.process.pathway_modes import (
+from pipeline.reactors.modes import (
     DEFAULT_MODE, MODE_CHOICES, reactor_types_for_mode)
 from pipeline.stages.orchestration import (
     PipelineComponents, PipelineRuntime, default_pipeline_components,

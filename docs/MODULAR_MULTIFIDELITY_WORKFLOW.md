@@ -132,7 +132,7 @@ unavailable closure quantities.
 
 ## Full-physics artifacts as labels
 
-`pipeline.process.multiphysics_runner` adds `surrogate_inputs` to every new
+`pipeline.simulation.external_runner` adds `surrogate_inputs` to every new
 artifact. The snapshot contains a schema version, reactor type, unit-bearing
 numeric geometry, operating and material-property inputs, and normalized feed
 mole fractions.

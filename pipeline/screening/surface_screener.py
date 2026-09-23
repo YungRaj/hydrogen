@@ -809,7 +809,7 @@ def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
         py_mode = os.environ.get('PYROLYSIS_MODE', 'thermocatalytic')
         if py_mode == 'ntec' and coking_scope['status'] == 'candidate':
             from pipeline.screening.genetic_optimizer import _extract_elements_from_genome
-            from pipeline.process.ntec_model import conditions_from_environment, ntec_assistance
+            from pipeline.electrochemistry.ntec import conditions_from_environment, ntec_assistance
             assistance = ntec_assistance(conditions_from_environment())
             elements = _extract_elements_from_genome(genome)
             if any(e in {'Ga', 'In', 'Sn', 'Bi'} for e in elements):

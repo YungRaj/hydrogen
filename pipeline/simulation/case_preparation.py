@@ -6,9 +6,9 @@ import argparse
 import json
 from pathlib import Path
 
-from pipeline.process.multiphysics_contract import mode_preflight
-from pipeline.process.pathway_modes import reactor_types_for_mode
-from pipeline.process.physical_case import case_template, load_physical_case
+from pipeline.simulation.result_contract import mode_preflight
+from pipeline.reactors.modes import reactor_types_for_mode
+from pipeline.simulation.physical_case import case_template, load_physical_case
 
 
 def prepare_manifest(manifest_path: str | Path, *, create: bool = False) -> dict:

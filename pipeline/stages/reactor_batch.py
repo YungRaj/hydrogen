@@ -47,11 +47,11 @@ def default_reactor_batch_services() -> ReactorBatchServices:
         A `ReactorBatchServices` containing the default reactor batch services result.
     """
     from pipeline.common.utils import save_json
-    from pipeline.process.equilibrium_check import run_equilibrium_sweep
-    from pipeline.process.phase2_scorecard import build_solids_scorecard
-    from pipeline.process.reactor_mechanisms import (
+    from pipeline.reactors.equilibrium import run_equilibrium_sweep
+    from pipeline.reactors.scorecard import build_solids_scorecard
+    from pipeline.reactors.mechanisms import (
         write_full_mechanism, write_gri30_subset)
-    from pipeline.process.reactor_models import run_reactor_sweep
+    from pipeline.reactors.models import run_reactor_sweep
     from pipeline.stages.reactor import simulate_candidate
     from pipeline.stages.candidate_io import load_reactor_reference
     return ReactorBatchServices(
@@ -159,7 +159,7 @@ def run_reactor_batch_stage(
             'mmbcr_max_conversion': scorecard.get('mmbcr_max_conversion'),
         })
     elif results:
-        from pipeline.process.result_eligibility import rankable_results
+        from pipeline.reactors.eligibility import rankable_results
         rankable = rankable_results(results)
         state['best_conversion'] = max(
             (row['CH4_conversion'] for row in rankable), default=None)

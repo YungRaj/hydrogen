@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 import re
 
-from pipeline.process.multifidelity_surrogate import TransportSurrogate
+from pipeline.transport.surrogate import TransportSurrogate
 
 
 REGISTRY_SCHEMA_VERSION = 1

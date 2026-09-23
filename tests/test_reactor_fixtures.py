@@ -12,9 +12,9 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from pipeline.process.multiphysics_contract import load_validated_artifact
-from pipeline.process.multiphysics_runner import run_backend
-from pipeline.process.reactor_models import ReactorConfig, simulate_reactor
+from pipeline.simulation.result_contract import load_validated_artifact
+from pipeline.simulation.external_runner import run_backend
+from pipeline.reactors.models import ReactorConfig, simulate_reactor
 from tests.fixtures.reactor_cases import FixtureSolver, MODES, write_case
 
 
@@ -41,17 +41,17 @@ def _run_external_fixture(root: Path, reactor_type: str,
     mechanism = ""
     catalyst_name = candidate
     if reactor_type in {"Fluidized", "MMBCR"}:
-        from pipeline.process.reactor_mechanisms import (
+        from pipeline.reactors.mechanisms import (
             CandidateKinetics, write_full_mechanism)
         catalyst_name = candidate.replace("-", "_")
         kinetics = CandidateKinetics.from_screening_row({
             "E_act": .72, "dE_H": -.3, "dE_CH3": -.55, "dE_C": -1.1,
             "screening_protocol": "test-fixture:screening-v1"},
             candidate_id=candidate)
-        with patch("pipeline.process.reactor_mechanisms.MECHANISMS_DIR",
+        with patch("pipeline.reactors.mechanisms.MECHANISMS_DIR",
                    root / "mechanisms"):
             mechanism = str(write_full_mechanism(catalyst_name, kinetics=kinetics))
-    with patch("pipeline.process.reactor_models.save_json"):
+    with patch("pipeline.reactors.models.save_json"):
         result = simulate_reactor(ReactorConfig(
             reactor_type=reactor_type, pathway_mode=mode, candidate_id=candidate,
             catalyst_name=catalyst_name, mechanism_file=mechanism,
@@ -88,15 +88,15 @@ def test_representative_external_reactor_paths() -> None:
 
 def test_representative_cantera_pfr_path() -> None:
     """Run the real Cantera PFR entry point with candidate screening kinetics."""
-    from pipeline.process.reactor_mechanisms import CandidateKinetics, write_full_mechanism
+    from pipeline.reactors.mechanisms import CandidateKinetics, write_full_mechanism
 
     candidate = "fixture_pfr"
     kinetics = CandidateKinetics.from_screening_row({
         "E_act": .72, "dE_H": -.3, "dE_CH3": -.55, "dE_C": -1.1,
         "screening_protocol": "test-fixture:screening-v1"}, candidate_id=candidate)
     with tempfile.TemporaryDirectory() as tmp, \
-            patch("pipeline.process.reactor_mechanisms.MECHANISMS_DIR", Path(tmp)), \
-            patch("pipeline.process.reactor_models.save_json"):
+            patch("pipeline.reactors.mechanisms.MECHANISMS_DIR", Path(tmp)), \
+            patch("pipeline.reactors.models.save_json"):
         mechanism = write_full_mechanism(candidate, kinetics=kinetics)
         result = simulate_reactor(ReactorConfig(
             reactor_type="PFR", pathway_mode="thermocatalytic_pfr",

@@ -6,10 +6,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterable, Mapping
 
-from pipeline.process.multifidelity_surrogate import (
+from pipeline.transport.surrogate import (
     fit_transport_surrogate, record_from_artifact)
-from pipeline.process.multiphysics_contract import load_validated_artifact
-from pipeline.process.transport_model_registry import TransportModelRegistry
+from pipeline.simulation.result_contract import load_validated_artifact
+from pipeline.transport.registry import TransportModelRegistry
 
 
 @dataclass(frozen=True)

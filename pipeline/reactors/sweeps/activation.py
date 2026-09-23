@@ -18,11 +18,11 @@ from typing import Dict, List, Optional
 import numpy as np
 
 from pipeline.common.utils import REACTOR_DIR, setup_logger, save_json
-from pipeline.process.reactor_mechanisms import write_full_mechanism
-from pipeline.process.reactor_models import (
+from pipeline.reactors.mechanisms import write_full_mechanism
+from pipeline.reactors.models import (
     DIAGNOSTIC_MATERIAL_CLASS, SINGLE_REACTOR_MODE, ReactorConfig,
     simulate_reactor)
-from pipeline.process.equilibrium_check import TABULATED_X_CH4_1BAR
+from pipeline.reactors.equilibrium import TABULATED_X_CH4_1BAR
 
 logger = setup_logger('eact_sensitivity', 'reactor/eact_sensitivity.log')
 

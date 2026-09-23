@@ -20,7 +20,7 @@ Solid carbon is never a gas-phase species. Surface C_s blocks sites on solid
 paths until removed by a named policy or a gated off-site channel (B6).
 Oxidative regen requires co2_permitted. Γ is a monolayer and is locked (B1).
 
-Reactor routing is owned by ``pipeline.process.pathway_modes``: a reactor
+Reactor routing is owned by ``pipeline.reactors.modes``: a reactor
 type must belong to the selected pathway mode, and MMBCR is applicable only
 to MoltenMetal candidates.
 """
@@ -44,10 +44,10 @@ from pipeline.common.utils import (
     REACTOR_DIR,
     setup_logger, print_banner, save_json,
 )
-from pipeline.process.pathway_modes import (
+from pipeline.reactors.modes import (
     DEFAULT_MODE, REACTOR_MODELS, reactor_applicability,
     reactor_types_for_mode, validate_mode_reactors)
-from pipeline.process.reactor_mechanisms import MONOLAYER_SITE_DENSITY_MOL_CM2
+from pipeline.reactors.mechanisms import MONOLAYER_SITE_DENSITY_MOL_CM2
 
 logger = setup_logger('reactor_models', 'reactor/reactor_simulation.log')
 
@@ -813,7 +813,7 @@ def _off_site_carbon_metrics(config: ReactorConfig, gas, surf, *,
         genome = metadata.get('inputs', {}).get('genome')
         metal = None
         try:
-            from pipeline.process.reactor_mechanisms import (
+            from pipeline.reactors.mechanisms import (
                 OFF_SITE_CARBON_METALS, _nanoparticle_metals, parse_catalyst_genome)
             metals = _nanoparticle_metals(
                 parse_catalyst_genome(genome),
@@ -862,7 +862,7 @@ def _solid_c_from_balance(ch4_initial: float, final_conv: float,
 
 
 def _tabulated_x_eq(T_K: float) -> float:
-    from pipeline.process.equilibrium_check import TABULATED_X_CH4_1BAR
+    from pipeline.reactors.equilibrium import TABULATED_X_CH4_1BAR
     if T_K in TABULATED_X_CH4_1BAR:
         return float(TABULATED_X_CH4_1BAR[T_K])
     nearest = min(TABULATED_X_CH4_1BAR, key=lambda t: abs(t - T_K))
@@ -971,7 +971,7 @@ def _mmbcr_hydrodynamics(config: ReactorConfig) -> Dict:
 
 
 def _ch4_extent(gas, x_ch4_feed: float, x_ar_feed: float) -> float:
-    from pipeline.process.equilibrium_check import ch4_conversion_from_argon_tracer
+    from pipeline.reactors.equilibrium import ch4_conversion_from_argon_tracer
     return ch4_conversion_from_argon_tracer(
         _species_x(gas, 'CH4'), _species_x(gas, 'Ar'), x_ch4_feed, x_ar_feed)
 
@@ -1541,7 +1541,7 @@ def simulate_ntec_pathway(config: ReactorConfig) -> Dict:
     Returns:
         Dictionary containing the computed values, status, and supporting metadata.
     """
-    from pipeline.process.ntec_model import (
+    from pipeline.electrochemistry.ntec import (
         conditions_from_environment, ntec_assistance)
 
     assistance = ntec_assistance(conditions_from_environment())
@@ -1591,7 +1591,7 @@ def simulate_electrochemical_pathway(config: ReactorConfig) -> Dict:
     Returns:
         Dictionary containing the computed values, status, and supporting metadata.
     """
-    from pipeline.process.electrochemical_model import (
+    from pipeline.electrochemistry.model import (
         conditions_from_environment, electrochemical_evidence)
 
     evidence = electrochemical_evidence(conditions_from_environment())
@@ -1679,9 +1679,9 @@ def simulate_reactor(config: ReactorConfig, coupling_services=None) -> Dict:
             'reactor_model_fidelity': spec.fidelity,
         }
     else:
-        from pipeline.process.multiphysics_contract import EXTERNAL_SOLVERS
+        from pipeline.simulation.result_contract import EXTERNAL_SOLVERS
         if config.reactor_type in EXTERNAL_SOLVERS:
-            from pipeline.process.reactor_coupling import (
+            from pipeline.simulation.reactor_handoff import (
                 default_reactor_coupling_services)
             coupling_services = (coupling_services or
                                  default_reactor_coupling_services())
@@ -1690,7 +1690,7 @@ def simulate_reactor(config: ReactorConfig, coupling_services=None) -> Dict:
                 config.pathway_mode, config.reactor_type, config.T_inlet_K)
             loaded = coupling_services.validate_compatibility(config, loaded)
             if not loaded['valid']:
-                from pipeline.process.closure_provider import (
+                from pipeline.transport.closure_provider import (
                     resolve_reactor_closure)
                 surrogate = (coupling_services.load_surrogate(
                     config.pathway_mode, config.reactor_type)
@@ -1702,7 +1702,7 @@ def simulate_reactor(config: ReactorConfig, coupling_services=None) -> Dict:
                     reactor_type=config.reactor_type,
                     temperature_K=config.T_inlet_K)
                 if closure['available']:
-                    from pipeline.process.reactor_coupling import (
+                    from pipeline.simulation.reactor_handoff import (
                         couple_surrogate_closure)
                     couple_surrogate_closure(config, closure)
                 else:

@@ -6,8 +6,8 @@ from dataclasses import dataclass
 from typing import Callable, Mapping, Sequence
 
 from pipeline.common.utils import repo_relative
-from pipeline.process.pathway_modes import DEFAULT_MODE, resolve_pathway_mode
-from pipeline.process.result_eligibility import rankable_results, usable_results
+from pipeline.reactors.modes import DEFAULT_MODE, resolve_pathway_mode
+from pipeline.reactors.eligibility import rankable_results, usable_results
 
 
 @dataclass(frozen=True)
@@ -26,9 +26,9 @@ def default_reactor_services() -> ReactorStageServices:
     Returns:
         Computed `ReactorStageServices` result.
     """
-    from pipeline.process.reactor_mechanisms import (
+    from pipeline.reactors.mechanisms import (
         CandidateKinetics, write_full_mechanism)
-    from pipeline.process.reactor_models import run_reactor_sweep
+    from pipeline.reactors.models import run_reactor_sweep
     return ReactorStageServices(
         resolve_mode=resolve_pathway_mode,
         build_kinetics=CandidateKinetics.from_screening_row,

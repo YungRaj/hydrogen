@@ -68,8 +68,8 @@ def test_candidate_file_adapter_preserves_distinct_reactor_and_validation_routes
 
 
 def test_all_default_service_factories_produce_callable_boundaries():
-    from pipeline.process.reactor_coupling import default_reactor_coupling_services
-    from pipeline.process.multiphysics_runner import default_solver_execution_services
+    from pipeline.simulation.reactor_handoff import default_reactor_coupling_services
+    from pipeline.simulation.external_runner import default_solver_execution_services
     from pipeline.stages.discovery import default_discovery_services
     from pipeline.stages.fuel_cell import default_fuel_cell_services
     from pipeline.stages.orchestration import default_pipeline_components
