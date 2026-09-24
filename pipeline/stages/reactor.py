@@ -8,6 +8,8 @@ from typing import Callable, Mapping, Sequence
 from pipeline.utils import repo_relative
 from pipeline.reactors.modes import DEFAULT_MODE, resolve_pathway_mode
 from pipeline.reactors.eligibility import rankable_results, usable_results
+from pipeline.data_models.reactors import (
+    CandidateReactorResult, ReactorResult, ReactorSweepSummary)
 
 
 @dataclass(frozen=True)
@@ -36,7 +38,8 @@ def default_reactor_services() -> ReactorStageServices:
         run_sweep=run_reactor_sweep)
 
 
-def summarize_reactor_sweep(sweep: Sequence[Mapping]) -> dict:
+def summarize_reactor_sweep(
+        sweep: Sequence[ReactorResult]) -> ReactorSweepSummary:
     """Summarize condition-level evidence without executing reactor software.
 
     Args:
@@ -81,7 +84,8 @@ def simulate_candidate(row: Mapping, catalyst_name: str,
                        kinetics_validation: Mapping | None = None,
                        pathway_mode: str = DEFAULT_MODE,
                        multiphysics_results_dir: str | None = None,
-                       services: ReactorStageServices | None = None) -> dict:
+                       services: ReactorStageServices | None = None
+                       ) -> CandidateReactorResult:
     """Build only the mechanism appropriate to the selected pathway and run it.
 
     Args:

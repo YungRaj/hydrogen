@@ -261,6 +261,10 @@ execution mechanics:
   protocol IDs and relaxation budgets.
 - `pipeline/screening/gpu_executor.py` owns CUDA topology, multiprocessing,
   leased tasks, heartbeats, ordered result collection, and CSV persistence.
+- `pipeline/data_models/` names the stage, solver, reactor, evidence, campaign,
+  and persisted-artifact shapes at the principal component boundaries.
+  Numerical implementations retain compact local structures where useful;
+  remaining secondary dictionary boundaries are migrated incrementally.
 - `surface_screener.py` and `fc_screener.py` retain only their application
   structures, reference states, descriptors, and summary reporting.
 - `pipeline/stages/reactor.py` is the common candidate-to-Cantera handoff used
@@ -622,14 +626,15 @@ gap/overlap detection, population-denominator enforcement, coverage certificates
 blocked legacy GA entry points, and consistency between this README and the
 branch-only production CLI.
 
-Current validated baseline: **74/74 pipeline tests**, **41/41 scientific
-contracts**, **39/39 modular multi-fidelity contracts**, and **24/24
+Current validated baseline: **105/105 pipeline tests**, **43/43 scientific
+contracts**, **41/41 modular multi-fidelity contracts**, and **24/24
 exclusion-audit checks**. An additional **5/5 replacement integration
 contracts** prove that every phase runs independently and rejects malformed
-replacement outputs; **5/5 architecture unit contracts** verify default service
-bindings, deep state isolation, persisted candidate routing, and process-free
-imports across all pipeline modules. Hardware-specific CUDA-Q and eSen tests
-remain dependent on the documented accelerator environments.
+replacement outputs; **8/8 architecture unit contracts** verify default service
+bindings, deep state isolation, persisted candidate routing, named data-model
+boundaries, strict-check configuration, and process-free imports across all
+pipeline modules. Hardware-specific CUDA-Q and eSen tests remain dependent on
+the documented accelerator environments.
 
 ### Production Campaign (48 hours)
 
@@ -882,19 +887,25 @@ hydrogen/
 ├── pipeline/                      # Core pipeline package
 │   ├── __init__.py
 │   ├── orchestrator.py            # End-to-end phase coordination
-│   ├── common/                    # Cross-cutting definitions and helpers
-│   │   ├── catalyst_spaces.py     # 21.1B encoded design space
-│   │   ├── design_space_provenance.py # Axis sources and selection basis
-│   │   ├── application_scope.py   # Application admissibility rules
-│   │   ├── ood_detector.py        # Confidence policy
-│   │   └── utils.py               # Constants, paths, logging, and I/O
+│   ├── utils.py                   # Constants, paths, logging, and I/O
+│   ├── data_models/               # Named cross-component data shapes
+│   │   ├── core.py                # IDs, JSON values, evidence/fidelity enums
+│   │   ├── stages.py              # Stage state and product handoffs
+│   │   ├── artifacts.py           # Validated physical-case documents
+│   │   ├── quantum.py             # DFT, QE, NEB, ORR, and VQE results
+│   │   ├── reactors.py            # Reactor conditions and sweep summaries
+│   │   ├── evidence.py            # Dispositions, readiness, and ledger events
+│   │   └── campaigns.py           # Persisted master-pipeline state
 │   ├── search/                    # Coverage-guided traversal and acquisition
+│   │   ├── design_space.py        # 21.1B encoded design space
+│   │   ├── scope.py               # Application admissibility rules
 │   │   ├── indexed_space.py       # O(1) candidate addressing and shards
 │   │   ├── exhaustive_search.py   # Resumable bounded-memory scans
 │   │   ├── branch_search.py       # Divide-and-conquer and certificates
 │   │   ├── discovery.py           # Canonical IDs and diverse champions
 │   │   └── adaptive_validation.py # Validation-budget allocation
 │   ├── screening/                 # Structures, surrogates, and ranking
+│   │   ├── ood.py                 # Confidence and OOD policy
 │   │   ├── surface_screener.py    # Turquoise-hydrogen eSen screening
 │   │   ├── fc_screener.py         # ORR eSen screening
 │   │   ├── surrogate_model.py     # Multi-task surrogate model
@@ -913,6 +924,7 @@ hydrogen/
 │   │   ├── eligibility.py         # Shared fail-closed result admission
 │   │   └── sweeps/                # YAML, staged, inventory, and carbon studies
 │   ├── simulation/                # Cases, solvers, artifacts, and handoffs
+│   ├── stages/                    # Typed, independently replaceable phases
 │   ├── transport/                 # Closures and transport surrogates
 │   ├── electrochemistry/          # NTEC and electrochemical pathways
 │   ├── fuel_cell/                 # PEMFC polarization and stack scaling
@@ -921,6 +933,7 @@ hydrogen/
 │   └── evidence/                  # Prior art, benchmarks, and claim gates
 │       ├── prior_art.py
 │       ├── novelty_benchmark.py
+│       ├── design_space_provenance.py # Axis sources and selection basis
 │       ├── design_space_audit.py  # Raw/canonical/admissible class report
 │       ├── readiness.py
 │       └── report_generator.py

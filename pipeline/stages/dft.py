@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 from typing import Callable, Iterable, Mapping, MutableMapping
 
+from pipeline.data_models.stages import DFTProducts, DFTState
 from pipeline.stages.contracts import StageOutcome
 
 
@@ -36,7 +37,8 @@ def _genome_from_row(row):
 def run_dft_stage(candidates, *, top_k: int, execute_dft: bool,
                   validator: Callable | None = None,
                   name_prefix: str = 'dft_cat',
-                  error_sink: Callable[[str], None] | None = None) -> StageOutcome:
+                  error_sink: Callable[[str], None] | None = None
+                  ) -> StageOutcome[DFTState, DFTProducts]:
     """Validate candidate genomes through an injectable QE workflow boundary.
 
     Args:
@@ -73,11 +75,12 @@ def run_dft_stage(candidates, *, top_k: int, execute_dft: bool,
                 'error_type': type(exc).__name__, 'error': str(exc)})
             if error_sink:
                 error_sink(message)
-    return StageOutcome(
-        state={
+    state: DFTState = {
             'n_validated': len(results),
             'n_converged': sum(
                 1 for result in results if result.get('converged', False)),
             'n_failed': len(failures),
-        },
-        products={'dft_results': results, 'failures': failures})
+        }
+    products: DFTProducts = {
+        'dft_results': results, 'failures': failures}
+    return StageOutcome(state=state, products=products)

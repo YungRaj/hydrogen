@@ -10,13 +10,15 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-
-HARD_EXCLUSION = 'hard_excluded'
-VALIDATION_REQUIRED = 'validation_required'
-QUANTITATIVE_SCREENING = 'quantitative_screening'
+from pipeline.data_models.evidence import CandidateDisposition
 
 
-def evidence_disposition(row, primary: str) -> str:
+HARD_EXCLUSION: CandidateDisposition = 'hard_excluded'
+VALIDATION_REQUIRED: CandidateDisposition = 'validation_required'
+QUANTITATIVE_SCREENING: CandidateDisposition = 'quantitative_screening'
+
+
+def evidence_disposition(row, primary: str) -> CandidateDisposition:
     """Classify evidence without conflating calculation failure with chemistry.
 
     Args:

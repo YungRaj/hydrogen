@@ -26,7 +26,8 @@ from pipeline.utils import (
     RESULTS_DIR, SCREENING_DIR, setup_logger,
 )
 from pipeline.reactors.modes import (
-    DEFAULT_MODE, MODE_CHOICES, reactor_types_for_mode)
+    DEFAULT_MODE, MODE_CHOICES, PathwayModeName, ReactorTypeName,
+    reactor_types_for_mode, resolve_pathway_mode, validate_mode_reactors)
 from pipeline.stages.orchestration import (
     PipelineComponents, PipelineRuntime, default_pipeline_components,
     default_pipeline_runtime)
@@ -35,7 +36,7 @@ from pipeline.stages.contracts import require_stage_outcome
 logger = setup_logger('orchestrator', 'pipeline_orchestrator.log')
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class PipelineConfig:
     """Pipeline-level configuration."""
     # Phase 1: Screening
@@ -48,8 +49,9 @@ class PipelineConfig:
 
     # Phase 2: Reactor
     # Preserve the broad screening points and include the Ni reference band.
-    reactor_temperatures: tuple = (773.15, 900.0, 923.15, 973.15, 1100.0, 1300.0)
-    reactor_types: Optional[tuple] = None  # None derives routing from mode
+    reactor_temperatures: tuple[float, ...] = (
+        773.15, 900.0, 923.15, 973.15, 1100.0, 1300.0)
+    reactor_types: tuple[ReactorTypeName, ...] | None = None
     multiphysics_results_dir: Optional[str] = None
     # Named solids judge. B6-7: literature Ni cell (ni_np_lit), not cat_9.
     # None = best non-H-parked solids at the headline T band.
@@ -67,8 +69,43 @@ class PipelineConfig:
     run_dft: bool = True                 # Actually execute pw.x
     run_vqe: bool = True                 # Actually execute CUDA-Q
     quick_mode: bool = False             # Reduced parameters for testing
-    pyrolysis_mode: str = DEFAULT_MODE
+    pyrolysis_mode: PathwayModeName = DEFAULT_MODE
     allow_mock_inputs: bool = False       # Explicit test-only opt-in
+
+    def __post_init__(self) -> None:
+        """Reject incoherent campaign configuration before any solver runs."""
+        integer_limits = {
+            'initial_fairchem_samples': self.initial_fairchem_samples,
+            'branch_leaf_size': self.branch_leaf_size,
+            'top_k_reactor': self.top_k_reactor,
+            'top_k_dft': self.top_k_dft,
+            'top_k_vqe': self.top_k_vqe,
+            'fc_top_k_pemfc': self.fc_top_k_pemfc,
+            'fc_stack_cells': self.fc_stack_cells,
+        }
+        invalid = [name for name, value in integer_limits.items()
+                   if not isinstance(value, int) or value <= 0]
+        if invalid:
+            raise ValueError(
+                'pipeline integer limits must be positive: ' +
+                ', '.join(invalid))
+        if (self.branch_max_leaves is not None and
+                (not isinstance(self.branch_max_leaves, int) or
+                 self.branch_max_leaves <= 0)):
+            raise ValueError('branch_max_leaves must be positive or None')
+        if (not self.reactor_temperatures or
+                any(not isinstance(value, (int, float)) or value <= 0
+                    for value in self.reactor_temperatures)):
+            raise ValueError('reactor temperatures must be positive kelvin')
+        resolve_pathway_mode(self.pyrolysis_mode)
+        if self.reactor_types is not None:
+            validate_mode_reactors(self.pyrolysis_mode, self.reactor_types)
+        if self.solids_headline_t_min <= 0:
+            raise ValueError('solids_headline_t_min must be positive kelvin')
+        if (self.solids_headline_t_max is not None and
+                self.solids_headline_t_max < self.solids_headline_t_min):
+            raise ValueError(
+                'solids_headline_t_max must not be below its minimum')
 
 
 def normalized_pipeline_config(config: PipelineConfig) -> PipelineConfig:

@@ -7,6 +7,7 @@ import numpy as np
 from ase import Atoms
 
 from pipeline.utils import orr_overpotential
+from pipeline.data_models.quantum import ORREnsembleResult
 
 
 @dataclass(frozen=True)
@@ -155,7 +156,8 @@ def select_lowest_site(site_results: list[dict], key: str) -> dict:
 
 def evaluate_orr_ensemble(site_results: list[dict],
                           correction_models: Sequence[ORRCorrections],
-                          expected_cases: int | None = None) -> dict:
+                          expected_cases: int | None = None
+                          ) -> ORREnsembleResult:
     """Evaluate complete site/coverage pathways and expose model uncertainty.
 
         Each input row is one adsorbate calculation with ``site_id``,

@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
+from pipeline.data_models.stages import FuelCellProducts, FuelCellState
 from pipeline.stages.contracts import StageOutcome
 
 
@@ -53,7 +54,8 @@ def fuel_cell_composite_score(result: dict) -> float:
 
 
 def run_fuel_cell_stage(*, top_k_pemfc: int, stack_cells: int,
-                        services: FuelCellServices | None = None) -> StageOutcome:
+                        services: FuelCellServices | None = None
+                        ) -> StageOutcome[FuelCellState, FuelCellProducts]:
     """Run the complete fuel-cell phase through independently replaceable tools.
 
     Args:
@@ -83,7 +85,7 @@ def run_fuel_cell_stage(*, top_k_pemfc: int, stack_cells: int,
             n_cells=stack_cells,
             cell_voltage_V=best.get('peak_voltage_V', 0.65),
             current_density_A_cm2=best.get('peak_current_A_cm2', 1.5)))
-    state = {
+    state: FuelCellState = {
         'n_cathodes_screened': len(cathodes), 'n_valid': len(valid),
         'n_pemfc_simulations': len(pemfc)}
     if pemfc:
@@ -95,6 +97,7 @@ def run_fuel_cell_stage(*, top_k_pemfc: int, stack_cells: int,
             'min_overpotential_V': min(
                 row.get('orr_overpotential_V', 1.0) for row in pemfc),
         })
-    return StageOutcome(state=state, products={
+    products: FuelCellProducts = {
         'cathode_database': cathodes, 'valid_cathodes': valid,
-        'pemfc_results': pemfc, 'stack_result': stack})
+        'pemfc_results': pemfc, 'stack_result': stack}
+    return StageOutcome(state=state, products=products)

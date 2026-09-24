@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from pipeline.data_models.stages import SelectedCandidates
+
 
 def load_reactor_reference(candidate_id: str):
     """Load a tracked literature reference for the reactor batch only.
@@ -28,7 +30,7 @@ def load_reactor_reference(candidate_id: str):
 
 
 def load_selected_candidates(path: str | Path, *, top_k_reactor: int,
-                             top_k_dft: int):
+                             top_k_dft: int) -> SelectedCandidates | None:
     """Load a screening table and reproduce the two distinct admission routes.
 
     Args:
@@ -52,7 +54,7 @@ def load_selected_candidates(path: str | Path, *, top_k_reactor: int,
     # phase-2-only restart draws its slates from the same rows. Both routes
     # stay distinct: the validation route may still rescue invalid rows.
     pool, admissibility = scope_pyrolysis_pool(database)
-    return {
+    selected: SelectedCandidates = {
         'screening_database': database,
         'admissibility': admissibility,
         'top_catalysts': select_for_reactor(
@@ -60,3 +62,4 @@ def load_selected_candidates(path: str | Path, *, top_k_reactor: int,
         'dft_candidates': select_for_validation(
             pool, top_k_dft, 'E_act', min_per_class=1),
     }
+    return selected

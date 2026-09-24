@@ -67,6 +67,64 @@ def test_candidate_file_adapter_preserves_distinct_reactor_and_validation_routes
     assert 'hazard' not in validation_ids
 
 
+def test_typed_contracts_preserve_runtime_compatibility_and_fail_early():
+    """Typed boundaries must retain mappings while rejecting bad config."""
+    from dataclasses import FrozenInstanceError
+
+    from pipeline.data_models.core import (
+        CandidateId, ConvergenceStatus, EvidenceLevel)
+    from pipeline.orchestrator import PipelineConfig
+    from pipeline.stages.contracts import StageOutcome, require_stage_outcome
+
+    outcome = StageOutcome(
+        state={'n_vqe_runs': 1}, products={'vqe_results': [{'ok': True}]})
+    checked = require_stage_outcome(
+        outcome, stage='vqe', required_products=('vqe_results',))
+    assert checked.products['vqe_results'][0]['ok'] is True
+    with _raises('cannot assign', FrozenInstanceError):
+        outcome.state = {}
+    assert CandidateId('candidate-1') == 'candidate-1'
+    assert str(EvidenceLevel.DFT) == 'dft'
+    assert ConvergenceStatus.CONVERGED.value == 'converged'
+    with _raises('reactor temperatures must be positive kelvin', ValueError):
+        PipelineConfig(reactor_temperatures=(0.0,))
+    with _raises('requires reactors', ValueError):
+        PipelineConfig(reactor_types=('MMBCR',))
+
+
+def test_data_models_are_the_initial_strict_type_checking_boundary():
+    """The checked boundary must be strict and expand deliberately over time."""
+    config = json.loads((REPO_ROOT / 'pyrightconfig.json').read_text())
+    assert config['typeCheckingMode'] == 'strict'
+    assert config['pythonVersion'] == '3.10'
+    assert 'pipeline/data_models' in config['include']
+    assert 'pipeline/stages/contracts.py' in config['include']
+
+
+def test_pipeline_state_and_scientific_result_models_trace_real_boundaries():
+    """Named models must remain compatible with validated runtime records."""
+    from pipeline.data_models.campaigns import validate_pipeline_state
+    from pipeline.validation.qe_workflows import partial_hessian
+
+    state = validate_pipeline_state({
+        'phase1': {'total_evaluated': 4}, 'total_elapsed_s': 1})
+    assert state['phase1']['total_evaluated'] == 4
+    assert state['total_elapsed_s'] == 1.0
+    with _raises('phase2 pipeline state must be a mapping', ValueError):
+        validate_pipeline_state({'phase2': []})
+    with _raises('must be finite and nonnegative', ValueError):
+        validate_pipeline_state({'total_elapsed_s': float('nan')})
+
+    # A positive diagonal Hessian has no imaginary transition-state mode. The
+    # named result makes that scientific distinction visible to every caller.
+    import numpy as np
+    plus = np.zeros((3, 1, 3))
+    minus = np.zeros((3, 1, 3))
+    result = partial_hessian(plus, minus, 0.01, np.asarray([1.0]))
+    assert result['imaginary_count'] == 0
+    assert result['valid_transition_state'] is False
+
+
 def test_all_default_service_factories_produce_callable_boundaries():
     from pipeline.simulation.reactor_handoff import default_reactor_coupling_services
     from pipeline.simulation.external_runner import default_solver_execution_services

@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Optional
 
+from pipeline.data_models.stages import DiscoveryProducts, DiscoveryState
 from pipeline.stages.contracts import StageOutcome
 
 
@@ -55,7 +56,8 @@ def default_discovery_services() -> DiscoveryServices:
 def run_discovery_stage(*, initial_samples: int, leaf_size: int,
                         max_leaves: int | None, top_k_reactor: int,
                         top_k_dft: int,
-                        services: DiscoveryServices | None = None) -> StageOutcome:
+                        services: DiscoveryServices | None = None
+                        ) -> StageOutcome[DiscoveryState, DiscoveryProducts]:
     """Search, annotate, and route candidates through explicit dependencies.
 
     Args:
@@ -89,7 +91,7 @@ def run_discovery_stage(*, initial_samples: int, leaf_size: int,
         pool, top_k_reactor, 'E_act', min_per_class=1)
     validation = services.select_validation(
         pool, top_k_dft, 'E_act', min_per_class=1)
-    state = {
+    state: DiscoveryState = {
         'pareto_size': len(pareto), 'total_evaluated': len(database),
         'valid_count': len(valid), 'top_catalysts_count': len(reactor),
         'dft_resolution_count': len(validation),
@@ -100,7 +102,8 @@ def run_discovery_stage(*, initial_samples: int, leaf_size: int,
     if len(valid) > 0 and 'E_act' in valid.columns:
         state['best_E_act'] = float(valid['E_act'].min())
         state['best_coking'] = float(valid['coking_index'].max())
-    return StageOutcome(state=state, products={
+    products: DiscoveryProducts = {
         'design_space_sizes': sizes, 'pareto_genomes': pareto,
         'screening_database': database, 'top_catalysts': reactor,
-        'dft_candidates': validation})
+        'dft_candidates': validation}
+    return StageOutcome(state=state, products=products)

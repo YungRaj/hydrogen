@@ -17,6 +17,8 @@ from ase.build import molecule
 from ase.mep import NEB
 from ase.io import read as ase_read
 
+from pipeline.data_models.quantum import (
+    NEBResult, SolverRunResult, TransitionStateFrequencyResult)
 from pipeline.utils import BASE_DIR
 from pipeline.simulation.executables import resolve_executable, resolve_qe_executable
 
@@ -278,7 +280,7 @@ END
 
 
 def run_neb(input_path: str, output_path: str, timeout_s: int = 86400,
-            execution: QEExecutionConfig | None = None) -> dict:
+            execution: QEExecutionConfig | None = None) -> SolverRunResult:
     """Execute a Quantum ESPRESSO NEB calculation and record its provenance.
 
     Args:
@@ -425,7 +427,7 @@ K_POINTS automatic
 
 
 def run_pw(input_path: str, output_path: str, timeout_s: int = 86400,
-           execution: QEExecutionConfig | None = None) -> dict:
+           execution: QEExecutionConfig | None = None) -> SolverRunResult:
     """Execute a Quantum ESPRESSO pw.x calculation and record its provenance.
 
     Args:
@@ -509,7 +511,7 @@ def parse_atomic_forces(output_path: str, expected_atoms: int | None = None) -> 
     return np.asarray(rows, dtype=float) * ry_bohr_to_ev_ang
 
 
-def parse_neb_result(output_path: str) -> dict:
+def parse_neb_result(output_path: str) -> NEBResult:
     """Parse a completed NEB output into convergence and barrier evidence.
 
     Args:
@@ -531,7 +533,8 @@ def parse_neb_result(output_path: str) -> dict:
 
 
 def partial_hessian(forces_plus: np.ndarray, forces_minus: np.ndarray,
-                    displacement_A: float, masses_amu: np.ndarray) -> dict:
+                    displacement_A: float,
+                    masses_amu: np.ndarray) -> TransitionStateFrequencyResult:
     """Construct a mass-weighted partial Hessian from central force differences.
 
     Args:

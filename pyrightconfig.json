@@ -1,0 +1,16 @@
+{
+  "include": [
+    "pipeline/data_models",
+    "pipeline/reactors/modes.py",
+    "pipeline/stages/contracts.py",
+    "pipeline/campaigns/ledger.py"
+  ],
+  "exclude": [
+    "results",
+    "models",
+    "mechanisms"
+  ],
+  "pythonVersion": "3.10",
+  "typeCheckingMode": "strict",
+  "reportMissingTypeStubs": false
+}

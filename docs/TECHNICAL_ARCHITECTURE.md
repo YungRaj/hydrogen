@@ -239,6 +239,7 @@ progress. It is observational. It does not schedule work or alter evidence.
 
 | Directory or file | Responsibility |
 |---|---|
+| `pipeline/data_models/` | Solver-independent identifiers, enums, typed stage handoffs, scientific results, campaign records, and validated artifact document shapes |
 | `pipeline/utils.py` | Cross-cutting paths, constants, logging, serialization, and scientific helper functions |
 | `pipeline/search/` | Indexed population, deterministic branch traversal, persistent scans, coverage, adaptive validation, diverse discovery batches |
 | `pipeline/screening/` | eSen/fairchem structure construction and energy evaluation, relaxation, surrogate models, GPU worker runtime, stage admission |

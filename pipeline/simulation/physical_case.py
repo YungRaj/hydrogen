@@ -6,6 +6,10 @@ import json
 import math
 import argparse
 from pathlib import Path
+from typing import cast
+
+from pipeline.data_models.artifacts import (
+    PhysicalCaseDocument, PhysicalCaseSummary, SurrogateInputDocument)
 
 
 CASE_SCHEMA_VERSION = 1
@@ -56,7 +60,8 @@ def _declared(value) -> bool:
 
 
 def load_physical_case(path: str | Path, *, candidate_id: str, mode: str,
-                       reactor_type: str, temperature_K: float) -> dict:
+                       reactor_type: str,
+                       temperature_K: float) -> PhysicalCaseDocument:
     """Load a physical case and fail on missing physics or provenance.
 
     Args:
@@ -163,11 +168,14 @@ def load_physical_case(path: str | Path, *, candidate_id: str, mode: str,
             failures.append('sparger_orifice_smaller_than_column')
     if failures:
         raise ValueError('physical case failed: ' + ', '.join(sorted(set(failures))))
-    return case
+    # The cast occurs only after every required identity, physical field,
+    # provenance source, and calibration split above has been validated.
+    return cast(PhysicalCaseDocument, case)
 
 
 def case_template(*, candidate_id: str, mode: str, reactor_type: str,
-                  temperature_K: float, electrolyte_phase: str | None = None) -> dict:
+                  temperature_K: float,
+                  electrolyte_phase: str | None = None) -> PhysicalCaseDocument:
     """Create a deliberately non-runnable template with all required keys.
 
     Args:
@@ -213,7 +221,7 @@ def case_template(*, candidate_id: str, mode: str, reactor_type: str,
         result['electrolyte'] = {
             'identity': 'REPLACE_WITH_ELECTROLYTE',
             'source': 'REPLACE_WITH_SOURCE'}
-    return result
+    return cast(PhysicalCaseDocument, result)
 
 
 def main() -> None:
@@ -258,7 +266,7 @@ def main() -> None:
         print('physical case: ready')
 
 
-def case_summary(case: dict) -> dict:
+def case_summary(case: PhysicalCaseDocument) -> PhysicalCaseSummary:
     """Return traceable metadata without duplicating the full solver input.
 
     Args:
@@ -279,7 +287,7 @@ def case_summary(case: dict) -> dict:
     }
 
 
-def surrogate_inputs(case: dict) -> dict:
+def surrogate_inputs(case: PhysicalCaseDocument) -> SurrogateInputDocument:
     """Return the numeric, unit-bearing inputs needed to reproduce a surrogate row.
 
         Sources and model names remain in ``hydrogen_case.json`` and are protected by

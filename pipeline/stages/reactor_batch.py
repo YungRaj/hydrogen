@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import logging
 from typing import Callable, Optional, Sequence
 
+from pipeline.data_models.stages import ReactorBatchProducts, ReactorBatchState
 from pipeline.stages.contracts import StageOutcome
 
 logger = logging.getLogger('reactor_batch')
@@ -71,7 +72,8 @@ def run_reactor_batch_stage(
         judge_catalyst: Optional[str] = None,
         headline_t_min: float = 1200.0,
         headline_t_max: float | None = None,
-        services: ReactorBatchServices | None = None) -> StageOutcome:
+        services: ReactorBatchServices | None = None
+        ) -> StageOutcome[ReactorBatchState, ReactorBatchProducts]:
     """Run candidate sweeps; mock inputs require the existing explicit opt-in.
 
     Args:
@@ -134,7 +136,7 @@ def run_reactor_batch_stage(
                 reactor_types=list(reactor_types), pathway_mode=pathway_mode,
                 material_class=material_class,
                 multiphysics_results_dir=multiphysics_results_dir))
-    state = {'n_simulations': len(results)}
+    state: ReactorBatchState = {'n_simulations': len(results)}
     if equilibrium is not None:
         state['equilibrium_check'] = {
             'within_tolerance': equilibrium.get('within_tolerance'),
@@ -163,4 +165,5 @@ def run_reactor_batch_stage(
         rankable = rankable_results(results)
         state['best_conversion'] = max(
             (row['CH4_conversion'] for row in rankable), default=None)
-    return StageOutcome(state=state, products={'reactor_results': results})
+    products: ReactorBatchProducts = {'reactor_results': results}
+    return StageOutcome(state=state, products=products)

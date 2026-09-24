@@ -48,6 +48,7 @@ from pipeline.reactors.modes import (
     DEFAULT_MODE, REACTOR_MODELS, reactor_applicability,
     reactor_types_for_mode, validate_mode_reactors)
 from pipeline.reactors.mechanisms import MONOLAYER_SITE_DENSITY_MOL_CM2
+from pipeline.data_models.reactors import ReactorResult
 
 logger = setup_logger('reactor_models', 'reactor/reactor_simulation.log')
 
@@ -1032,7 +1033,7 @@ def _mix_bubble_bypass(gas, inlet_x: np.ndarray, delta: float,
 # A. MMBCR — bubble area + carbon flotation (no solid site lattice)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def simulate_mmbcr(config: ReactorConfig) -> Dict:
+def simulate_mmbcr(config: ReactorConfig) -> ReactorResult:
     """Melt ODE to tabulated X_eq with bubble-area flotation (B3).
 
     dX/dz-style first-order approach: per stage
@@ -1146,7 +1147,7 @@ def simulate_mmbcr(config: ReactorConfig) -> Dict:
 # B. PFR (one shared surface marched through stages = time-on-stream)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def simulate_pfr(config: ReactorConfig) -> Dict:
+def simulate_pfr(config: ReactorConfig) -> ReactorResult:
     """Packed bed as a staged Lagrangian PFR with one shared surface.
 
     Surface area per stage is ``sv·V_bed_stage`` where ``sv = 6(1−ε)/d_p``
@@ -1335,7 +1336,7 @@ def _integrate_fluidized_pass(gas, surf, tau: float, sv_ratio: float,
 # C. Fluidized bed
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def simulate_fluidized_bed(config: ReactorConfig) -> Dict:
+def simulate_fluidized_bed(config: ReactorConfig) -> ReactorResult:
     """Two-phase fluidized bed: reacting emulsion plus bubble bypass.
 
     The emulsion phase reacts at the minimum-fluidization residence time with
@@ -1484,7 +1485,8 @@ def simulate_fluidized_bed(config: ReactorConfig) -> Dict:
 # MOCK RESULTS (for testing without Cantera)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def _mock_reactor_result(config: ReactorConfig, reactor_type: str) -> Dict:
+def _mock_reactor_result(config: ReactorConfig,
+                         reactor_type: str) -> ReactorResult:
     logger.warning(f"Cantera not available. Generating mock {reactor_type} results.")
     _validate_carbon_policy(config)
     E_act = config.catalyst_E_act_eV
@@ -1532,7 +1534,7 @@ def _mock_reactor_result(config: ReactorConfig, reactor_type: str) -> Dict:
 # UNIFIED SIMULATION INTERFACE
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def simulate_ntec_pathway(config: ReactorConfig) -> Dict:
+def simulate_ntec_pathway(config: ReactorConfig) -> ReactorResult:
     """Describe NTEC readiness without substituting an unrelated reactor model.
 
     Args:
@@ -1582,7 +1584,7 @@ def simulate_ntec_pathway(config: ReactorConfig) -> Dict:
     }
 
 
-def simulate_electrochemical_pathway(config: ReactorConfig) -> Dict:
+def simulate_electrochemical_pathway(config: ReactorConfig) -> ReactorResult:
     """Report electrochemical evidence without inventing a Cantera conversion.
 
     Args:
@@ -1636,7 +1638,8 @@ def simulate_electrochemical_pathway(config: ReactorConfig) -> Dict:
     }
 
 
-def simulate_reactor(config: ReactorConfig, coupling_services=None) -> Dict:
+def simulate_reactor(config: ReactorConfig,
+                     coupling_services=None) -> ReactorResult:
     """Run the appropriate reactor simulation based on config.reactor_type.
 
     Args:
@@ -1785,7 +1788,8 @@ def run_reactor_sweep(catalyst_name: str, mechanism_file: str,
                       multiphysics_results_dir: Optional[str] = None,
                       coupling_services=None,
                       catalyst_dE_H_eV: float = 0.0,
-                      reactor_config_kwargs: Optional[Dict] = None) -> List[Dict]:
+                      reactor_config_kwargs: Optional[Dict] = None
+                      ) -> list[ReactorResult]:
     """Sweep operating conditions across the reactors owned by a pathway.
 
     Args:

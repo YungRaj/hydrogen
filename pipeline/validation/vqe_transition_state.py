@@ -19,6 +19,8 @@ import numpy as np
 from pathlib import Path
 from typing import Dict, Optional
 
+from pipeline.data_models.quantum import VQEResult
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from pipeline.utils import (
     VQE_DIR, Ha_to_eV, setup_logger, print_banner, save_json,
@@ -134,7 +136,7 @@ def exact_ground_energy(hamiltonian_terms: list, n_qubits: int) -> float:
 def run_vqe(hamiltonian_terms: list, n_qubits: int = 4,
             n_layers: int = 3, max_iter: int = 3000,
             initial_theta: Optional[list] = None,
-            target: str = 'nvidia') -> Dict:
+            target: str = 'nvidia') -> VQEResult:
     """
     Run VQE using CUDA-Q with a hardware-efficient ansatz.
 
@@ -250,7 +252,8 @@ def run_vqe(hamiltonian_terms: list, n_qubits: int = 4,
     }
 
 
-def _mock_vqe_result(hamiltonian_terms: list, n_qubits: int = 4) -> Dict:
+def _mock_vqe_result(hamiltonian_terms: list,
+                     n_qubits: int = 4) -> VQEResult:
     """Generate mock VQE results when CUDA-Q is not available."""
     logger.warning("CUDA-Q not available. Generating mock VQE results.")
     # Extract the constant (identity) term as the base energy
@@ -279,7 +282,8 @@ def _mock_vqe_result(hamiltonian_terms: list, n_qubits: int = 4) -> Dict:
 
 def validate_transition_state(catalyst_name: str, reaction_type: str = 'CH_split',
                                target: str = 'nvidia',
-                               candidate_hamiltonian: str | None = None) -> Dict:
+                               candidate_hamiltonian: str | None = None
+                               ) -> VQEResult:
     """
     Full VQE transition-state validation for a champion catalyst.
 

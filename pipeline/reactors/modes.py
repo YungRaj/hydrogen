@@ -8,10 +8,18 @@ must never silently grant a candidate a performance bonus.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal, TypeAlias
 
 
-DEFAULT_MODE = 'thermocatalytic'
-MODE_CHOICES = (
+PathwayModeName: TypeAlias = Literal[
+    'thermocatalytic', 'thermocatalytic_pfr',
+    'thermocatalytic_fluidized', 'mmbcr', 'ntec', 'electrochemical']
+ReactorTypeName: TypeAlias = Literal[
+    'PFR', 'Fluidized', 'MMBCR', 'NTEC', 'Electrochemical']
+
+
+DEFAULT_MODE: PathwayModeName = 'thermocatalytic'
+MODE_CHOICES: tuple[PathwayModeName, ...] = (
     'thermocatalytic',
     'thermocatalytic_pfr',
     'thermocatalytic_fluidized',
@@ -30,15 +38,15 @@ class PathwayMode:
         reactor_types: Ordered reactor implementations requested for the pathway.
         requires_specialized_validation: Configured requires specialized validation value.
     """
-    name: str
-    reactor_types: tuple[str, ...]
+    name: PathwayModeName
+    reactor_types: tuple[ReactorTypeName, ...]
     requires_specialized_validation: bool = False
 
 
 @dataclass(frozen=True)
 class ReactorModel:
     """Physical interpretation and current fidelity of one dispatch target."""
-    reactor_type: str
+    reactor_type: ReactorTypeName
     bed_or_interface: str
     cantera_model: str | None
     reaction_domain: str
@@ -108,7 +116,7 @@ def resolve_pathway_mode(mode: str | None) -> PathwayMode:
             f'unknown pathway mode {mode!r}; expected one of {MODE_CHOICES}') from exc
 
 
-def reactor_types_for_mode(mode: str | None) -> tuple[str, ...]:
+def reactor_types_for_mode(mode: str | None) -> tuple[ReactorTypeName, ...]:
     """Return the ordered reactor implementations owned by a pathway mode.
 
     Args:

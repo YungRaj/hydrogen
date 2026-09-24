@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from typing import Callable
 
+from pipeline.data_models.stages import VQEProducts, VQEState
 from pipeline.stages.contracts import StageOutcome
 
 
 def run_vqe_stage(*, top_k: int, execute_quantum: bool,
-                  validator: Callable | None = None) -> StageOutcome:
+                  validator: Callable | None = None
+                  ) -> StageOutcome[VQEState, VQEProducts]:
     """Run candidate VQE validations with an injectable solver boundary.
 
     Args:
@@ -30,6 +32,6 @@ def run_vqe_stage(*, top_k: int, execute_quantum: bool,
         validator(f'champion_{index}', 'CH_split', target=target)
         for index in range(min(top_k, 3))
     ]
-    return StageOutcome(
-        state={'n_vqe_runs': len(results)},
-        products={'vqe_results': results})
+    state: VQEState = {'n_vqe_runs': len(results)}
+    products: VQEProducts = {'vqe_results': results}
+    return StageOutcome(state=state, products=products)

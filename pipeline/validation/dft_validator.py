@@ -21,6 +21,8 @@ import numpy as np
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 
+from pipeline.data_models.quantum import DFTResult
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from pipeline.utils import (
     BASE_DIR, DFT_DIR, QE_PSEUDO_DIR, Ry_to_eV,
@@ -423,7 +425,7 @@ def parse_convergence(output_file: str, *, require_ionic: bool = False) -> bool:
 
 def validate_catalyst(catalyst_name: str, genome: tuple,
                        run_dft: bool = True,
-                       restart_incomplete: bool = False) -> Dict:
+                       restart_incomplete: bool = False) -> DFTResult:
     """
         Full DFT validation workflow for a champion catalyst.
 
@@ -450,7 +452,7 @@ def validate_catalyst(catalyst_name: str, genome: tuple,
 
     mat_class = genome[0]
     from pipeline.search.discovery import candidate_id
-    result = {
+    result: DFTResult = {
         'catalyst_name': catalyst_name,
         'candidate_id': candidate_id(genome),
         'material_class': mat_class,

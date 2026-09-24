@@ -78,10 +78,14 @@ flowchart LR
     class LEDGER record
 ```
 
-Each boundary uses plain dictionaries, dataclasses, NumPy arrays, or JSON. A
-unit test can therefore exercise case feature extraction, record extraction,
-model fitting, prediction, serialization, and escalation without installing or
-launching any external solver.
+The principal orchestration and scientific-result boundaries use named data
+models, dataclasses, NumPy arrays, or validated JSON documents. Runtime mappings
+remain compatible with existing artifacts, while their declared shapes live in
+`pipeline/data_models/`. That package and the selected small boundaries listed
+in `pyrightconfig.json` are checked strictly by Pyright. A unit test can
+therefore exercise case feature
+extraction, record extraction, model fitting, prediction, serialization, and
+escalation without installing or launching any external solver.
 
 The candidate reactor stage has the same separation. `ReactorStageServices`
 defines four injected operations: pathway resolution, candidate-kinetics
@@ -97,10 +101,13 @@ copied and normalized rather than mutated. Tests can therefore exercise resume
 and persistence behavior with deterministic time and an in-memory state store.
 
 DFT, VQE, and report generation expose independent stage functions and return a
-shared immutable `StageOutcome`: `state` contains the small JSON-safe summary to
-persist, while `products` contains in-process results for a downstream stage.
-Their expensive validator or renderer is injectable. The CLI continues to use
-the existing Quantum ESPRESSO, CUDA-Q, and report implementations by default.
+shared immutable, generic `StageOutcome[State, Products]`: `state` contains the
+small JSON-safe summary to persist, while `products` contains in-process results
+for a downstream stage. Every production stage supplies its own named
+`TypedDict` shapes, so a reader and static checker know which keys and value
+types cross each boundary. Their expensive validator or renderer is injectable.
+The CLI continues to use the existing Quantum ESPRESSO, CUDA-Q, and report
+implementations by default.
 
 Discovery, reactor-batch, and fuel-cell coordination follow the same contract.
 Each has a small service bundle for its scientific operations. The master
@@ -109,6 +116,29 @@ the persisted-candidate loader, so a test, notebook, distributed scheduler, or
 alternate campaign architecture can replace any stage without editing the
 coordinator. The production graph is assembled lazily by
 `default_pipeline_components()`.
+
+`PipelineComponents` no longer stores anonymous unparameterized callables. Its
+discovery, reactor, DFT, VQE, fuel-cell, report, and restart-loader fields each
+implement an explicit `Protocol` signature. Replacement implementations retain
+the same lightweight dependency injection, while incompatible arguments or
+return products become visible to static analysis. `PipelineConfig` is frozen,
+slotted, unit-labeled, and validates positive limits, temperatures, headline
+ranges, pathway names, and pathway/reactor routing before a campaign starts.
+
+The initial strict static-analysis boundary is intentionally narrow and honest:
+`pyrightconfig.json` checks `pipeline/data_models/` and the small validated
+boundaries for reactor identifiers, generic stage results, and campaign-ledger
+records in strict mode. Run it with `npx pyright`. The include set should expand
+one capability at a time as its legacy untyped callables and dictionaries are
+replaced; the repository does not claim that all numerical implementation
+modules are already strictly typed.
+
+External physical-case JSON remains backward compatible. The existing
+fail-closed identity, units, provenance, calibration, and physical checks run
+before the mapping is exposed internally as a `PhysicalCaseDocument`. Templates,
+malformed records, and incomplete evidence therefore retain their previous
+rejection behavior while downstream functions receive an explicit document
+shape.
 
 The full graph is runtime-tested entirely in memory. That contract verifies the
 discovery outputs handed to reactor and DFT stages, phase order, state

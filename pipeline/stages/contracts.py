@@ -2,20 +2,31 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Mapping
+from dataclasses import dataclass
+from typing import Any, Generic, Mapping, TypeVar, cast
 
 
-@dataclass(frozen=True)
-class StageOutcome:
-    """Explicit persisted state and in-process products from one stage."""
-
-    state: Mapping[str, Any]
-    products: Mapping[str, Any] = field(default_factory=dict)
+StateT = TypeVar("StateT", bound=Mapping[str, Any])
+ProductsT = TypeVar("ProductsT", bound=Mapping[str, Any])
 
 
-def require_stage_outcome(value, *, stage: str,
-                          required_products: tuple[str, ...] = ()) -> StageOutcome:
+@dataclass(frozen=True, slots=True)
+class StageOutcome(Generic[StateT, ProductsT]):
+    """Typed persisted state and in-process products from one stage.
+
+    The generic parameters retain each stage's concrete mapping shape for
+    static analysis.  Runtime values remain mappings to preserve existing
+    artifacts, tests, and third-party stage implementations.
+    """
+
+    state: StateT
+    products: ProductsT
+
+
+def require_stage_outcome(
+        value: object, *, stage: str,
+        required_products: tuple[str, ...] = (),
+        ) -> StageOutcome[Mapping[str, Any], Mapping[str, Any]]:
     """Validate a replaceable stage at its orchestration boundary.
 
     Args:
@@ -28,10 +39,14 @@ def require_stage_outcome(value, *, stage: str,
     """
     if not isinstance(value, StageOutcome):
         raise TypeError(f'{stage} stage must return StageOutcome')
-    if not isinstance(value.state, Mapping) or not isinstance(value.products, Mapping):
+    unchecked = cast(StageOutcome[Any, Any], value)
+    if (not isinstance(unchecked.state, Mapping) or
+            not isinstance(unchecked.products, Mapping)):
         raise TypeError(f'{stage} StageOutcome mappings are invalid')
-    missing = set(required_products).difference(value.products)
+    outcome = cast(
+        StageOutcome[Mapping[str, Any], Mapping[str, Any]], unchecked)
+    missing = set(required_products).difference(outcome.products)
     if missing:
         raise ValueError(
             f'{stage} stage omitted required products: {sorted(missing)}')
-    return value
+    return outcome

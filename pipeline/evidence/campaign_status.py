@@ -4,9 +4,11 @@ import json
 from pathlib import Path
 from pipeline.search.indexed_space import TOTAL_SIZE
 from pipeline.evidence.manifest import verify_evidence_manifest
+from pipeline.data_models.evidence import CampaignStatus
 
 
-def assess_campaign(results_dir='results', pyrolysis_mode='thermocatalytic') -> dict:
+def assess_campaign(results_dir='results',
+                    pyrolysis_mode='thermocatalytic') -> CampaignStatus:
     """Combine campaign evidence into a fail-closed readiness assessment.
 
     Args:
