@@ -1036,10 +1036,12 @@ performance. Other rounds exposed model drift, establishing a release criterion:
 a challenger should not replace an incumbent without new locked validation.
 Persistent automatic model promotion is not yet treated as completed scientific
 infrastructure. The reproducible pilot entry point is
-`run_divide_conquer_pilot.py`; its locked result manifests and raw selections
-are versioned under `results/pilot/`, `results/screening/pilot/`, and
-`results/fuel_cell/pilot/`. Earlier exploratory launchers were removed after
-their useful logic was incorporated into this runner and
+`run_divide_conquer_pilot.py`; it writes locked manifests and raw selections
+under the gitignored `results/pilot/`, `results/screening/pilot/`, and
+`results/fuel_cell/pilot/` directories. Preserve campaign artifacts in external
+storage when they are needed for publication or audit rather than committing
+generated outputs to the source repository. Earlier exploratory launchers were
+removed after their useful logic was incorporated into this runner and
 `pipeline/evidence/pilot_benchmark.py`.
 
 ### Phase 1: Deterministic Branch-and-Bound Discovery
