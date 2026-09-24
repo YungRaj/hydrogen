@@ -1345,8 +1345,8 @@ The environment names are conventions, not absolute paths. `run_in_env` and
 the executable resolver locate `conda` from `PATH`. Users may instead provide
 the required executable in `PATH` or set documented overrides.
 
-`environment.yml` provides a useful core Python environment;
-`environment-openfoam.yml` and `environment-fenicsx.yml` provide reproducible
+`environments/environment.yml` provides a useful core Python environment;
+`environments/environment-openfoam.yml` and `environments/environment-fenicsx.yml` provide reproducible
 external multiphysics environments. The runner discovers these environments,
 `PATH`, or documented executable overrides without assuming a home directory.
 It accepts solver output only after artifact identity, backend version,

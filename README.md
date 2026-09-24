@@ -477,7 +477,7 @@ mkdir -p quantum_espresso/pseudo && cd quantum_espresso/pseudo
 ### Environment 4: `quantum-env` — CUDA-Q (Phase 4)
 
 ```bash
-conda env create -f environment-quantum.yml
+conda env create -f environments/environment-quantum.yml
 ```
 
 ### Environment 5: `battery-env` — Lightweight (Phase 6, utilities)
@@ -493,7 +493,7 @@ pip install numpy scipy pandas
 Used by fluidized-bed, MMBCR, and NTEC cases:
 
 ```bash
-conda env create -f environment-openfoam.yml
+conda env create -f environments/environment-openfoam.yml
 ```
 
 ### Environment 7: `fenicsx-env` — Coupled continuum transport
@@ -501,7 +501,7 @@ conda env create -f environment-openfoam.yml
 Used by NTEC and aqueous/molten electrochemical cases:
 
 ```bash
-conda env create -f environment-fenicsx.yml
+conda env create -f environments/environment-fenicsx.yml
 ```
 
 ### Verify Installation
@@ -786,8 +786,8 @@ when it matches the feedback states and residuals that the runner observed.
 Create the external solver environments portably with:
 
 ```bash
-conda env create -f environment-openfoam.yml
-conda env create -f environment-fenicsx.yml
+conda env create -f environments/environment-openfoam.yml
+conda env create -f environments/environment-fenicsx.yml
 ```
 
 #### External-mode execution lifecycle
@@ -878,9 +878,11 @@ hydrogen/
 ├── CHANGELOG.md                   # Shipped behavior and known boundaries
 ├── LICENSE                        # MIT license
 ├── requirements.txt               # Python dependencies
-├── environment.yml                # Conda environment spec
-├── environment-openfoam.yml       # Multiphase solver environment
-├── environment-fenicsx.yml        # Continuum transport environment
+├── environments/                  # Reproducible Conda specifications
+│   ├── environment.yml            # Core screening environment
+│   ├── environment-quantum.yml    # CUDA-Q and quantum chemistry
+│   ├── environment-openfoam.yml   # Multiphase solver environment
+│   └── environment-fenicsx.yml    # Continuum transport environment
 ├── run_production_campaign.py     # Production launcher (GPU-saturated)
 ├── .hf_token                      # HuggingFace token (chmod 600, gitignored)
 │
