@@ -9,6 +9,11 @@ A GPU-accelerated computational pipeline for autonomous catalyst discovery targe
 * 🗺️ **[Architecture and Workflow Visual Atlas](docs/ARCHITECTURE_DIAGRAMS.md)**:
   Diagrams of the engine, search traversal, solver ownership, reactor routing,
   evidence ladder, provenance, and multi-fidelity feedback.
+* 📐 **[Technical Architecture and Scientific Equations](docs/TECHNICAL_ARCHITECTURE.md)**:
+  Implementation-level guide, including the
+  [Kohn–Sham/plane-wave DFT, NEB, frequency, CHE, and literature-reference workflow](docs/TECHNICAL_ARCHITECTURE.md#13-quantum-espresso-dft-and-neb-validation)
+  and the [FCIDUMP, Jordan–Wigner, CUDA-Q, and VQE equations and evidence
+  limits](docs/TECHNICAL_ARCHITECTURE.md#14-cuda-q-cuda-quantum-and-vqe).
 
 * 🔬 **[Turquoise Hydrogen Reference Guide](docs/TURQUOISE_HYDROGEN.md)**: Exhaustive literature review of thermocatalytic and nanotribo-mechano-electrochemical (NTEC) methane splitting.
 * 🧪 **[Physical Multiphysics Cases](docs/PHYSICAL_CASES.md)**: Exact reactor-input, parameter-provenance, calibration/holdout, and solver-artifact contract.
@@ -590,6 +595,7 @@ environments and are run separately:
 ```bash
 conda run -n quantum-env python tests/test_resolution_contracts.py
 conda run -n quantum-env python tests/test_vqe_solver_contract.py
+conda run -n fairchem-env python tests/test_quantum_reference_contracts.py
 conda run -n fairchem-env python tests/test_gpu_affinity_contract.py
 ```
 
@@ -602,6 +608,7 @@ python tests/run_tests.py --profile merge
 python tests/run_tests.py --include-resolution
 python tests/run_tests.py --include-vqe
 python tests/run_tests.py --include-production-vqe
+python tests/run_tests.py --include-quantum-reference-artifacts
 python tests/run_tests.py --include-gpu
 python tests/run_tests.py --all
 ```
@@ -1514,12 +1521,20 @@ because they cannot yet parameterize the PEMFC model.
 
 ### Phase 3: DFT Validation (Quantum ESPRESSO)
 
+The full equations, numerical protocol, convergence gates, reference
+calculations, and primary literature are documented in
+[Technical Architecture §13](docs/TECHNICAL_ARCHITECTURE.md#13-quantum-espresso-dft-and-neb-validation).
+
 For the top 10 champion catalysts:
 1. Generate QE input files (SCF / relax) with proper pseudopotentials
 2. Run `pw.x` for bulk optimization and slab relaxation
 3. Parse converged total energies, forces, electronic structure
 
 ### Phase 4: VQE Quantum Chemistry (CUDA-Q)
+
+The second-quantized Hamiltonian, Jordan–Wigner transform, ansatz, variational
+objective, solver/classical-reference checks, and scientific limitations are
+documented in [Technical Architecture §14](docs/TECHNICAL_ARCHITECTURE.md#14-cuda-q-cuda-quantum-and-vqe).
 
 For the top 3–5 champions:
 1. Generate sourced candidate-specific FCIDUMP integrals for consistently

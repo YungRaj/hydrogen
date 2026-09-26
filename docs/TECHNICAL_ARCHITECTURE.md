@@ -815,6 +815,141 @@ repository:
 ASE is used to construct or read atomistic geometries, while repository code
 writes QE inputs, launches executables, and validates outputs.
 
+The foundational references are the [Hohenberg–Kohn existence and variational
+theorems](https://doi.org/10.1103/PhysRev.136.B864), the practical
+[Kohn–Sham equations](https://doi.org/10.1103/PhysRev.140.A1133), and the
+[Quantum ESPRESSO methods paper](https://doi.org/10.1088/0953-8984/21/39/395502).
+For executable inputs and convergence controls, see the official
+[`pw.x` user guide](https://www.quantum-espresso.org/wp-content/uploads/2022/03/pw_user_guide.pdf)
+and [`neb.x` user guide](https://www.quantum-espresso.org/Doc/user_guide_PDF/neb_user_guide.pdf).
+
+#### 13.1.1 What DFT solves
+
+Under the Born–Oppenheimer approximation, the nuclei are fixed while the
+electronic ground state is calculated. The Hohenberg–Kohn formulation replaces
+the many-electron wavefunction with the electron density `n(r)` and states that
+the exact ground-state density minimizes
+
+$$
+E[n] = T[n] + \int v_{\mathrm{ext}}(\mathbf r)n(\mathbf r)\,d\mathbf r
+     + E_{\mathrm H}[n] + E_{\mathrm{xc}}[n] + E_{\mathrm{ion-ion}}.
+$$
+
+The exact kinetic and exchange-correlation functionals are not known. Kohn and
+Sham introduce non-interacting orbitals with the same density and solve the
+self-consistent eigenproblem
+
+$$
+\left[-\frac{1}{2}\nabla^2 + v_{\mathrm{ext}}(\mathbf r)
+ + v_{\mathrm H}[n](\mathbf r) + v_{\mathrm{xc}}[n](\mathbf r)\right]
+\psi_{i\sigma}(\mathbf r)
+= \epsilon_{i\sigma}\psi_{i\sigma}(\mathbf r),
+$$
+
+$$
+n(\mathbf r)=\sum_{i,\sigma} f_{i\sigma}
+|\psi_{i\sigma}(\mathbf r)|^2,
+\qquad
+v_{\mathrm H}(\mathbf r)=\int
+\frac{n(\mathbf r')}{|\mathbf r-\mathbf r'|}\,d\mathbf r'.
+$$
+
+QE iterates these equations: guess a density, construct the effective
+potential, solve for orbitals, form and mix a new density, and repeat until the
+electronic threshold is satisfied. `nspin=2` keeps separate spin-up and
+spin-down densities for Fe, Ni, Co, and other magnetic candidates. Smearing
+stabilizes metallic Brillouin-zone integration; it is an electronic-integration
+device and must not be mislabeled as the physical reactor temperature.
+
+The repository uses PBE generalized-gradient-approximation pseudopotentials.
+PBE makes the exchange-correlation energy depend on both density and density
+gradient,
+
+$$
+E_{\mathrm{xc}}^{\mathrm{PBE}}[n_\uparrow,n_\downarrow]
+=\int n(\mathbf r)\,
+\varepsilon_{\mathrm{xc}}^{\mathrm{PBE}}
+(n_\uparrow,n_\downarrow,\nabla n_\uparrow,\nabla n_\downarrow)\,d\mathbf r.
+$$
+
+It is an approximation, not an exact solution of the interacting-electron
+problem. The primary definition is [Perdew, Burke, and Ernzerhof,
+1996](https://doi.org/10.1103/PhysRevLett.77.3865). Functional error, finite
+slabs, incomplete configurational sampling, solvation, coverage, and finite
+temperature can dominate a numerically converged result.
+
+#### 13.1.2 Plane waves, pseudopotentials, and periodic cells
+
+For a periodic cell, QE expands each Bloch orbital in reciprocal-space plane
+waves,
+
+$$
+\psi_{n\mathbf k}(\mathbf r)=
+\frac{1}{\sqrt{\Omega}}\sum_{\mathbf G}^{
+\frac{1}{2}|\mathbf k+\mathbf G|^2\le E_{\mathrm{cut}}}
+c_{n\mathbf k}(\mathbf G)e^{i(\mathbf k+\mathbf G)\cdot\mathbf r}.
+$$
+
+`ecutwfc` truncates this expansion; `ecutrho` truncates the charge-density
+representation. A pseudopotential removes explicit chemically inert core
+electrons and replaces their singular ionic potential while retaining valence
+scattering behavior. Consequently, the pseudopotential identity, functional,
+cutoffs, valence configuration, and relativistic treatment are part of the
+scientific model—not interchangeable runtime details.
+
+`verify_sssp` binds each element to the pinned SSSP filename and checksum and
+uses the recommended cutoffs. SSSP is itself a verification effort against
+all-electron equations of state and cutoff convergence; its methodology is
+described by [Prandini et al., 2018](https://doi.org/10.1038/s41524-018-0127-2).
+SSSP verification reduces numerical pseudopotential error but does not validate
+PBE against experiment for a new catalyst.
+
+The Brillouin-zone integral is approximated by a weighted k-point sum,
+
+$$
+\int_{\mathrm{BZ}} F(\mathbf k)\,d\mathbf k
+\approx \sum_{\mathbf k} w_{\mathbf k}F(\mathbf k).
+$$
+
+Bulk metals need a converged three-dimensional mesh. Slabs use dense in-plane
+sampling and normally one point normal to the vacuum. Isolated molecules use a
+large cell and the Gamma point. The production input is not physically
+converged merely because `pw.x` exits successfully; energy, force, k-point,
+cutoff, slab-thickness, vacuum, and supercell-size convergence remain separate
+requirements.
+
+#### 13.1.3 Energies, forces, relaxation, and derived observables
+
+The absolute periodic total energy is rarely the desired catalyst observable.
+The workflow forms consistently calculated differences such as
+
+$$
+\Delta E_{\mathrm{ads}}
+=E_{\mathrm{slab+adsorbate}}-E_{\mathrm{clean\ slab}}-E_{\mathrm{reference}},
+$$
+
+$$
+\Delta E_{\mathrm{rxn}}=E_{\mathrm{products}}-E_{\mathrm{reactants}},
+\qquad
+E_a^{\rightarrow}=E_{\mathrm{TS}}-E_{\mathrm{reactant}}.
+$$
+
+All terms in a difference must use compatible cells, pseudopotentials,
+functionals, spin conventions, cutoffs, and reference states. Cancellation of
+systematic errors is lost when protocols are mixed.
+
+QE obtains ionic forces from the derivative of the total energy,
+
+$$
+\mathbf F_I=-\frac{\partial E}{\partial \mathbf R_I}.
+$$
+
+Endpoint `relax` calculations update ionic coordinates until the force
+criterion is met; electronic convergence alone is insufficient. The repository
+uses QE's BFGS ionic optimization and preserves declared fixed slab atoms.
+These relaxed endpoints are the inputs to NEB, not optional cosmetics: an
+unrelaxed endpoint contaminates the apparent reaction barrier.
+
 ### 13.2 Portable executable resolution
 
 `pipeline/simulation/executables.py::resolve_qe_executable` resolves tools in this
@@ -908,6 +1043,33 @@ The path is not complete merely because one or more images printed energies.
 Every required electronic calculation, both endpoints, the path, and the
 transition-state frequency check must satisfy their contracts.
 
+The mathematical NEB object is a discrete chain of images
+`R_0, R_1, ..., R_N` joining fixed relaxed endpoints. For an intermediate image
+`i`, the true potential force is retained perpendicular to the local path and a
+spring force maintains spacing parallel to it:
+
+$$
+\mathbf F_i^{\mathrm{NEB}}
+=-\nabla V(\mathbf R_i)_{\perp}
++k\left(|\mathbf R_{i+1}-\mathbf R_i|
+-|\mathbf R_i-\mathbf R_{i-1}|\right)\hat{\boldsymbol\tau}_i.
+$$
+
+For the climbing image, the spring component is removed and the parallel
+component of the physical force is reversed,
+
+$$
+\mathbf F_{i,\mathrm{CI}}
+=-\nabla V(\mathbf R_i)
++2\left[\nabla V(\mathbf R_i)\cdot\hat{\boldsymbol\tau}_i\right]
+\hat{\boldsymbol\tau}_i,
+$$
+
+so the highest image approaches the saddle point. This is the method of
+[Henkelman, Uberuaga, and Jónsson](https://doi.org/10.1063/1.1329672).
+`neb.x` performs this path optimization; `parse_neb_result` accepts the printed
+forward barrier only after both `JOB DONE` and NEB convergence are present.
+
 ### 13.7 Transition-state frequency validation
 
 `partial_hessian` constructs a symmetrized, mass-weighted partial Hessian from
@@ -917,6 +1079,25 @@ valid first-order transition state. This is distinct from VQE and from NEB path
 convergence: NEB locates a path maximum; frequencies test the local character
 of the proposed transition state.
 
+For displacement `delta`, the Cartesian Hessian is estimated from force
+differences,
+
+$$
+H_{i\alpha,j\beta}
+\approx-\frac{F_{i\alpha}(R_{j\beta}+\delta)
+-F_{i\alpha}(R_{j\beta}-\delta)}{2\delta},
+\qquad
+\widetilde H_{i\alpha,j\beta}=
+\frac{H_{i\alpha,j\beta}}{\sqrt{m_i m_j}}.
+$$
+
+Eigenvalues of the mass-weighted Hessian give squared normal-mode frequencies.
+A first-order saddle should have one negative eigenvalue—reported as one
+imaginary frequency—associated with motion along the intended reaction
+coordinate. Zero modes, slab modes, and a too-small partial Hessian require
+careful interpretation; the automated check is necessary but not sufficient
+chemical judgment.
+
 ### 13.8 Candidate-specific ORR DFT sequence
 
 `pipeline/validation/dft_fuel_cell.py` and
@@ -925,6 +1106,38 @@ OH*, O*, OOH*, H2, and H2O calculations. `orr_campaign_status` permits a final
 ORR result only when every required output is converged. Corrected adsorption
 free energies and overpotential are then computed with explicit correction
 metadata.
+
+The computational hydrogen electrode (CHE) replaces the free energy of a
+proton-electron pair by one half of gas-phase hydrogen at standard conditions,
+
+$$
+\mu(H^+ + e^-;U,\mathrm{pH})
+=\frac{1}{2}G_{H_2}-eU-k_B T\ln(10)\,\mathrm{pH}.
+$$
+
+For every adsorbate, the code starts from compatible QE energy differences and
+adds declared zero-point, entropy, solvation, potential, pH, and temperature
+corrections:
+
+$$
+\Delta G=\Delta E_{\mathrm{DFT}}+\Delta E_{\mathrm{ZPE}}
+-T\Delta S+\Delta G_{\mathrm{solv}}+\Delta G_U+\Delta G_{\mathrm{pH}}.
+$$
+
+The four associative ORR free-energy steps are built from `G_OOH`, `G_O`, and
+`G_OH`. With one electron transferred per step, the limiting potential is the
+largest potential at which every reduction step remains downhill, and
+
+$$
+\eta_{\mathrm{ORR}}=1.23\ \mathrm V-U_L.
+$$
+
+The CHE convention and ORR descriptor construction follow
+[Nørskov et al., 2004](https://doi.org/10.1021/jp047349j). A computed
+thermodynamic limiting potential does not include all kinetic barriers,
+double-layer structure, explicit solvent dynamics, mass transport, or MEA
+degradation; those omissions are why ORR DFT cannot substitute for a fuel-cell
+measurement.
 
 The sequence is resumable. Completed stages are preserved; missing stages can
 advance; incomplete nonempty output is not overwritten by default.
@@ -946,6 +1159,58 @@ running, and completed candidate jobs in SQLite. The production driver uses it
 to coordinate multiple candidate calculations while respecting
 `--qe-max-concurrent`. This separates candidate-level parallelism from MPI
 parallelism inside each QE calculation.
+
+### 13.10 Literature-reference calculations and what they prove
+
+`pipeline/validation/qe_reference_eos.py` performs a real seven-point
+spin-polarized equation-of-state calculation for bcc Fe and fcc Ni. Each point
+uses PBE/SSSP, a `12 x 12 x 12` k-point mesh, `1e-10` SCF threshold, and the
+SSSP-recommended wavefunction and density cutoffs. It parses the final energy
+only from a raw output containing `JOB DONE`, fits a local convex quadratic
+
+$$
+E(a)=c_2 a^2+c_1 a+c_0,
+\qquad a_0=-\frac{c_1}{2c_2},
+$$
+
+and requires `a_0` to lie inside the sampled interval. Every input, output,
+command, and summary is checksum-bound. This local fit estimates the minimum;
+production equations of state may instead fit energy versus volume with a
+Birch–Murnaghan model and should test fit-window sensitivity.
+
+The September 2026 reference run produced:
+
+| Material | 293 K experimental lattice parameter | QE/PBE fitted value | Absolute error | Relative error |
+|---|---:|---:|---:|---:|
+| bcc Fe | 2.8664 angstrom | 2.83771 angstrom | 0.02869 angstrom | 1.00% |
+| fcc Ni | 3.5238 angstrom | 3.52745 angstrom | 0.00365 angstrom | 0.10% |
+
+The experimental targets come from the
+[NIST compilation](https://srd.nist.gov/JPCRD/jpcrd34.pdf). The comparison is
+honest about conditions: the DFT lattice is a zero-temperature static-lattice
+model with metallic electronic smearing, whereas the reference is measured at
+293 K. The declared tolerance includes that model discrepancy; it is not an
+experimental error bar. Passing shows that executable resolution,
+pseudopotentials, spin treatment, SCF, energy parsing, EOS fitting, provenance,
+and gross bulk energetics work together for these two cases. It does **not**
+validate surface adsorption, methane activation, ORR, every element, or every
+candidate.
+
+`tests/test_quantum_reference_contracts.py` tests the portable comparison and
+parser logic. `tests/test_quantum_reference_artifacts.py` grades real,
+checksum-bound solver artifacts and rejects mock, unconverged, generic,
+wrong-material, wrong-unit, wrong-protocol, or wrong-condition observations.
+Run the real check with
+
+```bash
+HYDROGEN_QUANTUM_REFERENCE_RESULTS=results/validation/qe_reference_eos/reference_observations.json \
+  conda run -n quantum-env python tests/test_quantum_reference_artifacts.py
+```
+
+The separate Ni(111) 1.05 eV methane barrier target is a published DFT result
+from [Bengaard et al.](https://doi.org/10.1006/jcat.2002.3579), not a direct
+experimental barrier. It remains pending until candidate-specific relaxed
+endpoints, a converged NEB path, and transition-state frequency evidence exist.
 
 ## 14. CUDA-Q, CUDA Quantum, and VQE
 
@@ -1022,6 +1287,11 @@ this module it provides:
 - `cudaq.vqe` for the repeated expectation-value/optimization loop;
 - `cudaq.optimizers.COBYLA` for the classical parameter update.
 
+The corresponding framework references are NVIDIA's official
+[CUDA-Q overview](https://nvidia.github.io/cuda-quantum/latest/index.html),
+[kernel documentation](https://nvidia.github.io/cuda-quantum/latest/using/examples/building_kernels.html),
+and [`cudaq.vqe` Python API](https://nvidia.github.io/cuda-quantum/latest/api/languages/python_api.html).
+
 The architectural benefit is backend portability: the surrounding pipeline can
 retain the same Hamiltonian, ansatz, result schema, and evidence checks while a
 CUDA-Q target changes from a local CPU simulator to an NVIDIA GPU simulator or,
@@ -1062,18 +1332,87 @@ NVIDIA target.
 
 ### 14.5 What VQE does step by step
 
-VQE minimizes the Rayleigh quotient
+For a candidate-specific calculation, an upstream electronic-structure method
+first selects a finite orthonormal orbital basis and produces one- and
+two-electron integrals. In second quantization the active-space electronic
+Hamiltonian is
 
-```text
-E(theta) = <psi(theta) | H | psi(theta)>
-E(theta) >= E0
-```
+$$
+\hat H = E_{\mathrm{core}}
++\sum_{pq} h_{pq}a_p^\dagger a_q
++\frac{1}{2}\sum_{pqrs} h_{pqrs}
+a_p^\dagger a_q^\dagger a_s a_r.
+$$
+
+Here `p,q,r,s` index spin orbitals; `h_pq` contains kinetic and nuclear
+attraction integrals; `h_pqrs` contains electron repulsion; and `E_core`
+contains the nuclear and frozen-core constant appropriate to the chosen
+protocol. FCIDUMP stores these integrals. The sidecar validated by
+`candidate_hamiltonian.py` binds them to geometry, basis, active electrons and
+orbitals, charge, multiplicity, frozen orbitals, integral source, and checksum.
+
+OpenFermion applies the Jordan–Wigner mapping. For orbital `p`,
+
+$$
+a_p^\dagger = \frac{1}{2}(X_p-iY_p)\prod_{j<p}Z_j,
+\qquad
+a_p = \frac{1}{2}(X_p+iY_p)\prod_{j<p}Z_j.
+$$
+
+The parity string of `Z` operators preserves fermionic anticommutation. After
+mapping and collecting terms,
+
+$$
+\hat H_q=\sum_j c_j P_j,
+\qquad P_j\in\{I,X,Y,Z\}^{\otimes n}.
+$$
+
+`build_candidate_hamiltonian` rejects an inconsistent electron count,
+multiplicity, orbital count, geometry checksum, FCIDUMP checksum, non-Hermitian
+coefficient, or mapping identity. PySCF reads/restores the FCIDUMP tensors;
+OpenFermion performs the spin-orbital expansion and mapping; CUDA-Q does not
+construct the chemistry Hamiltonian.
+
+VQE then minimizes the Rayleigh quotient
+
+$$
+E(\boldsymbol\theta)=
+\langle\psi(\boldsymbol\theta)|\hat H_q|
+\psi(\boldsymbol\theta)\rangle
+=\sum_j c_j\langle P_j\rangle_{\boldsymbol\theta},
+\qquad E(\boldsymbol\theta)\ge E_0.
+$$
 
 where `H` is the qubit Hamiltonian, `|psi(theta)>` is the parameterized ansatz,
 and `E0` is the exact ground-state energy in the represented space. The
 variational inequality is an important correctness invariant: a noiseless VQE
 energy below the exact ground-state energy indicates a solver, convention, or
 Hamiltonian error.
+
+The current hardware-efficient ansatz can be written schematically as
+
+$$
+|\psi(\boldsymbol\theta)\rangle=
+\prod_{\ell=1}^{L}
+U_{\mathrm{ent}}
+\left[\prod_{q=1}^{n}R_z(\theta_{\ell q z})
+R_y(\theta_{\ell q y})\right]|\psi_{\mathrm{HF}}\rangle,
+$$
+
+where `|psi_HF>` is a half-filled computational-basis reference and
+`U_ent` is a ring of CNOT gates. This ansatz is convenient for exercising the
+runtime, but it does not conserve particle number by construction and is not
+automatically chemically superior to UCC or symmetry-adapted alternatives.
+Ansatz error, active-space error, basis error, optimizer error, finite sampling,
+and hardware noise are distinct uncertainties.
+
+On a state-vector simulator CUDA-Q can evaluate the Pauli expectations without
+finite-shot sampling. On actual quantum hardware, each expectation is estimated
+from repeated measurements; commuting-term grouping, shot allocation, readout
+error, and noise mitigation become part of the protocol. The original VQE
+proposal is [Peruzzo et al., 2014](https://doi.org/10.1038/ncomms5213), and a
+detailed hybrid-algorithm treatment is [McClean et al.,
+2016](https://doi.org/10.1088/1367-2630/18/2/023023).
 
 `run_vqe` implements the following sequence:
 
@@ -1100,6 +1439,27 @@ evaluations, which matches how a quantum backend exposes expectation values.
 It is not guaranteed to find the global optimum; ansatz expressivity,
 initialization, optimizer settings, sampling noise, and barren plateaus can all
 affect convergence.
+
+#### 14.5.1 What must be subtracted to obtain chemistry
+
+An absolute VQE eigenvalue is not a reaction energy or barrier. Compatible
+state calculations are required:
+
+$$
+\Delta E_{\mathrm{rxn}}^{\mathrm{VQE}}
+=E_{\mathrm{products}}^{\mathrm{VQE}}
+-E_{\mathrm{reactants}}^{\mathrm{VQE}},
+\qquad
+E_a^{\mathrm{VQE}}
+=E_{\mathrm{TS}}^{\mathrm{VQE}}-E_{\mathrm{reactant}}^{\mathrm{VQE}}.
+$$
+
+The geometries, orbital-generation method, basis, frozen core, active-space
+selection, mapping, symmetry treatment, optimizer convergence, and energy
+offset must be compatible across both states. Zero-point and thermal free-energy
+corrections remain necessary for comparison with finite-temperature kinetics.
+This is why the code refuses to compare the built-in toy ground-state energy
+with an experimental barrier, voltage, lattice constant, or device measurement.
 
 ### 14.6 Hamiltonians implemented today
 
@@ -1180,6 +1540,40 @@ the adaptive-validation ledger, or influence a finalist. Until that upgrade,
 this stage validates software and solver behavior and prepares a future quantum
 research path; the actual catalyst evidence comes from eSen screening,
 converged Quantum ESPRESSO calculations, and physical measurements.
+
+### 14.9 Numerical verification versus physical validation
+
+The repository deliberately maintains two different questions:
+
+| Question | Required comparison | Current status |
+|---|---|---|
+| Did CUDA-Q optimize the supplied qubit Hamiltonian correctly? | VQE energy versus exact diagonalization of the identical Pauli matrix; variational bound and declared tolerance | Implemented for tractable model Hamiltonians |
+| Does the Hamiltonian represent a named catalyst and geometry? | Checksum-bound geometry, sourced FCIDUMP integrals, active-space metadata, electron/spin consistency | Interface implemented; required per candidate |
+| Does VQE reproduce a physical chemical observable? | Compatible candidate-specific calculations for every state in an energy difference, plus classical/literature comparison and corrections | Not yet demonstrated |
+| Does the catalyst perform experimentally? | Reactor kinetics, electrochemical, MEA, durability, and appropriate controls | Cannot be established by VQE alone |
+
+`tests/test_vqe_solver_contract.py` answers only the first row. Exact
+diagonalization is numerical verification because both calculations use the
+same Hamiltonian. `tests/test_quantum_reference_contracts.py` therefore rejects
+a toy or generic VQE result even if its numerical benchmark passes. A future
+physical reference must identify the same material, geometry, observable,
+units, protocol, and target conditions, and the artifact must be converged,
+non-mock, candidate-specific, checksum-bound, and exact-solver-benchmarked where
+tractable.
+
+Recommended background reading is:
+
+- [Peruzzo et al., “A variational eigenvalue solver on a photonic quantum
+  processor”](https://doi.org/10.1038/ncomms5213), the original VQE experiment;
+- [McClean et al., “The theory of variational hybrid quantum-classical
+  algorithms”](https://doi.org/10.1088/1367-2630/18/2/023023), expectation
+  estimation, hybrid optimization, and error sources;
+- [Kandala et al., hardware-efficient VQE for molecules and quantum
+  magnets](https://doi.org/10.1038/nature23879), relevant to the ansatz family
+  used here;
+- [Cao et al., “Quantum Chemistry in the Age of Quantum
+  Computing”](https://doi.org/10.1021/acs.chemrev.8b00803), a broader review of
+  fermion mappings, active spaces, and quantum chemistry algorithms.
 
 ## 15. Fuel-cell cathode, cell, and stack workflow
 
