@@ -66,7 +66,11 @@ def build_ni111_methane_endpoints(
         np.array([radial * np.cos(angle), radial * np.sin(angle), upper_z])
         for angle in (0.0, 2.0 * np.pi / 3.0, 4.0 * np.pi / 3.0)
     ] + [np.array([0.0, 0.0, -bond])]
-    initial_c = np.array([anchor[0], anchor[1], top_z + 3.2])
+    # The literature barrier is referenced to gas-phase methane and two clean
+    # surface sites.  Plain PBE does not necessarily produce a bound molecular
+    # CH4 precursor on Ni(111), so placing CH4 in the vacuum region avoids
+    # inventing an adsorbed minimum that drifts during endpoint relaxation.
+    initial_c = np.array([anchor[0], anchor[1], top_z + 5.5])
     initial_adsorbate = Atoms(
         "CH4", positions=[initial_c] +
         [(initial_c + vector).tolist() for vector in initial_vectors])
@@ -125,7 +129,7 @@ def prepare_ni111_methane_benchmark(output_dir: str | Path) -> dict:
         "reference_barrier_eV": REFERENCE_BARRIER_EV,
         "reference_kind": "published_computation",
         "reference_doi": REFERENCE_DOI,
-        "reaction": "CH4* + * -> CH3* + H* on Ni(111)",
+        "reaction": "CH4(g) + 2* -> CH3* + H* on Ni(111)",
         "surface_cell": "2x2 Ni(111), three layers, lower two fixed",
         "initial_structure": initial_path.name,
         "initial_sha256": _sha256(initial_path),
@@ -143,7 +147,7 @@ def prepare_ni111_methane_benchmark(output_dir: str | Path) -> dict:
         },
         "limitations": [
             "finite 2x2 three-layer slab; production convergence must test slab and cell size",
-            "endpoint guesses require QE relaxation and chemical inspection",
+            "gas-reference and adsorbed-product endpoints require QE relaxation and chemical inspection",
             "published target is a DFT value, not a direct experimental barrier",
         ],
     }

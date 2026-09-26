@@ -201,6 +201,7 @@ def test_ni111_methane_reference_geometry_is_matched_and_constrained():
     final_bond = np.linalg.norm(final.positions[-1] - final.positions[-5])
     assert abs(initial_bond - 1.09) < 1e-10
     assert final_bond > 1.5
+    assert initial.positions[-5, 2] - max(initial.positions[:12, 2]) > 5.0
 
 
 def test_ni111_benchmark_is_isolated_and_prepares_real_qe_inputs():
@@ -211,6 +212,7 @@ def test_ni111_benchmark_is_isolated_and_prepares_real_qe_inputs():
         assert manifest["candidate_selection_authority"] is False
         assert manifest["reference_barrier_eV"] == REFERENCE_BARRIER_EV
         assert manifest["reference_kind"] == "published_computation"
+        assert manifest["reaction"].startswith("CH4(g) + 2*")
         assert len(manifest["fixed_atom_indices"]) == 8
         for name in ("initial.relax.in", "final.relax.in"):
             text = (Path(temporary) / name).read_text()
