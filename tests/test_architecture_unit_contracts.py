@@ -158,6 +158,25 @@ def test_all_default_service_factories_produce_callable_boundaries():
                 assert callable(value), (type(bundle).__name__, name, value)
 
 
+def test_reactor_model_decomposition_preserves_the_public_boundary():
+    """Focused reactor modules must retain the established import surface."""
+    from pipeline.reactors import models
+    from pipeline.reactors import reactor_core
+    from pipeline.reactors.fluidized_bed import simulate_fluidized_bed
+    from pipeline.reactors.mmbcr import simulate_mmbcr
+    from pipeline.reactors.pfr import simulate_pfr
+
+    assert models.ReactorConfig is reactor_core.ReactorConfig
+    assert models.DEFAULT_SOLIDS_PARTICLE_MM == (
+        reactor_core.DEFAULT_SOLIDS_PARTICLE_MM)
+    for implementation in (
+            simulate_mmbcr, simulate_pfr, simulate_fluidized_bed):
+        assert callable(implementation)
+    # The stable facade owns routing and sweep persistence; algorithms do not.
+    assert models.simulate_reactor.__module__ == 'pipeline.reactors.models'
+    assert models.run_reactor_sweep.__module__ == 'pipeline.reactors.models'
+
+
 def test_every_pipeline_module_imports_without_starting_external_processes():
     script = r'''
 import importlib, json, pkgutil, subprocess

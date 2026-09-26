@@ -633,8 +633,14 @@ evaluation, reactor-network integration, and surface chemistry for that scale.
 The integration lives in:
 
 - `pipeline/reactors/mechanisms.py` for Cantera YAML generation;
-- `pipeline/reactors/models.py` for loading phases and simulating reactor
-  configurations;
+- `pipeline/reactors/reactor_core.py` for common configuration, phase loading,
+  physical correlations, carbon accounting, and validation;
+- `pipeline/reactors/mmbcr.py`, `pfr.py`, and `fluidized_bed.py` for the three
+  distinct thermocatalytic reactor implementations;
+- `pipeline/reactors/electrochemical_models.py` for NTEC and electrochemical
+  multiphysics-result adaptation; and
+- `pipeline/reactors/models.py` for stable routing, sweep execution, and
+  backward-compatible public imports;
 - `pipeline/stages/reactor.py` for the screening-to-reactor boundary.
 
 ### 11.2 Mechanism contents

@@ -371,7 +371,7 @@ Each genome encodes into a **353-dimensional** feature vector for the surrogate 
 | `search/` | `indexed_space`, `exhaustive_search`, `branch_search`, `discovery`, `adaptive_validation` | Deterministic coverage and multi-fidelity acquisition |
 | `screening/` | surface and fuel-cell screeners, surrogate/ranker modules, application objective orchestrators | Candidate construction and low-cost ranking |
 | `validation/` | QE/NEB, ORR, DFT, VQE, and viability modules | High-fidelity calculations and fail-closed checks |
-| `reactors/`, `simulation/`, `transport/` | reactor chemistry/physics, external solver cases and handoffs, learned transport closures | Methane-conversion and transport simulation |
+| `reactors/`, `simulation/`, `transport/` | reactor-family models, common reactor physics, external solver cases and handoffs, learned transport closures | Methane-conversion and transport simulation |
 | `electrochemistry/`, `fuel_cell/` | NTEC/electrochemical evidence, PEMFC polarization, and stack scaling | Electrochemical and power-generation modeling |
 | `campaigns/`, `economics/` | resumable high-fidelity scheduling and TEA | Campaign operation and economic interpretation |
 | `evidence/` | prior art, benchmarks, readiness, status, and reporting | Scientific evidence and claim control |
@@ -918,7 +918,12 @@ hydrogen/
 │   │   ├── dft_validator.py       # Pyrolysis DFT validation
 │   │   └── dft_fuel_cell.py       # Fuel-cell DFT validation
 │   ├── reactors/                  # Methane-conversion reactor domain
-│   │   ├── models.py              # Unified reactor models and dispatch
+│   │   ├── reactor_core.py        # Shared configuration and reactor physics
+│   │   ├── pfr.py                 # Thermocatalytic plug-flow model
+│   │   ├── fluidized_bed.py       # Two-phase fluidized-bed model
+│   │   ├── mmbcr.py               # Molten-metal bubble-column model
+│   │   ├── electrochemical_models.py # NTEC/electrochemical evidence adapters
+│   │   ├── models.py              # Stable routing and sweep facade
 │   │   ├── mechanisms.py          # Cantera gas/surface/graphite mechanisms
 │   │   ├── modes.py               # Enforced mode/bed/phase routing contracts
 │   │   ├── equilibrium.py         # Methane-equilibrium reference checks
@@ -1485,7 +1490,8 @@ The default orchestrator includes 923.15 and 973.15 K alongside the broad screen
 - `simulate_pfr` (~113 lines) mutates three nonlocals inside a produce/regen closure. Split into a small class or two functions.
 - Unused imports in `reactors/models.py` (and siblings). Run a linter; do not treat silence as review.
 - `test_pipeline.py` hand-rolled `test()` catches `Exception` and prints a checkmark. Inherited from upstream; pytest fixtures / parametrize / selective running are Ilhan's call. `SystemExit` / `KeyboardInterrupt` would escape it.
-- `_ch4_extent` imports `reactors/equilibrium.py` inside the function body (called once per PFR stage). Harmless, but it is an import-cycle workaround, not a resolved cycle.
+- `_tabulated_x_eq` imports `reactors/equilibrium.py` lazily to keep the
+  equilibrium table independent from reactor-core initialization.
 
 Fidelity boundaries use evidence-aware admission. A converged, finite,
 uncensored atomistic row may enter quantitative Cantera screening. An
