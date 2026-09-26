@@ -9,6 +9,8 @@ from pathlib import Path
 import sys
 import tempfile
 
+import numpy as np
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from pipeline.data_models.reference_validation import ComputedObservation
@@ -22,6 +24,11 @@ from pipeline.validation.qe_reference_eos import (
     fit_equilibrium_lattice,
     parse_qe_total_energy,
     qe_bulk_input,
+)
+from pipeline.validation.ni111_methane_reference import (
+    REFERENCE_BARRIER_EV,
+    build_ni111_methane_endpoints,
+    prepare_ni111_methane_benchmark,
 )
 
 
@@ -179,6 +186,40 @@ def test_qe_reference_inputs_preserve_structure_and_convergence_protocol():
         assert "nspin=2" in text
 
 
+def test_ni111_methane_reference_geometry_is_matched_and_constrained():
+    initial, final = build_ni111_methane_endpoints()
+    assert len(initial) == len(final) == 17
+    assert initial.get_chemical_symbols() == final.get_chemical_symbols()
+    assert initial.get_chemical_symbols()[-5:] == ["C", "H", "H", "H", "H"]
+    assert np.allclose(initial.cell.array, final.cell.array)
+    assert initial.pbc.all() and final.pbc.all()
+    initial_fixed = set(initial.constraints[0].get_indices())
+    final_fixed = set(final.constraints[0].get_indices())
+    assert initial_fixed == final_fixed and len(initial_fixed) == 8
+    assert not initial_fixed.intersection(range(12, 17))
+    initial_bond = np.linalg.norm(initial.positions[-1] - initial.positions[-5])
+    final_bond = np.linalg.norm(final.positions[-1] - final.positions[-5])
+    assert abs(initial_bond - 1.09) < 1e-10
+    assert final_bond > 1.5
+
+
+def test_ni111_benchmark_is_isolated_and_prepares_real_qe_inputs():
+    with tempfile.TemporaryDirectory() as temporary:
+        result = prepare_ni111_methane_benchmark(temporary)
+        manifest = json.loads(Path(result["manifest"]).read_text())
+        assert manifest["benchmark_only"] is True
+        assert manifest["candidate_selection_authority"] is False
+        assert manifest["reference_barrier_eV"] == REFERENCE_BARRIER_EV
+        assert manifest["reference_kind"] == "published_computation"
+        assert len(manifest["fixed_atom_indices"]) == 8
+        for name in ("initial.relax.in", "final.relax.in"):
+            text = (Path(temporary) / name).read_text()
+            assert "calculation='relax'" in text
+            assert sum(line.startswith("Ni ") and line.endswith(" 0 0 0")
+                       for line in text.splitlines()) == 8
+            assert "forc_conv_thr=1.0d-3" in text
+
+
 def main():
     tests = (
         test_manifest_preserves_reference_kind_and_conditions,
@@ -190,6 +231,8 @@ def main():
         test_manifest_schema_is_fail_closed,
         test_qe_reference_runner_parses_raw_output_and_fits_eos,
         test_qe_reference_inputs_preserve_structure_and_convergence_protocol,
+        test_ni111_methane_reference_geometry_is_matched_and_constrained,
+        test_ni111_benchmark_is_isolated_and_prepares_real_qe_inputs,
     )
     for test in tests:
         test()
