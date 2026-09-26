@@ -356,7 +356,8 @@ def test_all_six_stages_compose_in_memory_with_explicit_handoffs():
     assert order[:5] == [
         'discovery', ('reactor', True), ('dft', True), 'vqe', 'fuel']
     assert order[5][0] == 'report'
-    assert order[5][1] == ('phase1', 'phase2', 'phase3', 'phase4', 'phase5')
+    assert order[5][1] == (
+        'phase1', 'phase2', 'phase3', 'phase4', 'phase5', 'schema_version')
     assert all(f'phase{number}' in state for number in range(1, 7))
     assert len(saved) == 7
 

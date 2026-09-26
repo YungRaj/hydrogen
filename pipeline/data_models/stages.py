@@ -9,7 +9,8 @@ path toward richer domain objects.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Protocol, TypedDict
+from dataclasses import dataclass
+from typing import Any, Protocol, Sequence, TypedDict
 
 from pipeline.data_models.quantum import DFTResult, VQEResult
 from pipeline.data_models.reactors import ReactorResult
@@ -38,6 +39,15 @@ class TableLike(Protocol):
         ...
 
 
+CandidateBatch = TableLike | Sequence[object]
+"""Candidate records accepted by validation stages.
+
+Screening normally supplies a pandas table, while focused validation and
+tests may supply an ordered sequence of genome records.  Naming this union at
+the boundary avoids erasing the handoff to ``Any``.
+"""
+
+
 class _DiscoveryStateOptional(TypedDict, total=False):
     best_E_act: float
     best_coking: float
@@ -57,10 +67,10 @@ class DiscoveryState(_DiscoveryStateOptional):
 class DiscoveryProducts(TypedDict):
     """In-process values routed from discovery to later stages."""
     design_space_sizes: dict[str, int]
-    pareto_genomes: Any
-    screening_database: Any
-    top_catalysts: Any
-    dft_candidates: Any
+    pareto_genomes: Sequence[object]
+    screening_database: TableLike
+    top_catalysts: TableLike
+    dft_candidates: CandidateBatch
 
 
 class _ReactorBatchStateOptional(TypedDict, total=False):
@@ -135,9 +145,70 @@ class ReportProducts(TypedDict):
     report_path: Path
 
 
-class SelectedCandidates(TypedDict):
-    """Typed restart handoff reconstructed from a screening table."""
-    screening_database: Any
+class _SelectedCandidatesOptional(TypedDict, total=False):
     admissibility: dict[str, Any]
-    top_catalysts: Any
-    dft_candidates: Any
+
+
+class SelectedCandidates(_SelectedCandidatesOptional):
+    """Typed restart handoff reconstructed from a screening table."""
+    screening_database: TableLike
+    top_catalysts: TableLike
+    dft_candidates: CandidateBatch
+
+
+@dataclass(frozen=True, slots=True)
+class CandidateSelection:
+    """Explicit in-memory handoff from discovery to reactor and DFT stages.
+
+    The same structure is constructed from a live discovery result and from a
+    persisted screening table.  Downstream phases therefore do not depend on
+    which execution route populated their inputs.
+    """
+
+    screening_database: TableLike
+    top_catalysts: TableLike
+    dft_candidates: CandidateBatch
+    admissibility: dict[str, Any] | None = None
+
+    @classmethod
+    def from_discovery(cls, products: DiscoveryProducts) -> "CandidateSelection":
+        """Construct the handoff from live discovery products.
+
+        Args:
+            products: Typed products returned by the discovery stage.
+
+        Returns:
+            A shared candidate selection for downstream stages.
+        """
+        return cls(
+            screening_database=products['screening_database'],
+            top_catalysts=products['top_catalysts'],
+            dft_candidates=products['dft_candidates'])
+
+    @classmethod
+    def from_restart(cls, selected: SelectedCandidates) -> "CandidateSelection":
+        """Construct the same handoff from a persisted screening artifact.
+
+        Args:
+            selected: Candidate routes reconstructed by the persistence adapter.
+
+        Returns:
+            A shared candidate selection for downstream stages.
+        """
+        return cls(
+            screening_database=selected['screening_database'],
+            top_catalysts=selected['top_catalysts'],
+            dft_candidates=selected['dft_candidates'],
+            admissibility=selected.get('admissibility'))
+
+
+@dataclass(slots=True)
+class PipelineRunContext:
+    """Typed transient products available during one orchestrator process.
+
+    Persisted evidence belongs in ``PipelineStateDocument``; large tabular
+    products stay here and are reconstructed through the candidate loader on
+    phase-only restarts.
+    """
+
+    candidates: CandidateSelection | None = None

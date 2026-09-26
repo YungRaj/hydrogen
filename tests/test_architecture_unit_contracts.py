@@ -32,15 +32,19 @@ def test_memory_state_store_deeply_isolates_initial_load_save_and_history():
     initial = {'phase': {'values': [1]}}
     store = MemoryStateStore(initial)
     initial['phase']['values'].append(2)
-    assert store.state == {'phase': {'values': [1]}}
+    assert store.state == {
+        'schema_version': 1, 'phase': {'values': [1]}}
     loaded = store.load()
     loaded['phase']['values'].append(3)
-    assert store.state == {'phase': {'values': [1]}}
+    assert store.state == {
+        'schema_version': 1, 'phase': {'values': [1]}}
     store.save(loaded)
     loaded['phase']['values'].append(4)
-    assert store.state == {'phase': {'values': [1, 3]}}
+    assert store.state == {
+        'schema_version': 1, 'phase': {'values': [1, 3]}}
     store.state['phase']['values'].append(5)
-    assert store.history == [{'phase': {'values': [1, 3]}}]
+    assert store.history == [{
+        'schema_version': 1, 'phase': {'values': [1, 3]}}]
 
 
 def test_candidate_file_adapter_preserves_distinct_reactor_and_validation_routes():
@@ -108,12 +112,17 @@ def test_pipeline_state_and_scientific_result_models_trace_real_boundaries():
 
     state = validate_pipeline_state({
         'phase1': {'total_evaluated': 4}, 'total_elapsed_s': 1})
+    assert state['schema_version'] == 1
     assert state['phase1']['total_evaluated'] == 4
     assert state['total_elapsed_s'] == 1.0
     with _raises('phase2 pipeline state must be a mapping', ValueError):
         validate_pipeline_state({'phase2': []})
     with _raises('must be finite and nonnegative', ValueError):
         validate_pipeline_state({'total_elapsed_s': float('nan')})
+    with _raises('newer than supported', ValueError):
+        validate_pipeline_state({'schema_version': 999})
+    with _raises('phase2 elapsed_s must be finite', ValueError):
+        validate_pipeline_state({'phase2': {'elapsed_s': -1}})
 
     # A positive diagonal Hessian has no imaginary transition-state mode. The
     # named result makes that scientific distinction visible to every caller.

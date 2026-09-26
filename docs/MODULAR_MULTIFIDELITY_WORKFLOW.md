@@ -99,6 +99,13 @@ The master coordinator now receives a `PipelineRuntime` for its clock, banners,
 state loading/saving, and legacy pathway-environment selection. Configuration is
 copied and normalized rather than mutated. Tests can therefore exercise resume
 and persistence behavior with deterministic time and an in-memory state store.
+Transient candidate products are carried by `PipelineRunContext` and the
+immutable `CandidateSelection` handoff. A continuous run and a phase-only
+restart therefore present the same named structure to reactor and DFT stages;
+the coordinator no longer infers availability from local-variable existence.
+The persisted `PipelineStateDocument` has an explicit schema version, migrates
+the historical unversioned shape losslessly, and rejects unknown future
+versions before a solver stage begins.
 
 DFT, VQE, and report generation expose independent stage functions and return a
 shared immutable, generic `StageOutcome[State, Products]`: `state` contains the
@@ -125,13 +132,13 @@ return products become visible to static analysis. `PipelineConfig` is frozen,
 slotted, unit-labeled, and validates positive limits, temperatures, headline
 ranges, pathway names, and pathway/reactor routing before a campaign starts.
 
-The initial strict static-analysis boundary is intentionally narrow and honest:
-`pyrightconfig.json` checks `pipeline/data_models/` and the small validated
-boundaries for reactor identifiers, generic stage results, and campaign-ledger
-records in strict mode. Run it with `npx pyright`. The include set should expand
-one capability at a time as its legacy untyped callables and dictionaries are
-replaced; the repository does not claim that all numerical implementation
-modules are already strictly typed.
+The strict static-analysis boundary is intentionally incremental and honest:
+`pyrightconfig.json` checks `pipeline/data_models/`, the master orchestrator,
+and selected validated boundaries for reactor identifiers, generic stage
+results, and campaign-ledger records in strict mode. Run it with
+`npx pyright`. The include set should expand one capability at a time as legacy
+untyped numerical callables and dictionaries are replaced; the repository does
+not claim that all numerical implementation modules are already strictly typed.
 
 External physical-case JSON remains backward compatible. The existing
 fail-closed identity, units, provenance, calibration, and physical checks run
@@ -344,10 +351,11 @@ lineage.
 The replacement integration suite treats modularity as a runtime contract. It
 runs phases 1 through 6 one at a time with every unselected component replaced
 by a function that raises if called. This proves that each phase owns only its
-declared dependencies. It also verifies independent candidate restoration for
-reactor and DFT restarts, rejects non-`StageOutcome` values and missing product
-handoffs at the named stage boundary, and confirms that a rejected stage does
-not persist partial state.
+declared dependencies. It also verifies independent candidate restoration,
+continuous discovery-to-reactor-to-DFT object identity without disk reloads,
+rejection of non-`StageOutcome` values and missing
+product handoffs, and confirms that a rejected stage does not persist partial
+state.
 
 The architecture unit suite checks the smaller adapter boundaries. It imports
 every module in a clean child interpreter after replacing process-launch APIs

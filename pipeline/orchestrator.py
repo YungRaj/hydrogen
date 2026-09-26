@@ -32,6 +32,9 @@ from pipeline.stages.orchestration import (
     PipelineComponents, PipelineRuntime, default_pipeline_components,
     default_pipeline_runtime)
 from pipeline.stages.contracts import require_stage_outcome
+from pipeline.data_models.campaigns import (
+    PipelineStateDocument, validate_pipeline_state)
+from pipeline.data_models.stages import CandidateSelection, PipelineRunContext
 
 logger = setup_logger('orchestrator', 'pipeline_orchestrator.log')
 
@@ -83,18 +86,20 @@ class PipelineConfig:
             'fc_top_k_pemfc': self.fc_top_k_pemfc,
             'fc_stack_cells': self.fc_stack_cells,
         }
+        # Runtime callers can violate annotations, so validate deserialized or
+        # dynamically constructed configurations at this public boundary.
         invalid = [name for name, value in integer_limits.items()
-                   if not isinstance(value, int) or value <= 0]
+                   if (not isinstance(value, int) or value <= 0)]  # pyright: ignore[reportUnnecessaryIsInstance]
         if invalid:
             raise ValueError(
                 'pipeline integer limits must be positive: ' +
                 ', '.join(invalid))
         if (self.branch_max_leaves is not None and
-                (not isinstance(self.branch_max_leaves, int) or
+                (not isinstance(self.branch_max_leaves, int) or  # pyright: ignore[reportUnnecessaryIsInstance]
                  self.branch_max_leaves <= 0)):
             raise ValueError('branch_max_leaves must be positive or None')
         if (not self.reactor_temperatures or
-                any(not isinstance(value, (int, float)) or value <= 0
+                any(not isinstance(value, (int, float)) or value <= 0  # pyright: ignore[reportUnnecessaryIsInstance]
                     for value in self.reactor_temperatures)):
             raise ValueError('reactor temperatures must be positive kelvin')
         resolve_pathway_mode(self.pyrolysis_mode)
@@ -129,7 +134,8 @@ def normalized_pipeline_config(config: PipelineConfig) -> PipelineConfig:
 def run_pipeline(config: PipelineConfig | None = None,
                  start_phase: int = 1, end_phase: int = 6,
                  runtime: PipelineRuntime | None = None,
-                 components: PipelineComponents | None = None):
+                 components: PipelineComponents | None = None
+                 ) -> PipelineStateDocument:
     """
         Execute the full multi-scale simulation pipeline.
 
@@ -158,7 +164,28 @@ def run_pipeline(config: PipelineConfig | None = None,
     multiphysics_results_dir = (config.multiphysics_results_dir or
                                 str(RESULTS_DIR / 'multiphysics'))
 
-    pipeline_state = runtime.load_state()
+    pipeline_state = validate_pipeline_state(runtime.load_state())
+    context = PipelineRunContext()
+
+    def require_candidates(*, purpose: str) -> CandidateSelection | None:
+        """Return live/restarted candidate handoffs through one typed route."""
+        if context.candidates is not None:
+            return context.candidates
+        restored = components.load_candidates(
+            SCREENING_DIR / "ga_full_database.csv",
+            top_k_reactor=config.top_k_reactor,
+            top_k_dft=config.top_k_dft)
+        if restored is not None:
+            context.candidates = CandidateSelection.from_restart(restored)
+            return context.candidates
+        if config.allow_mock_inputs:
+            logger.warning(
+                "No screening database found. Using mock inputs for %s.",
+                purpose)
+            return None
+        raise RuntimeError(
+            f'screening candidates are required for {purpose}; '
+            'mock fallback is disabled')
 
     # ═════════════════════════════════════════════════════════════════════════
     # PHASE 1: DETERMINISTIC BRANCH-AND-BOUND
@@ -181,10 +208,7 @@ def run_pipeline(config: PipelineConfig | None = None,
             if cls != 'TOTAL':
                 logger.info(f"  {cls}: {size:,}")
 
-        pareto_genomes = outcome.products['pareto_genomes']
-        screening_db = outcome.products['screening_database']
-        top_catalysts = outcome.products['top_catalysts']
-        dft_candidates = outcome.products['dft_candidates']
+        context.candidates = CandidateSelection.from_discovery(outcome.products)
         pipeline_state['phase1'] = {
             **outcome.state, 'elapsed_s': runtime.clock() - t1}
 
@@ -198,23 +222,9 @@ def run_pipeline(config: PipelineConfig | None = None,
         runtime.banner("PHASE 2: PATHWAY-SPECIFIC REACTOR SIMULATION")
         t2 = runtime.clock()
 
-        # For each top catalyst, generate mechanism and run reactor sweep
-        if 'top_catalysts' not in dir():
-            # Load from previous phase
-            db_path = SCREENING_DIR / "ga_full_database.csv"
-            restored = components.load_candidates(
-                db_path, top_k_reactor=config.top_k_reactor,
-                top_k_dft=config.top_k_dft)
-            if restored is not None:
-                screening_db = restored['screening_database']
-                top_catalysts = restored['top_catalysts']
-                dft_candidates = restored['dft_candidates']
-            else:
-                if not config.allow_mock_inputs:
-                    raise RuntimeError(
-                        'screening database is required; mock catalyst fallback is disabled')
-                logger.warning("No screening database found. Using mock catalysts.")
-                top_catalysts = None
+        selection = require_candidates(purpose='reactor simulation')
+        top_catalysts = (selection.top_catalysts
+                         if selection is not None else None)
 
         outcome = require_stage_outcome(components.reactor_batch(
             top_catalysts, temperatures=config.reactor_temperatures,
@@ -240,16 +250,10 @@ def run_pipeline(config: PipelineConfig | None = None,
         runtime.banner("PHASE 3: DFT VALIDATION")
         t3 = runtime.clock()
 
-        if 'dft_candidates' not in dir():
-            restored = components.load_candidates(
-                SCREENING_DIR / "ga_full_database.csv",
-                top_k_reactor=config.top_k_reactor,
-                top_k_dft=config.top_k_dft)
-            dft_candidates = (restored.get('dft_candidates')
-                              if restored is not None else None)
-        if dft_candidates is not None:
+        selection = require_candidates(purpose='DFT validation')
+        if selection is not None:
             outcome = components.dft(
-                dft_candidates, top_k=config.top_k_dft,
+                selection.dft_candidates, top_k=config.top_k_dft,
                 execute_dft=config.run_dft, error_sink=logger.error)
         else:
             # Mock validation
@@ -269,7 +273,6 @@ def run_pipeline(config: PipelineConfig | None = None,
         outcome = require_stage_outcome(
             outcome, stage='dft', required_products=('dft_results',))
 
-        dft_results = outcome.products['dft_results']
         pipeline_state['phase3'] = {
             **outcome.state, 'elapsed_s': runtime.clock() - t3}
         runtime.save_state(pipeline_state)
@@ -285,7 +288,6 @@ def run_pipeline(config: PipelineConfig | None = None,
         outcome = require_stage_outcome(components.vqe(
             top_k=config.top_k_vqe, execute_quantum=config.run_vqe),
             stage='vqe', required_products=('vqe_results',))
-        vqe_results = outcome.products['vqe_results']
         pipeline_state['phase4'] = {
             **outcome.state, 'elapsed_s': runtime.clock() - t4}
         runtime.save_state(pipeline_state)
@@ -303,10 +305,6 @@ def run_pipeline(config: PipelineConfig | None = None,
             stack_cells=config.fc_stack_cells), stage='fuel_cell',
             required_products=('cathode_database', 'valid_cathodes',
                                'pemfc_results', 'stack_result'))
-        cathode_df = outcome.products['cathode_database']
-        valid_cathodes = outcome.products['valid_cathodes']
-        pemfc_results = outcome.products['pemfc_results']
-        stack_result = outcome.products['stack_result']
         pipeline_state['phase5'] = {
             **outcome.state, 'elapsed_s': runtime.clock() - t5}
         runtime.save_state(pipeline_state)
@@ -322,8 +320,6 @@ def run_pipeline(config: PipelineConfig | None = None,
         outcome = require_stage_outcome(
             components.report(pipeline_state), stage='report',
             required_products=('report_path',))
-        report_path = outcome.products['report_path']
-
         pipeline_state['phase6'] = {
             **outcome.state,
             'elapsed_s': runtime.clock() - t6,

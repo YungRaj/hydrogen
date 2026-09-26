@@ -113,6 +113,40 @@ def test_each_pipeline_phase_runs_with_only_its_replacement_and_contract_inputs(
     assert {call[0] for call in phase_calls if isinstance(call[0], int)} == set(range(1, 7))
 
 
+def test_continuous_discovery_reactor_dft_flow_reuses_one_typed_handoff():
+    """A continuous run must never reload candidates between phases."""
+    candidates = pd.DataFrame([{
+        'candidate_id': 'candidate-1', 'genome': "('SAC', 'Fe', 'N4')",
+        'E_act': 0.7, 'valid': True, 'material_class': 'SAC'}])
+    seen = []
+
+    def discovery(**kwargs):
+        return StageOutcome({'ok': True}, {
+            'design_space_sizes': {'TOTAL': 1}, 'pareto_genomes': [],
+            'screening_database': candidates, 'top_catalysts': candidates,
+            'dft_candidates': candidates})
+
+    def reactor(rows, **kwargs):
+        seen.append(('reactor', rows is candidates))
+        return StageOutcome({'n_simulations': 0}, {'reactor_results': []})
+
+    def dft(rows, **kwargs):
+        seen.append(('dft', rows is candidates))
+        return StageOutcome(
+            {'n_validated': 0, 'n_converged': 0, 'n_failed': 0},
+            {'dft_results': [], 'failures': []})
+
+    components = replace(
+        _base_components(), discovery=discovery, reactor_batch=reactor,
+        dft=dft, load_candidates=_never('candidate reload'))
+    store, calls = MemoryStateStore(), []
+    state = run_pipeline(
+        PipelineConfig(run_dft=False), start_phase=1, end_phase=3,
+        runtime=_runtime(store, calls), components=components)
+    assert seen == [('reactor', True), ('dft', True)]
+    assert all(f'phase{phase}' in state for phase in (1, 2, 3))
+
+
 def test_replacement_contract_rejects_wrong_type_and_missing_products_early():
     with _raises('must return StageOutcome', TypeError):
         require_stage_outcome({}, stage='replacement')

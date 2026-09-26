@@ -178,8 +178,8 @@ Inside `pipeline/`, source is grouped by responsibility:
   VQE, fuel cell, report) and the candidate-to-Cantera handoff.
 - **`evidence/`:** `prior_art.py`, `novelty_benchmark.py`,
   `readiness.py`, `campaign_status.py`, and `report_generator.py`.
-- **`common/`:** design-space definitions, scope rules, confidence policy,
-  physical constants, paths, logging, and shared helpers.
+- **`data_models/` and `utils.py`:** typed cross-stage records, scientific
+  result shapes, physical constants, paths, logging, and shared helpers.
 
 Generated outputs, downloaded model weights, pseudopotentials, mechanisms, and
 Python caches are intentionally ignored. They are runtime assets, not source.
@@ -367,7 +367,7 @@ Each genome encodes into a **353-dimensional** feature vector for the surrogate 
 
 | Area | Modules | Responsibility |
 |------|---------|----------------|
-| `common/` | `catalyst_spaces`, `application_scope`, `ood_detector`, `utils` | Shared design space, policies, constants, paths, and helpers |
+| `data_models/`, `utils.py` | typed handoffs, scientific records, shared constants, paths, and helpers | Explicit cross-stage data flow and common infrastructure |
 | `search/` | `indexed_space`, `exhaustive_search`, `branch_search`, `discovery`, `adaptive_validation` | Deterministic coverage and multi-fidelity acquisition |
 | `screening/` | surface and fuel-cell screeners, surrogate/ranker modules, application objective orchestrators | Candidate construction and low-cost ranking |
 | `validation/` | QE/NEB, ORR, DFT, VQE, and viability modules | High-fidelity calculations and fail-closed checks |
@@ -628,7 +628,7 @@ branch-only production CLI.
 
 Current validated baseline: **105/105 pipeline tests**, **43/43 scientific
 contracts**, **41/41 modular multi-fidelity contracts**, and **24/24
-exclusion-audit checks**. An additional **5/5 replacement integration
+exclusion-audit checks**. An additional **6/6 replacement integration
 contracts** prove that every phase runs independently and rejects malformed
 replacement outputs; **8/8 architecture unit contracts** verify default service
 bindings, deep state isolation, persisted candidate routing, named data-model

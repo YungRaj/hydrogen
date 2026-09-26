@@ -1,8 +1,10 @@
 {
   "include": [
     "pipeline/data_models",
+    "pipeline/orchestrator.py",
     "pipeline/reactors/modes.py",
     "pipeline/stages/contracts.py",
+    "pipeline/stages/orchestration.py",
     "pipeline/campaigns/ledger.py"
   ],
   "exclude": [
