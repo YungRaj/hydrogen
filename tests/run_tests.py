@@ -62,6 +62,7 @@ SUITES = (
     Suite("architecture", "tests/test_architecture_unit_contracts.py", FAIRCHEM_ENV, 120),
     Suite("coupling", "tests/test_coupling_contracts.py", FAIRCHEM_ENV, 120),
     Suite("experimental-data", "tests/test_experimental_data_contract.py", FAIRCHEM_ENV, 120),
+    Suite("quantum-reference", "tests/test_quantum_reference_contracts.py", FAIRCHEM_ENV, 120),
     Suite("reactor-merge", "tests/test_reactor_merge_contracts.py", FAIRCHEM_ENV, 120),
     Suite("reactor-fixtures", "tests/test_reactor_fixtures.py", FAIRCHEM_ENV, 180),
     Suite("reactor-reference", "tests/test_reactor_reference_integration.py", FAIRCHEM_ENV, 180),
@@ -71,6 +72,7 @@ SUITES = (
     Suite("resolution", "tests/test_resolution_contracts.py", QUANTUM_ENV, 180, "resolution"),
     Suite("vqe-smoke", "tests/test_vqe_smoke_contract.py", QUANTUM_ENV, 120, "vqe-smoke"),
     Suite("vqe-production", "tests/test_vqe_solver_contract.py", QUANTUM_ENV, 1800, "vqe-production"),
+    Suite("quantum-reference-artifacts", "tests/test_quantum_reference_artifacts.py", QUANTUM_ENV, 1800, "quantum-reference-artifacts"),
     Suite("gpu-affinity", "tests/test_gpu_affinity_contract.py", FAIRCHEM_ENV, 900, "gpu"),
 )
 
@@ -92,6 +94,9 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--include-production-vqe", action="store_true",
         help="include the long chemical-accuracy CUDA-Q VQE contract")
+    parser.add_argument(
+        "--include-quantum-reference-artifacts", action="store_true",
+        help="grade real checksum-bound QE/VQE artifacts against literature")
     parser.add_argument(
         "--include-gpu", action="store_true",
         help="include the real multi-GPU affinity workload")
@@ -129,6 +134,8 @@ def select_suites(args: argparse.Namespace) -> list[Suite]:
         categories.add("vqe-smoke")
     if args.all or args.include_production_vqe:
         categories.add("vqe-production")
+    if args.all or args.include_quantum_reference_artifacts:
+        categories.add("quantum-reference-artifacts")
     if args.all or args.include_gpu:
         categories.add("gpu")
     selected.extend(suite for suite in SUITES

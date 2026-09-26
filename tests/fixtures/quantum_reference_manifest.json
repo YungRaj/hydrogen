@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "references": [
+    {
+      "reference_id": "nist-fe-bcc-lattice-293k",
+      "material_id": "Fe/bcc/bulk",
+      "observable": "equilibrium_lattice_parameter",
+      "value": 2.8664,
+      "unit": "angstrom",
+      "tolerance": 0.06,
+      "tolerance_basis": "Approximately 2% model-discrepancy allowance for a zero-temperature periodic DFT equilibrium calculation compared with the 293 K measurement; this is an acceptance threshold, not experimental uncertainty.",
+      "reference_kind": "experiment",
+      "solver_family": "quantum_espresso",
+      "citation": "NIST, Selected Properties of the Elements, iron lattice parameter at 293 K",
+      "source_url": "https://srd.nist.gov/JPCRD/jpcrd34.pdf",
+      "conditions": {"temperature_K": 293, "crystal_structure": "bcc"},
+      "protocol": "bulk-eos-zero-pressure-v1"
+    },
+    {
+      "reference_id": "nist-ni-fcc-lattice-293k",
+      "material_id": "Ni/fcc/bulk",
+      "observable": "equilibrium_lattice_parameter",
+      "value": 3.5238,
+      "unit": "angstrom",
+      "tolerance": 0.07,
+      "tolerance_basis": "Approximately 2% model-discrepancy allowance for a zero-temperature periodic DFT equilibrium calculation compared with the 293 K measurement; this is an acceptance threshold, not experimental uncertainty.",
+      "reference_kind": "experiment",
+      "solver_family": "quantum_espresso",
+      "citation": "NIST, Selected Properties of the Elements, nickel lattice parameter at 293 K",
+      "source_url": "https://srd.nist.gov/JPCRD/jpcrd34.pdf",
+      "conditions": {"temperature_K": 293, "crystal_structure": "fcc"},
+      "protocol": "bulk-eos-zero-pressure-v1"
+    },
+    {
+      "reference_id": "bengaard-ni111-ch4-barrier",
+      "material_id": "Ni/111/CH4",
+      "observable": "forward_activation_barrier",
+      "value": 1.05,
+      "unit": "eV",
+      "tolerance": 0.15,
+      "tolerance_basis": "Method-reproducibility allowance for different pseudopotential, slab, exchange-correlation, and NEB protocols; comparison is to published computation, not direct experiment.",
+      "reference_kind": "published_computation",
+      "solver_family": "quantum_espresso",
+      "citation": "Bengaard et al., Steam Reforming and Graphite Formation on Ni Catalysts, Journal of Catalysis 209 (2002) 365-384",
+      "source_url": "https://doi.org/10.1006/jcat.2002.3579",
+      "conditions": {"surface": "Ni(111)", "reaction": "CH4 first C-H cleavage"},
+      "protocol": "candidate-neb-relaxed-endpoints-ts-v1"
+    }
+  ]
+}
