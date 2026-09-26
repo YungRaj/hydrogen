@@ -123,8 +123,8 @@ def main():
             f'QE allocation requests {requested_qe_cpus} CPUs, '
             f'but only {available_cpus} are visible')
 
-    # QE executables are resolved at execution time from PW_X/NEB_X, PATH, or
-    # by querying the documented qe-env through the PATH-resolved conda command.
+    # QE executables are resolved at execution time only from the explicit
+    # PW_X/NEB_X and MPIEXEC set by the pinned Blackwell GPU activation file.
     os.environ['QE_MPI_RANKS'] = str(args.qe_mpi_ranks)
     os.environ['QE_OMP_THREADS'] = str(args.qe_omp_threads)
 

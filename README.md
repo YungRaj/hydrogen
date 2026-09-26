@@ -461,14 +461,19 @@ conda install -c cantera cantera -y
 pip install numpy scipy
 ```
 
-### Environment 3: `qe-env` — Quantum ESPRESSO (Phase 3)
+### Environment 3: native Blackwell GPU QE toolchain (Phase 3)
 
 ```bash
-conda create -n qe-env python=3.10 -y
-conda activate qe-env
-conda install -c conda-forge qe -y
-pip install numpy scipy
+bash scripts/install_qe_gpu.sh
+source "${XDG_DATA_HOME:-$HOME/.local/share}/hydrogen/qe-gpu/qe-7.5-nvhpc25.5-cc120/activate.sh"
 ```
+
+Production QE is deliberately not installed from `pip`, Conda, or a generic
+system package: those routes commonly provide CPU-only binaries.  The installer
+pins NVIDIA HPC SDK 25.5, CUDA 12.9, QE 7.5, archive checksums, and the Blackwell
+`cc120` target.  It refuses non-Linux, non-x86_64, missing-GPU, and non-Blackwell
+hosts rather than silently falling back to CPU.  A valid runtime must print
+`GPU acceleration is ACTIVE.` and must be visible in NVIDIA process telemetry.
 
 **Pseudopotentials** — download PBE RRKJUS PSL files:
 ```bash
@@ -515,7 +520,7 @@ conda env create -f environments/environment-fenicsx.yml
 # Test all environments
 conda run -n fairchem-env python -c "import torch, fairchem.core, ase; print('fairchem-env OK')"
 conda run -n cp2k-env python -c "import cantera; print(f'cp2k-env OK: Cantera {cantera.__version__}')"
-conda run -n qe-env bash -c "which pw.x && echo 'qe-env OK'"
+bash -c 'test -x "$PW_X" && test -x "$NEB_X" && echo "GPU QE paths OK"'
 conda run -n quantum-env python -c "import cudaq; print('quantum-env OK')"
 conda run -n battery-env python -c "import numpy, scipy; print('battery-env OK')"
 conda run -n openfoam-env multiphaseEulerFoam -help
@@ -668,21 +673,11 @@ nohup conda run --no-capture-output -n fairchem-env python -u run_production_cam
   > results/campaign_v6.log 2>&1 &
 ```
 
-No Conda installation directory is assumed. Quantum ESPRESSO executables are
-resolved in this order: `PW_X`/`NEB_X` overrides, the current `PATH`, then a
-query of the documented `qe-env` through the `conda` command found on `PATH`.
-MPI uses `MPIEXEC` when set, then an executable next to QE, then `mpirun` from
-`PATH` or `qe-env`. Examples for non-Conda or module-based installations:
-
-```bash
-export PW_X="$(command -v pw.x)"
-export NEB_X="$(command -v neb.x)"
-export MPIEXEC="$(command -v mpirun)"
-```
-
-If these programs are absent, the relevant high-fidelity stage fails with the
-required variable and installation instructions; it never guesses a home
-directory or silently substitutes another executable.
+Quantum ESPRESSO does not resolve from Conda or a generic `PATH`. Source the
+installer-generated activation file, which explicitly sets `PW_X`, `NEB_X`,
+and the matching NVIDIA HPC-X `MPIEXEC`. If any are absent, the high-fidelity
+stage fails instead of selecting a CPU build or mixing incompatible MPI
+runtimes. No machine-specific home directory is assumed.
 
 **Key parameters:**
 

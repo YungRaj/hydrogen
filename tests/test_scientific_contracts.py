@@ -1081,6 +1081,35 @@ def test_qe_relax_and_neb_preserve_fixed_slab_atoms():
     assert 'Ni 1.000000000000 0.000000000000 2.000000000000 1 1 1' in relax_text
     assert neb_text.count(
         'Ni 0.000000000000 0.000000000000 1.000000000000 0 0 0') == 5
+    assert 'nstep_path=100' in neb_text
+    assert 'electron_maxstep=300' in neb_text
+    assert "mixing_mode='local-TF', mixing_beta=0.2" in neb_text
+
+
+def test_relaxed_structure_restores_constraints_from_qe_input():
+    from ase import Atoms
+    from ase.constraints import FixAtoms
+    from unittest.mock import patch
+    from pipeline.validation.qe_workflows import (
+        _fixed_atom_indices, relaxed_structure)
+
+    relaxed_geometry = Atoms(
+        'NiH', positions=[[0, 0, 1], [0, 0, 2.1]],
+        cell=[6, 6, 10], pbc=True)
+    input_geometry = Atoms(
+        'NiH', positions=[[0, 0, 1], [0, 0, 2]],
+        cell=[6, 6, 10], pbc=True)
+    input_geometry.set_constraint(FixAtoms(indices=[0]))
+    with tempfile.TemporaryDirectory() as tmp:
+        input_path = Path(tmp) / 'relax.in'
+        output_path = Path(tmp) / 'relax.out'
+        input_path.write_text('QE input placeholder')
+        output_path.write_text('JOB DONE.')
+        with patch(
+                'pipeline.validation.qe_workflows.ase_read',
+                side_effect=[relaxed_geometry, input_geometry]):
+            relaxed = relaxed_structure(output_path, input_path)
+    assert _fixed_atom_indices(relaxed) == {0}
 
 
 def test_pyrolysis_manifest_preserves_unresolved_steps_and_validated_identity():
@@ -1153,7 +1182,7 @@ def test_qe_inputs_use_verified_cutoffs_references_and_parallel_contracts():
         mpi.write_text('#!/bin/sh\nexit 0\n')
         pw.chmod(0o755)
         mpi.chmod(0o755)
-        with patch.dict(os.environ, {'MPIEXEC': str(mpi)}):
+        with patch.dict(os.environ, {'PW_X': str(pw), 'MPIEXEC': str(mpi)}):
             command = build_qe_command(
                 str(pw), str(input_path),
                 QEExecutionConfig(mpi_ranks=4, omp_threads=1, kpoint_pools=2))

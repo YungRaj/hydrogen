@@ -71,7 +71,8 @@ def qe_output_status(path: str | Path) -> str:
     if 'error in routine' in text or 'convergence not achieved' in text:
         return 'failed'
     if parse_convergence(str(target), require_ionic=True):
-        return 'converged'
+        return ('converged' if 'gpu acceleration is active' in text
+                else 'failed')
     return 'incomplete'
 
 
@@ -90,7 +91,10 @@ def qe_scf_output_status(path: str | Path) -> str:
     text = target.read_text(errors='replace').lower()
     if 'error in routine' in text or 'convergence not achieved' in text:
         return 'failed'
-    return 'converged' if parse_convergence(str(target)) else 'incomplete'
+    if parse_convergence(str(target)):
+        return ('converged' if 'gpu acceleration is active' in text
+                else 'failed')
+    return 'incomplete'
 
 
 def orr_campaign_status(calc_dir: str | Path, catalyst_name: str) -> dict:
@@ -173,6 +177,9 @@ def methane_neb_status(calc_dir: str | Path) -> dict:
         'converged': False, 'forward_barrier_eV': None,
         'reverse_barrier_eV': None, 'candidate_specific': True,
     }
+    if neb_path.exists() and 'gpu acceleration is active' not in \
+            neb_path.read_text(errors='replace').lower():
+        neb['converged'] = False
     frequency_path = root / 'transition_state_frequency.json'
     frequency = {'valid_transition_state': False, 'status': 'missing'}
     if frequency_path.exists():
@@ -396,8 +403,10 @@ def run_methane_neb(calc_dir: str | Path, prefix: str,
         return status
     if status['neb'].get('converged'):
         return status
-    initial = relaxed_structure(str(root / 'initial.relax.out'))
-    final = relaxed_structure(str(root / 'final.relax.out'))
+    initial = relaxed_structure(
+        str(root / 'initial.relax.out'), root / 'initial.relax.in')
+    final = relaxed_structure(
+        str(root / 'final.relax.out'), root / 'final.relax.in')
     if initial.get_chemical_symbols() != final.get_chemical_symbols():
         raise RuntimeError('relaxed NEB endpoints have different atom ordering')
     images = [initial] + [initial.copy() for _ in range(n_images - 2)] + [final]

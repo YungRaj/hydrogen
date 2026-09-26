@@ -13,9 +13,10 @@ pandas>=2.0
 cantera>=3.0
 # Sweep specs: ruamel.yaml (pulled in by Cantera) or PyYAML
 
-# ─── Phase 3: DFT Validation (qe-env) ──────────────────────────────────────────
-# Quantum ESPRESSO pw.x — install via conda or system package manager
-# conda install -c conda-forge qe
+# ─── Phase 3: DFT Validation (native Blackwell GPU toolchain) ─────────────
+# Quantum ESPRESSO and NVIDIA HPC SDK are native compiled tools, not Python
+# dependencies.  The supported production backend is the pinned Blackwell GPU
+# build installed by: bash scripts/install_qe_gpu.sh
 
 # ─── Phase 4: Quantum Chemistry (quantum-env) ──────────────────────────────────
 # NVIDIA CUDA-Q — see https://nvidia.github.io/cuda-quantum/latest/install.html

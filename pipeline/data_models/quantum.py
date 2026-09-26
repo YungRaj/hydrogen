@@ -12,6 +12,7 @@ class SolverExecution(TypedDict):
     omp_threads: int
     kpoint_pools: int
     image_groups: int
+    require_gpu: Literal[True]
 
 
 class SolverRunResult(TypedDict):
@@ -22,6 +23,7 @@ class SolverRunResult(TypedDict):
     output: str
     execution: SolverExecution
     timed_out: bool
+    gpu_accelerated: bool
 
 
 class _DFTResultOptional(TypedDict, total=False):

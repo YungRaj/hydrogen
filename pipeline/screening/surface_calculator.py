@@ -22,6 +22,7 @@ top-k validation, and Tier 3 for champion catalysts.
 """
 
 import os
+import shlex
 import sys
 import json
 import time
@@ -300,7 +301,7 @@ def get_qe_calculator(atoms: Atoms, config: QEConfig = None) -> Optional[Calcula
         Create an ASE-compatible Quantum ESPRESSO calculator for a surface slab.
 
         Requires:
-          - pw.x in PATH (conda run -n qe-env)
+          - the pinned GPU QE activation file (``PW_X`` and ``MPIEXEC``)
           - PAW pseudopotentials in pseudo_dir
 
     Args:
@@ -316,12 +317,17 @@ def get_qe_calculator(atoms: Atoms, config: QEConfig = None) -> Optional[Calcula
     try:
         from ase.calculators.espresso import Espresso, EspressoProfile
 
-        # Locate pw.x without assuming a Conda installation directory.
-        from pipeline.simulation.executables import resolve_executable
-        pw_path = resolve_executable(
-            'pw.x', env_var='PW_X', conda_env='qe-env', required=False)
-        if pw_path is None:
-            logger.warning("pw.x not found — QE calculator unavailable")
+        # Do not accept a same-named CPU executable from PATH or Conda.
+        from pipeline.simulation.executables import resolve_qe_executable
+        try:
+            pw_path = resolve_qe_executable('pw.x')
+        except RuntimeError as exc:
+            logger.warning("GPU QE calculator unavailable: %s", exc)
+            return None
+        mpi_path = os.environ.get('MPIEXEC')
+        if not mpi_path:
+            logger.warning(
+                "GPU QE calculator unavailable: MPIEXEC is not set by activate.sh")
             return None
 
         # Locate pseudopotentials
@@ -368,7 +374,8 @@ def get_qe_calculator(atoms: Atoms, config: QEConfig = None) -> Optional[Calcula
         }
 
         profile = EspressoProfile(
-            command=f'mpirun -np {config.n_cores} {pw_path}',
+            command=f'{shlex.quote(mpi_path)} -np {config.n_cores} '
+                    f'{shlex.quote(pw_path)}',
             pseudo_dir=pseudo_dir,
         )
 

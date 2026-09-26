@@ -952,18 +952,23 @@ unrelaxed endpoint contaminates the apparent reaction barrier.
 
 ### 13.2 Portable executable resolution
 
-`pipeline/simulation/executables.py::resolve_qe_executable` resolves tools in this
-order:
-
-1. explicit environment override (`PW_X` or `NEB_X`);
-2. the current `PATH`;
-3. a PATH-resolved `conda` executable querying the documented `qe-env`;
-4. a clear failure if no usable executable exists.
-
-There are no required user-home or absolute installation paths. MPI is similarly
-resolved rather than assumed at a machine-specific location.
+`pipeline/simulation/executables.py::resolve_qe_executable` accepts only the
+explicit `PW_X` or `NEB_X` written by the pinned GPU installer's activation
+file. QE deliberately does not fall back to `PATH` or Conda because an
+identically named CPU binary would otherwise be accepted. Multi-rank jobs also
+require the activation file's `MPIEXEC`, preventing the NVIDIA HPC-X build from
+being mixed with an unrelated MPI runtime. There are no required user-home or
+absolute installation paths.
 
 ### 13.3 MPI and resource configuration
+
+The supported production QE backend is a CUDA-enabled build created by
+`scripts/install_qe_gpu.sh`.  That installer checksum-pins NVIDIA HPC SDK 25.5,
+CUDA 12.9, and QE 7.5 and compiles explicitly for Blackwell `cc120`.  Generic
+Conda/system QE packages are not an accepted production setup because they may
+be CPU-only while CUDA happens to be installed elsewhere on the machine.  A
+production run must independently prove GPU activation in QE output and GPU
+process telemetry; executable availability alone is insufficient.
 
 `QEExecutionConfig` records MPI ranks, OpenMP threads, k-point pools, and NEB
 image groups. `build_qe_command` constructs the argv list rather than a shell
@@ -1735,7 +1740,7 @@ have different binary, CUDA, and compiler requirements:
 |---|---|---|
 | `deepmd-env` | GPU atomistic screening | PyTorch, fairchem/eSen, ASE, pandas |
 | `cp2k-env` | Reactor simulation (historical name) | Cantera 3.x |
-| `qe-env` | Periodic DFT and NEB | Quantum ESPRESSO, MPI, ASE helpers |
+| GPU QE native toolchain | Periodic DFT and NEB | QE 7.5, NVIDIA HPC SDK 25.5, CUDA 12.9, `cc120` |
 | `quantum-env` | Quantum workflow | CUDA-Q and a compatible NVIDIA stack |
 | `battery-env` | Fuel-cell/data utilities | NumPy, SciPy, pandas, ASE/pymatgen as needed |
 | `openfoam-env` | Fluidized/MMBCR/NTEC hydrodynamics | OpenFOAM `multiphaseEulerFoam` |

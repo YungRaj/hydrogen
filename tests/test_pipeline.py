@@ -369,6 +369,7 @@ def test_orr_multisite_and_corrections():
 
 def test_production_qe_workflow_fails_closed_and_resumes():
     import tempfile
+    from unittest.mock import patch
     from pathlib import Path
     from pipeline.validation.dft_fuel_cell import converged_energy
     from pipeline.validation.production_workflow import (
@@ -384,7 +385,8 @@ def test_production_qe_workflow_fails_closed_and_resumes():
         assert converged_energy(partial) is None
         status = orr_campaign_status(root, 'candidate')
         assert not status['complete'] and status['next_stage'] == 'clean'
-        complete = ('! total energy = -10.000000 Ry\n'
+        complete = ('GPU acceleration is ACTIVE.\n'
+                    '! total energy = -10.000000 Ry\n'
                     'convergence has been achieved\n'
                     'End of BFGS Geometry Optimization\nJOB DONE\n')
         for stage in ORR_STAGES:
@@ -400,9 +402,16 @@ def test_production_qe_workflow_fails_closed_and_resumes():
         assert "occupations = 'fixed'" in molecule
         assert "K_POINTS {gamma}" in molecule
         assert 'smearing' not in molecule
-        command = build_qe_command(
-            PW_X, str(root / 'h2.in'),
-            QEExecutionConfig(mpi_ranks=4, omp_threads=1, kpoint_pools=2))
+        pw = root / 'pw.x'
+        mpi = root / 'mpirun'
+        pw.write_text('#!/bin/sh\nexit 0\n')
+        mpi.write_text('#!/bin/sh\nexit 0\n')
+        pw.chmod(0o755)
+        mpi.chmod(0o755)
+        with patch.dict(os.environ, {'PW_X': str(pw), 'MPIEXEC': str(mpi)}):
+            command = build_qe_command(
+                PW_X, str(root / 'h2.in'),
+                QEExecutionConfig(mpi_ranks=4, omp_threads=1, kpoint_pools=2))
         assert isinstance(command, list)
         assert command[-4:] == ['-nk', '2', '-in',
                                 str((root / 'h2.in').resolve())]
@@ -1163,7 +1172,7 @@ def test_production_has_only_branch_candidate_search():
     assert 'run_fc_branch_discovery' in source
     assert 'QE executables are resolved at execution time' in source
     resolver = (REPO_ROOT / 'pipeline/simulation/executables.py').read_text()
-    assert "env_var=variables.get(name), conda_env='qe-env'" in resolver
+    assert 'generic PATH and Conda QE builds are' in resolver
     assert ('/' + 'home/') not in source + resolver
     assert "'conda', 'run', '-n', 'quantum-env'" in source
     assert "result.get('mock')" in source

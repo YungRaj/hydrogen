@@ -13,10 +13,13 @@ def _usable(candidate: str | None) -> str | None:
         return None
     found = shutil.which(candidate)
     if found:
-        return str(Path(found).resolve())
+        # Preserve the invoked symlink name. Multicall launchers such as the
+        # NVIDIA HPC-X ``mpirun -> env.sh`` wrapper dispatch through argv[0]
+        # and stop working if canonicalized to their implementation target.
+        return str(Path(found).absolute())
     path = Path(candidate).expanduser()
     if path.is_file() and os.access(path, os.X_OK):
-        return str(path.resolve())
+        return str(path.absolute())
     return None
 
 
@@ -74,7 +77,12 @@ def resolve_executable(name: str, *, env_var: str | None = None,
 
 
 def resolve_qe_executable(name: str) -> str:
-    """Locate a Quantum ESPRESSO executable without assuming an installation path.
+    """Resolve only an explicitly activated, pinned GPU QE executable.
+
+    Production QE intentionally does not fall back to ``PATH`` or Conda. Those
+    locations can contain a CPU-only build with the same executable name. The
+    Blackwell installer writes ``PW_X`` and ``NEB_X`` into its activation file,
+    making the selected native toolchain explicit and auditable.
 
     Args:
         name: Human-readable identifier used in diagnostics and output.
@@ -83,5 +91,17 @@ def resolve_qe_executable(name: str) -> str:
         A `str` containing the resolve qe executable result.
     """
     variables = {'pw.x': 'PW_X', 'neb.x': 'NEB_X'}
-    return resolve_executable(
-        name, env_var=variables.get(name), conda_env='qe-env', required=True)
+    variable = variables.get(name)
+    if variable is None:
+        raise ValueError(f'unsupported Quantum ESPRESSO executable: {name!r}')
+    override = os.environ.get(variable, '')
+    if not override:
+        raise RuntimeError(
+            f'{variable} is not set. Run scripts/install_qe_gpu.sh and source '
+            'the generated activate.sh; generic PATH and Conda QE builds are '
+            'not accepted for production.')
+    resolved = _usable(override)
+    if not resolved:
+        raise RuntimeError(
+            f'{variable} does not identify an executable: {override!r}')
+    return resolved
