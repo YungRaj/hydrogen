@@ -15,7 +15,15 @@ class SolverExecution(TypedDict):
     require_gpu: Literal[True]
 
 
-class SolverRunResult(TypedDict):
+class _SolverRunResultOptional(TypedDict, total=False):
+    """Optional provenance present for specialized solver invocations."""
+
+    candidate_specific: bool
+    restart_bound: dict[str, Any]
+    checkpoint_restored: bool
+
+
+class SolverRunResult(_SolverRunResultOptional):
     """Process-level outcome of a Quantum ESPRESSO invocation."""
 
     converged: bool
@@ -64,6 +72,8 @@ class TransitionStateFrequencyResult(TypedDict):
     imaginary_count: int
     valid_transition_state: bool
     mode_vectors: list[list[float]]
+    reaction_mode_overlap: float | None
+    reaction_mode_valid: bool | None
 
 
 class _VQEResultOptional(TypedDict, total=False):

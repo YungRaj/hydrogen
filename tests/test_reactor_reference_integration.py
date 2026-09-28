@@ -2,6 +2,7 @@
 
 from dataclasses import replace
 import json
+import math
 from pathlib import Path
 import sys
 import tempfile
@@ -69,7 +70,12 @@ def test_existing_reference_keeps_its_name_and_does_not_mutate_candidates():
 
 
 def test_default_campaign_loads_ni_reference_and_produces_a_real_headline():
-    """Load and execute the default Ni reference through real Cantera."""
+    """Reproduce the documented Ni reference through the real Cantera path.
+
+    These are regression targets for the B6-5 literature-parameterized model,
+    not claims that the reduced mechanism has been experimentally calibrated.
+    The explicit evidence-tier assertions keep that distinction fail-closed.
+    """
     import cantera  # noqa: F401 - availability is part of this suite's contract
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -98,6 +104,84 @@ def test_default_campaign_loads_ni_reference_and_produces_a_real_headline():
         assert len(rows) == len(config.reactor_temperatures)
         assert all(row['status'] == 'complete' and not row.get('mock') for row in rows)
         assert candidates.empty
+
+        # Documented B6-5 production-cell results.  A tight but non-bitwise
+        # tolerance catches unit, phase, prefactor, or reactor-wiring changes
+        # while allowing harmless integrator/platform roundoff.
+        reference = {
+            923.15: {
+                'CH4_conversion': 0.1456,
+                'carbon_turnovers_per_site': 7.03,
+                'exit_theta_C': 1.8e-5,
+                'exit_theta_C_encap': 3.0e-4,
+                'c_gamma_to_c_delta_ratio': 2.3e4,
+                'filament_yield_gC_per_gMetal_h': 389.0,
+            },
+            973.15: {
+                'CH4_conversion': 0.2633,
+                'carbon_turnovers_per_site': 12.1,
+                'exit_theta_C': 1.1e-5,
+                'exit_theta_C_encap': 3.5e-4,
+                'c_gamma_to_c_delta_ratio': 3.4e4,
+                'filament_yield_gC_per_gMetal_h': 667.0,
+            },
+        }
+        by_temperature = {row['T_K']: row for row in rows}
+        for temperature, expected in reference.items():
+            row = by_temperature[temperature]
+            for field, target in expected.items():
+                assert math.isclose(
+                    row[field], target, rel_tol=0.02, abs_tol=1e-8), (
+                        temperature, field, row[field], target)
+
+            # Methane carbon must appear in the two explicitly represented
+            # condensed-carbon channels; graphite is not an ideal-gas tracer.
+            assert row['carbon_phase_model'] == \
+                'condensed_graphite_plus_surface_C_s'
+            assert row['graphite_loaded'] is True
+            assert row['carbon_balance_ok'] is True
+            assert row['outfeed_carbon_mol_per_pass'] == 0.0
+            assert 0.0 <= row['c_gamma_mol_per_pass'] <= \
+                row['solid_carbon_mol_per_pass']
+            assert 0.0 <= row['c_delta_mol_per_pass'] <= \
+                row['solid_carbon_mol_per_pass']
+            # With no circulating outfeed, the reported balance residual is
+            # precisely carbon transferred off-site into the graphite sink.
+            assert math.isclose(
+                row['carbon_balance_residual_mol'],
+                row['c_gamma_mol_per_pass'],
+                rel_tol=1e-10, abs_tol=1e-14)
+
+            # Exercise the actual packed-bed/surface path and its axial
+            # solution, not merely successful Cantera YAML loading.
+            assert row['surface_loaded'] is True
+            assert row['surface_name'] == 'ni_np_lit_surface'
+            assert row['bed_or_interface'] == 'fixed_packed_bed'
+            assert row['cantera_reactor_model'] == \
+                'staged_lagrangian_ideal_gas_reactors'
+            assert row['conversion_basis'] == 'argon_tracer'
+            assert row['co2_permitted'] is False
+            assert all(
+                later >= earlier
+                for earlier, later in zip(
+                    row['conversion_profile'], row['conversion_profile'][1:]))
+
+            # Deactivation and off-site carbon remain reported, while this
+            # uncalibrated screening mechanism is forbidden from presenting
+            # itself as validated predictive reactor evidence.
+            assert row['off_site_carbon_active'] is True
+            assert row['regen_cycles_completed'] == 0
+            assert row['encapsulation_onset'] is False
+            assert row['kinetics_status'] == 'screening_template_incomplete'
+            assert row['reactor_evidence_tier'] == \
+                'diagnostic_screening_template'
+            assert 'incomplete_candidate_kinetics' in \
+                row['reactor_evidence_limitations']
+            assert 'pfr_screening_model_not_validated' in \
+                row['reactor_evidence_limitations']
+
+        assert by_temperature[973.15]['CH4_conversion'] > \
+            by_temperature[923.15]['CH4_conversion']
 
 
 def test_reference_is_only_added_to_enabled_solids_campaigns():

@@ -17,6 +17,7 @@ from pipeline.validation.qe_workflows import (
     _fixed_atom_indices,
     parse_atomic_forces,
     parse_neb_result,
+    neb_gpu_accelerated,
     partial_hessian,
     relaxed_structure,
     run_neb,
@@ -177,8 +178,8 @@ def methane_neb_status(calc_dir: str | Path) -> dict:
         'converged': False, 'forward_barrier_eV': None,
         'reverse_barrier_eV': None, 'candidate_specific': True,
     }
-    if neb_path.exists() and 'gpu acceleration is active' not in \
-            neb_path.read_text(errors='replace').lower():
+    neb_input = root / 'candidate.neb.in'
+    if neb_path.exists() and not neb_gpu_accelerated(neb_input, neb_path):
         neb['converged'] = False
     frequency_path = root / 'transition_state_frequency.json'
     frequency = {'valid_transition_state': False, 'status': 'missing'}
@@ -240,7 +241,8 @@ def prepare_methane_neb(calc_dir: str | Path, prefix: str,
 
 def prepare_frequency_jobs(calc_dir: str | Path, transition_state: Atoms,
                            prefix: str, displacement_A: float = 0.01,
-                           active_indices: list[int] | None = None) -> dict:
+                           active_indices: list[int] | None = None,
+                           reaction_direction: np.ndarray | None = None) -> dict:
     """Prepare central finite-difference force jobs for a proposed TS.
 
     Args:
@@ -249,6 +251,7 @@ def prepare_frequency_jobs(calc_dir: str | Path, transition_state: Atoms,
         prefix: Prefix used by this operation.
         displacement_A: Displacement in ångströms.
         active_indices: Ordered values supplying active indices.
+        reaction_direction: Optional Cartesian NEB tangent for active atoms.
 
     Returns:
         Dictionary containing the computed values, status, and supporting metadata.
@@ -283,6 +286,15 @@ def prepare_frequency_jobs(calc_dir: str | Path, transition_state: Atoms,
         'masses_amu': transition_state.get_masses()[active].tolist(),
         'jobs': jobs,
     }
+    if reaction_direction is not None:
+        direction = np.asarray(reaction_direction, float)
+        if direction.shape == (len(transition_state), 3):
+            direction = direction[active]
+        if direction.shape != (len(active), 3) or not np.all(np.isfinite(direction)):
+            raise ValueError('reaction direction must be finite and match active atoms')
+        if float(np.linalg.norm(direction)) <= np.finfo(float).eps:
+            raise ValueError('reaction direction must be nonzero')
+        manifest['reaction_direction_A'] = direction.tolist()
     manifest['manifest_sha256'] = _manifest_digest(manifest)
     (force_root / 'manifest.json').write_text(
         json.dumps(manifest, indent=2, sort_keys=True))
@@ -368,7 +380,9 @@ def run_frequency_sequence(calc_dir: str | Path, timeout_s: int = 86400,
         (plus if job['sign'] == 'plus' else minus)[int(job['dof'])] = forces[active]
     result = partial_hessian(
         plus, minus, float(manifest['displacement_A']),
-        np.asarray(manifest['masses_amu'], dtype=float))
+        np.asarray(manifest['masses_amu'], dtype=float),
+        reaction_direction=(np.asarray(manifest['reaction_direction_A'], dtype=float)
+                            if 'reaction_direction_A' in manifest else None))
     result.update({
         'status': 'complete', 'complete': True,
         'candidate_specific': True,

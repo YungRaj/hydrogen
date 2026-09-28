@@ -1075,6 +1075,11 @@ def test_qe_relax_and_neb_preserve_fixed_slab_atoms():
         neb = Path(tmp) / 'neb.in'
         write_qe_relax_input(atoms, relax, 'constraint')
         images = [atoms.copy() for _ in range(5)]
+        # A real NEB path cannot contain zero-length adjacent images. Keep the
+        # fixed slab unchanged while moving H so this formatting contract also
+        # satisfies the equal-arc path precondition.
+        for index, image in enumerate(images):
+            image.positions[2, 2] += 0.1 * index
         write_qe_neb_input(images, neb, 'constraint')
         relax_text, neb_text = relax.read_text(), neb.read_text()
     assert 'Ni 0.000000000000 0.000000000000 1.000000000000 0 0 0' in relax_text
@@ -1083,7 +1088,633 @@ def test_qe_relax_and_neb_preserve_fixed_slab_atoms():
         'Ni 0.000000000000 0.000000000000 1.000000000000 0 0 0') == 5
     assert 'nstep_path=100' in neb_text
     assert 'electron_maxstep=300' in neb_text
+    assert 'conv_thr=1.0e-08' in neb_text
     assert "mixing_mode='local-TF', mixing_beta=0.2" in neb_text
+    assert 'mixing_ndim=8' in neb_text
+    assert "startingpot='atomic'" in neb_text
+    assert "startingwfc='atomic+random'" in neb_text
+    assert "diagonalization='david'" in neb_text
+    assert '2 2 1 0 0 0' in neb_text
+
+
+def test_neb_coarse_stage_disables_climbing_and_strengthens_path_control():
+    from ase import Atoms
+    from pipeline.validation.qe_workflows import (
+        NEBPathConfig, write_qe_neb_input)
+
+    images = [Atoms('H', positions=[[0, 0, float(index)]],
+                    cell=[5, 5, 10], pbc=True) for index in range(5)]
+    with tempfile.TemporaryDirectory() as tmp:
+        target = Path(tmp) / 'coarse.neb.in'
+        write_qe_neb_input(
+            images, target, 'coarse', NEBPathConfig.coarse_preconditioner())
+        text = target.read_text()
+    assert "opt_scheme='quick-min'" in text
+    assert "CI_scheme='no-CI'" in text
+    assert 'ds=0.2' in text
+    assert 'k_min=0.1, k_max=0.1' in text
+    assert 'electron_maxstep=500' in text
+    assert 'conv_thr=1.0e-06' in text
+    assert 'mixing_beta=0.02' in text
+    assert 'mixing_ndim=8' in text
+    assert "startingpot='file'" in text
+    assert "startingwfc='file'" in text
+    assert "diagonalization='david'" in text
+    assert '3 3 1 0 0 0' in text
+
+
+def test_neb_image_preconvergence_uses_identical_seeded_electronic_controls():
+    from ase import Atoms
+    from pipeline.validation.qe_workflows import (
+        NEBPathConfig, prepare_neb_image_scfs)
+
+    images = [Atoms('NiH', positions=[[0, 0, 1], [0, 0, 2 + index]],
+                    cell=[5, 5, 10], pbc=True) for index in range(5)]
+    config = NEBPathConfig.coarse_preconditioner()
+    with tempfile.TemporaryDirectory() as tmp:
+        manifest = prepare_neb_image_scfs(images, tmp, 'seeded', config)
+        texts = [Path(job['input']).read_text() for job in manifest['jobs']]
+        persisted = __import__('json').loads(
+            (Path(tmp) / 'image_scf_manifest.json').read_text())
+    assert manifest['image_count'] == 5
+    assert persisted['configuration']['scf_conv_thr_Ry'] == 1.0e-6
+    assert all("startingpot='file'" in text for text in texts)
+    assert all("diagonalization='david'" in text for text in texts)
+    assert all('mixing_beta=0.02' in text for text in texts)
+    assert all('3 3 1 0 0 0' in text for text in texts)
+    assert texts[0] != texts[-1]
+
+
+def test_neb_coarse_refiner_resumes_checkpoint_with_broyden():
+    from pipeline.validation.qe_workflows import NEBPathConfig
+
+    config = NEBPathConfig.coarse_refiner()
+    assert config.optimizer == 'broyden'
+    assert config.climbing_scheme == 'no-CI'
+    assert config.restart_mode == 'restart'
+    assert config.scf_conv_thr_Ry == 1.0e-6
+    assert config.path_thr_eV_A == 0.15
+    assert config.kpoints == (3, 3, 1)
+    assert config.starting_potential == 'file'
+    assert config.starting_wavefunctions == 'file'
+
+
+def test_neb_fresh_image_seed_rejects_stale_electronic_state():
+    from pipeline.validation.qe_workflows import NEBPathConfig
+
+    config = NEBPathConfig.coarse_fresh_image_seed()
+    assert config.climbing_scheme == 'no-CI'
+    assert config.kpoints == (3, 3, 1)
+    assert config.scf_conv_thr_Ry == 1.0e-6
+    assert config.mixing_beta == 0.01
+    assert config.starting_potential == 'atomic'
+    assert config.starting_wavefunctions == 'atomic+random'
+    assert config.diagonalization == 'david'
+
+
+def test_neb_fixed_then_released_spin_seed_is_explicit_and_staged():
+    from ase import Atoms
+    from pipeline.validation.qe_workflows import (
+        NEBPathConfig, prepare_neb_image_scfs)
+
+    image = Atoms('NiH', positions=[[0, 0, 1], [0, 0, 2]],
+                  cell=[5, 5, 10], pbc=True)
+    fixed = NEBPathConfig.coarse_fixed_spin_image_seed()
+    released = NEBPathConfig.coarse_released_spin_image_seed()
+    assert fixed.total_magnetization == 8.0
+    assert fixed.starting_potential == 'file'
+    assert fixed.starting_wavefunctions == 'atomic+random'
+    assert fixed.mixing_beta == 0.01
+    assert fixed.mixing_ndim == 24
+    assert fixed.diagonalization == 'david'
+    assert released.total_magnetization is None
+    assert released.starting_potential == 'file'
+    assert released.starting_wavefunctions == 'file'
+    assert released.mixing_beta == 0.02
+    neighbor = NEBPathConfig.coarse_neighbor_density_image_seed()
+    assert neighbor.total_magnetization is None
+    assert neighbor.starting_potential == 'file'
+    assert neighbor.starting_wavefunctions == 'atomic+random'
+    assert neighbor.mixing_beta == 0.02
+    with tempfile.TemporaryDirectory() as tmp:
+        prepare_neb_image_scfs([image], tmp, 'fixed', fixed)
+        text = (Path(tmp) / 'image_01.in').read_text()
+    assert 'tot_magnetization=8.0' in text
+
+
+def test_neb_coupled_fixed_spin_seed_cannot_move_or_count_as_path_evidence():
+    from ase import Atoms
+    from pipeline.validation.qe_workflows import (
+        NEBPathConfig, write_qe_neb_input)
+
+    config = NEBPathConfig.coarse_fixed_spin_coupled_seed()
+    assert config.total_magnetization == 8.0
+    assert config.nstep_path == 1
+    assert config.path_thr_eV_A == 1.0e6
+    assert config.climbing_scheme == 'no-CI'
+    assert config.restart_mode == 'from_scratch'
+    assert config.mixing_beta == 0.02
+    assert config.starting_potential == 'file'
+    assert config.starting_wavefunctions == 'atomic+random'
+    assert config.freeze_all_atoms is True
+    assert config.minimum_image is True
+    images = [Atoms('NiH', positions=[[0, 0, 1], [0, 0, z]],
+                    cell=[5, 5, 10], pbc=True) for z in (2, 3)]
+    with tempfile.TemporaryDirectory() as tmp:
+        target = Path(tmp) / 'fixed-coupled.neb.in'
+        write_qe_neb_input(images, target, 'fixed-coupled', config)
+        text = target.read_text()
+    position_rows = [line for line in text.splitlines()
+                     if line.startswith(('Ni ', 'H '))]
+    assert len(position_rows) == 4
+    assert all(line.endswith(' 0 0 0') for line in position_rows)
+    assert 'minimum_image=.true.' in text
+
+
+def test_neb_coupled_spin_release_rebuilds_unconstrained_wavefunctions():
+    from ase import Atoms
+    from pipeline.validation.qe_workflows import (
+        NEBPathConfig, write_qe_neb_input)
+
+    config = NEBPathConfig.coarse_released_spin_coupled_seed()
+    assert config.total_magnetization is None
+    assert config.nstep_path == 1
+    assert config.path_thr_eV_A == 1.0e6
+    assert config.climbing_scheme == 'no-CI'
+    assert config.restart_mode == 'from_scratch'
+    assert config.starting_potential == 'file'
+    assert config.starting_wavefunctions == 'atomic+random'
+    assert config.freeze_all_atoms is True
+    assert config.minimum_image is True
+    images = [Atoms('NiH', positions=[[0, 0, 1], [0, 0, z]],
+                    cell=[5, 5, 10], pbc=True) for z in (2, 3)]
+    with tempfile.TemporaryDirectory() as tmp:
+        target = Path(tmp) / 'released-coupled.neb.in'
+        write_qe_neb_input(images, target, 'released-coupled', config)
+        text = target.read_text()
+    assert 'tot_magnetization' not in text
+    assert text.count("calculation='scf'") == 1
+    assert "startingpot='file'" in text
+    assert "startingwfc='atomic+random'" in text
+    position_rows = [line for line in text.splitlines()
+                     if line.startswith(('Ni ', 'H '))]
+    assert position_rows
+    assert all(line.endswith(' 0 0 0') for line in position_rows)
+    assert 'minimum_image=.true.' in text
+
+
+def test_neb_coarse_finisher_damps_step_without_changing_springs():
+    from pipeline.validation.qe_workflows import NEBPathConfig
+
+    config = NEBPathConfig.coarse_finisher()
+    assert config.optimizer == 'broyden'
+    assert config.restart_mode == 'restart'
+    assert config.step_size == 0.1
+    assert config.spring_min == 0.1
+    assert config.spring_max == 0.1
+
+
+def test_neb_coarse_stabilizer_halves_step_without_changing_springs():
+    from pipeline.validation.qe_workflows import NEBPathConfig
+
+    config = NEBPathConfig.coarse_stabilizer()
+    assert config.optimizer == 'broyden'
+    assert config.climbing_scheme == 'no-CI'
+    assert config.restart_mode == 'restart'
+    assert config.step_size == 0.05
+    assert config.spring_min == 0.1
+    assert config.spring_max == 0.1
+    assert config.scf_conv_thr_Ry == 1.0e-6
+
+
+def test_neb_coarse_quick_min_history_reset_changes_only_motion():
+    from pipeline.validation.qe_workflows import NEBPathConfig
+
+    config = NEBPathConfig.coarse_quick_min_history_reset_stabilizer()
+    assert config.optimizer == 'quick-min'
+    assert config.climbing_scheme == 'no-CI'
+    assert config.restart_mode == 'from_scratch'
+    assert config.step_size == 0.1
+    baseline = NEBPathConfig.coarse_preconditioner()
+    assert config.spring_min == baseline.spring_min == 0.1
+    assert config.spring_max == baseline.spring_max == 0.1
+    assert config.path_thr_eV_A == 0.15
+    assert config.scf_conv_thr_Ry == 1.0e-6
+    assert config.starting_potential == 'file'
+    assert config.starting_wavefunctions == 'atomic+random'
+    assert config.path_thr_eV_A == 0.15
+
+
+def test_neb_coarse_quick_min_to_sd_restart_preserves_path_physics():
+    from pipeline.validation.qe_workflows import NEBPathConfig
+
+    config = NEBPathConfig.coarse_quick_min_to_sd_stabilizer()
+    baseline = NEBPathConfig.coarse_preconditioner()
+    assert config.optimizer == 'sd'
+    assert config.climbing_scheme == 'no-CI'
+    assert config.restart_mode == 'restart'
+    assert config.step_size == baseline.step_size / 2 == 0.1
+    assert config.spring_min == baseline.spring_min == 0.1
+    assert config.spring_max == baseline.spring_max == 0.1
+    assert config.path_thr_eV_A == baseline.path_thr_eV_A == 0.15
+    assert config.scf_conv_thr_Ry == baseline.scf_conv_thr_Ry == 1.0e-6
+    assert config.kpoints == baseline.kpoints == (3, 3, 1)
+    assert config.starting_potential == 'file'
+    assert config.starting_wavefunctions == 'file'
+
+
+def test_neb_coarse_sd_to_broyden_changes_only_curvature_model():
+    from pipeline.validation.qe_workflows import NEBPathConfig
+
+    config = NEBPathConfig.coarse_sd_to_broyden_refiner()
+    baseline = NEBPathConfig.coarse_quick_min_to_sd_stabilizer()
+    assert config.optimizer == 'broyden'
+    assert config.restart_mode == baseline.restart_mode == 'restart'
+    assert config.step_size == baseline.step_size == 0.1
+    assert config.spring_min == baseline.spring_min == 0.1
+    assert config.spring_max == baseline.spring_max == 0.1
+    assert config.path_thr_eV_A == baseline.path_thr_eV_A == 0.15
+    assert config.scf_conv_thr_Ry == baseline.scf_conv_thr_Ry == 1.0e-6
+    assert config.kpoints == baseline.kpoints == (3, 3, 1)
+    assert config.starting_potential == baseline.starting_potential == 'file'
+    assert config.starting_wavefunctions == baseline.starting_wavefunctions == 'file'
+
+
+def test_neb_coarse_broyden_to_sd_discards_only_curvature_history():
+    from pipeline.validation.qe_workflows import NEBPathConfig
+
+    config = NEBPathConfig.coarse_broyden_to_sd_stabilizer()
+    baseline = NEBPathConfig.coarse_sd_to_broyden_refiner()
+    assert config.optimizer == 'sd'
+    assert baseline.optimizer == 'broyden'
+    for field in (
+            'restart_mode', 'step_size', 'spring_min', 'spring_max',
+            'path_thr_eV_A', 'scf_conv_thr_Ry', 'kpoints',
+            'starting_potential'):
+        assert getattr(config, field) == getattr(baseline, field)
+    assert config.starting_wavefunctions == 'atomic+random'
+    assert baseline.starting_wavefunctions == 'file'
+
+
+def test_neb_coarse_alternate_refiner_preserves_stabilized_physics():
+    from pipeline.validation.qe_workflows import NEBPathConfig
+
+    config = NEBPathConfig.coarse_alternate_refiner()
+    assert config.optimizer == 'broyden2'
+    assert config.climbing_scheme == 'no-CI'
+    assert config.restart_mode == 'restart'
+    assert config.step_size == 0.05
+    assert config.spring_min == 0.1
+    assert config.spring_max == 0.1
+    assert config.scf_conv_thr_Ry == 1.0e-6
+
+
+def test_neb_coarse_force_escape_uses_direct_conservative_updates():
+    from pipeline.validation.qe_workflows import NEBPathConfig
+
+    config = NEBPathConfig.coarse_force_escape()
+    assert config.optimizer == 'sd'
+    assert config.nstep_path == 250
+    assert config.climbing_scheme == 'no-CI'
+    assert config.restart_mode == 'restart'
+    assert config.step_size == 1.0
+    assert config.spring_min == 0.1
+    assert config.spring_max == 0.1
+    assert config.path_thr_eV_A == 0.15
+
+
+def test_neb_coarse_force_finisher_damps_the_final_sd_oscillation():
+    from pipeline.validation.qe_workflows import NEBPathConfig
+
+    config = NEBPathConfig.coarse_force_finisher()
+    assert config.optimizer == 'sd'
+    assert config.nstep_path == 250
+    assert config.restart_mode == 'restart'
+    assert config.step_size == 0.5
+    assert config.spring_min == 0.1
+    assert config.spring_max == 0.1
+    assert config.path_thr_eV_A == 0.15
+
+
+def test_neb_coarse_quasi_newton_finisher_keeps_damped_path_controls():
+    from pipeline.validation.qe_workflows import NEBPathConfig
+
+    config = NEBPathConfig.coarse_quasi_newton_finisher()
+    assert config.optimizer == 'broyden'
+    assert config.nstep_path == 250
+    assert config.restart_mode == 'restart'
+    assert config.step_size == 0.5
+    assert config.spring_min == 0.1
+    assert config.spring_max == 0.1
+    assert config.path_thr_eV_A == 0.15
+
+
+def test_neb_coarse_electronic_stabilizer_damps_only_scf_mixing():
+    from pipeline.validation.qe_workflows import NEBPathConfig
+
+    baseline = NEBPathConfig.coarse_quasi_newton_finisher()
+    config = NEBPathConfig.coarse_electronic_stabilizer()
+    assert config.optimizer == baseline.optimizer == 'broyden'
+    assert config.restart_mode == baseline.restart_mode == 'restart'
+    assert config.step_size == baseline.step_size == 0.5
+    assert config.spring_min == baseline.spring_min == 0.1
+    assert config.spring_max == baseline.spring_max == 0.1
+    assert config.path_thr_eV_A == baseline.path_thr_eV_A == 0.15
+    assert config.scf_conv_thr_Ry == baseline.scf_conv_thr_Ry == 1.0e-6
+    assert config.mixing_beta == 0.02
+
+
+def test_neb_coarse_history_reset_refiner_discards_optimizer_state():
+    from pipeline.validation.qe_workflows import NEBPathConfig
+
+    config = NEBPathConfig.coarse_history_reset_refiner()
+    assert config.optimizer == 'broyden'
+    assert config.restart_mode == 'from_scratch'
+    assert config.climbing_scheme == 'no-CI'
+    assert config.step_size == 0.25
+    assert config.spring_min == 0.1
+    assert config.spring_max == 0.1
+    assert config.path_thr_eV_A == 0.15
+    assert config.scf_conv_thr_Ry == 1.0e-6
+    assert config.mixing_beta == 0.02
+
+
+def test_neb_history_reset_force_stabilizer_removes_broyden_curvature():
+    from pipeline.validation.qe_workflows import NEBPathConfig
+
+    config = NEBPathConfig.coarse_history_reset_force_stabilizer()
+    assert config.restart_mode == 'from_scratch'
+    assert config.optimizer == 'sd'
+    assert config.step_size == 0.1
+    assert config.climbing_scheme == 'no-CI'
+    assert config.scf_conv_thr_Ry == 1.0e-6
+    assert config.spring_min == 0.1
+    assert config.spring_max == 0.1
+
+    accelerated = NEBPathConfig.coarse_history_reset_force_accelerator()
+    assert accelerated.restart_mode == 'from_scratch'
+    assert accelerated.optimizer == 'sd'
+    assert accelerated.step_size == 0.5
+    assert accelerated.spring_min == config.spring_min
+    assert accelerated.spring_max == config.spring_max
+
+
+def test_neb_strict_climbing_refiner_preserves_validated_sampling():
+    from pipeline.validation.qe_workflows import NEBPathConfig
+
+    config = NEBPathConfig.strict_climbing_refiner()
+    assert config.restart_mode == 'restart'
+    assert config.optimizer == 'sd'
+    assert config.nstep_path == 500
+    assert config.climbing_scheme == 'auto'
+    assert config.path_thr_eV_A == 0.05
+    assert config.scf_conv_thr_Ry == 1.0e-8
+    assert config.kpoints == (3, 3, 1)
+    assert config.starting_potential == 'file'
+    assert config.starting_wavefunctions == 'file'
+    assert config.mixing_beta == 0.02
+    assert config.step_size == 1.0
+    assert config.spring_min == 0.1
+    assert config.spring_max == 0.1
+
+
+def test_neb_strict_climbing_finisher_preserves_spring_model():
+    from pipeline.validation.qe_workflows import NEBPathConfig
+
+    refiner = NEBPathConfig.strict_climbing_refiner()
+    finisher = NEBPathConfig.strict_climbing_finisher()
+    assert finisher.step_size == 0.5
+    assert finisher.spring_min == refiner.spring_min == 0.1
+    assert finisher.spring_max == refiner.spring_max == 0.1
+    assert finisher.scf_conv_thr_Ry == refiner.scf_conv_thr_Ry == 1.0e-8
+    assert finisher.kpoints == refiner.kpoints == (3, 3, 1)
+    assert finisher.climbing_scheme == refiner.climbing_scheme == 'auto'
+    assert finisher.restart_mode == 'restart'
+
+
+def test_neb_strict_quick_min_stabilizer_changes_only_optimizer_motion():
+    from pipeline.validation.qe_workflows import NEBPathConfig
+
+    refiner = NEBPathConfig.strict_climbing_refiner()
+    stabilizer = NEBPathConfig.strict_climbing_quick_min_stabilizer()
+    assert stabilizer.optimizer == 'quick-min'
+    assert stabilizer.step_size == 0.1
+    assert stabilizer.spring_min == refiner.spring_min
+    assert stabilizer.spring_max == refiner.spring_max
+    assert stabilizer.scf_conv_thr_Ry == refiner.scf_conv_thr_Ry
+    assert stabilizer.kpoints == refiner.kpoints
+    assert stabilizer.climbing_scheme == refiner.climbing_scheme == 'auto'
+    assert stabilizer.restart_mode == 'restart'
+
+
+def test_neb_segment_densification_preserves_path_and_metadata():
+    from ase import Atoms
+    from ase.constraints import FixAtoms
+    from pipeline.validation.qe_workflows import densify_neb_segment
+
+    left = Atoms('CH', positions=[[0, 0, 0], [1, 0, 0]],
+                 cell=[5, 5, 5], pbc=True)
+    left.set_constraint(FixAtoms(indices=[0]))
+    right = left.copy()
+    right.positions[1, 0] = 3.0
+    tail = right.copy()
+    tail.positions[1, 0] = 4.0
+    dense = densify_neb_segment([left, right, tail], 0, 3)
+    assert len(dense) == 6
+    assert np.allclose([image.positions[1, 0] for image in dense],
+                       [1.0, 1.5, 2.0, 2.5, 3.0, 4.0])
+    assert all(image.get_chemical_symbols() == ['C', 'H'] for image in dense)
+    assert all(np.allclose(image.cell.array, left.cell.array) for image in dense)
+    assert all(image.constraints[0].get_indices().tolist() == [0]
+               for image in dense)
+    # Inputs are copied so later relaxation cannot mutate accepted checkpoints.
+    dense[0].positions[1, 0] = 9.0
+    assert left.positions[1, 0] == 1.0
+
+
+def test_neb_equal_arc_redistribution_crosses_multiple_short_segments():
+    from ase import Atoms
+    from pipeline.validation.qe_workflows import (
+        redistribute_neb_images_equal_arc)
+
+    # Both final source segments are shorter than one target spacing. QE
+    # 7.5's one-step cursor can extrapolate the penultimate segment here.
+    coordinates = (0.0, 4.0, 8.0, 8.1, 8.2)
+    images = [Atoms('H', positions=[[x, 0.0, 0.0]],
+                    cell=[20.0, 20.0, 20.0], pbc=True)
+              for x in coordinates]
+    redistributed = redistribute_neb_images_equal_arc(images, image_count=5)
+    observed = np.asarray([image.positions[0, 0] for image in redistributed])
+    assert np.allclose(observed, np.linspace(0.0, 8.2, 5))
+    assert observed[-2] < coordinates[-1]
+    assert np.allclose(np.diff(observed), np.diff(observed)[0])
+
+
+def test_neb_equal_arc_redistribution_unwraps_periodic_atom_motion():
+    from ase import Atoms
+    from pipeline.validation.qe_workflows import (
+        redistribute_neb_images_equal_arc)
+
+    images = [Atoms('H', positions=[[x, 0.0, 0.0]],
+                    cell=[10.0, 10.0, 10.0], pbc=True)
+              for x in (9.0, 9.8, 0.2, 1.0)]
+    redistributed = redistribute_neb_images_equal_arc(images, image_count=5)
+    observed = np.asarray([image.positions[0, 0] for image in redistributed])
+    assert np.allclose(observed, np.linspace(9.0, 11.0, 5))
+    assert np.allclose(np.diff(observed), 0.5)
+
+
+def test_neb_writer_preconditions_short_segments_before_qe_initialization():
+    from ase import Atoms
+    from pipeline.validation.qe_workflows import write_qe_neb_input
+
+    images = [Atoms('H', positions=[[x, 0.0, 0.0]],
+                    cell=[20.0, 20.0, 20.0], pbc=True)
+              for x in (0.0, 4.0, 8.0, 8.1, 8.2)]
+    with tempfile.TemporaryDirectory() as tmp:
+        target = Path(tmp) / 'equal-arc.neb.in'
+        result = write_qe_neb_input(images, target, 'equal_arc')
+        rows = [line.split() for line in target.read_text().splitlines()
+                if line.startswith('H ')]
+    observed = np.asarray([float(row[1]) for row in rows])
+    assert result['equal_arc_preconditioned'] is True
+    assert np.allclose(observed, np.linspace(0.0, 8.2, 5))
+
+
+def test_neb_checkpoint_geometry_recovery_resets_history_and_keeps_identity():
+    from ase import Atoms
+    from ase.constraints import FixAtoms
+    from ase.units import Bohr
+    from pipeline.validation.qe_workflows import neb_checkpoint_images
+
+    templates = [Atoms('NiH', positions=[[0, 0, 0], [0, 0, 1]],
+                       cell=[4, 4, 8], pbc=True) for _ in range(2)]
+    for image in templates:
+        image.set_constraint(FixAtoms(indices=[0]))
+    checkpoint = '''RESTART INFORMATION
+       19
+      250
+        7
+NUMBER OF IMAGES
+  2
+APPLY CONSTANT BIAS
+F
+ENERGIES, POSITIONS AND GRADIENTS
+Image:    1
+ -1.0
+ 0.0 0.0 0.0  0.1 0.2 0.3  0 0 0
+ 0.0 0.0 2.0  0.4 0.5 0.6  1 1 1
+Image:    2
+ -0.5
+ 0.0 0.0 0.0  0.1 0.2 0.3  0 0 0
+ 1.0 0.0 3.0  0.4 0.5 0.6  1 1 1
+'''
+    with tempfile.TemporaryDirectory() as tmp:
+        source = Path(tmp) / 'checkpoint.path'
+        source.write_text(checkpoint)
+        images = neb_checkpoint_images(source, templates)
+    assert len(images) == 2
+    assert images[0].get_chemical_symbols() == ['Ni', 'H']
+    assert np.allclose(images[0].positions[1], [0, 0, 2 * Bohr])
+    assert np.allclose(images[1].positions[1], [Bohr, 0, 3 * Bohr])
+    assert images[0].constraints[0].get_indices().tolist() == [0]
+    assert np.allclose(images[0].cell.array, templates[0].cell.array)
+
+
+def test_neb_restart_bound_updates_checkpoint_not_only_input():
+    from pipeline.validation.qe_workflows import bound_neb_restart_checkpoint
+
+    checkpoint = '''RESTART INFORMATION
+      33
+     250
+       0
+NUMBER OF IMAGES
+  14
+'''
+    with tempfile.TemporaryDirectory() as tmp:
+        source = Path(tmp) / 'candidate.path'
+        source.write_text(checkpoint)
+        result = bound_neb_restart_checkpoint(source, 36)
+        updated = source.read_text().splitlines()
+    assert updated[:4] == ['RESTART INFORMATION', '      33',
+                           '      36', '       0']
+    assert updated[4:] == ['NUMBER OF IMAGES', '  14']
+    assert result['current_iteration'] == 33
+    assert result['old_limit'] == 250
+    assert result['new_limit'] == 36
+    assert result['sha256_before'] != result['sha256_after']
+
+
+def test_neb_restart_bound_rejects_nonfuture_or_invalid_checkpoint():
+    from pipeline.validation.qe_workflows import bound_neb_restart_checkpoint
+
+    with tempfile.TemporaryDirectory() as tmp:
+        source = Path(tmp) / 'candidate.path'
+        source.write_text('RESTART INFORMATION\n      33\n     250\n       0\n')
+        try:
+            bound_neb_restart_checkpoint(source, 33)
+        except ValueError as exc:
+            assert 'must exceed' in str(exc)
+        else:
+            raise AssertionError('nonfuture restart ceiling was accepted')
+        source.write_text('not a checkpoint\n')
+        try:
+            bound_neb_restart_checkpoint(source, 36)
+        except ValueError as exc:
+            assert 'invalid QE NEB restart header' in str(exc)
+        else:
+            raise AssertionError('invalid restart checkpoint was accepted')
+
+
+def test_neb_completed_geometry_recovery_uses_crd_coordinates_and_metadata():
+    from ase import Atoms
+    from ase.constraints import FixAtoms
+    from pipeline.validation.qe_workflows import neb_completed_images
+
+    templates = [Atoms('NiH', positions=[[0, 0, 0], [0, 0, 1]],
+                       cell=[4, 4, 8], pbc=True) for _ in range(2)]
+    for image in templates:
+        image.set_constraint(FixAtoms(indices=[0]))
+    coordinates = '''FIRST_IMAGE
+ATOMIC_POSITIONS (angstrom)
+Ni 0.0 0.0 0.0 0 0 0
+H  0.0 0.0 2.0 1 1 1
+LAST_IMAGE
+ATOMIC_POSITIONS (angstrom)
+Ni 0.0 0.0 0.0 0 0 0
+H  1.0 0.0 3.0 1 1 1
+'''
+    with tempfile.TemporaryDirectory() as tmp:
+        source = Path(tmp) / 'completed.crd'
+        source.write_text(coordinates)
+        images = neb_completed_images(source, templates)
+    assert len(images) == 2
+    assert np.allclose(images[0].positions[1], [0, 0, 2])
+    assert np.allclose(images[1].positions[1], [1, 0, 3])
+    assert images[0].get_chemical_symbols() == ['Ni', 'H']
+    assert images[0].constraints[0].get_indices().tolist() == [0]
+    assert np.allclose(images[0].cell.array, templates[0].cell.array)
+
+
+def test_neb_completed_geometry_recovery_rejects_wrong_atom_identity():
+    from ase import Atoms
+    from pipeline.validation.qe_workflows import neb_completed_images
+
+    templates = [Atoms('NiH', positions=[[0, 0, 0], [0, 0, 1]])]
+    coordinates = '''FIRST_IMAGE
+ATOMIC_POSITIONS (angstrom)
+Ni 0.0 0.0 0.0
+C  0.0 0.0 2.0
+'''
+    with tempfile.TemporaryDirectory() as tmp:
+        source = Path(tmp) / 'bad.crd'
+        source.write_text(coordinates)
+        try:
+            neb_completed_images(source, templates)
+        except ValueError as exc:
+            assert 'atom ordering mismatch' in str(exc)
+        else:
+            raise AssertionError('wrong CRD atom identity was accepted')
 
 
 def test_relaxed_structure_restores_constraints_from_qe_input():
@@ -1110,6 +1741,269 @@ def test_relaxed_structure_restores_constraints_from_qe_input():
                 side_effect=[relaxed_geometry, input_geometry]):
             relaxed = relaxed_structure(output_path, input_path)
     assert _fixed_atom_indices(relaxed) == {0}
+
+
+def test_run_pw_rejects_graceful_exit_checkpoint_as_convergence():
+    """A QE ``prefix.EXIT`` checkpoint must remain fail-closed."""
+    from pipeline.validation.qe_workflows import QEExecutionConfig, run_pw
+    from unittest.mock import patch
+
+    completed = __import__('subprocess').CompletedProcess([], 0)
+    with tempfile.TemporaryDirectory() as tmp:
+        input_path = Path(tmp) / 'scf.in'
+        output_path = Path(tmp) / 'scf.out'
+        input_path.write_text('&CONTROL /')
+
+        def graceful_exit(_command, *, stdout, **_kwargs):
+            stdout.write(
+                'GPU acceleration is ACTIVE.\n'
+                'This run was terminated on: 16:56:09\n'
+                'JOB DONE.\n')
+            return completed
+
+        with patch(
+                'pipeline.validation.qe_workflows.resolve_qe_executable',
+                return_value='/qe/pw.x'), patch(
+                'pipeline.validation.qe_workflows.build_qe_command',
+                return_value=['/qe/pw.x']), patch(
+                'pipeline.validation.qe_workflows.subprocess.run',
+                side_effect=graceful_exit):
+            outcome = run_pw(
+                str(input_path), str(output_path),
+                execution=QEExecutionConfig())
+    assert outcome['returncode'] == 0
+    assert outcome['gpu_accelerated'] is True
+    assert outcome['converged'] is False
+
+
+def test_run_neb_requires_explicit_path_convergence():
+    """A completed NEB process without a converged path remains incomplete."""
+    from pipeline.validation.qe_workflows import QEExecutionConfig, run_neb
+    from unittest.mock import patch
+
+    completed = __import__('subprocess').CompletedProcess([], 0)
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        input_path = root / 'candidate.neb.in'
+        output_path = root / 'candidate.neb.out'
+        input_path.write_text(
+            "&PATH num_of_images=2 /\n&CONTROL prefix='candidate' /\n")
+        for index in (1, 2):
+            child = root / 'tmp' / f'candidate_{index}' / 'PW.out'
+            child.parent.mkdir(parents=True)
+            child.write_text('GPU acceleration is ACTIVE.\n')
+
+        def clean_but_unconverged(_command, *, stdout, **_kwargs):
+            stdout.write('This run was terminated on request.\nJOB DONE.\n')
+            return completed
+
+        with patch(
+                'pipeline.validation.qe_workflows.resolve_qe_executable',
+                return_value='/qe/neb.x'), patch(
+                'pipeline.validation.qe_workflows.build_qe_command',
+                return_value=['/qe/neb.x']), patch(
+                'pipeline.validation.qe_workflows.subprocess.run',
+                side_effect=clean_but_unconverged):
+            outcome = run_neb(
+                str(input_path), str(output_path),
+                execution=QEExecutionConfig())
+    assert outcome['returncode'] == 0
+    assert outcome['gpu_accelerated'] is True
+    assert outcome['converged'] is False
+
+
+def test_run_neb_accepts_converged_force_error_table():
+    """The normal ``error (eV/A)`` heading is not a QE fatal error."""
+    from pipeline.validation.qe_workflows import QEExecutionConfig, run_neb
+    from unittest.mock import patch
+
+    completed = __import__('subprocess').CompletedProcess([], 0)
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        input_path = root / 'candidate.neb.in'
+        output_path = root / 'candidate.neb.out'
+        input_path.write_text(
+            "&PATH num_of_images=2 /\n&CONTROL prefix='candidate' /\n")
+        for index in (1, 2):
+            child = root / 'tmp' / f'candidate_{index}' / 'PW.out'
+            child.parent.mkdir(parents=True)
+            child.write_text('GPU acceleration is ACTIVE.\n')
+
+        def converged_path(_command, *, stdout, **_kwargs):
+            stdout.write(
+                'image energy (eV) error (eV/A) frozen\n'
+                'neb: convergence achieved in 9 iterations\nJOB DONE.\n')
+            return completed
+
+        with patch(
+                'pipeline.validation.qe_workflows.resolve_qe_executable',
+                return_value='/qe/neb.x'), patch(
+                'pipeline.validation.qe_workflows.build_qe_command',
+                return_value=['/qe/neb.x']), patch(
+                'pipeline.validation.qe_workflows.subprocess.run',
+                side_effect=converged_path):
+            outcome = run_neb(
+                str(input_path), str(output_path),
+                execution=QEExecutionConfig())
+    assert outcome['returncode'] == 0
+    assert outcome['gpu_accelerated'] is True
+    assert outcome['converged'] is True
+
+
+def test_run_neb_enforces_restart_bound_in_checkpoint_and_provenance():
+    """A bounded restart must constrain QE's authoritative ``*.path`` file."""
+    from pipeline.validation.qe_workflows import QEExecutionConfig, run_neb
+    from unittest.mock import patch
+
+    completed = __import__('subprocess').CompletedProcess([], 1)
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        input_path = root / 'candidate.neb.in'
+        output_path = root / 'candidate.neb.out'
+        checkpoint = root / 'candidate.path'
+        input_path.write_text(
+            "&PATH restart_mode='restart', num_of_images=2, "
+            "nstep_path=36 /\n&CONTROL prefix='candidate' /\n")
+        checkpoint.write_text(
+            'RESTART INFORMATION\n      33\n     250\n       0\n'
+            'NUMBER OF IMAGES\n  2\n')
+
+        def reaches_bound(_command, *, stdout, **_kwargs):
+            assert checkpoint.read_text().splitlines()[2].strip() == '36'
+            stdout.write('neb: reached the maximum number of steps\nJOB DONE.\n')
+            return completed
+
+        with patch(
+                'pipeline.validation.qe_workflows.resolve_qe_executable',
+                return_value='/qe/neb.x'), patch(
+                'pipeline.validation.qe_workflows.build_qe_command',
+                return_value=['/qe/neb.x']), patch(
+                'pipeline.validation.qe_workflows.subprocess.run',
+                side_effect=reaches_bound):
+            outcome = run_neb(
+                str(input_path), str(output_path),
+                execution=QEExecutionConfig(),
+                restart_checkpoint=checkpoint, final_iteration=36)
+        recorded = __import__('json').loads(
+            Path(f'{output_path}.restart_bound.json').read_text())
+    assert outcome['converged'] is False
+    assert outcome['restart_bound']['old_limit'] == 250
+    assert outcome['restart_bound']['new_limit'] == 36
+    assert recorded == outcome['restart_bound']
+
+
+def test_run_neb_rejects_restart_bound_not_matching_input():
+    """Never launch when input and authoritative checkpoint limits differ."""
+    from pipeline.validation.qe_workflows import run_neb
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        input_path = root / 'candidate.neb.in'
+        checkpoint = root / 'candidate.path'
+        input_path.write_text(
+            "&PATH restart_mode='restart', nstep_path=40 /\n")
+        checkpoint.write_text(
+            'RESTART INFORMATION\n      33\n     250\n       0\n')
+        try:
+            run_neb(
+                str(input_path), str(root / 'candidate.neb.out'),
+                restart_checkpoint=checkpoint, final_iteration=36)
+        except ValueError as exc:
+            assert 'must match' in str(exc)
+        else:
+            raise AssertionError('mismatched NEB restart limit was launched')
+
+
+def test_run_neb_timeout_restores_last_accepted_restart_checkpoint():
+    """A killed NEB writer must not leave a truncated path as restart truth."""
+    from pipeline.validation.qe_workflows import QEExecutionConfig, run_neb
+    from unittest.mock import patch
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        input_path = root / 'candidate.neb.in'
+        output_path = root / 'candidate.neb.out'
+        checkpoint = root / 'candidate.path'
+        input_path.write_text(
+            "&PATH restart_mode='restart', num_of_images=2, "
+            "nstep_path=36 /\n&CONTROL prefix='candidate' /\n")
+        accepted = (
+            'RESTART INFORMATION\n      33\n     250\n       0\n'
+            'NUMBER OF IMAGES\n  2\n')
+        checkpoint.write_text(accepted)
+
+        def truncated_timeout(_command, *, stdout, **_kwargs):
+            checkpoint.write_text('RESTART INFORMATION\n      33\n')
+            stdout.write('interrupted while writing path\n')
+            raise __import__('subprocess').TimeoutExpired(_command, 1)
+
+        with patch(
+                'pipeline.validation.qe_workflows.resolve_qe_executable',
+                return_value='/qe/neb.x'), patch(
+                'pipeline.validation.qe_workflows.build_qe_command',
+                return_value=['/qe/neb.x']), patch(
+                'pipeline.validation.qe_workflows.subprocess.run',
+                side_effect=truncated_timeout):
+            outcome = run_neb(
+                str(input_path), str(output_path), timeout_s=1,
+                execution=QEExecutionConfig(),
+                restart_checkpoint=checkpoint, final_iteration=36)
+
+        assert outcome['timed_out'] is True
+        assert outcome['checkpoint_restored'] is True
+        assert checkpoint.read_text() == accepted
+
+
+def test_run_neb_interrupt_replaces_stale_provenance_and_restores_checkpoint():
+    """An operator stop must be recorded and cannot retain a prior sidecar."""
+    from pipeline.validation.qe_workflows import QEExecutionConfig, run_neb
+    from unittest.mock import patch
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        input_path = root / 'candidate.neb.in'
+        output_path = root / 'candidate.neb.out'
+        checkpoint = root / 'candidate.path'
+        input_path.write_text(
+            "&PATH restart_mode='restart', num_of_images=2, "
+            "nstep_path=36 /\n&CONTROL prefix='candidate' /\n")
+        accepted = (
+            'RESTART INFORMATION\n      33\n     250\n       0\n'
+            'NUMBER OF IMAGES\n  2\n')
+        checkpoint.write_text(accepted)
+        stale_sidecar = Path(f'{output_path}.execution.json')
+        stale_sidecar.write_text('{"input_sha256": "stale"}')
+
+        def operator_interrupt(_command, *, stdout, **_kwargs):
+            checkpoint.write_text('RESTART INFORMATION\n      33\n')
+            stdout.write('operator interrupted calculation\n')
+            raise KeyboardInterrupt
+
+        with patch(
+                'pipeline.validation.qe_workflows.resolve_qe_executable',
+                return_value='/qe/neb.x'), patch(
+                'pipeline.validation.qe_workflows.build_qe_command',
+                return_value=['/qe/neb.x']), patch(
+                'pipeline.validation.qe_workflows.subprocess.run',
+                side_effect=operator_interrupt):
+            try:
+                run_neb(
+                    str(input_path), str(output_path),
+                    execution=QEExecutionConfig(),
+                    restart_checkpoint=checkpoint, final_iteration=36)
+            except KeyboardInterrupt:
+                pass
+            else:
+                raise AssertionError('operator interrupt was not propagated')
+
+        record = __import__('json').loads(stale_sidecar.read_text())
+        expected_hash = __import__('hashlib').sha256(
+            input_path.read_bytes()).hexdigest()
+        assert checkpoint.read_text() == accepted
+        assert record['input_sha256'] == expected_hash
+        assert record['interrupted'] is True
+        assert record['timed_out'] is False
+        assert record['checkpoint_restored'] is True
 
 
 def test_pyrolysis_manifest_preserves_unresolved_steps_and_validated_identity():
@@ -1247,6 +2141,30 @@ def test_partial_hessian_recovers_one_transition_mode():
     assert result['imaginary_count'] == 1
     assert result['valid_transition_state']
     assert sum(x < 0 for x in result['frequencies_cm1']) == 1
+
+
+def test_partial_hessian_requires_imaginary_mode_to_follow_reaction_direction():
+    from pipeline.validation.qe_workflows import partial_hessian
+
+    displacement = 0.01
+    hessian = np.diag([-1.0, 2.0, 3.0])
+    difference = -2 * displacement * hessian.T
+    plus = (difference / 2).reshape(3, 1, 3)
+    minus = (-difference / 2).reshape(3, 1, 3)
+
+    aligned = partial_hessian(
+        plus, minus, displacement, np.array([1.0]),
+        reaction_direction=np.array([[1.0, 0.0, 0.0]]))
+    assert aligned['valid_transition_state']
+    assert aligned['reaction_mode_valid']
+    assert np.isclose(aligned['reaction_mode_overlap'], 1.0)
+
+    orthogonal = partial_hessian(
+        plus, minus, displacement, np.array([1.0]),
+        reaction_direction=np.array([[0.0, 1.0, 0.0]]))
+    assert not orthogonal['valid_transition_state']
+    assert not orthogonal['reaction_mode_valid']
+    assert np.isclose(orthogonal['reaction_mode_overlap'], 0.0)
 
 
 def _pauli_matrix(pauli_string):

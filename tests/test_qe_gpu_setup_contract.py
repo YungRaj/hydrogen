@@ -81,6 +81,47 @@ def test_executable_resolution_preserves_multicall_symlink_name():
         assert resolve_executable(str(launcher)) == str(launcher.absolute())
 
 
+def test_neb_gpu_evidence_requires_every_child_image_log():
+    import tempfile
+
+    from pipeline.validation.qe_workflows import neb_gpu_accelerated
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        input_path = root / 'candidate.neb.in'
+        output_path = root / 'candidate.neb.out'
+        input_path.write_text(
+            "&PATH num_of_images=3 /\n&CONTROL prefix='candidate' /\n")
+        output_path.write_text('NEB parent output without a GPU banner\n')
+        for index in range(1, 4):
+            child = root / 'tmp' / f'candidate_{index}' / 'PW.out'
+            child.parent.mkdir(parents=True)
+            child.write_text('GPU acceleration is ACTIVE.\n')
+        assert neb_gpu_accelerated(input_path, output_path)
+        (root / 'tmp/candidate_2/PW.out').write_text('CPU-only output\n')
+        assert not neb_gpu_accelerated(input_path, output_path)
+
+
+def test_single_rank_qe_still_uses_matching_mpi_launcher():
+    import os
+    import tempfile
+    from unittest.mock import patch
+
+    from pipeline.validation.qe_workflows import (
+        QEExecutionConfig, build_qe_command)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        pw, mpi = root / 'pw.x', root / 'mpirun'
+        for executable in (pw, mpi):
+            executable.write_text('#!/bin/sh\nexit 0\n')
+            executable.chmod(0o755)
+        with patch.dict(os.environ, {'PW_X': str(pw), 'MPIEXEC': str(mpi)}):
+            command = build_qe_command(
+                'pw.x', str(root / 'input.in'), QEExecutionConfig())
+    assert command[:3] == [str(mpi), '-np', '1']
+
+
 def main():
     tests = (
         test_qe_gpu_installer_is_blackwell_pinned_and_fail_closed,
@@ -88,6 +129,8 @@ def main():
         test_production_qe_execution_requires_gpu_by_default,
         test_qe_resolution_rejects_path_and_requires_activation,
         test_executable_resolution_preserves_multicall_symlink_name,
+        test_neb_gpu_evidence_requires_every_child_image_log,
+        test_single_rank_qe_still_uses_matching_mpi_launcher,
     )
     for test in tests:
         test()
