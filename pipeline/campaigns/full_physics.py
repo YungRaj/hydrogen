@@ -6,6 +6,8 @@ from dataclasses import dataclass
 import math
 from typing import Iterable
 
+from pipeline.data_models.multifidelity import FullPhysicsSelection
+
 
 @dataclass(frozen=True)
 class FullPhysicsRequest:
@@ -45,7 +47,7 @@ class FullPhysicsRequest:
 
 def schedule_full_physics_cases(
         requests: Iterable[FullPhysicsRequest], *, total_budget: int,
-        minimum_per_region: int = 1) -> list[dict]:
+        minimum_per_region: int = 1) -> list[FullPhysicsSelection]:
     """Reserve regional coverage, then allocate remaining budget by priority.
 
     Args:

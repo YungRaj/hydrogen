@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 import json
-from typing import Callable, Iterable, Mapping
+from typing import Callable, Iterable, Mapping, cast
 
 from pipeline.campaigns.ledger import CampaignLedger
 from pipeline.campaigns.full_physics import (
@@ -14,17 +14,20 @@ from pipeline.simulation.external_runner import run_backend
 from pipeline.transport.registry import TransportModelRegistry
 from pipeline.transport.training import CaseArtifactReference
 from pipeline.transport.training import train_and_publish_transport_model
+from pipeline.data_models.multifidelity import (
+    DesignedCase, MultiFidelityIterationResult, ScreeningDecision,
+    ScreeningQuery)
 
 
 @dataclass(frozen=True)
 class MultiFidelityCampaignServices:
     """All stateful or scientific operations required by the controller."""
 
-    execute_case: Callable[[Mapping], CaseArtifactReference]
+    execute_case: Callable[[DesignedCase], CaseArtifactReference]
     train_and_publish: Callable[[list[CaseArtifactReference]], Mapping]
     load_published_model: Callable[[str, str], object]
     append_lineage: Callable[[str, Mapping], object]
-    schedule_referrals: Callable[..., list[dict]] = schedule_full_physics_cases
+    schedule_referrals: Callable[..., list] = schedule_full_physics_cases
 
 
 def default_campaign_services(
@@ -53,7 +56,7 @@ def default_campaign_services(
     registry = TransportModelRegistry(registry_dir)
     ledger = CampaignLedger(ledger_path)
 
-    def execute(plan: Mapping) -> CaseArtifactReference:
+    def execute(plan: DesignedCase) -> CaseArtifactReference:
         required = {
             'candidate_id', 'pathway_mode', 'reactor_type', 'temperature_K',
             'case_dir', 'model_source', 'partition'}
@@ -106,10 +109,12 @@ def _mapping_sha256(value: Mapping) -> str:
 
 
 def run_multifidelity_iteration(
-        *, designed_cases: Iterable[Mapping], screening_queries: Iterable[Mapping],
+        *, designed_cases: Iterable[DesignedCase],
+        screening_queries: Iterable[ScreeningQuery],
         services: MultiFidelityCampaignServices, referral_budget: int,
         minimum_per_region: int = 1,
-        prior_references: Iterable[CaseArtifactReference] = ()) -> dict:
+        prior_references: Iterable[CaseArtifactReference] = ()
+        ) -> MultiFidelityIterationResult:
     """Execute, train, screen, refer, and record one fail-closed iteration.
 
     Args:
@@ -169,9 +174,9 @@ def run_multifidelity_iteration(
             raise ValueError('screening query identities must be unique')
         query_ids.add(query_id)
         prediction = model.predict(query.get('features', {}))
-        decision = {
+        decision = cast(ScreeningDecision, {
             'query_id': query_id, 'region': region,
-            'input_sha256': _mapping_sha256(query), **prediction}
+            'input_sha256': _mapping_sha256(query), **prediction})
         decisions.append(decision)
         if prediction.get('usable') is True:
             accepted.append(decision)
@@ -206,4 +211,5 @@ def run_multifidelity_iteration(
     }
     event = services.append_lineage('multifidelity_iteration_complete', summary)
     event_hash = event.get('event_sha256') if isinstance(event, Mapping) else None
-    return {**summary, 'lineage_event_sha256': event_hash}
+    return cast(MultiFidelityIterationResult, {
+        **summary, 'lineage_event_sha256': event_hash})

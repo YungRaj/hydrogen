@@ -10,6 +10,8 @@ from typing import Mapping, Sequence
 
 import numpy as np
 
+from pipeline.data_models.multifidelity import DesignedCase, RepresentativeCase
+
 
 @dataclass(frozen=True)
 class ParameterRange:
@@ -60,7 +62,7 @@ def design_representative_cases(
         *, pathway_mode: str, reactor_type: str,
         ranges: Mapping[str, ParameterRange], sample_count: int,
         anchors: Sequence[Mapping[str, float]] = (), random_seed: int = 0
-        ) -> list[dict]:
+        ) -> list[RepresentativeCase]:
     """Generate a Latin-hypercube design plus explicit regime anchors.
 
         Every sampled dimension occupies every one of ``sample_count`` strata once.
@@ -119,7 +121,8 @@ def design_representative_cases(
 
 
 def assign_case_partitions(cases: Sequence[Mapping], *, validation_count: int,
-                           partition_seed: str = 'hydrogen-v1') -> list[dict]:
+                           partition_seed: str = 'hydrogen-v1'
+                           ) -> list[DesignedCase]:
     """Preassign an exact blind holdout without inspecting solver outcomes.
 
     Args:

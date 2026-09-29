@@ -203,6 +203,33 @@ def test_discovery_reactor_and_solver_artifacts_have_named_contracts():
     }
 
 
+def test_multifidelity_plans_queries_and_decisions_are_explicit():
+    """Active-learning control flow must expose stable, named record shapes."""
+    from typing import get_type_hints
+
+    from pipeline.campaigns.full_physics import schedule_full_physics_cases
+    from pipeline.campaigns.multifidelity import run_multifidelity_iteration
+    from pipeline.data_models.multifidelity import (
+        DesignedCase, FullPhysicsSelection, MultiFidelityIterationResult,
+        RepresentativeCase, ScreeningDecision, ScreeningQuery)
+    from pipeline.transport.representative_cases import (
+        assign_case_partitions, design_representative_cases)
+
+    assert get_type_hints(schedule_full_physics_cases)['return'] == \
+        list[FullPhysicsSelection]
+    assert get_type_hints(run_multifidelity_iteration)['return'] is \
+        MultiFidelityIterationResult
+    assert get_type_hints(design_representative_cases)['return'] == \
+        list[RepresentativeCase]
+    assert get_type_hints(assign_case_partitions)['return'] == list[DesignedCase]
+    assert {'case_id', 'partition'} <= DesignedCase.__required_keys__
+    assert {'query_id', 'region', 'features'} == ScreeningQuery.__required_keys__
+    assert {'query_id', 'region', 'input_sha256'} <= \
+        ScreeningDecision.__required_keys__
+    assert {'screening_decisions', 'scheduled_referrals',
+            'lineage_event_sha256'} <= MultiFidelityIterationResult.__required_keys__
+
+
 def test_all_default_service_factories_produce_callable_boundaries():
     from pipeline.simulation.reactor_handoff import default_reactor_coupling_services
     from pipeline.simulation.external_runner import default_solver_execution_services

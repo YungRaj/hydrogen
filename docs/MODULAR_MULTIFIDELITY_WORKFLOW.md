@@ -161,6 +161,15 @@ Consumers must therefore observe `valid: true` before accessing an artifact,
 while rejected evidence always carries an explicit reason. These are static
 descriptions of the existing fail-closed JSON contracts, not new solver logic.
 
+The active-learning controller no longer presents its most important inputs as
+anonymous mappings. `RepresentativeCase` and `DesignedCase` distinguish a
+sampled point from an executable case with a preassigned train/validation
+partition. `ScreeningQuery`, `ScreeningDecision`, `FullPhysicsSelection`, and
+`MultiFidelityIterationResult` trace each query through inference, referral,
+budget allocation, and the hash-linked campaign ledger. The runtime values
+remain ordinary mappings so existing CLI, JSON, and injected test components
+remain compatible.
+
 External physical-case JSON remains backward compatible. The existing
 fail-closed identity, units, provenance, calibration, and physical checks run
 before the mapping is exposed internally as a `PhysicalCaseDocument`. Templates,
