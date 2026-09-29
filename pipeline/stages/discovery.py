@@ -26,6 +26,7 @@ class DiscoveryServices:
             (ADR 0001: encoded phase must be stable at the pyrolysis T
             band). Selection-only; the coverage denominator is untouched.
     """
+
     estimate_space: Callable
     build_config: Callable
     run_search: Callable
@@ -44,21 +45,35 @@ def default_discovery_services() -> DiscoveryServices:
     from pipeline.search.scope import scope_pyrolysis_pool
     from pipeline.search.design_space import estimate_design_space_size
     from pipeline.screening.genetic_optimizer import (
-        BranchDiscoveryConfig, run_branch_discovery)
+        BranchDiscoveryConfig,
+        run_branch_discovery,
+    )
     from pipeline.screening.stage_selection import (
-        annotate_evidence, select_for_reactor, select_for_validation)
+        annotate_evidence,
+        select_for_reactor,
+        select_for_validation,
+    )
+
     return DiscoveryServices(
-        estimate_design_space_size, BranchDiscoveryConfig,
-        run_branch_discovery, annotate_evidence,
-        select_for_reactor, select_for_validation,
-        select_admissible=scope_pyrolysis_pool)
+        estimate_design_space_size,
+        BranchDiscoveryConfig,
+        run_branch_discovery,
+        annotate_evidence,
+        select_for_reactor,
+        select_for_validation,
+        select_admissible=scope_pyrolysis_pool,
+    )
 
 
-def run_discovery_stage(*, initial_samples: int, leaf_size: int,
-                        max_leaves: int | None, top_k_reactor: int,
-                        top_k_dft: int,
-                        services: DiscoveryServices | None = None
-                        ) -> StageOutcome[DiscoveryState, DiscoveryProducts]:
+def run_discovery_stage(
+    *,
+    initial_samples: int,
+    leaf_size: int,
+    max_leaves: int | None,
+    top_k_reactor: int,
+    top_k_dft: int,
+    services: DiscoveryServices | None = None,
+) -> StageOutcome[DiscoveryState, DiscoveryProducts]:
     """Search, annotate, and route candidates through explicit dependencies.
 
     Args:
@@ -76,8 +91,10 @@ def run_discovery_stage(*, initial_samples: int, leaf_size: int,
     sizes = services.estimate_space()
     config = services.build_config(
         initial_fairchem_samples=initial_samples,
-        branch_leaf_size=leaf_size, branch_max_leaves=max_leaves,
-        expected_space_size=sizes['TOTAL'])
+        branch_leaf_size=leaf_size,
+        branch_max_leaves=max_leaves,
+        expected_space_size=sizes['TOTAL'],
+    )
     pareto, database = services.run_search(config)
     valid = database[database['valid'] == True].copy()
     evidence = services.annotate_evidence(database, 'E_act')
@@ -90,23 +107,27 @@ def run_discovery_stage(*, initial_samples: int, leaf_size: int,
     else:
         pool = database
         admissibility: AdmissibilitySummary = {'filter': None}
-    reactor = services.select_reactor(
-        pool, top_k_reactor, 'E_act', min_per_class=1)
-    validation = services.select_validation(
-        pool, top_k_dft, 'E_act', min_per_class=1)
+    reactor = services.select_reactor(pool, top_k_reactor, 'E_act', min_per_class=1)
+    validation = services.select_validation(pool, top_k_dft, 'E_act', min_per_class=1)
     state: DiscoveryState = {
-        'pareto_size': len(pareto), 'total_evaluated': len(database),
-        'valid_count': len(valid), 'top_catalysts_count': len(reactor),
+        'pareto_size': len(pareto),
+        'total_evaluated': len(database),
+        'valid_count': len(valid),
+        'top_catalysts_count': len(reactor),
         'dft_resolution_count': len(validation),
         'admissibility': admissibility,
-        'candidate_dispositions': evidence[
-            'candidate_disposition'].value_counts().to_dict(),
+        'candidate_dispositions': evidence['candidate_disposition']
+        .value_counts()
+        .to_dict(),
     }
     if len(valid) > 0 and 'E_act' in valid.columns:
         state['best_E_act'] = float(valid['E_act'].min())
         state['best_coking'] = float(valid['coking_index'].max())
     products: DiscoveryProducts = {
-        'design_space_sizes': sizes, 'pareto_genomes': pareto,
-        'screening_database': database, 'top_catalysts': reactor,
-        'dft_candidates': validation}
+        'design_space_sizes': sizes,
+        'pareto_genomes': pareto,
+        'screening_database': database,
+        'top_catalysts': reactor,
+        'dft_candidates': validation,
+    }
     return StageOutcome(state=state, products=products)

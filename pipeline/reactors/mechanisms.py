@@ -21,7 +21,10 @@ from typing import Any, Mapping, Optional
 import numpy as np
 
 from pipeline.utils import (
-    eV_to_J, MECHANISMS_DIR, repo_relative, setup_logger,
+    eV_to_J,
+    MECHANISMS_DIR,
+    repo_relative,
+    setup_logger,
 )
 
 logger = setup_logger('reactor_mechanisms', 'reactor/mechanism_generation.log')
@@ -73,8 +76,9 @@ class CandidateKinetics:
     sources: Mapping[str, str] = field(default_factory=dict)
 
     @classmethod
-    def from_screening_row(cls, row, candidate_id: str = 'unknown',
-                           validation: Optional[Mapping] = None):
+    def from_screening_row(
+        cls, row, candidate_id: str = 'unknown', validation: Optional[Mapping] = None
+    ):
         """Build kinetics from screening and optional converged NEB evidence.
 
         Validation values replace templates only when the candidate identity
@@ -88,6 +92,7 @@ class CandidateKinetics:
         Returns:
             A ``CandidateKinetics`` with per-field provenance in ``sources``.
         """
+
         def finite(name):
             value = row.get(name)
             try:
@@ -114,26 +119,34 @@ class CandidateKinetics:
         genome = parse_catalyst_genome(row.get('genome'))
         material_class = row.get('material_class')
         if material_class is None or (
-                isinstance(material_class, float) and not np.isfinite(material_class)):
+            isinstance(material_class, float) and not np.isfinite(material_class)
+        ):
             material_class = genome[0] if genome else None
         elif material_class is not None:
             material_class = str(material_class)
         if validation is not None:
             if str(validation.get('candidate_id')) != str(candidate_id):
                 raise ValueError('kinetics validation candidate_id mismatch')
-            if not validation.get('complete') or validation.get(
-                    'evidence_level') != 'converged_dft_neb_frequency':
+            if (
+                not validation.get('complete')
+                or validation.get('evidence_level') != 'converged_dft_neb_frequency'
+            ):
                 raise ValueError('kinetics validation campaign is incomplete')
             resolved = validation.get('resolved_kinetics_eV', {})
             allowed = {
-                'methane_activation_eV', 'ch3_dehydrogenation_eV',
-                'ch2_dehydrogenation_eV', 'ch_dehydrogenation_eV',
-                'h2_desorption_eV', 'carbon_transfer_eV',
+                'methane_activation_eV',
+                'ch3_dehydrogenation_eV',
+                'ch2_dehydrogenation_eV',
+                'ch_dehydrogenation_eV',
+                'h2_desorption_eV',
+                'carbon_transfer_eV',
                 'carbon_encapsulation_eV',
             }
             unknown = set(resolved) - allowed
             if unknown:
-                raise ValueError(f'unknown validated kinetics fields: {sorted(unknown)}')
+                raise ValueError(
+                    f'unknown validated kinetics fields: {sorted(unknown)}'
+                )
             for name, raw_value in resolved.items():
                 value = float(raw_value)
                 if not np.isfinite(value) or value < 0:
@@ -143,9 +156,15 @@ class CandidateKinetics:
                 else:
                     values[name] = value
                 sources[name] = 'candidate_specific:converged_dft_neb_frequency'
-        return cls(methane_activation_eV=barrier, candidate_id=candidate_id,
-                   screening_protocol=protocol, sources=sources,
-                   material_class=material_class, genome=genome, **values)
+        return cls(
+            methane_activation_eV=barrier,
+            candidate_id=candidate_id,
+            screening_protocol=protocol,
+            sources=sources,
+            material_class=material_class,
+            genome=genome,
+            **values,
+        )
 
     def resolved(self) -> dict:
         """Return numerical values plus whether each was observed or templated.
@@ -173,17 +192,20 @@ class CandidateKinetics:
                 provenance.setdefault(name, 'candidate_specific')
         if values['encapsulation_crossover_coverage'] is None:
             values['encapsulation_crossover_coverage'] = (
-                DEFAULT_ENCAPSULATION_CROSSOVER_COVERAGE)
+                DEFAULT_ENCAPSULATION_CROSSOVER_COVERAGE
+            )
             provenance['encapsulation_crossover_coverage'] = THETA_STAR_PROVENANCE
         else:
             provenance.setdefault(
-                'encapsulation_crossover_coverage', THETA_STAR_PROVENANCE)
+                'encapsulation_crossover_coverage', THETA_STAR_PROVENANCE
+            )
         particle_nm = values['carbon_transfer_particle_nm']
         if particle_nm is not None:
             if values['carbon_transfer_prefactor_1_s'] is not None:
                 raise ValueError(
                     'set carbon_transfer_particle_nm or '
-                    'carbon_transfer_prefactor_1_s, not both')
+                    'carbon_transfer_prefactor_1_s, not both'
+                )
             if not particle_nm > 0:
                 raise ValueError('carbon_transfer_particle_nm must be positive')
             d0 = values['carbon_diffusion_prefactor_m2_s']
@@ -191,22 +213,27 @@ class CandidateKinetics:
                 d0 = CARBON_DIFFUSION_PREFACTOR_M2_S
                 values['carbon_diffusion_prefactor_m2_s'] = d0
                 provenance['carbon_diffusion_prefactor_m2_s'] = (
-                    CARBON_DIFFUSION_PREFACTOR_PROVENANCE)
+                    CARBON_DIFFUSION_PREFACTOR_PROVENANCE
+                )
             elif not d0 > 0:
                 raise ValueError('carbon_diffusion_prefactor_m2_s must be positive')
             else:
                 provenance.setdefault(
-                    'carbon_diffusion_prefactor_m2_s', 'declared_not_measured')
+                    'carbon_diffusion_prefactor_m2_s', 'declared_not_measured'
+                )
             values['carbon_transfer_prefactor_1_s'] = (
-                carbon_transfer_prefactor_from_particle(particle_nm, d0))
+                carbon_transfer_prefactor_from_particle(particle_nm, d0)
+            )
             provenance['carbon_transfer_prefactor_1_s'] = (
-                f'derived: D0/L^2 with D0={d0:.3g} m^2/s, L={particle_nm:g} nm')
+                f'derived: D0/L^2 with D0={d0:.3g} m^2/s, L={particle_nm:g} nm'
+            )
         elif values['carbon_transfer_prefactor_1_s'] is None:
             values['carbon_transfer_prefactor_1_s'] = OFF_SITE_PREEXPONENTIAL_1_S
             provenance['carbon_transfer_prefactor_1_s'] = C_GAMMA_PREFACTOR_PROVENANCE
         else:
             provenance.setdefault(
-                'carbon_transfer_prefactor_1_s', 'declared_not_measured')
+                'carbon_transfer_prefactor_1_s', 'declared_not_measured'
+            )
         if values['ch4_sticking_coefficient'] is None:
             values['ch4_sticking_coefficient'] = DEFAULT_CH4_STICKING_COEFFICIENT
             provenance['ch4_sticking_coefficient'] = CH4_STICKING_PROVENANCE
@@ -221,9 +248,10 @@ class CandidateKinetics:
         if not off_site_carbon_allowed(self.genome, self.material_class):
             required.discard('carbon_encapsulation_eV')
         values['quantitative_status'] = (
-            'candidate_specific' if not any(
-                provenance.get(name) == 'template_default' for name in required)
-            else 'screening_template_incomplete')
+            'candidate_specific'
+            if not any(provenance.get(name) == 'template_default' for name in required)
+            else 'screening_template_incomplete'
+        )
         return values
 
 
@@ -234,15 +262,26 @@ MONOLAYER_SITE_DENSITY_MOL_CM2 = 2.5e-9
 
 # Baker / Helveg cycle needs an extended metal particle (B6-3).
 OFF_SITE_CARBON_METALS = frozenset({'Ni', 'Fe', 'Co'})
-OFF_SITE_CARBON_DENIED_CLASSES = frozenset({
-    'SAC', 'DAC', 'MetalFreeCarbon', 'MoltenMetal',
-    'MOF', 'COF', 'Perovskite', 'MetalHydride', 'MXene',
-    'MAXPhase', 'Spinel',
-})
+OFF_SITE_CARBON_DENIED_CLASSES = frozenset(
+    {
+        'SAC',
+        'DAC',
+        'MetalFreeCarbon',
+        'MoltenMetal',
+        'MOF',
+        'COF',
+        'Perovskite',
+        'MetalHydride',
+        'MXene',
+        'MAXPhase',
+        'Spinel',
+    }
+)
 C_GAMMA_PROVENANCE = 'template_default: Abild-Pedersen 2006 / Baker 1972'
 C_DELTA_PROVENANCE = (
     'template_default: Amin IEC Res 2011 50 12460; '
-    '147-149 kJ/mol encapsulating-carbon')
+    '147-149 kJ/mol encapsulating-carbon'
+)
 # Cδ is second order in θ_C (mean-field island nucleation; Snoeck
 # supersaturation picture). θ* is the coverage where k_δ θ_C² = k_γ θ_C at
 # equal barriers; A_δ = A_γ / θ*. With Ea_δ − Ea_γ = 0.03 eV the effective
@@ -253,7 +292,8 @@ C_DELTA_FORM = 'coverage_dependent_theta_C_squared'
 OFF_SITE_PREEXPONENTIAL_1_S = 1.0e13
 C_GAMMA_PREFACTOR_PROVENANCE = (
     'template_default: single-hop TST 1e13/s; transport+precipitation lump '
-    'is D0/L^2 and particle-size dependent; swept in B6-6')
+    'is D0/L^2 and particle-size dependent; swept in B6-6'
+)
 # B6-6: A_γ = D0 / L² from a particle diameter. Carbon bulk diffusion in
 # Ni (Lander, Kern & Beach 1952): D = 2.48 cm²/s · exp(−40.2 kcal/mol / RT),
 # i.e. D0 = 2.48e-4 m²/s with E ≈ 1.74 eV (close to carbon_transfer_eV
@@ -263,18 +303,21 @@ C_GAMMA_PREFACTOR_PROVENANCE = (
 CARBON_DIFFUSION_PREFACTOR_M2_S = 2.48e-4
 CARBON_DIFFUSION_PREFACTOR_PROVENANCE = (
     'template_default: Lander J.Appl.Phys. 1952 23 1305; '
-    'D0 = 2.48 cm^2/s (ln D = 0.909 - 20200/T)')
+    'D0 = 2.48 cm^2/s (ln D = 0.909 - 20200/T)'
+)
 # B6-6: CH4 dissociative sticking prefactor. Template order of magnitude
 # (Deutschmann-style methane_pox_on_pt uses 0.01 on Pt); Ni(111) molecular-
 # beam values span 1e-4 .. 1e-2 at these T. Sets the carbon arrival rate.
 DEFAULT_CH4_STICKING_COEFFICIENT = 0.01
 CH4_STICKING_PROVENANCE = (
     'template_default: s0 = 0.01 (methane_pox_on_pt order of magnitude); '
-    'swept in B6-6')
+    'swept in B6-6'
+)
 
 
-def carbon_transfer_prefactor_from_particle(particle_nm: float,
-                                            d0_m2_s: float) -> float:
+def carbon_transfer_prefactor_from_particle(
+    particle_nm: float, d0_m2_s: float
+) -> float:
     """A_γ = D0 / L² (1/s) for a metal particle of diameter ``particle_nm``.
 
     Args:
@@ -286,6 +329,7 @@ def carbon_transfer_prefactor_from_particle(particle_nm: float,
     length_m = float(particle_nm) * 1e-9
     return float(d0_m2_s) / (length_m * length_m)
 
+
 # Surface rate constants. Unimolecular surface steps (C_s => ...) take A in
 # 1/s. Bimolecular steps (X_s + site, 2 H_s) are mass-action in surface
 # concentrations (mol/cm^2), so A is in cm^2/mol/s and the TST prefactor is
@@ -296,8 +340,9 @@ SURFACE_TST_PREFACTOR_1_S = 1.0e13
 H2_DESORPTION_PREFACTOR_1_S = 5.0e13
 
 
-def bimolecular_surface_prefactor_cm2_mol_s(k_1_s: float,
-                                            site_density_mol_cm2: float) -> float:
+def bimolecular_surface_prefactor_cm2_mol_s(
+    k_1_s: float, site_density_mol_cm2: float
+) -> float:
     """Convert a first-order site rate into Cantera surface-reaction units.
 
     Args:
@@ -308,6 +353,7 @@ def bimolecular_surface_prefactor_cm2_mol_s(k_1_s: float,
         Validated float output for this operation.
     """
     return float(k_1_s) / float(site_density_mol_cm2)
+
 
 # Surface species enthalpies must sit on Cantera's absolute scale, where the
 # elements' standard states (H2, graphite) are zero. The screener reports
@@ -357,7 +403,9 @@ def parse_catalyst_genome(raw: Any) -> Optional[tuple]:
     return None
 
 
-def _nanoparticle_metals(genome: Optional[tuple], material_class: Optional[str]) -> frozenset:
+def _nanoparticle_metals(
+    genome: Optional[tuple], material_class: Optional[str]
+) -> frozenset:
     if not genome:
         return frozenset()
     cls = material_class or genome[0]
@@ -373,7 +421,9 @@ def _nanoparticle_metals(genome: Optional[tuple], material_class: Optional[str])
     return frozenset()
 
 
-def off_site_carbon_allowed(genome: Any = None, material_class: Optional[str] = None) -> bool:
+def off_site_carbon_allowed(
+    genome: Any = None, material_class: Optional[str] = None
+) -> bool:
     """True only for nanoparticle Ni/Fe/Co (SolidCatalyst / HEA / SAA host).
 
     Args:
@@ -400,6 +450,7 @@ def _jsonable(obj: Any) -> Any:
     if isinstance(obj, list):
         return [_jsonable(x) for x in obj]
     return obj
+
 
 # NASA-7 graphite (C(gr)) from Cantera's graphite.yaml / NASA thermo.
 _GRAPHITE_SPECIES_YAML = """\
@@ -525,15 +576,18 @@ reactions:
     return filepath
 
 
-def write_full_mechanism(catalyst_name: str, E_act_CH4: float = None,
-                          E_act_H_desorb: float = 0.8,
-                          E_act_C_diffuse: float = 1.5,
-                          site_density: float = MONOLAYER_SITE_DENSITY_MOL_CM2,
-                          T_ref: float = 1000.0,
-                          include_surface_sites: bool = True,
-                          kinetics: CandidateKinetics = None,
-                          off_site_carbon: Optional[bool] = None,
-                          output_dir: Optional[Path] = None) -> Path:
+def write_full_mechanism(
+    catalyst_name: str,
+    E_act_CH4: float = None,
+    E_act_H_desorb: float = 0.8,
+    E_act_C_diffuse: float = 1.5,
+    site_density: float = MONOLAYER_SITE_DENSITY_MOL_CM2,
+    T_ref: float = 1000.0,
+    include_surface_sites: bool = True,
+    kinetics: CandidateKinetics = None,
+    off_site_carbon: Optional[bool] = None,
+    output_dir: Optional[Path] = None,
+) -> Path:
     """
     Write a Cantera mechanism (gas + condensed graphite + optional surface).
 
@@ -570,18 +624,20 @@ def write_full_mechanism(catalyst_name: str, E_act_CH4: float = None,
             h2_desorption_eV=float(E_act_H_desorb),
             carbon_transfer_eV=float(E_act_C_diffuse),
             site_density_mol_cm2=float(site_density),
-            sources={'methane_activation_eV': 'legacy_argument',
-                     'h2_desorption_eV': 'legacy_argument',
-                     'carbon_transfer_eV': 'legacy_argument'})
-    allowed = off_site_carbon_allowed(
-        kinetics.genome, kinetics.material_class)
+            sources={
+                'methane_activation_eV': 'legacy_argument',
+                'h2_desorption_eV': 'legacy_argument',
+                'carbon_transfer_eV': 'legacy_argument',
+            },
+        )
+    allowed = off_site_carbon_allowed(kinetics.genome, kinetics.material_class)
     if off_site_carbon is True and not allowed:
         raise ValueError(
             'off-site carbon is nanoparticle Ni/Fe/Co only '
-            '(SolidCatalyst / HEA / SAA host); not SAC/DAC/cat_9')
-    include_off_site = (
-        include_surface_sites
-        and (allowed if off_site_carbon is None else bool(off_site_carbon) and allowed)
+            '(SolidCatalyst / HEA / SAA host); not SAC/DAC/cat_9'
+        )
+    include_off_site = include_surface_sites and (
+        allowed if off_site_carbon is None else bool(off_site_carbon) and allowed
     )
     values = kinetics.resolved()
     site_density = float(values['site_density_mol_cm2'])
@@ -589,7 +645,8 @@ def write_full_mechanism(catalyst_name: str, E_act_CH4: float = None,
         raise ValueError(
             f'site_density={site_density} mol/cm^2; B1 locks Γ at '
             f'{MONOLAYER_SITE_DENSITY_MOL_CM2} mol/cm^2 '
-            '(raise particle S/V, loading, or dispersion instead)')
+            '(raise particle S/V, loading, or dispersion instead)'
+        )
 
     # Convert eV → J/mol. Adsorption energies alter surface enthalpies
     # but are not used as activation barriers.
@@ -603,28 +660,39 @@ def write_full_mechanism(catalyst_name: str, E_act_CH4: float = None,
     theta_star = float(values['encapsulation_crossover_coverage'])
     if not 0.0 < theta_star <= 1.0:
         raise ValueError(
-            f'encapsulation_crossover_coverage={theta_star} must be in (0, 1]')
+            f'encapsulation_crossover_coverage={theta_star} must be in (0, 1]'
+        )
     A_Cgamma = float(values['carbon_transfer_prefactor_1_s'])
     if A_Cgamma <= 0:
         raise ValueError('carbon_transfer_prefactor_1_s must be positive')
     A_Cdelta = A_Cgamma / theta_star
     s0_ch4 = float(values['ch4_sticking_coefficient'])
     if not 0.0 < s0_ch4 <= 1.0:
-        raise ValueError(
-            f'ch4_sticking_coefficient={s0_ch4} must be in (0, 1]')
+        raise ValueError(f'ch4_sticking_coefficient={s0_ch4} must be in (0, 1]')
     A_bimol = bimolecular_surface_prefactor_cm2_mol_s(
-        SURFACE_TST_PREFACTOR_1_S, site_density)
+        SURFACE_TST_PREFACTOR_1_S, site_density
+    )
     A_h2_des = bimolecular_surface_prefactor_cm2_mol_s(
-        H2_DESORPTION_PREFACTOR_1_S, site_density)
+        H2_DESORPTION_PREFACTOR_1_S, site_density
+    )
     # Adsorption energies → absolute surface enthalpies (see
     # SURFACE_THERMO_REFERENCE). Template h0 values apply when the screener
     # gave no adsorption energy; they are diagnostic, not candidate data.
-    h0_h = (values['h_adsorption_eV'] * EV_TO_J_MOL
-            if values['h_adsorption_eV'] is not None else -25000.0)
-    h0_ch3 = (values['ch3_adsorption_eV'] * EV_TO_J_MOL + H_F_CH3_RADICAL_J_MOL
-              if values['ch3_adsorption_eV'] is not None else -20000.0)
-    h0_c = (values['c_adsorption_eV'] * EV_TO_J_MOL + H_F_CH4_J_MOL
-            if values['c_adsorption_eV'] is not None else -40000.0)
+    h0_h = (
+        values['h_adsorption_eV'] * EV_TO_J_MOL
+        if values['h_adsorption_eV'] is not None
+        else -25000.0
+    )
+    h0_ch3 = (
+        values['ch3_adsorption_eV'] * EV_TO_J_MOL + H_F_CH3_RADICAL_J_MOL
+        if values['ch3_adsorption_eV'] is not None
+        else -20000.0
+    )
+    h0_c = (
+        values['c_adsorption_eV'] * EV_TO_J_MOL + H_F_CH4_J_MOL
+        if values['c_adsorption_eV'] is not None
+        else -40000.0
+    )
     # CH2_s / CH_s have no screening descriptor: interpolate the
     # dehydrogenation ladder between CH3_s and C_s on the same scale.
     h0_ch2 = h0_ch3 + (h0_c - h0_ch3) / 3.0
@@ -634,8 +702,8 @@ def write_full_mechanism(catalyst_name: str, E_act_CH4: float = None,
     if include_surface_sites:
         surf_species = (
             '[site, CH3_s, CH2_s, CH_s, H_s, C_s, C_encap_s]'
-            if include_off_site else
-            '[site, CH3_s, CH2_s, CH_s, H_s, C_s]'
+            if include_off_site
+            else '[site, CH3_s, CH2_s, CH_s, H_s, C_s]'
         )
         adjacent = '[gas, graphite]' if include_off_site else '[gas]'
         phases_and_surface = f"""\
@@ -790,64 +858,98 @@ reactions:
     sidecar = filepath.with_suffix('.kinetics.json')
     carbon_model = (
         'condensed_graphite_plus_surface_C_s_off_site_Cgamma_Cdelta'
-        if include_off_site else
-        'condensed_graphite_plus_surface_C_s'
+        if include_off_site
+        else 'condensed_graphite_plus_surface_C_s'
     )
-    sidecar.write_text(json.dumps(_jsonable({
-        'schema_version': 1,
-        'catalyst_name': catalyst_name,
-        'mechanism_file': repo_relative(filepath),
-        'inputs': values,
-        'carbon_phase_model': carbon_model,
-        'surface_thermo_reference': SURFACE_THERMO_REFERENCE,
-        'surface_prefactors': ({
-            'bimolecular_cm2_mol_s': A_bimol,
-            'h2_desorption_cm2_mol_s': A_h2_des,
-            'basis': 'k_TST(1/s) / site_density(mol/cm^2)',
-            'ch4_sticking_coefficient': s0_ch4,
-            'ch4_sticking_source': values['provenance'].get(
-                'ch4_sticking_coefficient', CH4_STICKING_PROVENANCE),
-        } if include_surface_sites else {}),
-        'surface_enthalpies_J_mol': ({
-            'H_s': h0_h, 'CH3_s': h0_ch3, 'CH2_s': h0_ch2,
-            'CH_s': h0_ch, 'C_s': h0_c,
-        } if include_surface_sites else {}),
-        'off_site_carbon': include_off_site,
-        'coking_index_mapped_to_off_site': False,
-        'off_site_channels': ({
-            'C_gamma': {
-                'equation': 'C_s => C(gr) + site',
-                'barrier_eV': float(values['carbon_transfer_eV']),
-                'preexponential_1_s': A_Cgamma,
-                'preexponential_source': values['provenance'].get(
-                    'carbon_transfer_prefactor_1_s', C_GAMMA_PREFACTOR_PROVENANCE),
-                'particle_nm': values.get('carbon_transfer_particle_nm'),
-                'form': 'first_order_theta_C',
-                'kind': 'transport_to_edge',
-                'source': C_GAMMA_PROVENANCE,
-            },
-            'C_delta': {
-                'equation': 'C_s => C_encap_s',
-                'barrier_eV': float(values['carbon_encapsulation_eV']),
-                'preexponential_1_s': A_Cdelta,
-                'form': C_DELTA_FORM,
-                'crossover_coverage_theta_star': theta_star,
-                'crossover_coverage_source': values['provenance'].get(
-                    'encapsulation_crossover_coverage', THETA_STAR_PROVENANCE),
-                'effective_crossover_note': (
-                    'theta_x(T) = theta_star * exp((Ea_delta - Ea_gamma) / kT); '
-                    'C_gamma wins below theta_x, C_delta above'),
-                'kind': 'encapsulating',
-                'source': C_DELTA_PROVENANCE,
-            },
-        } if include_off_site else {}),
-    }), indent=2, sort_keys=True) + '\n', encoding='utf-8')
+    sidecar.write_text(
+        json.dumps(
+            _jsonable(
+                {
+                    'schema_version': 1,
+                    'catalyst_name': catalyst_name,
+                    'mechanism_file': repo_relative(filepath),
+                    'inputs': values,
+                    'carbon_phase_model': carbon_model,
+                    'surface_thermo_reference': SURFACE_THERMO_REFERENCE,
+                    'surface_prefactors': (
+                        {
+                            'bimolecular_cm2_mol_s': A_bimol,
+                            'h2_desorption_cm2_mol_s': A_h2_des,
+                            'basis': 'k_TST(1/s) / site_density(mol/cm^2)',
+                            'ch4_sticking_coefficient': s0_ch4,
+                            'ch4_sticking_source': values['provenance'].get(
+                                'ch4_sticking_coefficient', CH4_STICKING_PROVENANCE
+                            ),
+                        }
+                        if include_surface_sites
+                        else {}
+                    ),
+                    'surface_enthalpies_J_mol': (
+                        {
+                            'H_s': h0_h,
+                            'CH3_s': h0_ch3,
+                            'CH2_s': h0_ch2,
+                            'CH_s': h0_ch,
+                            'C_s': h0_c,
+                        }
+                        if include_surface_sites
+                        else {}
+                    ),
+                    'off_site_carbon': include_off_site,
+                    'coking_index_mapped_to_off_site': False,
+                    'off_site_channels': (
+                        {
+                            'C_gamma': {
+                                'equation': 'C_s => C(gr) + site',
+                                'barrier_eV': float(values['carbon_transfer_eV']),
+                                'preexponential_1_s': A_Cgamma,
+                                'preexponential_source': values['provenance'].get(
+                                    'carbon_transfer_prefactor_1_s',
+                                    C_GAMMA_PREFACTOR_PROVENANCE,
+                                ),
+                                'particle_nm': values.get(
+                                    'carbon_transfer_particle_nm'
+                                ),
+                                'form': 'first_order_theta_C',
+                                'kind': 'transport_to_edge',
+                                'source': C_GAMMA_PROVENANCE,
+                            },
+                            'C_delta': {
+                                'equation': 'C_s => C_encap_s',
+                                'barrier_eV': float(values['carbon_encapsulation_eV']),
+                                'preexponential_1_s': A_Cdelta,
+                                'form': C_DELTA_FORM,
+                                'crossover_coverage_theta_star': theta_star,
+                                'crossover_coverage_source': values['provenance'].get(
+                                    'encapsulation_crossover_coverage',
+                                    THETA_STAR_PROVENANCE,
+                                ),
+                                'effective_crossover_note': (
+                                    'theta_x(T) = theta_star * exp((Ea_delta - Ea_gamma) / kT); '
+                                    'C_gamma wins below theta_x, C_delta above'
+                                ),
+                                'kind': 'encapsulating',
+                                'source': C_DELTA_PROVENANCE,
+                            },
+                        }
+                        if include_off_site
+                        else {}
+                    ),
+                }
+            ),
+            indent=2,
+            sort_keys=True,
+        )
+        + '\n',
+        encoding='utf-8',
+    )
 
     logger.info(
         f"Wrote mechanism: {repo_relative(filepath)} "
         f"(E_act={E_act_CH4:.3f} eV, "
         f"off_site_carbon={include_off_site}, "
-        f"status={values['quantitative_status']})")
+        f"status={values['quantitative_status']})"
+    )
     return filepath
 
 

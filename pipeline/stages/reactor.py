@@ -9,7 +9,10 @@ from pipeline.utils import repo_relative
 from pipeline.reactors.modes import DEFAULT_MODE, resolve_pathway_mode
 from pipeline.reactors.eligibility import rankable_results, usable_results
 from pipeline.data_models.reactors import (
-    CandidateReactorResult, ReactorResult, ReactorSweepSummary)
+    CandidateReactorResult,
+    ReactorResult,
+    ReactorSweepSummary,
+)
 
 
 @dataclass(frozen=True)
@@ -28,18 +31,18 @@ def default_reactor_services() -> ReactorStageServices:
     Returns:
         Computed `ReactorStageServices` result.
     """
-    from pipeline.reactors.mechanisms import (
-        CandidateKinetics, write_full_mechanism)
+    from pipeline.reactors.mechanisms import CandidateKinetics, write_full_mechanism
     from pipeline.reactors.models import run_reactor_sweep
+
     return ReactorStageServices(
         resolve_mode=resolve_pathway_mode,
         build_kinetics=CandidateKinetics.from_screening_row,
         write_mechanism=write_full_mechanism,
-        run_sweep=run_reactor_sweep)
+        run_sweep=run_reactor_sweep,
+    )
 
 
-def summarize_reactor_sweep(
-        sweep: Sequence[ReactorResult]) -> ReactorSweepSummary:
+def summarize_reactor_sweep(sweep: Sequence[ReactorResult]) -> ReactorSweepSummary:
     """Summarize condition-level evidence without executing reactor software.
 
     Args:
@@ -57,35 +60,47 @@ def summarize_reactor_sweep(
     not_applicable = by_status.get('not_applicable', [])
     usable = usable_results(completed)
     rankable = rankable_results(usable)
-    best = max(rankable, key=lambda result: result['CH4_conversion']) \
-        if rankable else {}
+    best = (
+        max(rankable, key=lambda result: result['CH4_conversion']) if rankable else {}
+    )
     return {
         'best_condition': best,
         'sweep_status': (
-            'complete' if len(completed) == len(sweep) else
-            'partial' if completed else
-            'validation_required' if pending else
-            'not_applicable' if not_applicable else 'failed'),
+            'complete'
+            if len(completed) == len(sweep)
+            else (
+                'partial'
+                if completed
+                else (
+                    'validation_required'
+                    if pending
+                    else 'not_applicable' if not_applicable else 'failed'
+                )
+            )
+        ),
         'completed_conditions': len(completed),
         'usable_conditions': len(usable),
         'failed_conditions': len(failed),
         'pending_conditions': len(pending),
         'not_applicable_conditions': len(not_applicable),
         'unresolved_conditions': len(sweep) - len(completed),
-        'can_exclude_candidate': bool(completed) and not failed and all(
-            result.get('can_exclude_candidate', False) for result in completed),
+        'can_exclude_candidate': bool(completed)
+        and not failed
+        and all(result.get('can_exclude_candidate', False) for result in completed),
     }
 
 
-def simulate_candidate(row: Mapping, catalyst_name: str,
-                       temperatures: Sequence[float],
-                       reactor_types: Sequence[str] | None = None,
-                       forbid_mock: bool = True,
-                       kinetics_validation: Mapping | None = None,
-                       pathway_mode: str = DEFAULT_MODE,
-                       multiphysics_results_dir: str | None = None,
-                       services: ReactorStageServices | None = None
-                       ) -> CandidateReactorResult:
+def simulate_candidate(
+    row: Mapping,
+    catalyst_name: str,
+    temperatures: Sequence[float],
+    reactor_types: Sequence[str] | None = None,
+    forbid_mock: bool = True,
+    kinetics_validation: Mapping | None = None,
+    pathway_mode: str = DEFAULT_MODE,
+    multiphysics_results_dir: str | None = None,
+    services: ReactorStageServices | None = None,
+) -> CandidateReactorResult:
     """Build only the mechanism appropriate to the selected pathway and run it.
 
     Args:
@@ -108,7 +123,8 @@ def simulate_candidate(row: Mapping, catalyst_name: str,
     mechanism = None
     if not mode.requires_specialized_validation:
         kinetics = services.build_kinetics(
-            row, candidate_id=candidate_id, validation=kinetics_validation)
+            row, candidate_id=candidate_id, validation=kinetics_validation
+        )
         mechanism = services.write_mechanism(catalyst_name, kinetics=kinetics)
     barrier = float(row.get('E_act'))
     try:
@@ -124,12 +140,18 @@ def simulate_candidate(row: Mapping, catalyst_name: str,
         'regen_mechanism': 'mechanical',
     }
     sweep = services.run_sweep(
-        catalyst_name, str(mechanism or ''), temperatures=list(temperatures),
+        catalyst_name,
+        str(mechanism or ''),
+        temperatures=list(temperatures),
         reactor_types=None if reactor_types is None else list(reactor_types),
-        catalyst_E_act_eV=barrier, pathway_mode=pathway_mode,
-        material_class=row.get('material_class'), candidate_id=candidate_id,
+        catalyst_E_act_eV=barrier,
+        pathway_mode=pathway_mode,
+        material_class=row.get('material_class'),
+        candidate_id=candidate_id,
         multiphysics_results_dir=multiphysics_results_dir,
-        catalyst_dE_H_eV=dE_H, reactor_config_kwargs=carbon_policy)
+        catalyst_dE_H_eV=dE_H,
+        reactor_config_kwargs=carbon_policy,
+    )
     if forbid_mock and any(result.get('mock') for result in sweep):
         raise RuntimeError('mock reactor output is forbidden in production')
     summary = summarize_reactor_sweep(sweep)

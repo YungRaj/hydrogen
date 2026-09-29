@@ -29,11 +29,17 @@ def test_opt_ins_and_explicit_selection_are_deterministic():
 
     args = run_tests.parse_args(["--profile", "merge"])
     assert [suite.name for suite in run_tests.select_suites(args)] == [
-        "scientific", "modular-multiphysics", "coupling", "reactor-merge"]
+        "scientific",
+        "modular-multiphysics",
+        "coupling",
+        "reactor-merge",
+    ]
 
     args = run_tests.parse_args(["--suite", "coupling", "--suite", "pipeline"])
     assert [suite.name for suite in run_tests.select_suites(args)] == [
-        "pipeline", "coupling"]
+        "pipeline",
+        "coupling",
+    ]
 
 
 def test_environment_resolution_is_portable_and_fail_closed():
@@ -41,8 +47,14 @@ def test_environment_resolution_is_portable_and_fail_closed():
     command, error = run_tests.environment_command(suite, "/portable/conda")
     assert error is None
     assert command == [
-        "/portable/conda", "run", "--no-capture-output", "-n", "sample-env",
-        "python", "tests/sample.py"]
+        "/portable/conda",
+        "run",
+        "--no-capture-output",
+        "-n",
+        "sample-env",
+        "python",
+        "tests/sample.py",
+    ]
 
     with patch.dict("os.environ", {"CONDA_DEFAULT_ENV": "sample-env"}):
         command, error = run_tests.environment_command(suite, None)

@@ -7,15 +7,22 @@ from pathlib import Path
 from typing import Callable
 
 from pipeline.data_models.artifacts import (
-    ArtifactValidationResult, ExternalSolverArtifact)
+    ArtifactValidationResult,
+    ExternalSolverArtifact,
+)
 
 
 def persist_validated_artifact(
-        artifact: ExternalSolverArtifact, *, results_dir: str | Path,
-        candidate_id: str,
-        mode: str, reactor_type: str, temperature_K: float,
-        path_builder: Callable[..., Path],
-        validator: Callable[..., ArtifactValidationResult]) -> Path:
+    artifact: ExternalSolverArtifact,
+    *,
+    results_dir: str | Path,
+    candidate_id: str,
+    mode: str,
+    reactor_type: str,
+    temperature_K: float,
+    path_builder: Callable[..., Path],
+    validator: Callable[..., ArtifactValidationResult],
+) -> Path:
     """Write by atomic replacement and retain only validator-accepted artifacts.
 
         The target is removed if validation fails, preventing an invalid partial
@@ -34,18 +41,17 @@ def persist_validated_artifact(
     Returns:
         Filesystem path produced or resolved by the operation.
     """
-    target = path_builder(
-        results_dir, candidate_id, mode, reactor_type, temperature_K)
+    target = path_builder(results_dir, candidate_id, mode, reactor_type, temperature_K)
     target.parent.mkdir(parents=True, exist_ok=True)
     temporary = target.with_suffix(target.suffix + '.tmp')
     temporary.write_text(json.dumps(dict(artifact), indent=2, sort_keys=True) + '\n')
     temporary.replace(target)
-    validated = validator(
-        results_dir, candidate_id, mode, reactor_type, temperature_K)
+    validated = validator(results_dir, candidate_id, mode, reactor_type, temperature_K)
     if validated['valid'] is False:
         target.unlink(missing_ok=True)
         failed = ', '.join(validated.get('failed_checks', ()))
         raise RuntimeError(
-            'solver output did not satisfy the artifact contract: ' +
-            (failed or validated['reason']))
+            'solver output did not satisfy the artifact contract: '
+            + (failed or validated['reason'])
+        )
     return target

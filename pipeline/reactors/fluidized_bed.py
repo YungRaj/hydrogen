@@ -12,8 +12,9 @@ from pipeline.reactors.reactor_core import *  # noqa: F403
 from pipeline.reactors.reactor_core import logger
 
 
-def _integrate_fluidized_pass(gas, surf, tau: float, sv_ratio: float,
-                              removal_rate_1_s: float) -> float:
+def _integrate_fluidized_pass(
+    gas, surf, tau: float, sv_ratio: float, removal_rate_1_s: float
+) -> float:
     """Advance emulsion residence with C_s removal *during* integrate (B2).
 
     Basis: 1 m³ of emulsion. Gas volume is ε_mf; solids area is
@@ -40,7 +41,8 @@ def _integrate_fluidized_pass(gas, surf, tau: float, sv_ratio: float,
         gas.TPX = reactor_em.thermo.T, reactor_em.thermo.P, reactor_em.thermo.X
         if removal_rate_1_s > 0 and surf is not None:
             carbon_removed += _apply_continuous_carbon_removal(
-                surf, removal_rate_1_s, dt)
+                surf, removal_rate_1_s, dt
+            )
     return carbon_removed
 
 
@@ -48,8 +50,10 @@ def _integrate_fluidized_pass(gas, surf, tau: float, sv_ratio: float,
 # C. Fluidized bed
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def simulate_fluidized_bed(config: ReactorConfig, *, cantera_available: bool,
-                             mock_result) -> ReactorResult:
+
+def simulate_fluidized_bed(
+    config: ReactorConfig, *, cantera_available: bool, mock_result
+) -> ReactorResult:
     """Two-phase fluidized bed: reacting emulsion plus bubble bypass.
 
     The emulsion phase reacts at the minimum-fluidization residence time with
@@ -83,9 +87,11 @@ def simulate_fluidized_bed(config: ReactorConfig, *, cantera_available: bool,
 
     u0 = max(config.gas_velocity_m_s, 0.05)
     umf = config.u_mf_m_s
-    delta = (float(config.fluidized_bubble_fraction)
-             if config.fluidized_bubble_fraction is not None
-             else min(0.5, max(0.01, (u0 - umf) / u0)))
+    delta = (
+        float(config.fluidized_bubble_fraction)
+        if config.fluidized_bubble_fraction is not None
+        else min(0.5, max(0.01, (u0 - umf) / u0))
+    )
     if not 0 <= delta < 1:
         raise ValueError('fluidized-bed bubble fraction must lie in [0, 1)')
     tau_emulsion = config.bed_height_m * (1 - delta) / umf
@@ -95,10 +101,10 @@ def simulate_fluidized_bed(config: ReactorConfig, *, cantera_available: bool,
     removal_rate = config.circulating_carbon_removal_rate_1_s if circulating else 0.0
     if surf is not None:
         _reset_surface_carbon(surf)
-    pass_start_cov = (np.array(surf.coverages, dtype=float)
-                      if surf is not None else None)
+    pass_start_cov = np.array(surf.coverages, dtype=float) if surf is not None else None
     carbon_removed = _integrate_fluidized_pass(
-        gas, surf, tau_emulsion, sv_ratio, removal_rate)
+        gas, surf, tau_emulsion, sv_ratio, removal_rate
+    )
     last_pass_removed = carbon_removed
 
     regen_cycles = 0
@@ -107,16 +113,19 @@ def simulate_fluidized_bed(config: ReactorConfig, *, cantera_available: bool,
     if not circulating:
         theta = _coverage(surf, 'C_s')
         per_cycle.append(_ch4_extent(gas, ch4_initial, ar_initial))
-        while (config.max_regen_cycles > 0
-               and regen_cycles < config.max_regen_cycles
-               and theta >= config.regen_coverage_threshold):
+        while (
+            config.max_regen_cycles > 0
+            and regen_cycles < config.max_regen_cycles
+            and theta >= config.regen_coverage_threshold
+        ):
             if config.regen_mechanism == REGEN_OXIDATIVE and not config.co2_permitted:
                 raise RuntimeError('oxidative regen blocked (co2_permitted=False)')
             _reset_surface_carbon(surf)
             gas.TPX = config.T_inlet_K, config.P_inlet_Pa, config.inlet_composition
             pass_start_cov = np.array(surf.coverages, dtype=float)
             last_pass_removed = _integrate_fluidized_pass(
-                gas, surf, tau_emulsion, sv_ratio, 0.0)
+                gas, surf, tau_emulsion, sv_ratio, 0.0
+            )
             carbon_removed += last_pass_removed
             theta = _coverage(surf, 'C_s')
             regen_cycles += 1
@@ -135,13 +144,20 @@ def simulate_fluidized_bed(config: ReactorConfig, *, cantera_available: bool,
     n_parcel_in_mol = c_total * FLUIDIZED_EMULSION_VOIDAGE
     n_ch4_fed_mol = ch4_initial * n_parcel_in_mol
     off_site = _off_site_carbon_metrics(
-        config, gas, surf,
-        ch4_initial=ch4_initial, ar_initial=ar_initial,
-        pass_conversion=float(emulsion_conv), n_sites_mol=n_sites_mol,
-        n_ch4_fed_mol=n_ch4_fed_mol, n_parcel_in_mol=n_parcel_in_mol,
-        pass_time_s=tau_emulsion, cov_start=pass_start_cov,
+        config,
+        gas,
+        surf,
+        ch4_initial=ch4_initial,
+        ar_initial=ar_initial,
+        pass_conversion=float(emulsion_conv),
+        n_sites_mol=n_sites_mol,
+        n_ch4_fed_mol=n_ch4_fed_mol,
+        n_parcel_in_mol=n_parcel_in_mol,
+        pass_time_s=tau_emulsion,
+        cov_start=pass_start_cov,
         removed_surface_carbon_mol=last_pass_removed * n_sites_mol,
-        basis='Gamma*sv_emulsion / (c_CH4*eps_mf), emulsion parcel before bypass')
+        basis='Gamma*sv_emulsion / (c_CH4*eps_mf), emulsion parcel before bypass',
+    )
 
     # Bubble bypass: δ of the feed passes unreacted; mix on molar flows (Ar tracer).
     _mix_bubble_bypass(gas, inlet_x, delta, ar_initial)
@@ -150,7 +166,8 @@ def simulate_fluidized_bed(config: ReactorConfig, *, cantera_available: bool,
     if abs(final_conv - expected) > 1e-6 + 1e-6 * abs(expected):
         raise RuntimeError(
             f'bypass mixing inconsistent: X_mixed={final_conv:.6f} vs '
-            f'(1-delta)*X_em={expected:.6f}')
+            f'(1-delta)*X_em={expected:.6f}'
+        )
     x_h2 = _species_x(gas, 'H2')
 
     result = {
@@ -163,8 +180,10 @@ def simulate_fluidized_bed(config: ReactorConfig, *, cantera_available: bool,
         'umf_m_s': umf,
         'bubble_fraction': delta,
         'bubble_fraction_basis': (
-            'override' if config.fluidized_bubble_fraction is not None
-            else 'clip((u0-umf)/u0, 0.01, 0.5)'),
+            'override'
+            if config.fluidized_bubble_fraction is not None
+            else 'clip((u0-umf)/u0, 0.01, 0.5)'
+        ),
         'residence_time_s': tau_emulsion,
         'WHSV_h-1': reciprocal_residence_h(tau_emulsion),
         'emulsion_voidage': FLUIDIZED_EMULSION_VOIDAGE,
@@ -192,5 +211,6 @@ def simulate_fluidized_bed(config: ReactorConfig, *, cantera_available: bool,
     }
     logger.info(
         f"  Fluidized result: conversion={final_conv:.2%} "
-        f"(emulsion {emulsion_conv:.2%}, delta={delta:.2f}) mode={config.fluidized_mode}")
+        f"(emulsion {emulsion_conv:.2%}, delta={delta:.2f}) mode={config.fluidized_mode}"
+    )
     return result

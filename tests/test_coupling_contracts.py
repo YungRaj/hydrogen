@@ -10,8 +10,10 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from pipeline.simulation.solver_handoff import (
-    require_pristine_case, validate_hydrodynamic_handoff,
-    validate_solver_coupling)
+    require_pristine_case,
+    validate_hydrodynamic_handoff,
+    validate_solver_coupling,
+)
 from pipeline.simulation.external_runner import _tree_digest
 
 
@@ -23,16 +25,31 @@ def _handoff(case):
     field = case / 'hydrodynamics.xdmf'
     field.write_text('<Xdmf/>\n')
     path = case / 'hydrogen_hydrodynamics.json'
-    path.write_text(json.dumps({
-        'schema_version': 1, 'candidate_id': 'candidate-1',
-        'pathway_mode': 'ntec', 'reactor_type': 'NTEC',
-        'temperature_K': 300.0,
-        'fields': {'velocity_m_s': 0.1, 'pressure_Pa': 101325,
-                   'temperature_K': 300.0, 'liquid_volume_fraction': 0.9,
-                   'shear_rate_s_inv': 100.0},
-        'field_artifact': {'path': field.name, 'sha256': _sha(field),
-                           'format': 'XDMF', 'mesh_id': 'mesh-1',
-                           'coordinate_system': 'cartesian-m'}}))
+    path.write_text(
+        json.dumps(
+            {
+                'schema_version': 1,
+                'candidate_id': 'candidate-1',
+                'pathway_mode': 'ntec',
+                'reactor_type': 'NTEC',
+                'temperature_K': 300.0,
+                'fields': {
+                    'velocity_m_s': 0.1,
+                    'pressure_Pa': 101325,
+                    'temperature_K': 300.0,
+                    'liquid_volume_fraction': 0.9,
+                    'shear_rate_s_inv': 100.0,
+                },
+                'field_artifact': {
+                    'path': field.name,
+                    'sha256': _sha(field),
+                    'format': 'XDMF',
+                    'mesh_id': 'mesh-1',
+                    'coordinate_system': 'cartesian-m',
+                },
+            }
+        )
+    )
     return path
 
 
@@ -40,22 +57,46 @@ def _coupling(case):
     values = {
         'mechanism': ('mechanism.yaml', 'phases: []\n'),
         'cantera_log': ('cantera.log', 'Cantera 3 execution\n'),
-        'rate_exchange': ('rates.json', json.dumps({
-            'schema_version': 1, 'candidate_id': 'candidate-1',
-            'temperature_K': 300.0,
-            'reaction_rates_mol_m3_s': {'CH4': -0.1, 'H2': 0.2}})),
-        'coupling_history': ('history.json', json.dumps({'iterations': [
-            {'iteration': 1, 'residual_relative': 0.02},
-            {'iteration': 2, 'residual_relative': 1e-5}]})),
+        'rate_exchange': (
+            'rates.json',
+            json.dumps(
+                {
+                    'schema_version': 1,
+                    'candidate_id': 'candidate-1',
+                    'temperature_K': 300.0,
+                    'reaction_rates_mol_m3_s': {'CH4': -0.1, 'H2': 0.2},
+                }
+            ),
+        ),
+        'coupling_history': (
+            'history.json',
+            json.dumps(
+                {
+                    'iterations': [
+                        {'iteration': 1, 'residual_relative': 0.02},
+                        {'iteration': 2, 'residual_relative': 1e-5},
+                    ]
+                }
+            ),
+        ),
     }
     proof = {
-        'schema_version': 1, 'cantera_used': True,
-        'coupling_method': 'iterative_two_way', 'coupling_iterations': 2,
+        'schema_version': 1,
+        'cantera_used': True,
+        'coupling_method': 'iterative_two_way',
+        'coupling_iterations': 2,
         'coupling_residual_relative': 1e-5,
         'coupling_tolerance_relative': 1e-4,
-        'exchanged_fields': ['species', 'temperature', 'reaction_heat',
-                             'reaction_rates', 'momentum', 'charge',
-                             'potential']}
+        'exchanged_fields': [
+            'species',
+            'temperature',
+            'reaction_heat',
+            'reaction_rates',
+            'momentum',
+            'charge',
+            'potential',
+        ],
+    }
     for stem, (name, content) in values.items():
         path = case / name
         path.write_text(content)
@@ -78,32 +119,61 @@ def test_hydrodynamic_handoff_checks_identity_fields_and_hash():
         case = Path(tmp)
         path = _handoff(case)
         valid = validate_hydrodynamic_handoff(
-            case, candidate_id='candidate-1', mode='ntec',
-            reactor_type='NTEC', temperature_K=300.0)
+            case,
+            candidate_id='candidate-1',
+            mode='ntec',
+            reactor_type='NTEC',
+            temperature_K=300.0,
+        )
         assert valid['mesh_id'] == 'mesh-1'
         value = json.loads(path.read_text())
         value['candidate_id'] = 'wrong'
         path.write_text(json.dumps(value))
-        _reject(lambda: validate_hydrodynamic_handoff(
-            case, candidate_id='candidate-1', mode='ntec',
-            reactor_type='NTEC', temperature_K=300.0), 'candidate_id')
+        _reject(
+            lambda: validate_hydrodynamic_handoff(
+                case,
+                candidate_id='candidate-1',
+                mode='ntec',
+                reactor_type='NTEC',
+                temperature_K=300.0,
+            ),
+            'candidate_id',
+        )
 
 
 def test_cantera_boolean_is_not_coupling_proof():
     with tempfile.TemporaryDirectory() as tmp:
         case = Path(tmp)
-        _reject(lambda: validate_solver_coupling(
-            case, {'cantera_used': True}, candidate_id='candidate-1',
-            temperature_K=300.0, reactor_type='NTEC'), 'proof missing')
+        _reject(
+            lambda: validate_solver_coupling(
+                case,
+                {'cantera_used': True},
+                candidate_id='candidate-1',
+                temperature_K=300.0,
+                reactor_type='NTEC',
+            ),
+            'proof missing',
+        )
         proof = _coupling(case)
         result = validate_solver_coupling(
-            case, proof, candidate_id='candidate-1', temperature_K=300.0,
-            reactor_type='NTEC')
+            case,
+            proof,
+            candidate_id='candidate-1',
+            temperature_K=300.0,
+            reactor_type='NTEC',
+        )
         assert result['converged'] and result['iterations'] == 2
         proof['coupling_residual_relative'] = 0.1
-        _reject(lambda: validate_solver_coupling(
-            case, proof, candidate_id='candidate-1', temperature_K=300.0,
-            reactor_type='NTEC'), 'not converged')
+        _reject(
+            lambda: validate_solver_coupling(
+                case,
+                proof,
+                candidate_id='candidate-1',
+                temperature_K=300.0,
+                reactor_type='NTEC',
+            ),
+            'not converged',
+        )
 
 
 def test_pristine_case_rejects_outputs_and_openfoam_time_directories():
@@ -132,8 +202,11 @@ def test_external_fenics_script_changes_input_digest():
 
 
 def main():
-    tests = [value for name, value in sorted(globals().items())
-             if name.startswith('test_') and callable(value)]
+    tests = [
+        value
+        for name, value in sorted(globals().items())
+        if name.startswith('test_') and callable(value)
+    ]
     for test in tests:
         test()
         print('PASS', test.__name__)

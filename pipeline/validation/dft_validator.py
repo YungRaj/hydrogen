@@ -25,8 +25,13 @@ from pipeline.data_models.quantum import DFTResult
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from pipeline.utils import (
-    BASE_DIR, DFT_DIR, QE_PSEUDO_DIR, Ry_to_eV,
-    setup_logger, print_banner, save_json,
+    BASE_DIR,
+    DFT_DIR,
+    QE_PSEUDO_DIR,
+    Ry_to_eV,
+    setup_logger,
+    print_banner,
+    save_json,
 )
 
 logger = setup_logger('dft_validator', 'dft/dft_validation.log')
@@ -86,15 +91,47 @@ PSEUDO_MAP = {
 
 # Atomic masses for QE input
 ATOMIC_MASSES_QE = {
-    'H': 1.008, 'C': 12.011, 'N': 14.007, 'O': 15.999, 'B': 10.81,
-    'S': 32.06, 'P': 30.974, 'F': 18.998, 'Na': 22.990, 'Mg': 24.305,
-    'Al': 26.982, 'Si': 28.086, 'Ti': 47.867, 'V': 50.942, 'Cr': 51.996,
-    'Mn': 54.938, 'Fe': 55.845, 'Co': 58.933, 'Ni': 58.693, 'Cu': 63.546,
-    'Zn': 65.38, 'Ga': 69.723, 'Mo': 95.95, 'Ru': 101.07, 'Rh': 102.906,
-    'Pd': 106.42, 'Ag': 107.868, 'In': 114.818, 'Sn': 118.710,
-    'Sb': 121.760, 'W': 183.84, 'Pt': 195.084, 'Au': 196.967,
-    'Pb': 207.2, 'Bi': 208.980, 'La': 138.905, 'Ce': 140.116,
-    'Zr': 91.224, 'Y': 88.906, 'Nb': 92.906, 'Te': 127.60,
+    'H': 1.008,
+    'C': 12.011,
+    'N': 14.007,
+    'O': 15.999,
+    'B': 10.81,
+    'S': 32.06,
+    'P': 30.974,
+    'F': 18.998,
+    'Na': 22.990,
+    'Mg': 24.305,
+    'Al': 26.982,
+    'Si': 28.086,
+    'Ti': 47.867,
+    'V': 50.942,
+    'Cr': 51.996,
+    'Mn': 54.938,
+    'Fe': 55.845,
+    'Co': 58.933,
+    'Ni': 58.693,
+    'Cu': 63.546,
+    'Zn': 65.38,
+    'Ga': 69.723,
+    'Mo': 95.95,
+    'Ru': 101.07,
+    'Rh': 102.906,
+    'Pd': 106.42,
+    'Ag': 107.868,
+    'In': 114.818,
+    'Sn': 118.710,
+    'Sb': 121.760,
+    'W': 183.84,
+    'Pt': 195.084,
+    'Au': 196.967,
+    'Pb': 207.2,
+    'Bi': 208.980,
+    'La': 138.905,
+    'Ce': 140.116,
+    'Zr': 91.224,
+    'Y': 88.906,
+    'Nb': 92.906,
+    'Te': 127.60,
     'Ge': 72.63,
 }
 
@@ -103,12 +140,17 @@ ATOMIC_MASSES_QE = {
 # QE INPUT GENERATORS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def generate_bulk_scf_input(elements: List[str], positions_frac: List[Tuple],
-                             celldm_bohr: float, ibrav: int = 2,
-                             calc_name: str = "bulk_scf",
-                             ecutwfc: float = 50.0,
-                             ecutrho: float = 400.0,
-                             kpoints: Tuple = (6, 6, 6)) -> str:
+
+def generate_bulk_scf_input(
+    elements: List[str],
+    positions_frac: List[Tuple],
+    celldm_bohr: float,
+    ibrav: int = 2,
+    calc_name: str = "bulk_scf",
+    ecutwfc: float = 50.0,
+    ecutrho: float = 400.0,
+    kpoints: Tuple = (6, 6, 6),
+) -> str:
     """Generate a QE scf input for a bulk crystal.
 
     Args:
@@ -129,6 +171,7 @@ def generate_bulk_scf_input(elements: List[str], positions_frac: List[Tuple],
     kshift = tuple(0 if mesh == 1 else 1 for mesh in kpoints)
 
     from pipeline.validation.qe_workflows import verify_sssp, SSSP_DIR
+
     sssp = verify_sssp(elements)
     if not sssp['valid']:
         raise RuntimeError(f"SSSP verification failed: {sssp['errors']}")
@@ -180,11 +223,14 @@ K_POINTS {{automatic}}
     return input_text
 
 
-def generate_slab_scf_input(elements: List[str], positions_ang: List[Tuple],
-                             cell_params: List[List[float]],
-                             calc_name: str = "slab_scf",
-                             ecutwfc: float = 50.0,
-                             kpoints: Tuple = (4, 4, 1)) -> str:
+def generate_slab_scf_input(
+    elements: List[str],
+    positions_ang: List[Tuple],
+    cell_params: List[List[float]],
+    calc_name: str = "slab_scf",
+    ecutwfc: float = 50.0,
+    kpoints: Tuple = (4, 4, 1),
+) -> str:
     """Generate QE scf input for a surface slab (ibrav=0).
 
     Args:
@@ -203,6 +249,7 @@ def generate_slab_scf_input(elements: List[str], positions_ang: List[Tuple],
     kshift = tuple(0 if mesh == 1 else 1 for mesh in kpoints)
 
     from pipeline.validation.qe_workflows import verify_sssp, SSSP_DIR
+
     sssp = verify_sssp(elements)
     if not sssp['valid']:
         raise RuntimeError(f"SSSP verification failed: {sssp['errors']}")
@@ -272,10 +319,14 @@ K_POINTS {{automatic}}
     return input_text
 
 
-def generate_molecule_input(elements: List[str], positions_ang: List[Tuple],
-                            cell_size_ang: float, calc_name: str,
-                            ecutwfc: float = 40.0,
-                            calculation: str = 'relax') -> str:
+def generate_molecule_input(
+    elements: List[str],
+    positions_ang: List[Tuple],
+    cell_size_ang: float,
+    calc_name: str,
+    ecutwfc: float = 40.0,
+    calculation: str = 'relax',
+) -> str:
     """Generate a closed-shell, Gamma-only molecular QE input.
 
         Gas-phase CHE references must not inherit metallic slab smearing or an
@@ -296,11 +347,14 @@ def generate_molecule_input(elements: List[str], positions_ang: List[Tuple],
     if calculation not in ('scf', 'relax'):
         raise ValueError('molecular calculation must be scf or relax')
     if len(elements) != len(positions_ang) or not elements:
-        raise ValueError('molecular elements and positions must be nonempty and aligned')
+        raise ValueError(
+            'molecular elements and positions must be nonempty and aligned'
+        )
     if cell_size_ang <= 0:
         raise ValueError('molecular cell must be positive')
 
     from pipeline.validation.qe_workflows import verify_sssp, SSSP_DIR
+
     sssp = verify_sssp(elements)
     if not sssp['valid']:
         raise RuntimeError(f"SSSP verification failed: {sssp['errors']}")
@@ -309,10 +363,12 @@ def generate_molecule_input(elements: List[str], positions_ang: List[Tuple],
     species_block = '\n'.join(
         f"  {element}  {ATOMIC_MASSES_QE.get(element, 50.0):.3f}  "
         f"{sssp['records'][element]['filename']}"
-        for element in unique_elements)
+        for element in unique_elements
+    )
     atoms_block = '\n'.join(
         f"  {element}  {position[0]:.10f}  {position[1]:.10f}  {position[2]:.10f}"
-        for element, position in zip(elements, positions_ang))
+        for element, position in zip(elements, positions_ang)
+    )
     ions = "\n&IONS\n  ion_dynamics = 'bfgs'\n/" if calculation == 'relax' else ''
 
     return f"""&CONTROL
@@ -349,6 +405,7 @@ K_POINTS {{gamma}}
 # ═══════════════════════════════════════════════════════════════════════════════
 # DFT OUTPUT PARSING
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def parse_total_energy(output_file: str) -> Optional[float]:
     """Parse total energy from QE output file (Ry).
@@ -404,9 +461,11 @@ def parse_convergence(output_file: str, *, require_ionic: bool = False) -> bool:
         content = f.read()
     lower = content.lower()
     fatal = ('error in routine', 'convergence not achieved', 'stopping ...')
-    electronic = ('job done' in lower and
-                  'convergence has been achieved' in lower and
-                  not any(token in lower for token in fatal))
+    electronic = (
+        'job done' in lower
+        and 'convergence has been achieved' in lower
+        and not any(token in lower for token in fatal)
+    )
     if not electronic:
         return False
     if not require_ionic:
@@ -414,8 +473,7 @@ def parse_convergence(output_file: str, *, require_ionic: bool = False) -> bool:
     # QE prints this only after the BFGS ionic criteria (including
     # forc_conv_thr) have been satisfied. An SCF convergence line is not an
     # endpoint-relaxation certificate.
-    ionic = ('end of bfgs geometry optimization' in lower or
-             'bfgs converged in' in lower)
+    ionic = 'end of bfgs geometry optimization' in lower or 'bfgs converged in' in lower
     return ionic
 
 
@@ -423,9 +481,13 @@ def parse_convergence(output_file: str, *, require_ionic: bool = False) -> bool:
 # DFT VALIDATION WORKFLOW
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def validate_catalyst(catalyst_name: str, genome: tuple,
-                       run_dft: bool = True,
-                       restart_incomplete: bool = False) -> DFTResult:
+
+def validate_catalyst(
+    catalyst_name: str,
+    genome: tuple,
+    run_dft: bool = True,
+    restart_incomplete: bool = False,
+) -> DFTResult:
     """
         Full DFT validation workflow for a champion catalyst.
 
@@ -452,6 +514,7 @@ def validate_catalyst(catalyst_name: str, genome: tuple,
 
     mat_class = genome[0]
     from pipeline.search.discovery import candidate_id
+
     result: DFTResult = {
         'catalyst_name': catalyst_name,
         'candidate_id': candidate_id(genome),
@@ -470,6 +533,7 @@ def validate_catalyst(catalyst_name: str, genome: tuple,
         # Spinel, MXene, SAA, MetalFreeCarbon): build structure from genome
         # and use the alloy slab DFT pathway
         from pipeline.screening.surface_screener import generate_structure
+
         try:
             structure, _, _ = generate_structure(genome)
             elements = [a.symbol for a in structure if a.symbol != 'X']
@@ -477,9 +541,14 @@ def validate_catalyst(catalyst_name: str, genome: tuple,
             cell_size = 15.0
             cell_params = [[cell_size, 0, 0], [0, cell_size, 0], [0, 0, cell_size]]
             from pipeline.validation.dft_fuel_cell import generate_slab_scf_input
+
             input_text = generate_slab_scf_input(
-                elements, positions, cell_params,
-                calc_name=catalyst_name, ecutwfc=40.0, kpoints=(1, 1, 1)
+                elements,
+                positions,
+                cell_params,
+                calc_name=catalyst_name,
+                ecutwfc=40.0,
+                kpoints=(1, 1, 1),
             )
         except Exception as e:
             logger.warning(f"Structure generation failed for {mat_class}: {e}")
@@ -492,16 +561,19 @@ def validate_catalyst(catalyst_name: str, genome: tuple,
     if output_file.is_file() and output_file.stat().st_size:
         require_ionic = "calculation = 'relax'" in input_text
         existing_converged = parse_convergence(
-            str(output_file), require_ionic=require_ionic)
+            str(output_file), require_ionic=require_ionic
+        )
         if existing_converged or not restart_incomplete:
             energy = parse_total_energy(str(output_file))
-            result.update({
-                'dft_energy_Ry': energy,
-                'dft_energy_eV': energy * Ry_to_eV if energy else None,
-                'converged': existing_converged,
-                'max_force_Ry_bohr': parse_forces(str(output_file)),
-                'resumed_existing_output': True,
-            })
+            result.update(
+                {
+                    'dft_energy_Ry': energy,
+                    'dft_energy_eV': energy * Ry_to_eV if energy else None,
+                    'converged': existing_converged,
+                    'max_force_Ry_bohr': parse_forces(str(output_file)),
+                    'resumed_existing_output': True,
+                }
+            )
             if not existing_converged:
                 result['error'] = 'existing_output_incomplete_or_failed'
             save_json(result, f"{catalyst_name}_dft.json", subdir="dft")
@@ -515,9 +587,13 @@ def validate_catalyst(catalyst_name: str, genome: tuple,
         logger.info(f"  Running pw.x for {catalyst_name}...")
         try:
             from pipeline.validation.qe_workflows import QEExecutionConfig, run_pw
+
             outcome = run_pw(
-                str(input_file), str(output_file), timeout_s=3600,
-                execution=QEExecutionConfig.production_default())
+                str(input_file),
+                str(output_file),
+                timeout_s=3600,
+                execution=QEExecutionConfig.production_default(),
+            )
             result['returncode'] = outcome['returncode']
             result['execution'] = outcome['execution']
             if outcome['timed_out']:
@@ -532,8 +608,7 @@ def validate_catalyst(catalyst_name: str, genome: tuple,
     if output_file.exists():
         energy = parse_total_energy(str(output_file))
         require_ionic = "calculation = 'relax'" in input_text
-        converged = parse_convergence(
-            str(output_file), require_ionic=require_ionic)
+        converged = parse_convergence(str(output_file), require_ionic=require_ionic)
         max_force = parse_forces(str(output_file))
 
         result['dft_energy_Ry'] = energy
@@ -542,7 +617,9 @@ def validate_catalyst(catalyst_name: str, genome: tuple,
         result['max_force_Ry_bohr'] = max_force
 
         if converged and energy:
-            logger.info(f"  ✓ Converged: E = {energy:.6f} Ry ({energy * Ry_to_eV:.4f} eV)")
+            logger.info(
+                f"  ✓ Converged: E = {energy:.6f} Ry ({energy * Ry_to_eV:.4f} eV)"
+            )
         else:
             logger.warning(f"  ✗ Did not converge or no energy found")
     else:
@@ -567,8 +644,10 @@ def _generate_alloy_input(genome: tuple, name: str) -> str:
         metal = genome[1]
         elements = [metal, metal, metal, metal]
         positions = [
-            (0.0, 0.0, 0.0), (0.5, 0.5, 0.0),
-            (0.5, 0.0, 0.5), (0.0, 0.5, 0.5),
+            (0.0, 0.0, 0.0),
+            (0.5, 0.5, 0.0),
+            (0.5, 0.0, 0.5),
+            (0.0, 0.5, 0.5),
         ]
         # Apply dopant substitution
         if genome[5]:
@@ -576,18 +655,43 @@ def _generate_alloy_input(genome: tuple, name: str) -> str:
 
     # Estimate lattice parameter (Bohr) from element
     lattice_params_bohr = {
-        'Ni': 6.65, 'Fe': 5.42, 'Co': 6.68, 'Cu': 6.82, 'Al': 7.65,
-        'Sn': 12.30, 'Bi': 9.54, 'In': 8.73, 'Ga': 5.72, 'Pb': 9.35,
-        'Sb': 8.63, 'Mo': 5.95, 'W': 5.98, 'Mn': 16.85, 'Pt': 7.42,
-        'Pd': 7.35, 'Ag': 7.73, 'Au': 7.71, 'Ti': 5.58, 'V': 5.72,
-        'Cr': 5.45, 'Zn': 5.03, 'Zr': 6.10, 'Y': 6.89, 'La': 7.10,
+        'Ni': 6.65,
+        'Fe': 5.42,
+        'Co': 6.68,
+        'Cu': 6.82,
+        'Al': 7.65,
+        'Sn': 12.30,
+        'Bi': 9.54,
+        'In': 8.73,
+        'Ga': 5.72,
+        'Pb': 9.35,
+        'Sb': 8.63,
+        'Mo': 5.95,
+        'W': 5.98,
+        'Mn': 16.85,
+        'Pt': 7.42,
+        'Pd': 7.35,
+        'Ag': 7.73,
+        'Au': 7.71,
+        'Ti': 5.58,
+        'V': 5.72,
+        'Cr': 5.45,
+        'Zn': 5.03,
+        'Zr': 6.10,
+        'Y': 6.89,
+        'La': 7.10,
     }
     primary = elements[0] if elements[0] in lattice_params_bohr else genome[1]
     celldm = lattice_params_bohr.get(primary, 7.0)
 
     return generate_bulk_scf_input(
-        elements, positions, celldm, ibrav=2,
-        calc_name=name, ecutwfc=50.0, kpoints=(6, 6, 6)
+        elements,
+        positions,
+        celldm,
+        ibrav=2,
+        calc_name=name,
+        ecutwfc=50.0,
+        kpoints=(6, 6, 6),
     )
 
 
@@ -618,8 +722,12 @@ def _generate_cluster_input(genome: tuple, name: str) -> str:
     ]
 
     return generate_slab_scf_input(
-        elements, positions, cell_params,
-        calc_name=name, ecutwfc=40.0, kpoints=(1, 1, 1)
+        elements,
+        positions,
+        cell_params,
+        calc_name=name,
+        ecutwfc=40.0,
+        kpoints=(1, 1, 1),
     )
 
 

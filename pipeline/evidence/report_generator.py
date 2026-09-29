@@ -22,9 +22,16 @@ from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from pipeline.utils import (
-    RESULTS_DIR, SCREENING_DIR, REACTOR_DIR, DFT_DIR,
-    VQE_DIR, FUEL_CELL_DIR, REPORTS_DIR,
-    setup_logger, save_json, load_json,
+    RESULTS_DIR,
+    SCREENING_DIR,
+    REACTOR_DIR,
+    DFT_DIR,
+    VQE_DIR,
+    FUEL_CELL_DIR,
+    REPORTS_DIR,
+    setup_logger,
+    save_json,
+    load_json,
 )
 
 logger = setup_logger('report_generator', 'reports/report_generation.log')
@@ -42,6 +49,7 @@ def load_all_results() -> Dict:
     screening_files = list(SCREENING_DIR.glob("*.csv"))
     if screening_files:
         import pandas as pd
+
         data['screening'] = {}
         for f in screening_files:
             try:
@@ -119,9 +127,11 @@ def generate_full_report(pipeline_state: Dict = None) -> Path:
     r(f"\n**Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     r(f"**Pipeline Version**: 2.0.0")
     r("")
-    r("> **Evidence status:** screening values are hypotheses. Mock results and "
-      "unconverged calculations are excluded from validated claims; catalyst "
-      "performance requires experimental confirmation.")
+    r(
+        "> **Evidence status:** screening values are hypotheses. Mock results and "
+        "unconverged calculations are excluded from validated claims; catalyst "
+        "performance requires experimental confirmation."
+    )
     r("")
 
     # ─── Executive Summary ──────────────────────────────────────────────────
@@ -131,18 +141,32 @@ def generate_full_report(pipeline_state: Dict = None) -> Path:
     p1 = ps.get('phase1', {})
     p2 = ps.get('phase2', {})
     # FC results may come from orchestrator ('phase5') or campaign ('phase5_ga'/'phase5_stack')
-    p5 = {**ps.get('phase5', {}), **ps.get('phase5_ga', {}), **ps.get('phase5_stack', {})}
+    p5 = {
+        **ps.get('phase5', {}),
+        **ps.get('phase5_ga', {}),
+        **ps.get('phase5_stack', {}),
+    }
 
     r(f"| Metric | Value |")
     r(f"|--------|-------|")
-    r(f"| Catalysts evaluated (Fairchem) | {p1.get('total_evaluated', 'N/A'):,} |" if isinstance(p1.get('total_evaluated'), (int, float)) else "| Catalysts evaluated (Fairchem) | N/A |")
-    r(f"| Valid candidates | {p1.get('valid_count', 'N/A'):,} |" if isinstance(p1.get('valid_count'), (int, float)) else "| Valid candidates | N/A |")
+    r(
+        f"| Catalysts evaluated (Fairchem) | {p1.get('total_evaluated', 'N/A'):,} |"
+        if isinstance(p1.get('total_evaluated'), (int, float))
+        else "| Catalysts evaluated (Fairchem) | N/A |"
+    )
+    r(
+        f"| Valid candidates | {p1.get('valid_count', 'N/A'):,} |"
+        if isinstance(p1.get('valid_count'), (int, float))
+        else "| Valid candidates | N/A |"
+    )
     r(f"| Pareto front size | {p1.get('pareto_size', 'N/A')} |")
     r(f"| Best activation barrier | {p1.get('best_E_act', 'N/A')} eV |")
     r(f"| Best coking resistance | {p1.get('best_coking', 'N/A')} |")
     r(f"| Reactor simulations | {p2.get('catalysts_simulated', 'N/A')} |")
     solids_x = p2.get('best_conversion')
-    if not isinstance(solids_x, (int, float)) and isinstance(p2.get('solids_scorecard'), dict):
+    if not isinstance(solids_x, (int, float)) and isinstance(
+        p2.get('solids_scorecard'), dict
+    ):
         solids_x = p2['solids_scorecard'].get('headline_solids_conversion')
     if isinstance(solids_x, (int, float)):
         sc = p2.get('solids_scorecard') or {}
@@ -151,16 +175,36 @@ def generate_full_report(pipeline_state: Dict = None) -> Path:
     else:
         r("| Solids judge CH₄ conversion (PFR) | N/A |")
     mmbcr_x = p2.get('mmbcr_max_conversion')
-    if not isinstance(mmbcr_x, (int, float)) and isinstance(p2.get('solids_scorecard'), dict):
+    if not isinstance(mmbcr_x, (int, float)) and isinstance(
+        p2.get('solids_scorecard'), dict
+    ):
         mmbcr_x = p2['solids_scorecard'].get('mmbcr_max_conversion')
     if isinstance(mmbcr_x, (int, float)):
         r(f"| MMBCR max CH₄ conversion | {mmbcr_x:.1%} (not a solids rank) |")
     else:
         r("| MMBCR max CH₄ conversion | N/A |")
-    r(f"| FC catalysts evaluated | {p5.get('total_evaluated', p5.get('n_cathodes_screened', 'N/A')):,} |" if isinstance(p5.get('total_evaluated', p5.get('n_cathodes_screened')), (int, float)) else f"| FC catalysts evaluated | N/A |")
-    r(f"| Best PEMFC power density | {p5.get('best_power_W_cm2', 'N/A')} W/cm² |" if isinstance(p5.get('best_power_W_cm2'), (int, float)) else f"| Best PEMFC power density | N/A |")
-    r(f"| Best PEMFC efficiency | {p5.get('best_efficiency', 'N/A'):.1%} |" if isinstance(p5.get('best_efficiency'), (int, float)) else f"| Best PEMFC efficiency | N/A |")
-    r(f"| Min ORR overpotential | {p5.get('min_overpotential_V', 'N/A')} V |" if isinstance(p5.get('min_overpotential_V'), (int, float)) else f"| Min ORR overpotential | N/A |")
+    r(
+        f"| FC catalysts evaluated | {p5.get('total_evaluated', p5.get('n_cathodes_screened', 'N/A')):,} |"
+        if isinstance(
+            p5.get('total_evaluated', p5.get('n_cathodes_screened')), (int, float)
+        )
+        else f"| FC catalysts evaluated | N/A |"
+    )
+    r(
+        f"| Best PEMFC power density | {p5.get('best_power_W_cm2', 'N/A')} W/cm² |"
+        if isinstance(p5.get('best_power_W_cm2'), (int, float))
+        else f"| Best PEMFC power density | N/A |"
+    )
+    r(
+        f"| Best PEMFC efficiency | {p5.get('best_efficiency', 'N/A'):.1%} |"
+        if isinstance(p5.get('best_efficiency'), (int, float))
+        else f"| Best PEMFC efficiency | N/A |"
+    )
+    r(
+        f"| Min ORR overpotential | {p5.get('min_overpotential_V', 'N/A')} V |"
+        if isinstance(p5.get('min_overpotential_V'), (int, float))
+        else f"| Min ORR overpotential | N/A |"
+    )
     r("")
 
     # ─── Phase 1: Catalyst Screening ────────────────────────────────────────
@@ -169,7 +213,7 @@ def generate_full_report(pipeline_state: Dict = None) -> Path:
     if 'screening' in data and data['screening']:
         main_db_key = next(
             (k for k in data['screening'] if 'full' in k or 'initial' in k),
-            list(data['screening'].keys())[0] if data['screening'] else None
+            list(data['screening'].keys())[0] if data['screening'] else None,
         )
         if main_db_key:
             df = data['screening'][main_db_key]
@@ -185,7 +229,11 @@ def generate_full_report(pipeline_state: Dict = None) -> Path:
                 r("|----------------|-------|-------|")
                 for cls in df['material_class'].unique():
                     n_total = len(df[df['material_class'] == cls])
-                    n_valid = len(valid[valid['material_class'] == cls]) if 'material_class' in valid.columns else 0
+                    n_valid = (
+                        len(valid[valid['material_class'] == cls])
+                        if 'material_class' in valid.columns
+                        else 0
+                    )
                     r(f"| {cls} | {n_total} | {n_valid} |")
                 r("")
 
@@ -196,7 +244,9 @@ def generate_full_report(pipeline_state: Dict = None) -> Path:
                 top = valid.nsmallest(10, 'E_act')
                 for rank, (_, row) in enumerate(top.iterrows(), 1):
                     genome_str = str(row.get('genome', ''))[:50]
-                    r(f"| {rank} | {genome_str} | {row['E_act']:.4f} | {row.get('coking_index', 'N/A')} | {row.get('dE_H', 'N/A')} |")
+                    r(
+                        f"| {rank} | {genome_str} | {row['E_act']:.4f} | {row.get('coking_index', 'N/A')} | {row.get('dE_H', 'N/A')} |"
+                    )
                 r("")
 
     # ─── Phase 2: Reactor Simulation ────────────────────────────────────────
@@ -209,53 +259,80 @@ def generate_full_report(pipeline_state: Dict = None) -> Path:
             return unavailable
 
     from pipeline.reactors.scorecard import (
-        is_production_reactor_record, is_solids_run, single_pass_x,
+        is_production_reactor_record,
+        is_solids_run,
+        single_pass_x,
     )
     from pipeline.reactors.eligibility import is_usable_result
-    scorecard = p2.get('solids_scorecard') or load_json(
-        'phase2_solids_scorecard.json', subdir='reactor') or {}
+
+    scorecard = (
+        p2.get('solids_scorecard')
+        or load_json('phase2_solids_scorecard.json', subdir='reactor')
+        or {}
+    )
     if scorecard.get('headline'):
-        judge = (scorecard.get('judge_catalyst')
-                 or scorecard.get('headline_catalyst')
-                 or 'best non-H-parked solids')
-        r(f"Solids judged on **{judge}** (single-pass X, `a`, WHSV, ΔP). "
-          "MMBCR X_eq and 0.01 eV H-parked cats are not ranks.\n")
-        r("| Reactor | Catalyst | T (K) | Single-pass X | a (m⁻¹) | WHSV (h⁻¹) | ΔP (bar) |")
-        r("|---------|----------|-------|---------------|---------|------------|----------|")
+        judge = (
+            scorecard.get('judge_catalyst')
+            or scorecard.get('headline_catalyst')
+            or 'best non-H-parked solids'
+        )
+        r(
+            f"Solids judged on **{judge}** (single-pass X, `a`, WHSV, ΔP). "
+            "MMBCR X_eq and 0.01 eV H-parked cats are not ranks.\n"
+        )
+        r(
+            "| Reactor | Catalyst | T (K) | Single-pass X | a (m⁻¹) | WHSV (h⁻¹) | ΔP (bar) |"
+        )
+        r(
+            "|---------|----------|-------|---------------|---------|------------|----------|"
+        )
         for rt, row in scorecard['headline'].items():
-            r(f"| {rt} | {row.get('catalyst_name', '?')} | {row.get('T_K', '?')} | "
-              f"{_report_number(row.get('single_pass_CH4_conversion'), '.2%')} | "
-              f"{_report_number(row.get('active_sv_1_m'), '.0f', '—')} | "
-              f"{_report_number(row.get('WHSV_h-1'), '.0f', '—')} | "
-              f"{_report_number(row.get('ergun_delta_p_bar'), '.2f', '—')} |")
+            r(
+                f"| {rt} | {row.get('catalyst_name', '?')} | {row.get('T_K', '?')} | "
+                f"{_report_number(row.get('single_pass_CH4_conversion'), '.2%')} | "
+                f"{_report_number(row.get('active_sv_1_m'), '.0f', '—')} | "
+                f"{_report_number(row.get('WHSV_h-1'), '.0f', '—')} | "
+                f"{_report_number(row.get('ergun_delta_p_bar'), '.2f', '—')} |"
+            )
         r("")
         if scorecard.get('mmbcr_max_conversion') is not None:
-            r(f"MMBCR max X = {_report_number(scorecard['mmbcr_max_conversion'], '.1%')} "
-              f"({scorecard.get('mmbcr_note', 'not a solids rank')})\n")
+            r(
+                f"MMBCR max X = {_report_number(scorecard['mmbcr_max_conversion'], '.1%')} "
+                f"({scorecard.get('mmbcr_note', 'not a solids rank')})\n"
+            )
 
     # Only completed production runs count. Sweeps, mocks, not_applicable,
     # validation_required, and failed records are evidence about the
     # workflow, not about the catalyst.
     real_reactor = [
-        x for x in data['reactor']
+        x
+        for x in data['reactor']
         if is_production_reactor_record(x) and not x.get('mock', False)
     ]
     solids = [x for x in real_reactor if is_solids_run(x) and is_usable_result(x)]
     if solids:
         r("### Solids runs (single-pass)\n")
-        r("| Catalyst | Reactor | T (K) | Single-pass X | a (m⁻¹) | WHSV (h⁻¹) | ΔP (bar) |")
-        r("|----------|---------|-------|---------------|---------|------------|----------|")
+        r(
+            "| Catalyst | Reactor | T (K) | Single-pass X | a (m⁻¹) | WHSV (h⁻¹) | ΔP (bar) |"
+        )
+        r(
+            "|----------|---------|-------|---------------|---------|------------|----------|"
+        )
         for res in sorted(solids, key=single_pass_x, reverse=True)[:20]:
-            r(f"| {res.get('catalyst_name', '?')} | {res.get('reactor_type', '?')} | "
-              f"{res.get('T_K', '?')} | {_report_number(single_pass_x(res), '.2%')} | "
-              f"{_report_number(res.get('active_sv_1_m'), '.0f', '—')} | "
-              f"{_report_number(res.get('WHSV_h-1'), '.0f', '—')} | "
-              f"{_report_number(res.get('ergun_delta_p_bar'), '.2f', '—')} |")
+            r(
+                f"| {res.get('catalyst_name', '?')} | {res.get('reactor_type', '?')} | "
+                f"{res.get('T_K', '?')} | {_report_number(single_pass_x(res), '.2%')} | "
+                f"{_report_number(res.get('active_sv_1_m'), '.0f', '—')} | "
+                f"{_report_number(res.get('WHSV_h-1'), '.0f', '—')} | "
+                f"{_report_number(res.get('ergun_delta_p_bar'), '.2f', '—')} |"
+            )
         r("")
     if len(real_reactor) != len(data['reactor']):
-        r(f"Excluded {len(data['reactor']) - len(real_reactor)} non-run reactor files "
-          f"(sweeps, mocks, not_applicable, validation_required, failed) "
-          f"from performance claims.\n")
+        r(
+            f"Excluded {len(data['reactor']) - len(real_reactor)} non-run reactor files "
+            f"(sweeps, mocks, not_applicable, validation_required, failed) "
+            f"from performance claims.\n"
+        )
 
     # ─── Phase 3: DFT Validation ───────────────────────────────────────────
     r("## Phase 3: DFT Validation (Quantum ESPRESSO)\n")
@@ -266,34 +343,50 @@ def generate_full_report(pipeline_state: Dict = None) -> Path:
         r("|----------|----------------|-------------|-----------|-----------|")
         for res in converged_dft:
             if 'orr_overpotential_V' not in res:  # pyrolysis DFT results
-                r(f"| {res.get('catalyst_name', '?')} | {res.get('material_class', '?')} | "
-                  f"{res.get('dft_energy_eV', 'N/A')} | {res.get('converged', '?')} | "
-                  f"{res.get('max_force_Ry_bohr', 'N/A')} |")
+                r(
+                    f"| {res.get('catalyst_name', '?')} | {res.get('material_class', '?')} | "
+                    f"{res.get('dft_energy_eV', 'N/A')} | {res.get('converged', '?')} | "
+                    f"{res.get('max_force_Ry_bohr', 'N/A')} |"
+                )
         r("")
     if data['dft'] and not converged_dft:
-        r("No converged DFT validation is available; no DFT-validated champion is claimed.\n")
+        r(
+            "No converged DFT validation is available; no DFT-validated champion is claimed.\n"
+        )
 
     # ─── Phase 4: VQE Results ──────────────────────────────────────────────
     r("## Phase 4: Quantum VQE Transition States\n")
 
-    real_vqe = [x for x in data['vqe'] if not x.get('mock', False) and
-                x.get('catalyst_specific_hamiltonian') is True and
-                x.get('benchmarked') is True]
+    real_vqe = [
+        x
+        for x in data['vqe']
+        if not x.get('mock', False)
+        and x.get('catalyst_specific_hamiltonian') is True
+        and x.get('benchmarked') is True
+    ]
     if real_vqe:
         r("| Catalyst | Reaction | Energy (Ha) | Energy (eV) | Qubits | Layers |")
         r("|----------|----------|-------------|-------------|--------|--------|")
         for res in real_vqe:
-            r(f"| {res.get('catalyst_name', '?')} | {res.get('reaction_type', '?')} | "
-              f"{res.get('energy_Ha', 0):.6f} | {res.get('energy_eV', 0):.4f} | "
-              f"{res.get('n_qubits', '?')} | {res.get('n_layers', '?')} |")
+            r(
+                f"| {res.get('catalyst_name', '?')} | {res.get('reaction_type', '?')} | "
+                f"{res.get('energy_Ha', 0):.6f} | {res.get('energy_eV', 0):.4f} | "
+                f"{res.get('n_qubits', '?')} | {res.get('n_layers', '?')} |"
+            )
         r("")
     if data['vqe'] and not real_vqe:
-        r("No catalyst-specific, benchmarked quantum result is available; toy VQE energies are not validation.\n")
+        r(
+            "No catalyst-specific, benchmarked quantum result is available; toy VQE energies are not validation.\n"
+        )
 
     # ─── Phase 5: Fuel Cell Results ────────────────────────────────────────
     r("## Phase 5: PEMFC Fuel Cell Performance\n")
 
-    pemfc_results = [r_ for r_ in data['fuel_cell'] if 'peak_power_W_cm2' in r_ and 'n_cells' not in r_]
+    pemfc_results = [
+        r_
+        for r_ in data['fuel_cell']
+        if 'peak_power_W_cm2' in r_ and 'n_cells' not in r_
+    ]
     stack_results = [r_ for r_ in data['fuel_cell'] if 'n_cells' in r_]
 
     if pemfc_results:
@@ -305,21 +398,31 @@ def generate_full_report(pipeline_state: Dict = None) -> Path:
             return (eff * power) / eta
 
         r("### Single-Cell Performance\n")
-        r("| Cathode | Membrane | Peak Power (W/cm²) | OCV (V) | η (V) | Efficiency (Rated) |")
-        r("|---------|----------|---------------------|---------|-------|--------------------|")
+        r(
+            "| Cathode | Membrane | Peak Power (W/cm²) | OCV (V) | η (V) | Efficiency (Rated) |"
+        )
+        r(
+            "|---------|----------|---------------------|---------|-------|--------------------|"
+        )
         sorted_pemfc = sorted(pemfc_results, key=fc_composite_score, reverse=True)
         for res in sorted_pemfc[:15]:
-            r(f"| {res.get('cathode_catalyst', '?')} | {res.get('membrane', '?')} | "
-              f"{res.get('peak_power_W_cm2', 0):.4f} | {res.get('OCV_V', 0):.3f} | "
-              f"{res.get('orr_overpotential_V', '?')} | {res.get('efficiency_at_peak', 0):.1%} |")
+            r(
+                f"| {res.get('cathode_catalyst', '?')} | {res.get('membrane', '?')} | "
+                f"{res.get('peak_power_W_cm2', 0):.4f} | {res.get('OCV_V', 0):.3f} | "
+                f"{res.get('orr_overpotential_V', '?')} | {res.get('efficiency_at_peak', 0):.1%} |"
+            )
         r("")
 
     if stack_results:
         r("### Stack Performance\n")
         for res in stack_results:
-            r(f"- **Stack Power**: {res.get('net_power_kW', 0):.1f} kW net ({res.get('n_cells', '?')} cells)")
+            r(
+                f"- **Stack Power**: {res.get('net_power_kW', 0):.1f} kW net ({res.get('n_cells', '?')} cells)"
+            )
             r(f"- **System Efficiency**: {res.get('system_efficiency', 0):.1%}")
-            r(f"- **Power Density**: {res.get('gravimetric_W_kg', 0):.0f} W/kg, {res.get('volumetric_W_L', 0):.0f} W/L")
+            r(
+                f"- **Power Density**: {res.get('gravimetric_W_kg', 0):.0f} W/kg, {res.get('volumetric_W_L', 0):.0f} W/L"
+            )
             r(f"- **Cost**: ${res.get('cost_per_kW', 0):.0f}/kW")
             r("")
 
@@ -330,9 +433,11 @@ def generate_full_report(pipeline_state: Dict = None) -> Path:
         r("| Catalyst | η_ORR (V) | dG_OH (eV) | dG_O (eV) | dG_OOH (eV) | RDS |")
         r("|----------|-----------|-----------|----------|------------|-----|")
         for res in orr_dft:
-            r(f"| {res.get('catalyst_name', '?')} | {res.get('orr_overpotential_V', '?'):.3f} | "
-              f"{res.get('dG_OH_eV', '?')} | {res.get('dG_O_eV', '?')} | "
-              f"{res.get('dG_OOH_eV', '?')} | {res.get('rate_determining_step', '?')} |")
+            r(
+                f"| {res.get('catalyst_name', '?')} | {res.get('orr_overpotential_V', '?'):.3f} | "
+                f"{res.get('dG_OH_eV', '?')} | {res.get('dG_O_eV', '?')} | "
+                f"{res.get('dG_OOH_eV', '?')} | {res.get('rate_determining_step', '?')} |"
+            )
         r("")
 
     # ─── Techno-Economics ──────────────────────────────────────────────────

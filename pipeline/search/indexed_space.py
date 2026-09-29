@@ -57,9 +57,10 @@ for _cls in CLASS_ORDER:
     CLASS_OFFSETS[_cls] = _offset
     _offset += CLASS_SIZES[_cls]
 TOTAL_SIZE = _offset
-SOLID_STRAINS = tuple(float(x) for x in np.linspace(
-    cs.SOLID_STRAIN_RANGE[0], cs.SOLID_STRAIN_RANGE[1], 20
-))
+SOLID_STRAINS = tuple(
+    float(x)
+    for x in np.linspace(cs.SOLID_STRAIN_RANGE[0], cs.SOLID_STRAIN_RANGE[1], 20)
+)
 
 
 def candidate_at_class(material_class: str, index: int) -> tuple:
@@ -77,59 +78,204 @@ def candidate_at_class(material_class: str, index: int) -> tuple:
         raise IndexError(f"{material_class} index {index} outside [0, {size})")
 
     if material_class == "MoltenMetal":
-        return (material_class, *_decode(index, [cs.MOLTEN_HOSTS, cs.MOLTEN_PROMOTERS,
-            cs.MOLTEN_PROMOTER_AT_PCT, cs.MOLTEN_TEMPERATURES_K]))
+        return (
+            material_class,
+            *_decode(
+                index,
+                [
+                    cs.MOLTEN_HOSTS,
+                    cs.MOLTEN_PROMOTERS,
+                    cs.MOLTEN_PROMOTER_AT_PCT,
+                    cs.MOLTEN_TEMPERATURES_K,
+                ],
+            ),
+        )
     if material_class == "SolidCatalyst":
-        metal, support, facet, strain, d1, d2, nsub, vac = _decode(index, [
-            cs.SOLID_ACTIVE_METALS, cs.SOLID_SUPPORTS, cs.SOLID_FACETS, SOLID_STRAINS,
-            cs.SOLID_DOPANTS, cs.SOLID_DOPANTS, range(1, 5), range(3)])
+        metal, support, facet, strain, d1, d2, nsub, vac = _decode(
+            index,
+            [
+                cs.SOLID_ACTIVE_METALS,
+                cs.SOLID_SUPPORTS,
+                cs.SOLID_FACETS,
+                SOLID_STRAINS,
+                cs.SOLID_DOPANTS,
+                cs.SOLID_DOPANTS,
+                range(1, 5),
+                range(3),
+            ],
+        )
         return material_class, metal, support, facet, strain, (d1, d2), nsub, vac
     if material_class == "SAC":
-        return (material_class, *_decode(index, [cs.SAC_METALS, cs.SAC_COORDINATIONS,
-            cs.SAC_SUBSTRATES, cs.SAC_AXIAL_LIGANDS]))
+        return (
+            material_class,
+            *_decode(
+                index,
+                [
+                    cs.SAC_METALS,
+                    cs.SAC_COORDINATIONS,
+                    cs.SAC_SUBSTRATES,
+                    cs.SAC_AXIAL_LIGANDS,
+                ],
+            ),
+        )
     if material_class == "DAC":
-        return (material_class, *_decode(index, [cs.DAC_METALS_1, cs.DAC_METALS_2,
-            cs.DAC_COORDINATIONS, cs.SAC_SUBSTRATES]))
+        return (
+            material_class,
+            *_decode(
+                index,
+                [
+                    cs.DAC_METALS_1,
+                    cs.DAC_METALS_2,
+                    cs.DAC_COORDINATIONS,
+                    cs.SAC_SUBSTRATES,
+                ],
+            ),
+        )
     if material_class == "MOF":
-        return (material_class, *_decode(index, [cs.MOF_METAL_NODES, cs.MOF_LINKERS,
-            cs.MOF_CAVITIES, cs.MOF_PORE_SIZES]))
+        return (
+            material_class,
+            *_decode(
+                index,
+                [
+                    cs.MOF_METAL_NODES,
+                    cs.MOF_LINKERS,
+                    cs.MOF_CAVITIES,
+                    cs.MOF_PORE_SIZES,
+                ],
+            ),
+        )
     if material_class == "COF":
-        return (material_class, *_decode(index, [cs.MOF_METAL_NODES + ['None'], cs.COF_LINKAGES,
-            cs.MOF_CAVITIES, cs.MOF_PORE_SIZES]))
+        return (
+            material_class,
+            *_decode(
+                index,
+                [
+                    cs.MOF_METAL_NODES + ['None'],
+                    cs.COF_LINKAGES,
+                    cs.MOF_CAVITIES,
+                    cs.MOF_PORE_SIZES,
+                ],
+            ),
+        )
     if material_class == "Perovskite":
-        return (material_class, *_decode(index, [cs.PEROVSKITE_A_SITE, cs.PEROVSKITE_B_SITE,
-            cs.PEROVSKITE_B_SITE + ['None'], cs.PEROVSKITE_DOPANT_FRAC, cs.PEROVSKITE_DEFECTS]))
+        return (
+            material_class,
+            *_decode(
+                index,
+                [
+                    cs.PEROVSKITE_A_SITE,
+                    cs.PEROVSKITE_B_SITE,
+                    cs.PEROVSKITE_B_SITE + ['None'],
+                    cs.PEROVSKITE_DOPANT_FRAC,
+                    cs.PEROVSKITE_DEFECTS,
+                ],
+            ),
+        )
     if material_class == "MetalHydride":
         temps = [300, 350, 400, 450, 500, 550, 600, 700, 800]
-        return (material_class, *_decode(index, [cs.HYDRIDE_METALS, cs.HYDRIDE_TYPES,
-            cs.HYDRIDE_SECOND_METAL, cs.HYDRIDE_ADDITIVES, temps]))
+        return (
+            material_class,
+            *_decode(
+                index,
+                [
+                    cs.HYDRIDE_METALS,
+                    cs.HYDRIDE_TYPES,
+                    cs.HYDRIDE_SECOND_METAL,
+                    cs.HYDRIDE_ADDITIVES,
+                    temps,
+                ],
+            ),
+        )
     if material_class == "MAXPhase":
-        return (material_class, *_decode(index, [cs.MAX_M_ELEMENTS, cs.MAX_A_ELEMENTS,
-            cs.MAX_X_ELEMENTS, cs.MAX_N_VALUES, cs.MAX_M_ELEMENTS + ['None'],
-            ['basal_0001', 'edge_1010', 'edge_1120']]))
+        return (
+            material_class,
+            *_decode(
+                index,
+                [
+                    cs.MAX_M_ELEMENTS,
+                    cs.MAX_A_ELEMENTS,
+                    cs.MAX_X_ELEMENTS,
+                    cs.MAX_N_VALUES,
+                    cs.MAX_M_ELEMENTS + ['None'],
+                    ['basal_0001', 'edge_1010', 'edge_1120'],
+                ],
+            ),
+        )
     if material_class == "HEA":
         tail_size = len(cs.HEA_STRUCTURES) * 4 * 6
         combo_rank, tail = divmod(index, tail_size)
         for k in (4, 5, 6):
             count = comb(len(cs.HEA_ELEMENTS), k)
             if combo_rank < count:
-                components = tuple(cs.HEA_ELEMENTS[i] for i in _unrank_combination(len(cs.HEA_ELEMENTS), k, combo_rank))
-                structure, facet, temp = _decode(tail, [cs.HEA_STRUCTURES, ['111', '100', '110', '211'],
-                                                       [800, 900, 1000, 1100, 1200, 1300]])
+                components = tuple(
+                    cs.HEA_ELEMENTS[i]
+                    for i in _unrank_combination(len(cs.HEA_ELEMENTS), k, combo_rank)
+                )
+                structure, facet, temp = _decode(
+                    tail,
+                    [
+                        cs.HEA_STRUCTURES,
+                        ['111', '100', '110', '211'],
+                        [800, 900, 1000, 1100, 1200, 1300],
+                    ],
+                )
                 return material_class, components, structure, facet, temp
             combo_rank -= count
     if material_class == "Spinel":
-        return (material_class, *_decode(index, [cs.SPINEL_A_METALS, cs.SPINEL_B_METALS,
-            cs.SPINEL_DOPANTS, cs.SPINEL_MORPHOLOGIES, cs.SPINEL_SUPPORT_CARBONS]))
+        return (
+            material_class,
+            *_decode(
+                index,
+                [
+                    cs.SPINEL_A_METALS,
+                    cs.SPINEL_B_METALS,
+                    cs.SPINEL_DOPANTS,
+                    cs.SPINEL_MORPHOLOGIES,
+                    cs.SPINEL_SUPPORT_CARBONS,
+                ],
+            ),
+        )
     if material_class == "MXene":
-        return (material_class, *_decode(index, [cs.MXENE_M_ELEMENTS, cs.MXENE_X_ELEMENTS,
-            cs.MXENE_N_VALUES, cs.MXENE_TERMINATIONS, cs.MXENE_SAC_METALS]))
+        return (
+            material_class,
+            *_decode(
+                index,
+                [
+                    cs.MXENE_M_ELEMENTS,
+                    cs.MXENE_X_ELEMENTS,
+                    cs.MXENE_N_VALUES,
+                    cs.MXENE_TERMINATIONS,
+                    cs.MXENE_SAC_METALS,
+                ],
+            ),
+        )
     if material_class == "SAA":
-        return (material_class, *_decode(index, [cs.SAA_TRACE_METALS, cs.SAA_HOST_METALS,
-            cs.SAA_FACETS, cs.SAA_LOADINGS_PPM]))
+        return (
+            material_class,
+            *_decode(
+                index,
+                [
+                    cs.SAA_TRACE_METALS,
+                    cs.SAA_HOST_METALS,
+                    cs.SAA_FACETS,
+                    cs.SAA_LOADINGS_PPM,
+                ],
+            ),
+        )
     if material_class == "MetalFreeCarbon":
-        return (material_class, *_decode(index, [cs.MFC_N_TYPES, cs.MFC_N_FRACTIONS,
-            cs.MFC_DEFECT_TYPES, cs.MFC_SUBSTRATES, cs.MFC_DOPANTS]))
+        return (
+            material_class,
+            *_decode(
+                index,
+                [
+                    cs.MFC_N_TYPES,
+                    cs.MFC_N_FRACTIONS,
+                    cs.MFC_DEFECT_TYPES,
+                    cs.MFC_SUBSTRATES,
+                    cs.MFC_DOPANTS,
+                ],
+            ),
+        )
     raise KeyError(material_class)
 
 
@@ -152,8 +298,9 @@ def candidate_at(global_index: int) -> tuple:
     raise AssertionError("unreachable")
 
 
-def iter_shard(start: int, stop: int, worker_id: int = 0,
-               num_workers: int = 1) -> Iterator[Tuple[int, tuple]]:
+def iter_shard(
+    start: int, stop: int, worker_id: int = 0, num_workers: int = 1
+) -> Iterator[Tuple[int, tuple]]:
     """Yield one deterministic, disjoint strided worker shard.
 
     Args:
@@ -257,11 +404,13 @@ def deterministic_tree_probes(count: int) -> list:
             if chosen:
                 break
         if chosen:
-            seen.add(chosen[0]); probes.append(chosen[1])
+            seen.add(chosen[0])
+            probes.append(chosen[1])
         if mid > start:
             heapq.heappush(queues[cls], (-(mid - start), start, mid))
         if stop > mid + 1:
             heapq.heappush(queues[cls], (-(stop - mid - 1), mid + 1, stop))
+
     for cls in CLASS_ORDER:
         if len(probes) >= count:
             break

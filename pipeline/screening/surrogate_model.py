@@ -33,18 +33,24 @@ class CatalystSurrogate(nn.Module):
     Architecture: Shared feature extractor → task-specific heads
     """
 
-    def __init__(self, input_dim: int = FEATURE_DIM, hidden_dims: tuple = (512, 256, 128)):
+    def __init__(
+        self, input_dim: int = FEATURE_DIM, hidden_dims: tuple = (512, 256, 128)
+    ):
         super().__init__()
 
         layers = []
         prev_dim = input_dim
         for h_dim in hidden_dims:
-            layers.extend([
-                nn.Linear(prev_dim, h_dim),
-                nn.LayerNorm(h_dim),  # LayerNorm: stable with small batches (< 32 samples)
-                nn.GELU(),
-                nn.Dropout(0.1),
-            ])
+            layers.extend(
+                [
+                    nn.Linear(prev_dim, h_dim),
+                    nn.LayerNorm(
+                        h_dim
+                    ),  # LayerNorm: stable with small batches (< 32 samples)
+                    nn.GELU(),
+                    nn.Dropout(0.1),
+                ]
+            )
             prev_dim = h_dim
 
         self.backbone = nn.Sequential(*layers)
@@ -88,8 +94,12 @@ def _row_mask(flag: torch.Tensor) -> torch.Tensor:
     return flag.reshape(-1)
 
 
-def _masked_mse(pred: torch.Tensor, target: torch.Tensor, row_mask: torch.Tensor,
-                mse_loss: nn.MSELoss) -> torch.Tensor:
+def _masked_mse(
+    pred: torch.Tensor,
+    target: torch.Tensor,
+    row_mask: torch.Tensor,
+    mse_loss: nn.MSELoss,
+) -> torch.Tensor:
     """MSE on rows that are selected and have a finite target; 0 if none."""
     mask = row_mask & torch.isfinite(target.reshape(-1))
     if mask.sum() == 0:
@@ -97,19 +107,30 @@ def _masked_mse(pred: torch.Tensor, target: torch.Tensor, row_mask: torch.Tensor
     return mse_loss(pred[mask], target[mask])
 
 
-def _train_model_inplace(model: CatalystSurrogate, X: np.ndarray, y_valid: np.ndarray,
-                         y_de_split: np.ndarray, y_coking: np.ndarray,
-                         y_seg: np.ndarray, y_e_act: np.ndarray,
-                         epochs: int = 30, batch_size: int = 2048,
-                         lr: float = 0.003, device: str = 'cuda:0'):
+def _train_model_inplace(
+    model: CatalystSurrogate,
+    X: np.ndarray,
+    y_valid: np.ndarray,
+    y_de_split: np.ndarray,
+    y_coking: np.ndarray,
+    y_seg: np.ndarray,
+    y_e_act: np.ndarray,
+    epochs: int = 30,
+    batch_size: int = 2048,
+    lr: float = 0.003,
+    device: str = 'cuda:0',
+):
     """In-place training of a single CatalystSurrogate model."""
     # Convert to tensors. y_coking may contain NaN (slab descriptor out of scope);
     # those rows must not be filled — the coking head is masked below.
     X_t = torch.tensor(X, dtype=torch.float32).to(device)
     y_val_t = torch.tensor(y_valid, dtype=torch.float32).unsqueeze(1).to(device)
     y_de_t = torch.tensor(y_de_split, dtype=torch.float32).unsqueeze(1).to(device)
-    y_cok_t = torch.tensor(np.asarray(y_coking, dtype=np.float32),
-                           dtype=torch.float32).unsqueeze(1).to(device)
+    y_cok_t = (
+        torch.tensor(np.asarray(y_coking, dtype=np.float32), dtype=torch.float32)
+        .unsqueeze(1)
+        .to(device)
+    )
     y_seg_t = torch.tensor(y_seg, dtype=torch.float32).unsqueeze(1).to(device)
     y_act_t = torch.tensor(y_e_act, dtype=torch.float32).unsqueeze(1).to(device)
 
@@ -156,17 +177,26 @@ def _train_model_inplace(model: CatalystSurrogate, X: np.ndarray, y_valid: np.nd
         scheduler.step()
 
         if (epoch + 1) % 10 == 0 or epoch == 0:
-            logger.info(f"  Epoch {epoch+1}/{epochs}: loss = {total_loss/len(loader):.4f}")
+            logger.info(
+                f"  Epoch {epoch+1}/{epochs}: loss = {total_loss/len(loader):.4f}"
+            )
 
     model.eval()
     logger.info("Surrogate training complete.")
 
 
-def train_surrogate(X: np.ndarray, y_valid: np.ndarray,
-                    y_de_split: np.ndarray, y_coking: np.ndarray,
-                    y_seg: np.ndarray, y_e_act: np.ndarray,
-                    epochs: int = 30, batch_size: int = 2048,
-                    lr: float = 0.003, device: str = 'cuda:0') -> CatalystSurrogate:
+def train_surrogate(
+    X: np.ndarray,
+    y_valid: np.ndarray,
+    y_de_split: np.ndarray,
+    y_coking: np.ndarray,
+    y_seg: np.ndarray,
+    y_e_act: np.ndarray,
+    epochs: int = 30,
+    batch_size: int = 2048,
+    lr: float = 0.003,
+    device: str = 'cuda:0',
+) -> CatalystSurrogate:
     """
         Train the surrogate model on Fairchem screening data.
 
@@ -186,14 +216,26 @@ def train_surrogate(X: np.ndarray, y_valid: np.ndarray,
         Computed `CatalystSurrogate` result.
     """
     model = CatalystSurrogate(input_dim=X.shape[1]).to(device)
-    _train_model_inplace(model, X, y_valid, y_de_split, y_coking, y_seg, y_e_act,
-                         epochs=epochs, batch_size=batch_size, lr=lr, device=device)
+    _train_model_inplace(
+        model,
+        X,
+        y_valid,
+        y_de_split,
+        y_coking,
+        y_seg,
+        y_e_act,
+        epochs=epochs,
+        batch_size=batch_size,
+        lr=lr,
+        device=device,
+    )
     return model
 
 
 @torch.no_grad()
-def predict_batch(model: CatalystSurrogate, X: np.ndarray,
-                  device: str = 'cuda:0') -> dict:
+def predict_batch(
+    model: CatalystSurrogate, X: np.ndarray, device: str = 'cuda:0'
+) -> dict:
     """
         Predict catalyst properties for a batch of feature vectors.
 
@@ -223,19 +265,27 @@ class SurrogateEnsemble(nn.Module):
     """
     Ensemble of CatalystSurrogate models for epistemic uncertainty estimation.
     """
+
     def __init__(self, n_models: int = 3, input_dim: int = FEATURE_DIM):
         super().__init__()
-        self.models = nn.ModuleList([
-            CatalystSurrogate(input_dim=input_dim)
-            for _ in range(n_models)
-        ])
+        self.models = nn.ModuleList(
+            [CatalystSurrogate(input_dim=input_dim) for _ in range(n_models)]
+        )
 
 
-def train_ensemble(X: np.ndarray, y_valid: np.ndarray,
-                   y_de_split: np.ndarray, y_coking: np.ndarray,
-                   y_seg: np.ndarray, y_e_act: np.ndarray,
-                   n_models: int = 3, epochs: int = 30, batch_size: int = 2048,
-                   lr: float = 0.003, device: str = 'cuda:0') -> SurrogateEnsemble:
+def train_ensemble(
+    X: np.ndarray,
+    y_valid: np.ndarray,
+    y_de_split: np.ndarray,
+    y_coking: np.ndarray,
+    y_seg: np.ndarray,
+    y_e_act: np.ndarray,
+    n_models: int = 3,
+    epochs: int = 30,
+    batch_size: int = 2048,
+    lr: float = 0.003,
+    device: str = 'cuda:0',
+) -> SurrogateEnsemble:
     """Train an ensemble of surrogate models on bootstrapped subsets.
 
     Args:
@@ -270,17 +320,36 @@ def train_ensemble(X: np.ndarray, y_valid: np.ndarray,
             y_seg_b = y_seg[indices]
             y_e_act_b = y_e_act[indices]
         else:
-            X_b, y_valid_b, y_de_split_b, y_coking_b, y_seg_b, y_e_act_b = X, y_valid, y_de_split, y_coking, y_seg, y_e_act
+            X_b, y_valid_b, y_de_split_b, y_coking_b, y_seg_b, y_e_act_b = (
+                X,
+                y_valid,
+                y_de_split,
+                y_coking,
+                y_seg,
+                y_e_act,
+            )
 
-        _train_model_inplace(model, X_b, y_valid_b, y_de_split_b, y_coking_b, y_seg_b, y_e_act_b,
-                             epochs=epochs, batch_size=batch_size, lr=lr, device=device)
+        _train_model_inplace(
+            model,
+            X_b,
+            y_valid_b,
+            y_de_split_b,
+            y_coking_b,
+            y_seg_b,
+            y_e_act_b,
+            epochs=epochs,
+            batch_size=batch_size,
+            lr=lr,
+            device=device,
+        )
 
     return ensemble
 
 
 @torch.no_grad()
-def predict_ensemble(ensemble: SurrogateEnsemble, X: np.ndarray,
-                     device: str = 'cuda:0') -> dict:
+def predict_ensemble(
+    ensemble: SurrogateEnsemble, X: np.ndarray, device: str = 'cuda:0'
+) -> dict:
     """
         Predict properties using the ensemble, returning both mean and standard deviation.
 

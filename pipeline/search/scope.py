@@ -14,18 +14,43 @@ from pipeline.data_models.discovery import AdmissibilitySummary
 FrameT = TypeVar('FrameT')
 
 
-DIRECT_PEMFC_CATHODE_CLASSES = frozenset({
-    'SolidCatalyst', 'HEA', 'SAC', 'DAC', 'SAA', 'Perovskite', 'Spinel',
-    'MOF', 'COF', 'MetalFreeCarbon', 'MAXPhase', 'MXene',
-})
+DIRECT_PEMFC_CATHODE_CLASSES = frozenset(
+    {
+        'SolidCatalyst',
+        'HEA',
+        'SAC',
+        'DAC',
+        'SAA',
+        'Perovskite',
+        'Spinel',
+        'MOF',
+        'COF',
+        'MetalFreeCarbon',
+        'MAXPhase',
+        'MXene',
+    }
+)
 OUT_OF_SCOPE_PEMFC_CATHODE_CLASSES = frozenset({'MetalHydride', 'MoltenMetal'})
 
 # Slab coking index ΔE_C − 2ΔE_H is defined on a solid surface slab.
 # MoltenMetal has no slab; the descriptor must not rank that class.
-SLAB_COKING_INDEX_CLASSES = frozenset({
-    'SolidCatalyst', 'HEA', 'SAC', 'DAC', 'SAA', 'Perovskite', 'Spinel',
-    'MOF', 'COF', 'MetalFreeCarbon', 'MAXPhase', 'MXene', 'MetalHydride',
-})
+SLAB_COKING_INDEX_CLASSES = frozenset(
+    {
+        'SolidCatalyst',
+        'HEA',
+        'SAC',
+        'DAC',
+        'SAA',
+        'Perovskite',
+        'Spinel',
+        'MOF',
+        'COF',
+        'MetalFreeCarbon',
+        'MAXPhase',
+        'MXene',
+        'MetalHydride',
+    }
+)
 OUT_OF_SCOPE_SLAB_COKING_CLASSES = frozenset({'MoltenMetal'})
 
 APPLICATION_PYROLYSIS = 'turquoise_pyrolysis'
@@ -44,37 +69,43 @@ _PYROLYSIS_PHASE_STABILITY = {
         'reason': (
             'encoded hydride phase is not present under flowing CH4 at '
             f'>=~{int(TURQUOISE_PYROLYSIS_MIN_T_K)} K (P_H2~0; residual '
-            'metal carburizes; leftover metal is not this genome)'),
+            'metal carburizes; leftover metal is not this genome)'
+        ),
     },
     'MOF': {
         'status': 'out_of_scope',
         'reason': (
             'encoded MOF framework does not survive 773-1300 K; residue is a '
-            'carbonized MOF-derived composite (precursor, not the genome)'),
+            'carbonized MOF-derived composite (precursor, not the genome)'
+        ),
     },
     'COF': {
         'status': 'out_of_scope',
         'reason': (
             'encoded COF does not survive 773-1300 K; residue is carbonaceous, '
-            'not the covalent framework genome'),
+            'not the covalent framework genome'
+        ),
     },
     'MXene': {
         'status': 'out_of_scope',
         'reason': (
             'MXene terminations are lost and Ti3C2Tx converts toward TiC; '
-            'the encoded MXene is not the high-T solid'),
+            'the encoded MXene is not the high-T solid'
+        ),
     },
     'Perovskite': {
         'status': 'out_of_scope',
         'reason': (
             'under reducing CH4 the perovskite exsolves metal; working '
-            'catalyst is not the encoded ABO3 genome'),
+            'catalyst is not the encoded ABO3 genome'
+        ),
     },
 }
 
 # Backward-compatible alias used by older call sites / logs.
 OUT_OF_SCOPE_TURQUOISE_PYROLYSIS_CLASSES = frozenset(
-    cls for cls, spec in _PYROLYSIS_PHASE_STABILITY.items()
+    cls
+    for cls, spec in _PYROLYSIS_PHASE_STABILITY.items()
     if spec['status'] == 'out_of_scope'
 )
 
@@ -90,8 +121,10 @@ def pemfc_cathode_scope(genome: tuple) -> dict:
     """
     material_class = genome[0]
     if material_class in OUT_OF_SCOPE_PEMFC_CATHODE_CLASSES:
-        return {'status': 'out_of_scope', 'reason':
-                f'{material_class} has no encoded solid catalyst-layer realization'}
+        return {
+            'status': 'out_of_scope',
+            'reason': f'{material_class} has no encoded solid catalyst-layer realization',
+        }
     if material_class not in DIRECT_PEMFC_CATHODE_CLASSES:
         return {'status': 'unknown', 'reason': 'unrecognized material class'}
     return {'status': 'candidate', 'reason': None}
@@ -112,15 +145,17 @@ def slab_coking_index_scope(genome: tuple) -> dict:
             'status': 'out_of_scope',
             'reason': (
                 f'{material_class} has no slab; coking_index=ΔE_C-2ΔE_H '
-                'is not a melt carbon-separation descriptor'),
+                'is not a melt carbon-separation descriptor'
+            ),
         }
     if material_class not in SLAB_COKING_INDEX_CLASSES:
         return {'status': 'unknown', 'reason': 'unrecognized material class'}
     return {'status': 'candidate', 'reason': None}
 
 
-def phase_stable_at_application_T(genome: tuple, T_K: float = None,
-                                  application: str = APPLICATION_PYROLYSIS) -> dict:
+def phase_stable_at_application_T(
+    genome: tuple, T_K: float = None, application: str = APPLICATION_PYROLYSIS
+) -> dict:
     """
     Encoded-phase admissibility at the application's operating temperature.
 
@@ -138,7 +173,10 @@ def phase_stable_at_application_T(genome: tuple, T_K: float = None,
     if application == APPLICATION_PEMFC:
         return pemfc_cathode_scope(genome if genome else (None,))
     if application != APPLICATION_PYROLYSIS:
-        return {'status': 'unknown', 'reason': f'unrecognized application {application!r}'}
+        return {
+            'status': 'unknown',
+            'reason': f'unrecognized application {application!r}',
+        }
 
     spec = _PYROLYSIS_PHASE_STABILITY.get(material_class)
     if spec is not None:
@@ -217,7 +255,8 @@ def select_turquoise_pyrolysis_candidates(df, top_k=None, genome_col: str = 'gen
         raise ValueError('screening frame is required for turquoise pyrolysis scope')
     if genome_col not in df.columns:
         raise ValueError(
-            f'{genome_col!r} is required to apply phase_stable_at_application_T')
+            f'{genome_col!r} is required to apply phase_stable_at_application_T'
+        )
     scoped = df[df[genome_col].map(is_turquoise_pyrolysis_candidate)].copy()
     if top_k is None or len(scoped) == 0:
         return scoped
@@ -227,8 +266,8 @@ def select_turquoise_pyrolysis_candidates(df, top_k=None, genome_col: str = 'gen
 
 
 def scope_pyrolysis_pool(
-        df: FrameT, genome_col: str = 'genome'
-        ) -> tuple[FrameT, AdmissibilitySummary]:
+    df: FrameT, genome_col: str = 'genome'
+) -> tuple[FrameT, AdmissibilitySummary]:
     """Admissibility pool for slate drawing, tolerant of genome-less frames.
 
     Returns ``(pool, note)``. Rows whose encoded phase is unstable at the
@@ -248,17 +287,21 @@ def scope_pyrolysis_pool(
     if df is None:
         raise ValueError('screening frame is required for turquoise pyrolysis scope')
     if genome_col not in df.columns:
-        return df, {'filter': None,
-                    'reason': f'{genome_col} column absent; admissibility not applied'}
+        return df, {
+            'filter': None,
+            'reason': f'{genome_col} column absent; admissibility not applied',
+        }
     pool = select_turquoise_pyrolysis_candidates(df, top_k=None, genome_col=genome_col)
-    return pool, {'filter': 'phase_stable_at_application_T',
-                  'admissible_count': int(len(pool)),
-                  'dropped_count': int(len(df) - len(pool))}
+    return pool, {
+        'filter': 'phase_stable_at_application_T',
+        'admissible_count': int(len(pool)),
+        'dropped_count': int(len(df) - len(pool)),
+    }
 
 
 def scope_pemfc_pool(
-        df: FrameT, genome_col: str = 'genome'
-        ) -> tuple[FrameT, AdmissibilitySummary]:
+    df: FrameT, genome_col: str = 'genome'
+) -> tuple[FrameT, AdmissibilitySummary]:
     """Return candidates with a physically defined direct PEMFC cathode.
 
     Search coverage remains unchanged: every encoded material class is still
@@ -277,16 +320,23 @@ def scope_pemfc_pool(
     if df is None:
         raise ValueError('screening frame is required for PEMFC cathode scope')
     if genome_col not in df.columns:
-        return df, {'filter': None,
-                    'reason': f'{genome_col} column absent; admissibility not applied'}
+        return df, {
+            'filter': None,
+            'reason': f'{genome_col} column absent; admissibility not applied',
+        }
     mask = df[genome_col].map(
         lambda raw: (
             pemfc_cathode_scope(genome)['status'] == 'candidate'
-            if (genome := parse_encoded_genome(raw)) is not None else False))
+            if (genome := parse_encoded_genome(raw)) is not None
+            else False
+        )
+    )
     pool = df[mask].copy()
-    return pool, {'filter': 'pemfc_cathode_scope',
-                  'admissible_count': int(len(pool)),
-                  'dropped_count': int(len(df) - len(pool))}
+    return pool, {
+        'filter': 'pemfc_cathode_scope',
+        'admissible_count': int(len(pool)),
+        'dropped_count': int(len(df) - len(pool)),
+    }
 
 
 def is_validation_quota_class(material_class: str, application: str = None) -> bool:
@@ -319,6 +369,5 @@ def validation_quota_class_count(material_classes, application: str = None) -> i
         Validated int output for this operation.
     """
     return sum(
-        1 for cls in material_classes
-        if is_validation_quota_class(cls, application)
+        1 for cls in material_classes if is_validation_quota_class(cls, application)
     )

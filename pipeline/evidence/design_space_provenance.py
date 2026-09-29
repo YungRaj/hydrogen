@@ -49,47 +49,94 @@ def _axes(names, *sources):
 DESIGN_AXIS_PROVENANCE = {
     "MoltenMetal": _axes(
         ("host", "promoter", "promoter_at_pct", "temperature_K"),
-        "project_turquoise_review", "materials_project"),
+        "project_turquoise_review",
+        "materials_project",
+    ),
     "SolidCatalyst": _axes(
-        ("active_metal", "support", "facet", "strain", "dopant_1",
-         "dopant_2", "substitution_count", "vacancy_count"),
-        "project_turquoise_review", "catalysis_hub", "open_catalyst_2020"),
+        (
+            "active_metal",
+            "support",
+            "facet",
+            "strain",
+            "dopant_1",
+            "dopant_2",
+            "substitution_count",
+            "vacancy_count",
+        ),
+        "project_turquoise_review",
+        "catalysis_hub",
+        "open_catalyst_2020",
+    ),
     "SAC": _axes(
         ("metal", "coordination", "substrate", "axial_ligand"),
-        "project_fuel_cell_review", "catalysis_hub"),
+        "project_fuel_cell_review",
+        "catalysis_hub",
+    ),
     "DAC": _axes(
         ("metal_1", "metal_2", "coordination", "substrate"),
-        "project_fuel_cell_review", "catalysis_hub"),
+        "project_fuel_cell_review",
+        "catalysis_hub",
+    ),
     "MOF": _axes(
         ("metal_node", "linker", "cavity", "pore_size_A"),
-        "materials_project", "project_turquoise_review", "project_fuel_cell_review"),
+        "materials_project",
+        "project_turquoise_review",
+        "project_fuel_cell_review",
+    ),
     "COF": _axes(
         ("metal", "linkage", "cavity", "pore_size_A"),
-        "project_turquoise_review", "project_fuel_cell_review"),
+        "project_turquoise_review",
+        "project_fuel_cell_review",
+    ),
     "Perovskite": _axes(
         ("a_site", "b_site", "dopant", "dopant_fraction", "defect"),
-        "materials_project", "project_fuel_cell_review"),
+        "materials_project",
+        "project_fuel_cell_review",
+    ),
     "MetalHydride": _axes(
-        ("primary_metal", "hydride_type", "secondary_metal", "additive", "temperature_K"),
-        "materials_project", "project_turquoise_review"),
+        (
+            "primary_metal",
+            "hydride_type",
+            "secondary_metal",
+            "additive",
+            "temperature_K",
+        ),
+        "materials_project",
+        "project_turquoise_review",
+    ),
     "MAXPhase": _axes(
         ("m_element", "a_element", "x_element", "n", "dopant", "facet"),
-        "materials_project", "project_turquoise_review", "project_fuel_cell_review"),
+        "materials_project",
+        "project_turquoise_review",
+        "project_fuel_cell_review",
+    ),
     "HEA": _axes(
         ("components", "structure", "facet", "temperature_K"),
-        "materials_project", "catalysis_hub", "project_turquoise_review"),
+        "materials_project",
+        "catalysis_hub",
+        "project_turquoise_review",
+    ),
     "Spinel": _axes(
         ("a_metal", "b_metal", "dopant", "morphology", "carbon_support"),
-        "materials_project", "project_fuel_cell_review"),
+        "materials_project",
+        "project_fuel_cell_review",
+    ),
     "MXene": _axes(
         ("m_element", "x_element", "n", "termination", "single_atom_metal"),
-        "materials_project", "project_fuel_cell_review"),
+        "materials_project",
+        "project_fuel_cell_review",
+    ),
     "SAA": _axes(
         ("trace_metal", "host_metal", "facet", "loading_ppm"),
-        "catalysis_hub", "project_turquoise_review", "project_fuel_cell_review"),
+        "catalysis_hub",
+        "project_turquoise_review",
+        "project_fuel_cell_review",
+    ),
     "MetalFreeCarbon": _axes(
         ("nitrogen_type", "nitrogen_fraction", "defect", "substrate", "co_dopant"),
-        "project_turquoise_review", "project_fuel_cell_review"),
+        "project_turquoise_review",
+        "project_fuel_cell_review",
+    ),
 }
 
 
@@ -114,7 +161,9 @@ def validate_provenance(material_classes) -> dict:
                 failures.append(f"missing_sources:{material_class}:{axis}")
             for source_id in source_ids:
                 if source_id not in SOURCES:
-                    failures.append(f"unknown_source:{material_class}:{axis}:{source_id}")
+                    failures.append(
+                        f"unknown_source:{material_class}:{axis}:{source_id}"
+                    )
     unknown_classes = sorted(set(DESIGN_AXIS_PROVENANCE) - set(material_classes))
     failures.extend(f"unknown_class:{name}" for name in unknown_classes)
     return {

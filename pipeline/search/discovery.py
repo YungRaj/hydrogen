@@ -180,13 +180,21 @@ def select_discovery_batch(
     quality = _quality_score(objectives)
     seen_ids = {candidate_id(g) for g in evaluated}
     seen_regions = {discovery_region(g) for g in evaluated}
-    uncertainty = np.zeros(len(candidates)) if uncertainties is None else np.asarray(uncertainties, float)
+    uncertainty = (
+        np.zeros(len(candidates))
+        if uncertainties is None
+        else np.asarray(uncertainties, float)
+    )
     if len(uncertainty) != len(candidates):
         raise ValueError("uncertainties must match candidates")
     uncertainty_span = np.ptp(uncertainty)
     if uncertainty_span > 0:
         uncertainty = (uncertainty - uncertainty.min()) / uncertainty_span
-    conf = np.ones(len(candidates)) if confidence is None else np.asarray(confidence, float)
+    conf = (
+        np.ones(len(candidates))
+        if confidence is None
+        else np.asarray(confidence, float)
+    )
     if len(conf) != len(candidates):
         raise ValueError("confidence must match candidates")
 
@@ -200,7 +208,8 @@ def select_discovery_batch(
     # Region champions: quality remains important, with deterministic ID ties.
     champions = [
         max(indices, key=lambda i: (quality[i], uncertainty[i], ids[i]))
-        for region, indices in sorted(by_region.items()) if region not in seen_regions
+        for region, indices in sorted(by_region.items())
+        if region not in seen_regions
     ]
     champions.sort(key=lambda i: (-quality[i], -uncertainty[i], ids[i]))
     selected = champions[:n_select]

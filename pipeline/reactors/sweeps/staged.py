@@ -25,6 +25,7 @@ RecordFilter = Callable[[dict], bool]
 @dataclass
 class SweepSpec:
     """Describe one family of quantized levers and how to score cells."""
+
     name: str
     levers: Mapping[str, Sequence[float]]
     score_key: str = 'CH4_conversion'
@@ -129,8 +130,7 @@ def load_sweep(name: str) -> dict:
     }
 
 
-def write_stage(name: str, stage: str, payload: dict,
-                overwrite: bool = False) -> Path:
+def write_stage(name: str, stage: str, payload: dict, overwrite: bool = False) -> Path:
     """Persist one stage. Coarse refuses overwrite unless explicitly forced.
 
     Args:
@@ -148,7 +148,8 @@ def write_stage(name: str, stage: str, payload: dict,
     if stage == 'coarse' and path.exists() and not overwrite:
         raise FileExistsError(
             f'{path} already exists; the gridded sweep is write-once. '
-            'Pass overwrite=True only if you intend to replace it.')
+            'Pass overwrite=True only if you intend to replace it.'
+        )
     body = dict(payload)
     body.setdefault('stage', stage)
     body.setdefault('sweep_name', name)
@@ -173,11 +174,13 @@ def _update_manifest(name: str, stage: str, path: Path, payload: dict) -> None:
         'n_grid_cells': payload.get('n_grid_cells'),
         'levels': payload.get('levels'),
     }
-    manifest.update({
-        'name': name,
-        'stages': stages,
-        'coarse_preserved': (sweep_dir(name) / 'coarse.json').exists(),
-    })
+    manifest.update(
+        {
+            'name': name,
+            'stages': stages,
+            'coarse_preserved': (sweep_dir(name) / 'coarse.json').exists(),
+        }
+    )
     if payload.get('roi'):
         manifest['roi'] = payload['roi']
     man_path.write_text(json.dumps(manifest, indent=2), encoding='utf-8')
@@ -214,16 +217,18 @@ def _extend_bounds(coarse_levels: Sequence[float], lo: float, hi: float) -> tupl
     return lo, hi
 
 
-def _clip_hard(name: str, lo: float, hi: float,
-               hard_bounds: Mapping[str, tuple]) -> tuple:
+def _clip_hard(
+    name: str, lo: float, hi: float, hard_bounds: Mapping[str, tuple]
+) -> tuple:
     if name not in hard_bounds:
         return lo, hi
     hlo, hhi = hard_bounds[name]
     return max(lo, float(hlo)), min(hi, float(hhi))
 
 
-def densify_levels(coarse_levels: Sequence[float], lo: float, hi: float,
-                   n: int) -> list[float]:
+def densify_levels(
+    coarse_levels: Sequence[float], lo: float, hi: float, n: int
+) -> list[float]:
     """Create bounded refined lever levels around a proposed interval.
 
     Args:
@@ -296,8 +301,9 @@ def propose_roi(coarse_payload: dict, spec: SweepSpec) -> dict:
     }
 
 
-def import_existing_stage(name: str, stage: str, source: Path,
-                          overwrite: bool = False) -> Path:
+def import_existing_stage(
+    name: str, stage: str, source: Path, overwrite: bool = False
+) -> Path:
     """Copy an already-run JSON into the write-once archive without resimulating.
 
     Args:

@@ -11,39 +11,56 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from pipeline.evidence.experimental_dataset import (
-    experimental_evidence_records, validate_experimental_dataset)
+    experimental_evidence_records,
+    validate_experimental_dataset,
+)
 
 
-def _record(root, measurement_id, unit_id, split='calibration', kind='pyrolysis_reactor'):
+def _record(
+    root, measurement_id, unit_id, split='calibration', kind='pyrolysis_reactor'
+):
     raw = root / f'{measurement_id}.csv'
     raw.write_text('time_s,ch4_mol_s,h2_mol_s\n0,0.001,0\n')
     record = {
-        'measurement_id': measurement_id, 'experimental_unit_id': unit_id,
-        'candidate_id': 'candidate-1', 'application': 'turquoise_hydrogen',
-        'measurement_type': kind, 'split': split, 'replicate_id': 'rep-1',
-        'apparatus_id': 'rig-1', 'measured_at_utc': '2026-01-02T00:00:00Z',
+        'measurement_id': measurement_id,
+        'experimental_unit_id': unit_id,
+        'candidate_id': 'candidate-1',
+        'application': 'turquoise_hydrogen',
+        'measurement_type': kind,
+        'split': split,
+        'replicate_id': 'rep-1',
+        'apparatus_id': 'rig-1',
+        'measured_at_utc': '2026-01-02T00:00:00Z',
         'split_assigned_at_utc': '2026-01-01T00:00:00Z',
         'split_assignment_source': 'randomization-v1',
         'raw_source_path': raw.name,
         'raw_source_sha256': hashlib.sha256(raw.read_bytes()).hexdigest(),
         'uncertainty_type': 'standard_deviation',
-        'conditions': {'temperature_K': 1000, 'pressure_Pa': 101325,
-                       'inlet_CH4_mol_s': 0.001, 'duration_h': 10,
-                       'feed_mole_fraction': {'CH4': 0.95, 'Ar': 0.05}},
-        'observations': {'CH4_conversion_fraction': 0.75,
-                         'H2_selectivity_fraction': 0.97,
-                         'solid_carbon_yield_fraction': 0.70,
-                         'carbon_balance_closure_fraction': 0.99,
-                         'hydrogen_balance_closure_fraction': 0.98,
-                         'net_energy_kWh_kg_H2': 14,
-                         'deactivation_fraction_per_h': 0.005},
-        'uncertainties': {'CH4_conversion_fraction': 0.02,
-                          'H2_selectivity_fraction': 0.01,
-                          'solid_carbon_yield_fraction': 0.03,
-                          'carbon_balance_closure_fraction': 0.01,
-                          'hydrogen_balance_closure_fraction': 0.01,
-                          'net_energy_kWh_kg_H2': 0.5,
-                          'deactivation_fraction_per_h': 0.001},
+        'conditions': {
+            'temperature_K': 1000,
+            'pressure_Pa': 101325,
+            'inlet_CH4_mol_s': 0.001,
+            'duration_h': 10,
+            'feed_mole_fraction': {'CH4': 0.95, 'Ar': 0.05},
+        },
+        'observations': {
+            'CH4_conversion_fraction': 0.75,
+            'H2_selectivity_fraction': 0.97,
+            'solid_carbon_yield_fraction': 0.70,
+            'carbon_balance_closure_fraction': 0.99,
+            'hydrogen_balance_closure_fraction': 0.98,
+            'net_energy_kWh_kg_H2': 14,
+            'deactivation_fraction_per_h': 0.005,
+        },
+        'uncertainties': {
+            'CH4_conversion_fraction': 0.02,
+            'H2_selectivity_fraction': 0.01,
+            'solid_carbon_yield_fraction': 0.03,
+            'carbon_balance_closure_fraction': 0.01,
+            'hydrogen_balance_closure_fraction': 0.01,
+            'net_energy_kWh_kg_H2': 0.5,
+            'deactivation_fraction_per_h': 0.001,
+        },
     }
     if split == 'holdout':
         record['blinded'] = True
@@ -53,26 +70,36 @@ def _record(root, measurement_id, unit_id, split='calibration', kind='pyrolysis_
 def _write(root, records):
     run_log = root / 'run_log.csv'
     run_log.write_text(
-        'measurement_id,experimental_unit_id,split,status,failure_reason\n' +
-        ''.join(f"{record['measurement_id']},{record['experimental_unit_id']},"
-                f"{record['split']},completed,\n" for record in records))
+        'measurement_id,experimental_unit_id,split,status,failure_reason\n'
+        + ''.join(
+            f"{record['measurement_id']},{record['experimental_unit_id']},"
+            f"{record['split']},completed,\n"
+            for record in records
+        )
+    )
     plan = root / 'analysis_plan.txt'
     plan.write_text('Locked analysis plan fixture\n')
     path = root / 'dataset.json'
-    path.write_text(json.dumps({'schema_version': 1, 'dataset_id': 'dataset-1',
-                                'protocol_id': 'protocol-1',
-                                'run_log_path': run_log.name,
-                                'run_log_sha256': hashlib.sha256(
-                                    run_log.read_bytes()).hexdigest(),
-                                'analysis_plan': {
-                                    'plan_id': 'plan-1',
-                                    'locked_at_utc': '2025-12-31T00:00:00Z',
-                                    'source_path': plan.name,
-                                    'source_sha256': hashlib.sha256(
-                                        plan.read_bytes()).hexdigest(),
-                                    'minimum_calibration_units': 1,
-                                    'minimum_holdout_units': 1},
-                                'records': records}))
+    path.write_text(
+        json.dumps(
+            {
+                'schema_version': 1,
+                'dataset_id': 'dataset-1',
+                'protocol_id': 'protocol-1',
+                'run_log_path': run_log.name,
+                'run_log_sha256': hashlib.sha256(run_log.read_bytes()).hexdigest(),
+                'analysis_plan': {
+                    'plan_id': 'plan-1',
+                    'locked_at_utc': '2025-12-31T00:00:00Z',
+                    'source_path': plan.name,
+                    'source_sha256': hashlib.sha256(plan.read_bytes()).hexdigest(),
+                    'minimum_calibration_units': 1,
+                    'minimum_holdout_units': 1,
+                },
+                'records': records,
+            }
+        )
+    )
     return path
 
 
@@ -88,8 +115,13 @@ def _reject(path, phrase):
 def test_calibration_and_blinded_holdout_are_ready():
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
-        path = _write(root, [_record(root, 'cal-1', 'batch-1'),
-                             _record(root, 'hold-1', 'batch-2', 'holdout')])
+        path = _write(
+            root,
+            [
+                _record(root, 'cal-1', 'batch-1'),
+                _record(root, 'hold-1', 'batch-2', 'holdout'),
+            ],
+        )
         report = validate_experimental_dataset(path)
         assert report['valid'] and report['split_complete_groups'] == 1
         assert report['groups'][0]['independent_calibration_units'] == 1
@@ -102,8 +134,13 @@ def test_calibration_and_blinded_holdout_are_ready():
 def test_experimental_unit_cannot_leak_across_split():
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
-        path = _write(root, [_record(root, 'cal-1', 'same-batch'),
-                             _record(root, 'hold-1', 'same-batch', 'holdout')])
+        path = _write(
+            root,
+            [
+                _record(root, 'cal-1', 'same-batch'),
+                _record(root, 'hold-1', 'same-batch', 'holdout'),
+            ],
+        )
         _reject(path, 'leak across splits')
 
 
@@ -177,8 +214,11 @@ def test_run_log_preserves_failures_and_blocks_omitted_successes():
 
 
 def main():
-    tests = [value for name, value in sorted(globals().items())
-             if name.startswith('test_') and callable(value)]
+    tests = [
+        value
+        for name, value in sorted(globals().items())
+        if name.startswith('test_') and callable(value)
+    ]
     for test in tests:
         test()
         print('PASS', test.__name__)

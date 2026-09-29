@@ -17,24 +17,24 @@ from typing import Iterable, Mapping, cast
 import numpy as np
 
 from pipeline.simulation.result_contract import REQUIRED_OUTPUTS
-from pipeline.data_models.transport import (
-    TransportModelDocument, TransportPrediction)
+from pipeline.data_models.transport import TransportModelDocument, TransportPrediction
 
 
 MODEL_SCHEMA_VERSION = 1
 TRANSPORT_CLOSURE_TARGETS = {
-    'Fluidized': frozenset({
-        'gas_velocity_m_s', 'u_mf_m_s', 'bubble_fraction'}),
-    'MMBCR': frozenset({
-        'gas_velocity_m_s', 'gas_holdup_fraction', 'bubble_diameter_mm'}),
+    'Fluidized': frozenset({'gas_velocity_m_s', 'u_mf_m_s', 'bubble_fraction'}),
+    'MMBCR': frozenset(
+        {'gas_velocity_m_s', 'gas_holdup_fraction', 'bubble_diameter_mm'}
+    ),
     # Existing NTEC/electrochemical artifacts report overall performance, not
     # separable transport closures.  Enabling those modes requires explicit
     # closure fields and candidate-specific kinetic features first.
 }
 
 
-def _physical_closure(reactor: str, predictions: Mapping[str, float],
-                      features: Mapping[str, float]) -> bool:
+def _physical_closure(
+    reactor: str, predictions: Mapping[str, float], features: Mapping[str, float]
+) -> bool:
     """Check identities and bounds that hold independently of calibration."""
     if reactor == 'Fluidized':
         velocity = predictions.get('gas_velocity_m_s')
@@ -59,8 +59,11 @@ def _physical_closure(reactor: str, predictions: Mapping[str, float],
         if diameter_mm is not None and diameter_mm <= 0:
             return False
         column_m = features.get('geometry.column_diameter_m')
-        if (diameter_mm is not None and column_m is not None and
-                diameter_mm / 1000 >= column_m):
+        if (
+            diameter_mm is not None
+            and column_m is not None
+            and diameter_mm / 1000 >= column_m
+        ):
             return False
     return True
 
@@ -76,7 +79,9 @@ class PhysicsRecord:
     outputs: Mapping[str, float]
 
 
-def record_from_artifact(artifact: Mapping, *, case_id: str | None = None) -> PhysicsRecord:
+def record_from_artifact(
+    artifact: Mapping, *, case_id: str | None = None
+) -> PhysicsRecord:
     """Extract a training row from an already validated artifact.
 
         Callers loading files should use ``load_validated_artifact`` first.  This
@@ -90,14 +95,18 @@ def record_from_artifact(artifact: Mapping, *, case_id: str | None = None) -> Ph
     Returns:
         Computed `PhysicsRecord` result.
     """
-    if artifact.get('complete') is not True or artifact.get('convergence', {}).get(
-            'converged') is not True:
+    if (
+        artifact.get('complete') is not True
+        or artifact.get('convergence', {}).get('converged') is not True
+    ):
         raise ValueError('surrogate labels require a complete, converged artifact')
     reactor = str(artifact.get('reactor_type', ''))
     snapshot = artifact.get('surrogate_inputs', {})
-    if (snapshot.get('schema_version') != 1 or
-            snapshot.get('reactor_type') != reactor or
-            snapshot.get('units_in_field_names') is not True):
+    if (
+        snapshot.get('schema_version') != 1
+        or snapshot.get('reactor_type') != reactor
+        or snapshot.get('units_in_field_names') is not True
+    ):
         raise ValueError('artifact lacks a compatible surrogate-input snapshot')
     features = _finite_mapping(snapshot.get('values'), 'features')
     outputs = _finite_mapping(artifact.get('outputs'), 'outputs')
@@ -107,8 +116,9 @@ def record_from_artifact(artifact: Mapping, *, case_id: str | None = None) -> Ph
     identity = case_id or str(artifact.get('provenance', {}).get('input_sha256', ''))
     if not identity:
         raise ValueError('a stable case identity is required')
-    return PhysicsRecord(identity, str(artifact.get('pathway_mode', '')),
-                         reactor, features, outputs)
+    return PhysicsRecord(
+        identity, str(artifact.get('pathway_mode', '')), reactor, features, outputs
+    )
 
 
 def _finite_mapping(value, label: str) -> dict[str, float]:
@@ -116,8 +126,12 @@ def _finite_mapping(value, label: str) -> dict[str, float]:
         raise ValueError(f'{label} must be a non-empty mapping')
     result = {}
     for name, number in value.items():
-        if (not isinstance(name, str) or not isinstance(number, (int, float)) or
-                isinstance(number, bool) or not math.isfinite(float(number))):
+        if (
+            not isinstance(name, str)
+            or not isinstance(number, (int, float))
+            or isinstance(number, bool)
+            or not math.isfinite(float(number))
+        ):
             raise ValueError(f'{label} must contain finite numeric values')
         result[name] = float(number)
     return result
@@ -145,12 +159,18 @@ class TransportSurrogate:
         feature_count, target_count = len(self.feature_names), len(self.target_names)
         if not self.pathway_mode or not self.reactor_type:
             raise ValueError('transport surrogate identity is required')
-        if (feature_count < 1 or target_count < 1 or
-                len(set(self.feature_names)) != feature_count or
-                len(set(self.target_names)) != target_count):
-            raise ValueError('model feature and target schemas must be nonempty and unique')
+        if (
+            feature_count < 1
+            or target_count < 1
+            or len(set(self.feature_names)) != feature_count
+            or len(set(self.target_names)) != target_count
+        ):
+            raise ValueError(
+                'model feature and target schemas must be nonempty and unique'
+            )
         unsupported = set(self.target_names).difference(
-            TRANSPORT_CLOSURE_TARGETS.get(self.reactor_type, frozenset()))
+            TRANSPORT_CLOSURE_TARGETS.get(self.reactor_type, frozenset())
+        )
         if unsupported:
             raise ValueError('serialized model contains unsupported transport targets')
         arrays = {
@@ -165,19 +185,30 @@ class TransportSurrogate:
             if value.shape != shape or not np.all(np.isfinite(value)):
                 raise ValueError(f'model {name} has an invalid shape or value')
         design_size = 1 + 2 * feature_count
-        if (self.coefficients.ndim != 3 or self.coefficients.shape[0] < 2 or
-                self.coefficients.shape[1:] != (design_size, target_count) or
-                not np.all(np.isfinite(self.coefficients))):
+        if (
+            self.coefficients.ndim != 3
+            or self.coefficients.shape[0] < 2
+            or self.coefficients.shape[1:] != (design_size, target_count)
+            or not np.all(np.isfinite(self.coefficients))
+        ):
             raise ValueError('model coefficients have an invalid shape or value')
-        if (np.any(self.scale <= 0) or np.any(self.feature_min > self.feature_max) or
-                np.any(self.validation_rmse < 0) or
-                np.any(self.uncertainty_limits < 0)):
+        if (
+            np.any(self.scale <= 0)
+            or np.any(self.feature_min > self.feature_max)
+            or np.any(self.validation_rmse < 0)
+            or np.any(self.uncertainty_limits < 0)
+        ):
             raise ValueError('model scales, domains, and errors must be physical')
-        training, validation = set(self.training_case_ids), set(self.validation_case_ids)
-        if (not training or not validation or
-                len(training) != len(self.training_case_ids) or
-                len(validation) != len(self.validation_case_ids) or
-                training.intersection(validation)):
+        training, validation = set(self.training_case_ids), set(
+            self.validation_case_ids
+        )
+        if (
+            not training
+            or not validation
+            or len(training) != len(self.training_case_ids)
+            or len(validation) != len(self.validation_case_ids)
+            or training.intersection(validation)
+        ):
             raise ValueError('model case identities must be unique and split-disjoint')
 
     def sha256(self) -> str:
@@ -187,7 +218,8 @@ class TransportSurrogate:
             Computed `str` result.
         """
         payload = json.dumps(
-            self.to_dict(), sort_keys=True, separators=(',', ':')).encode()
+            self.to_dict(), sort_keys=True, separators=(',', ':')
+        ).encode()
         return hashlib.sha256(payload).hexdigest()
 
     def predict(self, features: Mapping[str, float]) -> TransportPrediction:
@@ -210,29 +242,49 @@ class TransportSurrogate:
             mean = ensemble.mean(axis=0)
             uncertainty = ensemble.std(axis=0)
             prediction_map = dict(zip(self.target_names, mean.tolist()))
-            outside = bool(np.any(raw < self.feature_min) or
-                           np.any(raw > self.feature_max))
+            outside = bool(
+                np.any(raw < self.feature_min) or np.any(raw > self.feature_max)
+            )
             uncertain = bool(np.any(uncertainty > self.uncertainty_limits))
-            finite = bool(np.all(np.isfinite(mean)) and np.all(np.isfinite(uncertainty)))
+            finite = bool(
+                np.all(np.isfinite(mean)) and np.all(np.isfinite(uncertainty))
+            )
             physical = finite and _physical_closure(
-                self.reactor_type, prediction_map, actual)
+                self.reactor_type, prediction_map, actual
+            )
         except (TypeError, ValueError) as exc:
             return {
-                'usable': False, 'decision': 'full_physics_required',
-                'reason': str(exc), 'candidate_exclusion_authorized': False}
+                'usable': False,
+                'decision': 'full_physics_required',
+                'reason': str(exc),
+                'candidate_exclusion_authorized': False,
+            }
         usable = finite and physical and not outside and not uncertain
         return {
             'usable': usable,
             'decision': 'surrogate_closure' if usable else 'full_physics_required',
-            'reason': None if usable else (
-                'outside_calibrated_domain' if outside else
-                'ensemble_uncertainty_exceeded' if uncertain else
-                'nonphysical_closure' if not physical else
-                'nonfinite_prediction'),
+            'reason': (
+                None
+                if usable
+                else (
+                    'outside_calibrated_domain'
+                    if outside
+                    else (
+                        'ensemble_uncertainty_exceeded'
+                        if uncertain
+                        else (
+                            'nonphysical_closure'
+                            if not physical
+                            else 'nonfinite_prediction'
+                        )
+                    )
+                )
+            ),
             'predictions': prediction_map,
             'uncertainty_1sigma': dict(zip(self.target_names, uncertainty.tolist())),
-            'validation_rmse': dict(zip(self.target_names,
-                                        self.validation_rmse.tolist())),
+            'validation_rmse': dict(
+                zip(self.target_names, self.validation_rmse.tolist())
+            ),
             'candidate_exclusion_authorized': False,
         }
 
@@ -248,11 +300,11 @@ class TransportSurrogate:
             'reactor_type': self.reactor_type,
             'feature_names': list(self.feature_names),
             'target_names': list(self.target_names),
-            'center': self.center.tolist(), 'scale': self.scale.tolist(),
+            'center': self.center.tolist(),
+            'scale': self.scale.tolist(),
             'feature_min': self.feature_min.tolist(),
             'feature_max': self.feature_max.tolist(),
-            'coefficients': cast(list[list[list[float]]],
-                                 self.coefficients.tolist()),
+            'coefficients': cast(list[list[list[float]]], self.coefficients.tolist()),
             'validation_rmse': self.validation_rmse.tolist(),
             'uncertainty_limits': self.uncertainty_limits.tolist(),
             'training_case_ids': list(self.training_case_ids),
@@ -285,12 +337,15 @@ class TransportSurrogate:
             A validated model reconstructed from disk.
         """
         value = json.loads(Path(path).read_text())
-        if (value.get('schema_version') != MODEL_SCHEMA_VERSION or
-                value.get('scope') != 'transport_closure_only' or
-                value.get('candidate_exclusion_authorized') is not False):
+        if (
+            value.get('schema_version') != MODEL_SCHEMA_VERSION
+            or value.get('scope') != 'transport_closure_only'
+            or value.get('candidate_exclusion_authorized') is not False
+        ):
             raise ValueError('unsupported or unsafe transport-surrogate model')
         return cls(
-            pathway_mode=value['pathway_mode'], reactor_type=value['reactor_type'],
+            pathway_mode=value['pathway_mode'],
+            reactor_type=value['reactor_type'],
             feature_names=tuple(value['feature_names']),
             target_names=tuple(value['target_names']),
             center=np.asarray(value['center'], dtype=float),
@@ -301,14 +356,20 @@ class TransportSurrogate:
             validation_rmse=np.asarray(value['validation_rmse'], dtype=float),
             uncertainty_limits=np.asarray(value['uncertainty_limits'], dtype=float),
             training_case_ids=tuple(value['training_case_ids']),
-            validation_case_ids=tuple(value['validation_case_ids']))
+            validation_case_ids=tuple(value['validation_case_ids']),
+        )
 
 
 def fit_transport_surrogate(
-        training: Iterable[PhysicsRecord], validation: Iterable[PhysicsRecord], *,
-        targets: Iterable[str], validation_rmse_limits: Mapping[str, float],
-        ensemble_size: int = 8, ridge: float = 1e-8,
-        random_seed: int = 0) -> TransportSurrogate:
+    training: Iterable[PhysicsRecord],
+    validation: Iterable[PhysicsRecord],
+    *,
+    targets: Iterable[str],
+    validation_rmse_limits: Mapping[str, float],
+    ensemble_size: int = 8,
+    ridge: float = 1e-8,
+    random_seed: int = 0,
+) -> TransportSurrogate:
     """Fit one mode-local model and require a disjoint passing holdout.
 
     Args:
@@ -334,7 +395,9 @@ def fit_transport_surrogate(
         raise ValueError('training and validation case identities must be disjoint')
     identity = {(row.pathway_mode, row.reactor_type) for row in train + holdout}
     if len(identity) != 1:
-        raise ValueError('a surrogate may cover exactly one pathway mode and reactor type')
+        raise ValueError(
+            'a surrogate may cover exactly one pathway mode and reactor type'
+        )
     mode, reactor = next(iter(identity))
     features = tuple(sorted(train[0].features))
     target_names = tuple(targets)
@@ -345,7 +408,8 @@ def fit_transport_surrogate(
     if unsupported:
         raise ValueError(
             f'outputs are not established transport closures for {reactor}: '
-            f'{sorted(unsupported)}')
+            f'{sorted(unsupported)}'
+        )
     if set(validation_rmse_limits) != set(target_names):
         raise ValueError('every target needs exactly one validation RMSE limit')
     for row in train + holdout:
@@ -354,8 +418,7 @@ def fit_transport_surrogate(
         if not set(target_names).issubset(row.outputs):
             raise ValueError('all records must contain every requested target')
         _finite_mapping(row.features, 'features')
-        _finite_mapping({name: row.outputs[name] for name in target_names},
-                        'outputs')
+        _finite_mapping({name: row.outputs[name] for name in target_names}, 'outputs')
     x = np.asarray([[row.features[name] for name in features] for row in train])
     y = np.asarray([[row.outputs[name] for name in target_names] for row in train])
     center, scale = x.mean(axis=0), x.std(axis=0)
@@ -381,14 +444,27 @@ def fit_transport_surrogate(
     if np.any(~np.isfinite(limits)) or np.any(limits < 0):
         raise ValueError('validation RMSE limits must be finite and nonnegative')
     if np.any(rmse > limits):
-        failed = {name: float(error) for name, error, limit in
-                  zip(target_names, rmse, limits) if error > limit}
+        failed = {
+            name: float(error)
+            for name, error, limit in zip(target_names, rmse, limits)
+            if error > limit
+        }
         raise ValueError(f'holdout validation failed: {failed}')
     # A prediction must have no more ensemble spread than the independently
     # accepted holdout error.  Zero limits use a small numerical floor.
     uncertainty_limits = np.maximum(limits, 1e-12)
     return TransportSurrogate(
-        mode, reactor, features, target_names, center, scale,
-        x.min(axis=0), x.max(axis=0), coefficients, rmse,
-        uncertainty_limits, tuple(row.case_id for row in train),
-        tuple(row.case_id for row in holdout))
+        mode,
+        reactor,
+        features,
+        target_names,
+        center,
+        scale,
+        x.min(axis=0),
+        x.max(axis=0),
+        coefficients,
+        rmse,
+        uncertainty_limits,
+        tuple(row.case_id for row in train),
+        tuple(row.case_id for row in holdout),
+    )

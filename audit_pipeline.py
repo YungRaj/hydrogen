@@ -11,11 +11,13 @@ Run: conda run -n fairchem-env python audit_pipeline.py
 """
 
 import sys, os, re, ast, importlib
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 PASS = 0
 FAIL = 0
 ERRORS = []
+
 
 def check(name, condition, detail=""):
     """Record a named audit assertion and retain any failure details.
@@ -39,9 +41,14 @@ def check(name, condition, detail=""):
 
 
 from pipeline.search.design_space import (
-    ALL_MATERIAL_CLASSES, generate_random_genome,
-    GENERATORS, encode_genome, FEATURE_DIM,
-    crossover, mutate, CLASS_WEIGHTS,
+    ALL_MATERIAL_CLASSES,
+    generate_random_genome,
+    GENERATORS,
+    encode_genome,
+    FEATURE_DIM,
+    crossover,
+    mutate,
+    CLASS_WEIGHTS,
 )
 
 ALL_14 = list(ALL_MATERIAL_CLASSES)
@@ -52,29 +59,40 @@ ALL_14 = list(ALL_MATERIAL_CLASSES)
 print("\n═══ LOOKUP TABLE COVERAGE ═══")
 
 # 1a. GENERATORS
-check("GENERATORS covers all classes",
-      all(c in GENERATORS for c in ALL_14),
-      f"Missing: {[c for c in ALL_14 if c not in GENERATORS]}")
+check(
+    "GENERATORS covers all classes",
+    all(c in GENERATORS for c in ALL_14),
+    f"Missing: {[c for c in ALL_14 if c not in GENERATORS]}",
+)
 
 # 1b. CLASS_WEIGHTS
-check("CLASS_WEIGHTS covers all classes",
-      all(c in CLASS_WEIGHTS for c in ALL_14),
-      f"Missing: {[c for c in ALL_14 if c not in CLASS_WEIGHTS]}")
+check(
+    "CLASS_WEIGHTS covers all classes",
+    all(c in CLASS_WEIGHTS for c in ALL_14),
+    f"Missing: {[c for c in ALL_14 if c not in CLASS_WEIGHTS]}",
+)
 
 # 1c. TAFEL_SLOPE_BY_CLASS
 from pipeline.fuel_cell.pemfc import TAFEL_SLOPE_BY_CLASS
-check("TAFEL_SLOPE covers all classes",
-      all(c in TAFEL_SLOPE_BY_CLASS for c in ALL_14),
-      f"Missing: {[c for c in ALL_14 if c not in TAFEL_SLOPE_BY_CLASS]}")
+
+check(
+    "TAFEL_SLOPE covers all classes",
+    all(c in TAFEL_SLOPE_BY_CLASS for c in ALL_14),
+    f"Missing: {[c for c in ALL_14 if c not in TAFEL_SLOPE_BY_CLASS]}",
+)
 
 # 1d. OOD CLASS_CONFIDENCE
 from pipeline.screening.ood import CLASS_CONFIDENCE
-check("OOD CLASS_CONFIDENCE covers all classes",
-      all(c in CLASS_CONFIDENCE for c in ALL_14),
-      f"Missing: {[c for c in ALL_14 if c not in CLASS_CONFIDENCE]}")
+
+check(
+    "OOD CLASS_CONFIDENCE covers all classes",
+    all(c in CLASS_CONFIDENCE for c in ALL_14),
+    f"Missing: {[c for c in ALL_14 if c not in CLASS_CONFIDENCE]}",
+)
 
 # 1e. BEP_PARAMS (embedded in function — extract programmatically)
 from pipeline.utils import bep_activation_energy
+
 # Test that each class produces a DIFFERENT result than default
 default_e = bep_activation_energy(0.5)
 bep_missing = []
@@ -84,18 +102,21 @@ for cls in ALL_14:
     # We just need to confirm the function doesn't error
     if not isinstance(e, float) or e <= 0:
         bep_missing.append(cls)
-check("BEP_PARAMS handles all classes",
-      len(bep_missing) == 0,
-      f"Failed: {bep_missing}")
+check("BEP_PARAMS handles all classes", len(bep_missing) == 0, f"Failed: {bep_missing}")
 
 # 1f. VALID_CLASSES sets
 from pipeline.utils import VALID_CLASSES_PYROLYSIS, VALID_CLASSES_FUEL_CELL
-check("VALID_CLASSES_PYROLYSIS covers all",
-      all(c in VALID_CLASSES_PYROLYSIS for c in ALL_14),
-      f"Missing: {[c for c in ALL_14 if c not in VALID_CLASSES_PYROLYSIS]}")
-check("VALID_CLASSES_FUEL_CELL covers all",
-      all(c in VALID_CLASSES_FUEL_CELL for c in ALL_14),
-      f"Missing: {[c for c in ALL_14 if c not in VALID_CLASSES_FUEL_CELL]}")
+
+check(
+    "VALID_CLASSES_PYROLYSIS covers all",
+    all(c in VALID_CLASSES_PYROLYSIS for c in ALL_14),
+    f"Missing: {[c for c in ALL_14 if c not in VALID_CLASSES_PYROLYSIS]}",
+)
+check(
+    "VALID_CLASSES_FUEL_CELL covers all",
+    all(c in VALID_CLASSES_FUEL_CELL for c in ALL_14),
+    f"Missing: {[c for c in ALL_14 if c not in VALID_CLASSES_FUEL_CELL]}",
+)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -121,23 +142,32 @@ for _ in range(10000):
 print(f"  Found {len(all_elements)} unique elements across 10k genomes")
 
 missing_abundance = [e for e in all_elements if e not in CRUSTAL_ABUNDANCE_PPM]
-check("All elements in CRUSTAL_ABUNDANCE",
-      len(missing_abundance) == 0,
-      f"Missing: {sorted(missing_abundance)}")
+check(
+    "All elements in CRUSTAL_ABUNDANCE",
+    len(missing_abundance) == 0,
+    f"Missing: {sorted(missing_abundance)}",
+)
 
 missing_price = [e for e in all_elements if e not in METAL_PRICE_USD_KG]
-check("All elements in METAL_PRICE_USD_KG",
-      len(missing_price) == 0,
-      f"Missing: {sorted(missing_price)}")
+check(
+    "All elements in METAL_PRICE_USD_KG",
+    len(missing_price) == 0,
+    f"Missing: {sorted(missing_price)}",
+)
 
-missing_ood_elem = [e for e in all_elements
-                     if e not in _ELEMENT_COVERAGE
-                     and e not in ('N', 'O', 'C', 'F', 'Cl', 'Br', 'I', 'S', 'P', 'H', 'B', 'Si')]
+missing_ood_elem = [
+    e
+    for e in all_elements
+    if e not in _ELEMENT_COVERAGE
+    and e not in ('N', 'O', 'C', 'F', 'Cl', 'Br', 'I', 'S', 'P', 'H', 'B', 'Si')
+]
 # Note: non-metals are expected to not be in OOD element coverage (they're not metals)
 # But metals should be there
-check("All metals in OOD _ELEMENT_COVERAGE",
-      len(missing_ood_elem) == 0,
-      f"Missing: {sorted(missing_ood_elem)}")
+check(
+    "All metals in OOD _ELEMENT_COVERAGE",
+    len(missing_ood_elem) == 0,
+    f"Missing: {sorted(missing_ood_elem)}",
+)
 
 # Check FENTON_RISK — it's OK to not list all elements (default=0 is correct)
 # But verify it doesn't list elements that aren't in the design space
@@ -148,10 +178,14 @@ check("All metals in OOD _ELEMENT_COVERAGE",
 # ═══════════════════════════════════════════════════════════════════════════════
 print("\n═══ ELEMENT EXTRACTOR CONSISTENCY ═══")
 
-from pipeline.screening.fc_genetic_optimizer import _extract_elements_from_genome as fc_ga_extract
+from pipeline.screening.fc_genetic_optimizer import (
+    _extract_elements_from_genome as fc_ga_extract,
+)
 from pipeline.screening.fc_screener import _extract_elements as fc_screen_extract
 from pipeline.screening.surface_screener import _extract_elements as surf_extract
-from pipeline.screening.genetic_optimizer import _extract_elements_from_genome as ch4_ga_extract
+from pipeline.screening.genetic_optimizer import (
+    _extract_elements_from_genome as ch4_ga_extract,
+)
 
 extractor_failures = []
 for cls in ALL_14:
@@ -169,9 +203,11 @@ for cls in ALL_14:
         except Exception as ex:
             extractor_failures.append(f"{cls}: CRASH: {ex}")
 
-check("4 element extractors consistent (700 genomes)",
-      len(extractor_failures) == 0,
-      f"{len(extractor_failures)} failures. First: {extractor_failures[0] if extractor_failures else ''}")
+check(
+    "4 element extractors consistent (700 genomes)",
+    len(extractor_failures) == 0,
+    f"{len(extractor_failures)} failures. First: {extractor_failures[0] if extractor_failures else ''}",
+)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -192,9 +228,11 @@ for cls in ALL_14:
         except Exception as ex:
             struct_failures.append(f"{cls}: {str(ex)[:80]}")
 
-check(f"Structure generation (700 genomes, 0 crashes)",
-      len(struct_failures) == 0,
-      f"{len(struct_failures)} failures. First: {struct_failures[0] if struct_failures else ''}")
+check(
+    f"Structure generation (700 genomes, 0 crashes)",
+    len(struct_failures) == 0,
+    f"{len(struct_failures)} failures. First: {struct_failures[0] if struct_failures else ''}",
+)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -219,9 +257,11 @@ for cls in ALL_14:
         except Exception as ex:
             encode_failures.append(f"{cls}: {str(ex)[:80]}")
 
-check(f"Encoding (700 genomes, no NaN/Inf)",
-      len(encode_failures) == 0,
-      f"{len(encode_failures)} failures. First: {encode_failures[0] if encode_failures else ''}")
+check(
+    f"Encoding (700 genomes, no NaN/Inf)",
+    len(encode_failures) == 0,
+    f"{len(encode_failures)} failures. First: {encode_failures[0] if encode_failures else ''}",
+)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -247,9 +287,11 @@ for cls in ALL_14:
         except Exception as ex:
             genetic_failures.append(f"Mutation {cls}: {str(ex)[:80]}")
 
-check(f"Crossover & mutation (840 ops, class preserved)",
-      len(genetic_failures) == 0,
-      f"{len(genetic_failures)} failures. First: {genetic_failures[0] if genetic_failures else ''}")
+check(
+    f"Crossover & mutation (840 ops, class preserved)",
+    len(genetic_failures) == 0,
+    f"{len(genetic_failures)} failures. First: {genetic_failures[0] if genetic_failures else ''}",
+)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -275,9 +317,11 @@ for cls in ALL_14:
         if hasattr(arr, '__len__') and any(np.isnan(arr)):
             ch4_nan_classes.append(f"{cls}/{key}")
 
-check("CH4 surrogate: no NaN (280 preds)",
-      len(ch4_nan_classes) == 0,
-      f"NaN in: {ch4_nan_classes}")
+check(
+    "CH4 surrogate: no NaN (280 preds)",
+    len(ch4_nan_classes) == 0,
+    f"NaN in: {ch4_nan_classes}",
+)
 
 # ORR surrogate
 orr_model = ORRCatalystSurrogate(input_dim=FEATURE_DIM)
@@ -288,13 +332,19 @@ for cls in ALL_14:
     X_tensor = torch.FloatTensor(encode_population(pop))
     with torch.no_grad():
         valid_logit, pred_eta, pred_binding = orr_model(X_tensor)
-    for name, tensor in [('valid', valid_logit), ('eta', pred_eta), ('binding', pred_binding)]:
+    for name, tensor in [
+        ('valid', valid_logit),
+        ('eta', pred_eta),
+        ('binding', pred_binding),
+    ]:
         if torch.any(torch.isnan(tensor)):
             orr_nan_classes.append(f"{cls}/{name}")
 
-check("ORR surrogate: no NaN (280 preds)",
-      len(orr_nan_classes) == 0,
-      f"NaN in: {orr_nan_classes}")
+check(
+    "ORR surrogate: no NaN (280 preds)",
+    len(orr_nan_classes) == 0,
+    f"NaN in: {orr_nan_classes}",
+)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -318,9 +368,11 @@ for cls in ALL_14:
     except Exception as ex:
         orr_obj_failures.append(f"{cls}: {str(ex)[:80]}")
 
-check("ORR NSGA-II objectives (280 candidates, no NaN)",
-      len(orr_obj_failures) == 0,
-      f"Failures: {orr_obj_failures}")
+check(
+    "ORR NSGA-II objectives (280 candidates, no NaN)",
+    len(orr_obj_failures) == 0,
+    f"Failures: {orr_obj_failures}",
+)
 
 # CH4 objectives
 ch4_obj_failures = []
@@ -335,9 +387,11 @@ for cls in ALL_14:
     except Exception as ex:
         ch4_obj_failures.append(f"{cls}: {str(ex)[:80]}")
 
-check("CH4 NSGA-II objectives (280 candidates, no NaN)",
-      len(ch4_obj_failures) == 0,
-      f"Failures: {ch4_obj_failures}")
+check(
+    "CH4 NSGA-II objectives (280 candidates, no NaN)",
+    len(ch4_obj_failures) == 0,
+    f"Failures: {ch4_obj_failures}",
+)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -362,9 +416,11 @@ for cls in ALL_14:
         except Exception as ex:
             ood_failures.append(f"{cls}: {str(ex)[:80]}")
 
-check("OOD confidence (280 genomes, all in range)",
-      len(ood_failures) == 0,
-      f"Failures: {ood_failures}")
+check(
+    "OOD confidence (280 genomes, all in range)",
+    len(ood_failures) == 0,
+    f"Failures: {ood_failures}",
+)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -373,7 +429,10 @@ check("OOD confidence (280 genomes, all in range)",
 print("\n═══ COST & FENTON SCORING ═══")
 
 from pipeline.utils import abundance_cost_penalty
-from pipeline.screening.fc_genetic_optimizer import _fenton_from_genome, _cost_from_genome
+from pipeline.screening.fc_genetic_optimizer import (
+    _fenton_from_genome,
+    _cost_from_genome,
+)
 
 cost_fenton_failures = []
 for cls in ALL_14:
@@ -391,9 +450,11 @@ for cls in ALL_14:
         except Exception as ex:
             cost_fenton_failures.append(f"{cls}: {str(ex)[:80]}")
 
-check("Cost & Fenton scoring (700 genomes, no NaN)",
-      len(cost_fenton_failures) == 0,
-      f"Failures: {cost_fenton_failures}")
+check(
+    "Cost & Fenton scoring (700 genomes, no NaN)",
+    len(cost_fenton_failures) == 0,
+    f"Failures: {cost_fenton_failures}",
+)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -406,7 +467,9 @@ from pipeline.fuel_cell.pemfc import sweep_membranes
 pemfc_failures = []
 for cls in ALL_14:
     try:
-        results = sweep_membranes(cathode_name=f"audit_{cls}", orr_eta=0.5, material_class=cls)
+        results = sweep_membranes(
+            cathode_name=f"audit_{cls}", orr_eta=0.5, material_class=cls
+        )
         if not results or len(results) == 0:
             pemfc_failures.append(f"{cls}: returned empty")
         else:
@@ -418,9 +481,11 @@ for cls in ALL_14:
     except Exception as ex:
         pemfc_failures.append(f"{cls}: {str(ex)[:80]}")
 
-check("PEMFC model (all 14 classes produce power)",
-      len(pemfc_failures) == 0,
-      f"Failures: {pemfc_failures}")
+check(
+    "PEMFC model (all 14 classes produce power)",
+    len(pemfc_failures) == 0,
+    f"Failures: {pemfc_failures}",
+)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -455,9 +520,11 @@ for c in candidates:
     except Exception as ex:
         cathode_failures.append(f"{c['name']}: struct crash: {str(ex)[:60]}")
 
-check(f"FC cathode candidates ({len(candidates)} candidates, encode+structure)",
-      len(cathode_failures) == 0,
-      f"{len(cathode_failures)} failures. First: {cathode_failures[0] if cathode_failures else ''}")
+check(
+    f"FC cathode candidates ({len(candidates)} candidates, encode+structure)",
+    len(cathode_failures) == 0,
+    f"{len(cathode_failures)} failures. First: {cathode_failures[0] if cathode_failures else ''}",
+)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -469,7 +536,9 @@ import glob
 
 pipeline_files = glob.glob("pipeline/**/*.py", recursive=True)
 class_names_in_code = set()
-string_pattern = re.compile(r"'(MoltenMetal|SolidCatalyst|SAC|DAC|MOF|COF|Perovskite|MetalHydride|MAXPhase|HEA|Spinel|MXene|SAA|MetalFreeCarbon)'")
+string_pattern = re.compile(
+    r"'(MoltenMetal|SolidCatalyst|SAC|DAC|MOF|COF|Perovskite|MetalHydride|MAXPhase|HEA|Spinel|MXene|SAA|MetalFreeCarbon)'"
+)
 
 # Find all files that reference material class names
 files_with_classes = {}
@@ -508,9 +577,11 @@ print("\n═══ DESIGN SPACE AUDIT ═══")
 from pipeline.evidence.design_space_audit import audit_design_space
 
 design_audit = audit_design_space(sample_per_class=1024)
-check("All 14 design classes remain sizable and provenance-backed",
-      design_audit['valid'],
-      f"Failures: {design_audit['failures']}")
+check(
+    "All 14 design classes remain sizable and provenance-backed",
+    design_audit['valid'],
+    f"Failures: {design_audit['failures']}",
+)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

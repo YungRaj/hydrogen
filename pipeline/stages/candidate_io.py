@@ -29,8 +29,9 @@ def load_reactor_reference(candidate_id: str):
     return matches.iloc[0]
 
 
-def load_selected_candidates(path: str | Path, *, top_k_reactor: int,
-                             top_k_dft: int) -> SelectedCandidates | None:
+def load_selected_candidates(
+    path: str | Path, *, top_k_reactor: int, top_k_dft: int
+) -> SelectedCandidates | None:
     """Load a screening table and reproduce the two distinct admission routes.
 
     Args:
@@ -44,7 +45,9 @@ def load_selected_candidates(path: str | Path, *, top_k_reactor: int,
     import pandas as pd
     from pipeline.search.scope import scope_pyrolysis_pool
     from pipeline.screening.stage_selection import (
-        select_for_reactor, select_for_validation)
+        select_for_reactor,
+        select_for_validation,
+    )
 
     source = Path(path)
     if not source.is_file():
@@ -58,8 +61,10 @@ def load_selected_candidates(path: str | Path, *, top_k_reactor: int,
         'screening_database': database,
         'admissibility': admissibility,
         'top_catalysts': select_for_reactor(
-            pool, top_k_reactor, 'E_act', min_per_class=1),
+            pool, top_k_reactor, 'E_act', min_per_class=1
+        ),
         'dft_candidates': select_for_validation(
-            pool, top_k_dft, 'E_act', min_per_class=1),
+            pool, top_k_dft, 'E_act', min_per_class=1
+        ),
     }
     return selected

@@ -23,9 +23,13 @@ def _usable(candidate: str | None) -> str | None:
     return None
 
 
-def resolve_executable(name: str, *, env_var: str | None = None,
-                       conda_env: str | None = None,
-                       required: bool = True) -> str | None:
+def resolve_executable(
+    name: str,
+    *,
+    env_var: str | None = None,
+    conda_env: str | None = None,
+    required: bool = True,
+) -> str | None:
     """Resolve without assuming where Python, Conda, or environments live.
 
         Resolution order is an explicit environment override, the caller's PATH,
@@ -47,7 +51,8 @@ def resolve_executable(name: str, *, env_var: str | None = None,
             return resolved
         raise RuntimeError(
             f'{env_var} is set but is not an executable file or PATH command: '
-            f'{override!r}')
+            f'{override!r}'
+        )
 
     resolved = _usable(name)
     if resolved:
@@ -57,10 +62,12 @@ def resolve_executable(name: str, *, env_var: str | None = None,
     if conda and conda_env:
         probe = subprocess.run(
             [conda, 'run', '-n', conda_env, 'which', name],
-            capture_output=True, text=True, timeout=30)
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
         if probe.returncode == 0:
-            lines = [line.strip() for line in probe.stdout.splitlines()
-                     if line.strip()]
+            lines = [line.strip() for line in probe.stdout.splitlines() if line.strip()]
             if lines:
                 resolved = _usable(lines[-1])
                 if resolved:
@@ -69,11 +76,15 @@ def resolve_executable(name: str, *, env_var: str | None = None,
     if not required:
         return None
     override_help = f' set {env_var},' if env_var else ''
-    conda_help = (f' or install it in the documented {conda_env!r} Conda environment'
-                  if conda_env else '')
+    conda_help = (
+        f' or install it in the documented {conda_env!r} Conda environment'
+        if conda_env
+        else ''
+    )
     raise RuntimeError(
         f'Unable to locate {name!r};{override_help} add it to PATH{conda_help}. '
-        'See README.md Environment Setup.')
+        'See README.md Environment Setup.'
+    )
 
 
 def resolve_qe_executable(name: str) -> str:
@@ -99,9 +110,9 @@ def resolve_qe_executable(name: str) -> str:
         raise RuntimeError(
             f'{variable} is not set. Run scripts/install_qe_gpu.sh and source '
             'the generated activate.sh; generic PATH and Conda QE builds are '
-            'not accepted for production.')
+            'not accepted for production.'
+        )
     resolved = _usable(override)
     if not resolved:
-        raise RuntimeError(
-            f'{variable} does not identify an executable: {override!r}')
+        raise RuntimeError(f'{variable} does not identify an executable: {override!r}')
     return resolved

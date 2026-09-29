@@ -9,7 +9,8 @@ from pipeline.data_models.artifacts import ArtifactValidationResult
 
 
 ReactorStatus = Literal[
-    'complete', 'partial', 'failed', 'validation_required', 'not_applicable']
+    'complete', 'partial', 'failed', 'validation_required', 'not_applicable'
+]
 
 
 class ReactorResult(TypedDict, total=False):
@@ -74,25 +75,29 @@ class CandidateReactorResult(ReactorSweepSummary):
     sweep: list[ReactorResult]
 
 
-SolidsMetricRow = TypedDict('SolidsMetricRow', {
-    'catalyst_name': str | None,
-    'reactor_type': ReactorTypeName | None,
-    'T_K': float | None,
-    'single_pass_CH4_conversion': float,
-    'active_sv_1_m': float | None,
-    'WHSV_h-1': float | None,
-    'ergun_delta_p_Pa': float | None,
-    'ergun_delta_p_bar': float | None,
-    'ergun_ok': bool | None,
-    'catalyst_E_act_eV': float | None,
-    'catalyst_dE_H_eV': float | None,
-    'h_parked': bool,
-    'catalyst_particle_mm': float | None,
-    'metal_loading': float | None,
-    'metal_dispersion': float | None,
-    'exceeds_equilibrium': bool,
-    'carbon_balance_ok': bool | None,
-}, total=False)
+SolidsMetricRow = TypedDict(
+    'SolidsMetricRow',
+    {
+        'catalyst_name': str | None,
+        'reactor_type': ReactorTypeName | None,
+        'T_K': float | None,
+        'single_pass_CH4_conversion': float,
+        'active_sv_1_m': float | None,
+        'WHSV_h-1': float | None,
+        'ergun_delta_p_Pa': float | None,
+        'ergun_delta_p_bar': float | None,
+        'ergun_ok': bool | None,
+        'catalyst_E_act_eV': float | None,
+        'catalyst_dE_H_eV': float | None,
+        'h_parked': bool,
+        'catalyst_particle_mm': float | None,
+        'metal_loading': float | None,
+        'metal_dispersion': float | None,
+        'exceeds_equilibrium': bool,
+        'carbon_balance_ok': bool | None,
+    },
+    total=False,
+)
 """Unit-bearing reactor fields used to rank solid catalysts."""
 
 

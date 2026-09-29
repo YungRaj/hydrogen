@@ -28,8 +28,9 @@ class ScreeningRunSpec:
     cache_path: Path | None = None
 
 
-def execution_layout(device_count: int, workers_per_gpu: int,
-                     engine: str) -> tuple[int, int]:
+def execution_layout(
+    device_count: int, workers_per_gpu: int, engine: str
+) -> tuple[int, int]:
     """Return (process count, candidate threads/process) with validation.
 
     Args:
@@ -51,10 +52,19 @@ def execution_layout(device_count: int, workers_per_gpu: int,
     return device_count * processes_per_gpu, candidate_threads
 
 
-def run_worker_loop(worker_id, task_queue, status_queue, stop_event,
-                    candidate_threads: int, batched: bool, calculator,
-                    evaluator: Callable, error_record: Callable,
-                    batch_service=None, result_context: dict | None = None) -> None:
+def run_worker_loop(
+    worker_id,
+    task_queue,
+    status_queue,
+    stop_event,
+    candidate_threads: int,
+    batched: bool,
+    calculator,
+    evaluator: Callable,
+    error_record: Callable,
+    batch_service=None,
+    result_context: dict | None = None,
+) -> None:
     """Run the shared leased-task and heartbeat loop inside one GPU process.
 
     Args:
@@ -79,8 +89,11 @@ def run_worker_loop(worker_id, task_queue, status_queue, stop_event,
     emit(status_queue, 'ready', worker_id)
 
     def consume():
-        thread_calculator = (batch_service.calculator_proxy()
-                             if batch_service is not None else calculator)
+        thread_calculator = (
+            batch_service.calculator_proxy()
+            if batch_service is not None
+            else calculator
+        )
         while True:
             try:
                 item = task_queue.get(timeout=1.0)
@@ -96,14 +109,17 @@ def run_worker_loop(worker_id, task_queue, status_queue, stop_event,
                 result.update(result_context or {})
                 emit(status_queue, 'result', worker_id, (index, result))
             except Exception as exc:
-                emit(status_queue, 'result', worker_id,
-                     (index, error_record(genome, exc)))
+                emit(
+                    status_queue,
+                    'result',
+                    worker_id,
+                    (index, error_record(genome, exc)),
+                )
 
     try:
         if batched:
             with ThreadPoolExecutor(max_workers=candidate_threads) as executor:
-                futures = [executor.submit(consume)
-                           for _ in range(candidate_threads)]
+                futures = [executor.submit(consume) for _ in range(candidate_threads)]
                 for future in futures:
                     future.result()
         else:
@@ -149,13 +165,21 @@ def run_gpu_screening(
     implementation = None
     if spec.cache_path is not None and spec.protocol_id is not None:
         from pipeline.screening.result_cache import (
-            implementation_digest, load_cached_results)
+            implementation_digest,
+            load_cached_results,
+        )
+
         implementation = implementation_digest(worker_target)
         cached = load_cached_results(
-            spec.cache_path, spec.application, spec.protocol_id,
-            implementation, requested)
+            spec.cache_path,
+            spec.application,
+            spec.protocol_id,
+            implementation,
+            requested,
+        )
 
     from pipeline.search.discovery import candidate_id
+
     misses, miss_ids = [], set()
     for index, genome in enumerate(requested):
         if index in cached:
@@ -169,7 +193,8 @@ def run_gpu_screening(
         frame = pd.DataFrame()
         path = save_screening_db(frame, db_filename, subdir=spec.output_subdir)
         logger.info(
-            f'{spec.completion_label}: no candidates; saved empty result to {path}')
+            f'{spec.completion_label}: no candidates; saved empty result to {path}'
+        )
         return frame
 
     if requested and not misses:
@@ -184,33 +209,45 @@ def run_gpu_screening(
         path = save_screening_db(frame, db_filename, subdir=spec.output_subdir)
         logger.info(
             f'{spec.completion_label} cache hit: {len(frame)} typed result(s) '
-            f'loaded; saved to {path}')
+            f'loaded; saved to {path}'
+        )
         return frame
 
     import torch
 
-    for name in ('OMP_NUM_THREADS', 'MKL_NUM_THREADS', 'OPENBLAS_NUM_THREADS',
-                 'VECLIB_MAXIMUM_THREADS', 'NUMEXPR_NUM_THREADS'):
+    for name in (
+        'OMP_NUM_THREADS',
+        'MKL_NUM_THREADS',
+        'OPENBLAS_NUM_THREADS',
+        'VECLIB_MAXIMUM_THREADS',
+        'NUMEXPR_NUM_THREADS',
+    ):
         os.environ.setdefault(name, '1')
     mp.set_start_method('spawn', force=True)
 
     print_banner(spec.banner)
     logger.info(spec.start_message.format(count=len(requested)))
     if cached:
-        logger.info(f'Reusing {len(cached)} typed cached result(s); '
-                    f'evaluating {len(misses)} cache miss(es)')
+        logger.info(
+            f'Reusing {len(cached)} typed cached result(s); '
+            f'evaluating {len(misses)} cache miss(es)'
+        )
     device_count = torch.cuda.device_count()
     if device_count < 1:
         raise RuntimeError(
-            f'{spec.completion_label} requires at least one visible CUDA GPU')
+            f'{spec.completion_label} requires at least one visible CUDA GPU'
+        )
     num_workers, candidate_threads = execution_layout(
-        device_count, workers_per_gpu, engine)
-    gpu_uuids = [f"GPU-{torch.cuda.get_device_properties(i).uuid}"
-                 for i in range(device_count)]
+        device_count, workers_per_gpu, engine
+    )
+    gpu_uuids = [
+        f"GPU-{torch.cuda.get_device_properties(i).uuid}" for i in range(device_count)
+    ]
     logger.info(
         f"Using {device_count} GPU(s), engine={engine}, "
         f"{num_workers} model process(es), "
-        f"{candidate_threads} candidate thread(s)/process")
+        f"{candidate_threads} candidate thread(s)/process"
+    )
 
     task_queue, status_queue, stop_event = mp.Queue(), mp.Queue(), mp.Event()
     for index, genome in enumerate(misses):
@@ -220,14 +257,21 @@ def run_gpu_screening(
         gpu_id = worker_id % device_count
         process = mp.Process(
             target=worker_target,
-            args=(worker_id, gpu_id, gpu_uuids[gpu_id], task_queue,
-                  status_queue, stop_event, candidate_threads,
-                  engine == 'batched'))
+            args=(
+                worker_id,
+                gpu_id,
+                gpu_uuids[gpu_id],
+                task_queue,
+                status_queue,
+                stop_event,
+                candidate_threads,
+                engine == 'batched',
+            ),
+        )
         process.start()
         return process
 
-    workers = {worker_id: spawn_worker(worker_id)
-               for worker_id in range(num_workers)}
+    workers = {worker_id: spawn_worker(worker_id) for worker_id in range(num_workers)}
     started = time.time()
 
     def report_progress(completed, results):
@@ -238,22 +282,36 @@ def run_gpu_screening(
             logger.info(
                 f"Progress: {completed}/{len(misses)} "
                 f"({rate:.1f} {spec.progress_noun}/sec, {valid} valid, "
-                f"{elapsed:.0f}s elapsed)")
+                f"{elapsed:.0f}s elapsed)"
+            )
 
     results = collect_results(
-        status_queue, task_queue, stop_event, workers, spawn_worker, misses,
-        spec.application, spec.manifest_path, progress=report_progress)
+        status_queue,
+        task_queue,
+        stop_event,
+        workers,
+        spawn_worker,
+        misses,
+        spec.application,
+        spec.manifest_path,
+        progress=report_progress,
+    )
     for process in workers.values():
         process.join(timeout=30)
 
     if spec.cache_path is not None and spec.protocol_id is not None and implementation:
         from pipeline.screening.result_cache import store_completed_results
-        store_completed_results(
-            spec.cache_path, spec.application, spec.protocol_id,
-            implementation, misses, results)
 
-    computed = {candidate_id(genome): result
-                for genome, result in zip(misses, results)}
+        store_completed_results(
+            spec.cache_path,
+            spec.application,
+            spec.protocol_id,
+            implementation,
+            misses,
+            results,
+        )
+
+    computed = {candidate_id(genome): result for genome, result in zip(misses, results)}
     rows = []
     for index, genome in enumerate(requested):
         if index in cached:
@@ -266,8 +324,8 @@ def run_gpu_screening(
         row['material_class'] = genome[0]
         rows.append(row)
     frame = pd.DataFrame(rows)
-    path = save_screening_db(
-        frame, db_filename, subdir=spec.output_subdir)
+    path = save_screening_db(frame, db_filename, subdir=spec.output_subdir)
     logger.info(
-        f"{spec.completion_label} complete. {len(frame)} results saved to {path}")
+        f"{spec.completion_label} complete. {len(frame)} results saved to {path}"
+    )
     return frame

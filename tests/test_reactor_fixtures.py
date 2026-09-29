@@ -18,8 +18,9 @@ from pipeline.reactors.models import ReactorConfig, simulate_reactor
 from tests.fixtures.reactor_cases import FixtureSolver, MODES, write_case
 
 
-def _run_external_fixture(root: Path, reactor_type: str,
-                          temperature_K: float) -> tuple[dict, dict]:
+def _run_external_fixture(
+    root: Path, reactor_type: str, temperature_K: float
+) -> tuple[dict, dict]:
     """Run one external fixture through production artifact and reactor APIs."""
     candidate = f"fixture-{reactor_type.lower()}"
     mode = MODES[reactor_type]
@@ -29,36 +30,56 @@ def _run_external_fixture(root: Path, reactor_type: str,
     model = case / "fixture-model.py"
     model.write_text("# deterministic test fixture; not a physical solver\n")
     target = run_backend(
-        mode=mode, reactor_type=reactor_type, candidate_id=candidate,
-        temperature_K=temperature_K, case_dir=case, results_dir=results,
+        mode=mode,
+        reactor_type=reactor_type,
+        candidate_id=candidate,
+        temperature_K=temperature_K,
+        case_dir=case,
+        results_dir=results,
         model_source="test-fixture:representative-reactor-v1",
         fenics_model=model if reactor_type in {"NTEC", "Electrochemical"} else None,
-        execution=FixtureSolver(reactor_type, candidate, temperature_K).services())
+        execution=FixtureSolver(reactor_type, candidate, temperature_K).services(),
+    )
     artifact = json.loads(target.read_text())
     loaded = load_validated_artifact(
-        results, candidate, mode, reactor_type, temperature_K)
+        results, candidate, mode, reactor_type, temperature_K
+    )
     assert loaded["valid"] is True
     mechanism = ""
     catalyst_name = candidate
     if reactor_type in {"Fluidized", "MMBCR"}:
-        from pipeline.reactors.mechanisms import (
-            CandidateKinetics, write_full_mechanism)
+        from pipeline.reactors.mechanisms import CandidateKinetics, write_full_mechanism
+
         catalyst_name = candidate.replace("-", "_")
-        kinetics = CandidateKinetics.from_screening_row({
-            "E_act": .72, "dE_H": -.3, "dE_CH3": -.55, "dE_C": -1.1,
-            "screening_protocol": "test-fixture:screening-v1"},
-            candidate_id=candidate)
-        with patch("pipeline.reactors.mechanisms.MECHANISMS_DIR",
-                   root / "mechanisms"):
+        kinetics = CandidateKinetics.from_screening_row(
+            {
+                "E_act": 0.72,
+                "dE_H": -0.3,
+                "dE_CH3": -0.55,
+                "dE_C": -1.1,
+                "screening_protocol": "test-fixture:screening-v1",
+            },
+            candidate_id=candidate,
+        )
+        with patch("pipeline.reactors.mechanisms.MECHANISMS_DIR", root / "mechanisms"):
             mechanism = str(write_full_mechanism(catalyst_name, kinetics=kinetics))
     with patch("pipeline.reactors.models.save_json"):
-        result = simulate_reactor(ReactorConfig(
-            reactor_type=reactor_type, pathway_mode=mode, candidate_id=candidate,
-            catalyst_name=catalyst_name, mechanism_file=mechanism,
-            T_inlet_K=temperature_K,
-            material_class=("MoltenMetal" if reactor_type == "MMBCR" else
-                            "SAC" if reactor_type == "Fluidized" else None),
-            multiphysics_results_dir=str(results)))
+        result = simulate_reactor(
+            ReactorConfig(
+                reactor_type=reactor_type,
+                pathway_mode=mode,
+                candidate_id=candidate,
+                catalyst_name=catalyst_name,
+                mechanism_file=mechanism,
+                T_inlet_K=temperature_K,
+                material_class=(
+                    "MoltenMetal"
+                    if reactor_type == "MMBCR"
+                    else "SAC" if reactor_type == "Fluidized" else None
+                ),
+                multiphysics_results_dir=str(results),
+            )
+        )
     return artifact, result
 
 
@@ -68,10 +89,12 @@ def test_representative_external_reactor_paths() -> None:
         root = Path(tmp)
         matrix = {}
         for reactor_type, temperature_K in (
-                ("Fluidized", 900.), ("MMBCR", 1000.),
-                ("NTEC", 300.), ("Electrochemical", 300.)):
-            artifact, result = _run_external_fixture(
-                root, reactor_type, temperature_K)
+            ("Fluidized", 900.0),
+            ("MMBCR", 1000.0),
+            ("NTEC", 300.0),
+            ("Electrochemical", 300.0),
+        ):
+            artifact, result = _run_external_fixture(root, reactor_type, temperature_K)
             assert artifact["complete"] is True
             assert artifact["provenance"]["model_source"].startswith("test-fixture:")
             assert artifact["convergence"]["mesh_independent"] is True
@@ -91,18 +114,34 @@ def test_representative_cantera_pfr_path() -> None:
     from pipeline.reactors.mechanisms import CandidateKinetics, write_full_mechanism
 
     candidate = "fixture_pfr"
-    kinetics = CandidateKinetics.from_screening_row({
-        "E_act": .72, "dE_H": -.3, "dE_CH3": -.55, "dE_C": -1.1,
-        "screening_protocol": "test-fixture:screening-v1"}, candidate_id=candidate)
-    with tempfile.TemporaryDirectory() as tmp, \
-            patch("pipeline.reactors.mechanisms.MECHANISMS_DIR", Path(tmp)), \
-            patch("pipeline.reactors.models.save_json"):
+    kinetics = CandidateKinetics.from_screening_row(
+        {
+            "E_act": 0.72,
+            "dE_H": -0.3,
+            "dE_CH3": -0.55,
+            "dE_C": -1.1,
+            "screening_protocol": "test-fixture:screening-v1",
+        },
+        candidate_id=candidate,
+    )
+    with (
+        tempfile.TemporaryDirectory() as tmp,
+        patch("pipeline.reactors.mechanisms.MECHANISMS_DIR", Path(tmp)),
+        patch("pipeline.reactors.models.save_json"),
+    ):
         mechanism = write_full_mechanism(candidate, kinetics=kinetics)
-        result = simulate_reactor(ReactorConfig(
-            reactor_type="PFR", pathway_mode="thermocatalytic_pfr",
-            candidate_id=candidate, catalyst_name=candidate,
-            material_class="SAC", mechanism_file=str(mechanism),
-            T_inlet_K=900., max_residence_time_s=.05))
+        result = simulate_reactor(
+            ReactorConfig(
+                reactor_type="PFR",
+                pathway_mode="thermocatalytic_pfr",
+                candidate_id=candidate,
+                catalyst_name=candidate,
+                material_class="SAC",
+                mechanism_file=str(mechanism),
+                T_inlet_K=900.0,
+                max_residence_time_s=0.05,
+            )
+        )
     assert result["status"] == "complete" and result.get("mock", False) is False
     assert math.isfinite(result["CH4_conversion"])
     assert 0 <= result["CH4_conversion"] <= 1
@@ -112,8 +151,11 @@ def test_representative_cantera_pfr_path() -> None:
 
 def main() -> None:
     """Run this file without requiring pytest."""
-    tests = [value for name, value in sorted(globals().items())
-             if name.startswith("test_") and callable(value)]
+    tests = [
+        value
+        for name, value in sorted(globals().items())
+        if name.startswith("test_") and callable(value)
+    ]
     for test in tests:
         test()
         print("PASS", test.__name__)

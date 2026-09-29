@@ -34,8 +34,11 @@ def score_holdout(path: str | Path, calibration: dict) -> dict:
         raise ValueError(f'validation records missing declared IDs: {missing}')
     metric = calibration.get('metric', 'relative_rmse')
     threshold = float(calibration.get('acceptance_threshold'))
-    if metric not in {'rmse', 'mae', 'relative_rmse'} or not math.isfinite(
-            threshold) or threshold < 0:
+    if (
+        metric not in {'rmse', 'mae', 'relative_rmse'}
+        or not math.isfinite(threshold)
+        or threshold < 0
+    ):
         raise ValueError('invalid validation metric or acceptance threshold')
     errors = []
     relative = []
@@ -53,8 +56,11 @@ def score_holdout(path: str | Path, calibration: dict) -> dict:
     else:
         error = math.sqrt(sum(value * value for value in relative) / len(relative))
     return {
-        'metric': metric, 'holdout_error': error,
-        'acceptance_threshold': threshold, 'passed': error <= threshold,
-        'training_count': len(training_ids), 'holdout_count': len(validation_ids),
+        'metric': metric,
+        'holdout_error': error,
+        'acceptance_threshold': threshold,
+        'passed': error <= threshold,
+        'training_count': len(training_ids),
+        'holdout_count': len(validation_ids),
         'record_source': payload.get('source'),
     }

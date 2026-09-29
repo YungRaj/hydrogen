@@ -34,11 +34,15 @@ def _genome_from_row(row):
     raise KeyError('candidate row has no genome')
 
 
-def run_dft_stage(candidates, *, top_k: int, execute_dft: bool,
-                  validator: Callable | None = None,
-                  name_prefix: str = 'dft_cat',
-                  error_sink: Callable[[str], None] | None = None
-                  ) -> StageOutcome[DFTState, DFTProducts]:
+def run_dft_stage(
+    candidates,
+    *,
+    top_k: int,
+    execute_dft: bool,
+    validator: Callable | None = None,
+    name_prefix: str = 'dft_cat',
+    error_sink: Callable[[str], None] | None = None,
+) -> StageOutcome[DFTState, DFTProducts]:
     """Validate candidate genomes through an injectable QE workflow boundary.
 
     Args:
@@ -56,31 +60,36 @@ def run_dft_stage(candidates, *, top_k: int, execute_dft: bool,
         raise ValueError('top_k must be a nonnegative integer')
     if validator is None:
         from pipeline.validation.dft_validator import validate_catalyst
+
         validator = validate_catalyst
-    selected = candidates.head(top_k) if hasattr(candidates, 'head') \
+    selected = (
+        candidates.head(top_k)
+        if hasattr(candidates, 'head')
         else list(candidates)[:top_k]
+    )
     results, failures = [], []
     for index, row in _indexed_rows(selected):
         try:
             genome = _genome_from_row(row)
             if isinstance(genome, str):
                 genome = ast.literal_eval(genome)
-            result = validator(
-                f'{name_prefix}_{index}', genome, run_dft=execute_dft)
+            result = validator(f'{name_prefix}_{index}', genome, run_dft=execute_dft)
             results.append(result)
         except Exception as exc:
             message = f'DFT failed for {name_prefix}_{index}: {exc}'
-            failures.append({
-                'candidate': f'{name_prefix}_{index}',
-                'error_type': type(exc).__name__, 'error': str(exc)})
+            failures.append(
+                {
+                    'candidate': f'{name_prefix}_{index}',
+                    'error_type': type(exc).__name__,
+                    'error': str(exc),
+                }
+            )
             if error_sink:
                 error_sink(message)
     state: DFTState = {
-            'n_validated': len(results),
-            'n_converged': sum(
-                1 for result in results if result.get('converged', False)),
-            'n_failed': len(failures),
-        }
-    products: DFTProducts = {
-        'dft_results': results, 'failures': failures}
+        'n_validated': len(results),
+        'n_converged': sum(1 for result in results if result.get('converged', False)),
+        'n_failed': len(failures),
+    }
+    products: DFTProducts = {'dft_results': results, 'failures': failures}
     return StageOutcome(state=state, products=products)

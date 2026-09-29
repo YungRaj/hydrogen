@@ -25,8 +25,9 @@ def emit(status_queue, kind: str, worker_id: int, payload=None):
     status_queue.put((kind, worker_id, time.monotonic(), payload))
 
 
-def start_heartbeat(status_queue, worker_id: int, stop_event,
-                    interval_s: float = 10.0) -> threading.Thread:
+def start_heartbeat(
+    status_queue, worker_id: int, stop_event, interval_s: float = 10.0
+) -> threading.Thread:
     """Start periodic worker-liveness events.
 
     Args:
@@ -38,17 +39,26 @@ def start_heartbeat(status_queue, worker_id: int, stop_event,
     Returns:
         A `threading.Thread` containing the start heartbeat result.
     """
+
     def beat():
         while not stop_event.wait(interval_s):
             emit(status_queue, 'heartbeat', worker_id)
+
     thread = threading.Thread(target=beat, name=f'heartbeat-{worker_id}', daemon=True)
     thread.start()
     return thread
 
 
-def write_health_manifest(path, application: str, status: str, workers: dict,
-                          completed: int, expected: int, events: list,
-                          error: str | None = None):
+def write_health_manifest(
+    path,
+    application: str,
+    status: str,
+    workers: dict,
+    completed: int,
+    expected: int,
+    events: list,
+    error: str | None = None,
+):
     """Atomically write the final worker-health record.
 
     Args:
@@ -77,7 +87,8 @@ def write_health_manifest(path, application: str, status: str, workers: dict,
                 'pid': process.pid,
                 'exitcode': process.exitcode,
                 'alive': process.is_alive(),
-            } for worker_id, process in workers.items()
+            }
+            for worker_id, process in workers.items()
         },
         'events': events[-500:],
     }
@@ -88,13 +99,21 @@ def write_health_manifest(path, application: str, status: str, workers: dict,
     temporary.replace(target)
 
 
-def collect_results(status_queue, task_queue, stop_event, workers: dict,
-                    spawn_replacement, genomes, application: str,
-                    manifest_path, startup_timeout_s: float = 300.0,
-                    heartbeat_timeout_s: float = 120.0,
-                    result_timeout_s: float = 1800.0,
-                    max_restarts_per_worker: int = 1,
-                    progress=None):
+def collect_results(
+    status_queue,
+    task_queue,
+    stop_event,
+    workers: dict,
+    spawn_replacement,
+    genomes,
+    application: str,
+    manifest_path,
+    startup_timeout_s: float = 300.0,
+    heartbeat_timeout_s: float = 120.0,
+    result_timeout_s: float = 1800.0,
+    max_restarts_per_worker: int = 1,
+    progress=None,
+):
     """Collect results with startup/heartbeat checks and bounded task recovery.
 
     Args:
@@ -127,9 +146,14 @@ def collect_results(status_queue, task_queue, stop_event, workers: dict,
     last_result = time.monotonic()
 
     def record(kind, worker_id, detail=None):
-        events.append({'kind': kind, 'worker_id': worker_id,
-                       'elapsed_s': round(time.monotonic() - launched.get(worker_id, 0), 3),
-                       'detail': detail})
+        events.append(
+            {
+                'kind': kind,
+                'worker_id': worker_id,
+                'elapsed_s': round(time.monotonic() - launched.get(worker_id, 0), 3),
+                'detail': detail,
+            }
+        )
 
     def recover(worker_id, reason):
         nonlocal workers
@@ -144,7 +168,8 @@ def collect_results(status_queue, task_queue, stop_event, workers: dict,
         record('worker_failure', worker_id, {'reason': reason, 'requeued': leased})
         if restarts[worker_id] >= max_restarts_per_worker:
             raise RuntimeError(
-                f'worker {worker_id} failed after {restarts[worker_id]} restart(s): {reason}')
+                f'worker {worker_id} failed after {restarts[worker_id]} restart(s): {reason}'
+            )
         restarts[worker_id] += 1
         replacement = spawn_replacement(worker_id)
         workers[worker_id] = replacement
@@ -184,23 +209,45 @@ def collect_results(status_queue, task_queue, stop_event, workers: dict,
                 process = workers[worker_id]
                 if not process.is_alive():
                     recover(worker_id, f'exited with code {process.exitcode}')
-                elif worker_id not in ready and now - launched[worker_id] > startup_timeout_s:
+                elif (
+                    worker_id not in ready
+                    and now - launched[worker_id] > startup_timeout_s
+                ):
                     recover(worker_id, 'startup acknowledgement timeout')
-                elif worker_id in ready and now - last_seen[worker_id] > heartbeat_timeout_s:
+                elif (
+                    worker_id in ready
+                    and now - last_seen[worker_id] > heartbeat_timeout_s
+                ):
                     recover(worker_id, 'heartbeat timeout')
             if now - last_result > result_timeout_s:
                 raise RuntimeError(
-                    f'no completed candidate for {result_timeout_s:.0f}s; {len(pending)} pending')
+                    f'no completed candidate for {result_timeout_s:.0f}s; {len(pending)} pending'
+                )
 
         stop_event.set()
-        write_health_manifest(manifest_path, application, 'complete', workers,
-                              len(results), expected, events)
+        write_health_manifest(
+            manifest_path,
+            application,
+            'complete',
+            workers,
+            len(results),
+            expected,
+            events,
+        )
         return [results[index] for index in range(expected)]
     except Exception as exc:
         stop_event.set()
         for process in workers.values():
             if process.is_alive():
                 process.terminate()
-        write_health_manifest(manifest_path, application, 'failed', workers,
-                              len(results), expected, events, str(exc))
+        write_health_manifest(
+            manifest_path,
+            application,
+            'failed',
+            workers,
+            len(results),
+            expected,
+            events,
+            str(exc),
+        )
         raise

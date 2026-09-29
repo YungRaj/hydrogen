@@ -47,16 +47,23 @@ def build_ni111_methane_endpoints(
     """
     if lattice_A <= 0:
         raise ValueError("Ni lattice parameter must be positive")
-    slab = fcc111("Ni", size=(2, 2, 3), a=lattice_A, vacuum=10.0,
-                  orthogonal=False, periodic=True)
+    slab = fcc111(
+        "Ni", size=(2, 2, 3), a=lattice_A, vacuum=10.0, orthogonal=False, periodic=True
+    )
     z_values = np.asarray(slab.positions[:, 2])
     unique_layers = sorted({round(float(value), 6) for value in z_values})
-    fixed = [index for index, value in enumerate(z_values)
-             if round(float(value), 6) in set(unique_layers[:2])]
+    fixed = [
+        index
+        for index, value in enumerate(z_values)
+        if round(float(value), 6) in set(unique_layers[:2])
+    ]
     slab.set_constraint(FixAtoms(indices=fixed))
 
-    top_indices = [index for index, value in enumerate(z_values)
-                   if round(float(value), 6) == unique_layers[-1]]
+    top_indices = [
+        index
+        for index, value in enumerate(z_values)
+        if round(float(value), 6) == unique_layers[-1]
+    ]
     anchor = slab.positions[top_indices[1]].copy()
     top_z = float(anchor[2])
     bond = 1.09
@@ -72,8 +79,10 @@ def build_ni111_methane_endpoints(
     # inventing an adsorbed minimum that drifts during endpoint relaxation.
     initial_c = np.array([anchor[0], anchor[1], top_z + 5.5])
     initial_adsorbate = Atoms(
-        "CH4", positions=[initial_c] +
-        [(initial_c + vector).tolist() for vector in initial_vectors])
+        "CH4",
+        positions=[initial_c]
+        + [(initial_c + vector).tolist() for vector in initial_vectors],
+    )
 
     final_c = np.array([anchor[0], anchor[1], top_z + 2.0])
     ch_bond = 1.08
@@ -83,15 +92,19 @@ def build_ni111_methane_endpoints(
         np.array([ch_radial * np.cos(angle), ch_radial * np.sin(angle), ch_upper_z])
         for angle in (0.0, 2.0 * np.pi / 3.0, 4.0 * np.pi / 3.0)
     ]
-    dissociated_h = np.array([
-        anchor[0] + lattice_A / np.sqrt(2.0) * 0.60,
-        anchor[1],
-        top_z + 1.05,
-    ])
+    dissociated_h = np.array(
+        [
+            anchor[0] + lattice_A / np.sqrt(2.0) * 0.60,
+            anchor[1],
+            top_z + 1.05,
+        ]
+    )
     final_adsorbate = Atoms(
-        "CH4", positions=[final_c] +
-        [(final_c + vector).tolist() for vector in final_vectors] +
-        [dissociated_h.tolist()])
+        "CH4",
+        positions=[final_c]
+        + [(final_c + vector).tolist() for vector in final_vectors]
+        + [dissociated_h.tolist()],
+    )
 
     initial = slab.copy() + initial_adsorbate
     final = slab.copy() + final_adsorbate
@@ -137,7 +150,8 @@ def prepare_ni111_methane_benchmark(output_dir: str | Path) -> dict:
         "final_sha256": _sha256(final_path),
         "atom_count": len(initial),
         "fixed_atom_indices": [
-            int(index) for index in initial.constraints[0].get_indices()],
+            int(index) for index in initial.constraints[0].get_indices()
+        ],
         "sssp": verified,
         "acceptance": {
             "absolute_tolerance_eV": 0.15,
@@ -164,10 +178,10 @@ def main() -> None:
     """Prepare the isolated Ni(111) reference benchmark from the command line."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--output-dir", default="results/validation/ni111_methane_reference")
+        "--output-dir", default="results/validation/ni111_methane_reference"
+    )
     arguments = parser.parse_args()
-    print(json.dumps(
-        prepare_ni111_methane_benchmark(arguments.output_dir), indent=2))
+    print(json.dumps(prepare_ni111_methane_benchmark(arguments.output_dir), indent=2))
 
 
 if __name__ == "__main__":

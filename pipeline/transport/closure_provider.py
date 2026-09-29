@@ -9,11 +9,15 @@ from pipeline.data_models.transport import ReactorClosure
 from pipeline.transport.surrogate import TransportSurrogate
 
 
-def resolve_reactor_closure(*, full_physics: Mapping[str, Any],
-                            surrogate: TransportSurrogate | None,
-                            features: Mapping[str, float] | None,
-                            pathway_mode: str, reactor_type: str,
-                            temperature_K: float) -> ReactorClosure:
+def resolve_reactor_closure(
+    *,
+    full_physics: Mapping[str, Any],
+    surrogate: TransportSurrogate | None,
+    features: Mapping[str, float] | None,
+    pathway_mode: str,
+    reactor_type: str,
+    temperature_K: float,
+) -> ReactorClosure:
     """Prefer validated physics, otherwise admit only a safe surrogate closure.
 
     Args:
@@ -29,29 +33,32 @@ def resolve_reactor_closure(*, full_physics: Mapping[str, Any],
     """
     if full_physics.get('valid') is True:
         return {
-            'available': True, 'source': 'validated_full_physics',
+            'available': True,
+            'source': 'validated_full_physics',
             'outputs': dict(full_physics['artifact']['outputs']),
             'evidence': dict(full_physics),
             'candidate_exclusion_authorized': False,
         }
     if surrogate is None:
         return {
-            'available': False, 'source': 'full_physics_required',
+            'available': False,
+            'source': 'full_physics_required',
             'reason': 'transport_surrogate_unavailable',
             'full_physics': dict(full_physics),
             'candidate_exclusion_authorized': False,
         }
-    if (surrogate.pathway_mode != pathway_mode or
-            surrogate.reactor_type != reactor_type):
+    if surrogate.pathway_mode != pathway_mode or surrogate.reactor_type != reactor_type:
         return {
-            'available': False, 'source': 'full_physics_required',
+            'available': False,
+            'source': 'full_physics_required',
             'reason': 'transport_surrogate_identity_mismatch',
             'full_physics': dict(full_physics),
             'candidate_exclusion_authorized': False,
         }
     if not features:
         return {
-            'available': False, 'source': 'full_physics_required',
+            'available': False,
+            'source': 'full_physics_required',
             'reason': 'transport_closure_features_missing',
             'full_physics': dict(full_physics),
             'candidate_exclusion_authorized': False,
@@ -59,12 +66,14 @@ def resolve_reactor_closure(*, full_physics: Mapping[str, Any],
     try:
         feature_temperature = float(features['operating.temperature_K'])
         temperature_matches = math.isclose(
-            feature_temperature, float(temperature_K), abs_tol=1e-6)
+            feature_temperature, float(temperature_K), abs_tol=1e-6
+        )
     except (KeyError, TypeError, ValueError):
         temperature_matches = False
     if not temperature_matches:
         return {
-            'available': False, 'source': 'full_physics_required',
+            'available': False,
+            'source': 'full_physics_required',
             'reason': 'transport_closure_temperature_mismatch',
             'full_physics': dict(full_physics),
             'candidate_exclusion_authorized': False,
@@ -72,14 +81,16 @@ def resolve_reactor_closure(*, full_physics: Mapping[str, Any],
     prediction = surrogate.predict(features)
     if prediction.get('usable') is not True:
         return {
-            'available': False, 'source': 'full_physics_required',
+            'available': False,
+            'source': 'full_physics_required',
             'reason': prediction.get('reason') or 'transport_surrogate_rejected',
             'surrogate_prediction': prediction,
             'full_physics': dict(full_physics),
             'candidate_exclusion_authorized': False,
         }
     return {
-        'available': True, 'source': 'calibrated_transport_surrogate',
+        'available': True,
+        'source': 'calibrated_transport_surrogate',
         'outputs': dict(prediction.get('predictions', {})),
         'uncertainty_1sigma': dict(prediction.get('uncertainty_1sigma', {})),
         'validation_rmse': dict(prediction.get('validation_rmse', {})),

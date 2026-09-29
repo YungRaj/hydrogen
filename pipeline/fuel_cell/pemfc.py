@@ -18,8 +18,14 @@ from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
 
 from pipeline.utils import (
-    R_gas, F_const, E_ORR_eq, k_B_eV, eV_to_J,
-    setup_logger, save_json, FUEL_CELL_DIR,
+    R_gas,
+    F_const,
+    E_ORR_eq,
+    k_B_eV,
+    eV_to_J,
+    setup_logger,
+    save_json,
+    FUEL_CELL_DIR,
 )
 from pipeline.data_models.fuel_cells import PEMFCResult
 
@@ -35,51 +41,48 @@ logger = setup_logger('pemfc_model', 'fuel_cell/pemfc_simulation.log')
 
 TAFEL_SLOPE_BY_CLASS = {
     # PGM and PGM-derivative classes
-    'SolidCatalyst': 65.0,     # Pt-group nanoparticles, direct 4e⁻
-    'HEA': 70.0,               # Multi-metallic, mixed mechanism
-    'CoreShell': 63.0,         # Strained Pt shell, enhanced 4e⁻
-    'Intermetallic': 62.0,     # Ordered alloy, optimized d-band
-
+    'SolidCatalyst': 65.0,  # Pt-group nanoparticles, direct 4e⁻
+    'HEA': 70.0,  # Multi-metallic, mixed mechanism
+    'CoreShell': 63.0,  # Strained Pt shell, enhanced 4e⁻
+    'Intermetallic': 62.0,  # Ordered alloy, optimized d-band
     # PGM-free single/dual atom
-    'SAC': 78.0,               # M-N₄ sites, 2+2e⁻ at low density → 4e⁻ at high
-    'DAC': 72.0,               # Dual sites facilitate 4e⁻ pathway
-    'SAA': 66.0,               # Single-atom alloy, near-PGM mechanism
-
+    'SAC': 78.0,  # M-N₄ sites, 2+2e⁻ at low density → 4e⁻ at high
+    'DAC': 72.0,  # Dual sites facilitate 4e⁻ pathway
+    'SAA': 66.0,  # Single-atom alloy, near-PGM mechanism
     # Oxide/framework classes
-    'Perovskite': 110.0,       # Bulk oxygen diffusion mechanism
-    'Spinel': 105.0,           # AB₂O₄, peroxide-mediated
-    'MOF': 85.0,               # Metal-organic, variable mechanism
-    'COF': 90.0,               # Covalent-organic, limited active sites
-
+    'Perovskite': 110.0,  # Bulk oxygen diffusion mechanism
+    'Spinel': 105.0,  # AB₂O₄, peroxide-mediated
+    'MOF': 85.0,  # Metal-organic, variable mechanism
+    'COF': 90.0,  # Covalent-organic, limited active sites
     # Carbon-based
     'MetalFreeCarbon': 130.0,  # Intrinsic N-doped carbon, surface-mediated 2e⁻
-
     # Not typically used as ORR cathodes but included for completeness
-    'MoltenMetal': 70.0,       # N/A for ORR, default
-    'MetalHydride': 70.0,      # N/A for ORR, default
-    'MAXPhase': 85.0,          # Carbide surface sites
-    'MXene': 80.0,             # 2D carbide, functionalized surface
+    'MoltenMetal': 70.0,  # N/A for ORR, default
+    'MetalHydride': 70.0,  # N/A for ORR, default
+    'MAXPhase': 85.0,  # Carbide surface sites
+    'MXene': 80.0,  # 2D carbide, functionalized surface
 }
-
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PEMFC CELL CONFIGURATION
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class PEMFCConfig:
     """Single-cell PEMFC operating configuration."""
+
     # Operating conditions
-    T_K: float = 353.15          # Cell temperature (80°C typical)
-    P_anode_Pa: float = 150000.0   # Anode pressure (1.5 atm)
-    P_cathode_Pa: float = 150000.0 # Cathode pressure (1.5 atm)
-    RH_anode: float = 1.0       # Relative humidity anode
-    RH_cathode: float = 1.0     # Relative humidity cathode
+    T_K: float = 353.15  # Cell temperature (80°C typical)
+    P_anode_Pa: float = 150000.0  # Anode pressure (1.5 atm)
+    P_cathode_Pa: float = 150000.0  # Cathode pressure (1.5 atm)
+    RH_anode: float = 1.0  # Relative humidity anode
+    RH_cathode: float = 1.0  # Relative humidity cathode
 
     # Membrane properties
     membrane_name: str = 'Nafion_212'
-    membrane_thickness_m: float = 50e-6     # 50 μm
+    membrane_thickness_m: float = 50e-6  # 50 μm
     membrane_conductivity_S_m: float = 10.0  # Proton conductivity
 
     # Catalyst layer
@@ -89,7 +92,7 @@ class PEMFCConfig:
     catalyst_layer_thickness_m: float = 10e-6
     catalyst_layer_oxygen_resistance_s_m: float = 20.0
     ionomer_fraction: float = 0.30
-    orr_overpotential_V: float = 0.35   # From DFT screening
+    orr_overpotential_V: float = 0.35  # From DFT screening
     orr_tafel_slope_mV_dec: float = 70.0  # Tafel slope
 
     anode_catalyst: str = 'Pt/C'
@@ -101,7 +104,7 @@ class PEMFCConfig:
     voltage_degradation_uV_h: float | None = None
 
     # GDL properties
-    gdl_thickness_m: float = 200e-6     # 200 μm
+    gdl_thickness_m: float = 200e-6  # 200 μm
     gdl_porosity: float = 0.7
     gdl_tortuosity: float = 1.5
 
@@ -113,6 +116,7 @@ class PEMFCConfig:
 # ═══════════════════════════════════════════════════════════════════════════════
 # PEMFC ELECTROCHEMICAL MODEL
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def nernst_voltage(T_K: float, P_H2: float, P_O2: float) -> float:
     """
@@ -132,8 +136,7 @@ def nernst_voltage(T_K: float, P_H2: float, P_O2: float) -> float:
     return E
 
 
-def cathode_activation_loss(j: float, j0_cathode: float,
-                              tafel_slope_V: float) -> float:
+def cathode_activation_loss(j: float, j0_cathode: float, tafel_slope_V: float) -> float:
     """
         Cathode activation overpotential using Tafel equation.
         η_act = (b / ln10) * ln(j / j0)   for j > j0
@@ -260,26 +263,40 @@ def simulate_pemfc(config: PEMFCConfig) -> PEMFCResult:
     # where j_ref = 1e-3 A/cm² is the reference current density at which the overpotential was evaluated.
     tafel_slope = config.orr_tafel_slope_mV_dec * 1e-3  # V/decade → V
     b_natural = tafel_slope / np.log(10.0)
-    if not 0 < config.hydrogen_purity <= 1 or config.co_ppm < 0 or config.sulfur_ppb < 0:
+    if (
+        not 0 < config.hydrogen_purity <= 1
+        or config.co_ppm < 0
+        or config.sulfur_ppb < 0
+    ):
         raise ValueError('invalid hydrogen impurity specification')
-    j0_cathode = 1e-3 * np.exp(-config.orr_overpotential_V / b_natural) * config.cathode_roughness_factor
+    j0_cathode = (
+        1e-3
+        * np.exp(-config.orr_overpotential_V / b_natural)
+        * config.cathode_roughness_factor
+    )
 
     # Anode exchange current density
     # Reversible empirical poisoning factor; prospective claims still require
     # the impurity tests enforced by campaign readiness.
-    impurity_factor = config.hydrogen_purity * np.exp(-0.08 * config.co_ppm -
-                                                       0.002 * config.sulfur_ppb)
+    impurity_factor = config.hydrogen_purity * np.exp(
+        -0.08 * config.co_ppm - 0.002 * config.sulfur_ppb
+    )
     j0_anode = config.hor_exchange_current_A_cm2 * impurity_factor
 
     # Ohmic resistance
-    R_membrane = config.membrane_thickness_m / config.membrane_conductivity_S_m * 1e4  # Ω·cm²
+    R_membrane = (
+        config.membrane_thickness_m / config.membrane_conductivity_S_m * 1e4
+    )  # Ω·cm²
     R_electronic = 0.005  # Ω·cm² (bipolar plates, GDL)
     R_contact = 0.01  # Ω·cm² (contact resistance)
     R_total = R_membrane + R_electronic + R_contact
     # Catalyst-layer oxygen resistance converted to an area-specific term.
-    R_cl = (config.catalyst_layer_oxygen_resistance_s_m *
-            config.catalyst_layer_thickness_m * 1e-2 /
-            max(config.ionomer_fraction * (1 - config.ionomer_fraction), 1e-3))
+    R_cl = (
+        config.catalyst_layer_oxygen_resistance_s_m
+        * config.catalyst_layer_thickness_m
+        * 1e-2
+        / max(config.ionomer_fraction * (1 - config.ionomer_fraction), 1e-3)
+    )
     R_total += R_cl
 
     # Limiting current
@@ -349,14 +366,20 @@ def simulate_pemfc(config: PEMFCConfig) -> PEMFCResult:
         f"η_peak={efficiency_peak:.1%}  OCV={OCV:.3f} V"
     )
 
-    save_json(result, f"pemfc_{config.cathode_catalyst}_{config.membrane_name}.json",
-              subdir="fuel_cell")
+    save_json(
+        result,
+        f"pemfc_{config.cathode_catalyst}_{config.membrane_name}.json",
+        subdir="fuel_cell",
+    )
     return result
 
 
-def sweep_membranes(cathode_name: str, orr_eta: float,
-                    membranes: List[Dict] | None = None,
-                    material_class: str | None = None) -> list[PEMFCResult]:
+def sweep_membranes(
+    cathode_name: str,
+    orr_eta: float,
+    membranes: List[Dict] | None = None,
+    material_class: str | None = None,
+) -> list[PEMFCResult]:
     """Sweep membrane types for a given cathode catalyst.
 
         If material_class is provided, uses the class-specific Tafel slope
@@ -373,6 +396,7 @@ def sweep_membranes(cathode_name: str, orr_eta: float,
     """
     if membranes is None:
         from pipeline.screening.fc_cathode_screener import MEMBRANE_TYPES
+
         membranes = MEMBRANE_TYPES
 
     tafel = TAFEL_SLOPE_BY_CLASS.get(material_class, 70.0) if material_class else 70.0
@@ -396,9 +420,9 @@ def sweep_membranes(cathode_name: str, orr_eta: float,
     return results
 
 
-
 if __name__ == '__main__':
     from pipeline.utils import print_banner
+
     print_banner("PEMFC SINGLE-CELL SIMULATION")
 
     # Test: simulate a Pt/C cathode with Nafion membrane

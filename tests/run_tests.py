@@ -57,64 +57,140 @@ QUANTUM_ENV = os.environ.get("HYDROGEN_TEST_QUANTUM_ENV", "quantum-env")
 SUITES = (
     Suite("pipeline", "tests/test_pipeline.py", FAIRCHEM_ENV, 180),
     Suite("scientific", "tests/test_scientific_contracts.py", FAIRCHEM_ENV, 300),
-    Suite("modular-multiphysics", "tests/test_modular_multiphysics.py", FAIRCHEM_ENV, 180),
-    Suite("component-replacement", "tests/test_component_replacement_contracts.py", FAIRCHEM_ENV, 120),
-    Suite("architecture", "tests/test_architecture_unit_contracts.py", FAIRCHEM_ENV, 120),
+    Suite(
+        "modular-multiphysics", "tests/test_modular_multiphysics.py", FAIRCHEM_ENV, 180
+    ),
+    Suite(
+        "component-replacement",
+        "tests/test_component_replacement_contracts.py",
+        FAIRCHEM_ENV,
+        120,
+    ),
+    Suite(
+        "architecture", "tests/test_architecture_unit_contracts.py", FAIRCHEM_ENV, 120
+    ),
     Suite("coupling", "tests/test_coupling_contracts.py", FAIRCHEM_ENV, 120),
-    Suite("experimental-data", "tests/test_experimental_data_contract.py", FAIRCHEM_ENV, 120),
-    Suite("quantum-reference", "tests/test_quantum_reference_contracts.py", FAIRCHEM_ENV, 120),
+    Suite(
+        "experimental-data",
+        "tests/test_experimental_data_contract.py",
+        FAIRCHEM_ENV,
+        120,
+    ),
+    Suite(
+        "quantum-reference",
+        "tests/test_quantum_reference_contracts.py",
+        FAIRCHEM_ENV,
+        120,
+    ),
     Suite("reactor-merge", "tests/test_reactor_merge_contracts.py", FAIRCHEM_ENV, 120),
     Suite("reactor-fixtures", "tests/test_reactor_fixtures.py", FAIRCHEM_ENV, 180),
-    Suite("reactor-reference", "tests/test_reactor_reference_integration.py", FAIRCHEM_ENV, 180),
-    Suite("source-documentation", "tests/test_source_documentation_contracts.py", FAIRCHEM_ENV, 60),
+    Suite(
+        "reactor-reference",
+        "tests/test_reactor_reference_integration.py",
+        FAIRCHEM_ENV,
+        180,
+    ),
+    Suite(
+        "source-documentation",
+        "tests/test_source_documentation_contracts.py",
+        FAIRCHEM_ENV,
+        60,
+    ),
     Suite("test-runner", "tests/test_test_runner.py", FAIRCHEM_ENV, 60),
     Suite("repository-audit", "audit_pipeline.py", FAIRCHEM_ENV, 180),
-    Suite("resolution", "tests/test_resolution_contracts.py", QUANTUM_ENV, 180, "resolution"),
-    Suite("vqe-smoke", "tests/test_vqe_smoke_contract.py", QUANTUM_ENV, 120, "vqe-smoke"),
-    Suite("vqe-production", "tests/test_vqe_solver_contract.py", QUANTUM_ENV, 1800, "vqe-production"),
-    Suite("quantum-reference-artifacts", "tests/test_quantum_reference_artifacts.py", QUANTUM_ENV, 1800, "quantum-reference-artifacts"),
-    Suite("gpu-affinity", "tests/test_gpu_affinity_contract.py", FAIRCHEM_ENV, 900, "gpu"),
+    Suite(
+        "resolution",
+        "tests/test_resolution_contracts.py",
+        QUANTUM_ENV,
+        180,
+        "resolution",
+    ),
+    Suite(
+        "vqe-smoke", "tests/test_vqe_smoke_contract.py", QUANTUM_ENV, 120, "vqe-smoke"
+    ),
+    Suite(
+        "vqe-production",
+        "tests/test_vqe_solver_contract.py",
+        QUANTUM_ENV,
+        1800,
+        "vqe-production",
+    ),
+    Suite(
+        "quantum-reference-artifacts",
+        "tests/test_quantum_reference_artifacts.py",
+        QUANTUM_ENV,
+        1800,
+        "quantum-reference-artifacts",
+    ),
+    Suite(
+        "gpu-affinity", "tests/test_gpu_affinity_contract.py", FAIRCHEM_ENV, 900, "gpu"
+    ),
 )
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--suite", action="append", choices=[suite.name for suite in SUITES],
-        help="run only the named suite; may be supplied more than once")
+        "--suite",
+        action="append",
+        choices=[suite.name for suite in SUITES],
+        help="run only the named suite; may be supplied more than once",
+    )
     parser.add_argument(
-        "--profile", choices=("portable", "merge"), default="portable",
-        help="portable baseline (default) or focused reactor merge validation")
+        "--profile",
+        choices=("portable", "merge"),
+        default="portable",
+        help="portable baseline (default) or focused reactor merge validation",
+    )
     parser.add_argument(
-        "--include-resolution", action="store_true",
-        help="include candidate-Hamiltonian tests in the quantum environment")
+        "--include-resolution",
+        action="store_true",
+        help="include candidate-Hamiltonian tests in the quantum environment",
+    )
     parser.add_argument(
-        "--include-vqe", action="store_true",
-        help="include the bounded CUDA-Q VQE smoke contract")
+        "--include-vqe",
+        action="store_true",
+        help="include the bounded CUDA-Q VQE smoke contract",
+    )
     parser.add_argument(
-        "--include-production-vqe", action="store_true",
-        help="include the long chemical-accuracy CUDA-Q VQE contract")
+        "--include-production-vqe",
+        action="store_true",
+        help="include the long chemical-accuracy CUDA-Q VQE contract",
+    )
     parser.add_argument(
-        "--include-quantum-reference-artifacts", action="store_true",
-        help="grade real checksum-bound QE/VQE artifacts against literature")
+        "--include-quantum-reference-artifacts",
+        action="store_true",
+        help="grade real checksum-bound QE/VQE artifacts against literature",
+    )
     parser.add_argument(
-        "--include-gpu", action="store_true",
-        help="include the real multi-GPU affinity workload")
+        "--include-gpu",
+        action="store_true",
+        help="include the real multi-GPU affinity workload",
+    )
     parser.add_argument(
-        "--all", action="store_true",
-        help="include portable, resolution, VQE smoke, production VQE, and GPU suites")
+        "--all",
+        action="store_true",
+        help="include portable, resolution, VQE smoke, production VQE, and GPU suites",
+    )
     parser.add_argument(
-        "--timeout", type=int,
-        help="override every selected suite timeout in seconds")
+        "--timeout", type=int, help="override every selected suite timeout in seconds"
+    )
     parser.add_argument(
-        "--output", type=Path, default=DEFAULT_REPORT,
-        help=f"JSON result path (default: {DEFAULT_REPORT.relative_to(REPO_ROOT)})")
+        "--output",
+        type=Path,
+        default=DEFAULT_REPORT,
+        help=f"JSON result path (default: {DEFAULT_REPORT.relative_to(REPO_ROOT)})",
+    )
     parser.add_argument(
-        "--verbose", action="store_true",
-        help="print captured output for successful suites as well as failures")
+        "--verbose",
+        action="store_true",
+        help="print captured output for successful suites as well as failures",
+    )
     parser.add_argument(
-        "--dry-run", action="store_true",
-        help="print the execution plan without launching a test")
+        "--dry-run",
+        action="store_true",
+        help="print the execution plan without launching a test",
+    )
     return parser.parse_args(argv)
 
 
@@ -138,21 +214,34 @@ def select_suites(args: argparse.Namespace) -> list[Suite]:
         categories.add("quantum-reference-artifacts")
     if args.all or args.include_gpu:
         categories.add("gpu")
-    selected.extend(suite for suite in SUITES
-                    if suite.category in categories and suite not in selected)
+    selected.extend(
+        suite
+        for suite in SUITES
+        if suite.category in categories and suite not in selected
+    )
     return selected
 
 
-def environment_command(suite: Suite, conda: str | None) -> tuple[list[str], str | None]:
+def environment_command(
+    suite: Suite, conda: str | None
+) -> tuple[list[str], str | None]:
     active = os.environ.get("CONDA_DEFAULT_ENV")
     if conda:
-        return [conda, "run", "--no-capture-output", "-n", suite.environment,
-                "python", suite.path], None
+        return [
+            conda,
+            "run",
+            "--no-capture-output",
+            "-n",
+            suite.environment,
+            "python",
+            suite.path,
+        ], None
     if active == suite.environment:
         return [sys.executable, suite.path], None
     return [], (
         f"conda was not found and active environment {active!r} is not "
-        f"the required {suite.environment!r}")
+        f"the required {suite.environment!r}"
+    )
 
 
 def terminate_process(process: subprocess.Popen[str]) -> None:
@@ -172,20 +261,36 @@ def terminate_process(process: subprocess.Popen[str]) -> None:
         process.wait()
 
 
-def run_suite(suite: Suite, conda: str | None, timeout_s: int,
-              verbose: bool) -> SuiteResult:
+def run_suite(
+    suite: Suite, conda: str | None, timeout_s: int, verbose: bool
+) -> SuiteResult:
     command, preflight_error = environment_command(suite, conda)
     if preflight_error:
         return SuiteResult(
-            suite.name, suite.path, suite.environment, suite.category,
-            "failed", None, 0.0, command, reason=preflight_error)
+            suite.name,
+            suite.path,
+            suite.environment,
+            suite.category,
+            "failed",
+            None,
+            0.0,
+            command,
+            reason=preflight_error,
+        )
 
-    print(f"RUN  {suite.name:<24} env={suite.environment} timeout={timeout_s}s",
-          flush=True)
+    print(
+        f"RUN  {suite.name:<24} env={suite.environment} timeout={timeout_s}s",
+        flush=True,
+    )
     started = time.monotonic()
     process = subprocess.Popen(
-        command, cwd=REPO_ROOT, text=True, stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE, start_new_session=(os.name == "posix"))
+        command,
+        cwd=REPO_ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        start_new_session=(os.name == "posix"),
+    )
     try:
         stdout, stderr = process.communicate(timeout=timeout_s)
         duration = time.monotonic() - started
@@ -205,15 +310,29 @@ def run_suite(suite: Suite, conda: str | None, timeout_s: int,
         if stderr.strip():
             print(stderr.rstrip(), file=sys.stderr)
     return SuiteResult(
-        suite.name, suite.path, suite.environment, suite.category, status,
-        process.returncode, round(duration, 3), command, stdout, stderr, reason)
+        suite.name,
+        suite.path,
+        suite.environment,
+        suite.category,
+        status,
+        process.returncode,
+        round(duration, 3),
+        command,
+        stdout,
+        stderr,
+        reason,
+    )
 
 
 def git_revision() -> str | None:
     try:
         return subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], cwd=REPO_ROOT, text=True,
-            stderr=subprocess.DEVNULL, timeout=5).strip()
+            ["git", "rev-parse", "HEAD"],
+            cwd=REPO_ROOT,
+            text=True,
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+        ).strip()
     except (OSError, subprocess.SubprocessError):
         return None
 
@@ -235,9 +354,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         for suite in suites:
             command, error = environment_command(suite, conda)
             timeout_s = args.timeout or suite.timeout_s
-            print(json.dumps({
-                "name": suite.name, "category": suite.category,
-                "timeout_s": timeout_s, "command": command, "error": error}))
+            print(
+                json.dumps(
+                    {
+                        "name": suite.name,
+                        "category": suite.category,
+                        "timeout_s": timeout_s,
+                        "command": command,
+                        "error": error,
+                    }
+                )
+            )
         return 0
 
     started_at = datetime.now(timezone.utc)
@@ -264,9 +391,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         "results": [asdict(result) for result in results],
     }
     write_report(args.output, report)
-    print(f"\nSummary: {counts['passed']} passed, {counts['failed']} failed, "
-          f"{counts['timed_out']} timed out")
-    print(f"JSON: {args.output if args.output.is_absolute() else REPO_ROOT / args.output}")
+    print(
+        f"\nSummary: {counts['passed']} passed, {counts['failed']} failed, "
+        f"{counts['timed_out']} timed out"
+    )
+    print(
+        f"JSON: {args.output if args.output.is_absolute() else REPO_ROOT / args.output}"
+    )
     return 0 if report["success"] else 1
 
 

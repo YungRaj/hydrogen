@@ -27,15 +27,37 @@ from typing import List, Tuple, Dict, Optional
 from dataclasses import dataclass
 
 from pipeline.utils import (
-    setup_logger, print_banner, save_screening_db, load_screening_db,
-    abundance_cost_penalty, SCREENING_DIR,
+    setup_logger,
+    print_banner,
+    save_screening_db,
+    load_screening_db,
+    abundance_cost_penalty,
+    SCREENING_DIR,
 )
 from pipeline.search.design_space import (
-    generate_population, crossover, mutate, encode_genome, encode_population,
-    ALL_MATERIAL_CLASSES, FEATURE_DIM, generate_hierarchical_htvs_pool,
+    generate_population,
+    crossover,
+    mutate,
+    encode_genome,
+    encode_population,
+    ALL_MATERIAL_CLASSES,
+    FEATURE_DIM,
+    generate_hierarchical_htvs_pool,
 )
-from pipeline.screening.surrogate_model import CatalystSurrogate, train_surrogate, predict_batch, SurrogateEnsemble, train_ensemble, predict_ensemble
-from pipeline.search.discovery import select_discovery_batch, coverage_summary, add_discovery_metadata, candidate_id
+from pipeline.screening.surrogate_model import (
+    CatalystSurrogate,
+    train_surrogate,
+    predict_batch,
+    SurrogateEnsemble,
+    train_ensemble,
+    predict_ensemble,
+)
+from pipeline.search.discovery import (
+    select_discovery_batch,
+    coverage_summary,
+    add_discovery_metadata,
+    candidate_id,
+)
 
 logger = setup_logger('genetic_optimizer', 'screening/genetic_optimizer.log')
 
@@ -43,6 +65,7 @@ logger = setup_logger('genetic_optimizer', 'screening/genetic_optimizer.log')
 # ═══════════════════════════════════════════════════════════════════════════════
 # NSGA-II IMPLEMENTATION
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def dominates(obj_a: np.ndarray, obj_b: np.ndarray) -> bool:
     """Return True if solution a dominates solution b (all ≤, at least one <).
@@ -76,7 +99,9 @@ def fast_non_dominated_sort(objectives: np.ndarray) -> List[List[int]]:
         is_efficient = np.ones(len(sub_objs), dtype=bool)
         for i in range(len(sub_objs)):
             if is_efficient[i]:
-                dominated = np.all(sub_objs[i] <= sub_objs, axis=1) & np.any(sub_objs[i] < sub_objs, axis=1)
+                dominated = np.all(sub_objs[i] <= sub_objs, axis=1) & np.any(
+                    sub_objs[i] < sub_objs, axis=1
+                )
                 is_efficient[dominated] = False
 
         front_sub_idx = np.where(is_efficient)[0]
@@ -119,15 +144,15 @@ def crowding_distance(objectives: np.ndarray, front: List[int]) -> np.ndarray:
 
         for i in range(1, n - 1):
             distances[sorted_idx[i]] += (
-                (obj_vals[sorted_idx[i + 1]] - obj_vals[sorted_idx[i - 1]])
-                / obj_range
-            )
+                obj_vals[sorted_idx[i + 1]] - obj_vals[sorted_idx[i - 1]]
+            ) / obj_range
 
     return distances
 
 
-def nsga2_select(population: List[tuple], objectives: np.ndarray,
-                 n_select: int) -> List[int]:
+def nsga2_select(
+    population: List[tuple], objectives: np.ndarray, n_select: int
+) -> List[int]:
     """
         NSGA-II selection: prefer lower rank, then higher crowding distance.
         Returns indices of selected individuals.
@@ -162,9 +187,10 @@ def nsga2_select(population: List[tuple], objectives: np.ndarray,
 # OBJECTIVE COMPUTATION
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def compute_objectives_surrogate(population: List[tuple],
-                                  model: object,
-                                  device: str = 'cuda:0') -> np.ndarray:
+
+def compute_objectives_surrogate(
+    population: List[tuple], model: object, device: str = 'cuda:0'
+) -> np.ndarray:
     """
         Compute 4 objectives using the surrogate model or surrogate ensemble.
         All objectives are MINIMIZED (negate what should be maximized).
@@ -206,15 +232,22 @@ def compute_objectives_surrogate(population: List[tuple],
     # Objective 2: Coking resistance (maximize → negate for minimization).
     # Neutralize for classes with no slab (e.g. MoltenMetal).
     from pipeline.search.scope import slab_coking_index_scope
+
     coking = coking_pred.copy()
     py_mode = os.environ.get('PYROLYSIS_MODE', 'thermocatalytic')
     if py_mode == 'ntec':
-        from pipeline.electrochemistry.ntec import conditions_from_environment, ntec_assistance
+        from pipeline.electrochemistry.ntec import (
+            conditions_from_environment,
+            ntec_assistance,
+        )
+
         assistance = ntec_assistance(conditions_from_environment())
         for i, g in enumerate(population):
             if slab_coking_index_scope(g)['status'] != 'candidate':
                 continue
-            if any(e in {'Ga', 'In', 'Sn', 'Bi'} for e in _extract_elements_from_genome(g)):
+            if any(
+                e in {'Ga', 'In', 'Sn', 'Bi'} for e in _extract_elements_from_genome(g)
+            ):
                 coking[i] += assistance['coking_bonus']
     obj2 = -coking
     for i, g in enumerate(population):
@@ -225,11 +258,12 @@ def compute_objectives_surrogate(population: List[tuple],
     obj3 = seg_pred.copy()  # already: negative = good
 
     # Objective 4: Material cost (minimize)
-    cost_penalties = np.array([
-        abundance_cost_penalty(_extract_elements_from_genome(g))
-        for g in population
-    ])
-    obj4 = -cost_penalties  # abundance_cost_penalty returns [-2, 0]; negate so abundant → small
+    cost_penalties = np.array(
+        [abundance_cost_penalty(_extract_elements_from_genome(g)) for g in population]
+    )
+    obj4 = (
+        -cost_penalties
+    )  # abundance_cost_penalty returns [-2, 0]; negate so abundant → small
 
     # Apply OOD confidence penalty to E_act
     for i, g in enumerate(population):
@@ -281,10 +315,12 @@ def _extract_elements_from_genome(genome: tuple) -> List[str]:
         elements.extend(list(genome[1]))
     elif mat_class == 'Spinel':
         elements.extend([genome[1], genome[2]])
-        if genome[3] != 'None': elements.append(genome[3])
+        if genome[3] != 'None':
+            elements.append(genome[3])
     elif mat_class == 'MXene':
         elements.append(genome[1])
-        if genome[5] != 'None': elements.append(genome[5])
+        if genome[5] != 'None':
+            elements.append(genome[5])
     elif mat_class == 'SAA':
         elements.extend([genome[1], genome[2]])
     elif mat_class == 'MetalFreeCarbon':
@@ -296,28 +332,32 @@ def _extract_elements_from_genome(genome: tuple) -> List[str]:
 # MAIN GENETIC ALGORITHM
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class GAConfig:
     """Configuration for the genetic algorithm."""
+
     pop_size: int = 500
     n_generations: int = 200
-    fairchem_eval_interval: int = 50        # Full Fairchem eval every N generations
-    fairchem_eval_top_k: int = 100          # Top-K from Pareto front for Fairchem
+    fairchem_eval_interval: int = 50  # Full Fairchem eval every N generations
+    fairchem_eval_top_k: int = 100  # Top-K from Pareto front for Fairchem
     surrogate_retrain_interval: int = 50
     mutation_rate: float = 0.3
     crossover_rate: float = 0.7
     tournament_size: int = 5
-    initial_fairchem_samples: int = 200     # Initial Fairchem samples for surrogate training
-    explore_interval: int = 3               # Run exploration shots every N Fairchem intervals
-    explore_per_class: int = 5              # Random GNN evaluations per class during exploration
-    n_models: int = 3                       # Number of models in surrogate ensemble
-    htvs_pool_size: int = 20000             # Initial high-throughput virtual screening pool size
-    reinjection_interval: int = 20          # Periodically reinject top candidates from new pool
+    initial_fairchem_samples: int = (
+        200  # Initial Fairchem samples for surrogate training
+    )
+    explore_interval: int = 3  # Run exploration shots every N Fairchem intervals
+    explore_per_class: int = 5  # Random GNN evaluations per class during exploration
+    n_models: int = 3  # Number of models in surrogate ensemble
+    htvs_pool_size: int = 20000  # Initial high-throughput virtual screening pool size
+    reinjection_interval: int = 20  # Periodically reinject top candidates from new pool
     device: str = 'cuda:0'
     seed: int = 42
-    exhaustive_scan: bool = False           # Stream every indexed configuration
+    exhaustive_scan: bool = False  # Stream every indexed configuration
     exhaustive_start: int = 0
-    exhaustive_stop: Optional[int] = None   # None means the complete global space
+    exhaustive_stop: Optional[int] = None  # None means the complete global space
     exhaustive_batch_size: int = 65536
     exhaustive_db: str = str(SCREENING_DIR / 'indexed_scan.sqlite')
     exhaustive_worker_id: int = 0
@@ -353,6 +393,7 @@ class BranchDiscoveryConfig:
         refresh_pending_priorities: Configured refresh pending priorities value.
         scan_workers: Configured scan workers value.
     """
+
     initial_fairchem_samples: int = 500
     fairchem_eval_top_k: int = 500
     n_models: int = 3
@@ -373,11 +414,9 @@ class BranchDiscoveryConfig:
     scan_workers: int = 8
 
 
-
-
-
-def tournament_select(population: List[tuple], objectives: np.ndarray,
-                      tournament_size: int = 5) -> int:
+def tournament_select(
+    population: List[tuple], objectives: np.ndarray, tournament_size: int = 5
+) -> int:
     """Tournament selection: pick the best from a random subset.
 
     Args:
@@ -388,7 +427,9 @@ def tournament_select(population: List[tuple], objectives: np.ndarray,
     Returns:
         Computed `int` value in the units documented above.
     """
-    candidates = random.sample(range(len(population)), min(tournament_size, len(population)))
+    candidates = random.sample(
+        range(len(population)), min(tournament_size, len(population))
+    )
     best = candidates[0]
     for c in candidates[1:]:
         if dominates(objectives[c], objectives[best]):
@@ -396,8 +437,10 @@ def tournament_select(population: List[tuple], objectives: np.ndarray,
     return best
 
 
-def run_branch_discovery(config: BranchDiscoveryConfig = BranchDiscoveryConfig(),
-                         existing_db: Optional[pd.DataFrame] = None):
+def run_branch_discovery(
+    config: BranchDiscoveryConfig = BranchDiscoveryConfig(),
+    existing_db: Optional[pd.DataFrame] = None,
+):
     """Single supported production search: deterministic branch-and-bound.
 
     Args:
@@ -416,87 +459,132 @@ def run_branch_discovery(config: BranchDiscoveryConfig = BranchDiscoveryConfig()
         evidence = existing_db
     else:
         probes = deterministic_tree_probes(config.initial_fairchem_samples)
-        evidence = run_screening(probes, db_filename='branch_calibration.csv', workers_per_gpu=2)
+        evidence = run_screening(
+            probes, db_filename='branch_calibration.csv', workers_per_gpu=2
+        )
     from pipeline.screening.small_data_ranker import (
-        MIN_TRAINING_ROWS, fit_tree_ranker, merge_compatible_evidence,
-        turquoise_tree_objectives, valid_training_row_count)
+        MIN_TRAINING_ROWS,
+        fit_tree_ranker,
+        merge_compatible_evidence,
+        turquoise_tree_objectives,
+        valid_training_row_count,
+    )
+
     prior_evidence = load_screening_db('branch_ranker_evidence.csv')
     evidence = merge_compatible_evidence(
-        evidence, prior_evidence, SCREENING_PROTOCOL_ID)
+        evidence, prior_evidence, SCREENING_PROTOCOL_ID
+    )
     attempted = {str(value) for value in evidence.get('genome', [])}
-    refill_limit = max(config.initial_fairchem_samples * 3,
-                       config.initial_fairchem_samples + MIN_TRAINING_ROWS)
+    refill_limit = max(
+        config.initial_fairchem_samples * 3,
+        config.initial_fairchem_samples + MIN_TRAINING_ROWS,
+    )
     probe_pool = deterministic_tree_probes(refill_limit)
     refill_round = 0
     while valid_training_row_count(evidence, 'turquoise_hydrogen') < MIN_TRAINING_ROWS:
-        refill = [genome for genome in probe_pool if repr(genome) not in attempted][:MIN_TRAINING_ROWS]
+        refill = [genome for genome in probe_pool if repr(genome) not in attempted][
+            :MIN_TRAINING_ROWS
+        ]
         if not refill:
             valid = valid_training_row_count(evidence, 'turquoise_hydrogen')
             raise RuntimeError(
                 f'calibration exhausted after {len(attempted)} distinct probes; '
-                f'only {valid}/{MIN_TRAINING_ROWS} valid turquoise-hydrogen rows')
+                f'only {valid}/{MIN_TRAINING_ROWS} valid turquoise-hydrogen rows'
+            )
         refill_round += 1
         attempted.update(repr(genome) for genome in refill)
         extra = run_screening(
-            refill, db_filename=f'branch_calibration_refill_{refill_round}.csv',
-            workers_per_gpu=2)
-        evidence = merge_compatible_evidence(
-            extra, evidence, SCREENING_PROTOCOL_ID)
+            refill,
+            db_filename=f'branch_calibration_refill_{refill_round}.csv',
+            workers_per_gpu=2,
+        )
+        evidence = merge_compatible_evidence(extra, evidence, SCREENING_PROTOCOL_ID)
     save_screening_db(evidence, 'branch_calibration.csv')
     model = fit_tree_ranker(evidence, 'turquoise_hydrogen')
     score_population = lambda pop: turquoise_tree_objectives(pop, model)
-    summary = run_branch_and_bound(BranchConfig(
-        application='turquoise_hydrogen', database=config.exhaustive_db,
-        leaf_size=config.branch_leaf_size, probe_count=config.branch_probe_count,
-        scan_batch_size=config.exhaustive_batch_size,
-        max_leaves=config.branch_max_leaves,
-        expected_population=config.expected_space_size,
-        certificate_path=str(SCREENING_DIR / 'turquoise_hydrogen_coverage_certificate.json'),
-        max_runtime_s=config.max_runtime_s,
-        min_resolved_leaves_per_class=config.min_resolved_leaves_per_class,
-        exploration_interval=config.branch_exploration_interval,
-        refresh_pending_priorities=config.refresh_pending_priorities,
-        scan_workers=config.scan_workers,
-    ), score_population)
+    summary = run_branch_and_bound(
+        BranchConfig(
+            application='turquoise_hydrogen',
+            database=config.exhaustive_db,
+            leaf_size=config.branch_leaf_size,
+            probe_count=config.branch_probe_count,
+            scan_batch_size=config.exhaustive_batch_size,
+            max_leaves=config.branch_max_leaves,
+            expected_population=config.expected_space_size,
+            certificate_path=str(
+                SCREENING_DIR / 'turquoise_hydrogen_coverage_certificate.json'
+            ),
+            max_runtime_s=config.max_runtime_s,
+            min_resolved_leaves_per_class=config.min_resolved_leaves_per_class,
+            exploration_interval=config.branch_exploration_interval,
+            refresh_pending_priorities=config.refresh_pending_priorities,
+            scan_workers=config.scan_workers,
+        ),
+        score_population,
+    )
     logger.info(f"Branch discovery: {summary}")
-    archive = load_archive_genomes(config.exhaustive_db, 'turquoise_hydrogen', config.htvs_pool_size)
+    archive = load_archive_genomes(
+        config.exhaustive_db, 'turquoise_hydrogen', config.htvs_pool_size
+    )
     if not archive:
         return [], add_discovery_metadata(evidence)
     objectives = score_population(archive)
     fronts = fast_non_dominated_sort(objectives)
     champions = [archive[i] for i in fronts[0]]
-    from pipeline.search.adaptive_validation import (allocate_validation_batch,
-                                               experimental_slate,
-                                               persist_experimental_slate,
-                                               record_screening_frame)
+    from pipeline.search.adaptive_validation import (
+        allocate_validation_batch,
+        experimental_slate,
+        persist_experimental_slate,
+        record_screening_frame,
+    )
+
     _, uncertainty = model.predict(archive)
     validate_idx = allocate_validation_batch(
-        archive, objectives, min(config.fairchem_eval_top_k, len(archive)),
-        config.exhaustive_db, 'turquoise_hydrogen',
+        archive,
+        objectives,
+        min(config.fairchem_eval_top_k, len(archive)),
+        config.exhaustive_db,
+        'turquoise_hydrogen',
         min_per_class=config.min_validation_per_class,
-        uncertainties=uncertainty)
-    validated = run_screening([archive[i] for i in validate_idx],
-                              db_filename='branch_champions.csv', workers_per_gpu=2)
-    predictions = {candidate_id(archive[i]): float(objectives[i, 0]) for i in validate_idx}
-    record_screening_frame(config.exhaustive_db, 'turquoise_hydrogen', predictions,
-                           validated, 'E_act', 'fairchem', 0.8)
+        uncertainties=uncertainty,
+    )
+    validated = run_screening(
+        [archive[i] for i in validate_idx],
+        db_filename='branch_champions.csv',
+        workers_per_gpu=2,
+    )
+    predictions = {
+        candidate_id(archive[i]): float(objectives[i, 0]) for i in validate_idx
+    }
+    record_screening_frame(
+        config.exhaustive_db,
+        'turquoise_hydrogen',
+        predictions,
+        validated,
+        'E_act',
+        'fairchem',
+        0.8,
+    )
     evidence = pd.concat([evidence, validated], ignore_index=True)
-    evidence = merge_compatible_evidence(
-        evidence, None, SCREENING_PROTOCOL_ID)
+    evidence = merge_compatible_evidence(evidence, None, SCREENING_PROTOCOL_ID)
     save_screening_db(evidence, 'branch_ranker_evidence.csv')
     if config.prior_art_db:
         from pipeline.evidence.prior_art import annotate_prior_art
+
         evidence = annotate_prior_art(evidence, config.prior_art_db)
-    slate_idx = experimental_slate(archive, objectives,
-                                   min(config.fairchem_eval_top_k, len(archive)))
-    persist_experimental_slate(config.exhaustive_db, 'turquoise_hydrogen',
-                               archive, objectives, slate_idx)
+    slate_idx = experimental_slate(
+        archive, objectives, min(config.fairchem_eval_top_k, len(archive))
+    )
+    persist_experimental_slate(
+        config.exhaustive_db, 'turquoise_hydrogen', archive, objectives, slate_idx
+    )
     evidence.attrs['experimental_slate'] = [archive[i] for i in slate_idx]
     return champions, add_discovery_metadata(evidence)
 
 
-def run_genetic_algorithm(config: GAConfig = GAConfig(),
-                          existing_db: Optional[pd.DataFrame] = None) -> Tuple[List[tuple], pd.DataFrame]:
+def run_genetic_algorithm(
+    config: GAConfig = GAConfig(), existing_db: Optional[pd.DataFrame] = None
+) -> Tuple[List[tuple], pd.DataFrame]:
     """
         Execute the NSGA-II genetic algorithm for catalyst discovery.
 
@@ -507,7 +595,9 @@ def run_genetic_algorithm(config: GAConfig = GAConfig(),
     Returns:
         Ordered tuple of computed values.
     """
-    raise RuntimeError("Genetic/random candidate search was retired; use run_branch_discovery()")
+    raise RuntimeError(
+        "Genetic/random candidate search was retired; use run_branch_discovery()"
+    )
     random.seed(config.seed)
     np.random.seed(config.seed)
 
@@ -516,50 +606,76 @@ def run_genetic_algorithm(config: GAConfig = GAConfig(),
 
     # ── Phase A: Initial Fairchem Screening for Surrogate Training ──────────
     if existing_db is not None and len(existing_db) > 50:
-        logger.info(f"Using existing database with {len(existing_db)} entries for surrogate seed")
+        logger.info(
+            f"Using existing database with {len(existing_db)} entries for surrogate seed"
+        )
         all_fairchem_results = existing_db
     else:
-        logger.info(f"Generating {config.initial_fairchem_samples} initial Fairchem samples...")
+        logger.info(
+            f"Generating {config.initial_fairchem_samples} initial Fairchem samples..."
+        )
         # Space-filling, reproducible initial evidence.  Random seeding can miss
         # entire chemistry cells and gives weak coverage for the first surrogate.
         initial_pop = generate_hierarchical_htvs_pool(
             config.initial_fairchem_samples, campaign_round=0
         )
         from pipeline.screening.surface_screener import run_screening
-        all_fairchem_results = run_screening(initial_pop, db_filename="ga_initial_screening.csv",
-                                             workers_per_gpu=2)
+
+        all_fairchem_results = run_screening(
+            initial_pop, db_filename="ga_initial_screening.csv", workers_per_gpu=2
+        )
 
     # ── Phase B: Train Initial Surrogate Ensemble ───────────────────────────
-    model = _train_ensemble_from_db(all_fairchem_results, config.device, n_models=config.n_models)
+    model = _train_ensemble_from_db(
+        all_fairchem_results, config.device, n_models=config.n_models
+    )
 
     indexed_seeds = []
     if config.branch_search:
         from pipeline.search.branch_search import BranchConfig, run_branch_and_bound
         from pipeline.search.exhaustive_search import load_archive_genomes
-        summary = run_branch_and_bound(BranchConfig(
-            application='turquoise_hydrogen', database=config.exhaustive_db,
-            leaf_size=config.branch_leaf_size, probe_count=config.branch_probe_count,
-            scan_batch_size=config.exhaustive_batch_size,
-            max_leaves=config.branch_max_leaves,
-            expected_population=config.expected_space_size,
-            certificate_path=str(SCREENING_DIR / 'turquoise_hydrogen_coverage_certificate.json'),
-        ), lambda pop: compute_objectives_surrogate(pop, model, config.device))
+
+        summary = run_branch_and_bound(
+            BranchConfig(
+                application='turquoise_hydrogen',
+                database=config.exhaustive_db,
+                leaf_size=config.branch_leaf_size,
+                probe_count=config.branch_probe_count,
+                scan_batch_size=config.exhaustive_batch_size,
+                max_leaves=config.branch_max_leaves,
+                expected_population=config.expected_space_size,
+                certificate_path=str(
+                    SCREENING_DIR / 'turquoise_hydrogen_coverage_certificate.json'
+                ),
+            ),
+            lambda pop: compute_objectives_surrogate(pop, model, config.device),
+        )
         logger.info(f"Branch-and-bound scan: {summary}")
         indexed_seeds = load_archive_genomes(
-            config.exhaustive_db, 'turquoise_hydrogen', config.htvs_pool_size)
+            config.exhaustive_db, 'turquoise_hydrogen', config.htvs_pool_size
+        )
     elif config.exhaustive_scan:
-        from pipeline.search.exhaustive_search import ScanConfig, run_streaming_scan, load_archive_genomes
+        from pipeline.search.exhaustive_search import (
+            ScanConfig,
+            run_streaming_scan,
+            load_archive_genomes,
+        )
         from pipeline.search.indexed_space import TOTAL_SIZE
+
         scan_cfg = ScanConfig(
-            application='turquoise_hydrogen', database=config.exhaustive_db,
+            application='turquoise_hydrogen',
+            database=config.exhaustive_db,
             start=config.exhaustive_start,
-            stop=TOTAL_SIZE if config.exhaustive_stop is None else config.exhaustive_stop,
+            stop=(
+                TOTAL_SIZE if config.exhaustive_stop is None else config.exhaustive_stop
+            ),
             batch_size=config.exhaustive_batch_size,
             worker_id=config.exhaustive_worker_id,
             num_workers=config.exhaustive_num_workers,
         )
         summary = run_streaming_scan(
-            scan_cfg, lambda pop: compute_objectives_surrogate(pop, model, config.device)
+            scan_cfg,
+            lambda pop: compute_objectives_surrogate(pop, model, config.device),
         )
         logger.info(f"Indexed global scan: {summary}")
         indexed_seeds = load_archive_genomes(
@@ -567,16 +683,22 @@ def run_genetic_algorithm(config: GAConfig = GAConfig(),
         )
 
     # ── Phase C: Evolutionary Loop ──────────────────────────────────────────
-    logger.info(f"Generating HTVS pool of {config.htvs_pool_size} candidates for initial seeding...")
+    logger.info(
+        f"Generating HTVS pool of {config.htvs_pool_size} candidates for initial seeding..."
+    )
     htvs_pool = generate_hierarchical_htvs_pool(
         config.htvs_pool_size,
-        scorer=lambda pop: compute_objectives_surrogate(pop, model, config.device)[:, 0]
+        scorer=lambda pop: compute_objectives_surrogate(pop, model, config.device)[
+            :, 0
+        ],
     )
     if indexed_seeds:
         htvs_pool = list({str(g): g for g in indexed_seeds + htvs_pool}.values())
     htvs_obj = compute_objectives_surrogate(htvs_pool, model, config.device)
 
-    logger.info(f"Selecting top {config.pop_size} Pareto-optimal seeds using acquisition LCB/UCB values...")
+    logger.info(
+        f"Selecting top {config.pop_size} Pareto-optimal seeds using acquisition LCB/UCB values..."
+    )
     seed_idx = nsga2_select(htvs_pool, htvs_obj, config.pop_size)
     population = [htvs_pool[i] for i in seed_idx]
 
@@ -622,7 +744,10 @@ def run_genetic_algorithm(config: GAConfig = GAConfig(),
                 diversity_injections.extend(fresh)
 
         if diversity_injections:
-            combined = combined[:len(combined) - len(diversity_injections)] + diversity_injections
+            combined = (
+                combined[: len(combined) - len(diversity_injections)]
+                + diversity_injections
+            )
 
         combined_obj = compute_objectives_surrogate(combined, model, config.device)
         final_idx = nsga2_select(combined, combined_obj, config.pop_size)
@@ -641,37 +766,55 @@ def run_genetic_algorithm(config: GAConfig = GAConfig(),
         # ── Periodic Fairchem Validation ────────────────────────────────────
         if (gen + 1) % config.fairchem_eval_interval == 0:
             fairchem_round += 1
-            logger.info(f"  Gen {gen+1}: Running Fairchem validation on top {config.fairchem_eval_top_k}...")
+            logger.info(
+                f"  Gen {gen+1}: Running Fairchem validation on top {config.fairchem_eval_top_k}..."
+            )
             # Validate viable region champions as well as global Pareto leaders.
             # Low model confidence is an acquisition signal here, not a penalty.
             from pipeline.screening.ood import compute_model_confidence
-            confidences = [compute_model_confidence(g, _extract_elements_from_genome(g)) for g in population]
+
+            confidences = [
+                compute_model_confidence(g, _extract_elements_from_genome(g))
+                for g in population
+            ]
             evaluated = []
             if 'genome' in all_fairchem_results.columns:
                 for raw in all_fairchem_results['genome'].dropna():
                     try:
-                        evaluated.append(ast.literal_eval(raw) if isinstance(raw, str) else tuple(raw))
+                        evaluated.append(
+                            ast.literal_eval(raw)
+                            if isinstance(raw, str)
+                            else tuple(raw)
+                        )
                     except (ValueError, SyntaxError, TypeError):
                         continue
             validate_idx = select_discovery_batch(
-                population, final_obj, config.fairchem_eval_top_k,
-                evaluated=evaluated, confidence=confidences,
+                population,
+                final_obj,
+                config.fairchem_eval_top_k,
+                evaluated=evaluated,
+                confidence=confidences,
             )
             pareto_genomes = [population[i] for i in validate_idx]
             from pipeline.screening.surface_screener import run_screening
+
             fairchem_df = run_screening(
                 pareto_genomes,
                 db_filename=f"ga_fairchem_gen{gen+1}.csv",
-                workers_per_gpu=2
+                workers_per_gpu=2,
             )
-            all_fairchem_results = pd.concat([all_fairchem_results, fairchem_df], ignore_index=True)
+            all_fairchem_results = pd.concat(
+                [all_fairchem_results, fairchem_df], ignore_index=True
+            )
 
             # ── Exploration Shots: probe EVERY class with real GNN ───────────
             if fairchem_round % config.explore_interval == 0:
                 explore_genomes = []
                 for cls in ALL_MATERIAL_CLASSES:
                     explore_genomes.extend(
-                        generate_population(config.explore_per_class, material_class=cls)
+                        generate_population(
+                            config.explore_per_class, material_class=cls
+                        )
                     )
                 n_explore = len(explore_genomes)
                 logger.info(
@@ -681,15 +824,17 @@ def run_genetic_algorithm(config: GAConfig = GAConfig(),
                 explore_df = run_screening(
                     explore_genomes,
                     db_filename=f"ga_explore_gen{gen+1}.csv",
-                    workers_per_gpu=2
+                    workers_per_gpu=2,
                 )
-                all_fairchem_results = pd.concat([all_fairchem_results, explore_df], ignore_index=True)
+                all_fairchem_results = pd.concat(
+                    [all_fairchem_results, explore_df], ignore_index=True
+                )
 
                 # Inject any surprisingly good exploration candidates into population
                 if 'E_act' in explore_df.columns:
                     good_explores = explore_df[
-                        (explore_df['valid'] == True) &
-                        (explore_df['E_act'] < explore_df['E_act'].quantile(0.3))
+                        (explore_df['valid'] == True)
+                        & (explore_df['E_act'] < explore_df['E_act'].quantile(0.3))
                     ]
                     if len(good_explores) > 0:
                         logger.info(
@@ -699,10 +844,10 @@ def run_genetic_algorithm(config: GAConfig = GAConfig(),
                         for _, row in good_explores.iterrows():
                             try:
                                 g = ast.literal_eval(row['genome'])
-                                replace_idx = random.randint(
-                                    len(fronts[0]), len(population) - 1
-                                ) if len(fronts[0]) < len(population) else random.randint(
-                                    0, len(population) - 1
+                                replace_idx = (
+                                    random.randint(len(fronts[0]), len(population) - 1)
+                                    if len(fronts[0]) < len(population)
+                                    else random.randint(0, len(population) - 1)
                                 )
                                 population[replace_idx] = g
                             except Exception:
@@ -710,13 +855,19 @@ def run_genetic_algorithm(config: GAConfig = GAConfig(),
 
         # ── Periodic HTVS Global Reinjection ────────────────────────────────
         if (gen + 1) % config.reinjection_interval == 0:
-            logger.info(f"  Gen {gen+1}: Global HTVS — screening 10,000 fresh candidates...")
+            logger.info(
+                f"  Gen {gen+1}: Global HTVS — screening 10,000 fresh candidates..."
+            )
             reinject_pool = generate_hierarchical_htvs_pool(
                 10000,
-                scorer=lambda pop: compute_objectives_surrogate(pop, model, config.device)[:, 0],
+                scorer=lambda pop: compute_objectives_surrogate(
+                    pop, model, config.device
+                )[:, 0],
                 campaign_round=(gen + 1) // config.reinjection_interval,
             )
-            reinject_obj = compute_objectives_surrogate(reinject_pool, model, config.device)
+            reinject_obj = compute_objectives_surrogate(
+                reinject_pool, model, config.device
+            )
 
             n_inject = max(10, config.pop_size // 10)
             inject_idx = nsga2_select(reinject_pool, reinject_obj, n_inject)
@@ -724,15 +875,21 @@ def run_genetic_algorithm(config: GAConfig = GAConfig(),
 
             # Merge with current population and select the top pop_size
             combined_pop = population + inject_genomes
-            combined_obj = compute_objectives_surrogate(combined_pop, model, config.device)
+            combined_obj = compute_objectives_surrogate(
+                combined_pop, model, config.device
+            )
             keep_idx = nsga2_select(combined_pop, combined_obj, config.pop_size)
             population = [combined_pop[i] for i in keep_idx]
             final_obj = combined_obj[keep_idx]
 
         # ── Periodic Surrogate Retraining ───────────────────────────────────
         if (gen + 1) % config.surrogate_retrain_interval == 0:
-            logger.info(f"  Gen {gen+1}: Retraining surrogate ensemble on {len(all_fairchem_results)} samples...")
-            model = _train_ensemble_from_db(all_fairchem_results, config.device, n_models=config.n_models)
+            logger.info(
+                f"  Gen {gen+1}: Retraining surrogate ensemble on {len(all_fairchem_results)} samples..."
+            )
+            model = _train_ensemble_from_db(
+                all_fairchem_results, config.device, n_models=config.n_models
+            )
 
         # Logging
         if (gen + 1) % 10 == 0 or gen == 0:
@@ -751,7 +908,9 @@ def run_genetic_algorithm(config: GAConfig = GAConfig(),
     pareto_genomes = [population[i] for i in fronts[0]]
 
     all_fairchem_results = add_discovery_metadata(all_fairchem_results)
-    logger.info(f"\n  GA Complete. Final Pareto front: {len(pareto_genomes)} candidates")
+    logger.info(
+        f"\n  GA Complete. Final Pareto front: {len(pareto_genomes)} candidates"
+    )
     logger.info(f"  Total Fairchem evaluations: {len(all_fairchem_results)}")
     logger.info(f"  Coverage: {coverage_summary(population)}")
 
@@ -761,13 +920,17 @@ def run_genetic_algorithm(config: GAConfig = GAConfig(),
     return pareto_genomes, all_fairchem_results
 
 
-def _train_ensemble_from_db(df: pd.DataFrame, device: str, n_models: int = 3) -> SurrogateEnsemble:
+def _train_ensemble_from_db(
+    df: pd.DataFrame, device: str, n_models: int = 3
+) -> SurrogateEnsemble:
     """Train surrogate ensemble from a Fairchem screening database DataFrame."""
     # coking_index may be NaN for out-of-scope classes (e.g. MoltenMetal); do not drop those rows.
     valid_df = df.dropna(subset=['E_act', 'segregation_energy', 'dE_split'])
 
     if len(valid_df) < 10:
-        logger.warning(f"Only {len(valid_df)} valid samples. Ensemble quality may be low.")
+        logger.warning(
+            f"Only {len(valid_df)} valid samples. Ensemble quality may be low."
+        )
         # Return untrained ensemble
         ensemble = SurrogateEnsemble(n_models=n_models).to(device)
         return ensemble
@@ -790,13 +953,22 @@ def _train_ensemble_from_db(df: pd.DataFrame, device: str, n_models: int = 3) ->
     # Keep NaN for out-of-scope slab coking (MoltenMetal). train_ensemble
     # masks the coking head on non-finite targets; do not fill with 0.
     y_coking = np.asarray(df['coking_index'], dtype=float)
-    y_seg = df.get('segregation_energy', pd.Series(np.zeros(len(df)))).fillna(0.0).values
+    y_seg = (
+        df.get('segregation_energy', pd.Series(np.zeros(len(df)))).fillna(0.0).values
+    )
     y_e_act = df.get('E_act', pd.Series(np.ones(len(df)))).fillna(1.0).values
 
     ensemble = train_ensemble(
-        X, y_valid, y_de_split, y_coking, y_seg, y_e_act,
-        n_models=n_models, epochs=30, batch_size=min(2048, len(X)),
-        device=device
+        X,
+        y_valid,
+        y_de_split,
+        y_coking,
+        y_seg,
+        y_e_act,
+        n_models=n_models,
+        epochs=30,
+        batch_size=min(2048, len(X)),
+        device=device,
     )
     return ensemble
 

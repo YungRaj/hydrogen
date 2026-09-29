@@ -23,9 +23,15 @@ from typing import Dict, List, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from pipeline.utils import (
-    setup_logger, print_banner, save_screening_db, FUEL_CELL_DIR,
-    orr_overpotential, abundance_cost_penalty,
-    ZPE_H2, TS_H2, CRUSTAL_ABUNDANCE_PPM,
+    setup_logger,
+    print_banner,
+    save_screening_db,
+    FUEL_CELL_DIR,
+    orr_overpotential,
+    abundance_cost_penalty,
+    ZPE_H2,
+    TS_H2,
+    CRUSTAL_ABUNDANCE_PPM,
 )
 
 logger = setup_logger('fc_cathode', 'fuel_cell/cathode_screening.log')
@@ -44,20 +50,59 @@ FC_SAC_COORDS = ['N4', 'N3C', 'N2C2', 'N3B', 'N3S', 'N4_pyridine', 'N4_pyrrole']
 
 # DACs
 FC_DAC_PAIRS = [
-    ('Fe', 'Co'), ('Fe', 'Mn'), ('Fe', 'Ni'), ('Co', 'Mn'),
-    ('Co', 'Ni'), ('Ni', 'Mn'), ('Ni', 'Cu'), ('Fe', 'Cu'),
-    ('Mn', 'Cu'), ('Co', 'Cu'), ('Fe', 'V'), ('Co', 'Cr'),
+    ('Fe', 'Co'),
+    ('Fe', 'Mn'),
+    ('Fe', 'Ni'),
+    ('Co', 'Mn'),
+    ('Co', 'Ni'),
+    ('Ni', 'Mn'),
+    ('Ni', 'Cu'),
+    ('Fe', 'Cu'),
+    ('Mn', 'Cu'),
+    ('Co', 'Cu'),
+    ('Fe', 'V'),
+    ('Co', 'Cr'),
 ]
 FC_DAC_COORDS = ['N6', 'N8', 'N4C2', 'N4N4']
 
 # Membranes
 MEMBRANE_TYPES = [
-    {'name': 'Nafion_212', 'thickness_um': 50, 'conductivity_S_cm': 0.10, 'cost_usd_cm2': 0.025},
-    {'name': 'Nafion_211', 'thickness_um': 25, 'conductivity_S_cm': 0.10, 'cost_usd_cm2': 0.020},
-    {'name': 'SPEEK_70', 'thickness_um': 40, 'conductivity_S_cm': 0.06, 'cost_usd_cm2': 0.005},
-    {'name': 'SPEEK_80', 'thickness_um': 40, 'conductivity_S_cm': 0.08, 'cost_usd_cm2': 0.007},
-    {'name': 'PBI', 'thickness_um': 50, 'conductivity_S_cm': 0.04, 'cost_usd_cm2': 0.010},
-    {'name': 'AquivionE87', 'thickness_um': 30, 'conductivity_S_cm': 0.12, 'cost_usd_cm2': 0.030},
+    {
+        'name': 'Nafion_212',
+        'thickness_um': 50,
+        'conductivity_S_cm': 0.10,
+        'cost_usd_cm2': 0.025,
+    },
+    {
+        'name': 'Nafion_211',
+        'thickness_um': 25,
+        'conductivity_S_cm': 0.10,
+        'cost_usd_cm2': 0.020,
+    },
+    {
+        'name': 'SPEEK_70',
+        'thickness_um': 40,
+        'conductivity_S_cm': 0.06,
+        'cost_usd_cm2': 0.005,
+    },
+    {
+        'name': 'SPEEK_80',
+        'thickness_um': 40,
+        'conductivity_S_cm': 0.08,
+        'cost_usd_cm2': 0.007,
+    },
+    {
+        'name': 'PBI',
+        'thickness_um': 50,
+        'conductivity_S_cm': 0.04,
+        'cost_usd_cm2': 0.010,
+    },
+    {
+        'name': 'AquivionE87',
+        'thickness_um': 30,
+        'conductivity_S_cm': 0.12,
+        'cost_usd_cm2': 0.030,
+    },
 ]
 
 
@@ -71,35 +116,41 @@ def generate_fc_catalyst_list() -> List[Dict]:
 
     # Pt-alloys
     for m in PT_ALLOY_METALS:
-        candidates.append({
-            'type': 'Pt_alloy',
-            'name': f'Pt3{m}',
-            'genome': ('SolidCatalyst', 'Pt', 'Carbon', 'fcc111', 0.0, (m,), 1, 0),
-            'elements': ['Pt', m],
-            'pgm_loading_mg_cm2': 0.1,
-        })
+        candidates.append(
+            {
+                'type': 'Pt_alloy',
+                'name': f'Pt3{m}',
+                'genome': ('SolidCatalyst', 'Pt', 'Carbon', 'fcc111', 0.0, (m,), 1, 0),
+                'elements': ['Pt', m],
+                'pgm_loading_mg_cm2': 0.1,
+            }
+        )
 
     # M-N-C SACs
     for metal in FC_SAC_METALS:
         for coord in FC_SAC_COORDS:
-            candidates.append({
-                'type': 'SAC',
-                'name': f'{metal}_{coord}',
-                'genome': ('SAC', metal, coord, 'N-graphene', 'None'),
-                'elements': [metal],
-                'pgm_loading_mg_cm2': 0.0,
-            })
+            candidates.append(
+                {
+                    'type': 'SAC',
+                    'name': f'{metal}_{coord}',
+                    'genome': ('SAC', metal, coord, 'N-graphene', 'None'),
+                    'elements': [metal],
+                    'pgm_loading_mg_cm2': 0.0,
+                }
+            )
 
     # DACs
     for m1, m2 in FC_DAC_PAIRS:
         for coord in FC_DAC_COORDS:
-            candidates.append({
-                'type': 'DAC',
-                'name': f'{m1}{m2}_{coord}',
-                'genome': ('DAC', m1, m2, coord, 'N-graphene'),
-                'elements': [m1, m2],
-                'pgm_loading_mg_cm2': 0.0,
-            })
+            candidates.append(
+                {
+                    'type': 'DAC',
+                    'name': f'{m1}{m2}_{coord}',
+                    'genome': ('DAC', m1, m2, coord, 'N-graphene'),
+                    'elements': [m1, m2],
+                    'pgm_loading_mg_cm2': 0.0,
+                }
+            )
 
     logger.info(f"Generated {len(candidates)} cathode catalyst candidates")
     return candidates
@@ -108,6 +159,7 @@ def generate_fc_catalyst_list() -> List[Dict]:
 # ═══════════════════════════════════════════════════════════════════════════════
 # META ESEN-SM-BASED ORR DESCRIPTOR SCREENING
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def screen_orr_candidate(candidate: Dict, calc, e_h2o: float, e_h2: float) -> Dict:
     """
@@ -162,7 +214,9 @@ def screen_orr_candidate(candidate: Dict, calc, e_h2o: float, e_h2: float) -> Di
 
         # Reference: E(H₂O) - 0.5*E(H₂)
         # Using standard CHE offset
-        dG_OH = (e_oh - e_clean) - (e_h2o - 0.5 * e_h2) + 0.35 - 0.07  # + ZPE - TS corrections
+        dG_OH = (
+            (e_oh - e_clean) - (e_h2o - 0.5 * e_h2) + 0.35 - 0.07
+        )  # + ZPE - TS corrections
 
         # ── O* ──────────────────────────────────────────────────────────────
         slab_o = structure.copy()
@@ -189,15 +243,17 @@ def screen_orr_candidate(candidate: Dict, calc, e_h2o: float, e_h2: float) -> Di
         # ── ORR Overpotential ───────────────────────────────────────────────
         eta, rds = orr_overpotential(dG_OH, dG_O, dG_OOH)
 
-        result.update({
-            'dG_OH_eV': float(dG_OH),
-            'dG_O_eV': float(dG_O),
-            'dG_OOH_eV': float(dG_OOH),
-            'orr_overpotential_V': float(eta),
-            'rate_determining_step': rds,
-            'binding_strength': float(abs(dG_OH) + abs(dG_O)),
-            'valid': True,
-        })
+        result.update(
+            {
+                'dG_OH_eV': float(dG_OH),
+                'dG_O_eV': float(dG_O),
+                'dG_OOH_eV': float(dG_OOH),
+                'orr_overpotential_V': float(eta),
+                'rate_determining_step': rds,
+                'binding_strength': float(abs(dG_OH) + abs(dG_O)),
+                'valid': True,
+            }
+        )
 
         # ── Fenton Susceptibility Index ─────────────────────────────────────
         # High-spin Fe in acidic media generates •OH radicals via Fenton
@@ -244,16 +300,22 @@ def run_cathode_screening(workers_per_gpu: int = 2) -> 'pd.DataFrame':
     # Load Meta eSen-SM
     try:
         from pipeline.screening.surface_calculator import get_ocp_calculator
+
         device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-        calc = get_ocp_calculator(model_name='esen-sm-conserving-all-oc25', device=device)
+        calc = get_ocp_calculator(
+            model_name='esen-sm-conserving-all-oc25', device=device
+        )
         if calc is None:
             raise RuntimeError("get_ocp_calculator returned None")
 
         # Pre-compute gas-phase references
         from pipeline.screening.fc_screener import compute_water_ref, compute_h2_ref
+
         e_h2o = compute_water_ref(calc)
         e_h2 = compute_h2_ref(calc)
-        logger.info(f"Pre-computed gas-phase references: E(H₂O)={e_h2o:.3f} eV, E(H₂)={e_h2:.3f} eV")
+        logger.info(
+            f"Pre-computed gas-phase references: E(H₂O)={e_h2o:.3f} eV, E(H₂)={e_h2:.3f} eV"
+        )
     except Exception as e:
         logger.warning(f"Meta model not available ({e}). Generating mock results.")
         results = [_mock_orr_result(c) for c in candidates]

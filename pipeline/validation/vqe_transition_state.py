@@ -23,7 +23,11 @@ from pipeline.data_models.quantum import VQEResult
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from pipeline.utils import (
-    VQE_DIR, Ha_to_eV, setup_logger, print_banner, save_json,
+    VQE_DIR,
+    Ha_to_eV,
+    setup_logger,
+    print_banner,
+    save_json,
 )
 
 logger = setup_logger('vqe_ts', 'vqe/vqe_transition_state.log')
@@ -32,6 +36,7 @@ logger = setup_logger('vqe_ts', 'vqe/vqe_transition_state.log')
 # ═══════════════════════════════════════════════════════════════════════════════
 # HAMILTONIAN CONSTRUCTION
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def build_ch_splitting_hamiltonian(n_qubits: int = 4) -> list:
     """
@@ -54,18 +59,18 @@ def build_ch_splitting_hamiltonian(n_qubits: int = 4) -> list:
     # Model Hamiltonian terms (from DFT orbital energies in CH₄/catalyst system)
     # These are representative values for a C-H activation transition state
     hamiltonian_terms = [
-        (-39.50, 'IIII'),     # Nuclear repulsion + core energy
-        (-0.22, 'ZZII'),      # σ(C-H) bonding orbital
-        (-0.18, 'IIZZ'),      # Metal d-orbital
-        (0.12, 'ZIZI'),       # σ-d hybridization
-        (-0.04, 'XXYY'),      # Exchange coupling
-        (-0.04, 'YYXX'),      # Exchange coupling (Hermitian partner)
-        (0.17, 'ZZIZ'),       # σ*(C-H) antibonding
-        (-0.05, 'IZIZ'),      # d-σ* interaction
-        (0.08, 'ZZZZ'),       # Two-body Coulomb
-        (-0.02, 'XXII'),      # Single excitation
-        (-0.02, 'IIXX'),      # Single excitation
-        (0.03, 'ZYZY'),       # Spin-orbit coupling
+        (-39.50, 'IIII'),  # Nuclear repulsion + core energy
+        (-0.22, 'ZZII'),  # σ(C-H) bonding orbital
+        (-0.18, 'IIZZ'),  # Metal d-orbital
+        (0.12, 'ZIZI'),  # σ-d hybridization
+        (-0.04, 'XXYY'),  # Exchange coupling
+        (-0.04, 'YYXX'),  # Exchange coupling (Hermitian partner)
+        (0.17, 'ZZIZ'),  # σ*(C-H) antibonding
+        (-0.05, 'IZIZ'),  # d-σ* interaction
+        (0.08, 'ZZZZ'),  # Two-body Coulomb
+        (-0.02, 'XXII'),  # Single excitation
+        (-0.02, 'IIXX'),  # Single excitation
+        (0.03, 'ZYZY'),  # Spin-orbit coupling
     ]
     return hamiltonian_terms
 
@@ -83,17 +88,17 @@ def build_orr_hamiltonian(n_qubits: int = 4) -> list:
         List of computed or validated records.
     """
     hamiltonian_terms = [
-        (-148.00, 'IIII'),    # Core energy
-        (-0.30, 'ZZII'),      # σ(O-O) bonding
-        (-0.25, 'IIZZ'),      # π*(O-O) antibonding
-        (0.15, 'ZIZI'),       # Metal-O hybridization
-        (-0.06, 'XXYY'),      # Exchange
-        (-0.06, 'YYXX'),      # Exchange (Hermitian)
-        (0.20, 'ZZIZ'),       # σ*(O-O)
-        (-0.08, 'IZIZ'),      # Spin coupling
-        (0.10, 'ZZZZ'),       # Two-electron Coulomb
-        (-0.03, 'XXII'),      # Single excitation
-        (-0.03, 'IIXX'),      # Single excitation
+        (-148.00, 'IIII'),  # Core energy
+        (-0.30, 'ZZII'),  # σ(O-O) bonding
+        (-0.25, 'IIZZ'),  # π*(O-O) antibonding
+        (0.15, 'ZIZI'),  # Metal-O hybridization
+        (-0.06, 'XXYY'),  # Exchange
+        (-0.06, 'YYXX'),  # Exchange (Hermitian)
+        (0.20, 'ZZIZ'),  # σ*(O-O)
+        (-0.08, 'IZIZ'),  # Spin coupling
+        (0.10, 'ZZZZ'),  # Two-electron Coulomb
+        (-0.03, 'XXII'),  # Single excitation
+        (-0.03, 'IIXX'),  # Single excitation
     ]
     return hamiltonian_terms
 
@@ -116,7 +121,7 @@ def exact_ground_energy(hamiltonian_terms: list, n_qubits: int) -> float:
         'Y': np.array([[0, -1j], [1j, 0]], complex),
         'Z': np.diag([1, -1]),
     }
-    hamiltonian = np.zeros((2 ** n_qubits, 2 ** n_qubits), complex)
+    hamiltonian = np.zeros((2**n_qubits, 2**n_qubits), complex)
     for coefficient, word in hamiltonian_terms:
         if len(word) != n_qubits or any(symbol not in pauli for symbol in word):
             raise ValueError('Pauli word does not match the declared qubit count')
@@ -133,10 +138,15 @@ def exact_ground_energy(hamiltonian_terms: list, n_qubits: int) -> float:
 # VQE SOLVER
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def run_vqe(hamiltonian_terms: list, n_qubits: int = 4,
-            n_layers: int = 3, max_iter: int = 3000,
-            initial_theta: Optional[list] = None,
-            target: str = 'nvidia') -> VQEResult:
+
+def run_vqe(
+    hamiltonian_terms: list,
+    n_qubits: int = 4,
+    n_layers: int = 3,
+    max_iter: int = 3000,
+    initial_theta: Optional[list] = None,
+    target: str = 'nvidia',
+) -> VQEResult:
     """
     Run VQE using CUDA-Q with a hardware-efficient ansatz.
 
@@ -153,6 +163,7 @@ def run_vqe(hamiltonian_terms: list, n_qubits: int = 4,
     try:
         import cudaq
         from cudaq import spin
+
         HAS_CUDAQ = True
     except ImportError:
         HAS_CUDAQ = False
@@ -212,26 +223,33 @@ def run_vqe(hamiltonian_terms: list, n_qubits: int = 4,
         initial_theta = [0.01] * n_params
 
     # Run VQE optimization using the CUDA-Q 0.12 optimizer contract.
-    logger.info(f"  Running CUDA-Q VQE: {n_qubits} qubits, {n_params} parameters, {n_layers} layers")
+    logger.info(
+        f"  Running CUDA-Q VQE: {n_qubits} qubits, {n_params} parameters, {n_layers} layers"
+    )
     optimizer = cudaq.optimizers.COBYLA()
     optimizer.max_iterations = int(max_iter)
     optimizer.initial_parameters = list(initial_theta)
     result = cudaq.vqe(ansatz, H, optimizer, n_params)
 
     optimal_energy = result.energy if hasattr(result, 'energy') else result[0]
-    optimal_params = (result.optimal_parameters
-                      if hasattr(result, 'optimal_parameters') else result[1])
+    optimal_params = (
+        result.optimal_parameters
+        if hasattr(result, 'optimal_parameters')
+        else result[1]
+    )
     exact_energy = exact_ground_energy(hamiltonian_terms, n_qubits)
     variational_gap = float(optimal_energy) - exact_energy
     variational_valid = variational_gap >= -1e-8
     if not variational_valid:
         raise RuntimeError(
-            f'VQE energy violates the variational bound by {-variational_gap:.3e} Ha')
+            f'VQE energy violates the variational bound by {-variational_gap:.3e} Ha'
+        )
     chemical_accuracy_Ha = 1.6e-3
-    benchmark_passed = (
-        variational_valid and variational_gap <= chemical_accuracy_Ha)
+    benchmark_passed = variational_valid and variational_gap <= chemical_accuracy_Ha
 
-    logger.info(f"  VQE converged: E = {optimal_energy:.6f} Ha ({optimal_energy * Ha_to_eV:.4f} eV)")
+    logger.info(
+        f"  VQE converged: E = {optimal_energy:.6f} Ha ({optimal_energy * Ha_to_eV:.4f} eV)"
+    )
 
     return {
         'energy_Ha': float(optimal_energy),
@@ -252,13 +270,11 @@ def run_vqe(hamiltonian_terms: list, n_qubits: int = 4,
     }
 
 
-def _mock_vqe_result(hamiltonian_terms: list,
-                     n_qubits: int = 4) -> VQEResult:
+def _mock_vqe_result(hamiltonian_terms: list, n_qubits: int = 4) -> VQEResult:
     """Generate mock VQE results when CUDA-Q is not available."""
     logger.warning("CUDA-Q not available. Generating mock VQE results.")
     # Extract the constant (identity) term as the base energy
-    base_energy = sum(c for c, p in hamiltonian_terms
-                      if p == 'I' * n_qubits)
+    base_energy = sum(c for c, p in hamiltonian_terms if p == 'I' * n_qubits)
     # Add approximate correlation correction
     correlation = -0.2  # typical correlation energy
     energy = base_energy + correlation
@@ -280,10 +296,13 @@ def _mock_vqe_result(hamiltonian_terms: list,
 # UNIFIED WORKFLOW
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def validate_transition_state(catalyst_name: str, reaction_type: str = 'CH_split',
-                               target: str = 'nvidia',
-                               candidate_hamiltonian: str | None = None
-                               ) -> VQEResult:
+
+def validate_transition_state(
+    catalyst_name: str,
+    reaction_type: str = 'CH_split',
+    target: str = 'nvidia',
+    candidate_hamiltonian: str | None = None,
+) -> VQEResult:
     """
     Full VQE transition-state validation for a champion catalyst.
 
@@ -301,7 +320,9 @@ def validate_transition_state(catalyst_name: str, reaction_type: str = 'CH_split
     Hamiltonian = None
     if candidate_hamiltonian:
         from pipeline.validation.candidate_hamiltonian import (
-            build_candidate_hamiltonian)
+            build_candidate_hamiltonian,
+        )
+
         Hamiltonian = build_candidate_hamiltonian(candidate_hamiltonian)
         if Hamiltonian['candidate_id'] != catalyst_name:
             raise ValueError('candidate Hamiltonian identity mismatch')
@@ -317,7 +338,8 @@ def validate_transition_state(catalyst_name: str, reaction_type: str = 'CH_split
         raise ValueError(f"Unknown reaction type: {reaction_type}")
 
     result = run_vqe(
-        H_terms, n_qubits=n_qubits, n_layers=3, max_iter=3000, target=target)
+        H_terms, n_qubits=n_qubits, n_layers=3, max_iter=3000, target=target
+    )
     result['catalyst_name'] = catalyst_name
     result['reaction_type'] = reaction_type
     if Hamiltonian is not None:
@@ -326,7 +348,8 @@ def validate_transition_state(catalyst_name: str, reaction_type: str = 'CH_split
         result['evidence_level'] = (
             'candidate_specific_vqe_benchmarked'
             if result.get('benchmarked') and not result.get('mock', False)
-            else 'candidate_specific_vqe_incomplete')
+            else 'candidate_specific_vqe_incomplete'
+        )
 
     save_json(result, f"vqe_{catalyst_name}_{reaction_type}.json", subdir="vqe")
     return result

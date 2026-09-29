@@ -47,9 +47,11 @@ def _distance_to_band(value: Optional[float], lo: float, hi: float) -> Optional[
 def _normalized_miss(record: dict) -> Optional[float]:
     """0 if both bands hit; else hypot of yield/life distances over band widths."""
     y = _distance_to_band(
-        record.get('filament_yield_gC_per_gMetal_h'), *NI_FILAMENT_YIELD_BAND)
+        record.get('filament_yield_gC_per_gMetal_h'), *NI_FILAMENT_YIELD_BAND
+    )
     t = _distance_to_band(
-        record.get('encapsulation_lifetime_h'), *NI_TOS_LIFETIME_BAND_H)
+        record.get('encapsulation_lifetime_h'), *NI_TOS_LIFETIME_BAND_H
+    )
     if y is None or t is None:
         return None
     return math.hypot(y / YIELD_WIDTH, t / LIFE_WIDTH)
@@ -72,21 +74,27 @@ def search_joint_band(payloads: dict) -> dict:
             records.append(row)
     scorable = [rec for rec in records if is_scorable(rec)]
     yield_hits = [
-        rec for rec in scorable
-        if in_band(rec.get('filament_yield_gC_per_gMetal_h'),
-                   *NI_FILAMENT_YIELD_BAND)]
+        rec
+        for rec in scorable
+        if in_band(rec.get('filament_yield_gC_per_gMetal_h'), *NI_FILAMENT_YIELD_BAND)
+    ]
     life_hits = [
-        rec for rec in scorable
-        if in_band(rec.get('encapsulation_lifetime_h'), *NI_TOS_LIFETIME_BAND_H)]
+        rec
+        for rec in scorable
+        if in_band(rec.get('encapsulation_lifetime_h'), *NI_TOS_LIFETIME_BAND_H)
+    ]
     both = [
-        rec for rec in scorable
-        if in_band(rec.get('filament_yield_gC_per_gMetal_h'),
-                   *NI_FILAMENT_YIELD_BAND)
-        and in_band(rec.get('encapsulation_lifetime_h'), *NI_TOS_LIFETIME_BAND_H)]
+        rec
+        for rec in scorable
+        if in_band(rec.get('filament_yield_gC_per_gMetal_h'), *NI_FILAMENT_YIELD_BAND)
+        and in_band(rec.get('encapsulation_lifetime_h'), *NI_TOS_LIFETIME_BAND_H)
+    ]
     both_roi = [
-        rec for rec in both
+        rec
+        for rec in both
         if _finite(rec.get('T_K')) is not None
-        and ROI_T_MIN - 0.2 <= float(rec['T_K']) <= ROI_T_MAX + 0.2]
+        and ROI_T_MIN - 0.2 <= float(rec['T_K']) <= ROI_T_MAX + 0.2
+    ]
 
     ranked = []
     for rec in scorable:
@@ -95,10 +103,7 @@ def search_joint_band(payloads: dict) -> dict:
             continue
         ranked.append((miss, rec))
     ranked.sort(key=lambda item: item[0])
-    closest = [
-        {**_row_brief(rec), 'normalized_miss': miss}
-        for miss, rec in ranked[:8]
-    ]
+    closest = [{**_row_brief(rec), 'normalized_miss': miss} for miss, rec in ranked[:8]]
 
     declaration = (
         'no_simultaneous_hit_in_filament_ROI' if not both_roi else 'simultaneous_hit'
@@ -179,7 +184,8 @@ def print_table(summary: dict) -> None:
         f"{summary['n_yield_only']} yield-only, "
         f"{summary['n_lifetime_only']} lifetime-only, "
         f"{summary['n_both']} both "
-        f"({summary['n_both_roi']} in 923–973 K ROI)")
+        f"({summary['n_both_roi']} in 923–973 K ROI)"
+    )
     if summary['both']:
         print('hits (all T):')
         for row in summary['both']:
@@ -187,7 +193,8 @@ def print_table(summary: dict) -> None:
                 f"  {row.get('sweep')} {row.get('cell')} "
                 f"{row.get('reactor_type')} {row.get('T_K')} "
                 f"Y={row.get('filament_yield_gC_per_gMetal_h')} "
-                f"τ={row.get('encapsulation_lifetime_h')}")
+                f"τ={row.get('encapsulation_lifetime_h')}"
+            )
     print('closest misses (normalized):')
     for row in summary.get('closest_misses') or []:
         print(
@@ -196,7 +203,8 @@ def print_table(summary: dict) -> None:
             f"{row.get('reactor_type')} T={row.get('T_K')} "
             f"Y={row.get('filament_yield_gC_per_gMetal_h')} "
             f"τ={row.get('encapsulation_lifetime_h')} "
-            f"{row.get('sweep_values')}")
+            f"{row.get('sweep_values')}"
+        )
 
 
 def main() -> dict:

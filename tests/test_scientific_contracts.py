@@ -32,12 +32,16 @@ def test_screening_relaxations_record_and_enforce_force_convergence():
 
     class Harmonic(Calculator):
         implemented_properties = ['energy', 'forces']
-        def calculate(self, atoms=None, properties=('energy',),
-                      system_changes=all_changes):
+
+        def calculate(
+            self, atoms=None, properties=('energy',), system_changes=all_changes
+        ):
             super().calculate(atoms, properties, system_changes)
             positions = np.asarray(atoms.positions)
-            self.results = {'energy': float(0.5 * (positions ** 2).sum()),
-                            'forces': -positions}
+            self.results = {
+                'energy': float(0.5 * (positions**2).sum()),
+                'forces': -positions,
+            }
 
     converging = Atoms('H', positions=[[0.2, 0, 0]])
     converging.calc = Harmonic()
@@ -51,7 +55,8 @@ def test_screening_relaxations_record_and_enforce_force_convergence():
     incomplete.calc = Harmonic()
     result = {'valid': True}
     assert not require_relaxation(
-        result, incomplete, 'contract', 0.01, 0, recovery=False)
+        result, incomplete, 'contract', 0.01, 0, recovery=False
+    )
     assert result['valid'] is False and result['needs_dft_validation'] is True
     assert result['relax_contract_termination'] == 'recovery_exhausted'
 
@@ -63,9 +68,16 @@ def test_worker_supervisor_requeues_leased_task_and_writes_manifest():
         pid = 123
         exitcode = None
         alive = True
-        def is_alive(self): return self.alive
-        def terminate(self): self.alive = False; self.exitcode = -15
-        def join(self, timeout=None): pass
+
+        def is_alive(self):
+            return self.alive
+
+        def terminate(self):
+            self.alive = False
+            self.exitcode = -15
+
+        def join(self, timeout=None):
+            pass
 
     statuses, tasks, stopped = queue.Queue(), queue.Queue(), threading.Event()
     initial = FakeProcess()
@@ -75,21 +87,36 @@ def test_worker_supervisor_requeues_leased_task_and_writes_manifest():
 
     def restart(worker_id):
         replacement = FakeProcess()
+
         def complete():
             index, genome = tasks.get(timeout=1)
             emit(statuses, 'ready', worker_id)
             emit(statuses, 'started', worker_id, index)
-            emit(statuses, 'result', worker_id, (index, {
-                'genome': repr(genome), 'valid': True}))
+            emit(
+                statuses,
+                'result',
+                worker_id,
+                (index, {'genome': repr(genome), 'valid': True}),
+            )
+
         threading.Thread(target=complete, daemon=True).start()
         return replacement
 
     with tempfile.TemporaryDirectory() as tmp:
         manifest = Path(tmp) / 'health.json'
         results = collect_results(
-            statuses, tasks, stopped, {0: initial}, restart, [('SAC',)],
-            'contract', manifest, startup_timeout_s=1,
-            heartbeat_timeout_s=1, result_timeout_s=2)
+            statuses,
+            tasks,
+            stopped,
+            {0: initial},
+            restart,
+            [('SAC',)],
+            'contract',
+            manifest,
+            startup_timeout_s=1,
+            heartbeat_timeout_s=1,
+            result_timeout_s=2,
+        )
         payload = __import__('json').loads(manifest.read_text())
     assert results[0]['valid'] is True
     assert payload['status'] == 'complete' and payload['completed'] == 1
@@ -100,24 +127,32 @@ def test_reactor_sweep_isolates_failed_conditions_without_exclusion():
     from pipeline.reactors import models as reactor_models
 
     calls = []
+
     def simulate(config):
         calls.append((config.reactor_type, config.T_inlet_K))
         if config.reactor_type == 'PFR' and config.T_inlet_K == 773.15:
             raise RuntimeError('injected stiff integration')
         return {
-            'status': 'complete', 'valid': True,
+            'status': 'complete',
+            'valid': True,
             'reactor_type': config.reactor_type,
             'temperature_K': config.T_inlet_K,
             'CH4_conversion': 0.1,
             'can_exclude_candidate': False,
         }
 
-    with patch.object(reactor_models, 'simulate_reactor', side_effect=simulate), \
-            patch.object(reactor_models, 'save_json') as save:
+    with (
+        patch.object(reactor_models, 'simulate_reactor', side_effect=simulate),
+        patch.object(reactor_models, 'save_json') as save,
+    ):
         rows = reactor_models.run_reactor_sweep(
-            'contract', 'unused.yaml', temperatures=[773.15, 900.0],
+            'contract',
+            'unused.yaml',
+            temperatures=[773.15, 900.0],
             reactor_types=['PFR', 'Fluidized'],
-            pathway_mode='thermocatalytic', material_class='SolidCatalyst')
+            pathway_mode='thermocatalytic',
+            material_class='SolidCatalyst',
+        )
     assert len(rows) == 4 and len(calls) == 4
     assert rows[0]['status'] == 'failed'
     assert rows[0]['can_exclude_candidate'] is False
@@ -125,15 +160,24 @@ def test_reactor_sweep_isolates_failed_conditions_without_exclusion():
     assert all(row['status'] == 'complete' for row in rows[1:])
     save.assert_called_once()
 
-    with patch('pipeline.reactors.mechanisms.write_full_mechanism',
-               return_value=Path('unused.yaml')), \
-            patch('pipeline.reactors.models.run_reactor_sweep',
-                  return_value=rows):
+    with (
+        patch(
+            'pipeline.reactors.mechanisms.write_full_mechanism',
+            return_value=Path('unused.yaml'),
+        ),
+        patch('pipeline.reactors.models.run_reactor_sweep', return_value=rows),
+    ):
         from pipeline.stages.reactor import simulate_candidate
+
         stage = simulate_candidate(
-            {'E_act': 0.5, 'candidate_id': 'contract',
-             'material_class': 'SolidCatalyst'}, 'contract',
-            [773.15, 900.0])
+            {
+                'E_act': 0.5,
+                'candidate_id': 'contract',
+                'material_class': 'SolidCatalyst',
+            },
+            'contract',
+            [773.15, 900.0],
+        )
     assert stage['sweep_status'] == 'partial'
     assert stage['completed_conditions'] == 3
     assert stage['failed_conditions'] == 1
@@ -142,13 +186,22 @@ def test_reactor_sweep_isolates_failed_conditions_without_exclusion():
 
 def test_pathway_modes_route_explicit_physics_and_default_to_thermal():
     from pipeline.reactors.modes import (
-        DEFAULT_MODE, MODE_CHOICES, reactor_applicability,
-        reactor_types_for_mode, validate_mode_reactors)
+        DEFAULT_MODE,
+        MODE_CHOICES,
+        reactor_applicability,
+        reactor_types_for_mode,
+        validate_mode_reactors,
+    )
 
     assert DEFAULT_MODE == 'thermocatalytic'
     assert set(MODE_CHOICES) == {
-        'thermocatalytic', 'thermocatalytic_pfr',
-        'thermocatalytic_fluidized', 'mmbcr', 'ntec', 'electrochemical'}
+        'thermocatalytic',
+        'thermocatalytic_pfr',
+        'thermocatalytic_fluidized',
+        'mmbcr',
+        'ntec',
+        'electrochemical',
+    }
     assert reactor_types_for_mode(None) == ('PFR', 'Fluidized')
     assert reactor_types_for_mode('thermocatalytic_pfr') == ('PFR',)
     assert reactor_types_for_mode('thermocatalytic_fluidized') == ('Fluidized',)
@@ -170,8 +223,11 @@ def test_incompatible_bed_is_non_excluding_and_never_simulated():
     from pipeline.reactors import models as reactor_models
 
     config = reactor_models.ReactorConfig(
-        reactor_type='PFR', pathway_mode='thermocatalytic_pfr',
-        material_class='MoltenMetal', catalyst_name='contract')
+        reactor_type='PFR',
+        pathway_mode='thermocatalytic_pfr',
+        material_class='MoltenMetal',
+        catalyst_name='contract',
+    )
     with patch.object(reactor_models, 'simulate_pfr') as simulation:
         result = reactor_models.simulate_reactor(config)
     simulation.assert_not_called()
@@ -181,19 +237,27 @@ def test_incompatible_bed_is_non_excluding_and_never_simulated():
 
 
 def test_reactor_geometry_contract_rejects_nonphysical_beds():
-    from pipeline.reactors.models import (
-        ReactorConfig, _validate_reactor_config)
+    from pipeline.reactors.models import ReactorConfig, _validate_reactor_config
 
-    _validate_reactor_config(ReactorConfig(
-        reactor_type='Fluidized', pathway_mode='thermocatalytic_fluidized',
-        material_class='SolidCatalyst', gas_velocity_m_s=0.05,
-        u_mf_m_s=0.02))
-    try:
-        _validate_reactor_config(ReactorConfig(
+    _validate_reactor_config(
+        ReactorConfig(
             reactor_type='Fluidized',
             pathway_mode='thermocatalytic_fluidized',
-            material_class='SolidCatalyst', gas_velocity_m_s=0.01,
-            u_mf_m_s=0.02))
+            material_class='SolidCatalyst',
+            gas_velocity_m_s=0.05,
+            u_mf_m_s=0.02,
+        )
+    )
+    try:
+        _validate_reactor_config(
+            ReactorConfig(
+                reactor_type='Fluidized',
+                pathway_mode='thermocatalytic_fluidized',
+                material_class='SolidCatalyst',
+                gas_velocity_m_s=0.01,
+                u_mf_m_s=0.02,
+            )
+        )
         assert False, 'a non-fluidizing gas velocity was accepted'
     except ValueError as exc:
         assert 'exceed minimum fluidization' in str(exc)
@@ -206,21 +270,33 @@ def test_specialized_pathways_fail_closed_without_validated_models():
         os.environ.pop('NTEC_CONDITIONS_JSON', None)
         os.environ.pop('ELECTROCHEMICAL_CONDITIONS_JSON', None)
         for reactor_type in ('NTEC', 'Electrochemical'):
-            result = simulate_reactor(ReactorConfig(
-                reactor_type=reactor_type, catalyst_name='contract',
-                pathway_mode=('ntec' if reactor_type == 'NTEC'
-                              else 'electrochemical')))
+            result = simulate_reactor(
+                ReactorConfig(
+                    reactor_type=reactor_type,
+                    catalyst_name='contract',
+                    pathway_mode=(
+                        'ntec' if reactor_type == 'NTEC' else 'electrochemical'
+                    ),
+                )
+            )
             assert result['status'] == 'validation_required'
             assert result['can_exclude_candidate'] is False
             assert 'CH4_conversion' not in result
 
     with patch('pipeline.reactors.mechanisms.write_full_mechanism') as write:
         from pipeline.stages.reactor import simulate_candidate
+
         stage = simulate_candidate(
-            {'E_act': 0.5, 'candidate_id': 'specialized',
-             'material_class': 'MoltenMetal'},
-            'specialized', [300.0], pathway_mode='ntec',
-            reactor_types=['NTEC'])
+            {
+                'E_act': 0.5,
+                'candidate_id': 'specialized',
+                'material_class': 'MoltenMetal',
+            },
+            'specialized',
+            [300.0],
+            pathway_mode='ntec',
+            reactor_types=['NTEC'],
+        )
     write.assert_not_called()
     assert stage['mechanism_file'] is None
     assert stage['sweep_status'] == 'validation_required'
@@ -230,18 +306,26 @@ def test_specialized_pathways_fail_closed_without_validated_models():
 
 def test_electrochemical_phase_is_configuration_not_a_mode():
     from pipeline.electrochemistry.model import (
-        conditions_from_environment, electrochemical_evidence)
+        conditions_from_environment,
+        electrochemical_evidence,
+    )
 
     payload = {
-        'electrolyte_phase': 'aqueous', 'electrolyte_identity': '1 M KOH',
-        'applied_potential_V': 1.1, 'current_density_A_cm2': 0.2,
-        'faradaic_efficiency_H2': 0.9, 'methane_conversion': 0.1,
-        'temperature_K': 298.15, 'pressure_Pa': 101325,
+        'electrolyte_phase': 'aqueous',
+        'electrolyte_identity': '1 M KOH',
+        'applied_potential_V': 1.1,
+        'current_density_A_cm2': 0.2,
+        'faradaic_efficiency_H2': 0.9,
+        'methane_conversion': 0.1,
+        'temperature_K': 298.15,
+        'pressure_Pa': 101325,
         'measurement_source': 'contract measurement',
         'paired_control_source': 'contract control',
     }
-    with patch.dict(os.environ, {
-            'ELECTROCHEMICAL_CONDITIONS_JSON': __import__('json').dumps(payload)}):
+    with patch.dict(
+        os.environ,
+        {'ELECTROCHEMICAL_CONDITIONS_JSON': __import__('json').dumps(payload)},
+    ):
         evidence = electrochemical_evidence(conditions_from_environment())
     assert evidence['status'] == 'measured_paired_control'
     assert evidence['conditions']['electrolyte_phase'] == 'aqueous'
@@ -253,11 +337,13 @@ def _contract_convergence(outlet=1.0):
         'mesh_series': [
             {'cells': 100, 'observable': 0.90},
             {'cells': 400, 'observable': 0.99},
-            {'cells': 1600, 'observable': 1.00}],
+            {'cells': 1600, 'observable': 1.00},
+        ],
         'mesh_tolerance_relative': 0.02,
         'conservation_budgets': {
             name: {'inlet': 1.0, 'outlet': outlet if name == 'mass' else 1.0}
-            for name in ('mass', 'carbon', 'hydrogen', 'energy', 'charge')},
+            for name in ('mass', 'carbon', 'hydrogen', 'energy', 'charge')
+        },
     }
 
 
@@ -265,23 +351,45 @@ def _write_coupling_proof(case, candidate_id, temperature_K):
     files = {
         'mechanism': ('mechanism.yaml', 'phases: []\n'),
         'cantera_log': ('cantera.log', 'Cantera contract execution\n'),
-        'rate_exchange': ('rates.json', json.dumps({
-            'schema_version': 1, 'candidate_id': candidate_id,
-            'temperature_K': temperature_K,
-            'reaction_rates_mol_m3_s': {'CH4_to_products': 0.1}})),
-        'coupling_history': ('coupling_history.json', json.dumps({
-            'iterations': [
-                {'iteration': 1, 'residual_relative': 0.01},
-                {'iteration': 2, 'residual_relative': 1e-5}]})),
+        'rate_exchange': (
+            'rates.json',
+            json.dumps(
+                {
+                    'schema_version': 1,
+                    'candidate_id': candidate_id,
+                    'temperature_K': temperature_K,
+                    'reaction_rates_mol_m3_s': {'CH4_to_products': 0.1},
+                }
+            ),
+        ),
+        'coupling_history': (
+            'coupling_history.json',
+            json.dumps(
+                {
+                    'iterations': [
+                        {'iteration': 1, 'residual_relative': 0.01},
+                        {'iteration': 2, 'residual_relative': 1e-5},
+                    ]
+                }
+            ),
+        ),
     }
     proof = {
-        'schema_version': 1, 'cantera_used': True,
-        'coupling_method': 'iterative_two_way', 'coupling_iterations': 2,
+        'schema_version': 1,
+        'cantera_used': True,
+        'coupling_method': 'iterative_two_way',
+        'coupling_iterations': 2,
         'coupling_residual_relative': 1e-5,
         'coupling_tolerance_relative': 1e-4,
-        'exchanged_fields': ['species', 'temperature', 'reaction_heat',
-                             'reaction_rates', 'momentum', 'charge',
-                             'potential'],
+        'exchanged_fields': [
+            'species',
+            'temperature',
+            'reaction_heat',
+            'reaction_rates',
+            'momentum',
+            'charge',
+            'potential',
+        ],
     }
     for stem, (name, content) in files.items():
         path = case / name
@@ -293,12 +401,22 @@ def _write_coupling_proof(case, candidate_id, temperature_K):
 
 def _stored_coupling_proof():
     return {
-        'method': 'iterative_two_way', 'iterations': 2,
-        'residual_relative': 1e-5, 'tolerance_relative': 1e-4,
-        'converged': True, 'exchanged_fields': [
-            'species', 'temperature', 'reaction_heat', 'reaction_rates', 'momentum',
-            'charge', 'potential'],
-        'mechanism_sha256': '1' * 64, 'cantera_log_sha256': '2' * 64,
+        'method': 'iterative_two_way',
+        'iterations': 2,
+        'residual_relative': 1e-5,
+        'tolerance_relative': 1e-4,
+        'converged': True,
+        'exchanged_fields': [
+            'species',
+            'temperature',
+            'reaction_heat',
+            'reaction_rates',
+            'momentum',
+            'charge',
+            'potential',
+        ],
+        'mechanism_sha256': '1' * 64,
+        'cantera_log_sha256': '2' * 64,
         'rate_exchange_sha256': '3' * 64,
         'coupling_history_sha256': '4' * 64,
     }
@@ -307,41 +425,51 @@ def _stored_coupling_proof():
 def test_multiphysics_artifacts_are_identity_convergence_and_solver_gated():
     import json
     from pipeline.simulation.result_contract import (
-        artifact_path, load_validated_artifact)
+        artifact_path,
+        load_validated_artifact,
+    )
 
     artifact = {
-        'schema_version': 1, 'candidate_id': 'candidate',
-        'pathway_mode': 'mmbcr', 'reactor_type': 'MMBCR',
-        'temperature_K': 900.0, 'complete': True,
+        'schema_version': 1,
+        'candidate_id': 'candidate',
+        'pathway_mode': 'mmbcr',
+        'reactor_type': 'MMBCR',
+        'temperature_K': 900.0,
+        'complete': True,
         'backend_solvers': {'openfoam': 'contract-version'},
         'convergence': _contract_convergence(),
-        'outputs': {'gas_velocity_m_s': 0.05,
-                    'gas_holdup_fraction': 0.1,
-                    'bubble_diameter_mm': 5.0},
-        'provenance': {'input_sha256': 'a' * 64,
-                       'model_source': 'contract'},
+        'outputs': {
+            'gas_velocity_m_s': 0.05,
+            'gas_holdup_fraction': 0.1,
+            'bubble_diameter_mm': 5.0,
+        },
+        'provenance': {'input_sha256': 'a' * 64, 'model_source': 'contract'},
         'physical_case': {
-            'schema_version': 1, 'kinetics_source': 'contract kinetics',
+            'schema_version': 1,
+            'kinetics_source': 'contract kinetics',
             'feed_source': 'contract feed',
             'calibration_source': 'contract calibration',
-            'calibration_count': 2, 'holdout_validation_count': 1,
-            'disjoint_holdout': True},
+            'calibration_count': 2,
+            'holdout_validation_count': 1,
+            'disjoint_holdout': True,
+        },
         'model_validation': {
-            'metric': 'relative_rmse', 'holdout_error': 0.04,
-            'acceptance_threshold': 0.1, 'passed': True,
-            'record_source': 'contract measurements'},
+            'metric': 'relative_rmse',
+            'holdout_error': 0.04,
+            'acceptance_threshold': 0.1,
+            'passed': True,
+            'record_source': 'contract measurements',
+        },
     }
     with tempfile.TemporaryDirectory() as tmp:
         path = artifact_path(tmp, 'candidate', 'mmbcr', 'MMBCR', 900.0)
         path.parent.mkdir(parents=True)
         path.write_text(json.dumps(artifact))
-        loaded = load_validated_artifact(
-            tmp, 'candidate', 'mmbcr', 'MMBCR', 900.0)
+        loaded = load_validated_artifact(tmp, 'candidate', 'mmbcr', 'MMBCR', 900.0)
         assert loaded['valid'] is True
         artifact['candidate_id'] = 'wrong'
         path.write_text(json.dumps(artifact))
-        rejected = load_validated_artifact(
-            tmp, 'candidate', 'mmbcr', 'MMBCR', 900.0)
+        rejected = load_validated_artifact(tmp, 'candidate', 'mmbcr', 'MMBCR', 900.0)
         assert rejected['valid'] is False
         assert 'candidate_id' in rejected['failed_checks']
 
@@ -352,54 +480,89 @@ def test_validated_specialized_artifact_completes_without_thermal_yaml():
     from pipeline.stages.reactor import simulate_candidate
 
     base = {
-        'schema_version': 1, 'candidate_id': 'ntec-candidate',
-        'pathway_mode': 'ntec', 'reactor_type': 'NTEC',
-        'temperature_K': 300.0, 'complete': True,
+        'schema_version': 1,
+        'candidate_id': 'ntec-candidate',
+        'pathway_mode': 'ntec',
+        'reactor_type': 'NTEC',
+        'temperature_K': 300.0,
+        'complete': True,
         'backend_solvers': {
-            'openfoam': 'contract', 'fenicsx': 'contract',
-            'cantera': 'contract'},
+            'openfoam': 'contract',
+            'fenicsx': 'contract',
+            'cantera': 'contract',
+        },
         'convergence': _contract_convergence(),
         'outputs': {
-            'CH4_conversion': 0.2, 'H2_selectivity': 0.9,
+            'CH4_conversion': 0.2,
+            'H2_selectivity': 0.9,
             'solid_C_selectivity': 0.95,
-            'specific_energy_kWh_kg_H2': 15.0},
+            'specific_energy_kWh_kg_H2': 15.0,
+        },
         'provenance': {
-            'input_sha256': 'b' * 64, 'model_source': 'contract',
+            'input_sha256': 'b' * 64,
+            'model_source': 'contract',
             'fenics_model_sha256': 'c' * 64,
             'hydrodynamic_handoff': {
-                'sha256': 'd' * 64, 'field_sha256': 'e' * 64,
-                'mesh_id': 'mesh-1'},
+                'sha256': 'd' * 64,
+                'field_sha256': 'e' * 64,
+                'mesh_id': 'mesh-1',
+            },
             'observed_coupling_iterations': [
-                {'iteration': 1, 'residual_relative': 0.01,
-                 'tolerance_relative': 1e-4, 'converged': False},
-                {'iteration': 2, 'residual_relative': 1e-5,
-                 'tolerance_relative': 1e-4, 'converged': True}]},
+                {
+                    'iteration': 1,
+                    'residual_relative': 0.01,
+                    'tolerance_relative': 1e-4,
+                    'converged': False,
+                },
+                {
+                    'iteration': 2,
+                    'residual_relative': 1e-5,
+                    'tolerance_relative': 1e-4,
+                    'converged': True,
+                },
+            ],
+        },
         'physical_case': {
-            'schema_version': 1, 'kinetics_source': 'contract kinetics',
+            'schema_version': 1,
+            'kinetics_source': 'contract kinetics',
             'feed_source': 'contract feed',
             'calibration_source': 'contract calibration',
-            'calibration_count': 2, 'holdout_validation_count': 1,
-            'disjoint_holdout': True},
+            'calibration_count': 2,
+            'holdout_validation_count': 1,
+            'disjoint_holdout': True,
+        },
         'model_validation': {
-            'metric': 'relative_rmse', 'holdout_error': 0.04,
-            'acceptance_threshold': 0.1, 'passed': True,
-            'record_source': 'contract measurements'},
+            'metric': 'relative_rmse',
+            'holdout_error': 0.04,
+            'acceptance_threshold': 0.1,
+            'passed': True,
+            'record_source': 'contract measurements',
+        },
         'calibration': {
             'paired_control': True,
-            'paired_control_source': 'contract calibration'},
+            'paired_control_source': 'contract calibration',
+        },
         'solver_coupling': _stored_coupling_proof(),
     }
-    with tempfile.TemporaryDirectory() as tmp, \
-            patch('pipeline.reactors.mechanisms.write_full_mechanism') as write:
-        path = artifact_path(
-            tmp, 'ntec-candidate', 'ntec', 'NTEC', 300.0)
+    with (
+        tempfile.TemporaryDirectory() as tmp,
+        patch('pipeline.reactors.mechanisms.write_full_mechanism') as write,
+    ):
+        path = artifact_path(tmp, 'ntec-candidate', 'ntec', 'NTEC', 300.0)
         path.parent.mkdir(parents=True)
         path.write_text(json.dumps(base))
         result = simulate_candidate(
-            {'E_act': 0.5, 'candidate_id': 'ntec-candidate',
-             'material_class': 'MoltenMetal'}, 'ntec-candidate', [300.0],
-            ['NTEC'], pathway_mode='ntec',
-            multiphysics_results_dir=tmp)
+            {
+                'E_act': 0.5,
+                'candidate_id': 'ntec-candidate',
+                'material_class': 'MoltenMetal',
+            },
+            'ntec-candidate',
+            [300.0],
+            ['NTEC'],
+            pathway_mode='ntec',
+            multiphysics_results_dir=tmp,
+        )
     write.assert_not_called()
     assert result['sweep_status'] == 'complete'
     assert result['mechanism_file'] is None
@@ -407,88 +570,127 @@ def test_validated_specialized_artifact_completes_without_thermal_yaml():
     assert result['can_exclude_candidate'] is False
 
 
-def _write_contract_physical_case(path, reactor_type, mode, candidate_id,
-                                  temperature_K):
+def _write_contract_physical_case(
+    path, reactor_type, mode, candidate_id, temperature_K
+):
     import json
+
     required = {
         'Fluidized': {
             'geometry': {'column_diameter_m': 0.1, 'bed_height_m': 0.8},
-            'operating': {'temperature_K': temperature_K,
-                          'pressure_Pa': 101325,
-                          'methane_mass_flow_kg_s': 1e-4},
-            'properties': {'particle_diameter_m': 1e-3,
-                           'particle_density_kg_m3': 2500,
-                           'gas_viscosity_Pa_s': 2e-5},
-            'models': {'drag_model': 'Gidaspow',
-                       'heat_transfer_model': 'Ranz-Marshall'}},
+            'operating': {
+                'temperature_K': temperature_K,
+                'pressure_Pa': 101325,
+                'methane_mass_flow_kg_s': 1e-4,
+            },
+            'properties': {
+                'particle_diameter_m': 1e-3,
+                'particle_density_kg_m3': 2500,
+                'gas_viscosity_Pa_s': 2e-5,
+            },
+            'models': {
+                'drag_model': 'Gidaspow',
+                'heat_transfer_model': 'Ranz-Marshall',
+            },
+        },
         'Electrochemical': {
-            'geometry': {'electrode_area_m2': 0.01,
-                         'electrolyte_thickness_m': 1e-3},
-            'operating': {'temperature_K': temperature_K,
-                          'pressure_Pa': 101325,
-                          'methane_mass_flow_kg_s': 1e-6,
-                          'applied_potential_V': 1.4},
-            'properties': {'ionic_conductivity_S_m': 1.0,
-                           'electronic_conductivity_S_m': 100.0,
-                           'methane_diffusivity_m2_s': 1e-9},
-            'models': {'charge_transfer_model': 'Butler-Volmer',
-                       'species_transport_model': 'Nernst-Planck'}},
+            'geometry': {'electrode_area_m2': 0.01, 'electrolyte_thickness_m': 1e-3},
+            'operating': {
+                'temperature_K': temperature_K,
+                'pressure_Pa': 101325,
+                'methane_mass_flow_kg_s': 1e-6,
+                'applied_potential_V': 1.4,
+            },
+            'properties': {
+                'ionic_conductivity_S_m': 1.0,
+                'electronic_conductivity_S_m': 100.0,
+                'methane_diffusivity_m2_s': 1e-9,
+            },
+            'models': {
+                'charge_transfer_model': 'Butler-Volmer',
+                'species_transport_model': 'Nernst-Planck',
+            },
+        },
         'MMBCR': {
-            'geometry': {'column_diameter_m': 0.1, 'liquid_height_m': 1.0,
-                         'sparger_orifice_diameter_m': 1e-3},
-            'operating': {'temperature_K': temperature_K,
-                          'pressure_Pa': 101325,
-                          'methane_mass_flow_kg_s': 1e-4},
-            'properties': {'liquid_density_kg_m3': 6000,
-                           'liquid_viscosity_Pa_s': 2e-3,
-                           'surface_tension_N_m': 0.7},
-            'models': {'bubble_breakup_model': 'Lehr',
-                       'bubble_coalescence_model': 'Prince-Blanch'}},
+            'geometry': {
+                'column_diameter_m': 0.1,
+                'liquid_height_m': 1.0,
+                'sparger_orifice_diameter_m': 1e-3,
+            },
+            'operating': {
+                'temperature_K': temperature_K,
+                'pressure_Pa': 101325,
+                'methane_mass_flow_kg_s': 1e-4,
+            },
+            'properties': {
+                'liquid_density_kg_m3': 6000,
+                'liquid_viscosity_Pa_s': 2e-3,
+                'surface_tension_N_m': 0.7,
+            },
+            'models': {
+                'bubble_breakup_model': 'Lehr',
+                'bubble_coalescence_model': 'Prince-Blanch',
+            },
+        },
         'NTEC': {
-            'geometry': {'reactor_volume_m3': 1e-3,
-                         'interface_area_m2': 0.1},
-            'operating': {'temperature_K': temperature_K,
-                          'pressure_Pa': 101325,
-                          'methane_mass_flow_kg_s': 1e-6,
-                          'shear_rate_s_inv': 100.0,
-                          'mechanical_power_W_kg': 20.0},
-            'properties': {'liquid_viscosity_Pa_s': 1e-3,
-                           'permittivity_F_m': 7e-10,
-                           'ionic_conductivity_S_m': 1.0},
-            'models': {'contact_electrification_model': 'measured source term',
-                       'species_transport_model': 'Nernst-Planck'}},
+            'geometry': {'reactor_volume_m3': 1e-3, 'interface_area_m2': 0.1},
+            'operating': {
+                'temperature_K': temperature_K,
+                'pressure_Pa': 101325,
+                'methane_mass_flow_kg_s': 1e-6,
+                'shear_rate_s_inv': 100.0,
+                'mechanical_power_W_kg': 20.0,
+            },
+            'properties': {
+                'liquid_viscosity_Pa_s': 1e-3,
+                'permittivity_F_m': 7e-10,
+                'ionic_conductivity_S_m': 1.0,
+            },
+            'models': {
+                'contact_electrification_model': 'measured source term',
+                'species_transport_model': 'Nernst-Planck',
+            },
+        },
     }[reactor_type]
     value = {
-        'schema_version': 1, 'candidate_id': candidate_id,
-        'pathway_mode': mode, 'reactor_type': reactor_type,
+        'schema_version': 1,
+        'candidate_id': candidate_id,
+        'pathway_mode': mode,
+        'reactor_type': reactor_type,
         **required,
         'feed': {'composition': {'CH4': 1.0}, 'source': 'contract feed'},
         'kinetics': {'source': 'contract kinetics'},
-        'calibration': {'training_ids': ['train-1', 'train-2'],
-                        'validation_ids': ['holdout-1'],
-                        'source': 'contract measurements',
-                        'metric': 'relative_rmse',
-                        'acceptance_threshold': 0.1},
+        'calibration': {
+            'training_ids': ['train-1', 'train-2'],
+            'validation_ids': ['holdout-1'],
+            'source': 'contract measurements',
+            'metric': 'relative_rmse',
+            'acceptance_threshold': 0.1,
+        },
     }
     value['parameter_sources'] = {
         f'{section}.{name}': 'contract parameter source'
         for section in ('geometry', 'operating', 'properties')
-        for name in value[section]}
+        for name in value[section]
+    }
     if reactor_type == 'Electrochemical':
-        value['electrolyte_phase'] = (
-            'aqueous' if temperature_K < 647.096 else 'molten')
-        value['electrolyte'] = {
-            'identity': '1 M KOH', 'source': 'contract electrolyte'}
+        value['electrolyte_phase'] = 'aqueous' if temperature_K < 647.096 else 'molten'
+        value['electrolyte'] = {'identity': '1 M KOH', 'source': 'contract electrolyte'}
     if reactor_type == 'NTEC':
         value['calibration']['paired_control'] = True
     path.write_text(json.dumps(value))
-    (path.parent / 'hydrogen_validation_records.json').write_text(json.dumps({
-        'source': 'contract measurements',
-        'records': [
-            {'id': 'train-1', 'predicted': 0.10, 'observed': 0.10},
-            {'id': 'train-2', 'predicted': 0.20, 'observed': 0.20},
-            {'id': 'holdout-1', 'predicted': 0.105, 'observed': 0.10},
-        ]}))
+    (path.parent / 'hydrogen_validation_records.json').write_text(
+        json.dumps(
+            {
+                'source': 'contract measurements',
+                'records': [
+                    {'id': 'train-1', 'predicted': 0.10, 'observed': 0.10},
+                    {'id': 'train-2', 'predicted': 0.20, 'observed': 0.20},
+                    {'id': 'holdout-1', 'predicted': 0.105, 'observed': 0.10},
+                ],
+            }
+        )
+    )
 
 
 def test_physical_case_contract_covers_every_external_reactor_and_holdout():
@@ -496,24 +698,34 @@ def test_physical_case_contract_covers_every_external_reactor_and_holdout():
     from pipeline.simulation.physical_case import load_physical_case
 
     modes = {
-        'Fluidized': 'thermocatalytic_fluidized', 'MMBCR': 'mmbcr',
-        'NTEC': 'ntec', 'Electrochemical': 'electrochemical'}
+        'Fluidized': 'thermocatalytic_fluidized',
+        'MMBCR': 'mmbcr',
+        'NTEC': 'ntec',
+        'Electrochemical': 'electrochemical',
+    }
     with tempfile.TemporaryDirectory() as tmp:
         for reactor_type, mode in modes.items():
             path = Path(tmp) / f'{reactor_type}.json'
-            _write_contract_physical_case(
-                path, reactor_type, mode, 'candidate', 900.0)
+            _write_contract_physical_case(path, reactor_type, mode, 'candidate', 900.0)
             loaded = load_physical_case(
-                path, candidate_id='candidate', mode=mode,
-                reactor_type=reactor_type, temperature_K=900.0)
+                path,
+                candidate_id='candidate',
+                mode=mode,
+                reactor_type=reactor_type,
+                temperature_K=900.0,
+            )
             assert loaded['calibration']['validation_ids'] == ['holdout-1']
         broken = json.loads(path.read_text())
         broken['calibration']['validation_ids'] = ['train-1']
         path.write_text(json.dumps(broken))
         try:
             load_physical_case(
-                path, candidate_id='candidate', mode='electrochemical',
-                reactor_type='Electrochemical', temperature_K=900.0)
+                path,
+                candidate_id='candidate',
+                mode='electrochemical',
+                reactor_type='Electrochemical',
+                temperature_K=900.0,
+            )
         except ValueError as exc:
             assert 'disjoint_training_and_validation_ids' in str(exc)
         else:
@@ -525,13 +737,24 @@ def test_case_templates_are_complete_guides_but_never_runnable_defaults():
 
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / 'hydrogen_case.json'
-        path.write_text(json.dumps(case_template(
-            candidate_id='candidate', mode='mmbcr', reactor_type='MMBCR',
-            temperature_K=900.0)))
+        path.write_text(
+            json.dumps(
+                case_template(
+                    candidate_id='candidate',
+                    mode='mmbcr',
+                    reactor_type='MMBCR',
+                    temperature_K=900.0,
+                )
+            )
+        )
         try:
             load_physical_case(
-                path, candidate_id='candidate', mode='mmbcr',
-                reactor_type='MMBCR', temperature_K=900.0)
+                path,
+                candidate_id='candidate',
+                mode='mmbcr',
+                reactor_type='MMBCR',
+                temperature_K=900.0,
+            )
         except ValueError as exc:
             assert 'template_must_be_completed' in str(exc)
         else:
@@ -542,15 +765,25 @@ def test_holdout_error_is_computed_from_raw_disjoint_records():
     from pipeline.simulation.model_validation import score_holdout
 
     calibration = {
-        'training_ids': ['train-1'], 'validation_ids': ['holdout-1'],
-        'source': 'measurement set', 'metric': 'relative_rmse',
-        'acceptance_threshold': 0.1}
+        'training_ids': ['train-1'],
+        'validation_ids': ['holdout-1'],
+        'source': 'measurement set',
+        'metric': 'relative_rmse',
+        'acceptance_threshold': 0.1,
+    }
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / 'records.json'
-        path.write_text(json.dumps({
-            'source': 'measurement set', 'records': [
-                {'id': 'train-1', 'predicted': 1.0, 'observed': 1.0},
-                {'id': 'holdout-1', 'predicted': 1.05, 'observed': 1.0}]}))
+        path.write_text(
+            json.dumps(
+                {
+                    'source': 'measurement set',
+                    'records': [
+                        {'id': 'train-1', 'predicted': 1.0, 'observed': 1.0},
+                        {'id': 'holdout-1', 'predicted': 1.05, 'observed': 1.0},
+                    ],
+                }
+            )
+        )
         result = score_holdout(path, calibration)
     assert math.isclose(result['holdout_error'], 0.05)
     assert result['passed'] is True and result['holdout_count'] == 1
@@ -560,8 +793,7 @@ def test_mesh_and_conservation_are_recomputed_not_self_attested():
     from pipeline.simulation.result_contract import verify_numerics
 
     forged = _contract_convergence(outlet=1.1)
-    forged.update({'mesh_independent': True,
-                   'conservation_satisfied': True})
+    forged.update({'mesh_independent': True, 'conservation_satisfied': True})
     verified = verify_numerics(forged, 'MMBCR')
     assert verified['mesh_independent'] is True
     assert verified['conservation_satisfied'] is False
@@ -573,40 +805,68 @@ def test_mesh_and_conservation_are_recomputed_not_self_attested():
 def test_external_mode_physical_identities_are_enforced():
     from pipeline.simulation.result_contract import verify_physical_outputs
 
-    assert verify_physical_outputs('Fluidized', {
-        'gas_velocity_m_s': 0.01, 'u_mf_m_s': 0.02,
-        'bubble_fraction': 0.2}) == ['fluidization_velocity']
-    assert verify_physical_outputs('Electrochemical', {
-        'current_density_A_cm2': 0.2, 'cell_voltage_V': 1.4,
-        'electrical_power_density_W_cm2': 0.1}) == [
-            'electrical_power_identity']
-    assert verify_physical_outputs('MMBCR', {
-        'gas_velocity_m_s': 0.05, 'gas_holdup_fraction': 0.1,
-        'bubble_diameter_mm': 20.0}, {
-            'geometry': {'column_diameter_m': 0.01}}) == [
-                'bubble_smaller_than_column']
+    assert verify_physical_outputs(
+        'Fluidized',
+        {'gas_velocity_m_s': 0.01, 'u_mf_m_s': 0.02, 'bubble_fraction': 0.2},
+    ) == ['fluidization_velocity']
+    assert verify_physical_outputs(
+        'Electrochemical',
+        {
+            'current_density_A_cm2': 0.2,
+            'cell_voltage_V': 1.4,
+            'electrical_power_density_W_cm2': 0.1,
+        },
+    ) == ['electrical_power_identity']
+    assert verify_physical_outputs(
+        'MMBCR',
+        {
+            'gas_velocity_m_s': 0.05,
+            'gas_holdup_fraction': 0.1,
+            'bubble_diameter_mm': 20.0,
+        },
+        {'geometry': {'column_diameter_m': 0.01}},
+    ) == ['bubble_smaller_than_column']
 
 
 def test_multiphysics_batch_preparation_reports_ready_and_templates():
     from pipeline.simulation.case_preparation import prepare_manifest
 
-    with tempfile.TemporaryDirectory() as tmp, patch(
+    with (
+        tempfile.TemporaryDirectory() as tmp,
+        patch(
             'pipeline.simulation.case_preparation.mode_preflight',
-            return_value={'missing': []}):
+            return_value={'missing': []},
+        ),
+    ):
         root = Path(tmp)
         ready = root / 'ready'
         ready.mkdir()
         _write_contract_physical_case(
-            ready / 'hydrogen_case.json', 'MMBCR', 'mmbcr',
-            'candidate-a', 900.0)
+            ready / 'hydrogen_case.json', 'MMBCR', 'mmbcr', 'candidate-a', 900.0
+        )
         manifest = root / 'manifest.json'
-        manifest.write_text(json.dumps({'cases': [
-            {'candidate_id': 'candidate-a', 'mode': 'mmbcr',
-             'reactor_type': 'MMBCR', 'temperature_K': 900.0,
-             'case_dir': str(ready)},
-            {'candidate_id': 'candidate-b', 'mode': 'ntec',
-             'reactor_type': 'NTEC', 'temperature_K': 300.0,
-             'case_dir': str(root / 'template')}]}))
+        manifest.write_text(
+            json.dumps(
+                {
+                    'cases': [
+                        {
+                            'candidate_id': 'candidate-a',
+                            'mode': 'mmbcr',
+                            'reactor_type': 'MMBCR',
+                            'temperature_K': 900.0,
+                            'case_dir': str(ready),
+                        },
+                        {
+                            'candidate_id': 'candidate-b',
+                            'mode': 'ntec',
+                            'reactor_type': 'NTEC',
+                            'temperature_K': 300.0,
+                            'case_dir': str(root / 'template'),
+                        },
+                    ]
+                }
+            )
+        )
         report = prepare_manifest(manifest, create=True)
     assert report['ready'] == 1 and report['not_ready'] == 1
     assert 'template_must_be_completed' in report['cases'][1]['failures'][0]
@@ -624,48 +884,87 @@ def test_multiphysics_runner_executes_and_revalidates_electrochemical_output():
         feedback = cwd / 'hydrogen_feedback.json'
         feedback.write_text(json.dumps({'iteration': iteration}))
         residual = 0.01 if iteration == 1 else 1e-5
-        (cwd / 'hydrogen_coupling_state.json').write_text(json.dumps({
-            'schema_version': 1, 'candidate_id': 'electro-candidate',
-            'reactor_type': 'Electrochemical', 'temperature_K': 300.0,
-            'iteration': iteration, 'residual_relative': residual,
-            'tolerance_relative': 1e-4, 'converged': iteration >= 2,
-            'feedback_artifact': {
-                'path': feedback.name,
-                'sha256': hashlib.sha256(feedback.read_bytes()).hexdigest()}}))
-        (cwd / 'hydrogen_outputs.json').write_text(json.dumps({
-            'CH4_conversion': 0.12, 'H2_selectivity': 0.88,
-            'faradaic_efficiency_H2': 0.91,
-            'current_density_A_cm2': 0.2, 'cell_voltage_V': 1.4,
-            'electrical_power_density_W_cm2': 0.28}))
-        (cwd / 'hydrogen_convergence.json').write_text(json.dumps(
-            _contract_convergence()))
-        (cwd / 'hydrogen_metadata.json').write_text(json.dumps({
-            'solver_coupling': _write_coupling_proof(
-                cwd, 'electro-candidate', 300.0),
-            'mechanism': {
-                'complete': True, 'source': 'contract mechanism'},
-            'electrolyte_phase': 'aqueous'}))
+        (cwd / 'hydrogen_coupling_state.json').write_text(
+            json.dumps(
+                {
+                    'schema_version': 1,
+                    'candidate_id': 'electro-candidate',
+                    'reactor_type': 'Electrochemical',
+                    'temperature_K': 300.0,
+                    'iteration': iteration,
+                    'residual_relative': residual,
+                    'tolerance_relative': 1e-4,
+                    'converged': iteration >= 2,
+                    'feedback_artifact': {
+                        'path': feedback.name,
+                        'sha256': hashlib.sha256(feedback.read_bytes()).hexdigest(),
+                    },
+                }
+            )
+        )
+        (cwd / 'hydrogen_outputs.json').write_text(
+            json.dumps(
+                {
+                    'CH4_conversion': 0.12,
+                    'H2_selectivity': 0.88,
+                    'faradaic_efficiency_H2': 0.91,
+                    'current_density_A_cm2': 0.2,
+                    'cell_voltage_V': 1.4,
+                    'electrical_power_density_W_cm2': 0.28,
+                }
+            )
+        )
+        (cwd / 'hydrogen_convergence.json').write_text(
+            json.dumps(_contract_convergence())
+        )
+        (cwd / 'hydrogen_metadata.json').write_text(
+            json.dumps(
+                {
+                    'solver_coupling': _write_coupling_proof(
+                        cwd, 'electro-candidate', 300.0
+                    ),
+                    'mechanism': {'complete': True, 'source': 'contract mechanism'},
+                    'electrolyte_phase': 'aqueous',
+                }
+            )
+        )
 
-    with tempfile.TemporaryDirectory() as tmp, \
-            patch('pipeline.simulation.external_runner.mode_preflight',
-                  return_value={
-                      'missing': [], 'solvers': {
-                          'openfoam': {'executable': '/unused'}}}), \
-            patch('pipeline.simulation.external_runner._fenics_command',
-                  return_value=(['fenics-model'], 'contract-fenicsx')), \
-            patch('pipeline.simulation.external_runner._run', completed_model):
+    with (
+        tempfile.TemporaryDirectory() as tmp,
+        patch(
+            'pipeline.simulation.external_runner.mode_preflight',
+            return_value={
+                'missing': [],
+                'solvers': {'openfoam': {'executable': '/unused'}},
+            },
+        ),
+        patch(
+            'pipeline.simulation.external_runner._fenics_command',
+            return_value=(['fenics-model'], 'contract-fenicsx'),
+        ),
+        patch('pipeline.simulation.external_runner._run', completed_model),
+    ):
         case = Path(tmp) / 'case'
         case.mkdir()
         _write_contract_physical_case(
-            case / 'hydrogen_case.json', 'Electrochemical',
-            'electrochemical', 'electro-candidate', 300.0)
+            case / 'hydrogen_case.json',
+            'Electrochemical',
+            'electrochemical',
+            'electro-candidate',
+            300.0,
+        )
         model = case / 'model.py'
         model.write_text('# contract model\n')
         target = run_backend(
-            mode='electrochemical', reactor_type='Electrochemical',
-            candidate_id='electro-candidate', temperature_K=300.0,
-            case_dir=case, results_dir=Path(tmp) / 'results',
-            model_source='contract model', fenics_model=model)
+            mode='electrochemical',
+            reactor_type='Electrochemical',
+            candidate_id='electro-candidate',
+            temperature_K=300.0,
+            case_dir=case,
+            results_dir=Path(tmp) / 'results',
+            model_source='contract model',
+            fenics_model=model,
+        )
         artifact = json.loads(target.read_text())
     assert artifact['complete'] is True
     assert artifact['backend_solvers']['fenicsx'] == 'contract-fenicsx'
@@ -677,36 +976,61 @@ def test_multiphysics_runner_rejects_nonconservative_solver_output():
     from pipeline.simulation.external_runner import run_backend
 
     def nonconservative_model(_command, cwd, _timeout, _backend='solver'):
-        (cwd / 'hydrogen_outputs.json').write_text(json.dumps({
-            'gas_velocity_m_s': 0.1, 'u_mf_m_s': 0.02,
-            'bubble_fraction': 0.2}))
-        (cwd / 'hydrogen_convergence.json').write_text(json.dumps(
-            _contract_convergence(outlet=1.1)))
-        (cwd / 'hydrogen_metadata.json').write_text(json.dumps({
-            'model_validation': {
-                'metric': 'relative_rmse', 'holdout_error': 0.04,
-                'acceptance_threshold': 0.1, 'passed': True}}))
+        (cwd / 'hydrogen_outputs.json').write_text(
+            json.dumps(
+                {'gas_velocity_m_s': 0.1, 'u_mf_m_s': 0.02, 'bubble_fraction': 0.2}
+            )
+        )
+        (cwd / 'hydrogen_convergence.json').write_text(
+            json.dumps(_contract_convergence(outlet=1.1))
+        )
+        (cwd / 'hydrogen_metadata.json').write_text(
+            json.dumps(
+                {
+                    'model_validation': {
+                        'metric': 'relative_rmse',
+                        'holdout_error': 0.04,
+                        'acceptance_threshold': 0.1,
+                        'passed': True,
+                    }
+                }
+            )
+        )
 
-    with tempfile.TemporaryDirectory() as tmp, \
-            patch('pipeline.simulation.external_runner.mode_preflight',
-                  return_value={
-                      'missing': [], 'solvers': {
-                          'openfoam': {'executable': '/contract/openfoam'}}}), \
-            patch('pipeline.simulation.external_runner._run',
-                  nonconservative_model), \
-            patch('pipeline.simulation.external_runner._openfoam_version',
-                  return_value='contract-openfoam'):
+    with (
+        tempfile.TemporaryDirectory() as tmp,
+        patch(
+            'pipeline.simulation.external_runner.mode_preflight',
+            return_value={
+                'missing': [],
+                'solvers': {'openfoam': {'executable': '/contract/openfoam'}},
+            },
+        ),
+        patch('pipeline.simulation.external_runner._run', nonconservative_model),
+        patch(
+            'pipeline.simulation.external_runner._openfoam_version',
+            return_value='contract-openfoam',
+        ),
+    ):
         case = Path(tmp) / 'case'
         case.mkdir()
         _write_contract_physical_case(
-            case / 'hydrogen_case.json', 'Fluidized',
-            'thermocatalytic_fluidized', 'fluid-candidate', 900.0)
+            case / 'hydrogen_case.json',
+            'Fluidized',
+            'thermocatalytic_fluidized',
+            'fluid-candidate',
+            900.0,
+        )
         try:
             run_backend(
-                mode='thermocatalytic_fluidized', reactor_type='Fluidized',
-                candidate_id='fluid-candidate', temperature_K=900.0,
-                case_dir=case, results_dir=Path(tmp) / 'results',
-                model_source='contract model')
+                mode='thermocatalytic_fluidized',
+                reactor_type='Fluidized',
+                candidate_id='fluid-candidate',
+                temperature_K=900.0,
+                case_dir=case,
+                results_dir=Path(tmp) / 'results',
+                model_source='contract model',
+            )
         except RuntimeError as exc:
             assert 'conservation_residuals' in str(exc)
         else:
@@ -719,28 +1043,39 @@ def test_ntec_runner_requires_explicit_openfoam_hydrodynamic_handoff():
     def openfoam_without_handoff(_command, _cwd, _timeout, _backend='solver'):
         return None
 
-    with tempfile.TemporaryDirectory() as tmp, \
-            patch('pipeline.simulation.external_runner.mode_preflight',
-                  return_value={
-                      'missing': [], 'solvers': {
-                          'openfoam': {'executable': '/contract/openfoam'}}}), \
-            patch('pipeline.simulation.external_runner._run',
-                  openfoam_without_handoff), \
-            patch('pipeline.simulation.external_runner._openfoam_version',
-                  return_value='contract-openfoam'):
+    with (
+        tempfile.TemporaryDirectory() as tmp,
+        patch(
+            'pipeline.simulation.external_runner.mode_preflight',
+            return_value={
+                'missing': [],
+                'solvers': {'openfoam': {'executable': '/contract/openfoam'}},
+            },
+        ),
+        patch('pipeline.simulation.external_runner._run', openfoam_without_handoff),
+        patch(
+            'pipeline.simulation.external_runner._openfoam_version',
+            return_value='contract-openfoam',
+        ),
+    ):
         case = Path(tmp) / 'case'
         case.mkdir()
         _write_contract_physical_case(
-            case / 'hydrogen_case.json', 'NTEC', 'ntec',
-            'ntec-candidate', 300.0)
+            case / 'hydrogen_case.json', 'NTEC', 'ntec', 'ntec-candidate', 300.0
+        )
         model = case / 'model.py'
         model.write_text('# contract model\n')
         try:
             run_backend(
-                mode='ntec', reactor_type='NTEC',
-                candidate_id='ntec-candidate', temperature_K=300.0,
-                case_dir=case, results_dir=Path(tmp) / 'results',
-                model_source='contract model', fenics_model=model)
+                mode='ntec',
+                reactor_type='NTEC',
+                candidate_id='ntec-candidate',
+                temperature_K=300.0,
+                case_dir=case,
+                results_dir=Path(tmp) / 'results',
+                model_source='contract model',
+                fenics_model=model,
+            )
         except RuntimeError as exc:
             assert 'hydrogen_hydrodynamics.json' in str(exc)
         else:
@@ -751,20 +1086,29 @@ def test_electrochemical_artifact_phase_mismatch_is_non_excluding():
     from pipeline.reactors.models import ReactorConfig, simulate_reactor
 
     loaded = {
-        'valid': True, 'path': '/contract/artifact.json',
-        'artifact': {'electrolyte_phase': 'aqueous'}}
+        'valid': True,
+        'path': '/contract/artifact.json',
+        'artifact': {'electrolyte_phase': 'aqueous'},
+    }
     conditions = json.dumps({'electrolyte_phase': 'molten'})
-    with patch(
+    with (
+        patch(
             'pipeline.simulation.result_contract.load_validated_artifact',
-            return_value=loaded), patch.dict(
-                os.environ, {'ELECTROCHEMICAL_CONDITIONS_JSON': conditions}):
-        result = simulate_reactor(ReactorConfig(
-            reactor_type='Electrochemical', pathway_mode='electrochemical',
-            candidate_id='candidate', catalyst_name='candidate',
-            T_inlet_K=500.0))
+            return_value=loaded,
+        ),
+        patch.dict(os.environ, {'ELECTROCHEMICAL_CONDITIONS_JSON': conditions}),
+    ):
+        result = simulate_reactor(
+            ReactorConfig(
+                reactor_type='Electrochemical',
+                pathway_mode='electrochemical',
+                candidate_id='candidate',
+                catalyst_name='candidate',
+                T_inlet_K=500.0,
+            )
+        )
     assert result['status'] == 'validation_required'
-    assert result['multiphysics_evidence']['reason'] == \
-        'electrolyte_phase_mismatch'
+    assert result['multiphysics_evidence']['reason'] == 'electrolyte_phase_mismatch'
     assert result['can_exclude_candidate'] is False
 
 
@@ -785,20 +1129,24 @@ def test_ranker_counts_only_finite_valid_training_rows():
     import pandas as pd
     from pipeline.screening.small_data_ranker import valid_training_row_count
 
-    frame = pd.DataFrame([
-        {'genome': "('SAC', 'Fe')", 'valid': True, 'E_act': 0.5},
-        {'genome': "('SAC', 'Co')", 'valid': False, 'E_act': 0.4},
-        {'genome': "('SAC', 'Ni')", 'valid': True, 'E_act': float('nan')},
-    ])
+    frame = pd.DataFrame(
+        [
+            {'genome': "('SAC', 'Fe')", 'valid': True, 'E_act': 0.5},
+            {'genome': "('SAC', 'Co')", 'valid': False, 'E_act': 0.4},
+            {'genome': "('SAC', 'Ni')", 'valid': True, 'E_act': float('nan')},
+        ]
+    )
     assert valid_training_row_count(frame, 'turquoise_hydrogen') == 1
 
 
 def test_candidate_cantera_mechanism_records_kinetics_provenance():
-    from pipeline.reactors.mechanisms import (
-        CandidateKinetics, write_full_mechanism)
+    from pipeline.reactors.mechanisms import CandidateKinetics, write_full_mechanism
 
     row = {
-        'E_act': 0.72, 'dE_H': -0.30, 'dE_CH3': -0.55, 'dE_C': -1.10,
+        'E_act': 0.72,
+        'dE_H': -0.30,
+        'dE_CH3': -0.55,
+        'dE_C': -1.10,
         'screening_protocol': 'contract:relax-v3',
     }
     kinetics = CandidateKinetics.from_screening_row(row, candidate_id='abc')
@@ -809,8 +1157,7 @@ def test_candidate_cantera_mechanism_records_kinetics_provenance():
     assert 'C(gr)' in text
     assert 'adjacent-phases: [gas]' in text
     assert 'carbon_phase_model' not in text
-    metadata = __import__('json').loads(
-        path.with_suffix('.kinetics.json').read_text())
+    metadata = __import__('json').loads(path.with_suffix('.kinetics.json').read_text())
     inputs = metadata['inputs']
     assert inputs['methane_activation_eV'] == 0.72
     assert inputs['h_adsorption_eV'] == -0.30
@@ -819,8 +1166,10 @@ def test_candidate_cantera_mechanism_records_kinetics_provenance():
     assert inputs['quantitative_status'] == 'screening_template_incomplete'
     assert inputs['provenance']['ch2_dehydrogenation_eV'] == 'template_default'
     from pipeline.reactors.models import ReactorConfig, _kinetics_evidence
-    evidence = _kinetics_evidence(ReactorConfig(
-        mechanism_file=str(path), catalyst_name='contract_candidate'))
+
+    evidence = _kinetics_evidence(
+        ReactorConfig(mechanism_file=str(path), catalyst_name='contract_candidate')
+    )
     assert evidence['reactor_evidence_tier'] == 'diagnostic_screening_template'
     assert evidence['can_exclude_candidate'] is False
 
@@ -843,10 +1192,14 @@ def test_reactor_surface_load_fails_closed_on_name_mismatch():
         return
     from pipeline.reactors.mechanisms import write_full_mechanism
     from pipeline.reactors.models import ReactorConfig, simulate_pfr
+
     path = write_full_mechanism('t_0_05', E_act_CH4=0.9)
     cfg = ReactorConfig(
-        mechanism_file=str(path), catalyst_name='t',
-        reactor_type='PFR', T_inlet_K=1000.0)
+        mechanism_file=str(path),
+        catalyst_name='t',
+        reactor_type='PFR',
+        T_inlet_K=1000.0,
+    )
     try:
         simulate_pfr(cfg)
     except RuntimeError as exc:
@@ -858,22 +1211,38 @@ def test_reactor_surface_load_fails_closed_on_name_mismatch():
 def test_stage_selection_rescues_incomplete_evidence_without_feeding_reactor():
     import pandas as pd
     from pipeline.screening.stage_selection import (
-        select_for_reactor, select_for_validation)
+        select_for_reactor,
+        select_for_validation,
+    )
 
-    frame = pd.DataFrame([
-        {'genome': "('Z', 0)", 'material_class': 'Z', 'valid': False,
-         'error': 'Unconverged clean relaxation', 'needs_dft_validation': True},
-        {'genome': "('A', 0)", 'material_class': 'A', 'valid': True,
-         'E_act': 0.20},
-        {'genome': "('B', 0)", 'material_class': 'B', 'valid': True,
-         'E_act': 0.01, 'E_act_censored': True,
-         'needs_dft_validation': True},
-        {'genome': "('C', 0)", 'material_class': 'C', 'valid': False,
-         'error': 'Contains toxic/radioactive elements: Hg',
-         'candidate_disposition': 'hard_excluded'},
-        {'genome': "('D', 0)", 'material_class': 'D', 'valid': True,
-         'E_act': 0.50},
-    ])
+    frame = pd.DataFrame(
+        [
+            {
+                'genome': "('Z', 0)",
+                'material_class': 'Z',
+                'valid': False,
+                'error': 'Unconverged clean relaxation',
+                'needs_dft_validation': True,
+            },
+            {'genome': "('A', 0)", 'material_class': 'A', 'valid': True, 'E_act': 0.20},
+            {
+                'genome': "('B', 0)",
+                'material_class': 'B',
+                'valid': True,
+                'E_act': 0.01,
+                'E_act_censored': True,
+                'needs_dft_validation': True,
+            },
+            {
+                'genome': "('C', 0)",
+                'material_class': 'C',
+                'valid': False,
+                'error': 'Contains toxic/radioactive elements: Hg',
+                'candidate_disposition': 'hard_excluded',
+            },
+            {'genome': "('D', 0)", 'material_class': 'D', 'valid': True, 'E_act': 0.50},
+        ]
+    )
     reactor = select_for_reactor(frame, 10, 'E_act')
     assert set(reactor.material_class) == {'A', 'D'}
     assert reactor.candidate_disposition.eq('quantitative_screening').all()
@@ -887,16 +1256,29 @@ def test_production_validation_slate_does_not_drop_unresolved_rows():
     import pandas as pd
     from pipeline.search.scope import scope_pyrolysis_pool
     from pipeline.screening.stage_selection import (
-        select_for_reactor, select_for_validation)
+        select_for_reactor,
+        select_for_validation,
+    )
 
     ni = "('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)"
     fe = "('SAC', 'Fe', 'N4', 'graphene', 0.0, (), 1, 0)"
-    frame = pd.DataFrame([
-        {'genome': ni, 'material_class': 'SolidCatalyst', 'valid': True,
-         'E_act': 1.00},
-        {'genome': fe, 'material_class': 'SAC', 'valid': False,
-         'error': 'Unconverged clean relaxation', 'needs_dft_validation': True},
-    ])
+    frame = pd.DataFrame(
+        [
+            {
+                'genome': ni,
+                'material_class': 'SolidCatalyst',
+                'valid': True,
+                'E_act': 1.00,
+            },
+            {
+                'genome': fe,
+                'material_class': 'SAC',
+                'valid': False,
+                'error': 'Unconverged clean relaxation',
+                'needs_dft_validation': True,
+            },
+        ]
+    )
     pool, _ = scope_pyrolysis_pool(frame)
     reactor = select_for_reactor(pool, 10, 'E_act')
     validation = select_for_validation(pool, 10, 'E_act')
@@ -914,19 +1296,30 @@ def test_refactored_protocol_executor_and_reactor_stage_contracts():
     assert PYROLYSIS_PROTOCOL.clean.fmax_eV_A == 0.08
     assert PYROLYSIS_PROTOCOL.adsorbate.steps == 100
     assert ORR_PROTOCOL.reference.steps == 200
-    row = {'candidate_id': 'cid', 'E_act': 0.72, 'dE_H': -0.3,
-           'dE_CH3': -0.5, 'dE_C': -1.0,
-           'screening_protocol': PYROLYSIS_PROTOCOL.protocol_id}
+    row = {
+        'candidate_id': 'cid',
+        'E_act': 0.72,
+        'dE_H': -0.3,
+        'dE_CH3': -0.5,
+        'dE_C': -1.0,
+        'screening_protocol': PYROLYSIS_PROTOCOL.protocol_id,
+    }
     fake_sweep = [
         {'CH4_conversion': 0.1, 'mock': False},
         {'CH4_conversion': 0.4, 'mock': False},
     ]
-    with patch('pipeline.reactors.mechanisms.write_full_mechanism',
-               return_value=Path('contract.yaml')) as write, \
-         patch('pipeline.reactors.models.run_reactor_sweep',
-               return_value=fake_sweep) as sweep:
+    with (
+        patch(
+            'pipeline.reactors.mechanisms.write_full_mechanism',
+            return_value=Path('contract.yaml'),
+        ) as write,
+        patch(
+            'pipeline.reactors.models.run_reactor_sweep', return_value=fake_sweep
+        ) as sweep,
+    ):
         result = simulate_candidate(
-            row, 'contract', [800.0, 900.0], ['PFR'], forbid_mock=True)
+            row, 'contract', [800.0, 900.0], ['PFR'], forbid_mock=True
+        )
     assert result['candidate_id'] == 'cid'
     assert result['best_condition']['CH4_conversion'] == 0.4
     assert write.call_args.kwargs['kinetics'].methane_activation_eV == 0.72
@@ -934,14 +1327,12 @@ def test_refactored_protocol_executor_and_reactor_stage_contracts():
 
 
 def test_arrhenius_matches_joule_and_ev_forms():
-    from pipeline.utils import (
-        R_gas, eV_to_J, arrhenius_rate, k_B_eV, tst_prefactor)
+    from pipeline.utils import R_gas, eV_to_J, arrhenius_rate, k_B_eV, tst_prefactor
 
     prefactor, barrier_ev, temperature = 2.5e13, 0.83, 973.15
     expected_ev = prefactor * math.exp(-barrier_ev / (k_B_eV * temperature))
     barrier_j_mol = barrier_ev * eV_to_J * 6.02214076e23
-    expected_molar = prefactor * math.exp(
-        -barrier_j_mol / (R_gas * temperature))
+    expected_molar = prefactor * math.exp(-barrier_j_mol / (R_gas * temperature))
     observed = arrhenius_rate(prefactor, barrier_ev, temperature)
     assert math.isclose(observed, expected_ev, rel_tol=2e-15)
     assert math.isclose(observed, expected_molar, rel_tol=2e-9)
@@ -958,7 +1349,8 @@ def test_bep_is_linear_inside_bounds_and_explicitly_censored_outside():
     for reaction_energy in (-0.5, 0.0, 1.0):
         expected = 0.87 + 0.75 * reaction_energy
         assert math.isclose(
-            bep_activation_energy(reaction_energy), expected, rel_tol=1e-14)
+            bep_activation_energy(reaction_energy), expected, rel_tol=1e-14
+        )
     assert bep_activation_energy(-100.0) == 0.01
     assert bep_activation_energy(100.0) == 5.0
 
@@ -984,39 +1376,61 @@ def test_che_stoichiometry_limiting_potential_and_nernst_terms():
     base = ORRCorrections(source_id='test:independent', temperature_K=298.15)
     acid = apply_orr_corrections(1.0, 2.0, 3.0, base)
     shifted = apply_orr_corrections(
-        1.0, 2.0, 3.0,
-        ORRCorrections(source_id='test:independent', temperature_K=298.15,
-                       electrode_potential_V=0.2, pH=1.0))
+        1.0,
+        2.0,
+        3.0,
+        ORRCorrections(
+            source_id='test:independent',
+            temperature_K=298.15,
+            electrode_potential_V=0.2,
+            pH=1.0,
+        ),
+    )
     nernst = 8.617333262e-5 * 298.15 * math.log(10.0)
     # Adsorption descriptors remain referenced at U=0. Every elementary ORR
     # step transfers one proton/electron pair and receives the same CHE shift.
     assert acid['dG_OH_eV'] == shifted['dG_OH_eV']
     assert acid['dG_O_eV'] == shifted['dG_O_eV']
     for name in acid['orr_steps_at_condition_eV']:
-        difference = (shifted['orr_steps_at_condition_eV'][name] -
-                      acid['orr_steps_at_condition_eV'][name])
+        difference = (
+            shifted['orr_steps_at_condition_eV'][name]
+            - acid['orr_steps_at_condition_eV'][name]
+        )
         assert math.isclose(difference, 0.2 + nernst, rel_tol=1e-12)
 
 
 def test_orr_site_coverage_ensemble_is_complete_only_with_all_cases():
     from ase import Atoms
     from pipeline.validation.orr_workflows import (
-        ORRCorrections, build_orr_validation_plan, evaluate_orr_ensemble)
+        ORRCorrections,
+        build_orr_validation_plan,
+        evaluate_orr_ensemble,
+    )
 
-    slab = Atoms('Pt3', positions=[[0, 0, 0], [2.7, 0, 0], [1.35, 2.3, 0]],
-                 cell=[8, 8, 12], pbc=[True, True, False])
+    slab = Atoms(
+        'Pt3',
+        positions=[[0, 0, 0], [2.7, 0, 0], [1.35, 2.3, 0]],
+        cell=[8, 8, 12],
+        pbc=[True, True, False],
+    )
     plan = build_orr_validation_plan(slab, coverages=(0.25, 0.5))
     assert {task['adsorbate'] for task in plan} == {'OH', 'O', 'OOH'}
     assert {task['coverage_ML'] for task in plan} == {0.25, 0.5}
     rows = [
-        {'site_id': 'atop_0000', 'coverage_ML': 0.25,
-         'adsorbate': adsorbate, 'dG_eV': value, 'converged': True}
+        {
+            'site_id': 'atop_0000',
+            'coverage_ML': 0.25,
+            'adsorbate': adsorbate,
+            'dG_eV': value,
+            'converged': True,
+        }
         for adsorbate, value in [('OH', 0.9), ('O', 1.8), ('OOH', 3.5)]
     ]
     corrections = [
         ORRCorrections(source_id='solvation:model-a'),
-        ORRCorrections(solvation_OH_eV=-0.2, solvation_OOH_eV=-0.25,
-                       source_id='solvation:model-b'),
+        ORRCorrections(
+            solvation_OH_eV=-0.2, solvation_OOH_eV=-0.25, source_id='solvation:model-b'
+        ),
     ]
     complete = evaluate_orr_ensemble(rows, corrections, expected_cases=2)
     assert complete['complete'] is True
@@ -1045,13 +1459,14 @@ def test_qe_force_parser_and_frequency_campaign_contracts():
         path.write_text(output)
         forces = parse_atomic_forces(path, expected_atoms=2)
         transition_state = Atoms(
-            'H2', positions=[[0, 0, 4], [0, 0, 4.8]],
-            cell=[8, 8, 8], pbc=True)
+            'H2', positions=[[0, 0, 4], [0, 0, 4.8]], cell=[8, 8, 8], pbc=True
+        )
         prepared = prepare_frequency_jobs(
-            Path(tmp) / 'frequency', transition_state, 'contract',
-            active_indices=[1])
+            Path(tmp) / 'frequency', transition_state, 'contract', active_indices=[1]
+        )
         manifest = __import__('json').loads(
-            (Path(tmp) / 'frequency/frequency_forces/manifest.json').read_text())
+            (Path(tmp) / 'frequency/frequency_forces/manifest.json').read_text()
+        )
     conversion = 13.605693122994 / 0.529177210903
     assert forces.shape == (2, 3)
     assert math.isclose(forces[0, 0], 0.01 * conversion, rel_tol=1e-12)
@@ -1065,10 +1480,13 @@ def test_qe_relax_and_neb_preserve_fixed_slab_atoms():
     from ase import Atoms
     from ase.constraints import FixAtoms
     from pipeline.validation.qe_workflows import (
-        write_qe_neb_input, write_qe_relax_input)
+        write_qe_neb_input,
+        write_qe_relax_input,
+    )
 
-    atoms = Atoms('Ni2H', positions=[[0, 0, 1], [1, 0, 2], [1, 0, 3]],
-                  cell=[6, 6, 10], pbc=True)
+    atoms = Atoms(
+        'Ni2H', positions=[[0, 0, 1], [1, 0, 2], [1, 0, 3]], cell=[6, 6, 10], pbc=True
+    )
     atoms.set_constraint(FixAtoms(indices=[0]))
     with tempfile.TemporaryDirectory() as tmp:
         relax = Path(tmp) / 'relax.in'
@@ -1084,8 +1502,7 @@ def test_qe_relax_and_neb_preserve_fixed_slab_atoms():
         relax_text, neb_text = relax.read_text(), neb.read_text()
     assert 'Ni 0.000000000000 0.000000000000 1.000000000000 0 0 0' in relax_text
     assert 'Ni 1.000000000000 0.000000000000 2.000000000000 1 1 1' in relax_text
-    assert neb_text.count(
-        'Ni 0.000000000000 0.000000000000 1.000000000000 0 0 0') == 5
+    assert neb_text.count('Ni 0.000000000000 0.000000000000 1.000000000000 0 0 0') == 5
     assert 'nstep_path=100' in neb_text
     assert 'electron_maxstep=300' in neb_text
     assert 'conv_thr=1.0e-08' in neb_text
@@ -1099,15 +1516,17 @@ def test_qe_relax_and_neb_preserve_fixed_slab_atoms():
 
 def test_neb_coarse_stage_disables_climbing_and_strengthens_path_control():
     from ase import Atoms
-    from pipeline.validation.qe_workflows import (
-        NEBPathConfig, write_qe_neb_input)
+    from pipeline.validation.qe_workflows import NEBPathConfig, write_qe_neb_input
 
-    images = [Atoms('H', positions=[[0, 0, float(index)]],
-                    cell=[5, 5, 10], pbc=True) for index in range(5)]
+    images = [
+        Atoms('H', positions=[[0, 0, float(index)]], cell=[5, 5, 10], pbc=True)
+        for index in range(5)
+    ]
     with tempfile.TemporaryDirectory() as tmp:
         target = Path(tmp) / 'coarse.neb.in'
         write_qe_neb_input(
-            images, target, 'coarse', NEBPathConfig.coarse_preconditioner())
+            images, target, 'coarse', NEBPathConfig.coarse_preconditioner()
+        )
         text = target.read_text()
     assert "opt_scheme='quick-min'" in text
     assert "CI_scheme='no-CI'" in text
@@ -1125,17 +1544,21 @@ def test_neb_coarse_stage_disables_climbing_and_strengthens_path_control():
 
 def test_neb_image_preconvergence_uses_identical_seeded_electronic_controls():
     from ase import Atoms
-    from pipeline.validation.qe_workflows import (
-        NEBPathConfig, prepare_neb_image_scfs)
+    from pipeline.validation.qe_workflows import NEBPathConfig, prepare_neb_image_scfs
 
-    images = [Atoms('NiH', positions=[[0, 0, 1], [0, 0, 2 + index]],
-                    cell=[5, 5, 10], pbc=True) for index in range(5)]
+    images = [
+        Atoms(
+            'NiH', positions=[[0, 0, 1], [0, 0, 2 + index]], cell=[5, 5, 10], pbc=True
+        )
+        for index in range(5)
+    ]
     config = NEBPathConfig.coarse_preconditioner()
     with tempfile.TemporaryDirectory() as tmp:
         manifest = prepare_neb_image_scfs(images, tmp, 'seeded', config)
         texts = [Path(job['input']).read_text() for job in manifest['jobs']]
         persisted = __import__('json').loads(
-            (Path(tmp) / 'image_scf_manifest.json').read_text())
+            (Path(tmp) / 'image_scf_manifest.json').read_text()
+        )
     assert manifest['image_count'] == 5
     assert persisted['configuration']['scf_conv_thr_Ry'] == 1.0e-6
     assert all("startingpot='file'" in text for text in texts)
@@ -1174,11 +1597,9 @@ def test_neb_fresh_image_seed_rejects_stale_electronic_state():
 
 def test_neb_fixed_then_released_spin_seed_is_explicit_and_staged():
     from ase import Atoms
-    from pipeline.validation.qe_workflows import (
-        NEBPathConfig, prepare_neb_image_scfs)
+    from pipeline.validation.qe_workflows import NEBPathConfig, prepare_neb_image_scfs
 
-    image = Atoms('NiH', positions=[[0, 0, 1], [0, 0, 2]],
-                  cell=[5, 5, 10], pbc=True)
+    image = Atoms('NiH', positions=[[0, 0, 1], [0, 0, 2]], cell=[5, 5, 10], pbc=True)
     fixed = NEBPathConfig.coarse_fixed_spin_image_seed()
     released = NEBPathConfig.coarse_released_spin_image_seed()
     assert fixed.total_magnetization == 8.0
@@ -1204,8 +1625,7 @@ def test_neb_fixed_then_released_spin_seed_is_explicit_and_staged():
 
 def test_neb_coupled_fixed_spin_seed_cannot_move_or_count_as_path_evidence():
     from ase import Atoms
-    from pipeline.validation.qe_workflows import (
-        NEBPathConfig, write_qe_neb_input)
+    from pipeline.validation.qe_workflows import NEBPathConfig, write_qe_neb_input
 
     config = NEBPathConfig.coarse_fixed_spin_coupled_seed()
     assert config.total_magnetization == 8.0
@@ -1218,14 +1638,17 @@ def test_neb_coupled_fixed_spin_seed_cannot_move_or_count_as_path_evidence():
     assert config.starting_wavefunctions == 'atomic+random'
     assert config.freeze_all_atoms is True
     assert config.minimum_image is True
-    images = [Atoms('NiH', positions=[[0, 0, 1], [0, 0, z]],
-                    cell=[5, 5, 10], pbc=True) for z in (2, 3)]
+    images = [
+        Atoms('NiH', positions=[[0, 0, 1], [0, 0, z]], cell=[5, 5, 10], pbc=True)
+        for z in (2, 3)
+    ]
     with tempfile.TemporaryDirectory() as tmp:
         target = Path(tmp) / 'fixed-coupled.neb.in'
         write_qe_neb_input(images, target, 'fixed-coupled', config)
         text = target.read_text()
-    position_rows = [line for line in text.splitlines()
-                     if line.startswith(('Ni ', 'H '))]
+    position_rows = [
+        line for line in text.splitlines() if line.startswith(('Ni ', 'H '))
+    ]
     assert len(position_rows) == 4
     assert all(line.endswith(' 0 0 0') for line in position_rows)
     assert 'minimum_image=.true.' in text
@@ -1233,8 +1656,7 @@ def test_neb_coupled_fixed_spin_seed_cannot_move_or_count_as_path_evidence():
 
 def test_neb_coupled_spin_release_rebuilds_unconstrained_wavefunctions():
     from ase import Atoms
-    from pipeline.validation.qe_workflows import (
-        NEBPathConfig, write_qe_neb_input)
+    from pipeline.validation.qe_workflows import NEBPathConfig, write_qe_neb_input
 
     config = NEBPathConfig.coarse_released_spin_coupled_seed()
     assert config.total_magnetization is None
@@ -1246,8 +1668,10 @@ def test_neb_coupled_spin_release_rebuilds_unconstrained_wavefunctions():
     assert config.starting_wavefunctions == 'atomic+random'
     assert config.freeze_all_atoms is True
     assert config.minimum_image is True
-    images = [Atoms('NiH', positions=[[0, 0, 1], [0, 0, z]],
-                    cell=[5, 5, 10], pbc=True) for z in (2, 3)]
+    images = [
+        Atoms('NiH', positions=[[0, 0, 1], [0, 0, z]], cell=[5, 5, 10], pbc=True)
+        for z in (2, 3)
+    ]
     with tempfile.TemporaryDirectory() as tmp:
         target = Path(tmp) / 'released-coupled.neb.in'
         write_qe_neb_input(images, target, 'released-coupled', config)
@@ -1256,8 +1680,9 @@ def test_neb_coupled_spin_release_rebuilds_unconstrained_wavefunctions():
     assert text.count("calculation='scf'") == 1
     assert "startingpot='file'" in text
     assert "startingwfc='atomic+random'" in text
-    position_rows = [line for line in text.splitlines()
-                     if line.startswith(('Ni ', 'H '))]
+    position_rows = [
+        line for line in text.splitlines() if line.startswith(('Ni ', 'H '))
+    ]
     assert position_rows
     assert all(line.endswith(' 0 0 0') for line in position_rows)
     assert 'minimum_image=.true.' in text
@@ -1348,9 +1773,15 @@ def test_neb_coarse_broyden_to_sd_discards_only_curvature_history():
     assert config.optimizer == 'sd'
     assert baseline.optimizer == 'broyden'
     for field in (
-            'restart_mode', 'step_size', 'spring_min', 'spring_max',
-            'path_thr_eV_A', 'scf_conv_thr_Ry', 'kpoints',
-            'starting_potential'):
+        'restart_mode',
+        'step_size',
+        'spring_min',
+        'spring_max',
+        'path_thr_eV_A',
+        'scf_conv_thr_Ry',
+        'kpoints',
+        'starting_potential',
+    ):
         assert getattr(config, field) == getattr(baseline, field)
     assert config.starting_wavefunctions == 'atomic+random'
     assert baseline.starting_wavefunctions == 'file'
@@ -1512,8 +1943,7 @@ def test_neb_segment_densification_preserves_path_and_metadata():
     from ase.constraints import FixAtoms
     from pipeline.validation.qe_workflows import densify_neb_segment
 
-    left = Atoms('CH', positions=[[0, 0, 0], [1, 0, 0]],
-                 cell=[5, 5, 5], pbc=True)
+    left = Atoms('CH', positions=[[0, 0, 0], [1, 0, 0]], cell=[5, 5, 5], pbc=True)
     left.set_constraint(FixAtoms(indices=[0]))
     right = left.copy()
     right.positions[1, 0] = 3.0
@@ -1521,12 +1951,12 @@ def test_neb_segment_densification_preserves_path_and_metadata():
     tail.positions[1, 0] = 4.0
     dense = densify_neb_segment([left, right, tail], 0, 3)
     assert len(dense) == 6
-    assert np.allclose([image.positions[1, 0] for image in dense],
-                       [1.0, 1.5, 2.0, 2.5, 3.0, 4.0])
+    assert np.allclose(
+        [image.positions[1, 0] for image in dense], [1.0, 1.5, 2.0, 2.5, 3.0, 4.0]
+    )
     assert all(image.get_chemical_symbols() == ['C', 'H'] for image in dense)
     assert all(np.allclose(image.cell.array, left.cell.array) for image in dense)
-    assert all(image.constraints[0].get_indices().tolist() == [0]
-               for image in dense)
+    assert all(image.constraints[0].get_indices().tolist() == [0] for image in dense)
     # Inputs are copied so later relaxation cannot mutate accepted checkpoints.
     dense[0].positions[1, 0] = 9.0
     assert left.positions[1, 0] == 1.0
@@ -1534,15 +1964,15 @@ def test_neb_segment_densification_preserves_path_and_metadata():
 
 def test_neb_equal_arc_redistribution_crosses_multiple_short_segments():
     from ase import Atoms
-    from pipeline.validation.qe_workflows import (
-        redistribute_neb_images_equal_arc)
+    from pipeline.validation.qe_workflows import redistribute_neb_images_equal_arc
 
     # Both final source segments are shorter than one target spacing. QE
     # 7.5's one-step cursor can extrapolate the penultimate segment here.
     coordinates = (0.0, 4.0, 8.0, 8.1, 8.2)
-    images = [Atoms('H', positions=[[x, 0.0, 0.0]],
-                    cell=[20.0, 20.0, 20.0], pbc=True)
-              for x in coordinates]
+    images = [
+        Atoms('H', positions=[[x, 0.0, 0.0]], cell=[20.0, 20.0, 20.0], pbc=True)
+        for x in coordinates
+    ]
     redistributed = redistribute_neb_images_equal_arc(images, image_count=5)
     observed = np.asarray([image.positions[0, 0] for image in redistributed])
     assert np.allclose(observed, np.linspace(0.0, 8.2, 5))
@@ -1552,12 +1982,12 @@ def test_neb_equal_arc_redistribution_crosses_multiple_short_segments():
 
 def test_neb_equal_arc_redistribution_unwraps_periodic_atom_motion():
     from ase import Atoms
-    from pipeline.validation.qe_workflows import (
-        redistribute_neb_images_equal_arc)
+    from pipeline.validation.qe_workflows import redistribute_neb_images_equal_arc
 
-    images = [Atoms('H', positions=[[x, 0.0, 0.0]],
-                    cell=[10.0, 10.0, 10.0], pbc=True)
-              for x in (9.0, 9.8, 0.2, 1.0)]
+    images = [
+        Atoms('H', positions=[[x, 0.0, 0.0]], cell=[10.0, 10.0, 10.0], pbc=True)
+        for x in (9.0, 9.8, 0.2, 1.0)
+    ]
     redistributed = redistribute_neb_images_equal_arc(images, image_count=5)
     observed = np.asarray([image.positions[0, 0] for image in redistributed])
     assert np.allclose(observed, np.linspace(9.0, 11.0, 5))
@@ -1568,14 +1998,18 @@ def test_neb_writer_preconditions_short_segments_before_qe_initialization():
     from ase import Atoms
     from pipeline.validation.qe_workflows import write_qe_neb_input
 
-    images = [Atoms('H', positions=[[x, 0.0, 0.0]],
-                    cell=[20.0, 20.0, 20.0], pbc=True)
-              for x in (0.0, 4.0, 8.0, 8.1, 8.2)]
+    images = [
+        Atoms('H', positions=[[x, 0.0, 0.0]], cell=[20.0, 20.0, 20.0], pbc=True)
+        for x in (0.0, 4.0, 8.0, 8.1, 8.2)
+    ]
     with tempfile.TemporaryDirectory() as tmp:
         target = Path(tmp) / 'equal-arc.neb.in'
         result = write_qe_neb_input(images, target, 'equal_arc')
-        rows = [line.split() for line in target.read_text().splitlines()
-                if line.startswith('H ')]
+        rows = [
+            line.split()
+            for line in target.read_text().splitlines()
+            if line.startswith('H ')
+        ]
     observed = np.asarray([float(row[1]) for row in rows])
     assert result['equal_arc_preconditioned'] is True
     assert np.allclose(observed, np.linspace(0.0, 8.2, 5))
@@ -1587,8 +2021,10 @@ def test_neb_checkpoint_geometry_recovery_resets_history_and_keeps_identity():
     from ase.units import Bohr
     from pipeline.validation.qe_workflows import neb_checkpoint_images
 
-    templates = [Atoms('NiH', positions=[[0, 0, 0], [0, 0, 1]],
-                       cell=[4, 4, 8], pbc=True) for _ in range(2)]
+    templates = [
+        Atoms('NiH', positions=[[0, 0, 0], [0, 0, 1]], cell=[4, 4, 8], pbc=True)
+        for _ in range(2)
+    ]
     for image in templates:
         image.set_constraint(FixAtoms(indices=[0]))
     checkpoint = '''RESTART INFORMATION
@@ -1636,8 +2072,7 @@ NUMBER OF IMAGES
         source.write_text(checkpoint)
         result = bound_neb_restart_checkpoint(source, 36)
         updated = source.read_text().splitlines()
-    assert updated[:4] == ['RESTART INFORMATION', '      33',
-                           '      36', '       0']
+    assert updated[:4] == ['RESTART INFORMATION', '      33', '      36', '       0']
     assert updated[4:] == ['NUMBER OF IMAGES', '  14']
     assert result['current_iteration'] == 33
     assert result['old_limit'] == 250
@@ -1671,8 +2106,10 @@ def test_neb_completed_geometry_recovery_uses_crd_coordinates_and_metadata():
     from ase.constraints import FixAtoms
     from pipeline.validation.qe_workflows import neb_completed_images
 
-    templates = [Atoms('NiH', positions=[[0, 0, 0], [0, 0, 1]],
-                       cell=[4, 4, 8], pbc=True) for _ in range(2)]
+    templates = [
+        Atoms('NiH', positions=[[0, 0, 0], [0, 0, 1]], cell=[4, 4, 8], pbc=True)
+        for _ in range(2)
+    ]
     for image in templates:
         image.set_constraint(FixAtoms(indices=[0]))
     coordinates = '''FIRST_IMAGE
@@ -1721,15 +2158,14 @@ def test_relaxed_structure_restores_constraints_from_qe_input():
     from ase import Atoms
     from ase.constraints import FixAtoms
     from unittest.mock import patch
-    from pipeline.validation.qe_workflows import (
-        _fixed_atom_indices, relaxed_structure)
+    from pipeline.validation.qe_workflows import _fixed_atom_indices, relaxed_structure
 
     relaxed_geometry = Atoms(
-        'NiH', positions=[[0, 0, 1], [0, 0, 2.1]],
-        cell=[6, 6, 10], pbc=True)
+        'NiH', positions=[[0, 0, 1], [0, 0, 2.1]], cell=[6, 6, 10], pbc=True
+    )
     input_geometry = Atoms(
-        'NiH', positions=[[0, 0, 1], [0, 0, 2]],
-        cell=[6, 6, 10], pbc=True)
+        'NiH', positions=[[0, 0, 1], [0, 0, 2]], cell=[6, 6, 10], pbc=True
+    )
     input_geometry.set_constraint(FixAtoms(indices=[0]))
     with tempfile.TemporaryDirectory() as tmp:
         input_path = Path(tmp) / 'relax.in'
@@ -1737,8 +2173,9 @@ def test_relaxed_structure_restores_constraints_from_qe_input():
         input_path.write_text('QE input placeholder')
         output_path.write_text('JOB DONE.')
         with patch(
-                'pipeline.validation.qe_workflows.ase_read',
-                side_effect=[relaxed_geometry, input_geometry]):
+            'pipeline.validation.qe_workflows.ase_read',
+            side_effect=[relaxed_geometry, input_geometry],
+        ):
             relaxed = relaxed_structure(output_path, input_path)
     assert _fixed_atom_indices(relaxed) == {0}
 
@@ -1758,19 +2195,27 @@ def test_run_pw_rejects_graceful_exit_checkpoint_as_convergence():
             stdout.write(
                 'GPU acceleration is ACTIVE.\n'
                 'This run was terminated on: 16:56:09\n'
-                'JOB DONE.\n')
+                'JOB DONE.\n'
+            )
             return completed
 
-        with patch(
+        with (
+            patch(
                 'pipeline.validation.qe_workflows.resolve_qe_executable',
-                return_value='/qe/pw.x'), patch(
+                return_value='/qe/pw.x',
+            ),
+            patch(
                 'pipeline.validation.qe_workflows.build_qe_command',
-                return_value=['/qe/pw.x']), patch(
+                return_value=['/qe/pw.x'],
+            ),
+            patch(
                 'pipeline.validation.qe_workflows.subprocess.run',
-                side_effect=graceful_exit):
+                side_effect=graceful_exit,
+            ),
+        ):
             outcome = run_pw(
-                str(input_path), str(output_path),
-                execution=QEExecutionConfig())
+                str(input_path), str(output_path), execution=QEExecutionConfig()
+            )
     assert outcome['returncode'] == 0
     assert outcome['gpu_accelerated'] is True
     assert outcome['converged'] is False
@@ -1787,7 +2232,8 @@ def test_run_neb_requires_explicit_path_convergence():
         input_path = root / 'candidate.neb.in'
         output_path = root / 'candidate.neb.out'
         input_path.write_text(
-            "&PATH num_of_images=2 /\n&CONTROL prefix='candidate' /\n")
+            "&PATH num_of_images=2 /\n&CONTROL prefix='candidate' /\n"
+        )
         for index in (1, 2):
             child = root / 'tmp' / f'candidate_{index}' / 'PW.out'
             child.parent.mkdir(parents=True)
@@ -1797,16 +2243,23 @@ def test_run_neb_requires_explicit_path_convergence():
             stdout.write('This run was terminated on request.\nJOB DONE.\n')
             return completed
 
-        with patch(
+        with (
+            patch(
                 'pipeline.validation.qe_workflows.resolve_qe_executable',
-                return_value='/qe/neb.x'), patch(
+                return_value='/qe/neb.x',
+            ),
+            patch(
                 'pipeline.validation.qe_workflows.build_qe_command',
-                return_value=['/qe/neb.x']), patch(
+                return_value=['/qe/neb.x'],
+            ),
+            patch(
                 'pipeline.validation.qe_workflows.subprocess.run',
-                side_effect=clean_but_unconverged):
+                side_effect=clean_but_unconverged,
+            ),
+        ):
             outcome = run_neb(
-                str(input_path), str(output_path),
-                execution=QEExecutionConfig())
+                str(input_path), str(output_path), execution=QEExecutionConfig()
+            )
     assert outcome['returncode'] == 0
     assert outcome['gpu_accelerated'] is True
     assert outcome['converged'] is False
@@ -1823,7 +2276,8 @@ def test_run_neb_accepts_converged_force_error_table():
         input_path = root / 'candidate.neb.in'
         output_path = root / 'candidate.neb.out'
         input_path.write_text(
-            "&PATH num_of_images=2 /\n&CONTROL prefix='candidate' /\n")
+            "&PATH num_of_images=2 /\n&CONTROL prefix='candidate' /\n"
+        )
         for index in (1, 2):
             child = root / 'tmp' / f'candidate_{index}' / 'PW.out'
             child.parent.mkdir(parents=True)
@@ -1832,19 +2286,27 @@ def test_run_neb_accepts_converged_force_error_table():
         def converged_path(_command, *, stdout, **_kwargs):
             stdout.write(
                 'image energy (eV) error (eV/A) frozen\n'
-                'neb: convergence achieved in 9 iterations\nJOB DONE.\n')
+                'neb: convergence achieved in 9 iterations\nJOB DONE.\n'
+            )
             return completed
 
-        with patch(
+        with (
+            patch(
                 'pipeline.validation.qe_workflows.resolve_qe_executable',
-                return_value='/qe/neb.x'), patch(
+                return_value='/qe/neb.x',
+            ),
+            patch(
                 'pipeline.validation.qe_workflows.build_qe_command',
-                return_value=['/qe/neb.x']), patch(
+                return_value=['/qe/neb.x'],
+            ),
+            patch(
                 'pipeline.validation.qe_workflows.subprocess.run',
-                side_effect=converged_path):
+                side_effect=converged_path,
+            ),
+        ):
             outcome = run_neb(
-                str(input_path), str(output_path),
-                execution=QEExecutionConfig())
+                str(input_path), str(output_path), execution=QEExecutionConfig()
+            )
     assert outcome['returncode'] == 0
     assert outcome['gpu_accelerated'] is True
     assert outcome['converged'] is True
@@ -1863,29 +2325,42 @@ def test_run_neb_enforces_restart_bound_in_checkpoint_and_provenance():
         checkpoint = root / 'candidate.path'
         input_path.write_text(
             "&PATH restart_mode='restart', num_of_images=2, "
-            "nstep_path=36 /\n&CONTROL prefix='candidate' /\n")
+            "nstep_path=36 /\n&CONTROL prefix='candidate' /\n"
+        )
         checkpoint.write_text(
             'RESTART INFORMATION\n      33\n     250\n       0\n'
-            'NUMBER OF IMAGES\n  2\n')
+            'NUMBER OF IMAGES\n  2\n'
+        )
 
         def reaches_bound(_command, *, stdout, **_kwargs):
             assert checkpoint.read_text().splitlines()[2].strip() == '36'
             stdout.write('neb: reached the maximum number of steps\nJOB DONE.\n')
             return completed
 
-        with patch(
+        with (
+            patch(
                 'pipeline.validation.qe_workflows.resolve_qe_executable',
-                return_value='/qe/neb.x'), patch(
+                return_value='/qe/neb.x',
+            ),
+            patch(
                 'pipeline.validation.qe_workflows.build_qe_command',
-                return_value=['/qe/neb.x']), patch(
+                return_value=['/qe/neb.x'],
+            ),
+            patch(
                 'pipeline.validation.qe_workflows.subprocess.run',
-                side_effect=reaches_bound):
+                side_effect=reaches_bound,
+            ),
+        ):
             outcome = run_neb(
-                str(input_path), str(output_path),
+                str(input_path),
+                str(output_path),
                 execution=QEExecutionConfig(),
-                restart_checkpoint=checkpoint, final_iteration=36)
+                restart_checkpoint=checkpoint,
+                final_iteration=36,
+            )
         recorded = __import__('json').loads(
-            Path(f'{output_path}.restart_bound.json').read_text())
+            Path(f'{output_path}.restart_bound.json').read_text()
+        )
     assert outcome['converged'] is False
     assert outcome['restart_bound']['old_limit'] == 250
     assert outcome['restart_bound']['new_limit'] == 36
@@ -1900,14 +2375,15 @@ def test_run_neb_rejects_restart_bound_not_matching_input():
         root = Path(tmp)
         input_path = root / 'candidate.neb.in'
         checkpoint = root / 'candidate.path'
-        input_path.write_text(
-            "&PATH restart_mode='restart', nstep_path=40 /\n")
-        checkpoint.write_text(
-            'RESTART INFORMATION\n      33\n     250\n       0\n')
+        input_path.write_text("&PATH restart_mode='restart', nstep_path=40 /\n")
+        checkpoint.write_text('RESTART INFORMATION\n      33\n     250\n       0\n')
         try:
             run_neb(
-                str(input_path), str(root / 'candidate.neb.out'),
-                restart_checkpoint=checkpoint, final_iteration=36)
+                str(input_path),
+                str(root / 'candidate.neb.out'),
+                restart_checkpoint=checkpoint,
+                final_iteration=36,
+            )
         except ValueError as exc:
             assert 'must match' in str(exc)
         else:
@@ -1926,10 +2402,12 @@ def test_run_neb_timeout_restores_last_accepted_restart_checkpoint():
         checkpoint = root / 'candidate.path'
         input_path.write_text(
             "&PATH restart_mode='restart', num_of_images=2, "
-            "nstep_path=36 /\n&CONTROL prefix='candidate' /\n")
+            "nstep_path=36 /\n&CONTROL prefix='candidate' /\n"
+        )
         accepted = (
             'RESTART INFORMATION\n      33\n     250\n       0\n'
-            'NUMBER OF IMAGES\n  2\n')
+            'NUMBER OF IMAGES\n  2\n'
+        )
         checkpoint.write_text(accepted)
 
         def truncated_timeout(_command, *, stdout, **_kwargs):
@@ -1937,17 +2415,28 @@ def test_run_neb_timeout_restores_last_accepted_restart_checkpoint():
             stdout.write('interrupted while writing path\n')
             raise __import__('subprocess').TimeoutExpired(_command, 1)
 
-        with patch(
+        with (
+            patch(
                 'pipeline.validation.qe_workflows.resolve_qe_executable',
-                return_value='/qe/neb.x'), patch(
+                return_value='/qe/neb.x',
+            ),
+            patch(
                 'pipeline.validation.qe_workflows.build_qe_command',
-                return_value=['/qe/neb.x']), patch(
+                return_value=['/qe/neb.x'],
+            ),
+            patch(
                 'pipeline.validation.qe_workflows.subprocess.run',
-                side_effect=truncated_timeout):
+                side_effect=truncated_timeout,
+            ),
+        ):
             outcome = run_neb(
-                str(input_path), str(output_path), timeout_s=1,
+                str(input_path),
+                str(output_path),
+                timeout_s=1,
                 execution=QEExecutionConfig(),
-                restart_checkpoint=checkpoint, final_iteration=36)
+                restart_checkpoint=checkpoint,
+                final_iteration=36,
+            )
 
         assert outcome['timed_out'] is True
         assert outcome['checkpoint_restored'] is True
@@ -1966,10 +2455,12 @@ def test_run_neb_interrupt_replaces_stale_provenance_and_restores_checkpoint():
         checkpoint = root / 'candidate.path'
         input_path.write_text(
             "&PATH restart_mode='restart', num_of_images=2, "
-            "nstep_path=36 /\n&CONTROL prefix='candidate' /\n")
+            "nstep_path=36 /\n&CONTROL prefix='candidate' /\n"
+        )
         accepted = (
             'RESTART INFORMATION\n      33\n     250\n       0\n'
-            'NUMBER OF IMAGES\n  2\n')
+            'NUMBER OF IMAGES\n  2\n'
+        )
         checkpoint.write_text(accepted)
         stale_sidecar = Path(f'{output_path}.execution.json')
         stale_sidecar.write_text('{"input_sha256": "stale"}')
@@ -1979,26 +2470,37 @@ def test_run_neb_interrupt_replaces_stale_provenance_and_restores_checkpoint():
             stdout.write('operator interrupted calculation\n')
             raise KeyboardInterrupt
 
-        with patch(
+        with (
+            patch(
                 'pipeline.validation.qe_workflows.resolve_qe_executable',
-                return_value='/qe/neb.x'), patch(
+                return_value='/qe/neb.x',
+            ),
+            patch(
                 'pipeline.validation.qe_workflows.build_qe_command',
-                return_value=['/qe/neb.x']), patch(
+                return_value=['/qe/neb.x'],
+            ),
+            patch(
                 'pipeline.validation.qe_workflows.subprocess.run',
-                side_effect=operator_interrupt):
+                side_effect=operator_interrupt,
+            ),
+        ):
             try:
                 run_neb(
-                    str(input_path), str(output_path),
+                    str(input_path),
+                    str(output_path),
                     execution=QEExecutionConfig(),
-                    restart_checkpoint=checkpoint, final_iteration=36)
+                    restart_checkpoint=checkpoint,
+                    final_iteration=36,
+                )
             except KeyboardInterrupt:
                 pass
             else:
                 raise AssertionError('operator interrupt was not propagated')
 
         record = __import__('json').loads(stale_sidecar.read_text())
-        expected_hash = __import__('hashlib').sha256(
-            input_path.read_bytes()).hexdigest()
+        expected_hash = (
+            __import__('hashlib').sha256(input_path.read_bytes()).hexdigest()
+        )
         assert checkpoint.read_text() == accepted
         assert record['input_sha256'] == expected_hash
         assert record['interrupted'] is True
@@ -2010,37 +2512,49 @@ def test_pyrolysis_manifest_preserves_unresolved_steps_and_validated_identity():
     import json
     from pipeline.reactors.mechanisms import CandidateKinetics
     from pipeline.validation.production_workflow import (
-        PYROLYSIS_ELEMENTARY_STEPS, pyrolysis_campaign_status)
+        PYROLYSIS_ELEMENTARY_STEPS,
+        pyrolysis_campaign_status,
+    )
 
     with tempfile.TemporaryDirectory() as tmp:
         manifest = Path(tmp) / 'campaign.json'
-        manifest.write_text(json.dumps({
-            'candidate_id': 'candidate-123',
-            'campaign_dir': 'calculations',
-            'steps': {},
-        }))
+        manifest.write_text(
+            json.dumps(
+                {
+                    'candidate_id': 'candidate-123',
+                    'campaign_dir': 'calculations',
+                    'steps': {},
+                }
+            )
+        )
         status = pyrolysis_campaign_status(manifest)
     assert status['complete'] is False
     assert set(status['unresolved_kinetics_fields']) == set(
-        PYROLYSIS_ELEMENTARY_STEPS.values())
+        PYROLYSIS_ELEMENTARY_STEPS.values()
+    )
 
     row = {'E_act': 0.9, 'screening_protocol': 'contract'}
-    resolved = {field: 0.5 + index * 0.1 for index, field in enumerate(
-        PYROLYSIS_ELEMENTARY_STEPS.values())}
+    resolved = {
+        field: 0.5 + index * 0.1
+        for index, field in enumerate(PYROLYSIS_ELEMENTARY_STEPS.values())
+    }
     validation = {
-        'candidate_id': 'candidate-123', 'complete': True,
+        'candidate_id': 'candidate-123',
+        'complete': True,
         'evidence_level': 'converged_dft_neb_frequency',
         'resolved_kinetics_eV': resolved,
     }
     kinetics = CandidateKinetics.from_screening_row(
-        row, candidate_id='candidate-123', validation=validation)
+        row, candidate_id='candidate-123', validation=validation
+    )
     values = kinetics.resolved()
     assert values['quantitative_status'] == 'candidate_specific'
     assert values['methane_activation_eV'] == resolved['methane_activation_eV']
     bad = dict(validation, candidate_id='different-candidate')
     try:
         CandidateKinetics.from_screening_row(
-            row, candidate_id='candidate-123', validation=bad)
+            row, candidate_id='candidate-123', validation=bad
+        )
     except ValueError:
         pass
     else:
@@ -2049,21 +2563,33 @@ def test_pyrolysis_manifest_preserves_unresolved_steps_and_validated_identity():
 
 def test_qe_inputs_use_verified_cutoffs_references_and_parallel_contracts():
     from pipeline.validation.dft_validator import (
-        generate_molecule_input, generate_slab_scf_input)
+        generate_molecule_input,
+        generate_slab_scf_input,
+    )
     from pipeline.validation.qe_workflows import (
-        QEExecutionConfig, build_qe_command, verify_sssp)
+        QEExecutionConfig,
+        build_qe_command,
+        verify_sssp,
+    )
 
     verified = verify_sssp(['H', 'C', 'Fe', 'O'])
     assert verified['valid'] and verified['ecutwfc_Ry'] > 0
     slab = generate_slab_scf_input(
-        ['Fe', 'C'], [(0, 0, 0), (1, 1, 1)],
-        [[10, 0, 0], [0, 10, 0], [0, 0, 18]], ecutwfc=1,
-        kpoints=(2, 2, 1))
+        ['Fe', 'C'],
+        [(0, 0, 0), (1, 1, 1)],
+        [[10, 0, 0], [0, 10, 0], [0, 0, 18]],
+        ecutwfc=1,
+        kpoints=(2, 2, 1),
+    )
     assert f"ecutwfc = {verify_sssp(['Fe', 'C'])['ecutwfc_Ry']}" in slab
     assert "nspin = 2" in slab and "2 2 1  1 1 0" in slab
     molecule = generate_molecule_input(
-        ['H', 'H'], [(7.5, 7.5, 7.13), (7.5, 7.5, 7.87)],
-        15.0, 'h2_contract', calculation='scf')
+        ['H', 'H'],
+        [(7.5, 7.5, 7.13), (7.5, 7.5, 7.87)],
+        15.0,
+        'h2_contract',
+        calculation='scf',
+    )
     assert "occupations = 'fixed'" in molecule
     assert 'smearing' not in molecule and 'K_POINTS {gamma}' in molecule
 
@@ -2078,8 +2604,10 @@ def test_qe_inputs_use_verified_cutoffs_references_and_parallel_contracts():
         mpi.chmod(0o755)
         with patch.dict(os.environ, {'PW_X': str(pw), 'MPIEXEC': str(mpi)}):
             command = build_qe_command(
-                str(pw), str(input_path),
-                QEExecutionConfig(mpi_ranks=4, omp_threads=1, kpoint_pools=2))
+                str(pw),
+                str(input_path),
+                QEExecutionConfig(mpi_ranks=4, omp_threads=1, kpoint_pools=2),
+            )
         assert '-np' in command and command[command.index('-np') + 1] == '4'
         assert command[command.index('-nk') + 1] == '2'
 
@@ -2092,8 +2620,9 @@ def test_external_executable_resolution_is_machine_portable():
         executable.write_text('#!/bin/sh\nexit 0\n')
         executable.chmod(0o755)
         with patch.dict(os.environ, {'PORTABLE_TOOL': str(executable)}):
-            assert resolve_executable(
-                'missing-name', env_var='PORTABLE_TOOL') == str(executable.resolve())
+            assert resolve_executable('missing-name', env_var='PORTABLE_TOOL') == str(
+                executable.resolve()
+            )
         with patch.dict(os.environ, {'PATH': tmp}, clear=False):
             assert resolve_executable('portable-tool') == str(executable.resolve())
         with patch.dict(os.environ, {'PORTABLE_TOOL': str(Path(tmp) / 'absent')}):
@@ -2103,11 +2632,14 @@ def test_external_executable_resolution_is_machine_portable():
                 assert 'PORTABLE_TOOL is set' in str(exc)
             else:
                 raise AssertionError('invalid executable override was accepted')
-        with patch.dict(os.environ, {}, clear=True), \
-             patch('pipeline.simulation.executables.shutil.which', return_value=None):
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch('pipeline.simulation.executables.shutil.which', return_value=None),
+        ):
             try:
                 resolve_executable(
-                    'absent-tool', env_var='ABSENT_TOOL', conda_env='tool-env')
+                    'absent-tool', env_var='ABSENT_TOOL', conda_env='tool-env'
+                )
             except RuntimeError as exc:
                 message = str(exc)
                 assert 'ABSENT_TOOL' in message and 'README.md' in message
@@ -2122,7 +2654,8 @@ def test_qe_relaxation_cannot_pass_on_electronic_convergence_alone():
         output = Path(tmp) / 'relax.out'
         output.write_text(
             'convergence has been achieved in 8 iterations\n'
-            '! total energy = -10.0 Ry\nJOB DONE\n')
+            '! total energy = -10.0 Ry\nJOB DONE\n'
+        )
         # A relaxation requires ionic/force convergence, not merely one SCF.
         assert not parse_convergence(str(output), require_ionic=True)
 
@@ -2153,15 +2686,23 @@ def test_partial_hessian_requires_imaginary_mode_to_follow_reaction_direction():
     minus = (-difference / 2).reshape(3, 1, 3)
 
     aligned = partial_hessian(
-        plus, minus, displacement, np.array([1.0]),
-        reaction_direction=np.array([[1.0, 0.0, 0.0]]))
+        plus,
+        minus,
+        displacement,
+        np.array([1.0]),
+        reaction_direction=np.array([[1.0, 0.0, 0.0]]),
+    )
     assert aligned['valid_transition_state']
     assert aligned['reaction_mode_valid']
     assert np.isclose(aligned['reaction_mode_overlap'], 1.0)
 
     orthogonal = partial_hessian(
-        plus, minus, displacement, np.array([1.0]),
-        reaction_direction=np.array([[0.0, 1.0, 0.0]]))
+        plus,
+        minus,
+        displacement,
+        np.array([1.0]),
+        reaction_direction=np.array([[0.0, 1.0, 0.0]]),
+    )
     assert not orthogonal['valid_transition_state']
     assert not orthogonal['reaction_mode_valid']
     assert np.isclose(orthogonal['reaction_mode_overlap'], 0.0)
@@ -2182,8 +2723,10 @@ def _pauli_matrix(pauli_string):
 
 def test_vqe_toy_hamiltonians_are_hermitian_and_fail_closed_as_evidence():
     from pipeline.validation.vqe_transition_state import (
-        _mock_vqe_result, build_ch_splitting_hamiltonian,
-        build_orr_hamiltonian)
+        _mock_vqe_result,
+        build_ch_splitting_hamiltonian,
+        build_orr_hamiltonian,
+    )
 
     for terms in (build_ch_splitting_hamiltonian(), build_orr_hamiltonian()):
         assert terms and all(len(pauli) == 4 for _, pauli in terms)
@@ -2200,9 +2743,10 @@ def test_vqe_toy_hamiltonians_are_hermitian_and_fail_closed_as_evidence():
 def test_fairchem_device_affinity_is_forwarded_not_merely_recorded():
     from pipeline.screening.surface_calculator import get_ocp_calculator
 
-    with patch(
-        'fairchem.core.calculate.pretrained_mlip.get_predict_unit'
-    ) as get_unit, patch('fairchem.core.FAIRChemCalculator'):
+    with (
+        patch('fairchem.core.calculate.pretrained_mlip.get_predict_unit') as get_unit,
+        patch('fairchem.core.FAIRChemCalculator'),
+    ):
         get_unit.return_value = object()
         get_ocp_calculator('esen-sm-conserving-all-oc25', device='cuda:2')
         assert get_unit.call_args.kwargs.get('device') == 'cuda:2'
@@ -2214,10 +2758,13 @@ def test_ranker_throughput_and_uncertainty_do_not_change_mean():
     from pipeline.screening.small_data_ranker import fit_tree_ranker
 
     training = deterministic_tree_probes(28)
-    frame = pd.DataFrame({
-        'genome': [repr(x) for x in training], 'valid': True,
-        'E_act': np.linspace(0.1, 2.0, len(training)),
-    })
+    frame = pd.DataFrame(
+        {
+            'genome': [repr(x) for x in training],
+            'valid': True,
+            'E_act': np.linspace(0.1, 2.0, len(training)),
+        }
+    )
     ranker = fit_tree_ranker(frame, 'turquoise_hydrogen')
     candidates = deterministic_tree_probes(8192)
     started = time.perf_counter()
@@ -2238,8 +2785,9 @@ def test_esen_energy_force_and_invariance_contracts():
     # The contract process is masked to one physical GPU; use its logical name.
     calc = get_ocp_calculator(device='cuda')
     assert calc is not None
-    atoms = Atoms('H2', positions=[[0, 0, 0], [0, 0, 0.75]],
-                  cell=[10, 10, 10], pbc=True)
+    atoms = Atoms(
+        'H2', positions=[[0, 0, 0], [0, 0, 0.75]], cell=[10, 10, 10], pbc=True
+    )
     atoms.calc = calc
     energy = float(atoms.get_potential_energy())
     forces = np.asarray(atoms.get_forces())
@@ -2247,8 +2795,8 @@ def test_esen_energy_force_and_invariance_contracts():
     translated.positions += [1.2, 2.3, 3.4]
     translated.calc = calc
     assert math.isclose(
-        energy, float(translated.get_potential_energy()), rel_tol=1e-5,
-        abs_tol=1e-5)
+        energy, float(translated.get_potential_energy()), rel_tol=1e-5, abs_tol=1e-5
+    )
     assert np.allclose(forces, translated.get_forces(), rtol=1e-4, atol=1e-4)
     assert np.linalg.norm(forces.sum(axis=0)) < 1e-3
 
@@ -2258,8 +2806,9 @@ def test_esen_energy_force_and_invariance_contracts():
     minus.positions[1, 2] -= step
     plus.calc = calc
     minus.calc = calc
-    numerical_force = -(
-        plus.get_potential_energy() - minus.get_potential_energy()) / (2 * step)
+    numerical_force = -(plus.get_potential_energy() - minus.get_potential_energy()) / (
+        2 * step
+    )
     assert math.isclose(forces[1, 2], numerical_force, rel_tol=2e-2, abs_tol=2e-2)
 
 
@@ -2284,10 +2833,12 @@ def test_esen_dynamic_batch_matches_single_system_inference():
         expected.append((atoms.get_potential_energy(), atoms.get_forces().copy()))
 
     service = BatchedInferenceService(base, batch_wait_ms=20)
+
     def evaluate(atoms):
         atoms = atoms.copy()
         atoms.calc = service.calculator_proxy()
         return atoms.get_potential_energy(), atoms.get_forces()
+
     try:
         with ThreadPoolExecutor(max_workers=2) as executor:
             observed = list(executor.map(evaluate, structures))
@@ -2298,8 +2849,11 @@ def test_esen_dynamic_batch_matches_single_system_inference():
         assert np.allclose(reference[1], batched[1], atol=2e-5, rtol=2e-5)
 
 
-TESTS = [value for name, value in sorted(globals().items())
-         if name.startswith('test_') and callable(value)]
+TESTS = [
+    value
+    for name, value in sorted(globals().items())
+    if name.startswith('test_') and callable(value)
+]
 
 
 if __name__ == '__main__':

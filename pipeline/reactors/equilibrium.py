@@ -42,8 +42,9 @@ def ch4_conversion_from_mole_fractions(x_ch4: float, x_h2: float) -> float:
     return float(min(1.0, max(0.0, 1.0 - float(x_ch4) / denom)))
 
 
-def ch4_conversion_from_argon_tracer(x_ch4: float, x_ar: float,
-                                     x_ch4_feed: float, x_ar_feed: float) -> float:
+def ch4_conversion_from_argon_tracer(
+    x_ch4: float, x_ar: float, x_ch4_feed: float, x_ar_feed: float
+) -> float:
     """CH4 conversion from an inert Ar tracer. Exact for any gas-C fate.
 
     X = 1 - (x_CH4/x_Ar) / (x_CH4,0/x_Ar,0). Carbon to C(s) or C2 does not
@@ -61,13 +62,16 @@ def ch4_conversion_from_argon_tracer(x_ch4: float, x_ar: float,
     if x_ar_feed <= 0 or x_ar <= 0 or x_ch4_feed <= 0:
         raise ValueError(
             'Ar tracer conversion requires Ar in the feed and the current gas; '
-            'solids reactors must keep an inert mole-fraction tracer')
+            'solids reactors must keep an inert mole-fraction tracer'
+        )
     ratio0 = float(x_ch4_feed) / float(x_ar_feed)
     ratio = float(x_ch4) / float(x_ar)
     return float(min(1.0, max(0.0, 1.0 - ratio / ratio0)))
 
 
-def _ch4_conversion_from_mix(gas, ch4_initial_moles: float, graphite_moles: float) -> float:
+def _ch4_conversion_from_mix(
+    gas, ch4_initial_moles: float, graphite_moles: float
+) -> float:
     """Equilibrium conversion from remaining gas-phase carbon vs initial CH4."""
     if ch4_initial_moles <= 0:
         return 0.0
@@ -146,23 +150,25 @@ def run_equilibrium_sweep(
         if abs_err is not None:
             worst_abs_err = max(worst_abs_err, abs_err)
 
-        rows.append({
-            'T_K': float(T),
-            'P_Pa': float(pressure_Pa),
-            'X_CH4_calc': x_ch4_eq,
-            'X_CH4_table': x_tab,
-            'abs_error': abs_err,
-            'graphite_moles': gr_moles,
-            'gas_X': {sp: float(gas.X[gas.species_index(sp)]) for sp in gas.species_names},
-        })
+        rows.append(
+            {
+                'T_K': float(T),
+                'P_Pa': float(pressure_Pa),
+                'X_CH4_calc': x_ch4_eq,
+                'X_CH4_table': x_tab,
+                'abs_error': abs_err,
+                'graphite_moles': gr_moles,
+                'gas_X': {
+                    sp: float(gas.X[gas.species_index(sp)]) for sp in gas.species_names
+                },
+            }
+        )
         logger.info(
             f"  T={T:.2f} K  X_calc={x_ch4_eq:.3f}  X_table={x_tab}  "
             f"|err|={abs_err if abs_err is not None else 'n/a'}"
         )
 
-    within_tol = all(
-        r['abs_error'] is None or r['abs_error'] <= abs_tol for r in rows
-    )
+    within_tol = all(r['abs_error'] is None or r['abs_error'] <= abs_tol for r in rows)
     return {
         'mechanism_file': mechanism_file,
         'abs_tol': abs_tol,
@@ -174,10 +180,15 @@ def run_equilibrium_sweep(
 
 if __name__ == '__main__':
     from pipeline.utils import print_banner
+
     print_banner('EQUILIBRIUM CHECK: CH4 = C(gr) + 2 H2')
     result = run_equilibrium_sweep()
-    print(f"within_tolerance={result['within_tolerance']} "
-          f"worst_abs_error={result['worst_abs_error']:.4f}")
+    print(
+        f"within_tolerance={result['within_tolerance']} "
+        f"worst_abs_error={result['worst_abs_error']:.4f}"
+    )
     for row in result['points']:
-        print(f"  {row['T_K']:7.2f} K  calc={row['X_CH4_calc']:.3f}  "
-              f"table={row['X_CH4_table']}  err={row['abs_error']}")
+        print(
+            f"  {row['T_K']:7.2f} K  calc={row['X_CH4_calc']:.3f}  "
+            f"table={row['X_CH4_table']}  err={row['abs_error']}"
+        )

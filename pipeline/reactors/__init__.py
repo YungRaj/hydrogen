@@ -3,4 +3,3 @@
 The package owns methane-conversion reactor physics. Generic orchestration and
 external multiphysics execution remain under :mod:`pipeline.process`.
 """
-

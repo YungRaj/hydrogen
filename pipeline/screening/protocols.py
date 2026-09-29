@@ -11,6 +11,7 @@ class RelaxationBudget:
         fmax_eV_A: Configured fmax eV A value.
         steps: Configured steps value.
     """
+
     fmax_eV_A: float
     steps: int
 
@@ -25,6 +26,7 @@ class ScreeningProtocol:
         clean: Configured clean value.
         adsorbate: Configured adsorbate value.
     """
+
     protocol_id: str
     reference: RelaxationBudget
     clean: RelaxationBudget

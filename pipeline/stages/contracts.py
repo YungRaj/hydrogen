@@ -24,9 +24,11 @@ class StageOutcome(Generic[StateT, ProductsT]):
 
 
 def require_stage_outcome(
-        value: StageOutcome[StateT, ProductsT], *, stage: str,
-        required_products: tuple[str, ...] = (),
-        ) -> StageOutcome[StateT, ProductsT]:
+    value: StageOutcome[StateT, ProductsT],
+    *,
+    stage: str,
+    required_products: tuple[str, ...] = (),
+) -> StageOutcome[StateT, ProductsT]:
     """Validate a replaceable stage at its orchestration boundary.
 
     Args:
@@ -39,15 +41,17 @@ def require_stage_outcome(
     """
     # Replacements can violate the annotation at runtime, so retain this
     # guard even though static callers already see the generic contract.
-    if not isinstance(value, StageOutcome):  # pyright: ignore[reportUnnecessaryIsInstance]
+    if not isinstance(
+        value, StageOutcome
+    ):  # pyright: ignore[reportUnnecessaryIsInstance]
         raise TypeError(f'{stage} stage must return StageOutcome')
     unchecked = cast(StageOutcome[Any, Any], value)
-    if (not isinstance(unchecked.state, Mapping) or
-            not isinstance(unchecked.products, Mapping)):
+    if not isinstance(unchecked.state, Mapping) or not isinstance(
+        unchecked.products, Mapping
+    ):
         raise TypeError(f'{stage} StageOutcome mappings are invalid')
     outcome = cast(StageOutcome[StateT, ProductsT], unchecked)
     missing = set(required_products).difference(outcome.products)
     if missing:
-        raise ValueError(
-            f'{stage} stage omitted required products: {sorted(missing)}')
+        raise ValueError(f'{stage} stage omitted required products: {sorted(missing)}')
     return outcome

@@ -57,25 +57,34 @@ def annotate_evidence(frame: pd.DataFrame, primary: str) -> pd.DataFrame:
     """
     result = frame.copy()
     result['candidate_disposition'] = [
-        evidence_disposition(row, primary) for _, row in result.iterrows()]
+        evidence_disposition(row, primary) for _, row in result.iterrows()
+    ]
     return result
 
 
-def _class_preserving(frame: pd.DataFrame, n_select: int, primary: str,
-                      min_per_class: int, validation: bool) -> pd.DataFrame:
+def _class_preserving(
+    frame: pd.DataFrame,
+    n_select: int,
+    primary: str,
+    min_per_class: int,
+    validation: bool,
+) -> pd.DataFrame:
     if n_select <= 0 or frame.empty:
         return frame.iloc[0:0].copy()
     work = frame.copy()
     work['_selection_index'] = np.arange(len(work))
     values = pd.to_numeric(work.get(primary), errors='coerce')
     work['_primary'] = values.fillna(np.inf)
-    needs_dft = (work['needs_dft_validation'].map(
-                    lambda value: False if pd.isna(value) else bool(value))
-                 if 'needs_dft_validation' in work else
-                 pd.Series(False, index=work.index))
+    needs_dft = (
+        work['needs_dft_validation'].map(
+            lambda value: False if pd.isna(value) else bool(value)
+        )
+        if 'needs_dft_validation' in work
+        else pd.Series(False, index=work.index)
+    )
     work['_needs_resolution'] = (
-        work['candidate_disposition'].eq(VALIDATION_REQUIRED) |
-        needs_dft).astype(int)
+        work['candidate_disposition'].eq(VALIDATION_REQUIRED) | needs_dft
+    ).astype(int)
     # Validation gives unresolved evidence first access; quantitative consumers
     # can only use complete screening rows. Stable index makes ties reproducible.
     if validation:
@@ -94,12 +103,15 @@ def _class_preserving(frame: pd.DataFrame, n_select: int, primary: str,
         # Allocate quota in rounds. If the budget is smaller than the number of
         # classes, the best class champions win rather than alphabetical order.
         rank_position = {
-            index: position for position, index in
-            enumerate(ranked['_selection_index'].tolist())}
+            index: position
+            for position, index in enumerate(ranked['_selection_index'].tolist())
+        }
         for quota_round in range(min_per_class):
             champions = [
                 group.iloc[quota_round]['_selection_index']
-                for group in class_rows.values() if len(group) > quota_round]
+                for group in class_rows.values()
+                if len(group) > quota_round
+            ]
             champions.sort(key=lambda index: rank_position[index])
             chosen.extend(champions)
             if len(chosen) >= n_select:
@@ -111,8 +123,9 @@ def _class_preserving(frame: pd.DataFrame, n_select: int, primary: str,
     return selected.drop(columns=['_primary', '_needs_resolution'], errors='ignore')
 
 
-def select_for_reactor(frame: pd.DataFrame, n_select: int, primary: str,
-                       min_per_class: int = 1) -> pd.DataFrame:
+def select_for_reactor(
+    frame: pd.DataFrame, n_select: int, primary: str, min_per_class: int = 1
+) -> pd.DataFrame:
     """Select only complete numerical evidence, retaining class champions.
 
     Args:
@@ -125,14 +138,15 @@ def select_for_reactor(frame: pd.DataFrame, n_select: int, primary: str,
         Computed `pd.DataFrame` result.
     """
     annotated = annotate_evidence(frame, primary)
-    eligible = annotated[
-        annotated['candidate_disposition'].eq(QUANTITATIVE_SCREENING)]
+    eligible = annotated[annotated['candidate_disposition'].eq(QUANTITATIVE_SCREENING)]
     return _class_preserving(
-        eligible, n_select, primary, min_per_class, validation=False)
+        eligible, n_select, primary, min_per_class, validation=False
+    )
 
 
-def select_for_validation(frame: pd.DataFrame, n_select: int, primary: str,
-                          min_per_class: int = 1) -> pd.DataFrame:
+def select_for_validation(
+    frame: pd.DataFrame, n_select: int, primary: str, min_per_class: int = 1
+) -> pd.DataFrame:
     """Select a diverse rescue/confirmation slate, excluding only hard hazards.
 
     Args:
@@ -147,4 +161,5 @@ def select_for_validation(frame: pd.DataFrame, n_select: int, primary: str,
     annotated = annotate_evidence(frame, primary)
     eligible = annotated[~annotated['candidate_disposition'].eq(HARD_EXCLUSION)]
     return _class_preserving(
-        eligible, n_select, primary, min_per_class, validation=True)
+        eligible, n_select, primary, min_per_class, validation=True
+    )

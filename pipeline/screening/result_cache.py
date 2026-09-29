@@ -39,8 +39,7 @@ def implementation_digest(worker_target: Callable) -> str:
     import importlib
 
     digest = hashlib.sha256()
-    modules = tuple(dict.fromkeys(
-        (worker_target.__module__, *_SCIENTIFIC_MODULES)))
+    modules = tuple(dict.fromkeys((worker_target.__module__, *_SCIENTIFIC_MODULES)))
     for name in modules:
         module = importlib.import_module(name)
         path = inspect.getsourcefile(module)
@@ -63,7 +62,8 @@ def _connect(path: Path) -> sqlite3.Connection:
     connection = sqlite3.connect(path, timeout=60)
     connection.execute('PRAGMA journal_mode=WAL')
     connection.execute('PRAGMA synchronous=NORMAL')
-    connection.executescript('''
+    connection.executescript(
+        '''
         CREATE TABLE IF NOT EXISTS screening_cache_entries (
             application TEXT NOT NULL,
             protocol_id TEXT NOT NULL,
@@ -90,22 +90,29 @@ def _connect(path: Path) -> sqlite3.Connection:
                     application, protocol_id, implementation_digest, candidate_id)
                 ON DELETE CASCADE
         );
-    ''')
+    '''
+    )
     connection.execute('PRAGMA foreign_keys=ON')
     return connection
 
 
 def _reusable(record: Mapping[str, object], protocol_id: str) -> bool:
-    if record.get('screening_protocol') != protocol_id or record.get('valid') is not True:
+    if (
+        record.get('screening_protocol') != protocol_id
+        or record.get('valid') is not True
+    ):
         return False
-    convergence = [value for key, value in record.items()
-                   if key.startswith('relax_') and key.endswith('_converged')]
+    convergence = [
+        value
+        for key, value in record.items()
+        if key.startswith('relax_') and key.endswith('_converged')
+    ]
     return bool(convergence) and all(bool(value) for value in convergence)
 
 
 def _encode_field(
-        value: object,
-        ) -> tuple[str, int | None, int | None, str | None, str | None]:
+    value: object,
+) -> tuple[str, int | None, int | None, str | None, str | None]:
     if hasattr(value, 'item'):
         value = value.item()
     if value is None:
@@ -136,9 +143,13 @@ def _decode_field(row: tuple[object, ...]) -> ScalarValue:
     return str(str_value)
 
 
-def load_cached_results(path: Path, application: str, protocol_id: str,
-                        digest: str,
-                        genomes: Sequence[tuple]) -> dict[int, CachedRecord]:
+def load_cached_results(
+    path: Path,
+    application: str,
+    protocol_id: str,
+    digest: str,
+    genomes: Sequence[tuple],
+) -> dict[int, CachedRecord]:
     """Load typed reusable rows indexed by their requested input position.
 
     Args:
@@ -158,7 +169,7 @@ def load_cached_results(path: Path, application: str, protocol_id: str,
     unique = sorted(set(ids))
     with _connect(path) as connection:
         for offset in range(0, len(unique), 400):
-            chunk = unique[offset:offset + 400]
+            chunk = unique[offset : offset + 400]
             placeholders = ','.join('?' for _ in chunk)
             rows = connection.execute(
                 f'''SELECT candidate_id, field_name, field_type, bool_value,
@@ -167,16 +178,25 @@ def load_cached_results(path: Path, application: str, protocol_id: str,
                     WHERE application=? AND protocol_id=?
                       AND implementation_digest=?
                       AND candidate_id IN ({placeholders})''',
-                (application, protocol_id, digest, *chunk)).fetchall()
+                (application, protocol_id, digest, *chunk),
+            ).fetchall()
             for cid, name, *encoded in rows:
                 records[cid][name] = _decode_field(tuple(encoded))
-    return {index: dict(records[cid]) for index, cid in enumerate(ids)
-            if cid in records and _reusable(records[cid], protocol_id)}
+    return {
+        index: dict(records[cid])
+        for index, cid in enumerate(ids)
+        if cid in records and _reusable(records[cid], protocol_id)
+    }
 
 
-def store_completed_results(path: Path, application: str, protocol_id: str,
-                            digest: str, genomes: Sequence[tuple],
-                            results: Sequence[Mapping[str, object]]) -> int:
+def store_completed_results(
+    path: Path,
+    application: str,
+    protocol_id: str,
+    digest: str,
+    genomes: Sequence[tuple],
+    results: Sequence[Mapping[str, object]],
+) -> int:
     """Persist fully converged scalar records in typed SQLite columns.
 
     Args:
@@ -197,8 +217,7 @@ def store_completed_results(path: Path, application: str, protocol_id: str,
         if not _reusable(result, protocol_id):
             continue
         try:
-            fields = [(name, *_encode_field(value))
-                      for name, value in result.items()]
+            fields = [(name, *_encode_field(value)) for name, value in result.items()]
         except TypeError:
             continue
         accepted.append((candidate_id(genome), fields))
@@ -209,12 +228,16 @@ def store_completed_results(path: Path, application: str, protocol_id: str,
             key = (application, protocol_id, digest, cid)
             connection.execute(
                 'INSERT OR REPLACE INTO screening_cache_entries VALUES (?, ?, ?, ?, ?)',
-                (*key, time.time()))
+                (*key, time.time()),
+            )
             connection.execute(
                 '''DELETE FROM screening_cache_fields WHERE application=?
-                   AND protocol_id=? AND implementation_digest=? AND candidate_id=?''', key)
+                   AND protocol_id=? AND implementation_digest=? AND candidate_id=?''',
+                key,
+            )
             connection.executemany(
                 '''INSERT INTO screening_cache_fields VALUES
                    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-                [(*key, *field) for field in fields])
+                [(*key, *field) for field in fields],
+            )
     return len(accepted)

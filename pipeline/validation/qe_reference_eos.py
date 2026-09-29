@@ -133,36 +133,55 @@ def run_reference_eos(element: str, output_dir: str | Path) -> dict:
     pw = resolve_qe_executable("pw.x")
     execution = QEExecutionConfig.production_default()
     center = REFERENCE_LATTICES[element]
-    lattices = [center * factor for factor in (0.96, 0.9733333333, 0.9866666667,
-                                                1.0, 1.0133333333, 1.0266666667,
-                                                1.04)]
+    lattices = [
+        center * factor
+        for factor in (
+            0.96,
+            0.9733333333,
+            0.9866666667,
+            1.0,
+            1.0133333333,
+            1.0266666667,
+            1.04,
+        )
+    ]
     energies: list[float] = []
     artifacts = []
     for index, lattice in enumerate(lattices):
         input_path = root / f"eos_{index:02d}.in"
         output_path = root / f"eos_{index:02d}.out"
-        input_path.write_text(qe_bulk_input(element, lattice, f"{element.lower()}_{index}"))
+        input_path.write_text(
+            qe_bulk_input(element, lattice, f"{element.lower()}_{index}")
+        )
         command = build_qe_command(pw, str(input_path), execution)
         environment = os.environ.copy()
         environment["OMP_NUM_THREADS"] = str(execution.omp_threads)
         environment.setdefault("OPENBLAS_NUM_THREADS", "1")
         with output_path.open("wb") as stdout:
             completed = subprocess.run(
-                command, stdout=stdout, stderr=subprocess.STDOUT, env=environment,
-                cwd=root, timeout=1800, check=False)
+                command,
+                stdout=stdout,
+                stderr=subprocess.STDOUT,
+                env=environment,
+                cwd=root,
+                timeout=1800,
+                check=False,
+            )
         if completed.returncode != 0:
             raise RuntimeError(f"pw.x failed for {element} point {index}")
         energy = parse_qe_total_energy(output_path)
         energies.append(energy)
-        artifacts.append({
-            "lattice_A": lattice,
-            "energy_eV": energy,
-            "input": input_path.name,
-            "input_sha256": _digest(input_path),
-            "output": output_path.name,
-            "output_sha256": _digest(output_path),
-            "command": command,
-        })
+        artifacts.append(
+            {
+                "lattice_A": lattice,
+                "energy_eV": energy,
+                "input": input_path.name,
+                "input_sha256": _digest(input_path),
+                "output": output_path.name,
+                "output_sha256": _digest(output_path),
+                "command": command,
+            }
+        )
     equilibrium = fit_equilibrium_lattice(lattices, energies)
     summary = {
         "schema_version": 1,
@@ -182,8 +201,11 @@ def run_reference_eos(element: str, output_dir: str | Path) -> dict:
     }
     summary_path = root / "eos_summary.json"
     summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
-    return {**summary, "summary_path": str(summary_path),
-            "summary_sha256": _digest(summary_path)}
+    return {
+        **summary,
+        "summary_path": str(summary_path),
+        "summary_sha256": _digest(summary_path),
+    }
 
 
 def collect_reference_observations(output_dir: str | Path) -> Path:
@@ -202,59 +224,79 @@ def collect_reference_observations(output_dir: str | Path) -> Path:
         summary = json.loads(summary_path.read_text())
         if summary.get("converged") is not True or len(summary.get("points", [])) != 7:
             raise RuntimeError(f"incomplete EOS summary: {summary_path}")
-        observations.append({
-            "reference_id": REFERENCE_IDS[element],
-            "material_id": f"{element}/{STRUCTURES[element]}/bulk",
-            "observable": "equilibrium_lattice_parameter",
-            "value": summary["equilibrium_lattice_parameter_A"],
-            "unit": "angstrom",
-            "solver_family": "quantum_espresso",
-            "protocol": "bulk-eos-zero-pressure-v1",
-            "conditions": {
-                "temperature_K": 293,
-                "crystal_structure": STRUCTURES[element],
-            },
-            "calculation_conditions": {
-                "model_temperature_K": 0,
-                "electronic_smearing": "Marzari-Vanderbilt",
-                "electronic_smearing_Ry": 0.02,
-                "kpoint_mesh": [12, 12, 12],
-                "spin_polarized": True,
-                "exchange_correlation": "PBE",
-            },
-            "converged": True,
-            "mock": False,
-            "candidate_specific": True,
-            "benchmarked": False,
-            "artifact_path": str(summary_path.relative_to(root)),
-            "artifact_sha256": _digest(summary_path),
-        })
+        observations.append(
+            {
+                "reference_id": REFERENCE_IDS[element],
+                "material_id": f"{element}/{STRUCTURES[element]}/bulk",
+                "observable": "equilibrium_lattice_parameter",
+                "value": summary["equilibrium_lattice_parameter_A"],
+                "unit": "angstrom",
+                "solver_family": "quantum_espresso",
+                "protocol": "bulk-eos-zero-pressure-v1",
+                "conditions": {
+                    "temperature_K": 293,
+                    "crystal_structure": STRUCTURES[element],
+                },
+                "calculation_conditions": {
+                    "model_temperature_K": 0,
+                    "electronic_smearing": "Marzari-Vanderbilt",
+                    "electronic_smearing_Ry": 0.02,
+                    "kpoint_mesh": [12, 12, 12],
+                    "spin_polarized": True,
+                    "exchange_correlation": "PBE",
+                },
+                "converged": True,
+                "mock": False,
+                "candidate_specific": True,
+                "benchmarked": False,
+                "artifact_path": str(summary_path.relative_to(root)),
+                "artifact_sha256": _digest(summary_path),
+            }
+        )
     manifest = root / "reference_observations.json"
-    manifest.write_text(json.dumps({
-        "schema_version": 1,
-        "observations": observations,
-    }, indent=2, sort_keys=True) + "\n")
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "observations": observations,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    )
     return manifest
 
 
 def main() -> None:
     """Run selected Fe/Ni reference calculations from the command line."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--element", action="append", choices=sorted(REFERENCE_LATTICES))
+    parser.add_argument(
+        "--element", action="append", choices=sorted(REFERENCE_LATTICES)
+    )
     parser.add_argument("--output-dir", default="results/validation/qe_reference_eos")
-    parser.add_argument("--collect-existing", action="store_true",
-                        help="only collect completed summaries; run no calculations")
+    parser.add_argument(
+        "--collect-existing",
+        action="store_true",
+        help="only collect completed summaries; run no calculations",
+    )
     arguments = parser.parse_args()
     if arguments.collect_existing:
         print(collect_reference_observations(arguments.output_dir))
         return
     for element in arguments.element or sorted(REFERENCE_LATTICES):
         result = run_reference_eos(element, arguments.output_dir)
-        print(json.dumps({
-            "element": element,
-            "equilibrium_lattice_parameter_A": result["equilibrium_lattice_parameter_A"],
-            "summary_path": result["summary_path"],
-        }))
+        print(
+            json.dumps(
+                {
+                    "element": element,
+                    "equilibrium_lattice_parameter_A": result[
+                        "equilibrium_lattice_parameter_A"
+                    ],
+                    "summary_path": result["summary_path"],
+                }
+            )
+        )
     print(collect_reference_observations(arguments.output_dir))
 
 

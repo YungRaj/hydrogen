@@ -31,7 +31,8 @@ def main() -> None:
     result_path = os.environ.get("HYDROGEN_QUANTUM_REFERENCE_RESULTS")
     if not result_path:
         raise SystemExit(
-            "HYDROGEN_QUANTUM_REFERENCE_RESULTS must point to real solver observations")
+            "HYDROGEN_QUANTUM_REFERENCE_RESULTS must point to real solver observations"
+        )
     manifest_path = Path(result_path).expanduser().resolve()
     payload = json.loads(manifest_path.read_text())
     observations = payload.get("observations")

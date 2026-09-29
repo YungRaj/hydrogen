@@ -14,8 +14,9 @@ from pipeline.reactors.reactor_core import *  # noqa: F403
 from pipeline.reactors.reactor_core import logger
 
 
-def simulate_pfr(config: ReactorConfig, *, cantera_available: bool,
-             mock_result) -> ReactorResult:
+def simulate_pfr(
+    config: ReactorConfig, *, cantera_available: bool, mock_result
+) -> ReactorResult:
     """Packed bed as a staged Lagrangian PFR with one shared surface.
 
     Surface area per stage is ``sv·V_bed_stage`` where ``sv = 6(1−ε)/d_p``
@@ -73,8 +74,9 @@ def simulate_pfr(config: ReactorConfig, *, cantera_available: bool,
         temperature_profile.append(config.T_inlet_K)
         theta_C_tos.clear()
         theta_C_tos.append(_coverage(surf, 'C_s'))
-        pass_start_cov[0] = (np.array(surf.coverages, dtype=float)
-                             if surf is not None else None)
+        pass_start_cov[0] = (
+            np.array(surf.coverages, dtype=float) if surf is not None else None
+        )
         for _ in range(n_stages):
             reactor = ct.IdealGasReactor(gas)
             reactor.volume = stage_gas_volume
@@ -96,13 +98,18 @@ def simulate_pfr(config: ReactorConfig, *, cantera_available: bool,
     _advance_bed()
     per_cycle_conversion.append(conversion_profile[-1])
 
-    while (config.max_regen_cycles > 0
-           and cycles_completed < config.max_regen_cycles
-           and theta_C_tos and max(theta_C_tos) >= config.regen_coverage_threshold):
+    while (
+        config.max_regen_cycles > 0
+        and cycles_completed < config.max_regen_cycles
+        and theta_C_tos
+        and max(theta_C_tos) >= config.regen_coverage_threshold
+    ):
         if config.regen_mechanism == REGEN_OXIDATIVE and not config.co2_permitted:
             raise RuntimeError('oxidative regen blocked (co2_permitted=False)')
         if config.regen_mechanism == REGEN_OXIDATIVE:
-            logger.warning('Oxidative PFR regen enabled via co2_permitted=True (test only)')
+            logger.warning(
+                'Oxidative PFR regen enabled via co2_permitted=True (test only)'
+            )
         # Mechanical / consumable: free-site reset without CO2 chemistry in-model.
         _reset_surface_carbon(surf)
         gas.TPX = config.T_inlet_K, config.P_inlet_Pa, config.inlet_composition
@@ -120,11 +127,18 @@ def simulate_pfr(config: ReactorConfig, *, cantera_available: bool,
     n_parcel_in_mol = c_total * stage_gas_volume
     n_ch4_fed_mol = ch4_initial * n_parcel_in_mol
     off_site = _off_site_carbon_metrics(
-        config, gas, surf,
-        ch4_initial=ch4_initial, ar_initial=ar_initial,
-        pass_conversion=float(final_conv), n_sites_mol=n_sites_mol,
-        n_ch4_fed_mol=n_ch4_fed_mol, n_parcel_in_mol=n_parcel_in_mol,
-        pass_time_s=tau_total, cov_start=pass_start_cov[0])
+        config,
+        gas,
+        surf,
+        ch4_initial=ch4_initial,
+        ar_initial=ar_initial,
+        pass_conversion=float(final_conv),
+        n_sites_mol=n_sites_mol,
+        n_ch4_fed_mol=n_ch4_fed_mol,
+        n_parcel_in_mol=n_parcel_in_mol,
+        pass_time_s=tau_total,
+        cov_start=pass_start_cov[0],
+    )
 
     result = {
         'reactor_type': 'PFR',
@@ -138,7 +152,8 @@ def simulate_pfr(config: ReactorConfig, *, cantera_available: bool,
         'WHSV_h-1': reciprocal_residence_h(tau_total),
         'CH4_conversion': float(final_conv),
         'single_pass_CH4_conversion': float(
-            per_cycle_conversion[0] if per_cycle_conversion else final_conv),
+            per_cycle_conversion[0] if per_cycle_conversion else final_conv
+        ),
         'CH4_mole_fraction_drop': _mole_fraction_drop(gas, ch4_initial),
         'conversion_basis': 'argon_tracer',
         'thermal_mode': 'isothermal_energy_disabled',
@@ -165,6 +180,8 @@ def simulate_pfr(config: ReactorConfig, *, cantera_available: bool,
         **_policy_metadata(config),
         **_load_status_fields(config, graphite, surf),
     }
-    logger.info(f"  PFR result: conversion={final_conv:.2%}, τ={tau_total:.1f}s, "
-                f"regen_cycles={cycles_completed}")
+    logger.info(
+        f"  PFR result: conversion={final_conv:.2%}, τ={tau_total:.1f}s, "
+        f"regen_cycles={cycles_completed}"
+    )
     return result

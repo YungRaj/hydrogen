@@ -20,7 +20,10 @@ from ase.io import read as ase_read
 from ase.units import Bohr
 
 from pipeline.data_models.quantum import (
-    NEBResult, SolverRunResult, TransitionStateFrequencyResult)
+    NEBResult,
+    SolverRunResult,
+    TransitionStateFrequencyResult,
+)
 from pipeline.utils import BASE_DIR
 from pipeline.simulation.executables import resolve_executable, resolve_qe_executable
 
@@ -35,23 +38,27 @@ def _fixed_atom_indices(atoms: Atoms) -> set[int]:
         if constraint.__class__.__name__ != 'FixAtoms':
             raise ValueError(
                 f'unsupported QE relaxation constraint: '
-                f'{constraint.__class__.__name__}')
+                f'{constraint.__class__.__name__}'
+            )
         getter = getattr(constraint, 'get_indices', None)
         if getter is not None:
             fixed.update(int(index) for index in getter())
     return fixed
 
 
-def _qe_positions(atoms: Atoms, include_constraints: bool = True,
-                  freeze_all: bool = False) -> str:
+def _qe_positions(
+    atoms: Atoms, include_constraints: bool = True, freeze_all: bool = False
+) -> str:
     """Render QE positions with explicit, auditable Cartesian move flags."""
-    fixed = (set(range(len(atoms))) if freeze_all else
-             _fixed_atom_indices(atoms) if include_constraints else set())
+    fixed = (
+        set(range(len(atoms)))
+        if freeze_all
+        else _fixed_atom_indices(atoms) if include_constraints else set()
+    )
     rows = []
     for index, atom in enumerate(atoms):
         flags = ' 0 0 0' if index in fixed else ' 1 1 1'
-        rows.append(
-            f'{atom.symbol} {atom.x:.12f} {atom.y:.12f} {atom.z:.12f}{flags}')
+        rows.append(f'{atom.symbol} {atom.x:.12f} {atom.y:.12f} {atom.z:.12f}{flags}')
     return '\n'.join(rows)
 
 
@@ -73,8 +80,12 @@ class QEExecutionConfig:
         Args:
             neb: Whether to build a NEB rather than pw.x execution command.
         """
-        values = (self.mpi_ranks, self.omp_threads, self.kpoint_pools,
-                  self.image_groups)
+        values = (
+            self.mpi_ranks,
+            self.omp_threads,
+            self.kpoint_pools,
+            self.image_groups,
+        )
         if any(int(value) < 1 for value in values):
             raise ValueError('QE parallel dimensions must be positive')
         if self.mpi_ranks % self.kpoint_pools:
@@ -136,15 +147,20 @@ class NEBPathConfig:
             Coarse path-preconditioning controls.
         """
         return cls(
-            nstep_path=150, path_thr_eV_A=0.15,
-            optimizer='quick-min', climbing_scheme='no-CI', step_size=0.2,
+            nstep_path=150,
+            path_thr_eV_A=0.15,
+            optimizer='quick-min',
+            climbing_scheme='no-CI',
+            step_size=0.2,
             # Keep spring physics independent of the optimizer trust step.
             # Scaling k as 1/ds**2 made modest spacing differences dominate
             # the Ni(111) band: the same geometry reported 8.317 eV/A with
             # 9.25--15.42-a.u. springs but 1.212 eV/A with the conventional
             # 0.1-a.u. spring, without changing its energy profile.
-            spring_min=0.1, spring_max=0.1,
-            electron_maxstep=500, scf_conv_thr_Ry=1.0e-6,
+            spring_min=0.1,
+            spring_max=0.1,
+            electron_maxstep=500,
+            scf_conv_thr_Ry=1.0e-6,
             # Metallic, spin-polarized Ni images are first preconverged as
             # independent SCFs.  Reuse those charge densities here rather
             # than allowing eleven coupled images to start from atomic
@@ -156,9 +172,12 @@ class NEBPathConfig:
             # trial with 0.1 mixing drove image 7 from about 8.95 to 4.34 Bohr
             # magnetons during its first coupled SCF, despite a clean seed;
             # the same image is stable with 0.02 mixing.
-            mixing_beta=0.02, starting_potential='file',
-            starting_wavefunctions='file', diagonalization='david',
-            kpoints=(3, 3, 1))
+            mixing_beta=0.02,
+            starting_potential='file',
+            starting_wavefunctions='file',
+            diagonalization='david',
+            kpoints=(3, 3, 1),
+        )
 
     @classmethod
     def coarse_fresh_image_seed(cls) -> 'NEBPathConfig':
@@ -174,9 +193,11 @@ class NEBPathConfig:
             Conservative controls for an independently seeded image SCF.
         """
         return replace(
-            cls.coarse_preconditioner(), mixing_beta=0.01,
+            cls.coarse_preconditioner(),
+            mixing_beta=0.01,
             starting_potential='atomic',
-            starting_wavefunctions='atomic+random')
+            starting_wavefunctions='atomic+random',
+        )
 
     @classmethod
     def coarse_fixed_spin_image_seed(cls) -> 'NEBPathConfig':
@@ -194,10 +215,14 @@ class NEBPathConfig:
             Fixed-spin electronic rescue controls for a Ni path image.
         """
         return replace(
-            cls.coarse_fresh_image_seed(), mixing_beta=0.01, mixing_ndim=24,
+            cls.coarse_fresh_image_seed(),
+            mixing_beta=0.01,
+            mixing_ndim=24,
             starting_potential='file',
             starting_wavefunctions='atomic+random',
-            diagonalization='david', total_magnetization=8.0)
+            diagonalization='david',
+            total_magnetization=8.0,
+        )
 
     @classmethod
     def coarse_released_spin_image_seed(cls) -> 'NEBPathConfig':
@@ -213,8 +238,11 @@ class NEBPathConfig:
             Unconstrained controls for validating a rescued image state.
         """
         return replace(
-            cls.coarse_preconditioner(), starting_potential='file',
-            starting_wavefunctions='file', total_magnetization=None)
+            cls.coarse_preconditioner(),
+            starting_potential='file',
+            starting_wavefunctions='file',
+            total_magnetization=None,
+        )
 
     @classmethod
     def coarse_fixed_spin_coupled_seed(cls) -> 'NEBPathConfig':
@@ -238,13 +266,17 @@ class NEBPathConfig:
             Fixed-spin, no-motion controls for coupled electronic seeding.
         """
         return replace(
-            cls.coarse_preconditioner(), nstep_path=1,
-            path_thr_eV_A=1.0e6, total_magnetization=8.0,
+            cls.coarse_preconditioner(),
+            nstep_path=1,
+            path_thr_eV_A=1.0e6,
+            total_magnetization=8.0,
             # A fixed total magnetization can increase the required band
             # count.  Reusing unconstrained wavefunctions then makes QE abort
             # in read_collected_wfc; retain the validated density but rebuild
             # wavefunctions for the constrained occupation manifold.
-            starting_wavefunctions='atomic+random', freeze_all_atoms=True)
+            starting_wavefunctions='atomic+random',
+            freeze_all_atoms=True,
+        )
 
     @classmethod
     def coarse_released_spin_coupled_seed(cls) -> 'NEBPathConfig':
@@ -262,9 +294,11 @@ class NEBPathConfig:
             Unconstrained, no-motion controls for coupled state validation.
         """
         return replace(
-            cls.coarse_fixed_spin_coupled_seed(), total_magnetization=None,
+            cls.coarse_fixed_spin_coupled_seed(),
+            total_magnetization=None,
             starting_potential='file',
-            starting_wavefunctions='atomic+random')
+            starting_wavefunctions='atomic+random',
+        )
 
     @classmethod
     def coarse_neighbor_density_image_seed(cls) -> 'NEBPathConfig':
@@ -281,9 +315,11 @@ class NEBPathConfig:
             Neighbor-density recovery controls for one path image.
         """
         return replace(
-            cls.coarse_preconditioner(), starting_potential='file',
+            cls.coarse_preconditioner(),
+            starting_potential='file',
             starting_wavefunctions='atomic+random',
-            total_magnetization=None)
+            total_magnetization=None,
+        )
 
     @classmethod
     def coarse_refiner(cls) -> 'NEBPathConfig':
@@ -293,8 +329,8 @@ class NEBPathConfig:
             Restart controls using the Broyden path optimizer.
         """
         return replace(
-            cls.coarse_preconditioner(), optimizer='broyden',
-            restart_mode='restart')
+            cls.coarse_preconditioner(), optimizer='broyden', restart_mode='restart'
+        )
 
     @classmethod
     def coarse_finisher(cls) -> 'NEBPathConfig':
@@ -338,13 +374,15 @@ class NEBPathConfig:
             Fresh-history quick-min controls for an existing quick-min path.
         """
         return replace(
-            cls.coarse_preconditioner(), nstep_path=250,
+            cls.coarse_preconditioner(),
+            nstep_path=250,
             step_size=0.1,
             restart_mode='from_scratch',
             # The interrupted next trial may leave geometry-specific
             # wavefunctions that do not correspond to the last completed
             # ``*.crd`` path. Retain charge-density seeding but rebuild WFCs.
-            starting_wavefunctions='atomic+random')
+            starting_wavefunctions='atomic+random',
+        )
 
     @classmethod
     def coarse_quick_min_to_sd_stabilizer(cls) -> 'NEBPathConfig':
@@ -362,9 +400,12 @@ class NEBPathConfig:
             Non-climbing, history-free controls for an exact coarse restart.
         """
         return replace(
-            cls.coarse_preconditioner(), nstep_path=250,
-            optimizer='sd', step_size=0.1,
-            restart_mode='restart')
+            cls.coarse_preconditioner(),
+            nstep_path=250,
+            optimizer='sd',
+            step_size=0.1,
+            restart_mode='restart',
+        )
 
     @classmethod
     def coarse_sd_to_broyden_refiner(cls) -> 'NEBPathConfig':
@@ -381,8 +422,7 @@ class NEBPathConfig:
         Returns:
             Small-step Broyden controls for an exact coarse restart.
         """
-        return replace(
-            cls.coarse_quick_min_to_sd_stabilizer(), optimizer='broyden')
+        return replace(cls.coarse_quick_min_to_sd_stabilizer(), optimizer='broyden')
 
     @classmethod
     def coarse_broyden_to_sd_stabilizer(cls) -> 'NEBPathConfig':
@@ -404,7 +444,8 @@ class NEBPathConfig:
         """
         return replace(
             cls.coarse_quick_min_to_sd_stabilizer(),
-            starting_wavefunctions='atomic+random')
+            starting_wavefunctions='atomic+random',
+        )
 
     @classmethod
     def coarse_alternate_refiner(cls) -> 'NEBPathConfig':
@@ -426,9 +467,12 @@ class NEBPathConfig:
         # quasi-Newton plateau. Keep the independently validated spring model
         # fixed so this changes optimizer motion only.
         return replace(
-            cls.coarse_preconditioner(), nstep_path=250,
-            optimizer='sd', step_size=1.0,
-            restart_mode='restart')
+            cls.coarse_preconditioner(),
+            nstep_path=250,
+            optimizer='sd',
+            step_size=1.0,
+            restart_mode='restart',
+        )
 
     @classmethod
     def coarse_force_finisher(cls) -> 'NEBPathConfig':
@@ -463,8 +507,7 @@ class NEBPathConfig:
         Returns:
             Quasi-Newton controls with stabilized metallic SCF mixing.
         """
-        return replace(
-            cls.coarse_quasi_newton_finisher(), mixing_beta=0.02)
+        return replace(cls.coarse_quasi_newton_finisher(), mixing_beta=0.02)
 
     @classmethod
     def coarse_history_reset_refiner(cls) -> 'NEBPathConfig':
@@ -483,8 +526,10 @@ class NEBPathConfig:
             Fresh-history Broyden controls for an extracted checkpoint path.
         """
         return replace(
-            cls.coarse_electronic_stabilizer(), restart_mode='from_scratch',
-            step_size=0.25)
+            cls.coarse_electronic_stabilizer(),
+            restart_mode='from_scratch',
+            step_size=0.25,
+        )
 
     @classmethod
     def coarse_history_reset_force_stabilizer(cls) -> 'NEBPathConfig':
@@ -499,8 +544,8 @@ class NEBPathConfig:
             Small-step direct-force controls with discarded optimizer history.
         """
         return replace(
-            cls.coarse_history_reset_refiner(), optimizer='sd',
-            step_size=0.1)
+            cls.coarse_history_reset_refiner(), optimizer='sd', step_size=0.1
+        )
 
     @classmethod
     def coarse_history_reset_force_accelerator(cls) -> 'NEBPathConfig':
@@ -509,8 +554,7 @@ class NEBPathConfig:
         Returns:
             Fresh-history direct-force controls with a larger trusted step.
         """
-        return replace(
-            cls.coarse_history_reset_force_stabilizer(), step_size=0.5)
+        return replace(cls.coarse_history_reset_force_stabilizer(), step_size=0.5)
 
     @classmethod
     def strict_climbing_refiner(cls) -> 'NEBPathConfig':
@@ -530,10 +574,15 @@ class NEBPathConfig:
             Conservative strict climbing-image controls for a coarse path.
         """
         return replace(
-            cls.coarse_electronic_stabilizer(), nstep_path=500,
-            path_thr_eV_A=0.05, optimizer='sd', climbing_scheme='auto',
+            cls.coarse_electronic_stabilizer(),
+            nstep_path=500,
+            path_thr_eV_A=0.05,
+            optimizer='sd',
+            climbing_scheme='auto',
             step_size=1.0,
-            scf_conv_thr_Ry=1.0e-8, restart_mode='restart')
+            scf_conv_thr_Ry=1.0e-8,
+            restart_mode='restart',
+        )
 
     @classmethod
     def strict_climbing_finisher(cls) -> 'NEBPathConfig':
@@ -568,8 +617,8 @@ class NEBPathConfig:
             Strict climbing-image controls using damped quick-min motion.
         """
         return replace(
-            cls.strict_climbing_refiner(), optimizer='quick-min',
-            step_size=0.1)
+            cls.strict_climbing_refiner(), optimizer='quick-min', step_size=0.1
+        )
 
     def validate(self) -> None:
         """Reject incomplete or physically unsupported NEB controls.
@@ -584,35 +633,50 @@ class NEBPathConfig:
             raise ValueError(f'unsupported NEB optimizer: {self.optimizer}')
         if self.climbing_scheme not in {'no-CI', 'auto', 'manual'}:
             raise ValueError(
-                f'unsupported climbing-image scheme: {self.climbing_scheme}')
+                f'unsupported climbing-image scheme: {self.climbing_scheme}'
+            )
         if self.restart_mode not in {'from_scratch', 'restart'}:
             raise ValueError(f'unsupported NEB restart mode: {self.restart_mode}')
         if self.starting_potential not in {'atomic', 'file'}:
             raise ValueError(
-                f'unsupported starting potential: {self.starting_potential}')
+                f'unsupported starting potential: {self.starting_potential}'
+            )
         if self.starting_wavefunctions not in {
-                'atomic', 'atomic+random', 'random', 'file'}:
+            'atomic',
+            'atomic+random',
+            'random',
+            'file',
+        }:
             raise ValueError(
-                'unsupported starting wavefunctions: '
-                f'{self.starting_wavefunctions}')
+                'unsupported starting wavefunctions: ' f'{self.starting_wavefunctions}'
+            )
         if self.diagonalization not in {'david', 'cg', 'paro', 'ppcg'}:
-            raise ValueError(
-                f'unsupported diagonalization: {self.diagonalization}')
-        if (self.total_magnetization is not None and
-                not np.isfinite(self.total_magnetization)):
+            raise ValueError(f'unsupported diagonalization: {self.diagonalization}')
+        if self.total_magnetization is not None and not np.isfinite(
+            self.total_magnetization
+        ):
             raise ValueError('total magnetization must be finite when set')
-        values = (self.nstep_path, self.path_thr_eV_A, self.step_size,
-                  self.spring_min, self.spring_max, self.electron_maxstep,
-                  self.scf_conv_thr_Ry, self.mixing_beta, self.mixing_ndim,
-                  *self.kpoints)
+        values = (
+            self.nstep_path,
+            self.path_thr_eV_A,
+            self.step_size,
+            self.spring_min,
+            self.spring_max,
+            self.electron_maxstep,
+            self.scf_conv_thr_Ry,
+            self.mixing_beta,
+            self.mixing_ndim,
+            *self.kpoints,
+        )
         if any(value <= 0 for value in values):
             raise ValueError('NEB path controls must be positive')
         if self.spring_max < self.spring_min:
             raise ValueError('NEB maximum spring must not be below minimum')
 
 
-def build_qe_command(executable: str, input_path: str,
-                     config: QEExecutionConfig, *, neb: bool = False) -> list[str]:
+def build_qe_command(
+    executable: str, input_path: str, config: QEExecutionConfig, *, neb: bool = False
+) -> list[str]:
     """Build a shell-free MPI/QE command with validated parallel dimensions.
 
     Args:
@@ -626,9 +690,11 @@ def build_qe_command(executable: str, input_path: str,
     """
     config.validate(neb=neb)
     requested = Path(executable).name
-    executable_path = (resolve_qe_executable(requested)
-                       if requested in {'pw.x', 'neb.x'}
-                       else resolve_executable(executable, required=True))
+    executable_path = (
+        resolve_qe_executable(requested)
+        if requested in {'pw.x', 'neb.x'}
+        else resolve_executable(executable, required=True)
+    )
     command = []
     if requested in {'pw.x', 'neb.x'}:
         mpirun = os.environ.get('MPIEXEC')
@@ -638,7 +704,8 @@ def build_qe_command(executable: str, input_path: str,
             raise RuntimeError(
                 'MPIEXEC is not set. Source the activate.sh generated by '
                 'scripts/install_qe_gpu.sh so QE and its matching NVIDIA HPC-X '
-                'MPI runtime cannot be mixed with another MPI installation.')
+                'MPI runtime cannot be mixed with another MPI installation.'
+            )
         command.extend([mpirun, '-np', str(config.mpi_ranks)])
     command.append(executable_path)
     if config.kpoint_pools > 1:
@@ -649,11 +716,17 @@ def build_qe_command(executable: str, input_path: str,
     return command
 
 
-def _execution_record(input_path: str, output_path: str, command: list[str],
-                      config: QEExecutionConfig, elapsed_s: float,
-                      returncode: int, timed_out: bool,
-                      interrupted: bool = False,
-                      checkpoint_restored: bool = False) -> None:
+def _execution_record(
+    input_path: str,
+    output_path: str,
+    command: list[str],
+    config: QEExecutionConfig,
+    elapsed_s: float,
+    returncode: int,
+    timed_out: bool,
+    interrupted: bool = False,
+    checkpoint_restored: bool = False,
+) -> None:
     source = Path(input_path)
     record = {
         'command': command,
@@ -666,11 +739,11 @@ def _execution_record(input_path: str, output_path: str, command: list[str],
         'checkpoint_restored': checkpoint_restored,
     }
     Path(f'{output_path}.execution.json').write_text(
-        json.dumps(record, indent=2, sort_keys=True))
+        json.dumps(record, indent=2, sort_keys=True)
+    )
 
 
-def neb_gpu_accelerated(input_path: str | Path,
-                        output_path: str | Path) -> bool:
+def neb_gpu_accelerated(input_path: str | Path, output_path: str | Path) -> bool:
     """Verify GPU activation in every QE image engine of a NEB calculation.
 
     ``neb.x`` does not echo the PW GPU banner into its parent output. Each
@@ -687,8 +760,10 @@ def neb_gpu_accelerated(input_path: str | Path,
         acceleration was active.
     """
     parent = Path(output_path)
-    if parent.is_file() and 'gpu acceleration is active' in \
-            parent.read_text(errors='replace').lower():
+    if (
+        parent.is_file()
+        and 'gpu acceleration is active' in parent.read_text(errors='replace').lower()
+    ):
         return True
     source = Path(input_path)
     text = source.read_text(errors='replace')
@@ -698,11 +773,15 @@ def neb_gpu_accelerated(input_path: str | Path,
         return False
     prefix = prefix_match.group(1)
     count = int(images_match.group(1))
-    logs = [source.parent / 'tmp' / f'{prefix}_{index}' / 'PW.out'
-            for index in range(1, count + 1)]
+    logs = [
+        source.parent / 'tmp' / f'{prefix}_{index}' / 'PW.out'
+        for index in range(1, count + 1)
+    ]
     return bool(logs) and all(
-        log.is_file() and 'gpu acceleration is active' in
-        log.read_text(errors='replace').lower() for log in logs)
+        log.is_file()
+        and 'gpu acceleration is active' in log.read_text(errors='replace').lower()
+        for log in logs
+    )
 
 
 def verify_sssp(elements, directory=SSSP_DIR, manifest=SSSP_MANIFEST) -> dict:
@@ -731,16 +810,24 @@ def verify_sssp(elements, directory=SSSP_DIR, manifest=SSSP_MANIFEST) -> dict:
         if digest != entry['md5']:
             errors.append(f'{element}:checksum_mismatch')
             continue
-        records[element] = {'filename': entry['filename'], 'md5': digest,
-                            'cutoff_wfc_Ry': float(entry['cutoff_wfc']),
-                            'cutoff_rho_Ry': float(entry['cutoff_rho'])}
-    return {'valid': not errors, 'records': records, 'errors': errors,
-            'ecutwfc_Ry': max((x['cutoff_wfc_Ry'] for x in records.values()), default=None),
-            'ecutrho_Ry': max((x['cutoff_rho_Ry'] for x in records.values()), default=None)}
+        records[element] = {
+            'filename': entry['filename'],
+            'md5': digest,
+            'cutoff_wfc_Ry': float(entry['cutoff_wfc']),
+            'cutoff_rho_Ry': float(entry['cutoff_rho']),
+        }
+    return {
+        'valid': not errors,
+        'records': records,
+        'errors': errors,
+        'ecutwfc_Ry': max((x['cutoff_wfc_Ry'] for x in records.values()), default=None),
+        'ecutrho_Ry': max((x['cutoff_rho_Ry'] for x in records.values()), default=None),
+    }
 
 
-def methane_dissociation_images(slab: Atoms, active_index: int,
-                                 n_images: int = 7) -> list[Atoms]:
+def methane_dissociation_images(
+    slab: Atoms, active_index: int, n_images: int = 7
+) -> list[Atoms]:
     """Build candidate-specific CH4(g)+* -> CH3*+H* NEB endpoints/images.
 
     Args:
@@ -764,15 +851,16 @@ def methane_dissociation_images(slab: Atoms, active_index: int,
     ch3.translate(site + np.array([0.0, 0.0, 2.0]) - ch3.get_center_of_mass())
     final += ch3
     final += Atoms('H', positions=[site + np.array([1.5, 0.0, 1.2])])
-    initial.set_cell(slab.cell); final.set_cell(slab.cell)
-    initial.set_pbc(slab.pbc); final.set_pbc(slab.pbc)
+    initial.set_cell(slab.cell)
+    final.set_cell(slab.cell)
+    initial.set_pbc(slab.pbc)
+    final.set_pbc(slab.pbc)
     images = [initial] + [initial.copy() for _ in range(n_images - 2)] + [final]
     NEB(images, method='improvedtangent').interpolate(method='idpp')
     return images
 
 
-def neb_checkpoint_images(path: str | Path,
-                          templates: list[Atoms]) -> list[Atoms]:
+def neb_checkpoint_images(path: str | Path, templates: list[Atoms]) -> list[Atoms]:
     """Recover geometry only from a QE ``*.path`` restart checkpoint.
 
     QE stores coordinates in bohr together with energies, gradients, and
@@ -793,9 +881,10 @@ def neb_checkpoint_images(path: str | Path,
             supplied image/atom counts.
     """
     if not templates or any(
-            len(image) != len(templates[0]) or
-            image.get_chemical_symbols() != templates[0].get_chemical_symbols()
-            for image in templates):
+        len(image) != len(templates[0])
+        or image.get_chemical_symbols() != templates[0].get_chemical_symbols()
+        for image in templates
+    ):
         raise ValueError('NEB checkpoint templates must share atom ordering')
     lines = Path(path).read_text(errors='replace').splitlines()
     try:
@@ -806,7 +895,8 @@ def neb_checkpoint_images(path: str | Path,
         raise ValueError('invalid QE NEB checkpoint header') from exc
     if image_count != len(templates):
         raise ValueError(
-            f'checkpoint has {image_count} images; expected {len(templates)}')
+            f'checkpoint has {image_count} images; expected {len(templates)}'
+        )
 
     recovered = []
     atom_count = len(templates[0])
@@ -825,18 +915,17 @@ def neb_checkpoint_images(path: str | Path,
                 cursor += 1
         except (ValueError, IndexError) as exc:
             raise ValueError(
-                f'invalid coordinates for checkpoint image {expected_index}') from exc
+                f'invalid coordinates for checkpoint image {expected_index}'
+            ) from exc
         if found_index != expected_index or len(coordinates) != atom_count:
-            raise ValueError(
-                f'checkpoint image order mismatch at {expected_index}')
+            raise ValueError(f'checkpoint image order mismatch at {expected_index}')
         image = template.copy()
         image.set_positions(np.asarray(coordinates) * Bohr)
         recovered.append(image)
     return recovered
 
 
-def bound_neb_restart_checkpoint(path: str | Path,
-                                 final_iteration: int) -> dict:
+def bound_neb_restart_checkpoint(path: str | Path, final_iteration: int) -> dict:
     """Set an enforceable absolute iteration ceiling in a QE NEB restart.
 
     On restart, ``neb.x`` takes ``nstep_path`` from the first four lines of
@@ -870,8 +959,7 @@ def bound_neb_restart_checkpoint(path: str | Path,
         raise ValueError('invalid QE NEB restart header') from exc
     limit = int(final_iteration)
     if limit <= current_iteration:
-        raise ValueError(
-            'NEB restart ceiling must exceed the checkpoint iteration')
+        raise ValueError('NEB restart ceiling must exceed the checkpoint iteration')
     newline = '\r\n' if lines[2].endswith('\r\n') else '\n'
     lines[2] = f'{limit:8d}{newline}'
     updated = ''.join(lines).encode()
@@ -888,8 +976,7 @@ def bound_neb_restart_checkpoint(path: str | Path,
     }
 
 
-def neb_completed_images(path: str | Path,
-                         templates: list[Atoms]) -> list[Atoms]:
+def neb_completed_images(path: str | Path, templates: list[Atoms]) -> list[Atoms]:
     """Recover the last completed NEB geometries from QE's ``*.crd`` file.
 
     A ``*.path`` restart can contain the optimizer's *next trial* coordinates,
@@ -911,13 +998,13 @@ def neb_completed_images(path: str | Path,
             incomplete or inconsistent with the trusted templates.
     """
     if not templates or any(
-            len(image) != len(templates[0]) or
-            image.get_chemical_symbols() != templates[0].get_chemical_symbols()
-            for image in templates):
+        len(image) != len(templates[0])
+        or image.get_chemical_symbols() != templates[0].get_chemical_symbols()
+        for image in templates
+    ):
         raise ValueError('NEB coordinate templates must share atom ordering')
     lines = Path(path).read_text(errors='replace').splitlines()
-    markers = {
-        'FIRST_IMAGE', 'INTERMEDIATE_IMAGE', 'LAST_IMAGE'}
+    markers = {'FIRST_IMAGE', 'INTERMEDIATE_IMAGE', 'LAST_IMAGE'}
     cursor = 0
     recovered: list[Atoms] = []
     expected_symbols = templates[0].get_chemical_symbols()
@@ -929,7 +1016,8 @@ def neb_completed_images(path: str | Path,
         marker = lines[cursor].strip()
         cursor += 1
         if cursor >= len(lines) or not lines[cursor].strip().upper().startswith(
-                'ATOMIC_POSITIONS'):
+            'ATOMIC_POSITIONS'
+        ):
             raise ValueError(f'missing ATOMIC_POSITIONS after {marker}')
         cursor += 1
         symbols: list[str] = []
@@ -956,12 +1044,14 @@ def neb_completed_images(path: str | Path,
     if len(recovered) != len(templates):
         raise ValueError(
             f'coordinate file has {len(recovered)} images; '
-            f'expected {len(templates)}')
+            f'expected {len(templates)}'
+        )
     return recovered
 
 
-def densify_neb_segment(images: list[Atoms], left_index: int,
-                        insert_count: int) -> list[Atoms]:
+def densify_neb_segment(
+    images: list[Atoms], left_index: int, insert_count: int
+) -> list[Atoms]:
     """Insert Cartesian interpolation images into one resolved path segment.
 
     This operation is deliberately local: it preserves every accepted image
@@ -988,24 +1078,29 @@ def densify_neb_segment(images: list[Atoms], left_index: int,
         raise ValueError('densification segment index is out of range')
     symbols = images[0].get_chemical_symbols()
     cell = images[0].cell.array
-    if any(image.get_chemical_symbols() != symbols or
-           not np.allclose(image.cell.array, cell) for image in images):
+    if any(
+        image.get_chemical_symbols() != symbols
+        or not np.allclose(image.cell.array, cell)
+        for image in images
+    ):
         raise ValueError('NEB images must share atom ordering and cell')
     left, right = images[left_index], images[left_index + 1]
     inserted: list[Atoms] = []
     for number in range(1, insert_count + 1):
         fraction = number / (insert_count + 1)
         image = left.copy()
-        image.positions = ((1.0 - fraction) * left.positions +
-                           fraction * right.positions)
+        image.positions = (1.0 - fraction) * left.positions + fraction * right.positions
         inserted.append(image)
-    return ([image.copy() for image in images[:left_index + 1]] + inserted +
-            [image.copy() for image in images[left_index + 1:]])
+    return (
+        [image.copy() for image in images[: left_index + 1]]
+        + inserted
+        + [image.copy() for image in images[left_index + 1 :]]
+    )
 
 
-def redistribute_neb_images_equal_arc(images: list[Atoms],
-                                      image_count: int | None = None
-                                      ) -> list[Atoms]:
+def redistribute_neb_images_equal_arc(
+    images: list[Atoms], image_count: int | None = None
+) -> list[Atoms]:
     """Redistribute a periodic path at equal collective Cartesian arc length.
 
     QE's ``from_scratch`` NEB initialization always redistributes supplied
@@ -1039,10 +1134,12 @@ def redistribute_neb_images_equal_arc(images: list[Atoms],
     symbols = images[0].get_chemical_symbols()
     cell = images[0].cell.array
     pbc = images[0].pbc
-    if any(image.get_chemical_symbols() != symbols or
-           not np.allclose(image.cell.array, cell) or
-           not np.array_equal(image.pbc, pbc)
-           for image in images):
+    if any(
+        image.get_chemical_symbols() != symbols
+        or not np.allclose(image.cell.array, cell)
+        or not np.array_equal(image.pbc, pbc)
+        for image in images
+    ):
         raise ValueError('NEB images must share atom ordering, cell, and PBC')
 
     unwrapped = [np.asarray(images[0].positions, dtype=float).copy()]
@@ -1050,11 +1147,10 @@ def redistribute_neb_images_equal_arc(images: list[Atoms],
         displacement = current.positions - previous.positions
         minimum_displacement, _ = find_mic(displacement, cell, pbc=pbc)
         unwrapped.append(unwrapped[-1] + minimum_displacement)
-    segment_lengths = np.asarray([
-        np.linalg.norm(right - left)
-        for left, right in zip(unwrapped, unwrapped[1:])])
-    if (not np.all(np.isfinite(segment_lengths)) or
-            np.any(segment_lengths <= 1.0e-12)):
+    segment_lengths = np.asarray(
+        [np.linalg.norm(right - left) for left, right in zip(unwrapped, unwrapped[1:])]
+    )
+    if not np.all(np.isfinite(segment_lengths)) or np.any(segment_lengths <= 1.0e-12):
         raise ValueError('NEB source path contains a zero-length segment')
     cumulative = np.concatenate(([0.0], np.cumsum(segment_lengths)))
     targets = np.linspace(0.0, cumulative[-1], count)
@@ -1072,10 +1168,10 @@ def redistribute_neb_images_equal_arc(images: list[Atoms],
             # number of short segments before locating the target.
             segment = int(np.searchsorted(cumulative, target, side='right') - 1)
             segment = min(segment, len(segment_lengths) - 1)
-            fraction = ((target - cumulative[segment]) /
-                        segment_lengths[segment])
-            positions = (unwrapped[segment] + fraction *
-                         (unwrapped[segment + 1] - unwrapped[segment]))
+            fraction = (target - cumulative[segment]) / segment_lengths[segment]
+            positions = unwrapped[segment] + fraction * (
+                unwrapped[segment + 1] - unwrapped[segment]
+            )
             template = images[min(output_index, len(images) - 1)]
         image = template.copy()
         image.set_positions(positions)
@@ -1083,8 +1179,12 @@ def redistribute_neb_images_equal_arc(images: list[Atoms],
     return redistributed
 
 
-def write_qe_neb_input(images: list[Atoms], path: str, prefix: str,
-                       path_config: NEBPathConfig | None = None) -> dict:
+def write_qe_neb_input(
+    images: list[Atoms],
+    path: str,
+    prefix: str,
+    path_config: NEBPathConfig | None = None,
+) -> dict:
     """Write a climbing-image neb.x input using one verified SSSP family.
 
     Args:
@@ -1103,9 +1203,9 @@ def write_qe_neb_input(images: list[Atoms], path: str, prefix: str,
         raise ValueError('NEB images must have identical atom ordering')
     engine_images = (
         redistribute_neb_images_equal_arc(images)
-        if config.restart_mode == 'from_scratch' and
-        config.precondition_equal_arc else
-        [image.copy() for image in images])
+        if config.restart_mode == 'from_scratch' and config.precondition_equal_arc
+        else [image.copy() for image in images]
+    )
     elements = sorted(set(engine_images[0].get_chemical_symbols()))
     verified = verify_sssp(elements)
     if not verified['valid']:
@@ -1113,23 +1213,33 @@ def write_qe_neb_input(images: list[Atoms], path: str, prefix: str,
     records = verified['records']
     species = '\n'.join(f" {e} 1.0 {records[e]['filename']}" for e in elements)
     cell = '\n'.join(
-        ' '.join(f'{v:.12f}' for v in row)
-        for row in engine_images[0].cell.array)
+        ' '.join(f'{v:.12f}' for v in row) for row in engine_images[0].cell.array
+    )
     positions = []
     for number, image in enumerate(engine_images):
-        tag = ('FIRST_IMAGE' if number == 0 else
-               'LAST_IMAGE' if number == len(engine_images) - 1 else
-               'INTERMEDIATE_IMAGE')
+        tag = (
+            'FIRST_IMAGE'
+            if number == 0
+            else (
+                'LAST_IMAGE'
+                if number == len(engine_images) - 1
+                else 'INTERMEDIATE_IMAGE'
+            )
+        )
         positions.append(
-            f'{tag}\nATOMIC_POSITIONS angstrom\n' + _qe_positions(
-                image, freeze_all=config.freeze_all_atoms))
+            f'{tag}\nATOMIC_POSITIONS angstrom\n'
+            + _qe_positions(image, freeze_all=config.freeze_all_atoms)
+        )
     magnetic = {'Fe', 'Co', 'Ni', 'Mn', 'Cr', 'V', 'Gd', 'Ce', 'Eu'}
     magnetization = '\n'.join(
         f" starting_magnetization({i})={0.5 if element in magnetic else 0.05}"
-        for i, element in enumerate(elements, 1))
+        for i, element in enumerate(elements, 1)
+    )
     spin_constraint = (
-        '' if config.total_magnetization is None else
-        f'\n tot_magnetization={config.total_magnetization}')
+        ''
+        if config.total_magnetization is None
+        else f'\n tot_magnetization={config.total_magnetization}'
+    )
     text = f"""BEGIN
 BEGIN_PATH_INPUT
 &PATH
@@ -1170,19 +1280,25 @@ END_POSITIONS
 END_ENGINE_INPUT
 END
 """
-    target = Path(path); target.parent.mkdir(parents=True, exist_ok=True)
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(text)
     return {
-        'path': str(target), 'n_images': len(engine_images), 'sssp': verified,
+        'path': str(target),
+        'n_images': len(engine_images),
+        'sssp': verified,
         'equal_arc_preconditioned': (
-            config.restart_mode == 'from_scratch' and
-            config.precondition_equal_arc),
+            config.restart_mode == 'from_scratch' and config.precondition_equal_arc
+        ),
     }
 
 
-def prepare_neb_image_scfs(images: list[Atoms], directory: str | Path,
-                           prefix: str,
-                           path_config: NEBPathConfig | None = None) -> dict:
+def prepare_neb_image_scfs(
+    images: list[Atoms],
+    directory: str | Path,
+    prefix: str,
+    path_config: NEBPathConfig | None = None,
+) -> dict:
     """Write independent SCF inputs that seed a difficult NEB calculation.
 
     A spin-polarized metallic path can fail before its first ionic iteration
@@ -1204,9 +1320,10 @@ def prepare_neb_image_scfs(images: list[Atoms], directory: str | Path,
     config = path_config or NEBPathConfig.coarse_preconditioner()
     config.validate()
     if not images or any(
-            len(image) != len(images[0]) or
-            image.get_chemical_symbols() != images[0].get_chemical_symbols()
-            for image in images):
+        len(image) != len(images[0])
+        or image.get_chemical_symbols() != images[0].get_chemical_symbols()
+        for image in images
+    ):
         raise ValueError('NEB images must have identical atom ordering')
     elements = sorted(set(images[0].get_chemical_symbols()))
     verified = verify_sssp(elements)
@@ -1214,19 +1331,21 @@ def prepare_neb_image_scfs(images: list[Atoms], directory: str | Path,
         raise RuntimeError(f'SSSP verification failed: {verified["errors"]}')
     records = verified['records']
     species = '\n'.join(
-        f" {element} 1.0 {records[element]['filename']}"
-        for element in elements)
+        f" {element} 1.0 {records[element]['filename']}" for element in elements
+    )
     magnetic = {'Fe', 'Co', 'Ni', 'Mn', 'Cr', 'V', 'Gd', 'Ce', 'Eu'}
     magnetization = '\n'.join(
-        f" starting_magnetization({index})="
-        f"{0.5 if element in magnetic else 0.05}"
-        for index, element in enumerate(elements, 1))
+        f" starting_magnetization({index})=" f"{0.5 if element in magnetic else 0.05}"
+        for index, element in enumerate(elements, 1)
+    )
     spin_constraint = (
-        '' if config.total_magnetization is None else
-        f'\n tot_magnetization={config.total_magnetization}')
+        ''
+        if config.total_magnetization is None
+        else f'\n tot_magnetization={config.total_magnetization}'
+    )
     cell = '\n'.join(
-        ' '.join(f'{value:.12f}' for value in row)
-        for row in images[0].cell.array)
+        ' '.join(f'{value:.12f}' for value in row) for row in images[0].cell.array
+    )
     root = Path(directory)
     root.mkdir(parents=True, exist_ok=True)
     (root / 'tmp').mkdir(exist_ok=True)
@@ -1263,12 +1382,14 @@ ATOMIC_POSITIONS angstrom
 """
         input_path = root / f'image_{index:02d}.in'
         input_path.write_text(text)
-        jobs.append({
-            'image': index,
-            'input': str(input_path),
-            'output': str(root / f'image_{index:02d}.out'),
-            'outdir': str(root / 'tmp' / f'{prefix}_{index}'),
-        })
+        jobs.append(
+            {
+                'image': index,
+                'input': str(input_path),
+                'output': str(root / f'image_{index:02d}.out'),
+                'outdir': str(root / 'tmp' / f'{prefix}_{index}'),
+            }
+        )
     manifest = {
         'prefix': prefix,
         'image_count': len(images),
@@ -1276,14 +1397,19 @@ ATOMIC_POSITIONS angstrom
         'jobs': jobs,
     }
     (root / 'image_scf_manifest.json').write_text(
-        json.dumps(manifest, indent=2, sort_keys=True))
+        json.dumps(manifest, indent=2, sort_keys=True)
+    )
     return manifest
 
 
-def run_neb(input_path: str, output_path: str, timeout_s: int = 86400,
-            execution: QEExecutionConfig | None = None,
-            restart_checkpoint: str | Path | None = None,
-            final_iteration: int | None = None) -> SolverRunResult:
+def run_neb(
+    input_path: str,
+    output_path: str,
+    timeout_s: int = 86400,
+    execution: QEExecutionConfig | None = None,
+    restart_checkpoint: str | Path | None = None,
+    final_iteration: int | None = None,
+) -> SolverRunResult:
     """Execute a Quantum ESPRESSO NEB calculation and record its provenance.
 
     Args:
@@ -1301,27 +1427,30 @@ def run_neb(input_path: str, output_path: str, timeout_s: int = 86400,
     """
     if (restart_checkpoint is None) != (final_iteration is None):
         raise ValueError(
-            'restart_checkpoint and final_iteration must be supplied together')
+            'restart_checkpoint and final_iteration must be supplied together'
+        )
     restart_bound = None
-    checkpoint_path = (Path(restart_checkpoint)
-                       if restart_checkpoint is not None else None)
-    checkpoint_before = (checkpoint_path.read_bytes()
-                         if checkpoint_path is not None else None)
+    checkpoint_path = (
+        Path(restart_checkpoint) if restart_checkpoint is not None else None
+    )
+    checkpoint_before = (
+        checkpoint_path.read_bytes() if checkpoint_path is not None else None
+    )
     if restart_checkpoint is not None:
         input_text = Path(input_path).read_text(errors='strict')
         if not re.search(
-                r"restart_mode\s*=\s*['\"]restart['\"]", input_text,
-                flags=re.IGNORECASE):
+            r"restart_mode\s*=\s*['\"]restart['\"]", input_text, flags=re.IGNORECASE
+        ):
             raise ValueError('bounded NEB execution requires restart_mode=restart')
-        match = re.search(
-            r'nstep_path\s*=\s*(\d+)', input_text, flags=re.IGNORECASE)
+        match = re.search(r'nstep_path\s*=\s*(\d+)', input_text, flags=re.IGNORECASE)
         if match is None or int(match.group(1)) != int(final_iteration):
-            raise ValueError(
-                'NEB input nstep_path must match the restart ceiling')
+            raise ValueError('NEB input nstep_path must match the restart ceiling')
         restart_bound = bound_neb_restart_checkpoint(
-            checkpoint_path, int(final_iteration))
+            checkpoint_path, int(final_iteration)
+        )
         Path(f'{output_path}.restart_bound.json').write_text(
-            json.dumps(restart_bound, indent=2, sort_keys=True))
+            json.dumps(restart_bound, indent=2, sort_keys=True)
+        )
 
     neb = resolve_qe_executable('neb.x')
     workdir = Path(input_path).resolve().parent
@@ -1339,14 +1468,20 @@ def run_neb(input_path: str, output_path: str, timeout_s: int = 86400,
     try:
         with open(output_path, 'w') as sink:
             proc = subprocess.run(
-                command, cwd=str(workdir), env=environment, stdout=sink,
-                stderr=subprocess.STDOUT, timeout=timeout_s)
+                command,
+                cwd=str(workdir),
+                env=environment,
+                stdout=sink,
+                stderr=subprocess.STDOUT,
+                timeout=timeout_s,
+            )
             returncode = proc.returncode
     except subprocess.TimeoutExpired:
         timed_out = True
         if checkpoint_path is not None and checkpoint_before is not None:
             temporary = checkpoint_path.with_name(
-                f'.{checkpoint_path.name}.pre_timeout.tmp')
+                f'.{checkpoint_path.name}.pre_timeout.tmp'
+            )
             temporary.write_bytes(checkpoint_before)
             temporary.replace(checkpoint_path)
             checkpoint_restored = True
@@ -1356,30 +1491,54 @@ def run_neb(input_path: str, output_path: str, timeout_s: int = 86400,
         # a wall-clock timeout, then propagate the interrupt to the caller.
         if checkpoint_path is not None and checkpoint_before is not None:
             temporary = checkpoint_path.with_name(
-                f'.{checkpoint_path.name}.pre_interrupt.tmp')
+                f'.{checkpoint_path.name}.pre_interrupt.tmp'
+            )
             temporary.write_bytes(checkpoint_before)
             temporary.replace(checkpoint_path)
             checkpoint_restored = True
         elapsed = time.monotonic() - started
         _execution_record(
-            input_path, output_path, command, config, elapsed, -1, False,
-            interrupted=True, checkpoint_restored=checkpoint_restored)
+            input_path,
+            output_path,
+            command,
+            config,
+            elapsed,
+            -1,
+            False,
+            interrupted=True,
+            checkpoint_restored=checkpoint_restored,
+        )
         raise
     elapsed = time.monotonic() - started
-    _execution_record(input_path, output_path, command, config, elapsed,
-                      returncode, timed_out,
-                      checkpoint_restored=checkpoint_restored)
+    _execution_record(
+        input_path,
+        output_path,
+        command,
+        config,
+        elapsed,
+        returncode,
+        timed_out,
+        checkpoint_restored=checkpoint_restored,
+    )
     text = Path(output_path).read_text(errors='replace')
     lower = text.lower()
     gpu_active = neb_gpu_accelerated(input_path, output_path)
-    converged = (returncode == 0 and 'job done' in lower and
-                 'neb: convergence achieved' in lower and
-                 'error in routine' not in lower and gpu_active)
+    converged = (
+        returncode == 0
+        and 'job done' in lower
+        and 'neb: convergence achieved' in lower
+        and 'error in routine' not in lower
+        and gpu_active
+    )
     result: SolverRunResult = {
-        'converged': converged, 'returncode': returncode,
-        'output': str(output_path), 'candidate_specific': True,
-        'execution': asdict(config), 'timed_out': timed_out,
-        'gpu_accelerated': gpu_active}
+        'converged': converged,
+        'returncode': returncode,
+        'output': str(output_path),
+        'candidate_specific': True,
+        'execution': asdict(config),
+        'timed_out': timed_out,
+        'gpu_accelerated': gpu_active,
+    }
     if restart_bound is not None:
         result['restart_bound'] = restart_bound
     if checkpoint_restored:
@@ -1387,8 +1546,9 @@ def run_neb(input_path: str, output_path: str, timeout_s: int = 86400,
     return result
 
 
-def write_qe_relax_input(atoms: Atoms, path: str, prefix: str,
-                         kpoints=(2, 2, 1)) -> dict:
+def write_qe_relax_input(
+    atoms: Atoms, path: str, prefix: str, kpoints=(2, 2, 1)
+) -> dict:
     """Write a spin-polarized, force-converged endpoint relaxation.
 
     Args:
@@ -1404,10 +1564,14 @@ def write_qe_relax_input(atoms: Atoms, path: str, prefix: str,
     verified = verify_sssp(elements)
     if not verified['valid']:
         raise RuntimeError(f'SSSP verification failed: {verified["errors"]}')
-    species = '\n'.join(f"{e} 1.0 {verified['records'][e]['filename']}" for e in elements)
+    species = '\n'.join(
+        f"{e} 1.0 {verified['records'][e]['filename']}" for e in elements
+    )
     magnetic = {'Fe', 'Co', 'Ni', 'Mn', 'Cr', 'V', 'Gd', 'Ce', 'Eu'}
-    mags = '\n'.join(f" starting_magnetization({i})={0.5 if e in magnetic else 0.05}"
-                     for i, e in enumerate(elements, 1))
+    mags = '\n'.join(
+        f" starting_magnetization({i})={0.5 if e in magnetic else 0.05}"
+        for i, e in enumerate(elements, 1)
+    )
     cell = '\n'.join(' '.join(f'{v:.12f}' for v in row) for row in atoms.cell.array)
     positions = _qe_positions(atoms)
     text = f"""&CONTROL
@@ -1434,13 +1598,15 @@ CELL_PARAMETERS angstrom
 K_POINTS automatic
  {kpoints[0]} {kpoints[1]} {kpoints[2]} 0 0 0
 """
-    target = Path(path); target.parent.mkdir(parents=True, exist_ok=True)
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(text)
     return {'path': str(target), 'sssp': verified}
 
 
-def write_qe_force_input(atoms: Atoms, path: str, prefix: str,
-                         kpoints=(2, 2, 1)) -> dict:
+def write_qe_force_input(
+    atoms: Atoms, path: str, prefix: str, kpoints=(2, 2, 1)
+) -> dict:
     """Write a fixed-geometry SCF input that prints Cartesian atomic forces.
 
     Args:
@@ -1458,13 +1624,16 @@ def write_qe_force_input(atoms: Atoms, path: str, prefix: str,
         raise RuntimeError(f'SSSP verification failed: {verified["errors"]}')
     species = '\n'.join(
         f"{element} 1.0 {verified['records'][element]['filename']}"
-        for element in elements)
+        for element in elements
+    )
     magnetic = {'Fe', 'Co', 'Ni', 'Mn', 'Cr', 'V', 'Gd', 'Ce', 'Eu'}
     mags = '\n'.join(
         f" starting_magnetization({i})={0.5 if element in magnetic else 0.05}"
-        for i, element in enumerate(elements, 1))
+        for i, element in enumerate(elements, 1)
+    )
     cell = '\n'.join(
-        ' '.join(f'{value:.12f}' for value in row) for row in atoms.cell.array)
+        ' '.join(f'{value:.12f}' for value in row) for row in atoms.cell.array
+    )
     positions = _qe_positions(atoms, include_constraints=False)
     text = f"""&CONTROL
  calculation='scf', prefix='{prefix}', pseudo_dir='{SSSP_DIR}', outdir='./tmp',
@@ -1493,8 +1662,12 @@ K_POINTS automatic
     return {'path': str(target), 'sssp': verified}
 
 
-def run_pw(input_path: str, output_path: str, timeout_s: int = 86400,
-           execution: QEExecutionConfig | None = None) -> SolverRunResult:
+def run_pw(
+    input_path: str,
+    output_path: str,
+    timeout_s: int = 86400,
+    execution: QEExecutionConfig | None = None,
+) -> SolverRunResult:
     """Execute a Quantum ESPRESSO pw.x calculation and record its provenance.
 
     Args:
@@ -1518,14 +1691,20 @@ def run_pw(input_path: str, output_path: str, timeout_s: int = 86400,
     with open(output_path, 'w') as sink:
         try:
             proc = subprocess.run(
-                command, stdout=sink, stderr=subprocess.STDOUT, cwd=str(workdir),
-                env=environment, timeout=timeout_s)
+                command,
+                stdout=sink,
+                stderr=subprocess.STDOUT,
+                cwd=str(workdir),
+                env=environment,
+                timeout=timeout_s,
+            )
             returncode = proc.returncode
         except subprocess.TimeoutExpired:
             timed_out = True
     elapsed = time.monotonic() - started
-    _execution_record(input_path, output_path, command, config, elapsed,
-                      returncode, timed_out)
+    _execution_record(
+        input_path, output_path, command, config, elapsed, returncode, timed_out
+    )
     text = Path(output_path).read_text(errors='replace')
     lower = text.lower()
     gpu_active = 'gpu acceleration is active' in lower
@@ -1533,17 +1712,24 @@ def run_pw(input_path: str, output_path: str, timeout_s: int = 86400,
     # returns zero and prints ``JOB DONE`` but is not an SCF solution. Require
     # QE's explicit convergence declaration so a graceful checkpoint can never
     # be promoted to scientific evidence.
-    converged = (returncode == 0 and 'job done' in lower and
-                 'convergence has been achieved' in lower and
-                 'convergence not achieved' not in lower and
-                 gpu_active)
-    return {'converged': converged, 'returncode': returncode,
-            'output': output_path, 'execution': asdict(config),
-            'timed_out': timed_out, 'gpu_accelerated': gpu_active}
+    converged = (
+        returncode == 0
+        and 'job done' in lower
+        and 'convergence has been achieved' in lower
+        and 'convergence not achieved' not in lower
+        and gpu_active
+    )
+    return {
+        'converged': converged,
+        'returncode': returncode,
+        'output': output_path,
+        'execution': asdict(config),
+        'timed_out': timed_out,
+        'gpu_accelerated': gpu_active,
+    }
 
 
-def relaxed_structure(output_path: str,
-                      input_path: str | Path | None = None) -> Atoms:
+def relaxed_structure(output_path: str, input_path: str | Path | None = None) -> Atoms:
     """Read the last geometry only from a cleanly completed QE relaxation.
 
     Args:
@@ -1563,12 +1749,15 @@ def relaxed_structure(output_path: str,
         source = ase_read(input_path, format='espresso-in')
         if source.get_chemical_symbols() != relaxed.get_chemical_symbols():
             raise RuntimeError(
-                'QE relaxation input/output have different atom ordering')
+                'QE relaxation input/output have different atom ordering'
+            )
         relaxed.set_constraint(source.constraints)
     return relaxed
 
 
-def parse_atomic_forces(output_path: str, expected_atoms: int | None = None) -> np.ndarray:
+def parse_atomic_forces(
+    output_path: str, expected_atoms: int | None = None
+) -> np.ndarray:
     """Read the final QE force block and return forces in eV/angstrom.
 
     Args:
@@ -1581,16 +1770,19 @@ def parse_atomic_forces(output_path: str, expected_atoms: int | None = None) -> 
     text = Path(output_path).read_text(errors='replace')
     blocks = re.findall(
         r'Forces acting on atoms[^\n]*\n(.*?)(?=\n\s*Total force|\n\s*!|\Z)',
-        text, flags=re.IGNORECASE | re.DOTALL)
+        text,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
     if not blocks:
         raise RuntimeError('QE output contains no atomic-force block')
     rows = re.findall(
         r'atom\s+\d+\s+type\s+\d+\s+force\s*=\s*'
         r'([-+0-9.Ee]+)\s+([-+0-9.Ee]+)\s+([-+0-9.Ee]+)',
-        blocks[-1], flags=re.IGNORECASE)
+        blocks[-1],
+        flags=re.IGNORECASE,
+    )
     if expected_atoms is not None and len(rows) != expected_atoms:
-        raise RuntimeError(
-            f'expected {expected_atoms} force rows, found {len(rows)}')
+        raise RuntimeError(f'expected {expected_atoms} force rows, found {len(rows)}')
     if not rows:
         raise RuntimeError('QE force block contains no parseable atoms')
     # Quantum ESPRESSO reports forces in Ry/Bohr.
@@ -1608,23 +1800,33 @@ def parse_neb_result(output_path: str) -> NEBResult:
         Convergence state, image energies, and activation barrier parsed from output.
     """
     text = Path(output_path).read_text(errors='replace')
-    energies = [float(x) for x in re.findall(r'activation energy \(->\)\s*=\s*([-+0-9.Ee]+)', text)]
-    reverse = [float(x) for x in re.findall(r'activation energy \(<-\)\s*=\s*([-+0-9.Ee]+)', text)]
+    energies = [
+        float(x)
+        for x in re.findall(r'activation energy \(->\)\s*=\s*([-+0-9.Ee]+)', text)
+    ]
+    reverse = [
+        float(x)
+        for x in re.findall(r'activation energy \(<-\)\s*=\s*([-+0-9.Ee]+)', text)
+    ]
     errors = [float(x) for x in re.findall(r'path length\s*=\s*([-+0-9.Ee]+)', text)]
     converged = 'JOB DONE' in text and 'neb: convergence achieved' in text.lower()
-    return {'converged': converged,
-            'forward_barrier_eV': energies[-1] if energies else None,
-            'reverse_barrier_eV': reverse[-1] if reverse else None,
-            'path_metric': errors[-1] if errors else None,
-            'candidate_specific': True}
+    return {
+        'converged': converged,
+        'forward_barrier_eV': energies[-1] if energies else None,
+        'reverse_barrier_eV': reverse[-1] if reverse else None,
+        'path_metric': errors[-1] if errors else None,
+        'candidate_specific': True,
+    }
 
 
-def partial_hessian(forces_plus: np.ndarray, forces_minus: np.ndarray,
-                    displacement_A: float,
-                    masses_amu: np.ndarray,
-                    reaction_direction: np.ndarray | None = None,
-                    min_reaction_mode_overlap: float = 0.5
-                    ) -> TransitionStateFrequencyResult:
+def partial_hessian(
+    forces_plus: np.ndarray,
+    forces_minus: np.ndarray,
+    displacement_A: float,
+    masses_amu: np.ndarray,
+    reaction_direction: np.ndarray | None = None,
+    min_reaction_mode_overlap: float = 0.5,
+) -> TransitionStateFrequencyResult:
     """Construct a mass-weighted partial Hessian from central force differences.
 
     Args:
@@ -1639,7 +1841,8 @@ def partial_hessian(forces_plus: np.ndarray, forces_minus: np.ndarray,
     Returns:
         Dictionary containing the computed values, status, and supporting metadata.
     """
-    plus = np.asarray(forces_plus, float); minus = np.asarray(forces_minus, float)
+    plus = np.asarray(forces_plus, float)
+    minus = np.asarray(forces_minus, float)
     if plus.shape != minus.shape or plus.ndim != 3 or displacement_A <= 0:
         raise ValueError('forces must be (3N, N, 3) central-difference arrays')
     n_atoms = plus.shape[1]
@@ -1647,7 +1850,7 @@ def partial_hessian(forces_plus: np.ndarray, forces_minus: np.ndarray,
         raise ValueError('partial Hessian dimensions are inconsistent')
     if not 0.0 <= min_reaction_mode_overlap <= 1.0:
         raise ValueError('minimum reaction-mode overlap must be in [0, 1]')
-    hessian = -(plus - minus).reshape(3*n_atoms, 3*n_atoms).T / (2 * displacement_A)
+    hessian = -(plus - minus).reshape(3 * n_atoms, 3 * n_atoms).T / (2 * displacement_A)
     hessian = 0.5 * (hessian + hessian.T)
     weights = np.repeat(np.sqrt(np.asarray(masses_amu, float)), 3)
     eigvals, eigvecs = np.linalg.eigh(hessian / np.outer(weights, weights))
@@ -1667,17 +1870,20 @@ def partial_hessian(forces_plus: np.ndarray, forces_minus: np.ndarray,
         if norm <= np.finfo(float).eps:
             raise ValueError('reaction direction must be nonzero')
         if len(imaginary_indices) == 1:
-            reaction_overlap = float(abs(np.dot(
-                eigvecs[:, int(imaginary_indices[0])], mass_weighted / norm)))
+            reaction_overlap = float(
+                abs(np.dot(eigvecs[:, int(imaginary_indices[0])], mass_weighted / norm))
+            )
             reaction_mode_valid = reaction_overlap >= min_reaction_mode_overlap
         else:
             reaction_mode_valid = False
     frequency_valid = len(imaginary_indices) == 1
     if reaction_mode_valid is not None:
         frequency_valid = frequency_valid and reaction_mode_valid
-    return {'frequencies_cm1': frequencies.tolist(),
-            'imaginary_count': int(len(imaginary_indices)),
-            'valid_transition_state': frequency_valid,
-            'mode_vectors': eigvecs.tolist(),
-            'reaction_mode_overlap': reaction_overlap,
-            'reaction_mode_valid': reaction_mode_valid}
+    return {
+        'frequencies_cm1': frequencies.tolist(),
+        'imaginary_count': int(len(imaginary_indices)),
+        'valid_transition_state': frequency_valid,
+        'mode_vectors': eigvecs.tolist(),
+        'reaction_mode_overlap': reaction_overlap,
+        'reaction_mode_valid': reaction_mode_valid,
+    }

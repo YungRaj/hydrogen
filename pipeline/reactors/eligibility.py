@@ -50,7 +50,10 @@ def is_usable_result(record: dict) -> bool:
         return False
     if bool(record.get('exceeds_equilibrium')):
         return False
-    if 'CH4_conversion' in record and finite_number(record.get('CH4_conversion')) is None:
+    if (
+        'CH4_conversion' in record
+        and finite_number(record.get('CH4_conversion')) is None
+    ):
         return False
     if 'carbon_balance_ok' in record and record.get('carbon_balance_ok') is False:
         return False
@@ -66,7 +69,10 @@ def is_rankable_result(record: dict) -> bool:
     Returns:
         Validated bool output for this operation.
     """
-    return is_usable_result(record) and finite_number(record.get('CH4_conversion')) is not None
+    return (
+        is_usable_result(record)
+        and finite_number(record.get('CH4_conversion')) is not None
+    )
 
 
 def usable_results(records) -> list:

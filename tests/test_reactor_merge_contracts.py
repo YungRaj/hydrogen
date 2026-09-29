@@ -10,7 +10,10 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from pipeline.reactors.modes import (
-    reactor_applicability, reactor_types_for_mode, validate_mode_reactors)
+    reactor_applicability,
+    reactor_types_for_mode,
+    validate_mode_reactors,
+)
 from pipeline.reactors.mechanisms import CandidateKinetics
 from pipeline.reactors.models import ReactorConfig, _kinetics_evidence
 
@@ -24,12 +27,16 @@ def _raises(message, exception_type=Exception):
             assert kind is not None and issubclass(kind, exception_type)
             assert message in str(value), (message, str(value))
             return True
+
     return Raises()
 
 
 def _validated_kinetics(candidate_id="merge-candidate"):
     row = {
-        "E_act": 0.91, "dE_H": -0.20, "dE_CH3": -0.35, "dE_C": -0.60,
+        "E_act": 0.91,
+        "dE_H": -0.20,
+        "dE_CH3": -0.35,
+        "dE_C": -0.60,
         "screening_protocol": "merge-contract-v1",
     }
     resolved = {
@@ -41,12 +48,14 @@ def _validated_kinetics(candidate_id="merge-candidate"):
         "carbon_transfer_eV": 0.45,
     }
     validation = {
-        "candidate_id": candidate_id, "complete": True,
+        "candidate_id": candidate_id,
+        "complete": True,
         "evidence_level": "converged_dft_neb_frequency",
         "resolved_kinetics_eV": resolved,
     }
     return CandidateKinetics.from_screening_row(
-        row, candidate_id=candidate_id, validation=validation)
+        row, candidate_id=candidate_id, validation=validation
+    )
 
 
 def test_reactor_modes_cannot_cross_wire_pfr_and_mmbcr():
@@ -67,30 +76,41 @@ def test_candidate_specific_kinetics_identity_and_provenance_are_complete():
     assert resolved["candidate_id"] == "merge-candidate"
     assert resolved["quantitative_status"] == "candidate_specific"
     barrier_names = {
-        "methane_activation_eV", "ch3_dehydrogenation_eV",
-        "ch2_dehydrogenation_eV", "ch_dehydrogenation_eV",
-        "h2_desorption_eV", "carbon_transfer_eV",
+        "methane_activation_eV",
+        "ch3_dehydrogenation_eV",
+        "ch2_dehydrogenation_eV",
+        "ch_dehydrogenation_eV",
+        "h2_desorption_eV",
+        "carbon_transfer_eV",
     }
     assert all(
-        resolved["provenance"][name] ==
-        "candidate_specific:converged_dft_neb_frequency"
-        for name in barrier_names)
+        resolved["provenance"][name] == "candidate_specific:converged_dft_neb_frequency"
+        for name in barrier_names
+    )
     with _raises("candidate_id mismatch", ValueError):
         CandidateKinetics.from_screening_row(
-            {"E_act": 0.8}, candidate_id="wrong",
-            validation={"candidate_id": "other", "complete": True,
-                        "evidence_level": "converged_dft_neb_frequency",
-                        "resolved_kinetics_eV": {}})
+            {"E_act": 0.8},
+            candidate_id="wrong",
+            validation={
+                "candidate_id": "other",
+                "complete": True,
+                "evidence_level": "converged_dft_neb_frequency",
+                "resolved_kinetics_eV": {},
+            },
+        )
 
 
 def test_generated_mechanism_is_balanced_and_matches_carbon_provenance():
     import cantera as ct
     import pipeline.reactors.mechanisms as mechanisms
 
-    with tempfile.TemporaryDirectory() as tmp, patch.object(
-            mechanisms, "MECHANISMS_DIR", Path(tmp)):
+    with (
+        tempfile.TemporaryDirectory() as tmp,
+        patch.object(mechanisms, "MECHANISMS_DIR", Path(tmp)),
+    ):
         path = mechanisms.write_full_mechanism(
-            "merge_candidate", kinetics=_validated_kinetics())
+            "merge_candidate", kinetics=_validated_kinetics()
+        )
         metadata = json.loads(path.with_suffix(".kinetics.json").read_text())
         gas = ct.Solution(str(path), "gas")
         surface = ct.Interface(str(path), "merge_candidate_surface", [gas])
@@ -110,8 +130,9 @@ def test_generated_mechanism_is_balanced_and_matches_carbon_provenance():
         else:
             assert declared != "legacy_gas_tracer"
 
-        evidence = _kinetics_evidence(ReactorConfig(
-            catalyst_name="merge_candidate", mechanism_file=str(path)))
+        evidence = _kinetics_evidence(
+            ReactorConfig(catalyst_name="merge_candidate", mechanism_file=str(path))
+        )
         assert evidence["kinetics_status"] == "candidate_specific"
         assert evidence["carbon_phase_model"] == declared
         assert evidence["can_exclude_candidate"] is (not carbon_is_gas)

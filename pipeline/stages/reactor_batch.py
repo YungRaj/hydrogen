@@ -31,6 +31,7 @@ class ReactorBatchServices:
         load_reference_candidate: Optional loader for a missing named solids
             judge. Its row is added only to this batch, not the discovery slate.
     """
+
     prepare_gas_mechanism: Callable
     simulate_candidate: Callable
     write_mock_mechanism: Callable
@@ -50,30 +51,38 @@ def default_reactor_batch_services() -> ReactorBatchServices:
     from pipeline.utils import save_json
     from pipeline.reactors.equilibrium import run_equilibrium_sweep
     from pipeline.reactors.scorecard import build_solids_scorecard
-    from pipeline.reactors.mechanisms import (
-        write_full_mechanism, write_gri30_subset)
+    from pipeline.reactors.mechanisms import write_full_mechanism, write_gri30_subset
     from pipeline.reactors.models import run_reactor_sweep
     from pipeline.stages.reactor import simulate_candidate
     from pipeline.stages.candidate_io import load_reactor_reference
+
     return ReactorBatchServices(
-        write_gri30_subset, simulate_candidate,
-        write_full_mechanism, run_reactor_sweep,
+        write_gri30_subset,
+        simulate_candidate,
+        write_full_mechanism,
+        run_reactor_sweep,
         check_equilibrium=run_equilibrium_sweep,
         build_scorecard=build_solids_scorecard,
         persist_scorecard=lambda scorecard: save_json(
-            scorecard, 'phase2_solids_scorecard.json', subdir='reactor'),
-        load_reference_candidate=load_reactor_reference)
+            scorecard, 'phase2_solids_scorecard.json', subdir='reactor'
+        ),
+        load_reference_candidate=load_reactor_reference,
+    )
 
 
 def run_reactor_batch_stage(
-        candidates, *, temperatures: Sequence[float],
-        reactor_types: Sequence[str], pathway_mode: str,
-        multiphysics_results_dir: str, allow_mock_inputs: bool,
-        judge_catalyst: Optional[str] = None,
-        headline_t_min: float = 1200.0,
-        headline_t_max: float | None = None,
-        services: ReactorBatchServices | None = None
-        ) -> StageOutcome[ReactorBatchState, ReactorBatchProducts]:
+    candidates,
+    *,
+    temperatures: Sequence[float],
+    reactor_types: Sequence[str],
+    pathway_mode: str,
+    multiphysics_results_dir: str,
+    allow_mock_inputs: bool,
+    judge_catalyst: Optional[str] = None,
+    headline_t_min: float = 1200.0,
+    headline_t_max: float | None = None,
+    services: ReactorBatchServices | None = None,
+) -> StageOutcome[ReactorBatchState, ReactorBatchProducts]:
     """Run candidate sweeps; mock inputs require the existing explicit opt-in.
 
     Args:
@@ -101,41 +110,59 @@ def run_reactor_batch_stage(
         if not equilibrium.get('within_tolerance', False):
             logger.warning(
                 'Equilibrium check outside tolerance '
-                f"(worst_abs_error={equilibrium.get('worst_abs_error')})")
+                f"(worst_abs_error={equilibrium.get('worst_abs_error')})"
+            )
     results = []
     if candidates is not None:
         named_rows = []
         for index, row in candidates.iterrows():
-            name = (judge_catalyst
-                    if judge_catalyst and str(row.get('candidate_id')) == judge_catalyst
-                    else f'cat_{index}')
+            name = (
+                judge_catalyst
+                if judge_catalyst and str(row.get('candidate_id')) == judge_catalyst
+                else f'cat_{index}'
+            )
             named_rows.append((name, row))
-        if (judge_catalyst and services.load_reference_candidate is not None
-                and {'PFR', 'Fluidized'}.intersection(reactor_types)
-                and not any(name == judge_catalyst for name, _ in named_rows)):
+        if (
+            judge_catalyst
+            and services.load_reference_candidate is not None
+            and {'PFR', 'Fluidized'}.intersection(reactor_types)
+            and not any(name == judge_catalyst for name, _ in named_rows)
+        ):
             reference = services.load_reference_candidate(judge_catalyst)
             if reference is not None:
                 named_rows.append((judge_catalyst, reference))
         for name, row in named_rows:
             candidate = services.simulate_candidate(
-                row, name, temperatures, reactor_types,
-                forbid_mock=not allow_mock_inputs, pathway_mode=pathway_mode,
-                multiphysics_results_dir=multiphysics_results_dir)
+                row,
+                name,
+                temperatures,
+                reactor_types,
+                forbid_mock=not allow_mock_inputs,
+                pathway_mode=pathway_mode,
+                multiphysics_results_dir=multiphysics_results_dir,
+            )
             results.extend(candidate['sweep'])
     else:
         if not allow_mock_inputs:
             raise RuntimeError('mock catalyst fallback is disabled')
-        material_class = ('MoltenMetal' if pathway_mode == 'mmbcr'
-                          else 'SolidCatalyst')
+        material_class = 'MoltenMetal' if pathway_mode == 'mmbcr' else 'SolidCatalyst'
         for name, barrier in (
-                ('NiBi_10', 0.85), ('FeC_supported', 0.65), ('CuSn_20', 1.1)):
-            mechanism = services.write_mock_mechanism(
-                name, E_act_CH4=barrier)
-            results.extend(services.run_mock_sweep(
-                name, str(mechanism), temperatures=list(temperatures),
-                reactor_types=list(reactor_types), pathway_mode=pathway_mode,
-                material_class=material_class,
-                multiphysics_results_dir=multiphysics_results_dir))
+            ('NiBi_10', 0.85),
+            ('FeC_supported', 0.65),
+            ('CuSn_20', 1.1),
+        ):
+            mechanism = services.write_mock_mechanism(name, E_act_CH4=barrier)
+            results.extend(
+                services.run_mock_sweep(
+                    name,
+                    str(mechanism),
+                    temperatures=list(temperatures),
+                    reactor_types=list(reactor_types),
+                    pathway_mode=pathway_mode,
+                    material_class=material_class,
+                    multiphysics_results_dir=multiphysics_results_dir,
+                )
+            )
     state: ReactorBatchState = {'n_simulations': len(results)}
     if equilibrium is not None:
         state['equilibrium_check'] = {
@@ -146,24 +173,32 @@ def run_reactor_batch_stage(
         # Solids are judged on single-pass X of a named (or best non-H-parked)
         # solids catalyst. MMBCR X_eq is reported separately and never ranks.
         scorecard = services.build_scorecard(
-            results, judge_catalyst=judge_catalyst,
+            results,
+            judge_catalyst=judge_catalyst,
             headline_t_min=headline_t_min,
-            headline_t_max=headline_t_max)
+            headline_t_max=headline_t_max,
+        )
         if services.persist_scorecard is not None:
             services.persist_scorecard(scorecard)
-        judge_name = (scorecard.get('judge_catalyst')
-                      or scorecard.get('headline_catalyst')
-                      or 'best_non_h_parked')
-        state.update({
-            'solids_scorecard': scorecard,
-            'best_conversion': scorecard.get('headline_solids_conversion'),
-            'best_conversion_scope': f'solids_single_pass_judge_{judge_name}',
-            'mmbcr_max_conversion': scorecard.get('mmbcr_max_conversion'),
-        })
+        judge_name = (
+            scorecard.get('judge_catalyst')
+            or scorecard.get('headline_catalyst')
+            or 'best_non_h_parked'
+        )
+        state.update(
+            {
+                'solids_scorecard': scorecard,
+                'best_conversion': scorecard.get('headline_solids_conversion'),
+                'best_conversion_scope': f'solids_single_pass_judge_{judge_name}',
+                'mmbcr_max_conversion': scorecard.get('mmbcr_max_conversion'),
+            }
+        )
     elif results:
         from pipeline.reactors.eligibility import rankable_results
+
         rankable = rankable_results(results)
         state['best_conversion'] = max(
-            (row['CH4_conversion'] for row in rankable), default=None)
+            (row['CH4_conversion'] for row in rankable), default=None
+        )
     products: ReactorBatchProducts = {'reactor_results': results}
     return StageOutcome(state=state, products=products)

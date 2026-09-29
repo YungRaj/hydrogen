@@ -9,14 +9,19 @@ from typing import Callable, Iterable, Mapping, cast
 
 from pipeline.campaigns.ledger import CampaignLedger
 from pipeline.campaigns.full_physics import (
-    FullPhysicsRequest, schedule_full_physics_cases)
+    FullPhysicsRequest,
+    schedule_full_physics_cases,
+)
 from pipeline.simulation.external_runner import run_backend
 from pipeline.transport.registry import TransportModelRegistry
 from pipeline.transport.training import CaseArtifactReference
 from pipeline.transport.training import train_and_publish_transport_model
 from pipeline.data_models.multifidelity import (
-    DesignedCase, MultiFidelityIterationResult, ScreeningDecision,
-    ScreeningQuery)
+    DesignedCase,
+    MultiFidelityIterationResult,
+    ScreeningDecision,
+    ScreeningQuery,
+)
 
 
 @dataclass(frozen=True)
@@ -31,11 +36,18 @@ class MultiFidelityCampaignServices:
 
 
 def default_campaign_services(
-        *, results_dir, registry_dir, ledger_path, targets,
-        validation_rmse_limits, ensemble_size: int = 8, ridge: float = 1e-8,
-        random_seed: int = 0, solver_runner: Callable = run_backend,
-        trainer: Callable = train_and_publish_transport_model
-        ) -> MultiFidelityCampaignServices:
+    *,
+    results_dir,
+    registry_dir,
+    ledger_path,
+    targets,
+    validation_rmse_limits,
+    ensemble_size: int = 8,
+    ridge: float = 1e-8,
+    random_seed: int = 0,
+    solver_runner: Callable = run_backend,
+    trainer: Callable = train_and_publish_transport_model,
+) -> MultiFidelityCampaignServices:
     """Bind the controller to the production solver, validator, and registry.
 
     Args:
@@ -58,39 +70,55 @@ def default_campaign_services(
 
     def execute(plan: DesignedCase) -> CaseArtifactReference:
         required = {
-            'candidate_id', 'pathway_mode', 'reactor_type', 'temperature_K',
-            'case_dir', 'model_source', 'partition'}
+            'candidate_id',
+            'pathway_mode',
+            'reactor_type',
+            'temperature_K',
+            'case_dir',
+            'model_source',
+            'partition',
+        }
         missing = required.difference(plan)
         if missing:
             raise ValueError(f'case plan lacks production inputs: {sorted(missing)}')
         solver_runner(
-            mode=plan['pathway_mode'], reactor_type=plan['reactor_type'],
+            mode=plan['pathway_mode'],
+            reactor_type=plan['reactor_type'],
             candidate_id=plan['candidate_id'],
             temperature_K=float(plan['temperature_K']),
-            case_dir=plan['case_dir'], results_dir=results_dir,
+            case_dir=plan['case_dir'],
+            results_dir=results_dir,
             model_source=plan['model_source'],
             fenics_model=plan.get('fenics_model'),
             timeout_s=int(plan.get('timeout_s', 86400)),
-            max_coupling_iterations=int(
-                plan.get('max_coupling_iterations', 20)))
+            max_coupling_iterations=int(plan.get('max_coupling_iterations', 20)),
+        )
         return CaseArtifactReference(
             candidate_id=str(plan['candidate_id']),
             pathway_mode=str(plan['pathway_mode']),
             reactor_type=str(plan['reactor_type']),
             temperature_K=float(plan['temperature_K']),
-            partition=str(plan['partition']))
+            partition=str(plan['partition']),
+        )
 
     def train(references: list[CaseArtifactReference]) -> Mapping:
         return trainer(
-            references, results_dir=results_dir, model_registry=registry,
+            references,
+            results_dir=results_dir,
+            model_registry=registry,
             targets=tuple(targets),
             validation_rmse_limits=dict(validation_rmse_limits),
-            ensemble_size=ensemble_size, ridge=ridge,
-            random_seed=random_seed)
+            ensemble_size=ensemble_size,
+            ridge=ridge,
+            random_seed=random_seed,
+        )
 
     return MultiFidelityCampaignServices(
-        execute_case=execute, train_and_publish=train,
-        load_published_model=registry.load, append_lineage=ledger.append)
+        execute_case=execute,
+        train_and_publish=train,
+        load_published_model=registry.load,
+        append_lineage=ledger.append,
+    )
 
 
 def _metric(query: Mapping, name: str, default: float = 0.0) -> float:
@@ -109,12 +137,14 @@ def _mapping_sha256(value: Mapping) -> str:
 
 
 def run_multifidelity_iteration(
-        *, designed_cases: Iterable[DesignedCase],
-        screening_queries: Iterable[ScreeningQuery],
-        services: MultiFidelityCampaignServices, referral_budget: int,
-        minimum_per_region: int = 1,
-        prior_references: Iterable[CaseArtifactReference] = ()
-        ) -> MultiFidelityIterationResult:
+    *,
+    designed_cases: Iterable[DesignedCase],
+    screening_queries: Iterable[ScreeningQuery],
+    services: MultiFidelityCampaignServices,
+    referral_budget: int,
+    minimum_per_region: int = 1,
+    prior_references: Iterable[CaseArtifactReference] = (),
+) -> MultiFidelityIterationResult:
     """Execute, train, screen, refer, and record one fail-closed iteration.
 
     Args:
@@ -134,14 +164,26 @@ def run_multifidelity_iteration(
     if not isinstance(referral_budget, int) or referral_budget < 1:
         raise ValueError('referral_budget must be a positive integer')
     queries = [dict(query) for query in screening_queries]
-    services.append_lineage('multifidelity_iteration_started', {
-        'designed_cases': [{
-            'case_id': plan.get('case_id'), 'partition': plan.get('partition'),
-            'input_sha256': _mapping_sha256(plan)} for plan in plans],
-        'screening_queries': [{
-            'query_id': query.get('query_id'),
-            'input_sha256': _mapping_sha256(query)} for query in queries],
-    })
+    services.append_lineage(
+        'multifidelity_iteration_started',
+        {
+            'designed_cases': [
+                {
+                    'case_id': plan.get('case_id'),
+                    'partition': plan.get('partition'),
+                    'input_sha256': _mapping_sha256(plan),
+                }
+                for plan in plans
+            ],
+            'screening_queries': [
+                {
+                    'query_id': query.get('query_id'),
+                    'input_sha256': _mapping_sha256(query),
+                }
+                for query in queries
+            ],
+        },
+    )
     references = []
     for plan in plans:
         if plan.get('partition') not in {'training', 'validation'}:
@@ -167,32 +209,46 @@ def run_multifidelity_iteration(
     query_ids = set()
     for query in queries:
         query_id, region = query.get('query_id'), query.get('region')
-        if (not isinstance(query_id, str) or not query_id or
-                not isinstance(region, str) or not region):
+        if (
+            not isinstance(query_id, str)
+            or not query_id
+            or not isinstance(region, str)
+            or not region
+        ):
             raise ValueError('every screening query needs query_id and region')
         if query_id in query_ids:
             raise ValueError('screening query identities must be unique')
         query_ids.add(query_id)
         prediction = model.predict(query.get('features', {}))
-        decision = cast(ScreeningDecision, {
-            'query_id': query_id, 'region': region,
-            'input_sha256': _mapping_sha256(query), **prediction})
+        decision = cast(
+            ScreeningDecision,
+            {
+                'query_id': query_id,
+                'region': region,
+                'input_sha256': _mapping_sha256(query),
+                **prediction,
+            },
+        )
         decisions.append(decision)
         if prediction.get('usable') is True:
             accepted.append(decision)
         else:
-            requests.append(FullPhysicsRequest(
-                case_id=query_id, region=region,
-                expected_improvement=_metric(query, 'expected_improvement'),
-                uncertainty=_metric(query, 'uncertainty'),
-                calibration_error=_metric(query, 'calibration_error'),
-                disagreement=_metric(query, 'disagreement'),
-                unproductive_history=_metric(query, 'unproductive_history')))
+            requests.append(
+                FullPhysicsRequest(
+                    case_id=query_id,
+                    region=region,
+                    expected_improvement=_metric(query, 'expected_improvement'),
+                    uncertainty=_metric(query, 'uncertainty'),
+                    calibration_error=_metric(query, 'calibration_error'),
+                    disagreement=_metric(query, 'disagreement'),
+                    unproductive_history=_metric(query, 'unproductive_history'),
+                )
+            )
     if requests:
         budget = min(referral_budget, len(requests))
         referrals = services.schedule_referrals(
-            requests, total_budget=budget,
-            minimum_per_region=minimum_per_region)
+            requests, total_budget=budget, minimum_per_region=minimum_per_region
+        )
     else:
         referrals = []
     summary = {
@@ -211,5 +267,6 @@ def run_multifidelity_iteration(
     }
     event = services.append_lineage('multifidelity_iteration_complete', summary)
     event_hash = event.get('event_sha256') if isinstance(event, Mapping) else None
-    return cast(MultiFidelityIterationResult, {
-        **summary, 'lineage_event_sha256': event_hash})
+    return cast(
+        MultiFidelityIterationResult, {**summary, 'lineage_event_sha256': event_hash}
+    )

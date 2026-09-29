@@ -8,9 +8,9 @@ from pipeline.data_models.stages import VQEProducts, VQEState
 from pipeline.stages.contracts import StageOutcome
 
 
-def run_vqe_stage(*, top_k: int, execute_quantum: bool,
-                  validator: Callable | None = None
-                  ) -> StageOutcome[VQEState, VQEProducts]:
+def run_vqe_stage(
+    *, top_k: int, execute_quantum: bool, validator: Callable | None = None
+) -> StageOutcome[VQEState, VQEProducts]:
     """Run candidate VQE validations with an injectable solver boundary.
 
     Args:
@@ -24,8 +24,8 @@ def run_vqe_stage(*, top_k: int, execute_quantum: bool,
     if not isinstance(top_k, int) or top_k < 0:
         raise ValueError('top_k must be a nonnegative integer')
     if validator is None:
-        from pipeline.validation.vqe_transition_state import (
-            validate_transition_state)
+        from pipeline.validation.vqe_transition_state import validate_transition_state
+
         validator = validate_transition_state
     target = 'nvidia' if execute_quantum else 'default'
     results = [

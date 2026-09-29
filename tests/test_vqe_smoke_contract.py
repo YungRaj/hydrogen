@@ -14,8 +14,7 @@ def test_cudaq_vqe_execution_is_bounded_and_variational():
     # A one-qubit Hamiltonian validates target selection, kernel construction,
     # optimization, and result parsing without paying for chemical accuracy.
     terms = [(-1.0, "Z")]
-    result = run_vqe(
-        terms, n_qubits=1, n_layers=1, max_iter=24, target="qpp-cpu")
+    result = run_vqe(terms, n_qubits=1, n_layers=1, max_iter=24, target="qpp-cpu")
     assert result.get("mock") is not True
     assert math.isfinite(result["energy_Ha"])
     assert result["variational_bound_valid"] is True

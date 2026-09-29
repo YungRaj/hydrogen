@@ -44,16 +44,21 @@ def validate_evidence_compatibility(config, loaded: dict) -> dict:
         Dictionary containing the computed values, status, and supporting metadata.
     """
     if loaded.get('valid') and config.reactor_type == 'Electrochemical':
-        from pipeline.electrochemistry.model import (
-            conditions_from_environment)
+        from pipeline.electrochemistry.model import conditions_from_environment
+
         requested = conditions_from_environment()
         artifact_phase = loaded['artifact'].get('electrolyte_phase')
-        if (requested.electrolyte_phase is not None and
-                requested.electrolyte_phase.lower() != artifact_phase):
+        if (
+            requested.electrolyte_phase is not None
+            and requested.electrolyte_phase.lower() != artifact_phase
+        ):
             return {
-                'valid': False, 'reason': 'electrolyte_phase_mismatch',
+                'valid': False,
+                'reason': 'electrolyte_phase_mismatch',
                 'requested': requested.electrolyte_phase.lower(),
-                'artifact': artifact_phase, 'path': loaded['path']}
+                'artifact': artifact_phase,
+                'path': loaded['path'],
+            }
     return loaded
 
 
@@ -64,10 +69,12 @@ def default_reactor_coupling_services() -> ReactorCouplingServices:
         A `ReactorCouplingServices` containing the default reactor coupling services result.
     """
     from pipeline.simulation.result_contract import load_validated_artifact
+
     return ReactorCouplingServices(
         load_artifact=load_validated_artifact,
         validate_compatibility=validate_evidence_compatibility,
-        couple_evidence=couple_multiphysics_evidence)
+        couple_evidence=couple_multiphysics_evidence,
+    )
 
 
 def couple_multiphysics_evidence(config, loaded: dict):
@@ -91,19 +98,19 @@ def couple_multiphysics_evidence(config, loaded: dict):
         'pathway_mode': config.pathway_mode,
         'reactor_type': config.reactor_type,
     }
-    failures = [
-        name for name, value in expected.items()
-        if artifact.get(name) != value]
+    failures = [name for name, value in expected.items() if artifact.get(name) != value]
     try:
-        if not math.isclose(float(artifact.get('temperature_K')),
-                            float(config.T_inlet_K), abs_tol=1e-6):
+        if not math.isclose(
+            float(artifact.get('temperature_K')), float(config.T_inlet_K), abs_tol=1e-6
+        ):
             failures.append('temperature_K')
     except (TypeError, ValueError):
         failures.append('temperature_K')
     if failures:
         raise ValueError(
-            'multiphysics evidence identity mismatch: ' +
-            ', '.join(sorted(set(failures))))
+            'multiphysics evidence identity mismatch: '
+            + ', '.join(sorted(set(failures)))
+        )
     fields = _CLOSURE_FIELDS.get(config.reactor_type)
     if fields is None:
         raise ValueError(f'no coupling contract for {config.reactor_type}')
@@ -111,7 +118,8 @@ def couple_multiphysics_evidence(config, loaded: dict):
     config.multiphysics_artifact = loaded
     config.reactor_closure_evidence = {
         'source': 'validated_full_physics',
-        'candidate_exclusion_authorized': False}
+        'candidate_exclusion_authorized': False,
+    }
     return config
 
 
@@ -124,8 +132,7 @@ def _apply_closure_outputs(config, outputs: dict) -> None:
         try:
             value = float(outputs[output_name])
         except (KeyError, TypeError, ValueError) as exc:
-            raise ValueError(
-                f'invalid coupling output: {output_name}') from exc
+            raise ValueError(f'invalid coupling output: {output_name}') from exc
         if not math.isfinite(value):
             raise ValueError(f'invalid coupling output: {output_name}')
         setattr(config, config_name, value)
@@ -141,9 +148,11 @@ def couple_surrogate_closure(config, decision: dict):
     Returns:
         Computed result described above.
     """
-    if (decision.get('available') is not True or
-            decision.get('source') != 'calibrated_transport_surrogate' or
-            decision.get('candidate_exclusion_authorized') is not False):
+    if (
+        decision.get('available') is not True
+        or decision.get('source') != 'calibrated_transport_surrogate'
+        or decision.get('candidate_exclusion_authorized') is not False
+    ):
         raise ValueError('cannot couple an unaccepted surrogate closure')
     _apply_closure_outputs(config, decision.get('outputs', {}))
     config.reactor_closure_evidence = decision

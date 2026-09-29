@@ -29,9 +29,13 @@ from pipeline.screening.relaxation import relax_with_record, require_relaxation
 from pipeline.screening.protocols import ORR_PROTOCOL
 
 from pipeline.utils import (
-    BASE_DIR, FUEL_CELL_DIR, setup_logger,
-    orr_overpotential, abundance_cost_penalty,
-    check_element_safety, is_valid_for_application,
+    BASE_DIR,
+    FUEL_CELL_DIR,
+    setup_logger,
+    orr_overpotential,
+    abundance_cost_penalty,
+    check_element_safety,
+    is_valid_for_application,
 )
 from pipeline.screening.surface_screener import generate_structure
 
@@ -47,8 +51,8 @@ SCREENING_PROTOCOL_ID = ORR_PROTOCOL.protocol_id
 # Zero-point energy and entropy corrections for ORR intermediates (eV)
 # From standard DFT+CHE literature (Nørskov et al., J. Phys. Chem. B, 2004)
 ZPE_CORRECTIONS = {
-    'OH': 0.35,   # ZPE(OH*) - 0.5*ZPE(H2O)
-    'O': 0.05,    # ZPE(O*)
+    'OH': 0.35,  # ZPE(OH*) - 0.5*ZPE(H2O)
+    'O': 0.05,  # ZPE(O*)
     'OOH': 0.40,  # ZPE(OOH*)
 }
 TS_CORRECTIONS = {
@@ -59,8 +63,16 @@ TS_CORRECTIONS = {
 
 # Elements with known Fenton reactivity (radical generation in acid)
 FENTON_RISK = {
-    'Fe': 3, 'Cu': 2, 'Co': 1, 'Mn': 1, 'Cr': 1,
-    'V': 1, 'Ti': 0, 'Ni': 0, 'Zn': 0, 'Mo': 0,
+    'Fe': 3,
+    'Cu': 2,
+    'Co': 1,
+    'Mn': 1,
+    'Cr': 1,
+    'V': 1,
+    'Ti': 0,
+    'Ni': 0,
+    'Zn': 0,
+    'Mo': 0,
 }
 
 
@@ -74,14 +86,14 @@ def compute_water_ref(calc) -> float:
         Computed `float` value in the units documented above.
     """
     from ase.build import molecule
+
     h2o = molecule('H2O')
     h2o.set_cell([10, 10, 10])
     h2o.center()
     h2o.pbc = True
     h2o.calc = calc
     budget = ORR_PROTOCOL.reference
-    record = relax_with_record(
-        h2o, 'reference_h2o', budget.fmax_eV_A, budget.steps)
+    record = relax_with_record(h2o, 'reference_h2o', budget.fmax_eV_A, budget.steps)
     if not record['relax_reference_h2o_converged']:
         raise RuntimeError('H2O reference relaxation did not converge')
     return h2o.get_potential_energy()
@@ -97,14 +109,14 @@ def compute_h2_ref(calc) -> float:
         Computed `float` value in the units documented above.
     """
     from ase.build import molecule
+
     h2 = molecule('H2')
     h2.set_cell([10, 10, 10])
     h2.center()
     h2.pbc = True
     h2.calc = calc
     budget = ORR_PROTOCOL.reference
-    record = relax_with_record(
-        h2, 'reference_h2', budget.fmax_eV_A, budget.steps)
+    record = relax_with_record(h2, 'reference_h2', budget.fmax_eV_A, budget.steps)
     if not record['relax_reference_h2_converged']:
         raise RuntimeError('H2 reference relaxation did not converge')
     return h2.get_potential_energy()
@@ -113,6 +125,7 @@ def compute_h2_ref(calc) -> float:
 # ═══════════════════════════════════════════════════════════════════════════════
 # ORR EVALUATION
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> dict:
     """
@@ -146,7 +159,8 @@ def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> di
         structure.calc = calc
         budget = ORR_PROTOCOL.clean
         if not require_relaxation(
-                result, structure, 'clean', budget.fmax_eV_A, budget.steps):
+            result, structure, 'clean', budget.fmax_eV_A, budget.steps
+        ):
             return result
         e_clean = structure.get_potential_energy()
         result['e_clean'] = e_clean
@@ -165,11 +179,17 @@ def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> di
         slab_oh.calc = calc
         budget = ORR_PROTOCOL.adsorbate
         if not require_relaxation(
-                result, slab_oh, 'oh', budget.fmax_eV_A, budget.steps):
+            result, slab_oh, 'oh', budget.fmax_eV_A, budget.steps
+        ):
             return result
         e_oh = slab_oh.get_potential_energy()
         # ΔG_OH* = E(slab+OH) - E(slab) - (E(H2O) - 0.5*E(H2)) + ZPE + TS
-        dG_OH = (e_oh - e_clean) - (e_h2o - 0.5 * e_h2) + ZPE_CORRECTIONS['OH'] + TS_CORRECTIONS['OH']
+        dG_OH = (
+            (e_oh - e_clean)
+            - (e_h2o - 0.5 * e_h2)
+            + ZPE_CORRECTIONS['OH']
+            + TS_CORRECTIONS['OH']
+        )
         result['dG_OH_eV'] = float(dG_OH)
 
         # 3. O* adsorption
@@ -177,12 +197,16 @@ def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> di
         o_pos = ads_base + np.array([0.0, 0.0, 1.7])
         slab_o.append(Atom('O', position=o_pos))
         slab_o.calc = calc
-        if not require_relaxation(
-                result, slab_o, 'o', budget.fmax_eV_A, budget.steps):
+        if not require_relaxation(result, slab_o, 'o', budget.fmax_eV_A, budget.steps):
             return result
         e_o = slab_o.get_potential_energy()
         # ΔG_O* = E(slab+O) - E(slab) - (E(H2O) - E(H2)) + ZPE + TS
-        dG_O = (e_o - e_clean) - (e_h2o - e_h2) + ZPE_CORRECTIONS['O'] + TS_CORRECTIONS['O']
+        dG_O = (
+            (e_o - e_clean)
+            - (e_h2o - e_h2)
+            + ZPE_CORRECTIONS['O']
+            + TS_CORRECTIONS['O']
+        )
         result['dG_O_eV'] = float(dG_O)
 
         # 4. OOH* adsorption
@@ -195,11 +219,17 @@ def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> di
         slab_ooh.append(Atom('H', position=h_pos))
         slab_ooh.calc = calc
         if not require_relaxation(
-                result, slab_ooh, 'ooh', budget.fmax_eV_A, budget.steps):
+            result, slab_ooh, 'ooh', budget.fmax_eV_A, budget.steps
+        ):
             return result
         e_ooh = slab_ooh.get_potential_energy()
         # ΔG_OOH* = E(slab+OOH) - E(slab) - (2*E(H2O) - 1.5*E(H2)) + ZPE + TS
-        dG_OOH = (e_ooh - e_clean) - (2 * e_h2o - 1.5 * e_h2) + ZPE_CORRECTIONS['OOH'] + TS_CORRECTIONS['OOH']
+        dG_OOH = (
+            (e_ooh - e_clean)
+            - (2 * e_h2o - 1.5 * e_h2)
+            + ZPE_CORRECTIONS['OOH']
+            + TS_CORRECTIONS['OOH']
+        )
         result['dG_OOH_eV'] = float(dG_OOH)
 
         # 5. ORR overpotential (4e⁻ CHE method)
@@ -241,10 +271,13 @@ def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> di
                 return result
 
         # Clamp overpotential to physical range [0, 3] V
-        result['orr_overpotential_V'] = max(0.0, min(result.get('orr_overpotential_V', 3.0), 3.0))
+        result['orr_overpotential_V'] = max(
+            0.0, min(result.get('orr_overpotential_V', 3.0), 3.0)
+        )
 
         # 10. OOD confidence — how much we trust this prediction
         from pipeline.screening.ood import compute_model_confidence
+
         conf = compute_model_confidence(genome, elements)
         result['model_confidence'] = float(conf)
         result['needs_dft_validation'] = conf < 0.5
@@ -266,33 +299,41 @@ def _extract_elements(genome: tuple) -> List[str]:
     elements = []
     if mat_class == 'MoltenMetal':
         elements.append(genome[1])
-        if genome[2] != 'None': elements.append(genome[2])
+        if genome[2] != 'None':
+            elements.append(genome[2])
     elif mat_class == 'SolidCatalyst':
         elements.append(genome[1])
-        for d in genome[5]: elements.append(d)
+        for d in genome[5]:
+            elements.append(d)
     elif mat_class == 'SAC':
         elements.append(genome[1])
     elif mat_class == 'DAC':
         elements.extend([genome[1], genome[2]])
     elif mat_class in ('MOF', 'COF'):
-        if genome[1] != 'None': elements.append(genome[1])
+        if genome[1] != 'None':
+            elements.append(genome[1])
     elif mat_class == 'Perovskite':
         elements.extend([genome[1], genome[2]])
-        if genome[3] != 'None': elements.append(genome[3])
+        if genome[3] != 'None':
+            elements.append(genome[3])
     elif mat_class == 'MetalHydride':
         elements.append(genome[1])
-        if genome[3] != 'None': elements.append(genome[3])
+        if genome[3] != 'None':
+            elements.append(genome[3])
     elif mat_class == 'MAXPhase':
         elements.extend([genome[1], genome[2]])
-        if genome[5] != 'None': elements.append(genome[5])
+        if genome[5] != 'None':
+            elements.append(genome[5])
     elif mat_class == 'HEA':
         elements.extend(list(genome[1]))
     elif mat_class == 'Spinel':
         elements.extend([genome[1], genome[2]])
-        if genome[3] != 'None': elements.append(genome[3])
+        if genome[3] != 'None':
+            elements.append(genome[3])
     elif mat_class == 'MXene':
         elements.append(genome[1])
-        if genome[5] != 'None': elements.append(genome[5])
+        if genome[5] != 'None':
+            elements.append(genome[5])
     elif mat_class == 'SAA':
         elements.extend([genome[1], genome[2]])
     elif mat_class == 'MetalFreeCarbon':
@@ -304,9 +345,17 @@ def _extract_elements(genome: tuple) -> List[str]:
 # MULTI-GPU WORKER
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def orr_worker(worker_id: int, gpu_id: int, gpu_uuid: str, task_queue: mp.Queue,
-               result_queue: mp.Queue, stop_event, candidate_threads: int = 1,
-               batched: bool = False):
+
+def orr_worker(
+    worker_id: int,
+    gpu_id: int,
+    gpu_uuid: str,
+    task_queue: mp.Queue,
+    result_queue: mp.Queue,
+    stop_event,
+    candidate_threads: int = 1,
+    batched: bool = False,
+):
     """Worker process: loads Meta eSen on assigned GPU, evaluates ORR candidates.
 
     Args:
@@ -321,6 +370,7 @@ def orr_worker(worker_id: int, gpu_id: int, gpu_uuid: str, task_queue: mp.Queue,
     """
     try:
         import os
+
         os.environ['CUDA_VISIBLE_DEVICES'] = gpu_uuid
         os.environ['OMP_NUM_THREADS'] = '1'
         os.environ['MKL_NUM_THREADS'] = '1'
@@ -330,16 +380,20 @@ def orr_worker(worker_id: int, gpu_id: int, gpu_uuid: str, task_queue: mp.Queue,
 
         # Limit CPU threads to prevent multiprocessing CPU over-subscription thrashing
         import torch
+
         torch.set_num_threads(1)
         torch.set_num_interop_threads(1)
 
         from pipeline.screening.surface_calculator import get_ocp_calculator
+
         calc = get_ocp_calculator(
-            model_name='esen-sm-conserving-all-oc25', device='cuda')
+            model_name='esen-sm-conserving-all-oc25', device='cuda'
+        )
 
         service = None
         if batched:
             from pipeline.screening.batched_calculator import BatchedInferenceService
+
             service = BatchedInferenceService(calc)
             ref_calc = service.calculator_proxy()
         else:
@@ -347,23 +401,41 @@ def orr_worker(worker_id: int, gpu_id: int, gpu_uuid: str, task_queue: mp.Queue,
         e_h2o = compute_water_ref(ref_calc)
         e_h2 = compute_h2_ref(ref_calc)
         from pipeline.screening.gpu_executor import run_worker_loop
+
         def evaluate(genome, thread_calc):
             return evaluate_orr_candidate(genome, thread_calc, e_h2o, e_h2)
+
         def error_record(genome, exc):
-            return {'genome': str(genome), 'material_class': genome[0],
-                    'valid': False, 'worker_id': worker_id, 'gpu_id': gpu_id,
-                    'screening_protocol': SCREENING_PROTOCOL_ID,
-                    'candidate_disposition': 'validation_required',
-                    'needs_dft_validation': True,
-                    'error': str(exc)[:200]}
+            return {
+                'genome': str(genome),
+                'material_class': genome[0],
+                'valid': False,
+                'worker_id': worker_id,
+                'gpu_id': gpu_id,
+                'screening_protocol': SCREENING_PROTOCOL_ID,
+                'candidate_disposition': 'validation_required',
+                'needs_dft_validation': True,
+                'error': str(exc)[:200],
+            }
+
         run_worker_loop(
-            worker_id, task_queue, result_queue, stop_event,
-            candidate_threads, batched, calc, evaluate, error_record,
-            batch_service=service, result_context={'gpu_id': gpu_id})
+            worker_id,
+            task_queue,
+            result_queue,
+            stop_event,
+            candidate_threads,
+            batched,
+            calc,
+            evaluate,
+            error_record,
+            batch_service=service,
+            result_context={'gpu_id': gpu_id},
+        )
     except Exception as e:
         logger.error(f"ORR Worker {worker_id} failed: {e}")
         try:
             from pipeline.screening.worker_supervisor import emit
+
             emit(result_queue, 'fatal', worker_id, str(e)[:500])
         except Exception:
             pass
@@ -373,8 +445,13 @@ def orr_worker(worker_id: int, gpu_id: int, gpu_uuid: str, task_queue: mp.Queue,
 # MAIN ORR SCREENING ENGINE
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def run_orr_screening(genomes: List[tuple], db_filename: str = "fc_screening.csv",
-                      workers_per_gpu: int = 2, engine: str = 'batched') -> 'pd.DataFrame':
+
+def run_orr_screening(
+    genomes: List[tuple],
+    db_filename: str = "fc_screening.csv",
+    workers_per_gpu: int = 2,
+    engine: str = 'batched',
+) -> 'pd.DataFrame':
     """
         Run parallel Meta eSen-SM ORR screening on a list of catalyst genomes.
 
@@ -391,8 +468,14 @@ def run_orr_screening(genomes: List[tuple], db_filename: str = "fc_screening.csv
         Computed `'pd.DataFrame'` result.
     """
     from pipeline.screening.gpu_executor import ScreeningRunSpec, run_gpu_screening
+
     df = run_gpu_screening(
-        genomes, db_filename, workers_per_gpu, engine, orr_worker, logger,
+        genomes,
+        db_filename,
+        workers_per_gpu,
+        engine,
+        orr_worker,
+        logger,
         ScreeningRunSpec(
             banner='META ESEN-SM ORR CATHODE CATALYST SCREENING',
             application='fuel_cell_orr',
@@ -400,20 +483,28 @@ def run_orr_screening(genomes: List[tuple], db_filename: str = "fc_screening.csv
             output_subdir='fuel_cell',
             start_message='ORR screening {count} candidates...',
             completion_label='ORR screening',
-            progress_noun='cand', protocol_id=SCREENING_PROTOCOL_ID,
-            cache_path=FUEL_CELL_DIR / 'esen_result_cache.sqlite'))
+            progress_noun='cand',
+            protocol_id=SCREENING_PROTOCOL_ID,
+            cache_path=FUEL_CELL_DIR / 'esen_result_cache.sqlite',
+        ),
+    )
 
     valid_df = df[df['valid'] == True]
     if len(valid_df) > 0:
         logger.info(f"  Valid: {len(valid_df)}/{len(df)}")
-        logger.info(f"  Best overpotential: {valid_df['orr_overpotential_V'].min():.4f} V")
-        logger.info(f"  ΔG_OH range: [{valid_df['dG_OH_eV'].min():.3f}, {valid_df['dG_OH_eV'].max():.3f}] eV")
+        logger.info(
+            f"  Best overpotential: {valid_df['orr_overpotential_V'].min():.4f} V"
+        )
+        logger.info(
+            f"  ΔG_OH range: [{valid_df['dG_OH_eV'].min():.3f}, {valid_df['dG_OH_eV'].max():.3f}] eV"
+        )
 
     return df
 
 
 if __name__ == '__main__':
     from pipeline.search.indexed_space import deterministic_tree_probes
+
     pop = deterministic_tree_probes(20)
     df = run_orr_screening(pop, db_filename="test_orr_screening.csv", workers_per_gpu=2)
     print(f"\nORR screening complete: {len(df)} candidates")

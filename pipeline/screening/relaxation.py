@@ -53,23 +53,37 @@ def _attempt(optimizer, atoms, fmax: float, steps: int, name: str) -> dict:
         max_force = _max_force(atoms)
         finite = np.isfinite(max_force) and np.isfinite(atoms.positions).all()
         converged = ase_converged and finite and max_force <= fmax
-        return {'name': name, 'converged': bool(converged),
-                'ase_converged': ase_converged, 'steps': int(optimizer.nsteps),
-                'max_force_eV_A': max_force, 'start_geometry_sha256': started,
-                'end_geometry_sha256': geometry_digest(atoms),
-                'failure_class': None if converged else (
-                    'numerical_failure' if not finite else 'force_threshold')}
+        return {
+            'name': name,
+            'converged': bool(converged),
+            'ase_converged': ase_converged,
+            'steps': int(optimizer.nsteps),
+            'max_force_eV_A': max_force,
+            'start_geometry_sha256': started,
+            'end_geometry_sha256': geometry_digest(atoms),
+            'failure_class': (
+                None
+                if converged
+                else ('numerical_failure' if not finite else 'force_threshold')
+            ),
+        }
     except Exception as exc:
-        return {'name': name, 'converged': False,
-                'ase_converged': False, 'steps': int(getattr(optimizer, 'nsteps', 0)),
-                'max_force_eV_A': None, 'start_geometry_sha256': started,
-                'end_geometry_sha256': geometry_digest(atoms),
-                'failure_class': 'optimizer_exception',
-                'error': f'{type(exc).__name__}: {str(exc)[:300]}'}
+        return {
+            'name': name,
+            'converged': False,
+            'ase_converged': False,
+            'steps': int(getattr(optimizer, 'nsteps', 0)),
+            'max_force_eV_A': None,
+            'start_geometry_sha256': started,
+            'end_geometry_sha256': geometry_digest(atoms),
+            'failure_class': 'optimizer_exception',
+            'error': f'{type(exc).__name__}: {str(exc)[:300]}',
+        }
 
 
-def relax_with_record(atoms, label: str, fmax: float, steps: int,
-                      recovery: bool = True) -> dict:
+def relax_with_record(
+    atoms, label: str, fmax: float, steps: int, recovery: bool = True
+) -> dict:
     """Relax atoms and return explicit convergence evidence.
 
         ASE's return value is intentionally checked; exhausting the step budget is
@@ -115,44 +129,82 @@ def relax_with_record(atoms, label: str, fmax: float, steps: int,
             best_force = force
             best_positions = atoms.positions.copy()
 
-    retain(_attempt(BFGS(atoms, logfile=None, maxstep=0.20), atoms,
-                    fmax, steps, 'bfgs_standard'))
+    retain(
+        _attempt(
+            BFGS(atoms, logfile=None, maxstep=0.20), atoms, fmax, steps, 'bfgs_standard'
+        )
+    )
 
     if recovery and not attempts[-1]['converged']:
         atoms.set_positions(initial_positions)
         precondition = _attempt(
             FIRE(atoms, logfile=None, dt=0.05, dtmax=0.5, maxstep=0.05),
-            atoms, max(0.25, 3.0 * fmax), max(20, steps // 2),
-            'fire_precondition')
+            atoms,
+            max(0.25, 3.0 * fmax),
+            max(20, steps // 2),
+            'fire_precondition',
+        )
         # This stage uses a deliberately loose force target and only prepares
         # the geometry; it can never satisfy the final evidence gate itself.
         precondition['qualifying'] = False
         retain(precondition)
-        retain(_attempt(BFGS(atoms, logfile=None, maxstep=0.08), atoms,
-                        fmax, 2 * steps, 'bfgs_after_fire'))
+        retain(
+            _attempt(
+                BFGS(atoms, logfile=None, maxstep=0.08),
+                atoms,
+                fmax,
+                2 * steps,
+                'bfgs_after_fire',
+            )
+        )
 
     if recovery and not attempts[-1]['converged']:
         atoms.set_positions(best_positions)
-        retain(_attempt(
-            FIRE(atoms, logfile=None, dt=0.025, dtmax=0.25, maxstep=0.03,
-                 downhill_check=True), atoms, fmax, 3 * steps,
-            'fire_small_step'))
+        retain(
+            _attempt(
+                FIRE(
+                    atoms,
+                    logfile=None,
+                    dt=0.025,
+                    dtmax=0.25,
+                    maxstep=0.03,
+                    downhill_check=True,
+                ),
+                atoms,
+                fmax,
+                3 * steps,
+                'fire_small_step',
+            )
+        )
 
-    successful = next((attempt for attempt in attempts
-                       if attempt['converged'] and attempt.get('qualifying', True)), None)
+    successful = next(
+        (
+            attempt
+            for attempt in attempts
+            if attempt['converged'] and attempt.get('qualifying', True)
+        ),
+        None,
+    )
     if successful is None:
         atoms.set_positions(best_positions)
         selected = min(
-            (attempt for attempt in attempts
-             if attempt.get('max_force_eV_A') is not None and
-             np.isfinite(attempt['max_force_eV_A'])),
-            key=lambda attempt: attempt['max_force_eV_A'], default=attempts[-1])
+            (
+                attempt
+                for attempt in attempts
+                if attempt.get('max_force_eV_A') is not None
+                and np.isfinite(attempt['max_force_eV_A'])
+            ),
+            key=lambda attempt: attempt['max_force_eV_A'],
+            default=attempts[-1],
+        )
     else:
         selected = successful
     max_force = selected.get('max_force_eV_A')
     converged = successful is not None
     total_steps = sum(attempt['steps'] for attempt in attempts)
-    failure_class = None if converged else selected.get('failure_class', 'force_threshold')
+    failure_class = (
+        None if converged else selected.get('failure_class', 'force_threshold')
+    )
     return {
         f'{prefix}_converged': converged,
         f'{prefix}_max_force_eV_A': max_force,
@@ -167,8 +219,9 @@ def relax_with_record(atoms, label: str, fmax: float, steps: int,
     }
 
 
-def require_relaxation(result: dict, atoms, label: str,
-                       fmax: float, steps: int, recovery: bool = True) -> bool:
+def require_relaxation(
+    result: dict, atoms, label: str, fmax: float, steps: int, recovery: bool = True
+) -> bool:
     """Add a relaxation record and fail the candidate closed when incomplete.
 
     Args:
@@ -190,12 +243,14 @@ def require_relaxation(result: dict, atoms, label: str,
     if record[f'relax_{label}_termination'] == 'invalid_initial_geometry':
         result['error'] = (
             f"Invalid {label} initial geometry: "
-            f"{record[f'relax_{label}_failure_class']}")
+            f"{record[f'relax_{label}_failure_class']}"
+        )
     else:
         result['error'] = (
             f"Unconverged {label} relaxation: max_force="
             f"{record[f'relax_{label}_max_force_eV_A']:.6g} eV/A after "
-            f"{record[f'relax_{label}_steps']} cumulative recovery steps")
+            f"{record[f'relax_{label}_steps']} cumulative recovery steps"
+        )
     result['needs_dft_validation'] = True
     result['candidate_disposition'] = 'validation_required'
     return False

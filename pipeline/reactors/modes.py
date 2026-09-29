@@ -12,10 +12,16 @@ from typing import Literal, TypeAlias
 
 
 PathwayModeName: TypeAlias = Literal[
-    'thermocatalytic', 'thermocatalytic_pfr',
-    'thermocatalytic_fluidized', 'mmbcr', 'ntec', 'electrochemical']
+    'thermocatalytic',
+    'thermocatalytic_pfr',
+    'thermocatalytic_fluidized',
+    'mmbcr',
+    'ntec',
+    'electrochemical',
+]
 ReactorTypeName: TypeAlias = Literal[
-    'PFR', 'Fluidized', 'MMBCR', 'NTEC', 'Electrochemical']
+    'PFR', 'Fluidized', 'MMBCR', 'NTEC', 'Electrochemical'
+]
 
 
 DEFAULT_MODE: PathwayModeName = 'thermocatalytic'
@@ -38,6 +44,7 @@ class PathwayMode:
         reactor_types: Ordered reactor implementations requested for the pathway.
         requires_specialized_validation: Configured requires specialized validation value.
     """
+
     name: PathwayModeName
     reactor_types: tuple[ReactorTypeName, ...]
     requires_specialized_validation: bool = False
@@ -46,6 +53,7 @@ class PathwayMode:
 @dataclass(frozen=True)
 class ReactorModel:
     """Physical interpretation and current fidelity of one dispatch target."""
+
     reactor_type: ReactorTypeName
     bed_or_interface: str
     cantera_model: str | None
@@ -55,47 +63,75 @@ class ReactorModel:
 
 
 _MODES = {
-    'thermocatalytic': PathwayMode(
-        'thermocatalytic', ('PFR', 'Fluidized')),
-    'thermocatalytic_pfr': PathwayMode(
-        'thermocatalytic_pfr', ('PFR',)),
+    'thermocatalytic': PathwayMode('thermocatalytic', ('PFR', 'Fluidized')),
+    'thermocatalytic_pfr': PathwayMode('thermocatalytic_pfr', ('PFR',)),
     'thermocatalytic_fluidized': PathwayMode(
-        'thermocatalytic_fluidized', ('Fluidized',)),
+        'thermocatalytic_fluidized', ('Fluidized',)
+    ),
     'mmbcr': PathwayMode('mmbcr', ('MMBCR',)),
     'ntec': PathwayMode('ntec', ('NTEC',), True),
-    'electrochemical': PathwayMode(
-        'electrochemical', ('Electrochemical',), True),
+    'electrochemical': PathwayMode('electrochemical', ('Electrochemical',), True),
 }
 
-_SOLID_CLASSES = frozenset({
-    'SolidCatalyst', 'SAC', 'DAC', 'MOF', 'COF', 'Perovskite',
-    'MetalHydride', 'MAXPhase', 'HEA', 'Spinel', 'MXene', 'SAA',
-    'MetalFreeCarbon',
-})
+_SOLID_CLASSES = frozenset(
+    {
+        'SolidCatalyst',
+        'SAC',
+        'DAC',
+        'MOF',
+        'COF',
+        'Perovskite',
+        'MetalHydride',
+        'MAXPhase',
+        'HEA',
+        'Spinel',
+        'MXene',
+        'SAA',
+        'MetalFreeCarbon',
+    }
+)
 
 REACTOR_MODELS = {
     'PFR': ReactorModel(
-        'PFR', 'fixed_packed_bed', 'staged_lagrangian_ideal_gas_reactors',
-        'heterogeneous_gas_solid_surface', _SOLID_CLASSES,
-        'screening_approximation'),
+        'PFR',
+        'fixed_packed_bed',
+        'staged_lagrangian_ideal_gas_reactors',
+        'heterogeneous_gas_solid_surface',
+        _SOLID_CLASSES,
+        'screening_approximation',
+    ),
     'Fluidized': ReactorModel(
-        'Fluidized', 'gas_solid_fluidized_bed',
+        'Fluidized',
+        'gas_solid_fluidized_bed',
         'emulsion_reactor_plus_bubble_bypass',
-        'heterogeneous_gas_solid_surface', _SOLID_CLASSES,
-        'screening_approximation'),
+        'heterogeneous_gas_solid_surface',
+        _SOLID_CLASSES,
+        'screening_approximation',
+    ),
     'MMBCR': ReactorModel(
-        'MMBCR', 'gas_bubbles_in_molten_metal',
+        'MMBCR',
+        'gas_bubbles_in_molten_metal',
         'steady_cstrs_in_series_with_interfacial_surface',
         'gas_liquid_interface_represented_as_ideal_surface_proxy',
-        frozenset({'MoltenMetal'}), 'screening_approximation'),
+        frozenset({'MoltenMetal'}),
+        'screening_approximation',
+    ),
     'NTEC': ReactorModel(
-        'NTEC', 'mechanically_agitated_liquid_solid_interface', None,
-        'coupled_mechanical_electrical_liquid_solid_pathway', None,
-        'validated_multiphysics_artifact_required'),
+        'NTEC',
+        'mechanically_agitated_liquid_solid_interface',
+        None,
+        'coupled_mechanical_electrical_liquid_solid_pathway',
+        None,
+        'validated_multiphysics_artifact_required',
+    ),
     'Electrochemical': ReactorModel(
-        'Electrochemical', 'electrode_electrolyte_interface', None,
-        'electrode_electrolyte_charge_transfer_pathway', None,
-        'validated_multiphysics_artifact_required'),
+        'Electrochemical',
+        'electrode_electrolyte_interface',
+        None,
+        'electrode_electrolyte_charge_transfer_pathway',
+        None,
+        'validated_multiphysics_artifact_required',
+    ),
 }
 
 
@@ -113,7 +149,8 @@ def resolve_pathway_mode(mode: str | None) -> PathwayMode:
         return _MODES[normalized]
     except KeyError as exc:
         raise ValueError(
-            f'unknown pathway mode {mode!r}; expected one of {MODE_CHOICES}') from exc
+            f'unknown pathway mode {mode!r}; expected one of {MODE_CHOICES}'
+        ) from exc
 
 
 def reactor_types_for_mode(mode: str | None) -> tuple[ReactorTypeName, ...]:
@@ -128,8 +165,9 @@ def reactor_types_for_mode(mode: str | None) -> tuple[ReactorTypeName, ...]:
     return resolve_pathway_mode(mode).reactor_types
 
 
-def validate_mode_reactors(mode: str | None,
-                           reactor_types: tuple[str, ...] | list[str]) -> None:
+def validate_mode_reactors(
+    mode: str | None, reactor_types: tuple[str, ...] | list[str]
+) -> None:
     """Reject cross-wiring such as an MMBCR mode dispatched into a PFR.
 
     Args:
@@ -144,11 +182,13 @@ def validate_mode_reactors(mode: str | None,
     if requested != selected.reactor_types:
         raise ValueError(
             f'mode {selected.name!r} requires reactors '
-            f'{selected.reactor_types}, received {requested}')
+            f'{selected.reactor_types}, received {requested}'
+        )
 
 
-def reactor_applicability(reactor_type: str,
-                          material_class: str | None) -> tuple[bool, str | None]:
+def reactor_applicability(
+    reactor_type: str, material_class: str | None
+) -> tuple[bool, str | None]:
     """Return physical bed/material compatibility without excluding candidates.
 
     Args:
@@ -165,7 +205,8 @@ def reactor_applicability(reactor_type: str,
         return False, 'material_class_required_for_reactor_applicability'
     if material_class not in spec.compatible_material_classes:
         return False, (
-            f'{material_class}_is_not_compatible_with_{spec.bed_or_interface}')
+            f'{material_class}_is_not_compatible_with_{spec.bed_or_interface}'
+        )
     return True, None
 
 

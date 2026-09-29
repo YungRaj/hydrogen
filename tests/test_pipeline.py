@@ -11,6 +11,7 @@ all 14 material classes. If this passes, the campaign is safe to launch.
 
 import sys, os, time, traceback
 from pathlib import Path
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
@@ -39,17 +40,27 @@ def test(name, fn):
 # 1. DESIGN SPACE
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def test_all_14_classes_generate():
-    from pipeline.search.design_space import ALL_MATERIAL_CLASSES, generate_random_genome
+    from pipeline.search.design_space import (
+        ALL_MATERIAL_CLASSES,
+        generate_random_genome,
+    )
+
     pop = [generate_random_genome() for _ in range(3000)]
     classes_seen = set(g[0] for g in pop)
-    assert len(ALL_MATERIAL_CLASSES) == 14, f"Expected 14 classes, got {len(ALL_MATERIAL_CLASSES)}"
-    assert classes_seen == set(ALL_MATERIAL_CLASSES), f"Missing: {set(ALL_MATERIAL_CLASSES) - classes_seen}"
+    assert (
+        len(ALL_MATERIAL_CLASSES) == 14
+    ), f"Expected 14 classes, got {len(ALL_MATERIAL_CLASSES)}"
+    assert classes_seen == set(
+        ALL_MATERIAL_CLASSES
+    ), f"Missing: {set(ALL_MATERIAL_CLASSES) - classes_seen}"
 
 
 def test_no_toxic_elements():
     from pipeline.search.design_space import generate_random_genome
     from pipeline.utils import TOXIC_ELEMENTS
+
     pop = [generate_random_genome() for _ in range(2000)]
     for g in pop:
         for field in g[1:]:
@@ -59,6 +70,7 @@ def test_no_toxic_elements():
 
 def test_sac_has_axial_ligand():
     from pipeline.search.design_space import generate_random_genome, SAC_AXIAL_LIGANDS
+
     sacs = [generate_random_genome('SAC') for _ in range(100)]
     assert all(len(g) == 5 for g in sacs), "SAC genome should have 5 fields"
     axials = set(g[4] for g in sacs)
@@ -67,6 +79,7 @@ def test_sac_has_axial_ligand():
 
 def test_class_weights_sum_to_1():
     from pipeline.search.design_space import CLASS_WEIGHTS
+
     total = sum(CLASS_WEIGHTS.values())
     assert abs(total - 1.0) < 0.01, f"Class weights sum to {total}, expected ~1.0"
 
@@ -75,22 +88,46 @@ def test_class_weights_sum_to_1():
 # 2. ENCODING
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def test_encode_all_classes_no_nan():
-    from pipeline.search.design_space import ALL_MATERIAL_CLASSES, generate_random_genome, encode_genome, FEATURE_DIM
+    from pipeline.search.design_space import (
+        ALL_MATERIAL_CLASSES,
+        generate_random_genome,
+        encode_genome,
+        FEATURE_DIM,
+    )
+
     for cls in ALL_MATERIAL_CLASSES:
         for _ in range(50):
             g = generate_random_genome(cls)
             feat = encode_genome(g)
-            assert feat.shape == (FEATURE_DIM,), f"{cls}: shape {feat.shape} != ({FEATURE_DIM},)"
+            assert feat.shape == (
+                FEATURE_DIM,
+            ), f"{cls}: shape {feat.shape} != ({FEATURE_DIM},)"
             assert not np.any(np.isnan(feat)), f"{cls}: NaN in encoding"
 
 
 def test_feature_dim_matches_components():
     from pipeline.search.design_space import (
-        FEATURE_DIM, N_CLASSES, N_METALS, N_SUPPORTS, N_FACETS,
-        N_COORDS, N_DOPANTS, N_CONTINUOUS
+        FEATURE_DIM,
+        N_CLASSES,
+        N_METALS,
+        N_SUPPORTS,
+        N_FACETS,
+        N_COORDS,
+        N_DOPANTS,
+        N_CONTINUOUS,
     )
-    expected = N_CLASSES + 2 * N_METALS + N_SUPPORTS + N_FACETS + N_COORDS + N_DOPANTS + N_CONTINUOUS
+
+    expected = (
+        N_CLASSES
+        + 2 * N_METALS
+        + N_SUPPORTS
+        + N_FACETS
+        + N_COORDS
+        + N_DOPANTS
+        + N_CONTINUOUS
+    )
     assert FEATURE_DIM == expected, f"FEATURE_DIM={FEATURE_DIM} != computed {expected}"
 
 
@@ -98,9 +135,15 @@ def test_feature_dim_matches_components():
 # 3. SURROGATES
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def test_ch4_surrogate_no_nan():
-    from pipeline.search.design_space import generate_random_genome, encode_genome, FEATURE_DIM
+    from pipeline.search.design_space import (
+        generate_random_genome,
+        encode_genome,
+        FEATURE_DIM,
+    )
     from pipeline.screening.surrogate_model import CatalystSurrogate
+
     model = CatalystSurrogate(input_dim=FEATURE_DIM)
     model.eval()
     pop = [generate_random_genome() for _ in range(500)]
@@ -112,8 +155,13 @@ def test_ch4_surrogate_no_nan():
 
 
 def test_orr_surrogate_no_nan():
-    from pipeline.search.design_space import generate_random_genome, encode_genome, FEATURE_DIM
+    from pipeline.search.design_space import (
+        generate_random_genome,
+        encode_genome,
+        FEATURE_DIM,
+    )
     from pipeline.screening.fc_genetic_optimizer import ORRCatalystSurrogate
+
     model = ORRCatalystSurrogate(input_dim=FEATURE_DIM)
     model.eval()
     pop = [generate_random_genome() for _ in range(500)]
@@ -128,11 +176,15 @@ def test_orr_surrogate_no_nan():
 # 4. NSGA-II
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def test_nsga2_sorts_correctly():
     from pipeline.search.design_space import generate_random_genome, FEATURE_DIM
     from pipeline.screening.fc_genetic_optimizer import (
-        ORRCatalystSurrogate, compute_orr_objectives_surrogate, fast_non_dominated_sort
+        ORRCatalystSurrogate,
+        compute_orr_objectives_surrogate,
+        fast_non_dominated_sort,
     )
+
     model = ORRCatalystSurrogate(input_dim=FEATURE_DIM)
     model.eval()
     pop = [generate_random_genome() for _ in range(500)]
@@ -144,8 +196,15 @@ def test_nsga2_sorts_correctly():
 
 
 def test_cost_and_fenton_ranges():
-    from pipeline.search.design_space import ALL_MATERIAL_CLASSES, generate_random_genome
-    from pipeline.screening.fc_genetic_optimizer import _cost_from_genome, _fenton_from_genome
+    from pipeline.search.design_space import (
+        ALL_MATERIAL_CLASSES,
+        generate_random_genome,
+    )
+    from pipeline.screening.fc_genetic_optimizer import (
+        _cost_from_genome,
+        _fenton_from_genome,
+    )
+
     for cls in ALL_MATERIAL_CLASSES:
         for _ in range(20):
             g = generate_random_genome(cls)
@@ -158,6 +217,7 @@ def test_cost_and_fenton_ranges():
 def test_metalfreecarbon_zero_cost():
     from pipeline.search.design_space import generate_random_genome
     from pipeline.screening.fc_genetic_optimizer import _cost_from_genome
+
     for _ in range(20):
         g = generate_random_genome('MetalFreeCarbon')
         c = _cost_from_genome(g)
@@ -167,39 +227,61 @@ def test_metalfreecarbon_zero_cost():
 def test_pemfc_application_scope():
     import pandas as pd
     from pipeline.search.scope import pemfc_cathode_scope, scope_pemfc_pool
+
     assert pemfc_cathode_scope(('SAC', 'Fe'))['status'] == 'candidate'
     assert pemfc_cathode_scope(('MoltenMetal', 'Ga'))['status'] == 'out_of_scope'
     assert pemfc_cathode_scope(('MetalHydride', 'La'))['status'] == 'out_of_scope'
-    frame = pd.DataFrame([
-        {'genome': "('SAC', 'Fe')", 'valid': True},
-        {'genome': "('MoltenMetal', 'Ga')", 'valid': True},
-        {'genome': "('MetalHydride', 'La')", 'valid': True},
-    ])
+    frame = pd.DataFrame(
+        [
+            {'genome': "('SAC', 'Fe')", 'valid': True},
+            {'genome': "('MoltenMetal', 'Ga')", 'valid': True},
+            {'genome': "('MetalHydride', 'La')", 'valid': True},
+        ]
+    )
     pool, summary = scope_pemfc_pool(frame)
     assert pool.genome.tolist() == ["('SAC', 'Fe')"]
-    assert summary == {'filter': 'pemfc_cathode_scope',
-                       'admissible_count': 1, 'dropped_count': 2}
+    assert summary == {
+        'filter': 'pemfc_cathode_scope',
+        'admissible_count': 1,
+        'dropped_count': 2,
+    }
 
 
 def test_novelty_time_split_benchmark():
     from pipeline.evidence.novelty_benchmark import time_split_recovery
+
     known = ('SAC', 'Fe', 'N4', 'N-graphene', 'OH')
-    training = [{'genome': ('SAC', 'Co', 'N4', 'N-graphene', 'none'),
-                 'publication_year': 2023, 'source_id': 'doi:train',
-                 'citation': 'Training et al.'}]
-    held_out = [{'genome': known, 'publication_year': 2025,
-                 'source_id': 'doi:test', 'citation': 'Test et al.'}]
+    training = [
+        {
+            'genome': ('SAC', 'Co', 'N4', 'N-graphene', 'none'),
+            'publication_year': 2023,
+            'source_id': 'doi:train',
+            'citation': 'Training et al.',
+        }
+    ]
+    held_out = [
+        {
+            'genome': known,
+            'publication_year': 2025,
+            'source_id': 'doi:test',
+            'citation': 'Test et al.',
+        }
+    ]
     result = time_split_recovery(
-        [known], held_out, cutoff_year=2024,
-        training_records=training, k=1)
+        [known], held_out, cutoff_year=2024, training_records=training, k=1
+    )
     assert result['valid'] and result['exact_recall_at_k'] == 1.0
     malformed = time_split_recovery(
-        [known], [{'genome': known}], cutoff_year=2024,
-        training_records=training, k=1)
+        [known], [{'genome': known}], cutoff_year=2024, training_records=training, k=1
+    )
     assert not malformed['valid']
     leaked = time_split_recovery(
-        [known], held_out, cutoff_year=2024,
-        training_records=[dict(held_out[0], publication_year=2024)], k=1)
+        [known],
+        held_out,
+        cutoff_year=2024,
+        training_records=[dict(held_out[0], publication_year=2024)],
+        k=1,
+    )
     assert not leaked['valid']
 
 
@@ -208,12 +290,22 @@ def test_pilot_benchmark_deduplicates_candidates():
     from pathlib import Path
     import pandas as pd
     from pipeline.evidence.pilot_benchmark import PilotSpec, load_legacy_outcomes
+
     rows = [
-        {'genome': repr(('SAC', 'Fe', 'N4', 'N-graphene', 'none')),
-         'valid': True, 'score': value} for value in (0.4, 0.6)
+        {
+            'genome': repr(('SAC', 'Fe', 'N4', 'N-graphene', 'none')),
+            'valid': True,
+            'score': value,
+        }
+        for value in (0.4, 0.6)
     ]
-    rows.append({'genome': repr(('SAC', 'Co', 'N4', 'N-graphene', 'none')),
-                 'valid': True, 'score': 0.8})
+    rows.append(
+        {
+            'genome': repr(('SAC', 'Co', 'N4', 'N-graphene', 'none')),
+            'valid': True,
+            'score': 0.8,
+        }
+    )
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / 'legacy.csv'
         pd.DataFrame(rows).to_csv(path, index=False)
@@ -227,35 +319,52 @@ def test_small_data_rankers_preserve_continuous_targets():
     import pandas as pd
     from pipeline.search.indexed_space import deterministic_tree_probes
     from pipeline.screening.small_data_ranker import (
-        TREE_ENSEMBLE_SIZE, fit_tree_ranker, merge_compatible_evidence)
+        TREE_ENSEMBLE_SIZE,
+        fit_tree_ranker,
+        merge_compatible_evidence,
+    )
+
     genomes = deterministic_tree_probes(24)
-    pyro = pd.DataFrame({'genome': [repr(g) for g in genomes], 'valid': True,
-                         'E_act': np.linspace(0.1, 2.0, len(genomes))})
+    pyro = pd.DataFrame(
+        {
+            'genome': [repr(g) for g in genomes],
+            'valid': True,
+            'E_act': np.linspace(0.1, 2.0, len(genomes)),
+        }
+    )
     ranker = fit_tree_ranker(pyro, 'turquoise_hydrogen')
     assert len(ranker.model.estimators_) == TREE_ENSEMBLE_SIZE == 256
     mean, uncertainty = ranker.predict(genomes[:5])
     assert np.all(np.isfinite(mean)) and np.all(uncertainty >= 0)
-    fast_mean, omitted_uncertainty = ranker.predict(
-        genomes[:5], uncertainty=False)
+    fast_mean, omitted_uncertainty = ranker.predict(genomes[:5], uncertainty=False)
     assert np.allclose(mean, fast_mean) and np.all(omitted_uncertainty == 0)
-    orr = pd.DataFrame({'genome': [repr(g) for g in genomes], 'valid': True,
-                        'dG_OH_eV': np.linspace(-1, 1, len(genomes)),
-                        'dG_O_eV': np.linspace(-2, 2, len(genomes)),
-                        'dG_OOH_eV': np.linspace(3, 5, len(genomes))})
+    orr = pd.DataFrame(
+        {
+            'genome': [repr(g) for g in genomes],
+            'valid': True,
+            'dG_OH_eV': np.linspace(-1, 1, len(genomes)),
+            'dG_O_eV': np.linspace(-2, 2, len(genomes)),
+            'dG_OOH_eV': np.linspace(3, 5, len(genomes)),
+        }
+    )
     ranker = fit_tree_ranker(orr, 'fuel_cell_orr')
     mean, _ = ranker.predict(genomes[:5])
     assert np.all(np.isfinite(mean)) and len(set(mean.tolist())) > 1
 
-    current = pd.DataFrame({
-        'genome': ['new', 'duplicate'],
-        'screening_protocol': ['v2', 'v2'],
-        'value': [1, 2],
-    })
-    ledger = pd.DataFrame({
-        'genome': ['old', 'wrong', 'duplicate'],
-        'screening_protocol': ['v2', 'v1', 'v2'],
-        'value': [3, 4, 5],
-    })
+    current = pd.DataFrame(
+        {
+            'genome': ['new', 'duplicate'],
+            'screening_protocol': ['v2', 'v2'],
+            'value': [1, 2],
+        }
+    )
+    ledger = pd.DataFrame(
+        {
+            'genome': ['old', 'wrong', 'duplicate'],
+            'screening_protocol': ['v2', 'v1', 'v2'],
+            'value': [3, 4, 5],
+        }
+    )
     merged = merge_compatible_evidence(current, ledger, 'v2')
     assert set(merged.genome) == {'old', 'new', 'duplicate'}
     assert merged.loc[merged.genome == 'duplicate', 'value'].iloc[0] == 2
@@ -264,6 +373,7 @@ def test_small_data_rankers_preserve_continuous_targets():
 def test_six_point_status_fails_closed():
     import tempfile
     from pipeline.evidence.campaign_status import assess_campaign
+
     with tempfile.TemporaryDirectory() as tmp:
         result = assess_campaign(tmp)
         assert not result['ready']
@@ -278,8 +388,14 @@ def test_adaptive_validation_policy():
     import tempfile
     from pathlib import Path
     from pipeline.search.adaptive_validation import (
-        allocate_validation_batch, experimental_slate, record_validation,
-        regional_calibration, priority_adjustment, persist_experimental_slate)
+        allocate_validation_batch,
+        experimental_slate,
+        record_validation,
+        regional_calibration,
+        priority_adjustment,
+        persist_experimental_slate,
+    )
+
     candidates = [
         ('SAC', 'Fe', 'N4', 'N-graphene', 'OH'),
         ('SAC', 'Co', 'N4', 'N-graphene', 'OH'),
@@ -290,15 +406,22 @@ def test_adaptive_validation_policy():
     objectives = np.array([[0.2, 1], [0.3, 1], [0.4, 1], [0.5, 1], [0.6, 1]])
     with tempfile.TemporaryDirectory() as tmp:
         db = str(Path(tmp) / 'adaptive.sqlite')
-        selected = allocate_validation_batch(candidates, objectives, 3, db, 'test',
-                                             min_per_class=1,
-                                             uncertainties=[0, 0, 0, 1, 0])
+        selected = allocate_validation_batch(
+            candidates,
+            objectives,
+            3,
+            db,
+            'test',
+            min_per_class=1,
+            uncertainties=[0, 0, 0, 1, 0],
+        )
         assert {candidates[i][0] for i in selected} == {'SAC', 'MoltenMetal', 'MXene'}
         # MetalHydride is enumerated but does not consume reserved validation slots.
         hydride_cands = candidates + [('MetalHydride', 'La', 'H2', 'None', 'None', 400)]
         hydride_obj = np.vstack([objectives, [[0.01, 1]]])
         selected_h = allocate_validation_batch(
-            hydride_cands, hydride_obj, 3, db, 'test', min_per_class=1)
+            hydride_cands, hydride_obj, 3, db, 'test', min_per_class=1
+        )
         assert 'MetalHydride' not in {hydride_cands[i][0] for i in selected_h}
         # Pyrolysis reserved slots skip every phase-unstable class (ADR 0001).
         pyro_cands = [
@@ -308,18 +431,26 @@ def test_adaptive_validation_policy():
         ]
         pyro_obj = np.array([[0.9, 1], [0.01, 1], [0.8, 1]])
         selected_p = allocate_validation_batch(
-            pyro_cands, pyro_obj, 2, db, 'turquoise_pyrolysis', min_per_class=1)
+            pyro_cands, pyro_obj, 2, db, 'turquoise_pyrolysis', min_per_class=1
+        )
         assert {pyro_cands[i][0] for i in selected_p} == {'SAC', 'MoltenMetal'}
         try:
-            allocate_validation_batch(candidates, objectives, 2, db, 'test', min_per_class=1)
+            allocate_validation_batch(
+                candidates, objectives, 2, db, 'test', min_per_class=1
+            )
         except ValueError as exc:
             assert 'cannot satisfy class quota' in str(exc)
         else:
             raise AssertionError('undersized class quota budget must fail closed')
-        record_validation(db, 'test', candidates[0], 0.2, 1.2, 'dft', False,
-                          {'source_id': 'calc:1'})
+        record_validation(
+            db, 'test', candidates[0], 0.2, 1.2, 'dft', False, {'source_id': 'calc:1'}
+        )
         stats = regional_calibration(db, 'test')
-        region = '|'.join(__import__('pipeline.search.discovery', fromlist=['discovery_region']).discovery_region(candidates[0]))
+        region = '|'.join(
+            __import__(
+                'pipeline.search.discovery', fromlist=['discovery_region']
+            ).discovery_region(candidates[0])
+        )
         assert stats[region]['mae'] == 1.0 and stats[region]['productivity'] == 0.0
         assert priority_adjustment(db, 'test', [candidates[0]]) < 0.5
         # A new region in the same class inherits class-level disagreement
@@ -329,21 +460,29 @@ def test_adaptive_validation_policy():
         assert len(slate) == 5 and len(set(slate)) == 5
         persist_experimental_slate(db, 'test', candidates, objectives, slate)
         import sqlite3
+
         with sqlite3.connect(db) as conn:
-            assert conn.execute("SELECT COUNT(*) FROM experimental_slate").fetchone()[0] == 5
+            assert (
+                conn.execute("SELECT COUNT(*) FROM experimental_slate").fetchone()[0]
+                == 5
+            )
 
 
 def test_sssp_and_candidate_neb_workflow():
     import tempfile
     from pathlib import Path
     from ase.build import fcc111
-    from pipeline.validation.qe_workflows import (verify_sssp, methane_dissociation_images,
-                                       write_qe_neb_input)
+    from pipeline.validation.qe_workflows import (
+        verify_sssp,
+        methane_dissociation_images,
+        write_qe_neb_input,
+    )
+
     encoded_elements = "Ag Al Au B Ba Bi Br C Ca Ce Cl Co Cr Cs Cu Dy Er Eu F Fe Ga Gd Ge Hf I In Ir K La Li Mg Mn Mo N Na Nb Nd Ni O P Pb Pd Pr Pt Rb Re Rh Ru S Sb Sc Se Si Sm Sn Sr Ta Te Ti V W Y Yb Zn Zr".split()
     verified = verify_sssp(encoded_elements)
     assert verified['valid'], verified['errors']
     slab = fcc111('Ni', size=(2, 2, 3), vacuum=10.0)
-    images = methane_dissociation_images(slab, active_index=len(slab)-1, n_images=5)
+    images = methane_dissociation_images(slab, active_index=len(slab) - 1, n_images=5)
     with tempfile.TemporaryDirectory() as tmp:
         result = write_qe_neb_input(images, str(Path(tmp) / 'ni_ch4.neb.in'), 'ni_ch4')
         text = Path(result['path']).read_text()
@@ -351,8 +490,10 @@ def test_sssp_and_candidate_neb_workflow():
         assert result['n_images'] == 5
 
     from pipeline.validation.dft_validator import generate_slab_scf_input
+
     slab_input = generate_slab_scf_input(
-        ['Pd', 'N'], [(0.0, 0.0, 0.0), (1.0, 1.0, 1.0)],
+        ['Pd', 'N'],
+        [(0.0, 0.0, 0.0), (1.0, 1.0, 1.0)],
         [[10.0, 0.0, 0.0], [0.0, 10.0, 0.0], [0.0, 0.0, 15.0]],
         kpoints=(1, 1, 1),
     )
@@ -364,16 +505,30 @@ def test_sssp_and_candidate_neb_workflow():
 
 def test_orr_multisite_and_corrections():
     from ase.build import fcc111
-    from pipeline.validation.orr_workflows import (ORRCorrections, enumerate_surface_sites,
-                                        apply_orr_corrections, select_lowest_site)
+    from pipeline.validation.orr_workflows import (
+        ORRCorrections,
+        enumerate_surface_sites,
+        apply_orr_corrections,
+        select_lowest_site,
+    )
+
     slab = fcc111('Pt', size=(2, 2, 3), vacuum=8.0)
     sites = enumerate_surface_sites(slab)
     assert any(x['kind'] == 'atop' for x in sites)
-    corrected = apply_orr_corrections(1.0, 2.0, 3.5,
-        ORRCorrections(electrode_potential_V=0.8, source_id='protocol:test'))
+    corrected = apply_orr_corrections(
+        1.0,
+        2.0,
+        3.5,
+        ORRCorrections(electrode_potential_V=0.8, source_id='protocol:test'),
+    )
     assert corrected['dG_OH_eV'] < 1.0
-    best = select_lowest_site([{'site_id': 'b', 'converged': True, 'E': -1},
-                               {'site_id': 'a', 'converged': True, 'E': -2}], 'E')
+    best = select_lowest_site(
+        [
+            {'site_id': 'b', 'converged': True, 'E': -1},
+            {'site_id': 'a', 'converged': True, 'E': -2},
+        ],
+        'E',
+    )
     assert best['site_id'] == 'a'
 
 
@@ -383,10 +538,13 @@ def test_production_qe_workflow_fails_closed_and_resumes():
     from pathlib import Path
     from pipeline.validation.dft_fuel_cell import converged_energy
     from pipeline.validation.production_workflow import (
-        ORR_STAGES, orr_campaign_status, qe_output_status)
+        ORR_STAGES,
+        orr_campaign_status,
+        qe_output_status,
+    )
     from pipeline.validation.dft_validator import PW_X, generate_molecule_input
-    from pipeline.validation.qe_workflows import (
-        QEExecutionConfig, build_qe_command)
+    from pipeline.validation.qe_workflows import QEExecutionConfig, build_qe_command
+
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         partial = root / 'candidate_clean.out'
@@ -395,10 +553,12 @@ def test_production_qe_workflow_fails_closed_and_resumes():
         assert converged_energy(partial) is None
         status = orr_campaign_status(root, 'candidate')
         assert not status['complete'] and status['next_stage'] == 'clean'
-        complete = ('GPU acceleration is ACTIVE.\n'
-                    '! total energy = -10.000000 Ry\n'
-                    'convergence has been achieved\n'
-                    'End of BFGS Geometry Optimization\nJOB DONE\n')
+        complete = (
+            'GPU acceleration is ACTIVE.\n'
+            '! total energy = -10.000000 Ry\n'
+            'convergence has been achieved\n'
+            'End of BFGS Geometry Optimization\nJOB DONE\n'
+        )
         for stage in ORR_STAGES:
             (root / f'candidate_{stage}.out').write_text(complete)
         status = orr_campaign_status(root, 'candidate')
@@ -406,8 +566,12 @@ def test_production_qe_workflow_fails_closed_and_resumes():
         assert converged_energy(root / 'candidate_h2.out') == -10.0
 
         molecule = generate_molecule_input(
-            ['H', 'H'], [(7.5, 7.5, 7.13), (7.5, 7.5, 7.87)],
-            15.0, 'h2_test', calculation='scf')
+            ['H', 'H'],
+            [(7.5, 7.5, 7.13), (7.5, 7.5, 7.87)],
+            15.0,
+            'h2_test',
+            calculation='scf',
+        )
         assert "nspin = 1" in molecule
         assert "occupations = 'fixed'" in molecule
         assert "K_POINTS {gamma}" in molecule
@@ -420,11 +584,12 @@ def test_production_qe_workflow_fails_closed_and_resumes():
         mpi.chmod(0o755)
         with patch.dict(os.environ, {'PW_X': str(pw), 'MPIEXEC': str(mpi)}):
             command = build_qe_command(
-                PW_X, str(root / 'h2.in'),
-                QEExecutionConfig(mpi_ranks=4, omp_threads=1, kpoint_pools=2))
+                PW_X,
+                str(root / 'h2.in'),
+                QEExecutionConfig(mpi_ranks=4, omp_threads=1, kpoint_pools=2),
+            )
         assert isinstance(command, list)
-        assert command[-4:] == ['-nk', '2', '-in',
-                                str((root / 'h2.in').resolve())]
+        assert command[-4:] == ['-nk', '2', '-in', str((root / 'h2.in').resolve())]
         assert command[-5].endswith('/pw.x')
         try:
             QEExecutionConfig(mpi_ranks=4, image_groups=3).validate(neb=True)
@@ -439,6 +604,7 @@ def test_validation_task_queue_is_candidate_keyed_and_resumable():
     from pathlib import Path
     from pipeline.validation.task_queue import ValidationTaskQueue
     from pipeline.search.discovery import candidate_id
+
     genome = ('SAC', 'Fe', 'N4', 'N-graphene', 'OH')
     with tempfile.TemporaryDirectory() as tmp:
         queue = ValidationTaskQueue(Path(tmp) / 'tasks.sqlite')
@@ -446,25 +612,40 @@ def test_validation_task_queue_is_candidate_keyed_and_resumable():
         assert cid == candidate_id(genome)
         assert queue.claim('turquoise_hydrogen', cid, 'screening_dft', 'v1')
         assert not queue.claim('turquoise_hydrogen', cid, 'screening_dft', 'v1')
-        queue.finish('turquoise_hydrogen', cid, 'screening_dft', 'v1',
-                     True, result_path='result.json')
-        assert queue.summary('turquoise_hydrogen', 'screening_dft') == {
-            'converged': 1}
+        queue.finish(
+            'turquoise_hydrogen',
+            cid,
+            'screening_dft',
+            'v1',
+            True,
+            result_path='result.json',
+        )
+        assert queue.summary('turquoise_hydrogen', 'screening_dft') == {'converged': 1}
         queue.enqueue('turquoise_hydrogen', genome, 'screening_dft', 'v1')
-        assert queue.summary('turquoise_hydrogen', 'screening_dft') == {
-            'converged': 1}
+        assert queue.summary('turquoise_hydrogen', 'screening_dft') == {'converged': 1}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 5. ELEMENT EXTRACTORS (4 copies must agree)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def test_element_extractors_consistent():
-    from pipeline.search.design_space import ALL_MATERIAL_CLASSES, generate_random_genome
-    from pipeline.screening.fc_genetic_optimizer import _extract_elements_from_genome as fc_extract
-    from pipeline.screening.genetic_optimizer import _extract_elements_from_genome as methane_extract
-    from pipeline.screening.surface_screener import _extract_elements as screener_extract
+    from pipeline.search.design_space import (
+        ALL_MATERIAL_CLASSES,
+        generate_random_genome,
+    )
+    from pipeline.screening.fc_genetic_optimizer import (
+        _extract_elements_from_genome as fc_extract,
+    )
+    from pipeline.screening.genetic_optimizer import (
+        _extract_elements_from_genome as methane_extract,
+    )
+    from pipeline.screening.surface_screener import (
+        _extract_elements as screener_extract,
+    )
     from pipeline.screening.fc_screener import _extract_elements as fc_screener_extract
+
     for cls in ALL_MATERIAL_CLASSES:
         for _ in range(20):
             g = generate_random_genome(cls)
@@ -485,10 +666,15 @@ def test_element_extractors_consistent():
 # 6. STRUCTURE GENERATION
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def test_structure_generation_all_classes():
-    from pipeline.search.design_space import ALL_MATERIAL_CLASSES, generate_random_genome
+    from pipeline.search.design_space import (
+        ALL_MATERIAL_CLASSES,
+        generate_random_genome,
+    )
     from pipeline.screening.surface_screener import generate_structure
     from scipy.spatial.distance import pdist
+
     for cls in ALL_MATERIAL_CLASSES:
         for _ in range(20):
             g = generate_random_genome(cls)
@@ -498,8 +684,7 @@ def test_structure_generation_all_classes():
             assert mc == cls, f"{cls}: returned class {mc}"
             assert 'X' not in atoms.get_chemical_symbols(), f"{cls}: dummy atom"
             if len(atoms) > 1:
-                assert pdist(atoms.positions).min() > 0.45, (
-                    f"{cls}: overlapping atoms")
+                assert pdist(atoms.positions).min() > 0.45, f"{cls}: overlapping atoms"
 
 
 def test_structure_generation_is_deterministic_and_genome_sensitive():
@@ -509,30 +694,48 @@ def test_structure_generation_is_deterministic_and_genome_sensitive():
 
     def fingerprint(genome):
         atoms, _, _ = generate_structure(genome)
-        payload = ('|'.join(atoms.get_chemical_symbols()).encode() +
-                   np.asarray(atoms.positions).round(8).tobytes() +
-                   np.asarray(atoms.cell).round(8).tobytes())
+        payload = (
+            '|'.join(atoms.get_chemical_symbols()).encode()
+            + np.asarray(atoms.positions).round(8).tobytes()
+            + np.asarray(atoms.cell).round(8).tobytes()
+        )
         return hashlib.sha256(payload).hexdigest()
 
-    candidate = ('SolidCatalyst', 'Ni', 'Al2O3', 'fcc111', 0.0,
-                 ('Cu', 'Fe', 'Co'), 3, 1)
-    random.seed(1); first = fingerprint(candidate)
-    random.seed(999); second = fingerprint(candidate)
+    candidate = (
+        'SolidCatalyst',
+        'Ni',
+        'Al2O3',
+        'fcc111',
+        0.0,
+        ('Cu', 'Fe', 'Co'),
+        3,
+        1,
+    )
+    random.seed(1)
+    first = fingerprint(candidate)
+    random.seed(999)
+    second = fingerprint(candidate)
     assert first == second
 
     pairs = [
-        (('SolidCatalyst', 'Ni', 'Al2O3', 'fcc111', 0.0, (), 1, 0),
-         ('SolidCatalyst', 'Ni', 'Graphene', 'fcc111', 0.0, (), 1, 0)),
-        (('SAC', 'Fe', 'N4', 'N-graphene', 'none'),
-         ('SAC', 'Fe', 'N4', 'BN_sheet', 'OH')),
-        (('MOF', 'Fe', 'BDC', 'N4', 4.0),
-         ('MOF', 'Fe', 'TCPP', 'N4', 20.0)),
-        (('MAXPhase', 'Ti', 'Al', 'C', 1, 'None', 'basal_0001'),
-         ('MAXPhase', 'Ti', 'Al', 'N', 3, 'None', 'edge_1120')),
-        (('MXene', 'Ti', 'C', 1, 'O', 'None'),
-         ('MXene', 'Ti', 'N', 3, 'F', 'None')),
-        (('MetalFreeCarbon', 'pyridinic', 0.02, 'none', 'graphene', 'B'),
-         ('MetalFreeCarbon', 'graphitic', 0.20, 'divacancy', 'CNT', 'P')),
+        (
+            ('SolidCatalyst', 'Ni', 'Al2O3', 'fcc111', 0.0, (), 1, 0),
+            ('SolidCatalyst', 'Ni', 'Graphene', 'fcc111', 0.0, (), 1, 0),
+        ),
+        (
+            ('SAC', 'Fe', 'N4', 'N-graphene', 'none'),
+            ('SAC', 'Fe', 'N4', 'BN_sheet', 'OH'),
+        ),
+        (('MOF', 'Fe', 'BDC', 'N4', 4.0), ('MOF', 'Fe', 'TCPP', 'N4', 20.0)),
+        (
+            ('MAXPhase', 'Ti', 'Al', 'C', 1, 'None', 'basal_0001'),
+            ('MAXPhase', 'Ti', 'Al', 'N', 3, 'None', 'edge_1120'),
+        ),
+        (('MXene', 'Ti', 'C', 1, 'O', 'None'), ('MXene', 'Ti', 'N', 3, 'F', 'None')),
+        (
+            ('MetalFreeCarbon', 'pyridinic', 0.02, 'none', 'graphene', 'B'),
+            ('MetalFreeCarbon', 'graphitic', 0.20, 'divacancy', 'CNT', 'P'),
+        ),
     ]
     for left, right in pairs:
         assert fingerprint(left) != fingerprint(right)
@@ -542,32 +745,44 @@ def test_structure_generation_is_deterministic_and_genome_sensitive():
 # 7. PEMFC MODEL
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def test_tafel_covers_all_classes():
     from pipeline.search.design_space import ALL_MATERIAL_CLASSES
     from pipeline.fuel_cell.pemfc import TAFEL_SLOPE_BY_CLASS
+
     for cls in ALL_MATERIAL_CLASSES:
         assert cls in TAFEL_SLOPE_BY_CLASS, f"Missing Tafel slope for {cls}"
 
 
 def test_pemfc_power_monotonic_with_eta():
     from pipeline.fuel_cell.pemfc import simulate_pemfc, PEMFCConfig
+
     etas = [0.25, 0.30, 0.35, 0.40, 0.50, 0.60, 0.80]
     results = [simulate_pemfc(PEMFCConfig(orr_overpotential_V=e)) for e in etas]
     powers = [r['peak_power_W_cm2'] for r in results]
     for i in range(len(powers) - 1):
-        assert powers[i] >= powers[i+1], f"Power not monotonic: eta={etas[i]}->{etas[i+1]}"
+        assert (
+            powers[i] >= powers[i + 1]
+        ), f"Power not monotonic: eta={etas[i]}->{etas[i+1]}"
 
 
 def test_tafel_slope_affects_power():
     from pipeline.fuel_cell.pemfc import simulate_pemfc, PEMFCConfig
-    r_low = simulate_pemfc(PEMFCConfig(orr_overpotential_V=0.35, orr_tafel_slope_mV_dec=65))
-    r_high = simulate_pemfc(PEMFCConfig(orr_overpotential_V=0.35, orr_tafel_slope_mV_dec=130))
-    assert r_low['peak_power_W_cm2'] > r_high['peak_power_W_cm2'], \
-        f"Lower Tafel should give higher power: {r_low['peak_power_W_cm2']} vs {r_high['peak_power_W_cm2']}"
+
+    r_low = simulate_pemfc(
+        PEMFCConfig(orr_overpotential_V=0.35, orr_tafel_slope_mV_dec=65)
+    )
+    r_high = simulate_pemfc(
+        PEMFCConfig(orr_overpotential_V=0.35, orr_tafel_slope_mV_dec=130)
+    )
+    assert (
+        r_low['peak_power_W_cm2'] > r_high['peak_power_W_cm2']
+    ), f"Lower Tafel should give higher power: {r_low['peak_power_W_cm2']} vs {r_high['peak_power_W_cm2']}"
 
 
 def test_pemfc_efficiency_in_range():
     from pipeline.fuel_cell.pemfc import simulate_pemfc, PEMFCConfig
+
     r = simulate_pemfc(PEMFCConfig(orr_overpotential_V=0.35))
     eff = r['efficiency_at_peak']
     assert 0.10 < eff < 0.60, f"Efficiency {eff} out of physical range"
@@ -577,38 +792,49 @@ def test_pemfc_efficiency_in_range():
 # 8. STACK MODEL
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def test_stack_model():
     from pipeline.fuel_cell.stack import model_stack, StackConfig
+
     stack = model_stack(StackConfig(cell_voltage_V=0.65, current_density_A_cm2=1.5))
     assert stack['net_power_kW'] > 0, f"Negative net power: {stack['net_power_kW']}"
-    assert 0 < stack['system_efficiency'] < 1, f"Efficiency out of range: {stack['system_efficiency']}"
+    assert (
+        0 < stack['system_efficiency'] < 1
+    ), f"Efficiency out of range: {stack['system_efficiency']}"
     assert stack['cost_per_kW'] > 0, f"Negative cost: {stack['cost_per_kW']}"
 
 
 def test_tea_is_scenario_labelled_and_unclamped():
     from pipeline.economics.tea import estimate_scenario_range
+
     low_conversion = estimate_scenario_range(0.10)
     high_conversion = estimate_scenario_range(0.90)
     assert low_conversion['max_usd_kg'] > low_conversion['min_usd_kg']
-    assert (low_conversion['estimates']['base']['h2_cost_usd_kg'] >
-            high_conversion['estimates']['base']['h2_cost_usd_kg'])
+    assert (
+        low_conversion['estimates']['base']['h2_cost_usd_kg']
+        > high_conversion['estimates']['base']['h2_cost_usd_kg']
+    )
     assert all(
         value['evidence_level'] == 'screening_scenario_not_measured_tea'
-        for value in low_conversion['estimates'].values())
+        for value in low_conversion['estimates'].values()
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 9. CHE / UTILS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def test_orr_overpotential_ideal():
     from pipeline.utils import orr_overpotential
+
     eta, rds = orr_overpotential(1.23, 2.46, 3.69)
     assert abs(eta) < 0.001, f"Ideal overpotential should be ~0, got {eta}"
 
 
 def test_abundance_cost_penalty():
     from pipeline.utils import abundance_cost_penalty
+
     assert abundance_cost_penalty(['Fe']) == 0.0, "Fe should be zero cost"
     assert abundance_cost_penalty(['Ir']) == -2.0, "Ir should be max penalty"
     assert abundance_cost_penalty(['Fe', 'Ir']) < 0, "Geo mean should catch Ir"
@@ -619,30 +845,50 @@ def test_abundance_cost_penalty():
 # 10. REPORT GENERATOR
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def test_report_campaign_path():
     from pipeline.evidence.report_generator import generate_full_report
-    path = generate_full_report({
-        'phase5_ga': {'total_evaluated': 1000},
-        'phase5_stack': {'best_power_W_cm2': 1.35, 'best_efficiency': 0.31, 'min_overpotential_V': 0.32},
-    })
+
+    path = generate_full_report(
+        {
+            'phase5_ga': {'total_evaluated': 1000},
+            'phase5_stack': {
+                'best_power_W_cm2': 1.35,
+                'best_efficiency': 0.31,
+                'min_overpotential_V': 0.32,
+            },
+        }
+    )
     with open(path) as f:
         content = f.read()
-    assert 'N/A' not in content.split('FC catalysts')[1].split('\n')[0], "FC row shows N/A in campaign mode"
+    assert (
+        'N/A' not in content.split('FC catalysts')[1].split('\n')[0]
+    ), "FC row shows N/A in campaign mode"
 
 
 def test_report_orchestrator_path():
     from pipeline.evidence.report_generator import generate_full_report
-    path = generate_full_report({
-        'phase5': {'n_cathodes_screened': 137, 'best_power_W_cm2': 1.2,
-                   'best_efficiency': 0.28, 'min_overpotential_V': 0.35},
-    })
+
+    path = generate_full_report(
+        {
+            'phase5': {
+                'n_cathodes_screened': 137,
+                'best_power_W_cm2': 1.2,
+                'best_efficiency': 0.28,
+                'min_overpotential_V': 0.35,
+            },
+        }
+    )
     with open(path) as f:
         content = f.read()
-    assert 'N/A' not in content.split('PEMFC power')[1].split('\n')[0], "PEMFC row shows N/A in orchestrator mode"
+    assert (
+        'N/A' not in content.split('PEMFC power')[1].split('\n')[0]
+    ), "PEMFC row shows N/A in orchestrator mode"
 
 
 def test_report_empty_no_crash():
     from pipeline.evidence.report_generator import generate_full_report
+
     path = generate_full_report({})
     assert os.path.exists(path)
 
@@ -651,8 +897,10 @@ def test_report_empty_no_crash():
 # 11. CROSSOVER & MUTATION
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def test_crossover_preserves_class():
     from pipeline.search.design_space import generate_random_genome, crossover
+
     for _ in range(100):
         p1 = generate_random_genome('SAC')
         p2 = generate_random_genome('SAC')
@@ -661,7 +909,12 @@ def test_crossover_preserves_class():
 
 
 def test_mutation_preserves_class():
-    from pipeline.search.design_space import ALL_MATERIAL_CLASSES, generate_random_genome, mutate
+    from pipeline.search.design_space import (
+        ALL_MATERIAL_CLASSES,
+        generate_random_genome,
+        mutate,
+    )
+
     for cls in ALL_MATERIAL_CLASSES:
         for _ in range(20):
             g = generate_random_genome(cls)
@@ -673,10 +926,12 @@ def test_mutation_preserves_class():
 # 12. OOD CONFIDENCE
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def test_ood_high_confidence_metals():
     from pipeline.search.design_space import generate_random_genome
     from pipeline.screening.ood import compute_model_confidence
     from pipeline.screening.fc_genetic_optimizer import _extract_elements_from_genome
+
     # Metal slabs should have high confidence (>0.7)
     for cls in ['SolidCatalyst', 'HEA', 'SAA']:
         for _ in range(10):
@@ -690,6 +945,7 @@ def test_ood_low_confidence_ood():
     from pipeline.search.design_space import generate_random_genome
     from pipeline.screening.ood import compute_model_confidence
     from pipeline.screening.fc_genetic_optimizer import _extract_elements_from_genome
+
     # OOD classes should have low confidence (<0.5)
     for cls in ['MOF', 'COF', 'MetalFreeCarbon']:
         for _ in range(10):
@@ -701,6 +957,7 @@ def test_ood_low_confidence_ood():
 
 def test_ood_penalty_scales_objectives():
     from pipeline.screening.ood import confidence_penalty
+
     # High confidence → penalty near 0.0 (no shift)
     assert abs(confidence_penalty(1.0) - 0.0) < 0.01, "conf=1.0 should give penalty=0.0"
     # Low confidence → penalty > 0.5 (significant shift)
@@ -712,9 +969,12 @@ def test_ood_penalty_scales_objectives():
 def test_ood_nsga2_integration():
     from pipeline.search.design_space import generate_random_genome, FEATURE_DIM
     from pipeline.screening.fc_genetic_optimizer import (
-        ORRCatalystSurrogate, compute_orr_objectives_surrogate
+        ORRCatalystSurrogate,
+        compute_orr_objectives_surrogate,
     )
-    model = ORRCatalystSurrogate(input_dim=FEATURE_DIM); model.eval()
+
+    model = ORRCatalystSurrogate(input_dim=FEATURE_DIM)
+    model.eval()
     # Generate OOD and in-distribution populations
     in_dist = [generate_random_genome('SolidCatalyst') for _ in range(50)]
     ood = [generate_random_genome('MetalFreeCarbon') for _ in range(50)]
@@ -725,19 +985,21 @@ def test_ood_nsga2_integration():
     mean_ood = obj_ood[:, 0].mean()
     # OOD should have higher (worse) mean overpotential after penalty
     # (MetalFreeCarbon conf ~0.15 → penalty ~2.7×)
-    assert mean_ood > mean_in, (
-        f"OOD penalty not working: mean_in={mean_in:.3f}, mean_ood={mean_ood:.3f}"
-    )
+    assert (
+        mean_ood > mean_in
+    ), f"OOD penalty not working: mean_in={mean_in:.3f}, mean_ood={mean_ood:.3f}"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 13. EXHAUSTIVE COVERAGE — NO CLASS GETS PRUNED
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def test_all_elements_in_abundance_table():
     from pipeline.search.design_space import generate_random_genome
     from pipeline.screening.fc_genetic_optimizer import _extract_elements_from_genome
     from pipeline.utils import CRUSTAL_ABUNDANCE_PPM
+
     missing = set()
     for _ in range(3000):
         g = generate_random_genome()
@@ -751,6 +1013,7 @@ def test_all_elements_in_price_table():
     from pipeline.search.design_space import generate_random_genome
     from pipeline.screening.fc_genetic_optimizer import _extract_elements_from_genome
     from pipeline.utils import METAL_PRICE_USD_KG
+
     missing = set()
     for _ in range(3000):
         g = generate_random_genome()
@@ -763,6 +1026,7 @@ def test_all_elements_in_price_table():
 def test_all_classes_viable_both_applications():
     from pipeline.search.design_space import ALL_MATERIAL_CLASSES
     from pipeline.utils import VALID_CLASSES_PYROLYSIS, VALID_CLASSES_FUEL_CELL
+
     for cls in ALL_MATERIAL_CLASSES:
         assert cls in VALID_CLASSES_PYROLYSIS, f"{cls} excluded from pyrolysis"
         assert cls in VALID_CLASSES_FUEL_CELL, f"{cls} excluded from fuel cell"
@@ -771,6 +1035,7 @@ def test_all_classes_viable_both_applications():
 def test_bep_params_all_classes():
     from pipeline.search.design_space import ALL_MATERIAL_CLASSES
     from pipeline.utils import bep_activation_energy
+
     for cls in ALL_MATERIAL_CLASSES:
         # Should not fall back to default — each class must have specific params
         e1 = bep_activation_energy(0.5, material_class=cls)
@@ -782,6 +1047,7 @@ def test_bep_params_all_classes():
 def test_ood_confidence_all_classes():
     from pipeline.search.design_space import ALL_MATERIAL_CLASSES
     from pipeline.screening.ood import CLASS_CONFIDENCE
+
     for cls in ALL_MATERIAL_CLASSES:
         assert cls in CLASS_CONFIDENCE, f"OOD CLASS_CONFIDENCE missing: {cls}"
 
@@ -789,13 +1055,17 @@ def test_ood_confidence_all_classes():
 def test_tafel_all_classes():
     from pipeline.search.design_space import ALL_MATERIAL_CLASSES
     from pipeline.fuel_cell.pemfc import TAFEL_SLOPE_BY_CLASS
+
     for cls in ALL_MATERIAL_CLASSES:
         assert cls in TAFEL_SLOPE_BY_CLASS, f"TAFEL_SLOPE missing: {cls}"
 
 
 def test_pyrolysis_mode_coking_bonus():
     import os
-    from pipeline.screening.genetic_optimizer import compute_objectives_surrogate, GAConfig
+    from pipeline.screening.genetic_optimizer import (
+        compute_objectives_surrogate,
+        GAConfig,
+    )
     from pipeline.screening.surrogate_model import CatalystSurrogate
 
     # Mock surrogate and population
@@ -807,6 +1077,7 @@ def test_pyrolysis_mode_coking_bonus():
     ]
 
     from unittest.mock import patch
+
     with patch('pipeline.screening.genetic_optimizer.predict_batch') as mock_predict:
         mock_predict.return_value = {
             'valid_prob': np.array([1.0, 1.0]),
@@ -822,23 +1093,32 @@ def test_pyrolysis_mode_coking_bonus():
 
         # Operating evidence alone is insufficient without a paired control.
         import json
-        os.environ['NTEC_CONDITIONS_JSON'] = json.dumps({
-            'shear_rate_s': 1e4, 'interfacial_field_V_m': 1e8,
-            'mechanical_power_W_kg': 1e3, 'carbon_detachment_fraction': 1.0,
-            'field_measurement_source': 'test:field-measurement',
-        })
+
+        os.environ['NTEC_CONDITIONS_JSON'] = json.dumps(
+            {
+                'shear_rate_s': 1e4,
+                'interfacial_field_V_m': 1e8,
+                'mechanical_power_W_kg': 1e3,
+                'carbon_detachment_fraction': 1.0,
+                'field_measurement_source': 'test:field-measurement',
+            }
+        )
         objs_uncalibrated = compute_objectives_surrogate(pop, model, device='cpu')
 
         # Explicit paired NTEC/control measurements activate the bounded transfer.
-        os.environ['NTEC_CONDITIONS_JSON'] = json.dumps({
-            'shear_rate_s': 1e4, 'interfacial_field_V_m': 1e8,
-            'mechanical_power_W_kg': 1e3, 'carbon_detachment_fraction': 1.0,
-            'field_measurement_source': 'test:field-measurement',
-            'paired_control_source': 'test:paired-control',
-            'paired_control_count': 2,
-            'measured_barrier_reduction_eV': 0.25,
-            'measured_coking_delta_eV': 3.0,
-        })
+        os.environ['NTEC_CONDITIONS_JSON'] = json.dumps(
+            {
+                'shear_rate_s': 1e4,
+                'interfacial_field_V_m': 1e8,
+                'mechanical_power_W_kg': 1e3,
+                'carbon_detachment_fraction': 1.0,
+                'field_measurement_source': 'test:field-measurement',
+                'paired_control_source': 'test:paired-control',
+                'paired_control_count': 2,
+                'measured_barrier_reduction_eV': 0.25,
+                'measured_coking_delta_eV': 3.0,
+            }
+        )
         objs_ntec = compute_objectives_surrogate(pop, model, device='cpu')
 
         # Test under thermocatalytic mode
@@ -855,29 +1135,38 @@ def test_pyrolysis_mode_coking_bonus():
     # represented by pathway evidence, not attached to an inapplicable slab
     # quantity.
     diff_ga = objs_ntec[0, 1] - objs_thermo[0, 1]
-    assert np.isclose(diff_ga, 0.0), \
-        f"Out-of-scope molten-metal slab coking objective was modified: {diff_ga}"
-    assert np.isclose(objs_unknown[0, 1], objs_thermo[0, 1]), \
-        "NTEC without measured inputs must receive zero bonus"
-    assert np.isclose(objs_uncalibrated[0, 1], objs_thermo[0, 1]), \
-        "NTEC operating inputs without a paired control must receive zero bonus"
+    assert np.isclose(
+        diff_ga, 0.0
+    ), f"Out-of-scope molten-metal slab coking objective was modified: {diff_ga}"
+    assert np.isclose(
+        objs_unknown[0, 1], objs_thermo[0, 1]
+    ), "NTEC without measured inputs must receive zero bonus"
+    assert np.isclose(
+        objs_uncalibrated[0, 1], objs_thermo[0, 1]
+    ), "NTEC operating inputs without a paired control must receive zero bonus"
 
     # For Fe catalyst, there should be no bonus, so diff should be 0.0
     diff_fe = objs_ntec[1, 1] - objs_thermo[1, 1]
-    assert np.isclose(diff_fe, 0.0), f"Non-liquid metal Fe coking bonus applied incorrectly, got diff: {diff_fe}"
+    assert np.isclose(
+        diff_fe, 0.0
+    ), f"Non-liquid metal Fe coking bonus applied incorrectly, got diff: {diff_fe}"
 
 
 def test_cathode_sac_genome_5tuple():
     from pipeline.screening.fc_cathode_screener import generate_fc_catalyst_list
+
     candidates = generate_fc_catalyst_list()
     sacs = [c for c in candidates if c['type'] == 'SAC']
     assert len(sacs) > 0, "No SAC candidates generated"
     for c in sacs:
-        assert len(c['genome']) == 5, f"SAC genome should be 5-tuple, got {len(c['genome'])}: {c['genome']}"
+        assert (
+            len(c['genome']) == 5
+        ), f"SAC genome should be 5-tuple, got {len(c['genome'])}: {c['genome']}"
 
 
 def test_deterministic_hierarchical_pool():
     from pipeline.search.design_space import generate_hierarchical_htvs_pool
+
     # Test fallback behavior when model is None
     pool = generate_hierarchical_htvs_pool(pool_size=100, scorer=None)
     assert len(pool) == 100, f"Expected pool size 100, got {len(pool)}"
@@ -890,36 +1179,52 @@ def test_deterministic_hierarchical_pool():
 def test_hierarchical_rounds_cover_complementary_cells():
     from pipeline.search.design_space import generate_hierarchical_htvs_pool
     from pipeline.search.discovery import candidate_id
+
     first = generate_hierarchical_htvs_pool(500, campaign_round=0)
     second = generate_hierarchical_htvs_pool(500, campaign_round=1)
     ids_first = {candidate_id(g) for g in first}
     ids_second = {candidate_id(g) for g in second}
-    assert ids_first != ids_second, "Campaign rounds must not regenerate the same fixed-stride pool"
-    assert len(ids_first) == len(first), "Round 0 contains duplicate canonical candidates"
-    assert len(ids_second) == len(second), "Round 1 contains duplicate canonical candidates"
+    assert (
+        ids_first != ids_second
+    ), "Campaign rounds must not regenerate the same fixed-stride pool"
+    assert len(ids_first) == len(
+        first
+    ), "Round 0 contains duplicate canonical candidates"
+    assert len(ids_second) == len(
+        second
+    ), "Round 1 contains duplicate canonical candidates"
 
 
 def test_discovery_batch_prioritizes_unseen_regions():
     from pipeline.search.discovery import discovery_region, select_discovery_batch
+
     candidates = [
         ('SAC', 'Fe', 'N4', 'N-graphene', 'none'),
         ('SAC', 'Co', 'N4', 'N-graphene', 'none'),
         ('SAC', 'Ni', 'N3C', 'N-CNT', 'OH'),
         ('MoltenMetal', 'Bi', 'Ni', 10.0, 1000),
     ]
-    objectives = np.array([[0.10, 0, 0, 0], [0.11, 0, 0, 0],
-                           [0.30, 0, 0, 0], [0.25, 0, 0, 0]])
-    selected = select_discovery_batch(candidates, objectives, 3, evaluated=[candidates[0]])
+    objectives = np.array(
+        [[0.10, 0, 0, 0], [0.11, 0, 0, 0], [0.30, 0, 0, 0], [0.25, 0, 0, 0]]
+    )
+    selected = select_discovery_batch(
+        candidates, objectives, 3, evaluated=[candidates[0]]
+    )
     regions = {discovery_region(candidates[i]) for i in selected}
     assert len(selected) == 3
-    assert len(regions) == 3, "Discovery acquisition collapsed into an already-covered chemistry region"
+    assert (
+        len(regions) == 3
+    ), "Discovery acquisition collapsed into an already-covered chemistry region"
 
 
 def test_candidate_ids_are_canonical():
     from pipeline.search.discovery import candidate_id
+
     a = ('SolidCatalyst', 'Ni', 'Al2O3', 'fcc111', 0.01, ('B', 'N'), 2, 0)
     b = ('SolidCatalyst', 'Ni', 'Al2O3', 'fcc111', 0.0100000001, ('N', 'B'), 2, 0)
-    assert candidate_id(a) == candidate_id(b), "Equivalent dopant permutations need one candidate ID"
+    assert candidate_id(a) == candidate_id(
+        b
+    ), "Equivalent dopant permutations need one candidate ID"
 
     molten_a = ('MoltenMetal', 'Ga', 'Fe', 0.0, 1000)
     molten_b = ('MoltenMetal', 'Ga', 'None', 0.0, 1000)
@@ -935,63 +1240,98 @@ def test_screening_cache_uses_typed_scalar_storage():
     import tempfile
     from pathlib import Path
     from pipeline.screening.result_cache import (
-        load_cached_results, store_completed_results)
+        load_cached_results,
+        store_completed_results,
+    )
 
     protocol = 'model:relax-v1:application-v1'
     genome = ('SAC', 'Fe', 'N4', 'N-graphene', 'none')
     result = {
-        'genome': str(genome), 'material_class': 'SAC',
-        'screening_protocol': protocol, 'valid': True,
-        'relax_clean_converged': True, 'E_act': 0.7,
-        'optional_value': None, 'relax_clean_steps': 12,
+        'genome': str(genome),
+        'material_class': 'SAC',
+        'screening_protocol': protocol,
+        'valid': True,
+        'relax_clean_converged': True,
+        'E_act': 0.7,
+        'optional_value': None,
+        'relax_clean_steps': 12,
     }
     with tempfile.TemporaryDirectory() as temporary:
         database = Path(temporary) / 'cache.sqlite'
-        assert store_completed_results(
-            database, 'test', protocol, 'digest', [genome], [result]) == 1
-        restored = load_cached_results(
-            database, 'test', protocol, 'digest', [genome])[0]
+        assert (
+            store_completed_results(
+                database, 'test', protocol, 'digest', [genome], [result]
+            )
+            == 1
+        )
+        restored = load_cached_results(database, 'test', protocol, 'digest', [genome])[
+            0
+        ]
         assert restored == result
         with sqlite3.connect(database) as connection:
-            columns = {row[1] for row in connection.execute(
-                'PRAGMA table_info(screening_cache_fields)')}
+            columns = {
+                row[1]
+                for row in connection.execute(
+                    'PRAGMA table_info(screening_cache_fields)'
+                )
+            }
             assert 'result_json' not in columns
-            assert {'field_type', 'bool_value', 'int_value',
-                    'float_value', 'str_value'} <= columns
+            assert {
+                'field_type',
+                'bool_value',
+                'int_value',
+                'float_value',
+                'str_value',
+            } <= columns
 
         unsupported = dict(result, nested={'untyped': True})
-        assert store_completed_results(
-            database, 'test', protocol, 'other-digest', [genome],
-            [unsupported]) == 0
+        assert (
+            store_completed_results(
+                database, 'test', protocol, 'other-digest', [genome], [unsupported]
+            )
+            == 0
+        )
         assert not load_cached_results(
-            database, 'test', protocol, 'other-digest', [genome])
+            database, 'test', protocol, 'other-digest', [genome]
+        )
 
 
 def test_screening_cache_fails_closed_on_identity_changes():
     import tempfile
     from pathlib import Path
     from pipeline.screening.result_cache import (
-        load_cached_results, store_completed_results)
+        load_cached_results,
+        store_completed_results,
+    )
 
     protocol = 'model:relax-v1:application-v1'
     genome = ('SAC', 'Fe', 'N4', 'N-graphene', 'none')
     result = {
-        'genome': str(genome), 'material_class': 'SAC',
-        'screening_protocol': protocol, 'valid': True,
-        'relax_clean_converged': True, 'E_act': 0.7,
+        'genome': str(genome),
+        'material_class': 'SAC',
+        'screening_protocol': protocol,
+        'valid': True,
+        'relax_clean_converged': True,
+        'E_act': 0.7,
     }
     with tempfile.TemporaryDirectory() as temporary:
         database = Path(temporary) / 'cache.sqlite'
         store_completed_results(
-            database, 'test', protocol, 'digest', [genome], [result])
+            database, 'test', protocol, 'digest', [genome], [result]
+        )
         assert not load_cached_results(
-            database, 'test', protocol, 'changed-digest', [genome])
+            database, 'test', protocol, 'changed-digest', [genome]
+        )
         assert not load_cached_results(
-            database, 'test', 'changed-protocol', 'digest', [genome])
+            database, 'test', 'changed-protocol', 'digest', [genome]
+        )
         incomplete = dict(result, relax_clean_converged=False)
-        assert store_completed_results(
-            database, 'test', protocol, 'new-digest', [genome],
-            [incomplete]) == 0
+        assert (
+            store_completed_results(
+                database, 'test', protocol, 'new-digest', [genome], [incomplete]
+            )
+            == 0
+        )
 
 
 def test_screening_cache_preserves_request_mapping():
@@ -999,7 +1339,9 @@ def test_screening_cache_preserves_request_mapping():
     import tempfile
     from pathlib import Path
     from pipeline.screening.result_cache import (
-        load_cached_results, store_completed_results)
+        load_cached_results,
+        store_completed_results,
+    )
 
     protocol = 'model:relax-v1:application-v1'
     first = ('SAC', 'Fe', 'N4', 'N-graphene', 'none')
@@ -1007,18 +1349,27 @@ def test_screening_cache_preserves_request_mapping():
 
     def record(genome):
         return {
-            'genome': str(genome), 'material_class': 'SAC',
-            'screening_protocol': protocol, 'valid': True,
-            'relax_clean_converged': True, 'E_act': 0.7,
+            'genome': str(genome),
+            'material_class': 'SAC',
+            'screening_protocol': protocol,
+            'valid': True,
+            'relax_clean_converged': True,
+            'E_act': 0.7,
         }
 
     with tempfile.TemporaryDirectory() as temporary:
         database = Path(temporary) / 'cache.sqlite'
         store_completed_results(
-            database, 'test', protocol, 'digest', [first, second],
-            [record(first), record(second)])
+            database,
+            'test',
+            protocol,
+            'digest',
+            [first, second],
+            [record(first), record(second)],
+        )
         loaded = load_cached_results(
-            database, 'test', protocol, 'digest', [second, first, second])
+            database, 'test', protocol, 'digest', [second, first, second]
+        )
         assert list(loaded) == [0, 1, 2]
         assert loaded[0]['genome'] == loaded[2]['genome'] == str(second)
         assert loaded[1]['genome'] == str(first)
@@ -1041,15 +1392,15 @@ def test_design_space_audit_preserves_all_sizable_classes():
     assert report['canonical_total'] < report['raw_cartesian_total']
 
     assert not is_physically_admissible(
-        ('SolidCatalyst', 'Ni', 'Al2O3', 'fcc111', 0.0,
-         ('N', 'B'), 2, 0))[0]
-    assert not is_physically_admissible(
-        ('MoltenMetal', 'Ga', 'Fe', 0.0, 1000))[0]
+        ('SolidCatalyst', 'Ni', 'Al2O3', 'fcc111', 0.0, ('N', 'B'), 2, 0)
+    )[0]
+    assert not is_physically_admissible(('MoltenMetal', 'Ga', 'Fe', 0.0, 1000))[0]
 
 
 def test_discovery_metadata_is_persistable():
     import pandas as pd
     from pipeline.search.discovery import add_discovery_metadata
+
     genome = ('SAC', 'Fe', 'N4', 'N-graphene', 'OH')
     out = add_discovery_metadata(pd.DataFrame({'genome': [str(genome)]}))
     assert out.loc[0, 'candidate_id']
@@ -1057,9 +1408,16 @@ def test_discovery_metadata_is_persistable():
 
 
 def test_indexed_space_boundaries_and_classes():
-    from pipeline.search.indexed_space import (CLASS_OFFSETS, CLASS_ORDER, CLASS_SIZES,
-                                        TOTAL_SIZE, candidate_at, candidate_at_class)
+    from pipeline.search.indexed_space import (
+        CLASS_OFFSETS,
+        CLASS_ORDER,
+        CLASS_SIZES,
+        TOTAL_SIZE,
+        candidate_at,
+        candidate_at_class,
+    )
     from pipeline.search.design_space import estimate_design_space_size
+
     assert TOTAL_SIZE == estimate_design_space_size()['TOTAL']
     for cls in CLASS_ORDER:
         assert candidate_at(CLASS_OFFSETS[cls])[0] == cls
@@ -1068,6 +1426,7 @@ def test_indexed_space_boundaries_and_classes():
 
 def test_indexed_worker_shards_are_disjoint():
     from pipeline.search.indexed_space import iter_shard
+
     a = {i for i, _ in iter_shard(0, 101, 0, 3)}
     b = {i for i, _ in iter_shard(0, 101, 1, 3)}
     c = {i for i, _ in iter_shard(0, 101, 2, 3)}
@@ -1079,15 +1438,23 @@ def test_streaming_scan_resumes_without_rescoring():
     import tempfile
     from pathlib import Path
     from pipeline.search.exhaustive_search import ScanConfig, run_streaming_scan
+
     calls = []
+
     def scorer(genomes):
         calls.append(len(genomes))
-        return np.column_stack([np.arange(len(genomes), dtype=float),
-                                np.zeros((len(genomes), 3))])
+        return np.column_stack(
+            [np.arange(len(genomes), dtype=float), np.zeros((len(genomes), 3))]
+        )
+
     with tempfile.TemporaryDirectory() as tmp:
         db = str(Path(tmp) / 'scan.sqlite')
-        first = run_streaming_scan(ScanConfig('test', db, stop=40, batch_size=10, max_batches=2), scorer)
-        second = run_streaming_scan(ScanConfig('test', db, stop=40, batch_size=10), scorer)
+        first = run_streaming_scan(
+            ScanConfig('test', db, stop=40, batch_size=10, max_batches=2), scorer
+        )
+        second = run_streaming_scan(
+            ScanConfig('test', db, stop=40, batch_size=10), scorer
+        )
         assert first['processed_this_run'] == 20
         assert second['processed_this_run'] == 20
         assert second['complete']
@@ -1099,61 +1466,120 @@ def test_sharded_scan_matches_serial_and_fails_closed():
     import tempfile
     from pathlib import Path
     from pipeline.search.exhaustive_search import (
-        ScanConfig, run_sharded_scan, run_streaming_scan)
+        ScanConfig,
+        run_sharded_scan,
+        run_streaming_scan,
+    )
     from pipeline.search.design_space import encode_population
 
     def scorer(genomes):
         encoded = encode_population(genomes)
-        return np.column_stack([
-            encoded[:, 0] + 0.01 * encoded[:, 1],
-            encoded[:, 2], encoded[:, 3], encoded[:, 4]])
+        return np.column_stack(
+            [
+                encoded[:, 0] + 0.01 * encoded[:, 1],
+                encoded[:, 2],
+                encoded[:, 3],
+                encoded[:, 4],
+            ]
+        )
 
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         serial_db = root / 'serial.sqlite'
         sharded_db = root / 'sharded.sqlite'
-        serial = run_streaming_scan(ScanConfig(
-            'shard_equivalence', str(serial_db), stop=2000,
-            batch_size=128, global_archive_size=100,
-            state_id='equivalence'), scorer)
-        sharded = run_sharded_scan(ScanConfig(
-            'shard_equivalence', str(sharded_db), stop=2000,
-            batch_size=128, global_archive_size=100,
-            state_id='equivalence'), scorer, workers=4)
+        serial = run_streaming_scan(
+            ScanConfig(
+                'shard_equivalence',
+                str(serial_db),
+                stop=2000,
+                batch_size=128,
+                global_archive_size=100,
+                state_id='equivalence',
+            ),
+            scorer,
+        )
+        sharded = run_sharded_scan(
+            ScanConfig(
+                'shard_equivalence',
+                str(sharded_db),
+                stop=2000,
+                batch_size=128,
+                global_archive_size=100,
+                state_id='equivalence',
+            ),
+            scorer,
+            workers=4,
+        )
         assert serial['complete'] and sharded['complete']
-        tables = ('region_champions', 'global_archive', 'objective_archive',
-                  'regional_objective_champions')
+        tables = (
+            'region_champions',
+            'global_archive',
+            'objective_archive',
+            'regional_objective_champions',
+        )
         with sqlite3.connect(serial_db) as left, sqlite3.connect(sharded_db) as right:
             for table in tables:
-                left_rows = left.execute(f'SELECT * FROM {table} ORDER BY 1,2,3').fetchall()
-                right_rows = right.execute(f'SELECT * FROM {table} ORDER BY 1,2,3').fetchall()
+                left_rows = left.execute(
+                    f'SELECT * FROM {table} ORDER BY 1,2,3'
+                ).fetchall()
+                right_rows = right.execute(
+                    f'SELECT * FROM {table} ORDER BY 1,2,3'
+                ).fetchall()
                 assert left_rows == right_rows, f'shard merge changed {table}'
             progress = right.execute(
                 "SELECT next_index, processed FROM scan_progress "
                 "WHERE application=? AND state_id=?",
-                ('shard_equivalence', 'equivalence')).fetchone()
+                ('shard_equivalence', 'equivalence'),
+            ).fetchone()
             assert progress == (2000, 2000)
 
         incomplete_db = root / 'incomplete.sqlite'
-        partial = run_sharded_scan(ScanConfig(
-            'shard_resume', str(incomplete_db), stop=400,
-            batch_size=10, max_batches=1, state_id='resume'),
-            scorer, workers=4)
+        partial = run_sharded_scan(
+            ScanConfig(
+                'shard_resume',
+                str(incomplete_db),
+                stop=400,
+                batch_size=10,
+                max_batches=1,
+                state_id='resume',
+            ),
+            scorer,
+            workers=4,
+        )
         assert not partial['complete']
-        assert not incomplete_db.exists(), 'partial shards must not create aggregate evidence'
-        resumed = run_sharded_scan(ScanConfig(
-            'shard_resume', str(incomplete_db), stop=400,
-            batch_size=10, state_id='resume'), scorer, workers=4)
+        assert (
+            not incomplete_db.exists()
+        ), 'partial shards must not create aggregate evidence'
+        resumed = run_sharded_scan(
+            ScanConfig(
+                'shard_resume',
+                str(incomplete_db),
+                stop=400,
+                batch_size=10,
+                state_id='resume',
+            ),
+            scorer,
+            workers=4,
+        )
         assert resumed['complete']
         with sqlite3.connect(incomplete_db) as conn:
             progress = conn.execute(
                 "SELECT next_index, processed FROM scan_progress "
-                "WHERE application='shard_resume' AND state_id='resume'").fetchone()
+                "WHERE application='shard_resume' AND state_id='resume'"
+            ).fetchone()
         assert progress == (400, 400)
 
-        tiny = run_sharded_scan(ScanConfig(
-            'tiny_range', str(root / 'tiny.sqlite'), stop=3,
-            batch_size=10, state_id='tiny'), scorer, workers=8)
+        tiny = run_sharded_scan(
+            ScanConfig(
+                'tiny_range',
+                str(root / 'tiny.sqlite'),
+                stop=3,
+                batch_size=10,
+                state_id='tiny',
+            ),
+            scorer,
+            workers=8,
+        )
         assert tiny['complete'] and tiny['workers'] == 3
 
 
@@ -1162,17 +1588,26 @@ def test_branch_search_resolves_without_surrogate_pruning():
     from pathlib import Path
     from pipeline.search.branch_search import BranchConfig, run_branch_and_bound
     from pipeline.search.indexed_space import CLASS_SIZES
+
     def deliberately_bad_scorer(genomes):
         # A poor probe is not permission to remove its branch.
-        return np.column_stack([np.full(len(genomes), 99.0),
-                                np.zeros((len(genomes), 3))])
+        return np.column_stack(
+            [np.full(len(genomes), 99.0), np.zeros((len(genomes), 3))]
+        )
+
     with tempfile.TemporaryDirectory() as tmp:
-        result = run_branch_and_bound(BranchConfig(
-            application='branch_test', database=str(Path(tmp) / 'branch.sqlite'),
-            leaf_size=CLASS_SIZES['MetalFreeCarbon'] + 1,
-            scan_batch_size=512, max_leaves=1, scan_workers=2,
-            material_classes=('MetalFreeCarbon',),
-        ), deliberately_bad_scorer)
+        result = run_branch_and_bound(
+            BranchConfig(
+                application='branch_test',
+                database=str(Path(tmp) / 'branch.sqlite'),
+                leaf_size=CLASS_SIZES['MetalFreeCarbon'] + 1,
+                scan_batch_size=512,
+                max_leaves=1,
+                scan_workers=2,
+                material_classes=('MetalFreeCarbon',),
+            ),
+            deliberately_bad_scorer,
+        )
         assert result['complete']
         assert result['node_status_counts'].get('scanned') == 1
         assert result['node_status_counts'].get('pruned', 0) == 0
@@ -1180,27 +1615,39 @@ def test_branch_search_resolves_without_surrogate_pruning():
 
 def test_branch_probes_are_deterministic_low_discrepancy():
     from pipeline.search.branch_search import _probe_indices
+
     first = _probe_indices(100, 10100, 9)
     second = _probe_indices(100, 10100, 9)
     assert first == second and len(first) == 9
     assert first[0] == 100 and first[-1] == 10099
     gaps = np.diff(first)
-    assert len(set(gaps.tolist())) > 1, 'probes regressed to alias-prone uniform spacing'
+    assert (
+        len(set(gaps.tolist())) > 1
+    ), 'probes regressed to alias-prone uniform spacing'
 
 
 def test_branch_finite_budget_preserves_class_floor():
     import tempfile
     from pathlib import Path
     from pipeline.search.branch_search import BranchConfig, run_branch_and_bound
+
     def biased_scorer(genomes):
         primary = np.array([0.0 if genome[0] == 'SAA' else 100.0 for genome in genomes])
         return np.column_stack([primary, np.zeros((len(genomes), 3))])
+
     with tempfile.TemporaryDirectory() as tmp:
-        result = run_branch_and_bound(BranchConfig(
-            application='finite_budget_classes', database=str(Path(tmp) / 'branch.sqlite'),
-            leaf_size=1000, scan_batch_size=512, max_leaves=2,
-            material_classes=('SAA', 'MXene'), min_resolved_leaves_per_class=1,
-        ), biased_scorer)
+        result = run_branch_and_bound(
+            BranchConfig(
+                application='finite_budget_classes',
+                database=str(Path(tmp) / 'branch.sqlite'),
+                leaf_size=1000,
+                scan_batch_size=512,
+                max_leaves=2,
+                material_classes=('SAA', 'MXene'),
+                min_resolved_leaves_per_class=1,
+            ),
+            biased_scorer,
+        )
         resolved = result['resolved_terminal_nodes_by_class']
         assert resolved['SAA'] >= 1 and resolved['MXene'] >= 1
         assert result['scheduling_decisions']['class_floor'] > 0
@@ -1210,26 +1657,44 @@ def test_branch_certificate_detects_incomplete_and_gaps():
     import sqlite3
     import tempfile
     from pathlib import Path
-    from pipeline.search.branch_search import BranchConfig, run_branch_and_bound, verify_branch_coverage
+    from pipeline.search.branch_search import (
+        BranchConfig,
+        run_branch_and_bound,
+        verify_branch_coverage,
+    )
+
     def scorer(genomes):
         return np.zeros((len(genomes), 4))
+
     with tempfile.TemporaryDirectory() as tmp:
         db = str(Path(tmp) / 'certificate.sqlite')
-        result = run_branch_and_bound(BranchConfig(
-            application='certificate_test', database=db, leaf_size=1000,
-            scan_batch_size=256, max_leaves=1,
-            material_classes=('MetalFreeCarbon',),
-        ), scorer)
+        result = run_branch_and_bound(
+            BranchConfig(
+                application='certificate_test',
+                database=db,
+                leaf_size=1000,
+                scan_batch_size=256,
+                max_leaves=1,
+                material_classes=('MetalFreeCarbon',),
+            ),
+            scorer,
+        )
         cert = result['coverage_certificate']
         assert cert['gap_free'] and cert['overlap_free']
         assert not cert['complete'] and cert['unresolved_terminal_nodes'] > 0
 
         conn = sqlite3.connect(db)
-        row = conn.execute("SELECT node_id FROM branch_nodes WHERE application=? "
-                           "AND status!='expanded' LIMIT 1", ('certificate_test',)).fetchone()
-        conn.execute("DELETE FROM branch_nodes WHERE application=? AND node_id=?",
-                     ('certificate_test', row[0]))
-        conn.commit(); conn.close()
+        row = conn.execute(
+            "SELECT node_id FROM branch_nodes WHERE application=? "
+            "AND status!='expanded' LIMIT 1",
+            ('certificate_test',),
+        ).fetchone()
+        conn.execute(
+            "DELETE FROM branch_nodes WHERE application=? AND node_id=?",
+            ('certificate_test', row[0]),
+        )
+        conn.commit()
+        conn.close()
         broken = verify_branch_coverage(db, 'certificate_test', ('MetalFreeCarbon',))
         assert not broken['complete']
         assert broken['errors'], "Deleted terminal interval must invalidate certificate"
@@ -1239,14 +1704,21 @@ def test_branch_rejects_population_mismatch():
     import tempfile
     from pathlib import Path
     from pipeline.search.branch_search import BranchConfig, run_branch_and_bound
+
     def scorer(genomes):
         return np.zeros((len(genomes), 4))
+
     with tempfile.TemporaryDirectory() as tmp:
         try:
-            run_branch_and_bound(BranchConfig(
-                application='mismatch', database=str(Path(tmp) / 'mismatch.sqlite'),
-                material_classes=('SAA',), expected_population=25_300_000_000,
-            ), scorer)
+            run_branch_and_bound(
+                BranchConfig(
+                    application='mismatch',
+                    database=str(Path(tmp) / 'mismatch.sqlite'),
+                    material_classes=('SAA',),
+                    expected_population=25_300_000_000,
+                ),
+                scorer,
+            )
         except ValueError as exc:
             assert 'denominator mismatch' in str(exc)
         else:
@@ -1256,6 +1728,7 @@ def test_branch_rejects_population_mismatch():
 def test_tree_calibration_probes_cover_all_classes_deterministically():
     from pipeline.search.indexed_space import deterministic_tree_probes
     from pipeline.search.design_space import ALL_MATERIAL_CLASSES
+
     first = deterministic_tree_probes(100)
     second = deterministic_tree_probes(100)
     assert first == second
@@ -1264,11 +1737,17 @@ def test_tree_calibration_probes_cover_all_classes_deterministically():
 
 def test_production_has_only_branch_candidate_search():
     from pathlib import Path
+
     source = (REPO_ROOT / 'run_production_campaign.py').read_text()
     forbidden = [
-        'run_genetic_algorithm', 'run_fc_genetic_algorithm',
-        '--exhaustive-scan', '--branch-search', '--pop', '--gens',
-        'generate_population', 'generate_random_genome',
+        'run_genetic_algorithm',
+        'run_fc_genetic_algorithm',
+        '--exhaustive-scan',
+        '--branch-search',
+        '--pop',
+        '--gens',
+        'generate_population',
+        'generate_random_genome',
     ]
     present = [token for token in forbidden if token in source]
     assert not present, f"Legacy candidate-search paths remain in production: {present}"
@@ -1284,23 +1763,35 @@ def test_production_has_only_branch_candidate_search():
 
 def test_readme_matches_branch_only_contract():
     from pathlib import Path
+
     readme = (REPO_ROOT / 'README.md').read_text()
     assert '21,092,645,031' in readme
     assert 'Deterministic Branch-and-Bound Discovery' in readme
     assert '--calibration-probes' in readme
     assert '--branch-leaf-size' in readme
-    forbidden = ['--pop', '--gens', '--exhaustive-scan', '--branch-search',
-                 '25.3-billion-configuration', '21.3-billion-configuration']
+    forbidden = [
+        '--pop',
+        '--gens',
+        '--exhaustive-scan',
+        '--branch-search',
+        '25.3-billion-configuration',
+        '21.3-billion-configuration',
+    ]
     present = [token for token in forbidden if token in readme]
     assert not present, f"README advertises retired search controls: {present}"
 
 
 def test_readme_contains_no_machine_specific_paths():
     from pathlib import Path
+
     readme = (REPO_ROOT / 'README.md').read_text()
     forbidden = [
-        '/' + 'home/', '/' + 'Users/', 'mini' + 'conda3',
-        'ana' + 'conda3', '/' + 'opt/conda', '.gem' + 'ini/antigravity',
+        '/' + 'home/',
+        '/' + 'Users/',
+        'mini' + 'conda3',
+        'ana' + 'conda3',
+        '/' + 'opt/conda',
+        '.gem' + 'ini/antigravity',
     ]
     present = [token for token in forbidden if token in readme]
     assert not present, f'Machine-specific paths remain in README: {present}'
@@ -1308,6 +1799,7 @@ def test_readme_contains_no_machine_specific_paths():
 
 def test_root_documentation_is_canonical():
     from pathlib import Path
+
     root = REPO_ROOT
     root_docs = {
         path.name for pattern in ('*.md', '*.rst') for path in root.glob(pattern)
@@ -1319,9 +1811,15 @@ def test_root_documentation_is_canonical():
 
 def test_retired_ga_entry_points_are_blocked():
     from pipeline.screening.genetic_optimizer import run_genetic_algorithm
-    from pipeline.screening.fc_genetic_optimizer import run_fc_genetic_algorithm, FCGAConfig
-    for fn, args in ((run_genetic_algorithm, ()),
-                     (run_fc_genetic_algorithm, (FCGAConfig(),))):
+    from pipeline.screening.fc_genetic_optimizer import (
+        run_fc_genetic_algorithm,
+        FCGAConfig,
+    )
+
+    for fn, args in (
+        (run_genetic_algorithm, ()),
+        (run_fc_genetic_algorithm, (FCGAConfig(),)),
+    ):
         try:
             fn(*args)
         except RuntimeError as exc:
@@ -1332,35 +1830,76 @@ def test_retired_ga_entry_points_are_blocked():
 
 def test_industrial_viability_gates_fail_closed():
     from pipeline.validation.viability import (
-        evaluate_turquoise, evaluate_fuel_cell, TurquoiseHydrogenBounds)
+        evaluate_turquoise,
+        evaluate_fuel_cell,
+        TurquoiseHydrogenBounds,
+    )
+
     assert evaluate_turquoise({})['status'] == 'unknown'
-    good_h2 = evaluate_turquoise({
-        'temperature_K': 1000, 'H2_selectivity': 0.98, 'CH4_conversion': 0.8,
-        'deactivation_fraction_per_h': 0.005, 'coke_fraction': 0.02,
-        'net_energy_kWh_kg_h2': 12.0, 'measured_reactor': 1})
+    good_h2 = evaluate_turquoise(
+        {
+            'temperature_K': 1000,
+            'H2_selectivity': 0.98,
+            'CH4_conversion': 0.8,
+            'deactivation_fraction_per_h': 0.005,
+            'coke_fraction': 0.02,
+            'net_energy_kWh_kg_h2': 12.0,
+            'measured_reactor': 1,
+        }
+    )
     assert good_h2['status'] == 'pass'
     # H2 selectivity gate is off by default (lumped metric is not true selectivity).
-    assert evaluate_turquoise({'H2_selectivity': 0.8, 'CH4_conversion': 0.8,
-                               'temperature_K': 1000,
-                               'deactivation_fraction_per_h': 0.005,
-                               'coke_fraction': 0.02,
-                               'net_energy_kWh_kg_h2': 12.0,
-                               'measured_reactor': 1})['status'] == 'pass'
+    assert (
+        evaluate_turquoise(
+            {
+                'H2_selectivity': 0.8,
+                'CH4_conversion': 0.8,
+                'temperature_K': 1000,
+                'deactivation_fraction_per_h': 0.005,
+                'coke_fraction': 0.02,
+                'net_energy_kWh_kg_h2': 12.0,
+                'measured_reactor': 1,
+            }
+        )['status']
+        == 'pass'
+    )
     gated = evaluate_turquoise(
-        {'H2_selectivity': 0.8, 'CH4_conversion': 0.8, 'temperature_K': 1000,
-         'deactivation_fraction_per_h': 0.005, 'coke_fraction': 0.02,
-         'net_energy_kWh_kg_h2': 12.0, 'measured_reactor': 1},
-        TurquoiseHydrogenBounds(enforce_h2_selectivity_gate=True))
+        {
+            'H2_selectivity': 0.8,
+            'CH4_conversion': 0.8,
+            'temperature_K': 1000,
+            'deactivation_fraction_per_h': 0.005,
+            'coke_fraction': 0.02,
+            'net_energy_kWh_kg_h2': 12.0,
+            'measured_reactor': 1,
+        },
+        TurquoiseHydrogenBounds(enforce_h2_selectivity_gate=True),
+    )
     assert gated['status'] == 'fail'
-    assert evaluate_turquoise({
-        'temperature_K': 1000, 'CH4_conversion': 0.8,
-        'deactivation_fraction_per_h': 0.005, 'coke_fraction': 0.02,
-        'net_energy_kWh_kg_h2': 12.0, 'measured_reactor': 1,
-        'co2_permitted': True})['status'] == 'fail'
-    good_fc = evaluate_fuel_cell({
-        'orr_overpotential_V': 0.3, 'peak_power_W_cm2': 1.2,
-        'system_efficiency': 0.5, 'voltage_degradation_uV_h': 5,
-        'measured_hours': 500, 'measured_mea': 1})
+    assert (
+        evaluate_turquoise(
+            {
+                'temperature_K': 1000,
+                'CH4_conversion': 0.8,
+                'deactivation_fraction_per_h': 0.005,
+                'coke_fraction': 0.02,
+                'net_energy_kWh_kg_h2': 12.0,
+                'measured_reactor': 1,
+                'co2_permitted': True,
+            }
+        )['status']
+        == 'fail'
+    )
+    good_fc = evaluate_fuel_cell(
+        {
+            'orr_overpotential_V': 0.3,
+            'peak_power_W_cm2': 1.2,
+            'system_efficiency': 0.5,
+            'voltage_degradation_uV_h': 5,
+            'measured_hours': 500,
+            'measured_mea': 1,
+        }
+    )
     assert good_fc['status'] == 'pass'
     assert evaluate_fuel_cell({'orr_overpotential_V': 0.6})['status'] == 'fail'
 
@@ -1390,53 +1929,99 @@ def test_coking_loss_masks_nan_targets():
     y_seg = rng.standard_normal(n).astype(np.float32)
     y_e = np.abs(rng.standard_normal(n)).astype(np.float32) + 0.2
     model = train_surrogate(
-        X, y_valid, y_de, y_coking, y_seg, y_e,
-        epochs=2, batch_size=8, device='cpu')
+        X, y_valid, y_de, y_coking, y_seg, y_e, epochs=2, batch_size=8, device='cpu'
+    )
     for p in model.parameters():
         assert torch.isfinite(p).all()
 
 
 def test_slab_coking_scope_excludes_molten_metal():
     from pipeline.search.scope import slab_coking_index_scope
-    assert slab_coking_index_scope(('MoltenMetal', 'Bi', 'Ni', 10.0, 1000))['status'] == 'out_of_scope'
-    assert slab_coking_index_scope(('SolidCatalyst', 'Ni', 'Al2O3', 'fcc111', 0.0, ('Fe',), 1, 0))['status'] == 'candidate'
+
+    assert (
+        slab_coking_index_scope(('MoltenMetal', 'Bi', 'Ni', 10.0, 1000))['status']
+        == 'out_of_scope'
+    )
+    assert (
+        slab_coking_index_scope(
+            ('SolidCatalyst', 'Ni', 'Al2O3', 'fcc111', 0.0, ('Fe',), 1, 0)
+        )['status']
+        == 'candidate'
+    )
 
 
 def test_phase_stable_at_application_t_per_class():
     from pipeline.search.scope import (
-        phase_stable_at_application_T, is_turquoise_pyrolysis_candidate,
-        VALIDATION_QUOTA_EXEMPT_CLASSES, validation_quota_class_count)
+        phase_stable_at_application_T,
+        is_turquoise_pyrolysis_candidate,
+        VALIDATION_QUOTA_EXEMPT_CLASSES,
+        validation_quota_class_count,
+    )
     from pipeline.search.design_space import ALL_MATERIAL_CLASSES
-    assert phase_stable_at_application_T(('MetalHydride', 'La'))['status'] == 'out_of_scope'
-    assert phase_stable_at_application_T(('MOF', 'W', 'Triazolate', 'N2P2', 16.0))['status'] == 'out_of_scope'
-    assert phase_stable_at_application_T(('COF', 'W', 'Imide', 'P4', 40.0))['status'] == 'out_of_scope'
-    assert phase_stable_at_application_T(('MXene', 'Ti', 'C', 2, 'O', 'Fe'))['status'] == 'out_of_scope'
-    assert phase_stable_at_application_T(('Perovskite', 'La', 'Fe', 'None'))['status'] == 'out_of_scope'
-    assert phase_stable_at_application_T(('MoltenMetal', 'Bi', 'Ni', 10.0, 1000))['status'] == 'candidate'
-    assert is_turquoise_pyrolysis_candidate("('MOF', 'W', 'Triazolate', 'N2P2', 16.0)") is False
+
+    assert (
+        phase_stable_at_application_T(('MetalHydride', 'La'))['status']
+        == 'out_of_scope'
+    )
+    assert (
+        phase_stable_at_application_T(('MOF', 'W', 'Triazolate', 'N2P2', 16.0))[
+            'status'
+        ]
+        == 'out_of_scope'
+    )
+    assert (
+        phase_stable_at_application_T(('COF', 'W', 'Imide', 'P4', 40.0))['status']
+        == 'out_of_scope'
+    )
+    assert (
+        phase_stable_at_application_T(('MXene', 'Ti', 'C', 2, 'O', 'Fe'))['status']
+        == 'out_of_scope'
+    )
+    assert (
+        phase_stable_at_application_T(('Perovskite', 'La', 'Fe', 'None'))['status']
+        == 'out_of_scope'
+    )
+    assert (
+        phase_stable_at_application_T(('MoltenMetal', 'Bi', 'Ni', 10.0, 1000))['status']
+        == 'candidate'
+    )
+    assert (
+        is_turquoise_pyrolysis_candidate("('MOF', 'W', 'Triazolate', 'N2P2', 16.0)")
+        is False
+    )
     assert VALIDATION_QUOTA_EXEMPT_CLASSES == frozenset({'MetalHydride'})
-    assert validation_quota_class_count(ALL_MATERIAL_CLASSES) == len(ALL_MATERIAL_CLASSES) - 1
-    assert validation_quota_class_count(
-        ALL_MATERIAL_CLASSES, 'turquoise_pyrolysis') == len(ALL_MATERIAL_CLASSES) - 5
+    assert (
+        validation_quota_class_count(ALL_MATERIAL_CLASSES)
+        == len(ALL_MATERIAL_CLASSES) - 1
+    )
+    assert (
+        validation_quota_class_count(ALL_MATERIAL_CLASSES, 'turquoise_pyrolysis')
+        == len(ALL_MATERIAL_CLASSES) - 5
+    )
 
 
 def test_turquoise_pyrolysis_select_excludes_metal_hydride():
     import pandas as pd
     from pipeline.search.scope import (
-        is_turquoise_pyrolysis_candidate, select_turquoise_pyrolysis_candidates)
+        is_turquoise_pyrolysis_candidate,
+        select_turquoise_pyrolysis_candidates,
+    )
+
     hydride = "('MetalHydride', 'La', 'H2', 'None', 'None', 400)"
     melt = "('MoltenMetal', 'Bi', 'Ni', 10.0, 1000)"
     solid = "('SolidCatalyst', 'Ni', 'Al2O3', 'fcc111', 0.0, ('Fe',), 1, 0)"
     mof = "('MOF', 'W', 'Triazolate', 'N2P2', 16.0)"
     assert is_turquoise_pyrolysis_candidate(hydride) is False
     assert is_turquoise_pyrolysis_candidate(melt) is True
-    df = pd.DataFrame([
-        {'genome': hydride, 'E_act': 0.05, 'valid': True},
-        {'genome': mof, 'E_act': 0.02, 'valid': True},
-        {'genome': melt, 'E_act': 0.80, 'valid': True},
-        {'genome': solid, 'E_act': 0.90, 'valid': True},
-        {'genome': 'not-a-genome', 'E_act': 0.01, 'valid': True},
-    ])
+    df = pd.DataFrame(
+        [
+            {'genome': hydride, 'E_act': 0.05, 'valid': True},
+            {'genome': mof, 'E_act': 0.02, 'valid': True},
+            {'genome': melt, 'E_act': 0.80, 'valid': True},
+            {'genome': solid, 'E_act': 0.90, 'valid': True},
+            {'genome': 'not-a-genome', 'E_act': 0.01, 'valid': True},
+        ]
+    )
     selected = select_turquoise_pyrolysis_candidates(df, top_k=2)
     genomes = set(selected['genome'])
     assert hydride not in genomes
@@ -1446,7 +2031,11 @@ def test_turquoise_pyrolysis_select_excludes_metal_hydride():
 
 
 def test_mechanism_has_condensed_graphite_not_gas_carbon():
-    from pipeline.reactors.mechanisms import write_full_mechanism, write_gas_only_mechanism
+    from pipeline.reactors.mechanisms import (
+        write_full_mechanism,
+        write_gas_only_mechanism,
+    )
+
     gas_path = write_gas_only_mechanism()
     full_path = write_full_mechanism('test_cat_scope', E_act_CH4=0.9)
     gas_txt = gas_path.read_text(encoding='utf-8')
@@ -1462,7 +2051,10 @@ def test_mechanism_has_condensed_graphite_not_gas_carbon():
 def test_off_site_carbon_gated_to_nanoparticle_metals():
     import json
     from pipeline.reactors.mechanisms import (
-        CandidateKinetics, off_site_carbon_allowed, write_full_mechanism)
+        CandidateKinetics,
+        off_site_carbon_allowed,
+        write_full_mechanism,
+    )
 
     ni = ('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)
     pd = ('SolidCatalyst', 'Pd', 'SiO2', 'fcc111', 0.0, (), 1, 0)
@@ -1483,7 +2075,8 @@ def test_off_site_carbon_gated_to_nanoparticle_metals():
     assert 'C_encap_s' not in ungated_txt
 
     ni_kin = CandidateKinetics(
-        methane_activation_eV=0.65, material_class='SolidCatalyst', genome=ni)
+        methane_activation_eV=0.65, material_class='SolidCatalyst', genome=ni
+    )
     ni_path = write_full_mechanism('ni_np', kinetics=ni_kin)
     ni_txt = ni_path.read_text(encoding='utf-8')
     assert 'C_s => C(gr) + site' in ni_txt
@@ -1497,7 +2090,8 @@ def test_off_site_carbon_gated_to_nanoparticle_metals():
     assert abs(meta['off_site_channels']['C_delta']['barrier_eV'] - 1.53) < 1e-12
 
     sac_kin = CandidateKinetics(
-        methane_activation_eV=0.43, material_class='SAC', genome=sac)
+        methane_activation_eV=0.43, material_class='SAC', genome=sac
+    )
     sac_path = write_full_mechanism('test_sac_fe', kinetics=sac_kin)
     assert 'C_s => C(gr) + site' not in sac_path.read_text(encoding='utf-8')
     try:
@@ -1513,14 +2107,24 @@ def test_surface_thermo_references_and_tst_prefactors():
     TST prefactors for bimolecular surface steps (B6-5 corrections)."""
     import json
     from pipeline.reactors.mechanisms import (
-        EV_TO_J_MOL, H_F_CH3_RADICAL_J_MOL, H_F_CH4_J_MOL,
-        MONOLAYER_SITE_DENSITY_MOL_CM2, CandidateKinetics, write_full_mechanism)
+        EV_TO_J_MOL,
+        H_F_CH3_RADICAL_J_MOL,
+        H_F_CH4_J_MOL,
+        MONOLAYER_SITE_DENSITY_MOL_CM2,
+        CandidateKinetics,
+        write_full_mechanism,
+    )
 
     ni = ('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)
     kin = CandidateKinetics(
-        methane_activation_eV=1.0, h_adsorption_eV=-0.5, ch3_adsorption_eV=-1.95,
-        c_adsorption_eV=1.3, encapsulation_crossover_coverage=0.5,
-        material_class='SolidCatalyst', genome=ni)
+        methane_activation_eV=1.0,
+        h_adsorption_eV=-0.5,
+        ch3_adsorption_eV=-1.95,
+        c_adsorption_eV=1.3,
+        encapsulation_crossover_coverage=0.5,
+        material_class='SolidCatalyst',
+        genome=ni,
+    )
     path = write_full_mechanism('test_ni_refs', kinetics=kin)
     meta = json.loads(path.with_suffix('.kinetics.json').read_text(encoding='utf-8'))
     h = meta['surface_enthalpies_J_mol']
@@ -1534,18 +2138,19 @@ def test_surface_thermo_references_and_tst_prefactors():
     a_bimol = meta['surface_prefactors']['bimolecular_cm2_mol_s']
     assert abs(a_bimol - 1e13 / MONOLAYER_SITE_DENSITY_MOL_CM2) / a_bimol < 1e-12
     txt = path.read_text(encoding='utf-8')
-    assert txt.count('A: 4e+21') == 3          # three dehydrogenation steps
-    assert 'A: 2e+22' in txt                    # H2 desorption
+    assert txt.count('A: 4e+21') == 3  # three dehydrogenation steps
+    assert 'A: 2e+22' in txt  # H2 desorption
     # C_delta is theta_C^2 via Cantera's power-law coverage dependency (m, not a)
     assert 'C_s: {a: 0.0, m: 1.0, E: 0.0}' in txt
     cd = meta['off_site_channels']['C_delta']
     assert cd['form'] == 'coverage_dependent_theta_C_squared'
     assert cd['crossover_coverage_theta_star'] == 0.5
-    assert abs(cd['preexponential_1_s'] - 2e13) < 1e-3   # A_gamma / theta*
+    assert abs(cd['preexponential_1_s'] - 2e13) < 1e-3  # A_gamma / theta*
     assert meta['off_site_channels']['C_gamma']['preexponential_1_s'] == 1e13
 
     # the mechanism loads in Cantera and the C_delta rate really is second order
     import cantera as ct
+
     gas = ct.Solution(str(path), 'gas')
     graphite = ct.Solution(str(path), 'graphite')
     surf = ct.Interface(str(path), 'test_ni_refs_surface', [gas, graphite])
@@ -1559,13 +2164,19 @@ def test_surface_thermo_references_and_tst_prefactors():
 
     # a declared prefactor is honoured and labelled
     kin2 = CandidateKinetics(
-        methane_activation_eV=1.0, carbon_transfer_prefactor_1_s=1e9,
-        material_class='SolidCatalyst', genome=ni)
+        methane_activation_eV=1.0,
+        carbon_transfer_prefactor_1_s=1e9,
+        material_class='SolidCatalyst',
+        genome=ni,
+    )
     p2 = write_full_mechanism('test_ni_ag', kinetics=kin2)
     m2 = json.loads(p2.with_suffix('.kinetics.json').read_text(encoding='utf-8'))
     assert m2['off_site_channels']['C_gamma']['preexponential_1_s'] == 1e9
     assert m2['off_site_channels']['C_delta']['preexponential_1_s'] == 2e9
-    assert m2['inputs']['provenance']['carbon_transfer_prefactor_1_s'] == 'declared_not_measured'
+    assert (
+        m2['inputs']['provenance']['carbon_transfer_prefactor_1_s']
+        == 'declared_not_measured'
+    )
 
 
 def test_mechanical_regen_never_clears_encapsulating_carbon():
@@ -1574,8 +2185,12 @@ def test_mechanical_regen_never_clears_encapsulating_carbon():
     from pipeline.reactors.models import _reset_surface_carbon
 
     ni = ('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)
-    path = write_full_mechanism('test_ni_regen', kinetics=CandidateKinetics(
-        methane_activation_eV=1.0, material_class='SolidCatalyst', genome=ni))
+    path = write_full_mechanism(
+        'test_ni_regen',
+        kinetics=CandidateKinetics(
+            methane_activation_eV=1.0, material_class='SolidCatalyst', genome=ni
+        ),
+    )
     gas = ct.Solution(str(path), 'gas')
     graphite = ct.Solution(str(path), 'graphite')
     surf = ct.Interface(str(path), 'test_ni_regen_surface', [gas, graphite])
@@ -1630,7 +2245,10 @@ cells:
         assert kin.sources['methane_activation_eV'] == 'sweep_yaml: Bengaard 2002'
         assert kin.sources['carbon_transfer_prefactor_1_s'] == 'sweep_yaml'
         # unknown kinetics keys fail closed
-        p.write_text(body.replace('carbon_transfer_prefactor_1_s: 1.0e9', 'k_bogus: 2'), encoding='utf-8')
+        p.write_text(
+            body.replace('carbon_transfer_prefactor_1_s: 1.0e9', 'k_bogus: 2'),
+            encoding='utf-8',
+        )
         try:
             parse_sweep(p)
         except ValueError as exc:
@@ -1676,22 +2294,24 @@ cells:
         job = parse_sweep(p)
         points = grid_points(job)
         assert len(points) == 6
-        assert [pt.kinetics['E_act'] for pt in points] == [
-            0.9, 0.9, 1.0, 1.0, 1.1, 1.1]
-        assert [pt.policy['max_regen_cycles'] for pt in points] == [
-            0, 3, 0, 3, 0, 3]
-        p.write_text(body.replace(
-            'E_act: [0.9, 1.0, 1.1]', 'k_bogus: [1, 2]'), encoding='utf-8')
+        assert [pt.kinetics['E_act'] for pt in points] == [0.9, 0.9, 1.0, 1.0, 1.1, 1.1]
+        assert [pt.policy['max_regen_cycles'] for pt in points] == [0, 3, 0, 3, 0, 3]
+        p.write_text(
+            body.replace('E_act: [0.9, 1.0, 1.1]', 'k_bogus: [1, 2]'), encoding='utf-8'
+        )
         try:
             parse_sweep(p)
         except ValueError as exc:
             assert 'k_bogus' in str(exc)
         else:
             raise AssertionError('unknown sweep.kinetics key must be rejected')
-        p.write_text(body.replace(
-            'dE_H: -0.5\n    carbon_transfer_prefactor_1_s: 1.0e13',
-            'E_act: 1.0\n    carbon_transfer_prefactor_1_s: 1.0e13',
-        ), encoding='utf-8')
+        p.write_text(
+            body.replace(
+                'dE_H: -0.5\n    carbon_transfer_prefactor_1_s: 1.0e13',
+                'E_act: 1.0\n    carbon_transfer_prefactor_1_s: 1.0e13',
+            ),
+            encoding='utf-8',
+        )
         try:
             parse_sweep(p)
         except ValueError as exc:
@@ -1702,13 +2322,15 @@ cells:
 
 def test_ch4_sticking_coefficient_written_to_yaml_and_sidecar():
     import json
-    from pipeline.reactors.mechanisms import (
-        CandidateKinetics, write_full_mechanism)
+    from pipeline.reactors.mechanisms import CandidateKinetics, write_full_mechanism
 
     ni = ('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)
     kin = CandidateKinetics(
-        methane_activation_eV=1.0, ch4_sticking_coefficient=0.03,
-        material_class='SolidCatalyst', genome=ni)
+        methane_activation_eV=1.0,
+        ch4_sticking_coefficient=0.03,
+        material_class='SolidCatalyst',
+        genome=ni,
+    )
     path = write_full_mechanism('test_ni_s0', kinetics=kin)
     txt = path.read_text(encoding='utf-8')
     assert 'sticking-coefficient: {A: 0.03' in txt
@@ -1719,23 +2341,32 @@ def test_ch4_sticking_coefficient_written_to_yaml_and_sidecar():
 
 def test_agamma_derivation_from_particle_nm():
     from pipeline.reactors.mechanisms import (
-        CARBON_DIFFUSION_PREFACTOR_M2_S, CandidateKinetics,
-        carbon_transfer_prefactor_from_particle)
+        CARBON_DIFFUSION_PREFACTOR_M2_S,
+        CandidateKinetics,
+        carbon_transfer_prefactor_from_particle,
+    )
 
     ni = ('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)
     expected = carbon_transfer_prefactor_from_particle(
-        10.0, CARBON_DIFFUSION_PREFACTOR_M2_S)
+        10.0, CARBON_DIFFUSION_PREFACTOR_M2_S
+    )
     assert abs(expected - 2.48e12) / 2.48e12 < 1e-12
     kin = CandidateKinetics(
-        methane_activation_eV=1.0, carbon_transfer_particle_nm=10.0,
-        material_class='SolidCatalyst', genome=ni)
+        methane_activation_eV=1.0,
+        carbon_transfer_particle_nm=10.0,
+        material_class='SolidCatalyst',
+        genome=ni,
+    )
     values = kin.resolved()
     assert abs(values['carbon_transfer_prefactor_1_s'] - expected) / expected < 1e-12
     assert 'D0/L^2' in values['provenance']['carbon_transfer_prefactor_1_s']
     both = CandidateKinetics(
-        methane_activation_eV=1.0, carbon_transfer_particle_nm=10.0,
+        methane_activation_eV=1.0,
+        carbon_transfer_particle_nm=10.0,
         carbon_transfer_prefactor_1_s=1e13,
-        material_class='SolidCatalyst', genome=ni)
+        material_class='SolidCatalyst',
+        genome=ni,
+    )
     try:
         both.resolved()
     except ValueError as exc:
@@ -1752,14 +2383,25 @@ def test_encapsulation_lifetime_on_pfr_and_fluidized():
         return
     from pipeline.reactors.mechanisms import CandidateKinetics, write_full_mechanism
     from pipeline.reactors.models import (
-        ReactorConfig, simulate_fluidized_bed, simulate_pfr)
+        ReactorConfig,
+        simulate_fluidized_bed,
+        simulate_pfr,
+    )
 
     ni = ('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)
-    path = write_full_mechanism('test_ni_life', kinetics=CandidateKinetics(
-        methane_activation_eV=1.0, material_class='SolidCatalyst', genome=ni))
+    path = write_full_mechanism(
+        'test_ni_life',
+        kinetics=CandidateKinetics(
+            methane_activation_eV=1.0, material_class='SolidCatalyst', genome=ni
+        ),
+    )
     shared = dict(
-        mechanism_file=str(path), catalyst_name='test_ni_life',
-        T_inlet_K=923.15, max_regen_cycles=0, fluidized_mode='circulating')
+        mechanism_file=str(path),
+        catalyst_name='test_ni_life',
+        T_inlet_K=923.15,
+        max_regen_cycles=0,
+        fluidized_mode='circulating',
+    )
     pfr = simulate_pfr(ReactorConfig(reactor_type='PFR', **shared))
     fl = simulate_fluidized_bed(ReactorConfig(reactor_type='Fluidized', **shared))
     for result, name in ((pfr, 'PFR'), (fl, 'Fluidized')):
@@ -1779,13 +2421,21 @@ def test_circulating_removal_updates_integrated_state_and_conserves_carbon():
 
     path = write_full_mechanism('test_circ_state', E_act_CH4=0.9)
     shared = dict(
-        mechanism_file=str(path), catalyst_name='test_circ_state',
-        T_inlet_K=1300.0, max_regen_cycles=0, fluidized_mode='circulating')
+        mechanism_file=str(path),
+        catalyst_name='test_circ_state',
+        T_inlet_K=1300.0,
+        max_regen_cycles=0,
+        fluidized_mode='circulating',
+    )
 
     def run(rate):
-        return simulate_fluidized_bed(ReactorConfig(
-            reactor_type='Fluidized',
-            circulating_carbon_removal_rate_1_s=rate, **shared))
+        return simulate_fluidized_bed(
+            ReactorConfig(
+                reactor_type='Fluidized',
+                circulating_carbon_removal_rate_1_s=rate,
+                **shared,
+            )
+        )
 
     zero = run(0.0)
     mid = run(0.5)
@@ -1805,22 +2455,32 @@ def test_circulating_removal_updates_integrated_state_and_conserves_carbon():
 
 def test_b66_criteria_on_synthetic_payload():
     from pipeline.reactors.sweeps.carbon_criteria import (
-        d_lnX_d_Eact, evaluate_criteria, linearity_relative_diff)
+        d_lnX_d_Eact,
+        evaluate_criteria,
+        linearity_relative_diff,
+    )
 
-    assert abs(d_lnX_d_Eact(0.20, 0.05) - abs(__import__('math').log(0.05 / 0.20) / 0.2)) < 1e-12
+    assert (
+        abs(d_lnX_d_Eact(0.20, 0.05) - abs(__import__('math').log(0.05 / 0.20) / 0.2))
+        < 1e-12
+    )
     assert abs(linearity_relative_diff(7.0, 10.0) - 3.0 / 8.5) < 1e-12
 
     def rec(**kwargs):
         sweep = {
-            'E_act': 1.0, 'max_regen_cycles': 0,
+            'E_act': 1.0,
+            'max_regen_cycles': 0,
             'carbon_transfer_prefactor_1_s': 1e13,
             'encapsulation_crossover_coverage': 0.5,
             'ch4_sticking_coefficient': 0.01,
         }
         sweep.update(kwargs.pop('sweep', {}))
         base = {
-            'cell': 'production', 'reactor_type': 'PFR', 'T_K': 923.15,
-            'status': 'complete', 'exceeds_equilibrium': False,
+            'cell': 'production',
+            'reactor_type': 'PFR',
+            'T_K': 923.15,
+            'status': 'complete',
+            'exceeds_equilibrium': False,
             'sweep': sweep,
             'CH4_conversion': 0.1456,
             'carbon_turnovers_per_site': 7.0,
@@ -1834,39 +2494,55 @@ def test_b66_criteria_on_synthetic_payload():
 
     eact = [
         rec(sweep={'E_act': 0.9}, CH4_conversion=0.3121),
-        rec(sweep={'E_act': 1.0}, CH4_conversion=0.1456,
-            carbon_turnovers_per_site=7.0),
+        rec(sweep={'E_act': 1.0}, CH4_conversion=0.1456, carbon_turnovers_per_site=7.0),
         rec(sweep={'E_act': 1.1}, CH4_conversion=0.0597),
-        rec(cell='large_particle_ni', sweep={'E_act': 1.0},
-            carbon_turnovers_per_site=10.0, CH4_conversion=0.062),
-        rec(T_K=1300.0, sweep={'E_act': 1.0}, CH4_conversion=0.999,
-            exceeds_equilibrium=True, exit_theta_C_encap=0.2,
+        rec(
+            cell='large_particle_ni',
+            sweep={'E_act': 1.0},
+            carbon_turnovers_per_site=10.0,
+            CH4_conversion=0.062,
+        ),
+        rec(
+            T_K=1300.0,
+            sweep={'E_act': 1.0},
+            CH4_conversion=0.999,
+            exceeds_equilibrium=True,
+            exit_theta_C_encap=0.2,
             encapsulation_lifetime_h=10.0,
-            filament_yield_gC_per_gMetal_h=9.0),
+            filament_yield_gC_per_gMetal_h=9.0,
+        ),
     ]
     agamma = [
-        rec(sweep={'carbon_transfer_prefactor_1_s': 1e7},
-            exit_theta_C_encap=0.40, c_gamma_to_c_delta_ratio=2.0,
+        rec(
+            sweep={'carbon_transfer_prefactor_1_s': 1e7},
+            exit_theta_C_encap=0.40,
+            c_gamma_to_c_delta_ratio=2.0,
             encapsulation_lifetime_h=12.0,
-            filament_yield_gC_per_gMetal_h=8.5),
-        rec(sweep={'carbon_transfer_prefactor_1_s': 1e13},
-            exit_theta_C_encap=3e-4),
+            filament_yield_gC_per_gMetal_h=8.5,
+        ),
+        rec(sweep={'carbon_transfer_prefactor_1_s': 1e13}, exit_theta_C_encap=3e-4),
     ]
     empty = {'records': []}
-    summary = evaluate_criteria({
-        'ni_np_b66_eact': {'records': eact},
-        'ni_np_b66_agamma': {'records': agamma},
-        'ni_np_b66_theta': empty,
-        'ni_np_b66_sticking': empty,
-        'ni_np_b66_agamma_theta': empty,
-    })
+    summary = evaluate_criteria(
+        {
+            'ni_np_b66_eact': {'records': eact},
+            'ni_np_b66_agamma': {'records': agamma},
+            'ni_np_b66_theta': empty,
+            'ni_np_b66_sticking': empty,
+            'ni_np_b66_agamma_theta': empty,
+        }
+    )
     crit = summary['criteria']
     assert crit['flat']['pass'] is True
     assert crit['flat']['value'] > 5.0
     assert crit['linearity']['pass'] is True
     assert crit['encapsulation_onset']['pass'] is True
-    assert crit['encapsulation_onset']['first_A_gamma_theta_encap'][
-        'sweep_values']['carbon_transfer_prefactor_1_s'] == 1e7
+    assert (
+        crit['encapsulation_onset']['first_A_gamma_theta_encap']['sweep_values'][
+            'carbon_transfer_prefactor_1_s'
+        ]
+        == 1e7
+    )
     assert crit['lifetime']['pass'] is True and crit['lifetime']['n_hits'] == 1
     assert crit['yield']['pass'] is True and crit['yield']['n_hits'] == 1
     assert summary['n_flagged_X_gt_Xeq'] == 1
@@ -1879,8 +2555,11 @@ def test_b67_joint_band_declares_no_simultaneous_hit():
 
     def rec(**kwargs):
         row = {
-            'cell': 'production', 'reactor_type': 'PFR', 'T_K': 923.15,
-            'status': 'complete', 'exceeds_equilibrium': False,
+            'cell': 'production',
+            'reactor_type': 'PFR',
+            'T_K': 923.15,
+            'status': 'complete',
+            'exceeds_equilibrium': False,
             'sweep': {
                 'carbon_transfer_prefactor_1_s': 1e13,
                 'encapsulation_crossover_coverage': 0.5,
@@ -1899,17 +2578,20 @@ def test_b67_joint_band_declares_no_simultaneous_hit():
     yield_only = rec(
         sweep={'carbon_transfer_prefactor_1_s': 1e7},
         filament_yield_gC_per_gMetal_h=8.5,
-        encapsulation_lifetime_h=0.004)
-    life_only = rec(
-        filament_yield_gC_per_gMetal_h=389.0,
-        encapsulation_lifetime_h=5.0)
+        encapsulation_lifetime_h=0.004,
+    )
+    life_only = rec(filament_yield_gC_per_gMetal_h=389.0, encapsulation_lifetime_h=5.0)
     overshoot = rec(
-        T_K=1300.0, exceeds_equilibrium=True,
+        T_K=1300.0,
+        exceeds_equilibrium=True,
         filament_yield_gC_per_gMetal_h=9.0,
-        encapsulation_lifetime_h=10.0)
-    summary = search_joint_band({
-        'ni_np_b66_agamma': {'records': [yield_only, life_only, overshoot]},
-    })
+        encapsulation_lifetime_h=10.0,
+    )
+    summary = search_joint_band(
+        {
+            'ni_np_b66_agamma': {'records': [yield_only, life_only, overshoot]},
+        }
+    )
     assert summary['declaration'] == 'no_simultaneous_hit_in_filament_ROI'
     assert summary['n_both'] == 0
     assert summary['n_both_roi'] == 0
@@ -1918,7 +2600,8 @@ def test_b67_joint_band_declares_no_simultaneous_hit():
     both = rec(
         sweep={'carbon_transfer_prefactor_1_s': 3e8},
         filament_yield_gC_per_gMetal_h=9.0,
-        encapsulation_lifetime_h=8.0)
+        encapsulation_lifetime_h=8.0,
+    )
     hit = search_joint_band({'cube': {'records': [both]}})
     assert hit['declaration'] == 'simultaneous_hit'
     assert hit['n_both'] == 1
@@ -1926,33 +2609,49 @@ def test_b67_joint_band_declares_no_simultaneous_hit():
 
 def test_solids_scorecard_ni_judge_uses_filament_roi_not_1300():
     from pipeline.reactors.scorecard import (
-        NI_JUDGE_CATALYST, NI_JUDGE_HEADLINE_T_MAX, NI_JUDGE_HEADLINE_T_MIN,
-        build_solids_scorecard)
+        NI_JUDGE_CATALYST,
+        NI_JUDGE_HEADLINE_T_MAX,
+        NI_JUDGE_HEADLINE_T_MIN,
+        build_solids_scorecard,
+    )
 
     def row(T, X, *, overshoot=False):
         return {
-            'reactor_type': 'PFR', 'catalyst_name': NI_JUDGE_CATALYST,
-            'T_K': T, 'CH4_conversion': X, 'single_pass_CH4_conversion': X,
-            'catalyst_E_act_eV': 1.0, 'catalyst_dE_H_eV': -0.50,
-            'active_sv_1_m': 4153.8, 'WHSV_h-1': 900.0,
-            'ergun_delta_p_bar': 0.32, 'ergun_ok': True,
-            'surface_loaded': True, 'exceeds_equilibrium': overshoot,
+            'reactor_type': 'PFR',
+            'catalyst_name': NI_JUDGE_CATALYST,
+            'T_K': T,
+            'CH4_conversion': X,
+            'single_pass_CH4_conversion': X,
+            'catalyst_E_act_eV': 1.0,
+            'catalyst_dE_H_eV': -0.50,
+            'active_sv_1_m': 4153.8,
+            'WHSV_h-1': 900.0,
+            'ergun_delta_p_bar': 0.32,
+            'ergun_ok': True,
+            'surface_loaded': True,
+            'exceeds_equilibrium': overshoot,
         }
 
     fluid = row(923.15, 0.1694)
     fluid['reactor_type'] = 'Fluidized'
     fluid['WHSV_h-1'] = 180.0
     card = build_solids_scorecard(
-        [row(923.15, 0.1456), row(973.15, 0.2633),
-         row(1300.0, 0.9997, overshoot=True), fluid],
+        [
+            row(923.15, 0.1456),
+            row(973.15, 0.2633),
+            row(1300.0, 0.9997, overshoot=True),
+            fluid,
+        ],
         judge_catalyst=NI_JUDGE_CATALYST,
         headline_t_min=NI_JUDGE_HEADLINE_T_MIN,
-        headline_t_max=NI_JUDGE_HEADLINE_T_MAX)
+        headline_t_max=NI_JUDGE_HEADLINE_T_MAX,
+    )
     assert card['judge_catalyst'] == NI_JUDGE_CATALYST
     assert abs(card['headline']['PFR']['T_K'] - 973.15) < 1e-9
     assert abs(card['headline_solids_conversion'] - 0.2633) < 1e-9
-    assert abs(card['headline']['Fluidized']['single_pass_CH4_conversion']
-               - 0.1694) < 1e-9
+    assert (
+        abs(card['headline']['Fluidized']['single_pass_CH4_conversion'] - 0.1694) < 1e-9
+    )
     assert card['headline']['PFR']['T_K'] <= NI_JUDGE_HEADLINE_T_MAX
 
 
@@ -1961,22 +2660,35 @@ def test_scorecard_excludes_equilibrium_overshoot_from_every_rank():
 
     def row(name, T, X, *, overshoot=False):
         return {
-            'reactor_type': 'PFR', 'catalyst_name': name,
-            'T_K': T, 'CH4_conversion': X, 'single_pass_CH4_conversion': X,
-            'catalyst_E_act_eV': 1.0, 'catalyst_dE_H_eV': -0.50,
-            'active_sv_1_m': 4153.8, 'WHSV_h-1': 900.0,
-            'ergun_delta_p_bar': 0.40, 'ergun_ok': True,
-            'surface_loaded': True, 'exceeds_equilibrium': overshoot,
+            'reactor_type': 'PFR',
+            'catalyst_name': name,
+            'T_K': T,
+            'CH4_conversion': X,
+            'single_pass_CH4_conversion': X,
+            'catalyst_E_act_eV': 1.0,
+            'catalyst_dE_H_eV': -0.50,
+            'active_sv_1_m': 4153.8,
+            'WHSV_h-1': 900.0,
+            'ergun_delta_p_bar': 0.40,
+            'ergun_ok': True,
+            'surface_loaded': True,
+            'exceeds_equilibrium': overshoot,
         }
 
-    card = build_solids_scorecard([
-        row('ni_np_lit', 1300.0, 0.9997, overshoot=True),
-        row('ni_np_lit', 1300.0, 0.0065),
-    ])
+    card = build_solids_scorecard(
+        [
+            row('ni_np_lit', 1300.0, 0.9997, overshoot=True),
+            row('ni_np_lit', 1300.0, 0.0065),
+        ]
+    )
     assert abs(card['headline']['PFR']['single_pass_CH4_conversion'] - 0.0065) < 1e-12
     assert card['headline']['PFR']['exceeds_equilibrium'] is False
-    assert abs(card['solids_max_excluding_h_parked']['single_pass_CH4_conversion']
-               - 0.0065) < 1e-12
+    assert (
+        abs(
+            card['solids_max_excluding_h_parked']['single_pass_CH4_conversion'] - 0.0065
+        )
+        < 1e-12
+    )
     assert card['n_solids_records'] == 2
 
 
@@ -1984,19 +2696,22 @@ def test_usable_result_baseline_shared_across_consumers():
     """Overshoot and carbon-fail cannot rank, cost, or win best-condition."""
     from pipeline.reactors.sweeps.carbon_criteria import is_scorable
     from pipeline.reactors.sweeps.joint_band import search_joint_band
-    from pipeline.reactors.scorecard import (
-        build_solids_scorecard, is_scoreable_solids)
-    from pipeline.reactors.eligibility import (
-        is_rankable_result, is_usable_result)
+    from pipeline.reactors.scorecard import build_solids_scorecard, is_scoreable_solids
+    from pipeline.reactors.eligibility import is_rankable_result, is_usable_result
     from pipeline.economics.tea import estimate_scenario_range
     from pipeline.stages.reactor import summarize_reactor_sweep
 
     def solids(X, **kwargs):
         row = {
-            'reactor_type': 'PFR', 'catalyst_name': 'ni_np_lit',
-            'T_K': 1300.0, 'CH4_conversion': X, 'single_pass_CH4_conversion': X,
-            'catalyst_E_act_eV': 1.0, 'catalyst_dE_H_eV': -0.50,
-            'status': 'complete', 'surface_loaded': True,
+            'reactor_type': 'PFR',
+            'catalyst_name': 'ni_np_lit',
+            'T_K': 1300.0,
+            'CH4_conversion': X,
+            'single_pass_CH4_conversion': X,
+            'catalyst_E_act_eV': 1.0,
+            'catalyst_dE_H_eV': -0.50,
+            'status': 'complete',
+            'surface_loaded': True,
             'exceeds_equilibrium': False,
         }
         row.update(kwargs)
@@ -2009,7 +2724,8 @@ def test_usable_result_baseline_shared_across_consumers():
     assert is_usable_result(ok) and is_scoreable_solids(ok) and is_scorable(ok)
     assert is_rankable_result(ok)
     yield_only = {
-        'status': 'complete', 'exceeds_equilibrium': False,
+        'status': 'complete',
+        'exceeds_equilibrium': False,
         'filament_yield_gC_per_gMetal_h': 8.5,
         'encapsulation_lifetime_h': 0.004,
     }
@@ -2025,19 +2741,23 @@ def test_usable_result_baseline_shared_across_consumers():
     assert summary['completed_conditions'] == 4
     assert summary['usable_conditions'] == 1
     assert abs(summary['best_condition']['CH4_conversion'] - 0.20) < 1e-12
-    estimate = estimate_scenario_range(
-        summary['best_condition']['CH4_conversion'])
+    estimate = estimate_scenario_range(summary['best_condition']['CH4_conversion'])
     assert estimate['estimates']['base']['h2_cost_usd_kg'] > 0
 
     card = build_solids_scorecard([overshoot, carbon_fail, ok])
     assert abs(card['headline']['PFR']['single_pass_CH4_conversion'] - 0.20) < 1e-12
-    assert abs(card['solids_max_excluding_h_parked']['single_pass_CH4_conversion']
-               - 0.20) < 1e-12
+    assert (
+        abs(card['solids_max_excluding_h_parked']['single_pass_CH4_conversion'] - 0.20)
+        < 1e-12
+    )
     assert card['n_solids_records'] == 3
 
     hit = {
-        'cell': 'production', 'reactor_type': 'PFR', 'T_K': 923.15,
-        'status': 'complete', 'exceeds_equilibrium': False,
+        'cell': 'production',
+        'reactor_type': 'PFR',
+        'T_K': 923.15,
+        'status': 'complete',
+        'exceeds_equilibrium': False,
         'CH4_conversion': 0.08,
         'filament_yield_gC_per_gMetal_h': 9.0,
         'encapsulation_lifetime_h': 8.0,
@@ -2075,6 +2795,7 @@ def test_staged_sweep_preserves_coarse_and_proposes_roi():
     import tempfile
     from pathlib import Path
     from pipeline.reactors.sweeps import staged as staged_sweep
+
     old = staged_sweep.SWEEPS_DIR
     with tempfile.TemporaryDirectory() as tmp:
         staged_sweep.SWEEPS_DIR = Path(tmp)
@@ -2109,8 +2830,15 @@ def test_staged_sweep_preserves_coarse_and_proposes_roi():
             # pull the lower bound inward.
             assert roi['bounds']['x'][0] <= 4.0
             assert roi['bounds']['x'][1] > 4.0
-            staged_sweep.write_stage('demo', 'targeted', {
-                'records': [{'score': 1.1}], 'roi': roi, 'n_grid_cells': roi['n_grid_cells']})
+            staged_sweep.write_stage(
+                'demo',
+                'targeted',
+                {
+                    'records': [{'score': 1.1}],
+                    'roi': roi,
+                    'n_grid_cells': roi['n_grid_cells'],
+                },
+            )
             bundle = staged_sweep.load_sweep('demo')
             assert bundle['coarse'] is not None
             assert bundle['targeted'] is not None
@@ -2122,38 +2850,55 @@ def test_staged_sweep_preserves_coarse_and_proposes_roi():
 
 def test_inventory_levers_preserve_baseline_area():
     from pipeline.reactors.models import (
-        ReactorConfig, _validate_carbon_policy, active_sv, ergun_delta_p_pa,
-        geometric_sv_pfr, inventory_grid_cells)
+        ReactorConfig,
+        _validate_carbon_policy,
+        active_sv,
+        ergun_delta_p_pa,
+        geometric_sv_pfr,
+        inventory_grid_cells,
+    )
     from pipeline.reactors.models import (
-        DEFAULT_METAL_DISPERSION, DEFAULT_METAL_LOADING,
-        DEFAULT_SOLIDS_PARTICLE_MM)
+        DEFAULT_METAL_DISPERSION,
+        DEFAULT_METAL_LOADING,
+        DEFAULT_SOLIDS_PARTICLE_MM,
+    )
+
     assert abs(DEFAULT_SOLIDS_PARTICLE_MM - 0.13) < 1e-15
     assert abs(DEFAULT_METAL_LOADING - 0.5) < 1e-15
     assert abs(DEFAULT_METAL_DISPERSION - 0.3) < 1e-15
     cfg = ReactorConfig(
-        catalyst_particle_mm=2.0, metal_loading=1.0, metal_dispersion=1.0)
+        catalyst_particle_mm=2.0, metal_loading=1.0, metal_dispersion=1.0
+    )
     _validate_carbon_policy(cfg)
     assert abs(geometric_sv_pfr(cfg) - 1800.0) < 1e-9
     assert abs(active_sv(geometric_sv_pfr(cfg), cfg) - 1800.0) < 1e-9
     small = ReactorConfig(
-        catalyst_particle_mm=0.2, metal_loading=1.0, metal_dispersion=1.0)
+        catalyst_particle_mm=0.2, metal_loading=1.0, metal_dispersion=1.0
+    )
     prod = ReactorConfig()
     assert abs(prod.catalyst_particle_mm - 0.13) < 1e-15
     assert abs(prod.metal_loading - 0.5) < 1e-15
     assert abs(prod.metal_dispersion - 0.3) < 1e-15
     assert geometric_sv_pfr(prod) > geometric_sv_pfr(cfg)
-    assert abs(active_sv(geometric_sv_pfr(prod), prod)
-               / geometric_sv_pfr(prod) - 0.15) < 1e-9
+    assert (
+        abs(active_sv(geometric_sv_pfr(prod), prod) / geometric_sv_pfr(prod) - 0.15)
+        < 1e-9
+    )
     assert abs(geometric_sv_pfr(small) / geometric_sv_pfr(cfg) - 10.0) < 1e-9
     half = ReactorConfig(
-        catalyst_particle_mm=2.0, metal_loading=0.5, metal_dispersion=1.0)
+        catalyst_particle_mm=2.0, metal_loading=0.5, metal_dispersion=1.0
+    )
     assert abs(active_sv(geometric_sv_pfr(half), half) - 900.0) < 1e-9
     assert ergun_delta_p_pa(small) > ergun_delta_p_pa(cfg)
     cells = inventory_grid_cells()
     assert len(cells) == 36
     assert cells[0] == {
-        'catalyst_particle_mm': 2.0, 'metal_loading': 1.0, 'metal_dispersion': 1.0}
+        'catalyst_particle_mm': 2.0,
+        'metal_loading': 1.0,
+        'metal_dispersion': 1.0,
+    }
     from pipeline.reactors.models import inventory_roi_grid_cells
+
     roi = inventory_roi_grid_cells()
     assert len(roi) == 54
     assert roi[0]['catalyst_particle_mm'] == 0.25
@@ -2170,6 +2915,7 @@ def test_inventory_levers_preserve_baseline_area():
 def test_yaml_sweep_parses_headline_example():
     from pipeline.utils import BASE_DIR
     from pipeline.reactors.sweeps.runner import parse_sweep
+
     job = parse_sweep(BASE_DIR / 'sweeps' / 'headline_cat9_1300K.yaml')
     assert job.name == 'headline_cat9_1300K'
     assert job.catalyst_name == 'cat_9'
@@ -2203,6 +2949,7 @@ def test_yaml_sweep_rejects_invented_area():
     import tempfile
     from pathlib import Path
     from pipeline.reactors.sweeps.runner import parse_sweep
+
     spec = """
 name: bad_loading
 catalyst:
@@ -2245,6 +2992,7 @@ cells:
 
 def test_yaml_sweep_splits_reactors_by_pathway_mode():
     from pipeline.reactors.sweeps.runner import _reactors_by_mode
+
     groups = dict(_reactors_by_mode(['PFR', 'Fluidized', 'MMBCR']))
     assert groups == {
         'thermocatalytic_pfr': ['PFR'],
@@ -2255,37 +3003,57 @@ def test_yaml_sweep_splits_reactors_by_pathway_mode():
 
 def test_solids_scorecard_judges_cat_9_not_h_parked():
     from pipeline.reactors.scorecard import build_solids_scorecard, is_h_parked
+
     h_parked = {
-        'reactor_type': 'PFR', 'catalyst_name': 'cat_40', 'T_K': 1300.0,
-        'CH4_conversion': 0.003, 'single_pass_CH4_conversion': 0.003,
-        'catalyst_E_act_eV': 0.01, 'catalyst_dE_H_eV': -2.5,
-        'active_sv_1_m': 4153.8, 'WHSV_h-1': 900.0,
-        'ergun_delta_p_bar': 0.40, 'ergun_ok': True,
+        'reactor_type': 'PFR',
+        'catalyst_name': 'cat_40',
+        'T_K': 1300.0,
+        'CH4_conversion': 0.003,
+        'single_pass_CH4_conversion': 0.003,
+        'catalyst_E_act_eV': 0.01,
+        'catalyst_dE_H_eV': -2.5,
+        'active_sv_1_m': 4153.8,
+        'WHSV_h-1': 900.0,
+        'ergun_delta_p_bar': 0.40,
+        'ergun_ok': True,
         'surface_loaded': True,
     }
     judge = {
-        'reactor_type': 'PFR', 'catalyst_name': 'cat_9', 'T_K': 1300.0,
-        'CH4_conversion': 0.0102, 'single_pass_CH4_conversion': 0.0102,
-        'catalyst_E_act_eV': 0.43, 'catalyst_dE_H_eV': -0.90,
-        'active_sv_1_m': 4153.8, 'WHSV_h-1': 900.0,
-        'ergun_delta_p_bar': 0.40, 'ergun_ok': True,
+        'reactor_type': 'PFR',
+        'catalyst_name': 'cat_9',
+        'T_K': 1300.0,
+        'CH4_conversion': 0.0102,
+        'single_pass_CH4_conversion': 0.0102,
+        'catalyst_E_act_eV': 0.43,
+        'catalyst_dE_H_eV': -0.90,
+        'active_sv_1_m': 4153.8,
+        'WHSV_h-1': 900.0,
+        'ergun_delta_p_bar': 0.40,
+        'ergun_ok': True,
         'surface_loaded': True,
     }
     fluid = dict(judge)
-    fluid.update({
-        'reactor_type': 'Fluidized',
-        'single_pass_CH4_conversion': 0.0122,
-        'CH4_conversion': 0.0122,
-        'WHSV_h-1': 180.0,
-    })
+    fluid.update(
+        {
+            'reactor_type': 'Fluidized',
+            'single_pass_CH4_conversion': 0.0122,
+            'CH4_conversion': 0.0122,
+            'WHSV_h-1': 180.0,
+        }
+    )
     melt = {
-        'reactor_type': 'MMBCR', 'catalyst_name': 'cat_9', 'T_K': 1300.0,
-        'CH4_conversion': 0.985, 'catalyst_E_act_eV': 0.43, 'catalyst_dE_H_eV': -0.90,
+        'reactor_type': 'MMBCR',
+        'catalyst_name': 'cat_9',
+        'T_K': 1300.0,
+        'CH4_conversion': 0.985,
+        'catalyst_E_act_eV': 0.43,
+        'catalyst_dE_H_eV': -0.90,
     }
     assert is_h_parked(h_parked)
     assert not is_h_parked(judge)
     card = build_solids_scorecard(
-        [h_parked, judge, fluid, melt], judge_catalyst='cat_9')
+        [h_parked, judge, fluid, melt], judge_catalyst='cat_9'
+    )
     assert card['judge_catalyst'] == 'cat_9'
     assert card['judge_catalyst_requested'] == 'cat_9'
     assert abs(card['headline_solids_conversion'] - 0.0102) < 1e-9
@@ -2301,9 +3069,13 @@ def test_solids_scorecard_judges_cat_9_not_h_parked():
 
 def test_solids_run_requires_loaded_surface():
     from pipeline.reactors.scorecard import is_solids_run, build_solids_scorecard
+
     base = {
-        'reactor_type': 'PFR', 'catalyst_name': 't', 'T_K': 1300.0,
-        'CH4_conversion': 1e-5, 'single_pass_CH4_conversion': 1e-5,
+        'reactor_type': 'PFR',
+        'catalyst_name': 't',
+        'T_K': 1300.0,
+        'CH4_conversion': 1e-5,
+        'single_pass_CH4_conversion': 1e-5,
     }
     assert not is_solids_run(base)
     assert not is_solids_run({**base, 'surface_loaded': False})
@@ -2323,10 +3095,14 @@ def test_mismatched_catalyst_name_fails_closed():
         return
     from pipeline.reactors.mechanisms import write_full_mechanism
     from pipeline.reactors.models import ReactorConfig, simulate_pfr
+
     path = write_full_mechanism('t_0_05', E_act_CH4=0.9)
     cfg = ReactorConfig(
-        mechanism_file=str(path), catalyst_name='t',
-        reactor_type='PFR', T_inlet_K=1000.0)
+        mechanism_file=str(path),
+        catalyst_name='t',
+        reactor_type='PFR',
+        T_inlet_K=1000.0,
+    )
     try:
         simulate_pfr(cfg)
     except RuntimeError as exc:
@@ -2338,7 +3114,10 @@ def test_mismatched_catalyst_name_fails_closed():
 
 def test_ch4_conversion_uses_argon_tracer_when_c2_present():
     from pipeline.reactors.equilibrium import (
-        ch4_conversion_from_argon_tracer, ch4_conversion_from_mole_fractions)
+        ch4_conversion_from_argon_tracer,
+        ch4_conversion_from_mole_fractions,
+    )
+
     # Feed CH4:0.95 / Ar:0.05. Solid route p, C2 route q (each CH4 → 0.5 C2H6 + 0.5 H2).
     x_ch4_0, x_ar_0 = 0.95, 0.05
     p, q = 0.00, 0.10
@@ -2348,8 +3127,7 @@ def test_ch4_conversion_uses_argon_tracer_when_c2_present():
     n_h2 = 2.0 * n_ch4_0 * p + 0.5 * n_ch4_0 * q
     n_tot = n_ch4 + n_c2h6 + n_h2 + n_ar
     true_x = p + q
-    got = ch4_conversion_from_argon_tracer(
-        n_ch4 / n_tot, n_ar / n_tot, x_ch4_0, x_ar_0)
+    got = ch4_conversion_from_argon_tracer(n_ch4 / n_tot, n_ar / n_tot, x_ch4_0, x_ar_0)
     assert abs(got - true_x) < 1e-12, (got, true_x)
     wrong = ch4_conversion_from_mole_fractions(n_ch4 / n_tot, n_h2 / n_tot)
     assert wrong < true_x - 0.05
@@ -2357,13 +3135,21 @@ def test_ch4_conversion_uses_argon_tracer_when_c2_present():
     X = 0.5
     n_ch4, n_h2, n_ar = 0.475, 0.95, 0.05
     n_tot = n_ch4 + n_h2 + n_ar
-    assert abs(ch4_conversion_from_mole_fractions(n_ch4 / n_tot, n_h2 / n_tot) - X) < 1e-12
-    assert abs(ch4_conversion_from_argon_tracer(
-        n_ch4 / n_tot, n_ar / n_tot, 0.95, 0.05) - X) < 1e-12
+    assert (
+        abs(ch4_conversion_from_mole_fractions(n_ch4 / n_tot, n_h2 / n_tot) - X) < 1e-12
+    )
+    assert (
+        abs(
+            ch4_conversion_from_argon_tracer(n_ch4 / n_tot, n_ar / n_tot, 0.95, 0.05)
+            - X
+        )
+        < 1e-12
+    )
 
 
 def test_mmbcr_k0_and_flotation_fail_closed():
     from pipeline.reactors.models import ReactorConfig, _validate_carbon_policy
+
     _validate_carbon_policy(ReactorConfig())
     try:
         _validate_carbon_policy(ReactorConfig(mmbcr_interfacial_k0_m_s=0.0))
@@ -2387,8 +3173,11 @@ def test_mmbcr_k0_and_flotation_fail_closed():
 
 def test_site_density_locked_to_monolayer():
     from pipeline.reactors.mechanisms import (
-        MONOLAYER_SITE_DENSITY_MOL_CM2, write_full_mechanism)
+        MONOLAYER_SITE_DENSITY_MOL_CM2,
+        write_full_mechanism,
+    )
     from pipeline.reactors.models import ReactorConfig, _validate_carbon_policy
+
     assert abs(MONOLAYER_SITE_DENSITY_MOL_CM2 - 2.5e-9) < 1e-15
     path = write_full_mechanism('test_gamma_lock', E_act_CH4=0.9)
     assert 'site-density: 2.500e-09 mol/cm^2' in path.read_text(encoding='utf-8')
@@ -2408,9 +3197,15 @@ def test_site_density_locked_to_monolayer():
 
 def test_oxidative_regen_requires_co2_permitted():
     from pipeline.reactors.models import ReactorConfig, simulate_pfr
+
     cfg = ReactorConfig(
-        reactor_type='PFR', catalyst_name='x', mechanism_file='',
-        max_regen_cycles=1, regen_mechanism='oxidative', co2_permitted=False)
+        reactor_type='PFR',
+        catalyst_name='x',
+        mechanism_file='',
+        max_regen_cycles=1,
+        regen_mechanism='oxidative',
+        co2_permitted=False,
+    )
     try:
         simulate_pfr(cfg)
     except RuntimeError as exc:
@@ -2419,11 +3214,11 @@ def test_oxidative_regen_requires_co2_permitted():
         raise AssertionError('oxidative regen should be blocked')
 
 
-
 def test_prior_art_registry_tracks_exact_and_region_novelty():
     import tempfile
     from pathlib import Path
     from pipeline.evidence.prior_art import PriorArtRegistry
+
     known = ('SAC', 'Fe', 'N4', 'N-graphene', 'OH')
     related = ('SAC', 'Fe', 'N4', 'N-graphene', 'none')
     unseen = ('MoltenMetal', 'Bi', 'Ni', 10.0, 1000)
@@ -2444,21 +3239,42 @@ def test_multiobjective_archive_preserves_conflicting_winners():
     from pathlib import Path
     from pipeline.search.exhaustive_search import ScanConfig, run_streaming_scan
     from pipeline.search.indexed_space import CLASS_OFFSETS
+
     with tempfile.TemporaryDirectory() as tmp:
         db = str(Path(tmp) / 'multi.sqlite')
         start = CLASS_OFFSETS['SAC']
+
         def scorer(genomes):
             n = len(genomes)
-            return np.column_stack([np.arange(n), np.arange(n)[::-1],
-                                    np.zeros(n), np.ones(n)])
-        run_streaming_scan(ScanConfig('multi', db, start=start, stop=start + 20,
-                                      batch_size=20, global_archive_size=20,
-                                      state_id='multi-test'), scorer)
+            return np.column_stack(
+                [np.arange(n), np.arange(n)[::-1], np.zeros(n), np.ones(n)]
+            )
+
+        run_streaming_scan(
+            ScanConfig(
+                'multi',
+                db,
+                start=start,
+                stop=start + 20,
+                batch_size=20,
+                global_archive_size=20,
+                state_id='multi-test',
+            ),
+            scorer,
+        )
         conn = sqlite3.connect(db)
-        objectives = {r[0] for r in conn.execute(
-            "SELECT DISTINCT objective_index FROM objective_archive WHERE application='multi'")}
-        regions = {r[0] for r in conn.execute(
-            "SELECT DISTINCT objective_index FROM regional_objective_champions WHERE application='multi'")}
+        objectives = {
+            r[0]
+            for r in conn.execute(
+                "SELECT DISTINCT objective_index FROM objective_archive WHERE application='multi'"
+            )
+        }
+        regions = {
+            r[0]
+            for r in conn.execute(
+                "SELECT DISTINCT objective_index FROM regional_objective_champions WHERE application='multi'"
+            )
+        }
         conn.close()
         assert objectives == {0, 1, 2, 3}
         assert regions == {0, 1, 2, 3}
@@ -2471,6 +3287,7 @@ def test_final_campaign_readiness_fails_closed():
     from pipeline.search.indexed_space import TOTAL_SIZE
     from pipeline.evidence.prior_art import PriorArtRegistry
     from pipeline.evidence.readiness import campaign_readiness
+
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         cert = root / 'coverage.json'
@@ -2479,44 +3296,65 @@ def test_final_campaign_readiness_fails_closed():
         assert not result['ready']
         assert 'coverage_certificate_missing' in result['failures']
         assert 'prior_art_registry_empty' in result['failures']
-        cert.write_text(json.dumps({
-            'declared_encoded_population': TOTAL_SIZE, 'complete': True}))
+        cert.write_text(
+            json.dumps({'declared_encoded_population': TOTAL_SIZE, 'complete': True})
+        )
         PriorArtRegistry(str(prior)).add(
-            ('SAC', 'Fe', 'N4', 'N-graphene', 'OH'), 'literature', 'doi:test')
+            ('SAC', 'Fe', 'N4', 'N-graphene', 'OH'), 'literature', 'doi:test'
+        )
         assert campaign_readiness(str(cert), str(prior))['ready']
         manifest = root / 'evidence.json'
-        gated = campaign_readiness(str(cert), str(prior),
-                                   evidence_manifest=str(manifest),
-                                   application='turquoise_hydrogen')
+        gated = campaign_readiness(
+            str(cert),
+            str(prior),
+            evidence_manifest=str(manifest),
+            application='turquoise_hydrogen',
+        )
         assert not gated['ready'] and 'evidence_manifest_missing' in gated['failures']
         import hashlib
+
         records = {}
-        for key in ('converged_dft', 'measured_reactor',
-                    'measured_deactivation', 'ntec_control_pair'):
+        for key in (
+            'converged_dft',
+            'measured_reactor',
+            'measured_deactivation',
+            'ntec_control_pair',
+        ):
             artifact = root / f'{key}.json'
             artifact.write_text(json.dumps({'kind': key, 'verified': True}))
-            records[key] = [{
-                'candidate_id': f'candidate:{key}',
-                'source_path': artifact.name,
-                'sha256': hashlib.sha256(artifact.read_bytes()).hexdigest(),
-                'protocol_id': 'test-protocol-v1',
-                'status': 'converged' if key == 'converged_dft' else 'measured',
-            }]
-        manifest.write_text(json.dumps({
-            'schema_version': 2, 'records': records}))
-        assert campaign_readiness(str(cert), str(prior),
-                                  evidence_manifest=str(manifest),
-                                  application='turquoise_hydrogen')['ready']
+            records[key] = [
+                {
+                    'candidate_id': f'candidate:{key}',
+                    'source_path': artifact.name,
+                    'sha256': hashlib.sha256(artifact.read_bytes()).hexdigest(),
+                    'protocol_id': 'test-protocol-v1',
+                    'status': 'converged' if key == 'converged_dft' else 'measured',
+                }
+            ]
+        manifest.write_text(json.dumps({'schema_version': 2, 'records': records}))
+        assert campaign_readiness(
+            str(cert),
+            str(prior),
+            evidence_manifest=str(manifest),
+            application='turquoise_hydrogen',
+        )['ready']
         no_ntec = json.loads(manifest.read_text())
         no_ntec['records']['ntec_control_pair'] = []
         manifest.write_text(json.dumps(no_ntec))
         assert campaign_readiness(
-            str(cert), str(prior), evidence_manifest=str(manifest),
+            str(cert),
+            str(prior),
+            evidence_manifest=str(manifest),
             application='turquoise_hydrogen',
-            pyrolysis_mode='thermocatalytic')['ready']
+            pyrolysis_mode='thermocatalytic',
+        )['ready']
         assert not campaign_readiness(
-            str(cert), str(prior), evidence_manifest=str(manifest),
-            application='turquoise_hydrogen', pyrolysis_mode='ntec')['ready']
+            str(cert),
+            str(prior),
+            evidence_manifest=str(manifest),
+            application='turquoise_hydrogen',
+            pyrolysis_mode='ntec',
+        )['ready']
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -2549,24 +3387,36 @@ if __name__ == '__main__':
     test("MetalFreeCarbon cost = 0", test_metalfreecarbon_zero_cost)
     test("PEMFC application scope", test_pemfc_application_scope)
     test("Novelty time-split benchmark", test_novelty_time_split_benchmark)
-    test("Pilot benchmark candidate deduplication", test_pilot_benchmark_deduplicates_candidates)
-    test("Small-data rankers preserve continuous targets", test_small_data_rankers_preserve_continuous_targets)
+    test(
+        "Pilot benchmark candidate deduplication",
+        test_pilot_benchmark_deduplicates_candidates,
+    )
+    test(
+        "Small-data rankers preserve continuous targets",
+        test_small_data_rankers_preserve_continuous_targets,
+    )
     test("Six-point status fails closed", test_six_point_status_fails_closed)
     test("Adaptive validation policy", test_adaptive_validation_policy)
     test("SSSP and candidate NEB workflow", test_sssp_and_candidate_neb_workflow)
     test("ORR multisite and corrections", test_orr_multisite_and_corrections)
-    test("Production QE workflow fails closed and resumes",
-         test_production_qe_workflow_fails_closed_and_resumes)
-    test("Validation task queue is candidate-keyed and resumable",
-         test_validation_task_queue_is_candidate_keyed_and_resumable)
+    test(
+        "Production QE workflow fails closed and resumes",
+        test_production_qe_workflow_fails_closed_and_resumes,
+    )
+    test(
+        "Validation task queue is candidate-keyed and resumable",
+        test_validation_task_queue_is_candidate_keyed_and_resumable,
+    )
 
     print("\n── Element Extractors ──")
     test("4 extractors consistent", test_element_extractors_consistent)
 
     print("\n── Structure Generation ──")
     test("All 14 classes build structures", test_structure_generation_all_classes)
-    test("Structures are deterministic and genome-sensitive",
-         test_structure_generation_is_deterministic_and_genome_sensitive)
+    test(
+        "Structures are deterministic and genome-sensitive",
+        test_structure_generation_is_deterministic_and_genome_sensitive,
+    )
 
     print("\n── PEMFC Model ──")
     test("Tafel covers all classes", test_tafel_covers_all_classes)
@@ -2576,8 +3426,10 @@ if __name__ == '__main__':
 
     print("\n── Stack Model ──")
     test("Stack model", test_stack_model)
-    test("TEA is scenario-labelled and unclamped",
-         test_tea_is_scenario_labelled_and_unclamped)
+    test(
+        "TEA is scenario-labelled and unclamped",
+        test_tea_is_scenario_labelled_and_unclamped,
+    )
 
     print("\n── CHE / Utils ──")
     test("ORR ideal overpotential = 0", test_orr_overpotential_ideal)
@@ -2603,77 +3455,188 @@ if __name__ == '__main__':
     test("Tafel slope all 14 classes", test_tafel_all_classes)
     test("Cathode SAC genomes 5-tuple", test_cathode_sac_genome_5tuple)
     test("Pyrolysis mode coking bonus", test_pyrolysis_mode_coking_bonus)
-    test("Discovery batch covers unseen regions", test_discovery_batch_prioritizes_unseen_regions)
+    test(
+        "Discovery batch covers unseen regions",
+        test_discovery_batch_prioritizes_unseen_regions,
+    )
     test("Canonical candidate IDs", test_candidate_ids_are_canonical)
-    test("Screening cache uses typed scalar storage",
-         test_screening_cache_uses_typed_scalar_storage)
-    test("Screening cache fails closed on identity changes",
-         test_screening_cache_fails_closed_on_identity_changes)
-    test("Screening cache preserves request mapping",
-         test_screening_cache_preserves_request_mapping)
+    test(
+        "Screening cache uses typed scalar storage",
+        test_screening_cache_uses_typed_scalar_storage,
+    )
+    test(
+        "Screening cache fails closed on identity changes",
+        test_screening_cache_fails_closed_on_identity_changes,
+    )
+    test(
+        "Screening cache preserves request mapping",
+        test_screening_cache_preserves_request_mapping,
+    )
     test("Crossover preserves class", test_crossover_preserves_class)
     test("Mutation preserves class", test_mutation_preserves_class)
     test("Deterministic hierarchical pool", test_deterministic_hierarchical_pool)
-    test("Hierarchical rounds cover complementary cells",
-         test_hierarchical_rounds_cover_complementary_cells)
-    test("Design space remains sizable and provenance-backed",
-         test_design_space_audit_preserves_all_sizable_classes)
+    test(
+        "Hierarchical rounds cover complementary cells",
+        test_hierarchical_rounds_cover_complementary_cells,
+    )
+    test(
+        "Design space remains sizable and provenance-backed",
+        test_design_space_audit_preserves_all_sizable_classes,
+    )
     test("Discovery metadata persists", test_discovery_metadata_is_persistable)
     test("Indexed space boundaries", test_indexed_space_boundaries_and_classes)
     test("Indexed worker shards", test_indexed_worker_shards_are_disjoint)
     test("Streaming scan resumes", test_streaming_scan_resumes_without_rescoring)
-    test("Sharded scan matches serial and fails closed",
-         test_sharded_scan_matches_serial_and_fails_closed)
-    test("Branch search never surrogate-prunes", test_branch_search_resolves_without_surrogate_pruning)
-    test("Branch probes use low-discrepancy schedule", test_branch_probes_are_deterministic_low_discrepancy)
-    test("Branch finite budget preserves class floor", test_branch_finite_budget_preserves_class_floor)
-    test("Branch certificate detects gaps", test_branch_certificate_detects_incomplete_and_gaps)
+    test(
+        "Sharded scan matches serial and fails closed",
+        test_sharded_scan_matches_serial_and_fails_closed,
+    )
+    test(
+        "Branch search never surrogate-prunes",
+        test_branch_search_resolves_without_surrogate_pruning,
+    )
+    test(
+        "Branch probes use low-discrepancy schedule",
+        test_branch_probes_are_deterministic_low_discrepancy,
+    )
+    test(
+        "Branch finite budget preserves class floor",
+        test_branch_finite_budget_preserves_class_floor,
+    )
+    test(
+        "Branch certificate detects gaps",
+        test_branch_certificate_detects_incomplete_and_gaps,
+    )
     test("Branch rejects population mismatch", test_branch_rejects_population_mismatch)
-    test("Tree probes deterministic across 14 classes", test_tree_calibration_probes_cover_all_classes_deterministically)
-    test("Production search is branch-only", test_production_has_only_branch_candidate_search)
-    test("README matches branch-only contract", test_readme_matches_branch_only_contract)
-    test("README has no machine-specific paths",
-         test_readme_contains_no_machine_specific_paths)
+    test(
+        "Tree probes deterministic across 14 classes",
+        test_tree_calibration_probes_cover_all_classes_deterministically,
+    )
+    test(
+        "Production search is branch-only",
+        test_production_has_only_branch_candidate_search,
+    )
+    test(
+        "README matches branch-only contract", test_readme_matches_branch_only_contract
+    )
+    test(
+        "README has no machine-specific paths",
+        test_readme_contains_no_machine_specific_paths,
+    )
     test("Root documentation is canonical", test_root_documentation_is_canonical)
-    test("Retired GA entry points are blocked", test_retired_ga_entry_points_are_blocked)
-    test("Industrial viability gates fail closed", test_industrial_viability_gates_fail_closed)
+    test(
+        "Retired GA entry points are blocked", test_retired_ga_entry_points_are_blocked
+    )
+    test(
+        "Industrial viability gates fail closed",
+        test_industrial_viability_gates_fail_closed,
+    )
     test("Phase stability per class", test_phase_stable_at_application_t_per_class)
-    test("Pyrolysis select excludes unstable phases", test_turquoise_pyrolysis_select_excludes_metal_hydride)
+    test(
+        "Pyrolysis select excludes unstable phases",
+        test_turquoise_pyrolysis_select_excludes_metal_hydride,
+    )
     test("Slab coking excludes melts", test_slab_coking_scope_excludes_molten_metal)
-    test("Mechanism uses condensed graphite", test_mechanism_has_condensed_graphite_not_gas_carbon)
-    test("Off-site carbon gated to nanoparticle metals", test_off_site_carbon_gated_to_nanoparticle_metals)
-    test("Surface thermo references and TST prefactors", test_surface_thermo_references_and_tst_prefactors)
-    test("Mechanical regen never clears C_encap_s", test_mechanical_regen_never_clears_encapsulating_carbon)
+    test(
+        "Mechanism uses condensed graphite",
+        test_mechanism_has_condensed_graphite_not_gas_carbon,
+    )
+    test(
+        "Off-site carbon gated to nanoparticle metals",
+        test_off_site_carbon_gated_to_nanoparticle_metals,
+    )
+    test(
+        "Surface thermo references and TST prefactors",
+        test_surface_thermo_references_and_tst_prefactors,
+    )
+    test(
+        "Mechanical regen never clears C_encap_s",
+        test_mechanical_regen_never_clears_encapsulating_carbon,
+    )
     test("YAML sweep B6 kinetics keys", test_yaml_sweep_kinetics_keys_for_b6)
-    test("YAML sweep block cartesian and rejects", test_yaml_sweep_block_cartesian_and_rejects)
-    test("CH4 sticking written to YAML and sidecar", test_ch4_sticking_coefficient_written_to_yaml_and_sidecar)
+    test(
+        "YAML sweep block cartesian and rejects",
+        test_yaml_sweep_block_cartesian_and_rejects,
+    )
+    test(
+        "CH4 sticking written to YAML and sidecar",
+        test_ch4_sticking_coefficient_written_to_yaml_and_sidecar,
+    )
     test("A_gamma derivation from particle_nm", test_agamma_derivation_from_particle_nm)
-    test("Lifetime metric on PFR and Fluidized", test_encapsulation_lifetime_on_pfr_and_fluidized)
-    test("Circulating removal updates ReactorSurface and conserves C",
-         test_circulating_removal_updates_integrated_state_and_conserves_carbon)
+    test(
+        "Lifetime metric on PFR and Fluidized",
+        test_encapsulation_lifetime_on_pfr_and_fluidized,
+    )
+    test(
+        "Circulating removal updates ReactorSurface and conserves C",
+        test_circulating_removal_updates_integrated_state_and_conserves_carbon,
+    )
     test("B6-6 criteria on synthetic payload", test_b66_criteria_on_synthetic_payload)
-    test("B6-7 joint band declares no simultaneous hit", test_b67_joint_band_declares_no_simultaneous_hit)
-    test("Ni judge headline is filament ROI not 1300 K", test_solids_scorecard_ni_judge_uses_filament_roi_not_1300)
-    test("Scorecard excludes X>X_eq from headline and max",
-         test_scorecard_excludes_equilibrium_overshoot_from_every_rank)
-    test("Usable-result baseline shared across consumers",
-         test_usable_result_baseline_shared_across_consumers)
-    test("Ni literature screening row is not fairchem", test_ni_literature_screening_row_is_not_fairchem)
+    test(
+        "B6-7 joint band declares no simultaneous hit",
+        test_b67_joint_band_declares_no_simultaneous_hit,
+    )
+    test(
+        "Ni judge headline is filament ROI not 1300 K",
+        test_solids_scorecard_ni_judge_uses_filament_roi_not_1300,
+    )
+    test(
+        "Scorecard excludes X>X_eq from headline and max",
+        test_scorecard_excludes_equilibrium_overshoot_from_every_rank,
+    )
+    test(
+        "Usable-result baseline shared across consumers",
+        test_usable_result_baseline_shared_across_consumers,
+    )
+    test(
+        "Ni literature screening row is not fairchem",
+        test_ni_literature_screening_row_is_not_fairchem,
+    )
     test("Site density locked to monolayer", test_site_density_locked_to_monolayer)
-    test("Inventory levers preserve baseline area", test_inventory_levers_preserve_baseline_area)
+    test(
+        "Inventory levers preserve baseline area",
+        test_inventory_levers_preserve_baseline_area,
+    )
     test("YAML sweep parses headline example", test_yaml_sweep_parses_headline_example)
     test("YAML sweep rejects invented area", test_yaml_sweep_rejects_invented_area)
-    test("YAML sweep splits reactors by pathway mode", test_yaml_sweep_splits_reactors_by_pathway_mode)
-    test("Solids scorecard takes named judge as argument", test_solids_scorecard_judges_cat_9_not_h_parked)
+    test(
+        "YAML sweep splits reactors by pathway mode",
+        test_yaml_sweep_splits_reactors_by_pathway_mode,
+    )
+    test(
+        "Solids scorecard takes named judge as argument",
+        test_solids_scorecard_judges_cat_9_not_h_parked,
+    )
     test("Solids run requires loaded surface", test_solids_run_requires_loaded_surface)
-    test("Mismatched catalyst name fails closed", test_mismatched_catalyst_name_fails_closed)
-    test("CH4 conversion uses Ar tracer", test_ch4_conversion_uses_argon_tracer_when_c2_present)
+    test(
+        "Mismatched catalyst name fails closed",
+        test_mismatched_catalyst_name_fails_closed,
+    )
+    test(
+        "CH4 conversion uses Ar tracer",
+        test_ch4_conversion_uses_argon_tracer_when_c2_present,
+    )
     test("MMBCR k0 and flotation fail closed", test_mmbcr_k0_and_flotation_fail_closed)
-    test("Staged sweep keeps coarse and proposes ROI", test_staged_sweep_preserves_coarse_and_proposes_roi)
-    test("Oxidative regen requires co2_permitted", test_oxidative_regen_requires_co2_permitted)
-    test("Prior-art novelty states", test_prior_art_registry_tracks_exact_and_region_novelty)
-    test("Multi-objective archive keeps conflicting winners", test_multiobjective_archive_preserves_conflicting_winners)
-    test("Final campaign readiness fails closed", test_final_campaign_readiness_fails_closed)
+    test(
+        "Staged sweep keeps coarse and proposes ROI",
+        test_staged_sweep_preserves_coarse_and_proposes_roi,
+    )
+    test(
+        "Oxidative regen requires co2_permitted",
+        test_oxidative_regen_requires_co2_permitted,
+    )
+    test(
+        "Prior-art novelty states",
+        test_prior_art_registry_tracks_exact_and_region_novelty,
+    )
+    test(
+        "Multi-objective archive keeps conflicting winners",
+        test_multiobjective_archive_preserves_conflicting_winners,
+    )
+    test(
+        "Final campaign readiness fails closed",
+        test_final_campaign_readiness_fails_closed,
+    )
 
     elapsed = time.time() - t0
     print(f"\n{'=' * 60}")

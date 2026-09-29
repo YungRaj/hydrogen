@@ -7,8 +7,8 @@ from typing import Literal, TypedDict
 
 SurrogateDecision = Literal['surrogate_closure', 'full_physics_required']
 ClosureSource = Literal[
-    'validated_full_physics', 'calibrated_transport_surrogate',
-    'full_physics_required']
+    'validated_full_physics', 'calibrated_transport_surrogate', 'full_physics_required'
+]
 
 
 class _TransportPredictionOptional(TypedDict, total=False):

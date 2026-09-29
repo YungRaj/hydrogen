@@ -9,12 +9,17 @@ from pathlib import Path
 
 
 GENERATED_FILES = {
-    'hydrogen_outputs.json', 'hydrogen_convergence.json',
-    'hydrogen_metadata.json', 'hydrogen_hydrodynamics.json',
-    'hydrogen_coupling_state.json', 'hydrogen_feedback.json',
+    'hydrogen_outputs.json',
+    'hydrogen_convergence.json',
+    'hydrogen_metadata.json',
+    'hydrogen_hydrodynamics.json',
+    'hydrogen_coupling_state.json',
+    'hydrogen_feedback.json',
     'hydrogen_coupling_request.json',
-    'hydrogen_openfoam.stdout.log', 'hydrogen_openfoam.stderr.log',
-    'hydrogen_fenicsx.stdout.log', 'hydrogen_fenicsx.stderr.log',
+    'hydrogen_openfoam.stdout.log',
+    'hydrogen_openfoam.stderr.log',
+    'hydrogen_fenicsx.stdout.log',
+    'hydrogen_fenicsx.stderr.log',
 }
 
 
@@ -62,9 +67,11 @@ def require_pristine_case(case: str | Path) -> None:
     """
     root = Path(case)
     stale = sorted(name for name in GENERATED_FILES if (root / name).exists())
-    stale.extend(path.name for pattern in ('hydrogen_*.stdout.log',
-                                           'hydrogen_*.stderr.log')
-                 for path in root.glob(pattern))
+    stale.extend(
+        path.name
+        for pattern in ('hydrogen_*.stdout.log', 'hydrogen_*.stderr.log')
+        for path in root.glob(pattern)
+    )
     numeric_times = []
     for child in root.iterdir():
         if not child.is_dir() or child.name == '0':
@@ -76,13 +83,19 @@ def require_pristine_case(case: str | Path) -> None:
         numeric_times.append(child.name)
     if stale or numeric_times:
         raise ValueError(
-            f'case contains stale generated outputs: {stale + sorted(numeric_times)}')
+            f'case contains stale generated outputs: {stale + sorted(numeric_times)}'
+        )
 
 
-def validate_hydrodynamic_handoff(case: str | Path, *, candidate_id: str,
-                                  mode: str, reactor_type: str,
-                                  temperature_K: float,
-                                  iteration: int | None = None) -> dict:
+def validate_hydrodynamic_handoff(
+    case: str | Path,
+    *,
+    candidate_id: str,
+    mode: str,
+    reactor_type: str,
+    temperature_K: float,
+    iteration: int | None = None,
+) -> dict:
     """Validate the identity, units, fields, and hashes of an OpenFOAM handoff.
 
     Args:
@@ -111,19 +124,25 @@ def validate_hydrodynamic_handoff(case: str | Path, *, candidate_id: str,
     if iteration is not None:
         checks['iteration'] = value.get('iteration') == iteration
     try:
-        checks['temperature_K'] = abs(
-            float(value['temperature_K']) - float(temperature_K)) < 1e-6
+        checks['temperature_K'] = (
+            abs(float(value['temperature_K']) - float(temperature_K)) < 1e-6
+        )
         fields = value['fields']
-        for name in ('velocity_m_s', 'pressure_Pa', 'temperature_K',
-                     'liquid_volume_fraction', 'shear_rate_s_inv'):
+        for name in (
+            'velocity_m_s',
+            'pressure_Pa',
+            'temperature_K',
+            'liquid_volume_fraction',
+            'shear_rate_s_inv',
+        ):
             number = float(fields[name])
             checks[name] = math.isfinite(number)
         checks['pressure_positive'] = float(fields['pressure_Pa']) > 0
         checks['temperature_positive'] = float(fields['temperature_K']) > 0
-        checks['field_temperature_matches'] = abs(
-            float(fields['temperature_K']) - float(temperature_K)) < 1e-6
-        checks['liquid_fraction'] = 0 <= float(
-            fields['liquid_volume_fraction']) <= 1
+        checks['field_temperature_matches'] = (
+            abs(float(fields['temperature_K']) - float(temperature_K)) < 1e-6
+        )
+        checks['liquid_fraction'] = 0 <= float(fields['liquid_volume_fraction']) <= 1
         checks['shear_nonnegative'] = float(fields['shear_rate_s_inv']) >= 0
     except (KeyError, TypeError, ValueError):
         checks['field_schema'] = False
@@ -131,8 +150,7 @@ def validate_hydrodynamic_handoff(case: str | Path, *, candidate_id: str,
     try:
         field_path = case_file(root, artifact['path'], 'hydrodynamic field artifact')
         checks['field_format'] = artifact.get('format') in {'XDMF', 'HDF5', 'VTU'}
-        checks['field_sha256'] = sha256(field_path) == str(
-            artifact['sha256']).lower()
+        checks['field_sha256'] = sha256(field_path) == str(artifact['sha256']).lower()
         checks['mesh_id'] = bool(artifact.get('mesh_id'))
         checks['coordinate_system'] = bool(artifact.get('coordinate_system'))
     except (KeyError, TypeError, ValueError):
@@ -140,13 +158,22 @@ def validate_hydrodynamic_handoff(case: str | Path, *, candidate_id: str,
     failed = [name for name, passed in checks.items() if not passed]
     if failed:
         raise ValueError('invalid hydrodynamic handoff: ' + ', '.join(failed))
-    return {'sha256': sha256(path), 'field_sha256': artifact['sha256'],
-            'mesh_id': artifact['mesh_id'], 'fields': sorted(fields)}
+    return {
+        'sha256': sha256(path),
+        'field_sha256': artifact['sha256'],
+        'mesh_id': artifact['mesh_id'],
+        'fields': sorted(fields),
+    }
 
 
-def validate_coupling_state(case: str | Path, *, candidate_id: str,
-                            reactor_type: str, temperature_K: float,
-                            iteration: int) -> dict:
+def validate_coupling_state(
+    case: str | Path,
+    *,
+    candidate_id: str,
+    reactor_type: str,
+    temperature_K: float,
+    iteration: int,
+) -> dict:
     """Validate one feedback state observed by the runner's outer loop.
 
     Args:
@@ -173,27 +200,35 @@ def validate_coupling_state(case: str | Path, *, candidate_id: str,
         'schema_version': value.get('schema_version') == 1,
         'candidate_id': value.get('candidate_id') == candidate_id,
         'reactor_type': value.get('reactor_type') == reactor_type,
-        'temperature_K': abs(float(value.get('temperature_K', -1)) -
-                             temperature_K) < 1e-6,
+        'temperature_K': abs(float(value.get('temperature_K', -1)) - temperature_K)
+        < 1e-6,
         'iteration': value.get('iteration') == iteration,
         'residual': math.isfinite(residual) and residual >= 0,
         'tolerance': math.isfinite(tolerance) and tolerance >= 0,
-        'feedback_sha256': sha256(feedback_path) == str(
-            feedback.get('sha256', '')).lower(),
+        'feedback_sha256': sha256(feedback_path)
+        == str(feedback.get('sha256', '')).lower(),
         'converged_consistent': value.get('converged') is (residual <= tolerance),
     }
     failed = [name for name, passed in checks.items() if not passed]
     if failed:
         raise ValueError('invalid coupling state: ' + ', '.join(failed))
-    return {'iteration': iteration, 'residual_relative': residual,
-            'tolerance_relative': tolerance,
-            'converged': value['converged'],
-            'feedback_sha256': feedback['sha256']}
+    return {
+        'iteration': iteration,
+        'residual_relative': residual,
+        'tolerance_relative': tolerance,
+        'converged': value['converged'],
+        'feedback_sha256': feedback['sha256'],
+    }
 
 
-def validate_solver_coupling(case: str | Path, coupling: dict, *,
-                             candidate_id: str, temperature_K: float,
-                             reactor_type: str) -> dict:
+def validate_solver_coupling(
+    case: str | Path,
+    coupling: dict,
+    *,
+    candidate_id: str,
+    temperature_K: float,
+    reactor_type: str,
+) -> dict:
     """Validate Cantera execution and exchanged rates, not a boolean claim.
 
     Args:
@@ -207,13 +242,23 @@ def validate_solver_coupling(case: str | Path, coupling: dict, *,
         Dictionary containing the computed values, status, and supporting metadata.
     """
     root = Path(case).resolve()
-    required = ('schema_version', 'cantera_used', 'mechanism_path',
-                'mechanism_sha256', 'cantera_log_path', 'cantera_log_sha256',
-                'rate_exchange_path', 'rate_exchange_sha256',
-                'coupling_history_path', 'coupling_history_sha256',
-                'coupling_method', 'coupling_iterations',
-                'coupling_residual_relative', 'coupling_tolerance_relative',
-                'exchanged_fields')
+    required = (
+        'schema_version',
+        'cantera_used',
+        'mechanism_path',
+        'mechanism_sha256',
+        'cantera_log_path',
+        'cantera_log_sha256',
+        'rate_exchange_path',
+        'rate_exchange_sha256',
+        'coupling_history_path',
+        'coupling_history_sha256',
+        'coupling_method',
+        'coupling_iterations',
+        'coupling_residual_relative',
+        'coupling_tolerance_relative',
+        'exchanged_fields',
+    )
     missing = [key for key in required if coupling.get(key) in (None, '', [])]
     if missing:
         raise ValueError(f'solver coupling proof missing: {missing}')
@@ -230,11 +275,16 @@ def validate_solver_coupling(case: str | Path, coupling: dict, *,
     try:
         exchange = json.loads(files['rate_exchange'].read_text())
         rates = exchange['reaction_rates_mol_m3_s']
-        identity = (exchange.get('schema_version') == 1 and
-                    exchange.get('candidate_id') == candidate_id and
-                    abs(float(exchange['temperature_K']) - temperature_K) < 1e-6)
-        rates_ok = isinstance(rates, dict) and bool(rates) and all(
-            math.isfinite(float(value)) for value in rates.values())
+        identity = (
+            exchange.get('schema_version') == 1
+            and exchange.get('candidate_id') == candidate_id
+            and abs(float(exchange['temperature_K']) - temperature_K) < 1e-6
+        )
+        rates_ok = (
+            isinstance(rates, dict)
+            and bool(rates)
+            and all(math.isfinite(float(value)) for value in rates.values())
+        )
     except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError):
         identity = rates_ok = False
     if not identity or not rates_ok:
@@ -247,8 +297,7 @@ def validate_solver_coupling(case: str | Path, coupling: dict, *,
     tolerance = float(coupling['coupling_tolerance_relative'])
     if not all(math.isfinite(x) for x in (residual, tolerance)) or tolerance < 0:
         raise ValueError('invalid coupling residual or tolerance')
-    if method == 'iterative_two_way' and (
-            iterations < 2 or residual > tolerance):
+    if method == 'iterative_two_way' and (iterations < 2 or residual > tolerance):
         raise ValueError('two-way solver coupling is not converged')
     try:
         history = json.loads(files['coupling_history'].read_text())['iterations']
@@ -256,14 +305,16 @@ def validate_solver_coupling(case: str | Path, coupling: dict, *,
         history_ids = [int(row['iteration']) for row in history]
     except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError):
         raise ValueError('coupling history is invalid')
-    if (len(history) != iterations or history_ids != list(range(1, iterations + 1))
-            or any(not math.isfinite(value) or value < 0
-                   for value in history_residuals)
-            or not math.isclose(history_residuals[-1], residual,
-                                rel_tol=1e-9, abs_tol=1e-12)):
+    if (
+        len(history) != iterations
+        or history_ids != list(range(1, iterations + 1))
+        or any(not math.isfinite(value) or value < 0 for value in history_residuals)
+        or not math.isclose(
+            history_residuals[-1], residual, rel_tol=1e-9, abs_tol=1e-12
+        )
+    ):
         raise ValueError('coupling history does not match declared convergence')
-    required_fields = {'species', 'temperature', 'reaction_heat',
-                       'reaction_rates'}
+    required_fields = {'species', 'temperature', 'reaction_heat', 'reaction_rates'}
     if reactor_type == 'NTEC':
         required_fields |= {'momentum', 'charge', 'potential'}
     else:
@@ -271,8 +322,10 @@ def validate_solver_coupling(case: str | Path, coupling: dict, *,
     if not required_fields.issubset(set(coupling['exchanged_fields'])):
         raise ValueError('solver coupling omits required exchanged fields')
     return {
-        'method': method, 'iterations': iterations,
-        'residual_relative': residual, 'tolerance_relative': tolerance,
+        'method': method,
+        'iterations': iterations,
+        'residual_relative': residual,
+        'tolerance_relative': tolerance,
         'converged': method == 'iterative_two_way' and residual <= tolerance,
         'mechanism_sha256': coupling['mechanism_sha256'],
         'cantera_log_sha256': coupling['cantera_log_sha256'],

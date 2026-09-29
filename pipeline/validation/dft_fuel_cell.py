@@ -19,12 +19,18 @@ from typing import Dict, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from pipeline.utils import (
-    DFT_DIR, Ry_to_eV, E_ORR_eq,
-    setup_logger, save_json, orr_overpotential,
+    DFT_DIR,
+    Ry_to_eV,
+    E_ORR_eq,
+    setup_logger,
+    save_json,
+    orr_overpotential,
 )
 from pipeline.validation.dft_validator import (
-    generate_molecule_input, generate_slab_scf_input,
-    parse_total_energy, parse_convergence,
+    generate_molecule_input,
+    generate_slab_scf_input,
+    parse_total_energy,
+    parse_convergence,
 )
 from pipeline.validation.qe_workflows import QEExecutionConfig, run_pw as run_qe_pw
 from pipeline.screening.surface_screener import generate_porphyrin_cluster
@@ -71,8 +77,9 @@ TS_CORRECTIONS_eV = {
 }
 
 
-def compute_dG_adsorbate(E_slab_ads: float, E_slab_clean: float,
-                          E_ref: float, ads_type: str) -> float:
+def compute_dG_adsorbate(
+    E_slab_ads: float, E_slab_clean: float, E_ref: float, ads_type: str
+) -> float:
     """
     Compute adsorption free energy using CHE method.
 
@@ -92,8 +99,9 @@ def compute_dG_adsorbate(E_slab_ads: float, E_slab_clean: float,
     return dE + dZPE - dTS
 
 
-def validate_orr_catalyst(catalyst_name: str, genome: tuple,
-                           run_dft: bool = True) -> Dict:
+def validate_orr_catalyst(
+    catalyst_name: str, genome: tuple, run_dft: bool = True
+) -> Dict:
     """
         Full ORR catalyst validation workflow.
 
@@ -138,6 +146,7 @@ def validate_orr_catalyst(catalyst_name: str, genome: tuple,
     else:
         # Alloy catalyst — build from genome
         from pipeline.screening.surface_screener import generate_structure
+
         cluster, _, _ = generate_structure(genome)
 
     base_elements = [a.symbol for a in cluster if a.symbol != 'X']
@@ -147,8 +156,12 @@ def validate_orr_catalyst(catalyst_name: str, genome: tuple,
 
     # ── 1. Clean slab SCF ───────────────────────────────────────────────────
     clean_input = generate_slab_scf_input(
-        base_elements, base_positions, cell_params,
-        calc_name=f"fc_{catalyst_name}_clean", ecutwfc=40.0, kpoints=(1, 1, 1)
+        base_elements,
+        base_positions,
+        cell_params,
+        calc_name=f"fc_{catalyst_name}_clean",
+        ecutwfc=40.0,
+        kpoints=(1, 1, 1),
     )
     clean_in = calc_dir / f"{catalyst_name}_clean.in"
     clean_out = calc_dir / f"{catalyst_name}_clean.out"
@@ -168,13 +181,27 @@ def validate_orr_catalyst(catalyst_name: str, genome: tuple,
 
     # ── 2-4. Adsorbate calculations ─────────────────────────────────────────
     ads_configs = {
-        'OH': {'elements': ['O', 'H'], 'offsets': [np.array([0, 0, 1.8]), np.array([0, 0, 2.8])]},
+        'OH': {
+            'elements': ['O', 'H'],
+            'offsets': [np.array([0, 0, 1.8]), np.array([0, 0, 2.8])],
+        },
         'O': {'elements': ['O'], 'offsets': [np.array([0, 0, 1.6])]},
-        'OOH': {'elements': ['O', 'O', 'H'], 'offsets': [np.array([0, 0, 1.8]), np.array([1.2, 0, 2.4]), np.array([1.2, 0, 3.3])]},
+        'OOH': {
+            'elements': ['O', 'O', 'H'],
+            'offsets': [
+                np.array([0, 0, 1.8]),
+                np.array([1.2, 0, 2.4]),
+                np.array([1.2, 0, 3.3]),
+            ],
+        },
     }
 
     # Active site position (first metal atom or center)
-    active_pos = np.array(base_positions[0]) if base_positions else np.array([cell/2, cell/2, cell/2])
+    active_pos = (
+        np.array(base_positions[0])
+        if base_positions
+        else np.array([cell / 2, cell / 2, cell / 2])
+    )
 
     for ads_name, ads_info in ads_configs.items():
         ads_elements = list(base_elements)
@@ -185,8 +212,12 @@ def validate_orr_catalyst(catalyst_name: str, genome: tuple,
             ads_positions.append(tuple(active_pos + offset))
 
         ads_input = generate_slab_scf_input(
-            ads_elements, ads_positions, cell_params,
-            calc_name=f"fc_{catalyst_name}_{ads_name}", ecutwfc=40.0, kpoints=(1, 1, 1)
+            ads_elements,
+            ads_positions,
+            cell_params,
+            calc_name=f"fc_{catalyst_name}_{ads_name}",
+            ecutwfc=40.0,
+            kpoints=(1, 1, 1),
         )
 
         ads_in = calc_dir / f"{catalyst_name}_{ads_name}.in"
@@ -204,10 +235,16 @@ def validate_orr_catalyst(catalyst_name: str, genome: tuple,
 
     # ── 4b. Gas-phase references (H₂O and H₂) ─────────────────────────────────
     h2_elements = ['H', 'H']
-    h2_positions = [(cell/2, cell/2, cell/2 - 0.37), (cell/2, cell/2, cell/2 + 0.37)]
+    h2_positions = [
+        (cell / 2, cell / 2, cell / 2 - 0.37),
+        (cell / 2, cell / 2, cell / 2 + 0.37),
+    ]
     h2_input = generate_molecule_input(
-        h2_elements, h2_positions, cell,
-        calc_name=f"fc_{catalyst_name}_h2", ecutwfc=40.0
+        h2_elements,
+        h2_positions,
+        cell,
+        calc_name=f"fc_{catalyst_name}_h2",
+        ecutwfc=40.0,
     )
     h2_in = calc_dir / f"{catalyst_name}_h2.in"
     h2_out = calc_dir / f"{catalyst_name}_h2.out"
@@ -216,13 +253,16 @@ def validate_orr_catalyst(catalyst_name: str, genome: tuple,
 
     h2o_elements = ['O', 'H', 'H']
     h2o_positions = [
-        (cell/2, cell/2, cell/2),
-        (cell/2 + 0.757, cell/2 + 0.586, cell/2),
-        (cell/2 - 0.757, cell/2 + 0.586, cell/2)
+        (cell / 2, cell / 2, cell / 2),
+        (cell / 2 + 0.757, cell / 2 + 0.586, cell / 2),
+        (cell / 2 - 0.757, cell / 2 + 0.586, cell / 2),
     ]
     h2o_input = generate_molecule_input(
-        h2o_elements, h2o_positions, cell,
-        calc_name=f"fc_{catalyst_name}_h2o", ecutwfc=40.0
+        h2o_elements,
+        h2o_positions,
+        cell,
+        calc_name=f"fc_{catalyst_name}_h2o",
+        ecutwfc=40.0,
     )
     h2o_in = calc_dir / f"{catalyst_name}_h2o.in"
     h2o_out = calc_dir / f"{catalyst_name}_h2o.out"
@@ -250,8 +290,12 @@ def validate_orr_catalyst(catalyst_name: str, genome: tuple,
         E_h2o_eV = None
 
     # ── 5. Free energy diagram ──────────────────────────────────────────────
-    if (E_clean_eV is not None and E_h2_eV is not None and E_h2o_eV is not None
-            and all(result.get(f'E_{a}_eV') is not None for a in ['OH', 'O', 'OOH'])):
+    if (
+        E_clean_eV is not None
+        and E_h2_eV is not None
+        and E_h2o_eV is not None
+        and all(result.get(f'E_{a}_eV') is not None for a in ['OH', 'O', 'OOH'])
+    ):
         # Reference energies: H₂O(g) and H₂(g)
         # Using standard CHE: dG_OH = E(slab+OH) - E(slab) - (E_H2O - 0.5*E_H2) + corrections
         E_OH = result['E_OH_eV']
@@ -259,9 +303,24 @@ def validate_orr_catalyst(catalyst_name: str, genome: tuple,
         E_OOH = result['E_OOH_eV']
 
         # Adsorption free energies (relative to H₂O and H₂ references)
-        dG_OH = (E_OH - E_clean_eV) - (E_h2o_eV - 0.5 * E_h2_eV) + ZPE_CORRECTIONS_eV['OH*'] - TS_CORRECTIONS_eV['OH*']
-        dG_O = (E_O - E_clean_eV) - (E_h2o_eV - E_h2_eV) + ZPE_CORRECTIONS_eV['O*'] - TS_CORRECTIONS_eV['O*']
-        dG_OOH = (E_OOH - E_clean_eV) - (2 * E_h2o_eV - 1.5 * E_h2_eV) + ZPE_CORRECTIONS_eV['OOH*'] - TS_CORRECTIONS_eV['OOH*']
+        dG_OH = (
+            (E_OH - E_clean_eV)
+            - (E_h2o_eV - 0.5 * E_h2_eV)
+            + ZPE_CORRECTIONS_eV['OH*']
+            - TS_CORRECTIONS_eV['OH*']
+        )
+        dG_O = (
+            (E_O - E_clean_eV)
+            - (E_h2o_eV - E_h2_eV)
+            + ZPE_CORRECTIONS_eV['O*']
+            - TS_CORRECTIONS_eV['O*']
+        )
+        dG_OOH = (
+            (E_OOH - E_clean_eV)
+            - (2 * E_h2o_eV - 1.5 * E_h2_eV)
+            + ZPE_CORRECTIONS_eV['OOH*']
+            - TS_CORRECTIONS_eV['OOH*']
+        )
 
         result['dG_OH_eV'] = float(dG_OH)
         result['dG_O_eV'] = float(dG_O)
@@ -277,13 +336,14 @@ def validate_orr_catalyst(catalyst_name: str, genome: tuple,
         logger.warning("  Cannot compute overpotential: missing DFT energies")
 
     required_outputs = [clean_out, h2_out, h2o_out] + [
-        calc_dir / f"{catalyst_name}_{name}.out" for name in ('OH', 'O', 'OOH')]
+        calc_dir / f"{catalyst_name}_{name}.out" for name in ('OH', 'O', 'OOH')
+    ]
     # Parsing a resumed campaign is valid even when this invocation only
     # generated inputs (`run_dft=False`).  Evidence comes from the outputs,
     # never from whether this Python process launched them.
     result['converged'] = all(
-        parse_convergence(str(path), require_ionic=True)
-        for path in required_outputs)
+        parse_convergence(str(path), require_ionic=True) for path in required_outputs
+    )
     result['evidence_level'] = 'converged_dft' if result['converged'] else 'incomplete'
     if not result['converged']:
         result.pop('orr_overpotential_V', None)
@@ -297,12 +357,17 @@ def _run_pw(input_file: Path, output_file: Path, cwd: Path):
     """Execute pw.x calculation."""
     try:
         outcome = run_qe_pw(
-            str(input_file), str(output_file), timeout_s=3600,
-            execution=QEExecutionConfig.production_default())
+            str(input_file),
+            str(output_file),
+            timeout_s=3600,
+            execution=QEExecutionConfig.production_default(),
+        )
         if outcome['timed_out']:
             logger.warning(f"  DFT timed out: {input_file}")
         elif outcome['returncode'] != 0:
-            logger.error(f"  DFT failed with return code {outcome['returncode']}: {input_file}")
+            logger.error(
+                f"  DFT failed with return code {outcome['returncode']}: {input_file}"
+            )
     except Exception as e:
         logger.error(f"  DFT error: {e}")
 

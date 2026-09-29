@@ -47,7 +47,8 @@ class TransportModelRegistry:
         target = self.root / f'{stem}.model.json'
         temporary = self.root / f'{stem}.model.json.tmp'
         temporary.write_text(
-            json.dumps(model.to_dict(), indent=2, sort_keys=True) + '\n')
+            json.dumps(model.to_dict(), indent=2, sort_keys=True) + '\n'
+        )
         temporary.replace(target)
         manifest = {
             'schema_version': REGISTRY_SCHEMA_VERSION,
@@ -62,8 +63,7 @@ class TransportModelRegistry:
         }
         manifest_target = self.root / f'{stem}.manifest.json'
         manifest_tmp = self.root / f'{stem}.manifest.json.tmp'
-        manifest_tmp.write_text(
-            json.dumps(manifest, indent=2, sort_keys=True) + '\n')
+        manifest_tmp.write_text(json.dumps(manifest, indent=2, sort_keys=True) + '\n')
         manifest_tmp.replace(manifest_target)
         return manifest_target
 
@@ -85,22 +85,28 @@ class TransportModelRegistry:
             manifest = json.loads(manifest_path.read_text())
         except (OSError, json.JSONDecodeError) as exc:
             raise ValueError('transport model manifest is unreadable') from exc
-        if (manifest.get('schema_version') != REGISTRY_SCHEMA_VERSION or
-                manifest.get('pathway_mode') != mode or
-                manifest.get('reactor_type') != reactor or
-                manifest.get('candidate_exclusion_authorized') is not False):
+        if (
+            manifest.get('schema_version') != REGISTRY_SCHEMA_VERSION
+            or manifest.get('pathway_mode') != mode
+            or manifest.get('reactor_type') != reactor
+            or manifest.get('candidate_exclusion_authorized') is not False
+        ):
             raise ValueError('transport model manifest identity is invalid')
         model_name = manifest.get('model_file')
         if not isinstance(model_name, str) or Path(model_name).name != model_name:
             raise ValueError('transport model manifest path is unsafe')
         model_path = self.root / model_name
-        if (not model_path.is_file() or
-                _sha256(model_path) != manifest.get('model_file_sha256')):
+        if not model_path.is_file() or _sha256(model_path) != manifest.get(
+            'model_file_sha256'
+        ):
             raise ValueError('transport model file checksum mismatch')
         model = TransportSurrogate.load(model_path)
-        if (model.pathway_mode != mode or model.reactor_type != reactor or
-                model.sha256() != manifest.get('model_content_sha256') or
-                list(model.training_case_ids) != manifest.get('training_case_ids') or
-                list(model.validation_case_ids) != manifest.get('validation_case_ids')):
+        if (
+            model.pathway_mode != mode
+            or model.reactor_type != reactor
+            or model.sha256() != manifest.get('model_content_sha256')
+            or list(model.training_case_ids) != manifest.get('training_case_ids')
+            or list(model.validation_case_ids) != manifest.get('validation_case_ids')
+        ):
             raise ValueError('transport model content does not match manifest')
         return model

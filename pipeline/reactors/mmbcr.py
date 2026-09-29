@@ -7,8 +7,9 @@ from pipeline.reactors.reactor_core import *  # noqa: F403
 from pipeline.reactors.reactor_core import logger
 
 
-def simulate_mmbcr(config: ReactorConfig, *, cantera_available: bool,
-             mock_result) -> ReactorResult:
+def simulate_mmbcr(
+    config: ReactorConfig, *, cantera_available: bool, mock_result
+) -> ReactorResult:
     """Melt ODE to tabulated X_eq with bubble-area flotation (B3).
 
     dX/dz-style first-order approach: per stage
@@ -43,16 +44,19 @@ def simulate_mmbcr(config: ReactorConfig, *, cantera_available: bool,
     sv_ratio = hydro['interfacial_sv_ratio_1_m']  # bubble S/V (m² interface / m³ gas)
     x_eq = _tabulated_x_eq(config.T_inlet_K)
     k_if = _mmbcr_interfacial_k_m_s(
-        config.catalyst_E_act_eV, config.T_inlet_K, config.mmbcr_interfacial_k0_m_s)
+        config.catalyst_E_act_eV, config.T_inlet_K, config.mmbcr_interfacial_k0_m_s
+    )
     eta_float = _mmbcr_flotation_eta(
-        k_if, sv_ratio, config.mmbcr_carbon_removal_rate_1_s)
+        k_if, sv_ratio, config.mmbcr_carbon_removal_rate_1_s
+    )
     da_stage = k_if * sv_ratio * tau_stage * eta_float
 
     z_positions = np.linspace(0, config.column_height_m, config.n_cstr_stages + 1)
     conversion_profile = [0.0]
     temperature_profile = [config.T_inlet_K]
-    species_profiles = {sp: [_species_x(gas, sp)] for sp in
-                        ['CH4', 'H2', 'C2H2', 'C2H4', 'C2H6']}
+    species_profiles = {
+        sp: [_species_x(gas, sp)] for sp in ['CH4', 'H2', 'C2H2', 'C2H4', 'C2H6']
+    }
     conv = 0.0
     carbon_removed_coverage = 0.0
 
@@ -61,7 +65,8 @@ def simulate_mmbcr(config: ReactorConfig, *, cantera_available: bool,
         conv = x_eq - (x_eq - conv) * np.exp(-da_stage)
         carbon_removed_coverage += max(0.0, conv - conversion_profile[-1]) * x_ch4_feed
         _set_gas_from_ch4_conversion(
-            gas, config.T_inlet_K, config.P_inlet_Pa, x_ch4_feed, x_ar_feed, conv)
+            gas, config.T_inlet_K, config.P_inlet_Pa, x_ch4_feed, x_ar_feed, conv
+        )
         conversion_profile.append(float(conv))
         temperature_profile.append(config.T_inlet_K)
         for sp in species_profiles:
@@ -86,7 +91,8 @@ def simulate_mmbcr(config: ReactorConfig, *, cantera_available: bool,
         'H2_selectivity': _h2_atom_balance_metric(x_ch4_feed, final_conv, x_h2),
         'solid_C_selectivity': None,
         'solid_C_selectivity_note': (
-            'melt reconstructs CH4/H2/Ar only; C2s are not in the bubble gas'),
+            'melt reconstructs CH4/H2/Ar only; C2s are not in the bubble gas'
+        ),
         'c2_tracked': False,
         'exit_x_H2': x_h2,
         'exit_x_CH4': _species_x(gas, 'CH4'),

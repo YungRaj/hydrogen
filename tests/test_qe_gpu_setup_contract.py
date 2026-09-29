@@ -91,7 +91,8 @@ def test_neb_gpu_evidence_requires_every_child_image_log():
         input_path = root / 'candidate.neb.in'
         output_path = root / 'candidate.neb.out'
         input_path.write_text(
-            "&PATH num_of_images=3 /\n&CONTROL prefix='candidate' /\n")
+            "&PATH num_of_images=3 /\n&CONTROL prefix='candidate' /\n"
+        )
         output_path.write_text('NEB parent output without a GPU banner\n')
         for index in range(1, 4):
             child = root / 'tmp' / f'candidate_{index}' / 'PW.out'
@@ -107,8 +108,7 @@ def test_single_rank_qe_still_uses_matching_mpi_launcher():
     import tempfile
     from unittest.mock import patch
 
-    from pipeline.validation.qe_workflows import (
-        QEExecutionConfig, build_qe_command)
+    from pipeline.validation.qe_workflows import QEExecutionConfig, build_qe_command
 
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -118,7 +118,8 @@ def test_single_rank_qe_still_uses_matching_mpi_launcher():
             executable.chmod(0o755)
         with patch.dict(os.environ, {'PW_X': str(pw), 'MPIEXEC': str(mpi)}):
             command = build_qe_command(
-                'pw.x', str(root / 'input.in'), QEExecutionConfig())
+                'pw.x', str(root / 'input.in'), QEExecutionConfig()
+            )
     assert command[:3] == [str(mpi), '-np', '1']
 
 

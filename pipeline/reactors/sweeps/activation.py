@@ -20,8 +20,11 @@ import numpy as np
 from pipeline.utils import REACTOR_DIR, setup_logger, save_json
 from pipeline.reactors.mechanisms import write_full_mechanism
 from pipeline.reactors.models import (
-    DIAGNOSTIC_MATERIAL_CLASS, SINGLE_REACTOR_MODE, ReactorConfig,
-    simulate_reactor)
+    DIAGNOSTIC_MATERIAL_CLASS,
+    SINGLE_REACTOR_MODE,
+    ReactorConfig,
+    simulate_reactor,
+)
 from pipeline.reactors.equilibrium import TABULATED_X_CH4_1BAR
 
 logger = setup_logger('eact_sensitivity', 'reactor/eact_sensitivity.log')
@@ -71,6 +74,7 @@ def run_eact_sweep(
         cat = f'{catalyst_stub}_{E:.3f}'.replace('.', 'p')
         if kinetics is not None:
             from dataclasses import replace as _replace
+
             varied = _replace(kinetics, methane_activation_eV=float(E))
             mech = write_full_mechanism(cat, kinetics=varied, T_ref=temperatures[0])
         else:
@@ -106,10 +110,12 @@ def run_eact_sweep(
                     'exit_theta_C': result.get('exit_theta_C'),
                     'max_theta_C': result.get('max_theta_C'),
                     'carbon_removed_coverage_proxy': result.get(
-                        'carbon_removed_coverage_proxy'),
+                        'carbon_removed_coverage_proxy'
+                    ),
                     'co2_permitted': result.get('co2_permitted'),
                     'mmbcr_carbon_removal_rate_1_s': extra.get(
-                        'mmbcr_carbon_removal_rate_1_s'),
+                        'mmbcr_carbon_removal_rate_1_s'
+                    ),
                 }
                 rows.append(row)
                 logger.info(
@@ -125,31 +131,43 @@ def run_eact_sweep(
             xs = [r['CH4_conversion'] for r in sub]
             es = [r['E_act_eV'] for r in sub]
             x_eq = sub[0]['X_eq_table'] if sub else None
-            x_low = xs[0] if xs else None   # lowest E_act
+            x_low = xs[0] if xs else None  # lowest E_act
             x_high = xs[-1] if xs else None
             span = (max(xs) - min(xs)) if xs else 0.0
             # Monotonic decreasing in E_act?
-            mono = all(xs[i] >= xs[i + 1] - 1e-9 for i in range(len(xs) - 1)) if len(xs) > 1 else True
-            frac_of_eq = (x_low / x_eq) if (x_eq and x_low is not None and x_eq > 0) else None
+            mono = (
+                all(xs[i] >= xs[i + 1] - 1e-9 for i in range(len(xs) - 1))
+                if len(xs) > 1
+                else True
+            )
+            frac_of_eq = (
+                (x_low / x_eq) if (x_eq and x_low is not None and x_eq > 0) else None
+            )
             discriminating = bool(
                 span > 0.05 and frac_of_eq is not None and frac_of_eq > 0.5 and mono
             )
-            summaries.append({
-                'reactor_type': rt,
-                'T_K': T,
-                'X_at_Emin': x_low,
-                'X_at_Emax': x_high,
-                'span': span,
-                'X_eq_table': x_eq,
-                'frac_of_eq_at_Emin': frac_of_eq,
-                'monotonic_in_E_act': mono,
-                'discriminating': discriminating,
-                'verdict': (
-                    'discriminating_sigmoid_like' if discriminating else
-                    ('flat_or_weak' if span <= 0.05 else
-                     'responds_but_far_below_equilibrium')
-                ),
-            })
+            summaries.append(
+                {
+                    'reactor_type': rt,
+                    'T_K': T,
+                    'X_at_Emin': x_low,
+                    'X_at_Emax': x_high,
+                    'span': span,
+                    'X_eq_table': x_eq,
+                    'frac_of_eq_at_Emin': frac_of_eq,
+                    'monotonic_in_E_act': mono,
+                    'discriminating': discriminating,
+                    'verdict': (
+                        'discriminating_sigmoid_like'
+                        if discriminating
+                        else (
+                            'flat_or_weak'
+                            if span <= 0.05
+                            else 'responds_but_far_below_equilibrium'
+                        )
+                    ),
+                }
+            )
 
     out = {
         'diagnostic': 'eact_sensitivity',
@@ -193,10 +211,14 @@ def run_detachment_ablation(T_K: float = 1300.0, E_act_eV: float = 0.1) -> Dict:
     cat = 'ablation_cat'
     mech = write_full_mechanism(cat, E_act_CH4=E_act_eV, T_ref=T_K)
     cases = {
-        'blocked_no_detach': {'mmbcr_carbon_removal_rate_1_s': 0.0,
-                              'circulating_carbon_removal_rate_1_s': 0.0},
-        'detach_transport_lump': {'mmbcr_carbon_removal_rate_1_s': 1e3,
-                                  'circulating_carbon_removal_rate_1_s': 1e3},
+        'blocked_no_detach': {
+            'mmbcr_carbon_removal_rate_1_s': 0.0,
+            'circulating_carbon_removal_rate_1_s': 0.0,
+        },
+        'detach_transport_lump': {
+            'mmbcr_carbon_removal_rate_1_s': 1e3,
+            'circulating_carbon_removal_rate_1_s': 1e3,
+        },
     }
     rows = []
     for name, kwargs in cases.items():
@@ -217,21 +239,24 @@ def run_detachment_ablation(T_K: float = 1300.0, E_act_eV: float = 0.1) -> Dict:
                 **kwargs,
             )
             result = simulate_reactor(cfg)
-            rows.append({
-                'case': name,
-                'reactor_type': rt,
-                'E_act_eV': E_act_eV,
-                'T_K': T_K,
-                'CH4_conversion': float(result.get('CH4_conversion', 0) or 0),
-                'exit_theta_C': result.get('exit_theta_C'),
-                'max_theta_C': result.get('max_theta_C'),
-                'responds_to_ablated_variable': ABLATION_RESPONSE[rt],
-                'ablation_note': (
-                    None if ABLATION_RESPONSE[rt] else
-                    'PFR clears C_s only by discrete regen; '
-                    'max_regen_cycles=0 so both cases are the same produce pass'
-                ),
-            })
+            rows.append(
+                {
+                    'case': name,
+                    'reactor_type': rt,
+                    'E_act_eV': E_act_eV,
+                    'T_K': T_K,
+                    'CH4_conversion': float(result.get('CH4_conversion', 0) or 0),
+                    'exit_theta_C': result.get('exit_theta_C'),
+                    'max_theta_C': result.get('max_theta_C'),
+                    'responds_to_ablated_variable': ABLATION_RESPONSE[rt],
+                    'ablation_note': (
+                        None
+                        if ABLATION_RESPONSE[rt]
+                        else 'PFR clears C_s only by discrete regen; '
+                        'max_regen_cycles=0 so both cases are the same produce pass'
+                    ),
+                }
+            )
             logger.info(
                 f"ablation {name} {rt}: X={rows[-1]['CH4_conversion']:.4f} "
                 f"responds={ABLATION_RESPONSE[rt]}"
@@ -271,6 +296,7 @@ def run_detachment_ablation(T_K: float = 1300.0, E_act_eV: float = 0.1) -> Dict:
 
 if __name__ == '__main__':
     from pipeline.utils import print_banner
+
     print_banner('E_ACT SENSITIVITY SWEEP')
     sweep = run_eact_sweep()
     print(json.dumps(sweep['summaries'], indent=2))

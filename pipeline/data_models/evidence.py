@@ -6,7 +6,8 @@ from typing import Any, Literal, TypedDict
 
 
 CandidateDisposition = Literal[
-    'hard_excluded', 'validation_required', 'quantitative_screening']
+    'hard_excluded', 'validation_required', 'quantitative_screening'
+]
 
 
 class CampaignStatus(TypedDict):

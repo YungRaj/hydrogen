@@ -78,11 +78,15 @@ def _raises_runtime(fragment, function, *args):
 def test_manifest_preserves_reference_kind_and_conditions():
     references = load_reference_manifest(MANIFEST)
     assert set(references) == {
-        "nist-fe-bcc-lattice-293k", "nist-ni-fcc-lattice-293k",
+        "nist-fe-bcc-lattice-293k",
+        "nist-ni-fcc-lattice-293k",
         "bengaard-ni111-ch4-barrier",
     }
     assert references["nist-fe-bcc-lattice-293k"].reference_kind == "experiment"
-    assert references["bengaard-ni111-ch4-barrier"].reference_kind == "published_computation"
+    assert (
+        references["bengaard-ni111-ch4-barrier"].reference_kind
+        == "published_computation"
+    )
     assert references["nist-ni-fcc-lattice-293k"].conditions["temperature_K"] == 293
 
 
@@ -102,20 +106,40 @@ def test_comparison_rejects_wrong_material_observable_units_and_protocol():
         ("unit", "Ry"),
         ("protocol", "single-point-energy-v1"),
     ):
-        _raises(field, compare_with_reference, reference,
-                replace(_observation(reference), **{field: value}))
-    _raises("conditions", compare_with_reference, reference,
-            replace(_observation(reference), conditions={"temperature_K": 0}))
+        _raises(
+            field,
+            compare_with_reference,
+            reference,
+            replace(_observation(reference), **{field: value}),
+        )
+    _raises(
+        "conditions",
+        compare_with_reference,
+        reference,
+        replace(_observation(reference), conditions={"temperature_K": 0}),
+    )
 
 
 def test_incomplete_mock_and_toy_calculations_fail_closed():
     reference = load_reference_manifest(MANIFEST)["bengaard-ni111-ch4-barrier"]
-    _raises("unconverged", compare_with_reference, reference,
-            replace(_observation(reference), converged=False))
-    _raises("mock", compare_with_reference, reference,
-            replace(_observation(reference), mock=True))
-    _raises("toy or generic", compare_with_reference, reference,
-            replace(_observation(reference), candidate_specific=False))
+    _raises(
+        "unconverged",
+        compare_with_reference,
+        reference,
+        replace(_observation(reference), converged=False),
+    )
+    _raises(
+        "mock",
+        compare_with_reference,
+        reference,
+        replace(_observation(reference), mock=True),
+    )
+    _raises(
+        "toy or generic",
+        compare_with_reference,
+        reference,
+        replace(_observation(reference), candidate_specific=False),
+    )
 
 
 def test_vqe_numerical_success_is_not_physical_validation():
@@ -124,8 +148,7 @@ def test_vqe_numerical_success_is_not_physical_validation():
         load_reference_manifest(MANIFEST)["nist-ni-fcc-lattice-293k"],
         solver_family="cudaq_vqe",
     )
-    toy = _observation(
-        reference, 3.5238, candidate_specific=False, benchmarked=True)
+    toy = _observation(reference, 3.5238, candidate_specific=False, benchmarked=True)
     _raises("toy or generic", compare_with_reference, reference, toy)
     physical = replace(toy, candidate_specific=True, benchmarked=False)
     _raises("exact-solver", compare_with_reference, reference, physical)
@@ -217,8 +240,13 @@ def test_ni111_benchmark_is_isolated_and_prepares_real_qe_inputs():
         for name in ("initial.relax.in", "final.relax.in"):
             text = (Path(temporary) / name).read_text()
             assert "calculation='relax'" in text
-            assert sum(line.startswith("Ni ") and line.endswith(" 0 0 0")
-                       for line in text.splitlines()) == 8
+            assert (
+                sum(
+                    line.startswith("Ni ") and line.endswith(" 0 0 0")
+                    for line in text.splitlines()
+                )
+                == 8
+            )
             assert "forc_conv_thr=1.0d-3" in text
 
 

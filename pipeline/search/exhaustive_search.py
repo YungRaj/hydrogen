@@ -13,9 +13,15 @@ from typing import Callable, List, Optional
 
 import numpy as np
 
-from pipeline.search.discovery import candidate_id, canonicalize_genome, discovery_region
+from pipeline.search.discovery import (
+    candidate_id,
+    canonicalize_genome,
+    discovery_region,
+)
 from pipeline.search.indexed_space import (
-    ADMISSIBILITY_POLICY_VERSION, TOTAL_SIZE, candidate_at,
+    ADMISSIBILITY_POLICY_VERSION,
+    TOTAL_SIZE,
+    candidate_at,
     is_physically_admissible,
 )
 
@@ -37,6 +43,7 @@ class ScanConfig:
         state_id: Configured state id value.
         deadline_epoch_s: Configured deadline epoch s value.
     """
+
     application: str
     database: str
     start: int = 0
@@ -56,7 +63,8 @@ def _connect(path: str) -> sqlite3.Connection:
     conn = sqlite3.connect(str(db_path), timeout=60)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
-    conn.executescript("""
+    conn.executescript(
+        """
         CREATE TABLE IF NOT EXISTS scan_state (
             application TEXT NOT NULL, worker_id INTEGER NOT NULL,
             num_workers INTEGER NOT NULL, next_index INTEGER NOT NULL,
@@ -120,7 +128,8 @@ def _connect(path: str) -> sqlite3.Connection:
         CREATE TABLE IF NOT EXISTS scan_metadata (
             key TEXT PRIMARY KEY, value TEXT NOT NULL
         );
-    """)
+    """
+    )
     return conn
 
 
@@ -129,8 +138,10 @@ def _verify_policy(conn: sqlite3.Connection) -> None:
         "SELECT value FROM scan_metadata WHERE key='admissibility_policy_version'"
     ).fetchone()
     if row is None:
-        populated = any(conn.execute(f"SELECT EXISTS(SELECT 1 FROM {table} LIMIT 1)").fetchone()[0]
-                        for table in ('scan_progress', 'scan_chunks', 'global_archive'))
+        populated = any(
+            conn.execute(f"SELECT EXISTS(SELECT 1 FROM {table} LIMIT 1)").fetchone()[0]
+            for table in ('scan_progress', 'scan_chunks', 'global_archive')
+        )
         if populated:
             raise RuntimeError(
                 "Legacy scan database has no admissibility-policy version; use a "
@@ -138,7 +149,8 @@ def _verify_policy(conn: sqlite3.Connection) -> None:
             )
         conn.execute(
             "INSERT INTO scan_metadata VALUES ('admissibility_policy_version', ?)",
-            (ADMISSIBILITY_POLICY_VERSION,))
+            (ADMISSIBILITY_POLICY_VERSION,),
+        )
         conn.commit()
     elif row[0] != ADMISSIBILITY_POLICY_VERSION:
         raise RuntimeError(
@@ -153,14 +165,26 @@ def _resume_index(conn: sqlite3.Connection, cfg: ScanConfig) -> int:
         "SELECT next_index FROM scan_progress WHERE application=? AND state_id=?",
         (cfg.application, state_id),
     ).fetchone()
-    return max(cfg.start + cfg.worker_id, int(row[0])) if row else cfg.start + cfg.worker_id
+    return (
+        max(cfg.start + cfg.worker_id, int(row[0]))
+        if row
+        else cfg.start + cfg.worker_id
+    )
 
 
-def _candidate_record(global_index: int, genome: tuple,
-                      objectives: np.ndarray) -> tuple:
+def _candidate_record(
+    global_index: int, genome: tuple, objectives: np.ndarray
+) -> tuple:
     region = "|".join(discovery_region(genome))
     primary = float(objectives[0])
-    return canonicalize_genome(genome), region, global_index, primary, objectives, genome
+    return (
+        canonicalize_genome(genome),
+        region,
+        global_index,
+        primary,
+        objectives,
+        genome,
+    )
 
 
 def _upsert_region(conn, cfg: ScanConfig, record: tuple) -> None:
@@ -168,14 +192,17 @@ def _upsert_region(conn, cfg: ScanConfig, record: tuple) -> None:
     cid = candidate_id(genome)
     obj_json = json.dumps([float(x) for x in objectives], separators=(",", ":"))
     genome_json = json.dumps(genome, separators=(",", ":"))
-    conn.execute("""
+    conn.execute(
+        """
         INSERT INTO region_champions VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(application, region) DO UPDATE SET
           candidate_id=excluded.candidate_id, global_index=excluded.global_index,
           primary_score=excluded.primary_score, objectives=excluded.objectives,
           genome=excluded.genome
         WHERE excluded.primary_score < region_champions.primary_score
-    """, (cfg.application, region, cid, global_index, primary, obj_json, genome_json))
+    """,
+        (cfg.application, region, cid, global_index, primary, obj_json, genome_json),
+    )
 
 
 def _upsert_global(conn, cfg: ScanConfig, record: tuple) -> None:
@@ -183,43 +210,69 @@ def _upsert_global(conn, cfg: ScanConfig, record: tuple) -> None:
     cid = candidate_id(genome)
     obj_json = json.dumps([float(x) for x in objectives], separators=(",", ":"))
     genome_json = json.dumps(genome, separators=(",", ":"))
-    conn.execute("""
+    conn.execute(
+        """
         INSERT INTO global_archive VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT(application, candidate_id) DO UPDATE SET
           global_index=excluded.global_index, primary_score=excluded.primary_score,
           objectives=excluded.objectives, genome=excluded.genome
         WHERE excluded.primary_score < global_archive.primary_score
-    """, (cfg.application, cid, global_index, primary, obj_json, genome_json))
+    """,
+        (cfg.application, cid, global_index, primary, obj_json, genome_json),
+    )
 
 
-def _upsert_objective(conn, cfg: ScanConfig, record: tuple,
-                      objective_index: int, regional: bool) -> None:
+def _upsert_objective(
+    conn, cfg: ScanConfig, record: tuple, objective_index: int, regional: bool
+) -> None:
     _, region, global_index, _, objectives, genome = record
     cid = candidate_id(genome)
     score = float(objectives[objective_index])
     obj_json = json.dumps([float(x) for x in objectives], separators=(",", ":"))
     genome_json = json.dumps(genome, separators=(",", ":"))
     if regional:
-        conn.execute("""INSERT INTO regional_objective_champions VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        conn.execute(
+            """INSERT INTO regional_objective_champions VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(application, region, objective_index) DO UPDATE SET
               candidate_id=excluded.candidate_id, global_index=excluded.global_index,
               objective_score=excluded.objective_score, objectives=excluded.objectives,
               genome=excluded.genome
             WHERE excluded.objective_score < regional_objective_champions.objective_score
-        """, (cfg.application, region, objective_index, cid, global_index,
-                score, obj_json, genome_json))
+        """,
+            (
+                cfg.application,
+                region,
+                objective_index,
+                cid,
+                global_index,
+                score,
+                obj_json,
+                genome_json,
+            ),
+        )
     else:
-        conn.execute("""INSERT INTO objective_archive VALUES (?, ?, ?, ?, ?, ?, ?)
+        conn.execute(
+            """INSERT INTO objective_archive VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(application, objective_index, candidate_id) DO UPDATE SET
               global_index=excluded.global_index, objective_score=excluded.objective_score,
               objectives=excluded.objectives, genome=excluded.genome
             WHERE excluded.objective_score < objective_archive.objective_score
-        """, (cfg.application, objective_index, cid, global_index,
-                score, obj_json, genome_json))
+        """,
+            (
+                cfg.application,
+                objective_index,
+                cid,
+                global_index,
+                score,
+                obj_json,
+                genome_json,
+            ),
+        )
 
 
-def run_streaming_scan(config: ScanConfig,
-                       scorer: Callable[[List[tuple]], np.ndarray]) -> dict:
+def run_streaming_scan(
+    config: ScanConfig, scorer: Callable[[List[tuple]], np.ndarray]
+) -> dict:
     """Score a complete or partial global range and resume safely after exits.
 
         ``scorer`` must return an ``(N, M)`` minimization-objective array.  The
@@ -246,24 +299,42 @@ def run_streaming_scan(config: ScanConfig,
     global_best = {}
     global_candidate_ids = {}
     for row in conn.execute(
-            "SELECT candidate_id, global_index, primary_score, objectives, genome "
-            "FROM global_archive WHERE application=?", (config.application,)
-        ):
+        "SELECT candidate_id, global_index, primary_score, objectives, genome "
+        "FROM global_archive WHERE application=?",
+        (config.application,),
+    ):
         genome = json.loads(row[4])
-        if genome[0] == 'SolidCatalyst': genome[5] = tuple(genome[5])
-        if genome[0] == 'HEA': genome[1] = tuple(genome[1])
+        if genome[0] == 'SolidCatalyst':
+            genome[5] = tuple(genome[5])
+        if genome[0] == 'HEA':
+            genome[1] = tuple(genome[1])
         genome = tuple(genome)
         key = canonicalize_genome(genome)
-        global_best[key] = (key, "", row[1], row[2], np.asarray(json.loads(row[3])), genome)
+        global_best[key] = (
+            key,
+            "",
+            row[1],
+            row[2],
+            np.asarray(json.loads(row[3])),
+            genome,
+        )
         global_candidate_ids[key] = row[0]
 
     while next_index < config.stop:
-        if config.deadline_epoch_s is not None and time.time() >= config.deadline_epoch_s:
+        if (
+            config.deadline_epoch_s is not None
+            and time.time() >= config.deadline_epoch_s
+        ):
             break
         if config.max_batches is not None and batches >= config.max_batches:
             break
-        indices = list(range(next_index, min(config.stop, next_index + config.batch_size * config.num_workers),
-                             config.num_workers))
+        indices = list(
+            range(
+                next_index,
+                min(config.stop, next_index + config.batch_size * config.num_workers),
+                config.num_workers,
+            )
+        )
         genomes, accepted_indices, rejected = [], [], 0
         digest = hashlib.sha256()
         for index in indices:
@@ -295,7 +366,8 @@ def run_streaming_scan(config: ScanConfig,
             # hashing the same genome repeatedly.
             batch_candidate_ids = [candidate_id(genome) for genome in genomes]
             for index, genome, obj, cid in zip(
-                    accepted_indices, genomes, objectives, batch_candidate_ids):
+                accepted_indices, genomes, objectives, batch_candidate_ids
+            ):
                 record = _candidate_record(index, genome, obj)
                 key, region, _, primary, _, _ = record
                 previous_region = region_best.get(region)
@@ -321,11 +393,12 @@ def run_streaming_scan(config: ScanConfig,
                 # or whether indices were processed serially or by shards.
                 keep = sorted(
                     global_best.values(),
-                    key=lambda record: (record[3], global_candidate_ids[record[0]])
-                )[:config.global_archive_size]
+                    key=lambda record: (record[3], global_candidate_ids[record[0]]),
+                )[: config.global_archive_size]
                 global_best = {r[0]: r for r in keep}
                 global_candidate_ids = {
-                    key: global_candidate_ids[key] for key in global_best}
+                    key: global_candidate_ids[key] for key in global_best
+                }
             for record in region_best.values():
                 _upsert_region(conn, config, record)
             for (_, objective_index), record in regional_objective_best.items():
@@ -334,42 +407,62 @@ def run_streaming_scan(config: ScanConfig,
                 _upsert_global(conn, config, global_best[key])
             # Preserve strong candidates for every objective, not only objective
             # zero. Batch reduction keeps database traffic bounded.
-            per_objective_limit = max(1, config.global_archive_size // objectives.shape[1])
+            per_objective_limit = max(
+                1, config.global_archive_size // objectives.shape[1]
+            )
             for objective_index in range(objectives.shape[1]):
                 # Reduce every batch with the same total ordering used by the
                 # database. This makes tied objectives invariant to batches and
                 # worker shards while keeping writes bounded by archive size.
                 best_local = sorted(
                     range(len(genomes)),
-                    key=lambda i: (float(objectives[i, objective_index]),
-                                   batch_candidate_ids[i])
+                    key=lambda i: (
+                        float(objectives[i, objective_index]),
+                        batch_candidate_ids[i],
+                    ),
                 )[:per_objective_limit]
                 archive_count = conn.execute(
                     "SELECT COUNT(*) FROM objective_archive "
                     "WHERE application=? AND objective_index=?",
-                    (config.application, objective_index)).fetchone()[0]
+                    (config.application, objective_index),
+                ).fetchone()[0]
                 if archive_count >= per_objective_limit:
                     worst_score, worst_id = conn.execute(
                         "SELECT objective_score, candidate_id FROM objective_archive "
                         "WHERE application=? AND objective_index=? "
                         "ORDER BY objective_score DESC, candidate_id DESC LIMIT 1",
-                        (config.application, objective_index)).fetchone()
+                        (config.application, objective_index),
+                    ).fetchone()
                     best_local = [
-                        i for i in best_local
-                        if (float(objectives[i, objective_index]),
-                            candidate_id(genomes[i])) < (worst_score, worst_id)
+                        i
+                        for i in best_local
+                        if (
+                            float(objectives[i, objective_index]),
+                            candidate_id(genomes[i]),
+                        )
+                        < (worst_score, worst_id)
                     ]
                 for local_index in best_local:
-                    record = _candidate_record(accepted_indices[local_index], genomes[local_index], objectives[local_index])
-                    _upsert_objective(conn, config, record, objective_index, regional=False)
+                    record = _candidate_record(
+                        accepted_indices[local_index],
+                        genomes[local_index],
+                        objectives[local_index],
+                    )
+                    _upsert_objective(
+                        conn, config, record, objective_index, regional=False
+                    )
                 excess_obj = conn.execute(
                     "SELECT COUNT(*)-? FROM objective_archive WHERE application=? AND objective_index=?",
-                    (per_objective_limit, config.application, objective_index)).fetchone()[0]
+                    (per_objective_limit, config.application, objective_index),
+                ).fetchone()[0]
                 if excess_obj > 0:
-                    conn.execute("""DELETE FROM objective_archive WHERE rowid IN (
+                    conn.execute(
+                        """DELETE FROM objective_archive WHERE rowid IN (
                         SELECT rowid FROM objective_archive WHERE application=? AND objective_index=?
                         ORDER BY objective_score DESC, candidate_id DESC LIMIT ?)
-                    """, (config.application, objective_index, excess_obj))
+                    """,
+                        (config.application, objective_index, excess_obj),
+                    )
 
         # Bound the global archive. Region champions remain independent, so
         # unfamiliar families are retained even when absent from global top-K.
@@ -378,26 +471,51 @@ def run_streaming_scan(config: ScanConfig,
             (config.global_archive_size, config.application),
         ).fetchone()[0]
         if excess > 0:
-            conn.execute("""DELETE FROM global_archive WHERE rowid IN (
+            conn.execute(
+                """DELETE FROM global_archive WHERE rowid IN (
                 SELECT rowid FROM global_archive WHERE application=?
                 ORDER BY primary_score DESC, candidate_id DESC LIMIT ?)
-            """, (config.application, excess))
+            """,
+                (config.application, excess),
+            )
 
         processed, accepted = len(indices), len(genomes)
         following = indices[-1] + config.num_workers if indices else config.stop
         state_id = config.state_id or f"worker:{config.worker_id}/{config.num_workers}"
-        conn.execute("INSERT OR REPLACE INTO scan_chunks VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", (
-            config.application, state_id, indices[0], indices[-1], processed,
-            accepted, rejected, digest.hexdigest(), time.time() - t_batch))
-        conn.execute("""INSERT INTO scan_progress VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        conn.execute(
+            "INSERT OR REPLACE INTO scan_chunks VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                config.application,
+                state_id,
+                indices[0],
+                indices[-1],
+                processed,
+                accepted,
+                rejected,
+                digest.hexdigest(),
+                time.time() - t_batch,
+            ),
+        )
+        conn.execute(
+            """INSERT INTO scan_progress VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(application, state_id) DO UPDATE SET
               next_index=excluded.next_index, stop_index=excluded.stop_index,
               processed=scan_progress.processed+excluded.processed,
               accepted=scan_progress.accepted+excluded.accepted,
               rejected=scan_progress.rejected+excluded.rejected,
               updated_at=excluded.updated_at
-        """, (config.application, state_id, following, config.stop, processed,
-                accepted, rejected, time.time()))
+        """,
+            (
+                config.application,
+                state_id,
+                following,
+                config.stop,
+                processed,
+                accepted,
+                rejected,
+                time.time(),
+            ),
+        )
         conn.commit()
         next_index = following
         processed_total += processed
@@ -406,7 +524,8 @@ def run_streaming_scan(config: ScanConfig,
         batches += 1
 
     region_count = conn.execute(
-        "SELECT COUNT(*) FROM region_champions WHERE application=?", (config.application,)
+        "SELECT COUNT(*) FROM region_champions WHERE application=?",
+        (config.application,),
     ).fetchone()[0]
     global_count = conn.execute(
         "SELECT COUNT(*) FROM global_archive WHERE application=?", (config.application,)
@@ -435,46 +554,55 @@ def _run_scan_shard(config: ScanConfig) -> dict:
     return run_streaming_scan(config, _SHARD_SCORER)
 
 
-def _merge_shard_archives(config: ScanConfig, shard_databases: list[Path],
-                          aggregate_state_id: str) -> None:
+def _merge_shard_archives(
+    config: ScanConfig, shard_databases: list[Path], aggregate_state_id: str
+) -> None:
     """Merge complete independent shard archives into the campaign database."""
     destination = _connect(config.database)
     _verify_policy(destination)
     table_specs = {
         'region_champions': (
-            7, """INSERT INTO region_champions VALUES (?, ?, ?, ?, ?, ?, ?)
+            7,
+            """INSERT INTO region_champions VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(application, region) DO UPDATE SET
               candidate_id=excluded.candidate_id, global_index=excluded.global_index,
               primary_score=excluded.primary_score, objectives=excluded.objectives,
               genome=excluded.genome
             WHERE excluded.primary_score < region_champions.primary_score OR
               (excluded.primary_score = region_champions.primary_score AND
-               excluded.global_index < region_champions.global_index)"""),
+               excluded.global_index < region_champions.global_index)""",
+        ),
         'global_archive': (
-            6, """INSERT INTO global_archive VALUES (?, ?, ?, ?, ?, ?)
+            6,
+            """INSERT INTO global_archive VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(application, candidate_id) DO UPDATE SET
               global_index=excluded.global_index, primary_score=excluded.primary_score,
               objectives=excluded.objectives, genome=excluded.genome
             WHERE excluded.primary_score < global_archive.primary_score OR
               (excluded.primary_score = global_archive.primary_score AND
-               excluded.global_index < global_archive.global_index)"""),
+               excluded.global_index < global_archive.global_index)""",
+        ),
         'objective_archive': (
-            7, """INSERT INTO objective_archive VALUES (?, ?, ?, ?, ?, ?, ?)
+            7,
+            """INSERT INTO objective_archive VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(application, objective_index, candidate_id) DO UPDATE SET
               global_index=excluded.global_index, objective_score=excluded.objective_score,
               objectives=excluded.objectives, genome=excluded.genome
             WHERE excluded.objective_score < objective_archive.objective_score OR
               (excluded.objective_score = objective_archive.objective_score AND
-               excluded.global_index < objective_archive.global_index)"""),
+               excluded.global_index < objective_archive.global_index)""",
+        ),
         'regional_objective_champions': (
-            8, """INSERT INTO regional_objective_champions VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            8,
+            """INSERT INTO regional_objective_champions VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(application, region, objective_index) DO UPDATE SET
               candidate_id=excluded.candidate_id, global_index=excluded.global_index,
               objective_score=excluded.objective_score, objectives=excluded.objectives,
               genome=excluded.genome
             WHERE excluded.objective_score < regional_objective_champions.objective_score OR
               (excluded.objective_score = regional_objective_champions.objective_score AND
-               excluded.global_index < regional_objective_champions.global_index)"""),
+               excluded.global_index < regional_objective_champions.global_index)""",
+        ),
     }
     processed = accepted = rejected = 0
     digest = hashlib.sha256()
@@ -483,7 +611,9 @@ def _merge_shard_archives(config: ScanConfig, shard_databases: list[Path],
             _verify_policy(source)
             progress = source.execute(
                 "SELECT processed, accepted, rejected FROM scan_progress "
-                "WHERE application=?", (config.application,)).fetchone()
+                "WHERE application=?",
+                (config.application,),
+            ).fetchone()
             if progress is None:
                 destination.close()
                 raise RuntimeError(f'shard lacks progress: {shard_path}')
@@ -491,13 +621,15 @@ def _merge_shard_archives(config: ScanConfig, shard_databases: list[Path],
             accepted += int(progress[1])
             rejected += int(progress[2])
             for row in source.execute(
-                    "SELECT identity_digest FROM scan_chunks WHERE application=? "
-                    "ORDER BY state_id, first_index", (config.application,)):
+                "SELECT identity_digest FROM scan_chunks WHERE application=? "
+                "ORDER BY state_id, first_index",
+                (config.application,),
+            ):
                 digest.update(row[0].encode())
             for table, (width, statement) in table_specs.items():
                 rows = source.execute(
-                    f"SELECT * FROM {table} WHERE application=?",
-                    (config.application,)).fetchall()
+                    f"SELECT * FROM {table} WHERE application=?", (config.application,)
+                ).fetchall()
                 if any(len(row) != width for row in rows):
                     destination.close()
                     raise RuntimeError(f'invalid {table} row width in {shard_path}')
@@ -508,50 +640,83 @@ def _merge_shard_archives(config: ScanConfig, shard_databases: list[Path],
         destination.close()
         raise RuntimeError(
             f'shard coverage mismatch: processed={processed}, expected={expected}, '
-            f'accepted={accepted}, rejected={rejected}')
+            f'accepted={accepted}, rejected={rejected}'
+        )
 
     excess = destination.execute(
         "SELECT COUNT(*)-? FROM global_archive WHERE application=?",
-        (config.global_archive_size, config.application)).fetchone()[0]
+        (config.global_archive_size, config.application),
+    ).fetchone()[0]
     if excess > 0:
-        destination.execute("""DELETE FROM global_archive WHERE rowid IN (
+        destination.execute(
+            """DELETE FROM global_archive WHERE rowid IN (
             SELECT rowid FROM global_archive WHERE application=?
             ORDER BY primary_score DESC, candidate_id DESC LIMIT ?)""",
-            (config.application, excess))
+            (config.application, excess),
+        )
     objective_indices = [
-        row[0] for row in destination.execute(
+        row[0]
+        for row in destination.execute(
             "SELECT DISTINCT objective_index FROM objective_archive WHERE application=?",
-            (config.application,))]
+            (config.application,),
+        )
+    ]
     for objective_index in objective_indices:
         objective_count = destination.execute(
             "SELECT COUNT(*) FROM objective_archive WHERE application=? "
-            "AND objective_index=?", (config.application, objective_index)).fetchone()[0]
-        objective_limit = max(1, config.global_archive_size // max(1, len(objective_indices)))
+            "AND objective_index=?",
+            (config.application, objective_index),
+        ).fetchone()[0]
+        objective_limit = max(
+            1, config.global_archive_size // max(1, len(objective_indices))
+        )
         excess = objective_count - objective_limit
         if excess > 0:
-            destination.execute("""DELETE FROM objective_archive WHERE rowid IN (
+            destination.execute(
+                """DELETE FROM objective_archive WHERE rowid IN (
                 SELECT rowid FROM objective_archive WHERE application=? AND objective_index=?
                 ORDER BY objective_score DESC, candidate_id DESC LIMIT ?)""",
-                (config.application, objective_index, excess))
+                (config.application, objective_index, excess),
+            )
 
     destination.execute(
         "INSERT OR REPLACE INTO scan_chunks VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (config.application, aggregate_state_id, config.start, config.stop - 1,
-         processed, accepted, rejected, digest.hexdigest(), 0.0))
-    destination.execute("""INSERT INTO scan_progress VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        (
+            config.application,
+            aggregate_state_id,
+            config.start,
+            config.stop - 1,
+            processed,
+            accepted,
+            rejected,
+            digest.hexdigest(),
+            0.0,
+        ),
+    )
+    destination.execute(
+        """INSERT INTO scan_progress VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(application, state_id) DO UPDATE SET
           next_index=excluded.next_index, stop_index=excluded.stop_index,
           processed=excluded.processed, accepted=excluded.accepted,
           rejected=excluded.rejected, updated_at=excluded.updated_at""",
-        (config.application, aggregate_state_id, config.stop, config.stop,
-         processed, accepted, rejected, time.time()))
+        (
+            config.application,
+            aggregate_state_id,
+            config.stop,
+            config.stop,
+            processed,
+            accepted,
+            rejected,
+            time.time(),
+        ),
+    )
     destination.commit()
     destination.close()
 
 
-def run_sharded_scan(config: ScanConfig,
-                     scorer: Callable[[List[tuple]], np.ndarray],
-                     workers: int) -> dict:
+def run_sharded_scan(
+    config: ScanConfig, scorer: Callable[[List[tuple]], np.ndarray], workers: int
+) -> dict:
     """Run one range through independent deterministic process/database shards.
 
     Args:
@@ -571,7 +736,9 @@ def run_sharded_scan(config: ScanConfig,
     if config.worker_id != 0 or config.num_workers != 1:
         raise ValueError('sharded scan expects an unsharded base configuration')
     if 'fork' not in mp.get_all_start_methods():
-        raise RuntimeError('process sharding requires fork semantics for the fitted scorer')
+        raise RuntimeError(
+            'process sharding requires fork semantics for the fitted scorer'
+        )
 
     state_id = config.state_id or f'range:{config.start}:{config.stop}'
     shard_key = hashlib.sha256(
@@ -583,15 +750,21 @@ def run_sharded_scan(config: ScanConfig,
     for worker_id in range(effective_workers):
         database = shard_root / f'worker_{worker_id:03d}.sqlite'
         shard_databases.append(database)
-        shard_configs.append(ScanConfig(
-            application=config.application, database=str(database),
-            start=config.start, stop=config.stop, batch_size=config.batch_size,
-            worker_id=worker_id, num_workers=effective_workers,
-            global_archive_size=config.global_archive_size,
-            max_batches=config.max_batches,
-            state_id=f'{state_id}:shard:{worker_id}/{effective_workers}',
-            deadline_epoch_s=config.deadline_epoch_s,
-        ))
+        shard_configs.append(
+            ScanConfig(
+                application=config.application,
+                database=str(database),
+                start=config.start,
+                stop=config.stop,
+                batch_size=config.batch_size,
+                worker_id=worker_id,
+                num_workers=effective_workers,
+                global_archive_size=config.global_archive_size,
+                max_batches=config.max_batches,
+                state_id=f'{state_id}:shard:{worker_id}/{effective_workers}',
+                deadline_epoch_s=config.deadline_epoch_s,
+            )
+        )
 
     global _SHARD_SCORER
     _SHARD_SCORER = scorer
@@ -618,8 +791,9 @@ def run_sharded_scan(config: ScanConfig,
     }
 
 
-def load_archive_genomes(database: str, application: str,
-                         limit: int = 10000) -> List[tuple]:
+def load_archive_genomes(
+    database: str, application: str, limit: int = 10000
+) -> List[tuple]:
     """Load deduplicated global and region champions for downstream search.
 
     Args:
@@ -631,7 +805,8 @@ def load_archive_genomes(database: str, application: str,
         List of computed or validated records.
     """
     conn = _connect(database)
-    rows = conn.execute("""
+    rows = conn.execute(
+        """
         SELECT genome, primary_score FROM global_archive WHERE application=?
         UNION ALL
         SELECT genome, primary_score FROM region_champions WHERE application=?
@@ -640,14 +815,20 @@ def load_archive_genomes(database: str, application: str,
         UNION ALL
         SELECT genome, objective_score FROM regional_objective_champions WHERE application=?
         ORDER BY primary_score ASC LIMIT ?
-    """, (application, application, application, application, limit * 8)).fetchall()
+    """,
+        (application, application, application, application, limit * 8),
+    ).fetchall()
     conn.close()
     result, seen = [], set()
     for raw, _ in rows:
         genome = tuple(json.loads(raw))
         # Restore nested tuple fields used by encoders.
         if genome[0] in ("SolidCatalyst", "HEA"):
-            genome = tuple(list(genome[:1]) + [tuple(genome[1])] + list(genome[2:])) if genome[0] == "HEA" else tuple(list(genome[:5]) + [tuple(genome[5])] + list(genome[6:]))
+            genome = (
+                tuple(list(genome[:1]) + [tuple(genome[1])] + list(genome[2:]))
+                if genome[0] == "HEA"
+                else tuple(list(genome[:5]) + [tuple(genome[5])] + list(genome[6:]))
+            )
         cid = candidate_id(genome)
         if cid not in seen:
             result.append(genome)

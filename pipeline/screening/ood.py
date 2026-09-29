@@ -45,20 +45,20 @@ logger = logging.getLogger('ood_detector')
 #   0.0 = completely absent from training
 
 CLASS_CONFIDENCE = {
-    'SolidCatalyst':   0.95,  # Metal slabs are the core of OC20
-    'HEA':             0.85,  # Multi-component alloys well-covered
-    'SAA':             0.85,  # Dilute substitutional alloys in OC20
-    'Spinel':          0.60,  # OC22 has metal oxides but spinels are sparse
-    'Perovskite':      0.55,  # Some ABO₃ in OC22, not comprehensive
-    'MXene':           0.50,  # Ti/Mo carbides partially in OC20
-    'MAXPhase':        0.55,  # Carbide surfaces partially in OC20, similar to MXene
-    'MoltenMetal':     0.45,  # Modeled as solid slab — liquid structure missing
-    'SAC':             0.40,  # Fe-N₄/graphene partially in OC20, but
-                              # axial ligand effects are NOT in training
-    'DAC':             0.35,  # Dual-atom sites barely in training data
-    'MOF':             0.20,  # Metal-organic frameworks NOT in OC20
-    'COF':             0.15,  # Covalent organic frameworks NOT in OC20
-    'MetalHydride':    0.20,  # Interstitial H in bulk NOT in OC20
+    'SolidCatalyst': 0.95,  # Metal slabs are the core of OC20
+    'HEA': 0.85,  # Multi-component alloys well-covered
+    'SAA': 0.85,  # Dilute substitutional alloys in OC20
+    'Spinel': 0.60,  # OC22 has metal oxides but spinels are sparse
+    'Perovskite': 0.55,  # Some ABO₃ in OC22, not comprehensive
+    'MXene': 0.50,  # Ti/Mo carbides partially in OC20
+    'MAXPhase': 0.55,  # Carbide surfaces partially in OC20, similar to MXene
+    'MoltenMetal': 0.45,  # Modeled as solid slab — liquid structure missing
+    'SAC': 0.40,  # Fe-N₄/graphene partially in OC20, but
+    # axial ligand effects are NOT in training
+    'DAC': 0.35,  # Dual-atom sites barely in training data
+    'MOF': 0.20,  # Metal-organic frameworks NOT in OC20
+    'COF': 0.15,  # Covalent organic frameworks NOT in OC20
+    'MetalHydride': 0.20,  # Interstitial H in bulk NOT in OC20
     'MetalFreeCarbon': 0.15,  # No pure N-carbon surfaces in OC20
 }
 
@@ -72,18 +72,67 @@ CLASS_CONFIDENCE = {
 
 # Tier 1: Extensively sampled in OC20 (>50k slabs)
 _TIER1_ELEMENTS = {
-    'Pt', 'Pd', 'Ni', 'Cu', 'Au', 'Ag', 'Rh', 'Ir', 'Ru', 'Co',
-    'Fe', 'Mn', 'Mo', 'W', 'Re', 'Ti', 'Zr', 'V', 'Cr', 'Nb',
-    'Ta', 'Hf', 'Os', 'Zn', 'Al', 'Si', 'Ga', 'Ge', 'Sn', 'Sb',
-    'In', 'Bi', 'Sc', 'Y',
+    'Pt',
+    'Pd',
+    'Ni',
+    'Cu',
+    'Au',
+    'Ag',
+    'Rh',
+    'Ir',
+    'Ru',
+    'Co',
+    'Fe',
+    'Mn',
+    'Mo',
+    'W',
+    'Re',
+    'Ti',
+    'Zr',
+    'V',
+    'Cr',
+    'Nb',
+    'Ta',
+    'Hf',
+    'Os',
+    'Zn',
+    'Al',
+    'Si',
+    'Ga',
+    'Ge',
+    'Sn',
+    'Sb',
+    'In',
+    'Bi',
+    'Sc',
+    'Y',
 }
 
 # Tier 2: Moderately sampled (1k-50k slabs or via OC22 oxides)
 _TIER2_ELEMENTS = {
-    'La', 'Ce', 'Pr', 'Nd', 'Sm', 'Ca', 'Sr', 'Ba', 'Mg', 'Li',
-    'Na', 'K', 'Pb', 'Te', 'Se', 'Cd',
-    'Rb', 'Cs',  # Alkali metals in some OC22 oxides
-    'Eu', 'Gd', 'Dy', 'Er', 'Yb',  # Rare earths in OC22 oxide surfaces
+    'La',
+    'Ce',
+    'Pr',
+    'Nd',
+    'Sm',
+    'Ca',
+    'Sr',
+    'Ba',
+    'Mg',
+    'Li',
+    'Na',
+    'K',
+    'Pb',
+    'Te',
+    'Se',
+    'Cd',
+    'Rb',
+    'Cs',  # Alkali metals in some OC22 oxides
+    'Eu',
+    'Gd',
+    'Dy',
+    'Er',
+    'Yb',  # Rare earths in OC22 oxide surfaces
 }
 
 # Element coverage score
@@ -120,8 +169,10 @@ def element_coverage_score(elements: List[str]) -> float:
 # LAYER 3: DUAL-MODEL DISAGREEMENT (cost = 2× per candidate)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def dual_model_disagreement(atoms, primary_calc, fallback_calc,
-                            property_name: str = 'energy') -> Dict:
+
+def dual_model_disagreement(
+    atoms, primary_calc, fallback_calc, property_name: str = 'energy'
+) -> Dict:
     """
         Compare predictions from two calculators on the same structure.
 
@@ -190,8 +241,10 @@ def dual_model_disagreement(atoms, primary_calc, fallback_calc,
 # COMBINED CONFIDENCE SCORE
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def compute_model_confidence(genome: tuple, elements: List[str],
-                             dual_result: Optional[Dict] = None) -> float:
+
+def compute_model_confidence(
+    genome: tuple, elements: List[str], dual_result: Optional[Dict] = None
+) -> float:
     """
         Compute combined confidence score for a screening prediction.
 

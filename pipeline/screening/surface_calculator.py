@@ -47,6 +47,7 @@ logger = setup_logger('surface_calculator', 'screening/surface_calculator.log')
 # TIER 1: MACE-MP-0 (existing — unchanged)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def get_mace_calculator(device='cuda:0', model='medium'):
     """Load MACE-MP-0 calculator (bulk materials model, fast screening).
 
@@ -58,6 +59,7 @@ def get_mace_calculator(device='cuda:0', model='medium'):
         Computed result described above.
     """
     from mace.calculators import mace_mp
+
     return mace_mp(model=model, device=device)
 
 
@@ -68,8 +70,9 @@ def get_mace_calculator(device='cuda:0', model='medium'):
 CATALYSIS_HUB_URL = 'https://api.catalysis-hub.org/graphql'
 
 
-def query_catalysis_hub(surface: str, facet: str = None,
-                        adsorbate: str = None, limit: int = 50) -> List[Dict]:
+def query_catalysis_hub(
+    surface: str, facet: str = None, adsorbate: str = None, limit: int = 50
+) -> List[Dict]:
     """
     Query Catalysis-Hub for DFT-computed adsorption/reaction energies.
 
@@ -108,12 +111,14 @@ def query_catalysis_hub(surface: str, facet: str = None,
                 }}
             }}
         }}
-    }}""".format(filters=','.join(filters))
+    }}""".format(
+        filters=','.join(filters)
+    )
 
     try:
         req = urllib.request.Request(
             f'{CATALYSIS_HUB_URL}?query={urllib.parse.quote(query)}',
-            headers={'Accept': 'application/json'}
+            headers={'Accept': 'application/json'},
         )
         resp = urllib.request.urlopen(req, timeout=15)
         data = json.loads(resp.read())
@@ -126,8 +131,9 @@ def query_catalysis_hub(surface: str, facet: str = None,
         return []
 
 
-def lookup_adsorption_energy(element: str, facet: str,
-                             adsorbate: str) -> Optional[float]:
+def lookup_adsorption_energy(
+    element: str, facet: str, adsorbate: str
+) -> Optional[float]:
     """
         Look up a specific adsorption energy from Catalysis-Hub.
 
@@ -143,16 +149,17 @@ def lookup_adsorption_energy(element: str, facet: str,
     """
     results = query_catalysis_hub(element, facet, adsorbate, limit=5)
     if results:
-        energies = [r['reactionEnergy'] for r in results
-                    if r.get('reactionEnergy') is not None]
+        energies = [
+            r['reactionEnergy'] for r in results if r.get('reactionEnergy') is not None
+        ]
         if energies:
             return float(np.median(energies))
     return None
 
 
-def build_calibration_table(elements: List[str] = None,
-                            facets: List[str] = None,
-                            adsorbates: List[str] = None) -> Dict:
+def build_calibration_table(
+    elements: List[str] = None, facets: List[str] = None, adsorbates: List[str] = None
+) -> Dict:
     """
         Build a lookup table of known DFT adsorption energies from Catalysis-Hub.
         Used to calibrate MACE predictions against ground truth.
@@ -166,8 +173,24 @@ def build_calibration_table(elements: List[str] = None,
         Dictionary containing the computed values, status, and supporting metadata.
     """
     if elements is None:
-        elements = ['Pt', 'Pd', 'Ni', 'Cu', 'Au', 'Ag', 'Rh', 'Ir',
-                     'Ru', 'Fe', 'Co', 'Mo', 'W', 'Re', 'Mn', 'Ti']
+        elements = [
+            'Pt',
+            'Pd',
+            'Ni',
+            'Cu',
+            'Au',
+            'Ag',
+            'Rh',
+            'Ir',
+            'Ru',
+            'Fe',
+            'Co',
+            'Mo',
+            'W',
+            'Re',
+            'Mn',
+            'Ti',
+        ]
     if facets is None:
         facets = ['111', '100', '211']
     if adsorbates is None:
@@ -196,6 +219,7 @@ def build_calibration_table(elements: List[str] = None,
 # TIER 2b: EQUIFORMERV2 / eSen (OC20/OC22 surface-trained GNN)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def _ensure_hf_token():
     """Load HuggingFace token from .hf_token file or env var."""
     if os.environ.get('HF_TOKEN'):
@@ -209,8 +233,9 @@ def _ensure_hf_token():
     return False
 
 
-def get_ocp_calculator(model_name: str = 'esen-sm-conserving-all-oc25',
-                       device: str = 'cuda:0') -> Optional[Calculator]:
+def get_ocp_calculator(
+    model_name: str = 'esen-sm-conserving-all-oc25', device: str = 'cuda:0'
+) -> Optional[Calculator]:
     """
         Load an OC20/OC25-trained surface catalysis GNN calculator.
 
@@ -251,6 +276,7 @@ def get_ocp_calculator(model_name: str = 'esen-sm-conserving-all-oc25',
     if local_ckpt.exists():
         try:
             from fairchem.core import OCPCalculator
+
             calc = OCPCalculator(checkpoint_path=str(local_ckpt), cpu=(device == 'cpu'))
             logger.info(f"Loaded EquiformerV2 from local checkpoint")
             return calc
@@ -260,6 +286,7 @@ def get_ocp_calculator(model_name: str = 'esen-sm-conserving-all-oc25',
     # Try 3: Download checkpoint
     try:
         import torch
+
         url = 'https://dl.fbaipublicfiles.com/opencatalystproject/models/2023_06/oc20/s2ef/eq2_31M_ec4_allmd.pt'
         local_ckpt.parent.mkdir(parents=True, exist_ok=True)
         if not local_ckpt.exists():
@@ -267,6 +294,7 @@ def get_ocp_calculator(model_name: str = 'esen-sm-conserving-all-oc25',
             torch.hub.download_url_to_file(url, str(local_ckpt))
 
         from fairchem.core import OCPCalculator
+
         calc = OCPCalculator(checkpoint_path=str(local_ckpt), cpu=(device == 'cpu'))
         logger.info("Loaded EquiformerV2 from downloaded checkpoint")
         return calc
@@ -280,16 +308,18 @@ def get_ocp_calculator(model_name: str = 'esen-sm-conserving-all-oc25',
 # TIER 3: QUANTUM ESPRESSO (full DFT — highest fidelity)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class QEConfig:
     """Quantum ESPRESSO calculation parameters for surface catalysis."""
-    ecutwfc: float = 50.0        # Plane-wave cutoff (Ry)
-    ecutrho: float = 400.0       # Charge density cutoff (Ry)
+
+    ecutwfc: float = 50.0  # Plane-wave cutoff (Ry)
+    ecutrho: float = 400.0  # Charge density cutoff (Ry)
     kpoints: Tuple[int, ...] = (4, 4, 1)  # k-point mesh (Γ-centered)
     smearing: str = 'marzari-vanderbilt'
-    degauss: float = 0.02        # Smearing width (Ry)
-    conv_thr: float = 1e-6       # SCF convergence (Ry)
-    nstep: int = 100             # Max ionic steps
+    degauss: float = 0.02  # Smearing width (Ry)
+    conv_thr: float = 1e-6  # SCF convergence (Ry)
+    nstep: int = 100  # Max ionic steps
     forc_conv_thr: float = 1e-3  # Force convergence (Ry/bohr)
     pseudo_dir: str = ''
     outdir: str = ''
@@ -319,6 +349,7 @@ def get_qe_calculator(atoms: Atoms, config: QEConfig = None) -> Optional[Calcula
 
         # Do not accept a same-named CPU executable from PATH or Conda.
         from pipeline.simulation.executables import resolve_qe_executable
+
         try:
             pw_path = resolve_qe_executable('pw.x')
         except RuntimeError as exc:
@@ -327,7 +358,8 @@ def get_qe_calculator(atoms: Atoms, config: QEConfig = None) -> Optional[Calcula
         mpi_path = os.environ.get('MPIEXEC')
         if not mpi_path:
             logger.warning(
-                "GPU QE calculator unavailable: MPIEXEC is not set by activate.sh")
+                "GPU QE calculator unavailable: MPIEXEC is not set by activate.sh"
+            )
             return None
 
         # Locate pseudopotentials
@@ -339,8 +371,9 @@ def get_qe_calculator(atoms: Atoms, config: QEConfig = None) -> Optional[Calcula
         pseudopotentials = {}
         for symbol in set(atoms.get_chemical_symbols()):
             # Standard SSSP naming: Element.pbe-n-kjpaw_psl.1.0.0.UPF
-            pseudo_files = list(Path(pseudo_dir).glob(f'{symbol}.*UPF')) + \
-                           list(Path(pseudo_dir).glob(f'{symbol}.*upf'))
+            pseudo_files = list(Path(pseudo_dir).glob(f'{symbol}.*UPF')) + list(
+                Path(pseudo_dir).glob(f'{symbol}.*upf')
+            )
             if pseudo_files:
                 pseudopotentials[symbol] = pseudo_files[0].name
             else:
@@ -375,7 +408,7 @@ def get_qe_calculator(atoms: Atoms, config: QEConfig = None) -> Optional[Calcula
 
         profile = EspressoProfile(
             command=f'{shlex.quote(mpi_path)} -np {config.n_cores} '
-                    f'{shlex.quote(pw_path)}',
+            f'{shlex.quote(pw_path)}',
             pseudo_dir=pseudo_dir,
         )
 
@@ -386,8 +419,10 @@ def get_qe_calculator(atoms: Atoms, config: QEConfig = None) -> Optional[Calcula
             kpts=config.kpoints,
         )
 
-        logger.info(f"QE calculator created: ecutwfc={config.ecutwfc} Ry, "
-                    f"kpts={config.kpoints}, {config.n_cores} cores")
+        logger.info(
+            f"QE calculator created: ecutwfc={config.ecutwfc} Ry, "
+            f"kpts={config.kpoints}, {config.n_cores} cores"
+        )
         return calc
 
     except Exception as e:
@@ -399,8 +434,10 @@ def get_qe_calculator(atoms: Atoms, config: QEConfig = None) -> Optional[Calcula
 # MULTI-FIDELITY EVALUATION
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def evaluate_with_tier(atoms: Atoms, adsorbate: str, tier: int = 1,
-                       device: str = 'cuda:0') -> Dict:
+
+def evaluate_with_tier(
+    atoms: Atoms, adsorbate: str, tier: int = 1, device: str = 'cuda:0'
+) -> Dict:
     """
         Evaluate adsorption energy using the specified fidelity tier.
 
@@ -425,6 +462,7 @@ def evaluate_with_tier(atoms: Atoms, adsorbate: str, tier: int = 1,
         calc = get_mace_calculator(device)
         atoms.calc = calc
         from ase.optimize import BFGS
+
         BFGS(atoms, logfile=None).run(fmax=0.08, steps=100)
         result['energy'] = atoms.get_potential_energy()
         result['max_force'] = float(abs(atoms.get_forces()).max())
@@ -436,6 +474,7 @@ def evaluate_with_tier(atoms: Atoms, adsorbate: str, tier: int = 1,
         if ocp_calc is not None:
             atoms.calc = ocp_calc
             from ase.optimize import BFGS
+
             BFGS(atoms, logfile=None).run(fmax=0.05, steps=150)
             result['energy'] = atoms.get_potential_energy()
             result['max_force'] = float(abs(atoms.get_forces()).max())
@@ -445,6 +484,7 @@ def evaluate_with_tier(atoms: Atoms, adsorbate: str, tier: int = 1,
             calc = get_mace_calculator(device)
             atoms.calc = calc
             from ase.optimize import BFGS
+
             BFGS(atoms, logfile=None).run(fmax=0.08, steps=100)
             mace_energy = atoms.get_potential_energy()
 
@@ -482,8 +522,8 @@ def evaluate_with_tier(atoms: Atoms, adsorbate: str, tier: int = 1,
 # CROSS-VALIDATION: Compare MACE vs Catalysis-Hub
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def cross_validate_mace(elements: List[str] = None,
-                        device: str = 'cuda:0') -> Dict:
+
+def cross_validate_mace(elements: List[str] = None, device: str = 'cuda:0') -> Dict:
     """
         Compare MACE-MP-0 predictions against Catalysis-Hub DFT data
         for known systems. Computes MAE, RMSE, and systematic bias.
@@ -522,7 +562,10 @@ def cross_validate_mace(elements: List[str] = None,
             if ads == 'OH':
                 add_adsorbate(slab_ads, 'O', height=1.9, position='ontop')
                 from ase import Atom
-                slab_ads.append(Atom('H', position=slab_ads[-1].position + [0, 0, 0.97]))
+
+                slab_ads.append(
+                    Atom('H', position=slab_ads[-1].position + [0, 0, 0.97])
+                )
             elif ads == 'O':
                 add_adsorbate(slab_ads, 'O', height=1.7, position='ontop')
             else:
@@ -539,7 +582,9 @@ def cross_validate_mace(elements: List[str] = None,
                 mace_energies.append(dE_mace)
                 dft_energies.append(dE_dft)
                 systems.append(f'{elem}(111)+{ads}*')
-                logger.info(f"  {elem}(111)+{ads}*: MACE={dE_mace:.3f}, DFT={dE_dft:.3f} eV")
+                logger.info(
+                    f"  {elem}(111)+{ads}*: MACE={dE_mace:.3f}, DFT={dE_dft:.3f} eV"
+                )
 
     if len(mace_energies) > 0:
         mace_arr = np.array(mace_energies)
@@ -558,7 +603,9 @@ def cross_validate_mace(elements: List[str] = None,
             'mace_energies': [round(e, 4) for e in mace_energies],
             'dft_energies': [round(e, 4) for e in dft_energies],
         }
-        logger.info(f"MACE vs DFT: MAE={mae:.3f} eV, RMSE={rmse:.3f} eV, bias={bias:.3f} eV")
+        logger.info(
+            f"MACE vs DFT: MAE={mae:.3f} eV, RMSE={rmse:.3f} eV, bias={bias:.3f} eV"
+        )
         return result
 
     return {'error': 'No comparison data available'}

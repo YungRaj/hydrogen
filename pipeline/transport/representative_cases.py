@@ -27,8 +27,11 @@ class ParameterRange:
         Args:
             name: Human-readable identifier used in diagnostics and output.
         """
-        if (not math.isfinite(self.minimum) or not math.isfinite(self.maximum)
-                or self.maximum <= self.minimum):
+        if (
+            not math.isfinite(self.minimum)
+            or not math.isfinite(self.maximum)
+            or self.maximum <= self.minimum
+        ):
             raise ValueError(f'invalid parameter range: {name}')
         if self.scale not in {'linear', 'log'}:
             raise ValueError(f'unsupported parameter scale: {name}')
@@ -45,24 +48,33 @@ class ParameterRange:
             The physical parameter value corresponding to the unit coordinate.
         """
         if self.scale == 'log':
-            return float(math.exp(
-                math.log(self.minimum) + fraction *
-                (math.log(self.maximum) - math.log(self.minimum))))
+            return float(
+                math.exp(
+                    math.log(self.minimum)
+                    + fraction * (math.log(self.maximum) - math.log(self.minimum))
+                )
+            )
         return float(self.minimum + fraction * (self.maximum - self.minimum))
 
 
 def _case_id(mode: str, reactor: str, features: Mapping[str, float]) -> str:
-    payload = json.dumps({
-        'mode': mode, 'reactor': reactor, 'features': dict(features)},
-        sort_keys=True, separators=(',', ':')).encode()
+    payload = json.dumps(
+        {'mode': mode, 'reactor': reactor, 'features': dict(features)},
+        sort_keys=True,
+        separators=(',', ':'),
+    ).encode()
     return hashlib.sha256(payload).hexdigest()[:20]
 
 
 def design_representative_cases(
-        *, pathway_mode: str, reactor_type: str,
-        ranges: Mapping[str, ParameterRange], sample_count: int,
-        anchors: Sequence[Mapping[str, float]] = (), random_seed: int = 0
-        ) -> list[RepresentativeCase]:
+    *,
+    pathway_mode: str,
+    reactor_type: str,
+    ranges: Mapping[str, ParameterRange],
+    sample_count: int,
+    anchors: Sequence[Mapping[str, float]] = (),
+    random_seed: int = 0,
+) -> list[RepresentativeCase]:
     """Generate a Latin-hypercube design plus explicit regime anchors.
 
         Every sampled dimension occupies every one of ``sample_count`` strata once.
@@ -97,32 +109,46 @@ def design_representative_cases(
         columns[name] = strata[rng.permutation(sample_count)]
     feature_rows = [
         {name: ranges[name].interpolate(columns[name][row]) for name in names}
-        for row in range(sample_count)]
+        for row in range(sample_count)
+    ]
     for anchor in anchors:
         if set(anchor) != set(names):
             raise ValueError('every anchor must match the exact parameter schema')
         values = {}
         for name in names:
             value = float(anchor[name])
-            if (not math.isfinite(value) or value < ranges[name].minimum or
-                    value > ranges[name].maximum):
+            if (
+                not math.isfinite(value)
+                or value < ranges[name].minimum
+                or value > ranges[name].maximum
+            ):
                 raise ValueError(f'anchor lies outside range: {name}')
             values[name] = value
         feature_rows.append(values)
     unique = {}
     for features in feature_rows:
         identity = _case_id(pathway_mode, reactor_type, features)
-        unique.setdefault(identity, {
-            'case_id': identity, 'pathway_mode': pathway_mode,
-            'reactor_type': reactor_type, 'features': features,
-            'design_role': ('regime_anchor' if features in anchors
-                            else 'stratified_coverage')})
+        unique.setdefault(
+            identity,
+            {
+                'case_id': identity,
+                'pathway_mode': pathway_mode,
+                'reactor_type': reactor_type,
+                'features': features,
+                'design_role': (
+                    'regime_anchor' if features in anchors else 'stratified_coverage'
+                ),
+            },
+        )
     return list(unique.values())
 
 
-def assign_case_partitions(cases: Sequence[Mapping], *, validation_count: int,
-                           partition_seed: str = 'hydrogen-v1'
-                           ) -> list[DesignedCase]:
+def assign_case_partitions(
+    cases: Sequence[Mapping],
+    *,
+    validation_count: int,
+    partition_seed: str = 'hydrogen-v1',
+) -> list[DesignedCase]:
     """Preassign an exact blind holdout without inspecting solver outcomes.
 
     Args:
@@ -134,8 +160,11 @@ def assign_case_partitions(cases: Sequence[Mapping], *, validation_count: int,
         List of computed or validated records.
     """
     values = [dict(case) for case in cases]
-    if (not isinstance(validation_count, int) or validation_count < 1 or
-            validation_count >= len(values)):
+    if (
+        not isinstance(validation_count, int)
+        or validation_count < 1
+        or validation_count >= len(values)
+    ):
         raise ValueError('validation_count must leave nonempty train and holdout sets')
     identities = [case.get('case_id') for case in values]
     if any(not isinstance(value, str) or not value for value in identities):
@@ -145,9 +174,10 @@ def assign_case_partitions(cases: Sequence[Mapping], *, validation_count: int,
     ranked = sorted(
         identities,
         key=lambda value: hashlib.sha256(
-            f'{partition_seed}:{value}'.encode()).hexdigest())
+            f'{partition_seed}:{value}'.encode()
+        ).hexdigest(),
+    )
     holdout = set(ranked[:validation_count])
     for case in values:
-        case['partition'] = ('validation' if case['case_id'] in holdout
-                             else 'training')
+        case['partition'] = 'validation' if case['case_id'] in holdout else 'training'
     return values

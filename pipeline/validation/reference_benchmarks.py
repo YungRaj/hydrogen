@@ -64,7 +64,9 @@ def load_reference_manifest(path: str | Path) -> dict[str, ReferenceObservation]
         value = float(raw["value"])
         tolerance = float(raw["tolerance"])
         if not math.isfinite(value) or not math.isfinite(tolerance) or tolerance <= 0:
-            raise ValueError(f"finite value and positive tolerance required for {reference_id}")
+            raise ValueError(
+                f"finite value and positive tolerance required for {reference_id}"
+            )
         references[reference_id] = ReferenceObservation(
             reference_id=reference_id,
             material_id=_required_text(raw, "material_id"),
@@ -93,14 +95,21 @@ def computed_observation(record: dict[str, Any]) -> ComputedObservation:
         A typed observation ready for a like-for-like reference comparison.
     """
     required_text = (
-        "reference_id", "material_id", "observable", "unit", "solver_family",
-        "protocol", "artifact_sha256",
+        "reference_id",
+        "material_id",
+        "observable",
+        "unit",
+        "solver_family",
+        "protocol",
+        "artifact_sha256",
     )
     values = {key: _required_text(record, key) for key in required_text}
     if values["solver_family"] not in {"quantum_espresso", "cudaq_vqe"}:
         raise ValueError("computed observation has unsupported solver_family")
     digest = values["artifact_sha256"].lower()
-    if len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest):
+    if len(digest) != 64 or any(
+        character not in "0123456789abcdef" for character in digest
+    ):
         raise ValueError("artifact_sha256 must be a hexadecimal SHA-256 digest")
     value = float(record["value"])
     if not math.isfinite(value):
@@ -146,10 +155,19 @@ def compare_with_reference(
         ValueError: If the result is not scientifically comparable or lacks the
             evidence needed for the declared solver family.
     """
-    identity_fields = ("reference_id", "material_id", "observable", "unit",
-                       "solver_family", "protocol")
-    mismatched = [field for field in identity_fields
-                  if getattr(reference, field) != getattr(observed, field)]
+    identity_fields = (
+        "reference_id",
+        "material_id",
+        "observable",
+        "unit",
+        "solver_family",
+        "protocol",
+    )
+    mismatched = [
+        field
+        for field in identity_fields
+        if getattr(reference, field) != getattr(observed, field)
+    ]
     if mismatched:
         raise ValueError("reference comparison mismatch: " + ", ".join(mismatched))
     if dict(reference.conditions) != dict(observed.conditions):

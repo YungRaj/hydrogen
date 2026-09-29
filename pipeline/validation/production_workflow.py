@@ -40,8 +40,9 @@ PYROLYSIS_ELEMENTARY_STEPS = {
 
 
 def _manifest_digest(payload: dict) -> str:
-    return hashlib.sha256(json.dumps(
-        payload, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(',', ':')).encode()
+    ).hexdigest()
 
 
 def _pw_execution(execution: QEExecutionConfig | None) -> QEExecutionConfig | None:
@@ -72,8 +73,7 @@ def qe_output_status(path: str | Path) -> str:
     if 'error in routine' in text or 'convergence not achieved' in text:
         return 'failed'
     if parse_convergence(str(target), require_ionic=True):
-        return ('converged' if 'gpu acceleration is active' in text
-                else 'failed')
+        return 'converged' if 'gpu acceleration is active' in text else 'failed'
     return 'incomplete'
 
 
@@ -93,8 +93,7 @@ def qe_scf_output_status(path: str | Path) -> str:
     if 'error in routine' in text or 'convergence not achieved' in text:
         return 'failed'
     if parse_convergence(str(target)):
-        return ('converged' if 'gpu acceleration is active' in text
-                else 'failed')
+        return 'converged' if 'gpu acceleration is active' in text else 'failed'
     return 'incomplete'
 
 
@@ -118,14 +117,19 @@ def orr_campaign_status(calc_dir: str | Path, catalyst_name: str) -> dict:
         'stages': stages,
         'complete': complete,
         'orr_result_allowed': complete,
-        'next_stage': next((key for key, value in stages.items()
-                            if value != 'converged'), None),
+        'next_stage': next(
+            (key for key, value in stages.items() if value != 'converged'), None
+        ),
     }
 
 
-def run_orr_sequence(calc_dir: str | Path, catalyst_name: str,
-                     timeout_s: int = 86400, restart_incomplete: bool = False,
-                     execution: QEExecutionConfig | None = None) -> dict:
+def run_orr_sequence(
+    calc_dir: str | Path,
+    catalyst_name: str,
+    timeout_s: int = 86400,
+    restart_incomplete: bool = False,
+    execution: QEExecutionConfig | None = None,
+) -> dict:
     """Run missing ORR stages in order and resume cleanly completed outputs.
 
         Nonempty incomplete outputs are left untouched by default because they may
@@ -152,8 +156,12 @@ def run_orr_sequence(calc_dir: str | Path, catalyst_name: str,
             break
         if not input_path.is_file():
             raise FileNotFoundError(f'missing QE input: {input_path}')
-        outcome = run_pw(str(input_path), str(output_path), timeout_s=timeout_s,
-                         execution=_pw_execution(execution))
+        outcome = run_pw(
+            str(input_path),
+            str(output_path),
+            timeout_s=timeout_s,
+            execution=_pw_execution(execution),
+        )
         if not outcome['converged']:
             break
     return orr_campaign_status(root, catalyst_name)
@@ -174,10 +182,16 @@ def methane_neb_status(calc_dir: str | Path) -> dict:
         for name in ('initial', 'final')
     }
     neb_path = root / 'candidate.neb.out'
-    neb = parse_neb_result(str(neb_path)) if neb_path.exists() else {
-        'converged': False, 'forward_barrier_eV': None,
-        'reverse_barrier_eV': None, 'candidate_specific': True,
-    }
+    neb = (
+        parse_neb_result(str(neb_path))
+        if neb_path.exists()
+        else {
+            'converged': False,
+            'forward_barrier_eV': None,
+            'reverse_barrier_eV': None,
+            'candidate_specific': True,
+        }
+    )
     neb_input = root / 'candidate.neb.in'
     if neb_path.exists() and not neb_gpu_accelerated(neb_input, neb_path):
         neb['converged'] = False
@@ -185,25 +199,32 @@ def methane_neb_status(calc_dir: str | Path) -> dict:
     frequency = {'valid_transition_state': False, 'status': 'missing'}
     if frequency_path.exists():
         import json
+
         frequency = json.loads(frequency_path.read_text())
     endpoints_converged = all(x == 'converged' for x in endpoints.values())
     frequency_valid = bool(
-        frequency.get('complete') and
-        frequency.get('candidate_specific') and
-        frequency.get('method') == 'central_finite_difference_qe_forces' and
-        frequency.get('valid_transition_state'))
+        frequency.get('complete')
+        and frequency.get('candidate_specific')
+        and frequency.get('method') == 'central_finite_difference_qe_forces'
+        and frequency.get('valid_transition_state')
+    )
     return {
         'endpoints': endpoints,
         'endpoints_converged': endpoints_converged,
         'neb': neb,
         'frequency': frequency,
-        'complete': bool(endpoints_converged and neb.get('converged') and
-                         neb.get('candidate_specific') and frequency_valid),
+        'complete': bool(
+            endpoints_converged
+            and neb.get('converged')
+            and neb.get('candidate_specific')
+            and frequency_valid
+        ),
     }
 
 
-def prepare_methane_neb(calc_dir: str | Path, prefix: str,
-                        initial: Atoms, final: Atoms) -> dict:
+def prepare_methane_neb(
+    calc_dir: str | Path, prefix: str, initial: Atoms, final: Atoms
+) -> dict:
     """Prepare both endpoint relaxations from explicit candidate geometries.
 
     Args:
@@ -223,10 +244,8 @@ def prepare_methane_neb(calc_dir: str | Path, prefix: str,
         raise ValueError('NEB endpoints require identical fixed-atom constraints')
     root = Path(calc_dir)
     root.mkdir(parents=True, exist_ok=True)
-    write_qe_relax_input(initial, str(root / 'initial.relax.in'),
-                         f'{prefix}_initial')
-    write_qe_relax_input(final, str(root / 'final.relax.in'),
-                         f'{prefix}_final')
+    write_qe_relax_input(initial, str(root / 'initial.relax.in'), f'{prefix}_initial')
+    write_qe_relax_input(final, str(root / 'final.relax.in'), f'{prefix}_final')
     metadata = {
         'schema_version': 1,
         'prefix': prefix,
@@ -235,14 +254,19 @@ def prepare_methane_neb(calc_dir: str | Path, prefix: str,
         'status': 'endpoints_prepared',
     }
     (root / 'step_metadata.json').write_text(
-        json.dumps(metadata, indent=2, sort_keys=True))
+        json.dumps(metadata, indent=2, sort_keys=True)
+    )
     return methane_neb_status(root)
 
 
-def prepare_frequency_jobs(calc_dir: str | Path, transition_state: Atoms,
-                           prefix: str, displacement_A: float = 0.01,
-                           active_indices: list[int] | None = None,
-                           reaction_direction: np.ndarray | None = None) -> dict:
+def prepare_frequency_jobs(
+    calc_dir: str | Path,
+    transition_state: Atoms,
+    prefix: str,
+    displacement_A: float = 0.01,
+    active_indices: list[int] | None = None,
+    reaction_direction: np.ndarray | None = None,
+) -> dict:
     """Prepare central finite-difference force jobs for a proposed TS.
 
     Args:
@@ -261,10 +285,16 @@ def prepare_frequency_jobs(calc_dir: str | Path, transition_state: Atoms,
     root = Path(calc_dir)
     force_root = root / 'frequency_forces'
     force_root.mkdir(parents=True, exist_ok=True)
-    active = (list(range(len(transition_state))) if active_indices is None
-              else [int(index) for index in active_indices])
-    if not active or len(set(active)) != len(active) or \
-            any(index < 0 or index >= len(transition_state) for index in active):
+    active = (
+        list(range(len(transition_state)))
+        if active_indices is None
+        else [int(index) for index in active_indices]
+    )
+    if (
+        not active
+        or len(set(active)) != len(active)
+        or any(index < 0 or index >= len(transition_state) for index in active)
+    ):
         raise ValueError('active frequency atom indices are invalid')
     jobs = []
     for dof in range(3 * len(active)):
@@ -275,7 +305,8 @@ def prepare_frequency_jobs(calc_dir: str | Path, transition_state: Atoms,
             displaced.positions[atom_index, axis] += sign * displacement_A
             stem = f'dof_{dof:04d}_{suffix}'
             write_qe_force_input(
-                displaced, str(force_root / f'{stem}.in'), f'{prefix}_{stem}')
+                displaced, str(force_root / f'{stem}.in'), f'{prefix}_{stem}'
+            )
             jobs.append({'dof': dof, 'sign': suffix, 'stem': stem})
     manifest = {
         'schema_version': 1,
@@ -297,7 +328,8 @@ def prepare_frequency_jobs(calc_dir: str | Path, transition_state: Atoms,
         manifest['reaction_direction_A'] = direction.tolist()
     manifest['manifest_sha256'] = _manifest_digest(manifest)
     (force_root / 'manifest.json').write_text(
-        json.dumps(manifest, indent=2, sort_keys=True))
+        json.dumps(manifest, indent=2, sort_keys=True)
+    )
     return frequency_status(root)
 
 
@@ -313,8 +345,7 @@ def frequency_status(calc_dir: str | Path) -> dict:
     root = Path(calc_dir)
     manifest_path = root / 'frequency_forces/manifest.json'
     if not manifest_path.is_file():
-        return {'status': 'missing', 'valid_transition_state': False,
-                'complete': False}
+        return {'status': 'missing', 'valid_transition_state': False, 'complete': False}
     manifest = json.loads(manifest_path.read_text())
     result_path = root / 'transition_state_frequency.json'
     if result_path.is_file():
@@ -324,22 +355,32 @@ def frequency_status(calc_dir: str | Path) -> dict:
             return result
     states = {
         job['stem']: qe_scf_output_status(
-            root / 'frequency_forces' / f"{job['stem']}.out")
-        for job in manifest['jobs']}
+            root / 'frequency_forces' / f"{job['stem']}.out"
+        )
+        for job in manifest['jobs']
+    }
     return {
-        'status': 'forces_converged' if all(x == 'converged' for x in states.values())
-                  else 'force_jobs_pending',
+        'status': (
+            'forces_converged'
+            if all(x == 'converged' for x in states.values())
+            else 'force_jobs_pending'
+        ),
         'complete': False,
         'valid_transition_state': False,
-        'job_counts': {state: list(states.values()).count(state)
-                       for state in sorted(set(states.values()))},
+        'job_counts': {
+            state: list(states.values()).count(state)
+            for state in sorted(set(states.values()))
+        },
         'jobs': states,
     }
 
 
-def run_frequency_sequence(calc_dir: str | Path, timeout_s: int = 86400,
-                           execution: QEExecutionConfig | None = None,
-                           restart_incomplete: bool = False) -> dict:
+def run_frequency_sequence(
+    calc_dir: str | Path,
+    timeout_s: int = 86400,
+    execution: QEExecutionConfig | None = None,
+    restart_incomplete: bool = False,
+) -> dict:
     """Run/resume finite-difference jobs, then construct a validated Hessian.
 
     Args:
@@ -365,8 +406,12 @@ def run_frequency_sequence(calc_dir: str | Path, timeout_s: int = 86400,
             continue
         if state == 'incomplete' and not restart_incomplete:
             return frequency_status(root)
-        outcome = run_pw(str(input_path), str(output_path), timeout_s=timeout_s,
-                         execution=_pw_execution(execution))
+        outcome = run_pw(
+            str(input_path),
+            str(output_path),
+            timeout_s=timeout_s,
+            execution=_pw_execution(execution),
+        )
         if not outcome['converged']:
             return frequency_status(root)
     n_total = int(manifest['atom_count'])
@@ -376,29 +421,44 @@ def run_frequency_sequence(calc_dir: str | Path, timeout_s: int = 86400,
     minus = np.empty_like(plus)
     for job in manifest['jobs']:
         forces = parse_atomic_forces(
-            str(force_root / f"{job['stem']}.out"), expected_atoms=n_total)
+            str(force_root / f"{job['stem']}.out"), expected_atoms=n_total
+        )
         (plus if job['sign'] == 'plus' else minus)[int(job['dof'])] = forces[active]
     result = partial_hessian(
-        plus, minus, float(manifest['displacement_A']),
+        plus,
+        minus,
+        float(manifest['displacement_A']),
         np.asarray(manifest['masses_amu'], dtype=float),
-        reaction_direction=(np.asarray(manifest['reaction_direction_A'], dtype=float)
-                            if 'reaction_direction_A' in manifest else None))
-    result.update({
-        'status': 'complete', 'complete': True,
-        'candidate_specific': True,
-        'method': 'central_finite_difference_qe_forces',
-        'displacement_A': float(manifest['displacement_A']),
-        'active_indices': active,
-        'force_manifest_sha256': manifest['manifest_sha256'],
-    })
+        reaction_direction=(
+            np.asarray(manifest['reaction_direction_A'], dtype=float)
+            if 'reaction_direction_A' in manifest
+            else None
+        ),
+    )
+    result.update(
+        {
+            'status': 'complete',
+            'complete': True,
+            'candidate_specific': True,
+            'method': 'central_finite_difference_qe_forces',
+            'displacement_A': float(manifest['displacement_A']),
+            'active_indices': active,
+            'force_manifest_sha256': manifest['manifest_sha256'],
+        }
+    )
     (root / 'transition_state_frequency.json').write_text(
-        json.dumps(result, indent=2, sort_keys=True))
+        json.dumps(result, indent=2, sort_keys=True)
+    )
     return result
 
 
-def run_methane_neb(calc_dir: str | Path, prefix: str,
-                    n_images: int = 7, timeout_s: int = 86400,
-                    execution: QEExecutionConfig | None = None) -> dict:
+def run_methane_neb(
+    calc_dir: str | Path,
+    prefix: str,
+    n_images: int = 7,
+    timeout_s: int = 86400,
+    execution: QEExecutionConfig | None = None,
+) -> dict:
     """Start NEB only after both candidate-specific endpoints converge.
 
     Args:
@@ -418,9 +478,9 @@ def run_methane_neb(calc_dir: str | Path, prefix: str,
     if status['neb'].get('converged'):
         return status
     initial = relaxed_structure(
-        str(root / 'initial.relax.out'), root / 'initial.relax.in')
-    final = relaxed_structure(
-        str(root / 'final.relax.out'), root / 'final.relax.in')
+        str(root / 'initial.relax.out'), root / 'initial.relax.in'
+    )
+    final = relaxed_structure(str(root / 'final.relax.out'), root / 'final.relax.in')
     if initial.get_chemical_symbols() != final.get_chemical_symbols():
         raise RuntimeError('relaxed NEB endpoints have different atom ordering')
     images = [initial] + [initial.copy() for _ in range(n_images - 2)] + [final]
@@ -428,15 +488,18 @@ def run_methane_neb(calc_dir: str | Path, prefix: str,
     input_path = root / 'candidate.neb.in'
     output_path = root / 'candidate.neb.out'
     write_qe_neb_input(images, str(input_path), prefix)
-    run_neb(str(input_path), str(output_path), timeout_s=timeout_s,
-            execution=execution)
+    run_neb(str(input_path), str(output_path), timeout_s=timeout_s, execution=execution)
     return methane_neb_status(root)
 
 
-def advance_methane_neb(calc_dir: str | Path, prefix: str,
-                        n_images: int = 7, timeout_s: int = 86400,
-                        execution: QEExecutionConfig | None = None,
-                        restart_incomplete: bool = False) -> dict:
+def advance_methane_neb(
+    calc_dir: str | Path,
+    prefix: str,
+    n_images: int = 7,
+    timeout_s: int = 86400,
+    execution: QEExecutionConfig | None = None,
+    restart_incomplete: bool = False,
+) -> dict:
     """Advance endpoints, NEB, and prepared frequency jobs in safe order.
 
     Args:
@@ -461,17 +524,24 @@ def advance_methane_neb(calc_dir: str | Path, prefix: str,
             return methane_neb_status(root)
         if state == 'incomplete' and not restart_incomplete:
             return methane_neb_status(root)
-        outcome = run_pw(str(input_path), str(output_path), timeout_s=timeout_s,
-                         execution=_pw_execution(execution))
+        outcome = run_pw(
+            str(input_path),
+            str(output_path),
+            timeout_s=timeout_s,
+            execution=_pw_execution(execution),
+        )
         if not outcome['converged']:
             return methane_neb_status(root)
     status = run_methane_neb(
-        root, prefix, n_images=n_images, timeout_s=timeout_s,
-        execution=execution)
+        root, prefix, n_images=n_images, timeout_s=timeout_s, execution=execution
+    )
     if status['neb'].get('converged'):
         run_frequency_sequence(
-            root, timeout_s=timeout_s, execution=execution,
-            restart_incomplete=restart_incomplete)
+            root,
+            timeout_s=timeout_s,
+            execution=execution,
+            restart_incomplete=restart_incomplete,
+        )
     return methane_neb_status(root)
 
 
@@ -499,8 +569,10 @@ def prepare_pyrolysis_campaign(manifest_path: str | Path) -> dict:
         spec = manifest.get('steps', {}).get(step_name)
         if not spec:
             prepared[step_name] = {
-                'status': 'unresolved', 'kinetics_field': kinetics_field,
-                'reason': 'explicit_candidate_geometries_missing'}
+                'status': 'unresolved',
+                'kinetics_field': kinetics_field,
+                'reason': 'explicit_candidate_geometries_missing',
+            }
             continue
         step_root = root / step_name
         initial = ase_read(str((source.parent / spec['initial']).resolve()))
@@ -508,16 +580,21 @@ def prepare_pyrolysis_campaign(manifest_path: str | Path) -> dict:
         prepare_methane_neb(step_root, f'{catalyst_id}_{step_name}', initial, final)
         if spec.get('transition_state'):
             transition_state = ase_read(
-                str((source.parent / spec['transition_state']).resolve()))
+                str((source.parent / spec['transition_state']).resolve())
+            )
             prepare_frequency_jobs(
-                step_root, transition_state, f'{catalyst_id}_{step_name}_ts',
+                step_root,
+                transition_state,
+                f'{catalyst_id}_{step_name}_ts',
                 displacement_A=float(spec.get('displacement_A', 0.01)),
-                active_indices=spec.get('frequency_active_indices'))
+                active_indices=spec.get('frequency_active_indices'),
+            )
         prepared[step_name] = {
-            'status': 'prepared', 'kinetics_field': kinetics_field,
-            **methane_neb_status(step_root)}
-    return {'candidate_id': catalyst_id, 'campaign_dir': str(root),
-            'steps': prepared}
+            'status': 'prepared',
+            'kinetics_field': kinetics_field,
+            **methane_neb_status(step_root),
+        }
+    return {'candidate_id': catalyst_id, 'campaign_dir': str(root), 'steps': prepared}
 
 
 def pyrolysis_campaign_status(manifest_path: str | Path) -> dict:
@@ -537,8 +614,7 @@ def pyrolysis_campaign_status(manifest_path: str | Path) -> dict:
     steps, resolved = {}, {}
     for step_name, kinetics_field in PYROLYSIS_ELEMENTARY_STEPS.items():
         if step_name not in manifest.get('steps', {}):
-            steps[step_name] = {'status': 'unresolved',
-                                'reason': 'not_supplied'}
+            steps[step_name] = {'status': 'unresolved', 'reason': 'not_supplied'}
             continue
         status = methane_neb_status(root / step_name)
         steps[step_name] = status
@@ -551,18 +627,23 @@ def pyrolysis_campaign_status(manifest_path: str | Path) -> dict:
         'steps': steps,
         'resolved_kinetics_eV': resolved,
         'unresolved_kinetics_fields': sorted(
-            set(PYROLYSIS_ELEMENTARY_STEPS.values()) - set(resolved)),
+            set(PYROLYSIS_ELEMENTARY_STEPS.values()) - set(resolved)
+        ),
         'complete': len(resolved) == len(PYROLYSIS_ELEMENTARY_STEPS),
-        'evidence_level': 'converged_dft_neb_frequency' if
-                          len(resolved) == len(PYROLYSIS_ELEMENTARY_STEPS)
-                          else 'incomplete',
+        'evidence_level': (
+            'converged_dft_neb_frequency'
+            if len(resolved) == len(PYROLYSIS_ELEMENTARY_STEPS)
+            else 'incomplete'
+        ),
     }
 
 
-def advance_pyrolysis_campaign(manifest_path: str | Path,
-                                timeout_s: int = 86400,
-                                execution: QEExecutionConfig | None = None,
-                                restart_incomplete: bool = False) -> dict:
+def advance_pyrolysis_campaign(
+    manifest_path: str | Path,
+    timeout_s: int = 86400,
+    execution: QEExecutionConfig | None = None,
+    restart_incomplete: bool = False,
+) -> dict:
     """Advance all supplied elementary steps and retain unresolved fields.
 
     Args:
@@ -584,10 +665,13 @@ def advance_pyrolysis_campaign(manifest_path: str | Path,
         if step_name not in manifest.get('steps', {}):
             continue
         advance_methane_neb(
-            root / step_name, f'{catalyst_id}_{step_name}',
+            root / step_name,
+            f'{catalyst_id}_{step_name}',
             n_images=int(manifest['steps'][step_name].get('n_images', 7)),
-            timeout_s=timeout_s, execution=execution,
-            restart_incomplete=restart_incomplete)
+            timeout_s=timeout_s,
+            execution=execution,
+            restart_incomplete=restart_incomplete,
+        )
     result = pyrolysis_campaign_status(source)
     output = root / 'pyrolysis_validation.json'
     output.parent.mkdir(parents=True, exist_ok=True)

@@ -58,6 +58,7 @@ class _DiscoveryStateOptional(TypedDict, total=False):
 
 class DiscoveryState(_DiscoveryStateOptional):
     """Persistable summary emitted by branch-and-bound discovery."""
+
     pareto_size: int
     total_evaluated: int
     valid_count: int
@@ -69,6 +70,7 @@ class DiscoveryState(_DiscoveryStateOptional):
 
 class DiscoveryProducts(TypedDict):
     """In-process values routed from discovery to later stages."""
+
     design_space_sizes: dict[str, int]
     pareto_genomes: Sequence[object]
     screening_database: TableLike
@@ -86,16 +88,19 @@ class _ReactorBatchStateOptional(TypedDict, total=False):
 
 class ReactorBatchState(_ReactorBatchStateOptional):
     """Persistable summary emitted by a reactor batch."""
+
     n_simulations: int
 
 
 class ReactorBatchProducts(TypedDict):
     """Detailed reactor results retained for downstream consumers."""
+
     reactor_results: list[ReactorResult]
 
 
 class DFTState(TypedDict):
     """Persistable DFT execution counts."""
+
     n_validated: int
     n_converged: int
     n_failed: int
@@ -103,17 +108,20 @@ class DFTState(TypedDict):
 
 class DFTProducts(TypedDict):
     """Candidate-specific DFT results and isolated failures."""
+
     dft_results: list[DFTResult]
     failures: list[dict[str, str]]
 
 
 class VQEState(TypedDict):
     """Persistable VQE execution counts."""
+
     n_vqe_runs: int
 
 
 class VQEProducts(TypedDict):
     """Candidate-specific VQE results."""
+
     vqe_results: list[VQEResult]
 
 
@@ -125,6 +133,7 @@ class _FuelCellStateOptional(TypedDict, total=False):
 
 class FuelCellState(_FuelCellStateOptional):
     """Persistable cathode and PEMFC summary."""
+
     n_cathodes_screened: int
     n_valid: int
     n_pemfc_simulations: int
@@ -132,6 +141,7 @@ class FuelCellState(_FuelCellStateOptional):
 
 class FuelCellProducts(TypedDict):
     """Detailed fuel-cell screening, cell, and stack products."""
+
     cathode_database: TableLike
     valid_cathodes: TableLike
     pemfc_results: list[PEMFCResult]
@@ -140,11 +150,13 @@ class FuelCellProducts(TypedDict):
 
 class ReportState(TypedDict):
     """Persistable report-stage summary."""
+
     report_path: str
 
 
 class ReportProducts(TypedDict):
     """Generated report artifact path."""
+
     report_path: Path
 
 
@@ -154,6 +166,7 @@ class _SelectedCandidatesOptional(TypedDict, total=False):
 
 class SelectedCandidates(_SelectedCandidatesOptional):
     """Typed restart handoff reconstructed from a screening table."""
+
     screening_database: TableLike
     top_catalysts: TableLike
     dft_candidates: CandidateBatch
@@ -186,7 +199,8 @@ class CandidateSelection:
         return cls(
             screening_database=products['screening_database'],
             top_catalysts=products['top_catalysts'],
-            dft_candidates=products['dft_candidates'])
+            dft_candidates=products['dft_candidates'],
+        )
 
     @classmethod
     def from_restart(cls, selected: SelectedCandidates) -> "CandidateSelection":
@@ -202,7 +216,8 @@ class CandidateSelection:
             screening_database=selected['screening_database'],
             top_catalysts=selected['top_catalysts'],
             dft_candidates=selected['dft_candidates'],
-            admissibility=selected.get('admissibility'))
+            admissibility=selected.get('admissibility'),
+        )
 
 
 @dataclass(slots=True)

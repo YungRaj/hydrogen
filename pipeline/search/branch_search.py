@@ -19,8 +19,14 @@ from typing import Callable, List, Optional
 import numpy as np
 
 from pipeline.search.exhaustive_search import ScanConfig, run_sharded_scan
-from pipeline.search.indexed_space import (CLASS_OFFSETS, CLASS_ORDER, CLASS_SIZES,
-                                    TOTAL_SIZE, candidate_at, is_physically_admissible)
+from pipeline.search.indexed_space import (
+    CLASS_OFFSETS,
+    CLASS_ORDER,
+    CLASS_SIZES,
+    TOTAL_SIZE,
+    candidate_at,
+    is_physically_admissible,
+)
 from pipeline.screening.ood import CLASS_CONFIDENCE
 
 
@@ -46,6 +52,7 @@ class BranchConfig:
         refresh_pending_priorities: Configured refresh pending priorities value.
         scan_workers: Configured scan workers value.
     """
+
     application: str
     database: str
     leaf_size: int = 1_000_000
@@ -72,13 +79,15 @@ def _open(path: str) -> sqlite3.Connection:
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path, timeout=60)
     conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("""CREATE TABLE IF NOT EXISTS branch_nodes (
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS branch_nodes (
         application TEXT NOT NULL, node_id TEXT NOT NULL, material_class TEXT NOT NULL,
         start_index INTEGER NOT NULL, stop_index INTEGER NOT NULL, depth INTEGER NOT NULL,
         status TEXT NOT NULL, priority REAL, probe_best REAL, probe_spread REAL,
         parent_id TEXT, reason TEXT, updated_at REAL NOT NULL,
         PRIMARY KEY(application, node_id)
-    )""")
+    )"""
+    )
     return conn
 
 
@@ -114,9 +123,15 @@ def _probe_indices(start: int, stop: int, count: int) -> List[int]:
     return sorted(indices)
 
 
-def _node_priority(material_class: str, start: int, stop: int,
-                   scorer: Callable[[List[tuple]], np.ndarray], probe_count: int,
-                   database: str = None, application: str = None):
+def _node_priority(
+    material_class: str,
+    start: int,
+    stop: int,
+    scorer: Callable[[List[tuple]], np.ndarray],
+    probe_count: int,
+    database: str = None,
+    application: str = None,
+):
     probes = []
     for index in _probe_indices(start, stop, max(2, probe_count)):
         genome = candidate_at(index)
@@ -144,6 +159,7 @@ def _node_priority(material_class: str, start: int, stop: int,
     priority -= 0.15 * robust_spread + 0.20 * ood_bonus + size_bonus
     if database and application:
         from pipeline.search.adaptive_validation import priority_adjustment
+
         priority += priority_adjustment(database, application, probes)
     return priority, best, spread
 
@@ -151,29 +167,40 @@ def _node_priority(material_class: str, start: int, stop: int,
 def _resolved_by_class(conn, application: str, classes: tuple) -> dict:
     counts = {material_class: 0 for material_class in classes}
     for material_class, count in conn.execute(
-            "SELECT material_class, COUNT(*) FROM branch_nodes "
-            "WHERE application=? AND status IN ('scanned','pruned') GROUP BY material_class",
-            (application,)):
+        "SELECT material_class, COUNT(*) FROM branch_nodes "
+        "WHERE application=? AND status IN ('scanned','pruned') GROUP BY material_class",
+        (application,),
+    ):
         if material_class in counts:
             counts[material_class] = int(count)
     return counts
 
 
-def _select_pending_node(conn, config: BranchConfig, classes: tuple,
-                         leaves_scanned: int):
+def _select_pending_node(
+    conn, config: BranchConfig, classes: tuple, leaves_scanned: int
+):
     """Select a node with deterministic coverage and exploration guarantees."""
     resolved = _resolved_by_class(conn, config.application, classes)
-    undercovered = [material_class for material_class in classes
-                    if resolved[material_class] < config.min_resolved_leaves_per_class]
+    undercovered = [
+        material_class
+        for material_class in classes
+        if resolved[material_class] < config.min_resolved_leaves_per_class
+    ]
     mode = 'priority'
     target_classes = undercovered
     if undercovered:
         mode = 'class_floor'
-    elif config.exploration_interval > 0 and leaves_scanned > 0 and \
-            leaves_scanned % config.exploration_interval == 0:
+    elif (
+        config.exploration_interval > 0
+        and leaves_scanned > 0
+        and leaves_scanned % config.exploration_interval == 0
+    ):
         minimum = min(resolved.values())
-        target_classes = [material_class for material_class in classes
-                          if resolved[material_class] == minimum]
+        target_classes = [
+            material_class
+            for material_class in classes
+            if resolved[material_class] == minimum
+        ]
         mode = 'balanced_exploration'
     if target_classes:
         placeholders = ','.join('?' for _ in target_classes)
@@ -184,27 +211,50 @@ def _select_pending_node(conn, config: BranchConfig, classes: tuple,
         row = conn.execute(query, (config.application, *target_classes)).fetchone()
         if row is not None:
             return row, mode
-    row = conn.execute("""SELECT node_id, material_class, start_index, stop_index, depth
+    row = conn.execute(
+        """SELECT node_id, material_class, start_index, stop_index, depth
         FROM branch_nodes WHERE application=? AND status='pending'
         ORDER BY priority ASC, start_index ASC LIMIT 1""",
-        (config.application,)).fetchone()
+        (config.application,),
+    ).fetchone()
     return row, 'priority'
 
 
-def _insert_node(conn, cfg, material_class, start, stop, depth, scorer,
-                 parent_id=None):
+def _insert_node(conn, cfg, material_class, start, stop, depth, scorer, parent_id=None):
     node_id = _node_id(cfg.application, start, stop)
     exists = conn.execute(
         "SELECT 1 FROM branch_nodes WHERE application=? AND node_id=?",
-        (cfg.application, node_id)).fetchone()
+        (cfg.application, node_id),
+    ).fetchone()
     if exists:
         return node_id
     priority, best, spread = _node_priority(
-        material_class, start, stop, scorer, cfg.probe_count,
-        cfg.database, cfg.application)
-    conn.execute("INSERT INTO branch_nodes VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (
-        cfg.application, node_id, material_class, start, stop, depth, 'pending',
-        priority, best, spread, parent_id, None, time.time()))
+        material_class,
+        start,
+        stop,
+        scorer,
+        cfg.probe_count,
+        cfg.database,
+        cfg.application,
+    )
+    conn.execute(
+        "INSERT INTO branch_nodes VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            cfg.application,
+            node_id,
+            material_class,
+            start,
+            stop,
+            depth,
+            'pending',
+            priority,
+            best,
+            spread,
+            parent_id,
+            None,
+            time.time(),
+        ),
+    )
     return node_id
 
 
@@ -212,23 +262,34 @@ def _refresh_pending(conn, config: BranchConfig, scorer) -> int:
     """Recompute a bounded set of stale priorities when a campaign resumes."""
     if config.refresh_pending_priorities <= 0:
         return 0
-    rows = conn.execute("""SELECT node_id, material_class, start_index, stop_index
+    rows = conn.execute(
+        """SELECT node_id, material_class, start_index, stop_index
         FROM branch_nodes WHERE application=? AND status='pending'
         ORDER BY updated_at ASC, start_index ASC LIMIT ?""",
-        (config.application, config.refresh_pending_priorities)).fetchall()
+        (config.application, config.refresh_pending_priorities),
+    ).fetchall()
     for node_id, material_class, start, stop in rows:
         priority, best, spread = _node_priority(
-            material_class, start, stop, scorer, config.probe_count,
-            config.database, config.application)
-        conn.execute("""UPDATE branch_nodes SET priority=?, probe_best=?, probe_spread=?,
+            material_class,
+            start,
+            stop,
+            scorer,
+            config.probe_count,
+            config.database,
+            config.application,
+        )
+        conn.execute(
+            """UPDATE branch_nodes SET priority=?, probe_best=?, probe_spread=?,
             updated_at=? WHERE application=? AND node_id=?""",
-            (priority, best, spread, time.time(), config.application, node_id))
+            (priority, best, spread, time.time(), config.application, node_id),
+        )
     conn.commit()
     return len(rows)
 
 
-def run_branch_and_bound(config: BranchConfig,
-                         scorer: Callable[[List[tuple]], np.ndarray]) -> dict:
+def run_branch_and_bound(
+    config: BranchConfig, scorer: Callable[[List[tuple]], np.ndarray]
+) -> dict:
     """Recursively schedule and exhaustively resolve catalyst-space leaves.
 
     Args:
@@ -238,13 +299,23 @@ def run_branch_and_bound(config: BranchConfig,
     Returns:
         Dictionary containing the computed values, status, and supporting metadata.
     """
-    if config.leaf_size <= 0 or config.probe_count < 2 or \
-            config.min_resolved_leaves_per_class < 0 or config.exploration_interval < 0 or \
-            config.refresh_pending_priorities < 0 or config.scan_workers < 1:
+    if (
+        config.leaf_size <= 0
+        or config.probe_count < 2
+        or config.min_resolved_leaves_per_class < 0
+        or config.exploration_interval < 0
+        or config.refresh_pending_priorities < 0
+        or config.scan_workers < 1
+    ):
         raise ValueError("invalid branch configuration")
     conn = _open(config.database)
-    resumed = conn.execute("SELECT 1 FROM branch_nodes WHERE application=? LIMIT 1",
-                           (config.application,)).fetchone() is not None
+    resumed = (
+        conn.execute(
+            "SELECT 1 FROM branch_nodes WHERE application=? LIMIT 1",
+            (config.application,),
+        ).fetchone()
+        is not None
+    )
     classes = config.material_classes or CLASS_ORDER
     unknown = set(classes) - set(CLASS_ORDER)
     if unknown:
@@ -266,12 +337,15 @@ def run_branch_and_bound(config: BranchConfig,
 
     leaves_scanned = expanded = pruned = 0
     scheduling_counts = {'class_floor': 0, 'balanced_exploration': 0, 'priority': 0}
-    deadline = None if config.max_runtime_s is None else time.time() + config.max_runtime_s
+    deadline = (
+        None if config.max_runtime_s is None else time.time() + config.max_runtime_s
+    )
     while config.max_leaves is None or leaves_scanned < config.max_leaves:
         if deadline is not None and time.time() >= deadline:
             break
         row, scheduling_mode = _select_pending_node(
-            conn, config, tuple(classes), leaves_scanned)
+            conn, config, tuple(classes), leaves_scanned
+        )
         if row is None:
             break
         scheduling_counts[scheduling_mode] += 1
@@ -280,13 +354,20 @@ def run_branch_and_bound(config: BranchConfig,
 
         # A hard prune is a proof over every member, never a surrogate guess.
         if size <= config.hard_prune_limit:
-            any_admissible = any(is_physically_admissible(candidate_at(i))[0]
-                                 for i in range(start, stop))
+            any_admissible = any(
+                is_physically_admissible(candidate_at(i))[0] for i in range(start, stop)
+            )
             if not any_admissible:
-                conn.execute("UPDATE branch_nodes SET status='pruned', reason=?, updated_at=? "
-                             "WHERE application=? AND node_id=?",
-                             ('all_members_fail_hard_constraints', time.time(),
-                              config.application, node_id))
+                conn.execute(
+                    "UPDATE branch_nodes SET status='pruned', reason=?, updated_at=? "
+                    "WHERE application=? AND node_id=?",
+                    (
+                        'all_members_fail_hard_constraints',
+                        time.time(),
+                        config.application,
+                        node_id,
+                    ),
+                )
                 conn.commit()
                 pruned += 1
                 continue
@@ -295,9 +376,11 @@ def run_branch_and_bound(config: BranchConfig,
             mid = start + size // 2
             _insert_node(conn, config, cls, start, mid, depth + 1, scorer, node_id)
             _insert_node(conn, config, cls, mid, stop, depth + 1, scorer, node_id)
-            conn.execute("UPDATE branch_nodes SET status='expanded', updated_at=? "
-                         "WHERE application=? AND node_id=?",
-                         (time.time(), config.application, node_id))
+            conn.execute(
+                "UPDATE branch_nodes SET status='expanded', updated_at=? "
+                "WHERE application=? AND node_id=?",
+                (time.time(), config.application, node_id),
+            )
             conn.commit()
             expanded += 1
             continue
@@ -305,32 +388,52 @@ def run_branch_and_bound(config: BranchConfig,
         # Close the planning connection before scanner processes inherit state.
         conn.commit()
         conn.close()
-        summary = run_sharded_scan(ScanConfig(
-            application=config.application, database=config.database,
-            start=start, stop=stop, batch_size=config.scan_batch_size,
-            global_archive_size=config.global_archive_size,
-            state_id=f"branch:{node_id}",
-            deadline_epoch_s=deadline,
-        ), scorer, workers=config.scan_workers)
+        summary = run_sharded_scan(
+            ScanConfig(
+                application=config.application,
+                database=config.database,
+                start=start,
+                stop=stop,
+                batch_size=config.scan_batch_size,
+                global_archive_size=config.global_archive_size,
+                state_id=f"branch:{node_id}",
+                deadline_epoch_s=deadline,
+            ),
+            scorer,
+            workers=config.scan_workers,
+        )
         conn = _open(config.database)
         status = 'scanned' if summary['complete'] else 'pending'
-        conn.execute("UPDATE branch_nodes SET status=?, reason=?, updated_at=? "
-                     "WHERE application=? AND node_id=?",
-                     (status, json.dumps(summary, sort_keys=True), time.time(),
-                      config.application, node_id))
+        conn.execute(
+            "UPDATE branch_nodes SET status=?, reason=?, updated_at=? "
+            "WHERE application=? AND node_id=?",
+            (
+                status,
+                json.dumps(summary, sort_keys=True),
+                time.time(),
+                config.application,
+                node_id,
+            ),
+        )
         conn.commit()
         leaves_scanned += 1
 
-    counts = dict(conn.execute(
-        "SELECT status, COUNT(*) FROM branch_nodes WHERE application=? GROUP BY status",
-        (config.application,)).fetchall())
+    counts = dict(
+        conn.execute(
+            "SELECT status, COUNT(*) FROM branch_nodes WHERE application=? GROUP BY status",
+            (config.application,),
+        ).fetchall()
+    )
     unresolved_population = conn.execute(
         "SELECT COALESCE(SUM(stop_index-start_index),0) FROM branch_nodes "
-        "WHERE application=? AND status='pending'", (config.application,)).fetchone()[0]
+        "WHERE application=? AND status='pending'",
+        (config.application,),
+    ).fetchone()[0]
     resolved_by_class = _resolved_by_class(conn, config.application, tuple(classes))
     conn.close()
     certificate = verify_branch_coverage(
-        config.database, config.application, tuple(classes), config.certificate_path)
+        config.database, config.application, tuple(classes), config.certificate_path
+    )
     return {
         "application": config.application,
         "leaves_scanned_this_run": leaves_scanned,
@@ -346,9 +449,12 @@ def run_branch_and_bound(config: BranchConfig,
     }
 
 
-def verify_branch_coverage(database: str, application: str,
-                           material_classes: Optional[tuple] = None,
-                           certificate_path: Optional[str] = None) -> dict:
+def verify_branch_coverage(
+    database: str,
+    application: str,
+    material_classes: Optional[tuple] = None,
+    certificate_path: Optional[str] = None,
+) -> dict:
     """Prove that terminal nodes partition the declared space exactly.
 
         This verifies address coverage, scanner completion, and pruning provenance;
@@ -372,16 +478,20 @@ def verify_branch_coverage(database: str, application: str,
     for cls in classes:
         expected_start = CLASS_OFFSETS[cls]
         class_stop = expected_start + CLASS_SIZES[cls]
-        rows = conn.execute("""SELECT node_id, start_index, stop_index, status, reason
+        rows = conn.execute(
+            """SELECT node_id, start_index, stop_index, status, reason
             FROM branch_nodes WHERE application=? AND material_class=?
               AND status!='expanded' ORDER BY start_index, stop_index""",
-            (application, cls)).fetchall()
+            (application, cls),
+        ).fetchall()
         cursor = expected_start
         for node_id, start, stop, status, reason in rows:
             terminal_count += 1
             if start != cursor:
                 kind = 'overlap' if start < cursor else 'gap'
-                errors.append(f"{cls}: {kind} before [{start},{stop}); expected {cursor}")
+                errors.append(
+                    f"{cls}: {kind} before [{start},{stop}); expected {cursor}"
+                )
             if stop <= start or stop > class_stop:
                 errors.append(f"{cls}: invalid terminal interval [{start},{stop})")
             cursor = max(cursor, stop)
@@ -389,11 +499,15 @@ def verify_branch_coverage(database: str, application: str,
             digest.update(f"{cls}:{start}:{stop}:{status}".encode())
 
             if status == 'scanned':
-                progress = conn.execute("""SELECT next_index, stop_index FROM scan_progress
+                progress = conn.execute(
+                    """SELECT next_index, stop_index FROM scan_progress
                     WHERE application=? AND state_id=?""",
-                    (application, f"branch:{node_id}")).fetchone()
+                    (application, f"branch:{node_id}"),
+                ).fetchone()
                 if not progress or progress[0] < stop or progress[1] != stop:
-                    errors.append(f"{cls}: scanned leaf {node_id} lacks complete scan cursor")
+                    errors.append(
+                        f"{cls}: scanned leaf {node_id} lacks complete scan cursor"
+                    )
                 else:
                     resolved_count += 1
             elif status == 'pruned':
@@ -401,8 +515,10 @@ def verify_branch_coverage(database: str, application: str,
                     errors.append(f"{cls}: pruned leaf {node_id} lacks hard proof")
                 else:
                     # Recheck the proof when the certificate is generated.
-                    if any(is_physically_admissible(candidate_at(i))[0]
-                           for i in range(start, stop)):
+                    if any(
+                        is_physically_admissible(candidate_at(i))[0]
+                        for i in range(start, stop)
+                    ):
                         errors.append(f"{cls}: invalid hard-prune proof for {node_id}")
                     else:
                         resolved_count += 1
@@ -411,11 +527,15 @@ def verify_branch_coverage(database: str, application: str,
             else:
                 errors.append(f"{cls}: unknown terminal status {status}")
         if cursor != class_stop:
-            errors.append(f"{cls}: terminal coverage ends at {cursor}, expected {class_stop}")
+            errors.append(
+                f"{cls}: terminal coverage ends at {cursor}, expected {class_stop}"
+            )
 
     declared = sum(CLASS_SIZES[c] for c in classes)
     if covered != declared:
-        errors.append(f"terminal interval sum {covered} != declared population {declared}")
+        errors.append(
+            f"terminal interval sum {covered} != declared population {declared}"
+        )
     certificate = {
         'application': application,
         'material_classes': list(classes),

@@ -9,7 +9,9 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from pipeline.validation.vqe_transition_state import (
-    build_ch_splitting_hamiltonian, run_vqe)
+    build_ch_splitting_hamiltonian,
+    run_vqe,
+)
 
 
 PAULI = {
@@ -29,18 +31,23 @@ def matrix(pauli_string):
 
 def main():
     terms = build_ch_splitting_hamiltonian()
-    hamiltonian = sum(float(coefficient) * matrix(pauli)
-                      for coefficient, pauli in terms)
+    hamiltonian = sum(
+        float(coefficient) * matrix(pauli) for coefficient, pauli in terms
+    )
     exact = float(np.linalg.eigvalsh(hamiltonian)[0])
-    result = run_vqe(
-        terms, target='qpp-cpu', n_layers=3, max_iter=3000)
+    result = run_vqe(terms, target='qpp-cpu', n_layers=3, max_iter=3000)
     assert not result.get('mock', False)
     assert result['energy_Ha'] >= exact - 1e-8
     # Four qubits are cheap enough to demand a useful ansatz/optimizer result.
     assert result['energy_Ha'] - exact < 1e-3
     assert result['benchmarked'] is True
-    print({'exact_Ha': exact, 'vqe_Ha': result['energy_Ha'],
-           'gap_Ha': result['energy_Ha'] - exact})
+    print(
+        {
+            'exact_Ha': exact,
+            'vqe_Ha': result['energy_Ha'],
+            'gap_Ha': result['energy_Ha'] - exact,
+        }
+    )
 
 
 if __name__ == '__main__':

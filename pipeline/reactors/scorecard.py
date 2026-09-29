@@ -36,7 +36,9 @@ def is_h_parked(record: dict) -> bool:
     dE_H = record.get('catalyst_dE_H_eV')
     if e_act is None or dE_H is None:
         return False
-    return float(e_act) <= H_PARKED_E_ACT_MAX and abs(float(dE_H)) >= H_PARKED_ABS_DEH_MIN
+    return (
+        float(e_act) <= H_PARKED_E_ACT_MAX and abs(float(dE_H)) >= H_PARKED_ABS_DEH_MIN
+    )
 
 
 def is_production_reactor_record(record: dict) -> bool:
@@ -111,8 +113,7 @@ def _t_k(record: dict) -> float:
         return 0.0
 
 
-def in_headline_band(record: dict, t_min: float,
-                     t_max: float | None = None) -> bool:
+def in_headline_band(record: dict, t_min: float, t_max: float | None = None) -> bool:
     """True if T is in [t_min, t_max]. ``t_max is None`` means no upper bound.
 
     Args:
@@ -159,11 +160,13 @@ def metric_row(record: dict) -> SolidsMetricRow:
     }
 
 
-def build_solids_scorecard(results, *,
-                           judge_catalyst: str | None = None,
-                           headline_t_min: float = DEFAULT_HEADLINE_T_MIN,
-                           headline_t_max: float | None = None
-                           ) -> SolidsScorecard:
+def build_solids_scorecard(
+    results,
+    *,
+    judge_catalyst: str | None = None,
+    headline_t_min: float = DEFAULT_HEADLINE_T_MIN,
+    headline_t_max: float | None = None,
+) -> SolidsScorecard:
     """Build fail-closed PFR, fluidized, and MMBCR comparison summaries.
 
     Args:
@@ -178,16 +181,21 @@ def build_solids_scorecard(results, *,
     solids_src = [r for r in results if is_solids_run(r)]
     solids = [metric_row(r) for r in solids_src]
     mmbcr = [
-        r for r in results
+        r
+        for r in results
         if is_production_reactor_record(r)
         and r.get('reactor_type') == 'MMBCR'
         and is_usable_result(r)
     ]
-    eligible = [metric_row(r) for r in solids_src
-                if is_scoreable_solids(r) and not is_h_parked(r)]
+    eligible = [
+        metric_row(r)
+        for r in solids_src
+        if is_scoreable_solids(r) and not is_h_parked(r)
+    ]
     judge_src = (
         [r for r in solids_src if r.get('catalyst_name') == judge_catalyst]
-        if judge_catalyst else []
+        if judge_catalyst
+        else []
     )
     named_present = bool(judge_src)
     if named_present:
@@ -195,23 +203,27 @@ def build_solids_scorecard(results, *,
         rank_key = _t_k
         judge_reason = (
             'named judge catalyst; not 0.01 eV H-parked; '
-            'MMBCR X_eq is not a solids rank')
+            'MMBCR X_eq is not a solids rank'
+        )
     else:
         pool = eligible
         rank_key = lambda r: r['single_pass_CH4_conversion']
         if judge_catalyst:
             judge_reason = (
                 f'{judge_catalyst} missing from solids results; '
-                'headline is best non-H-parked; MMBCR X_eq is not a rank')
+                'headline is best non-H-parked; MMBCR X_eq is not a rank'
+            )
         else:
             judge_reason = (
                 'no named judge; headline is best non-H-parked; '
-                'MMBCR X_eq is not a solids rank')
+                'MMBCR X_eq is not a solids rank'
+            )
 
     headline = {}
     for reactor_type in ('PFR', 'Fluidized'):
         candidates = [
-            r for r in pool
+            r
+            for r in pool
             if r['reactor_type'] == reactor_type
             and in_headline_band(r, headline_t_min, headline_t_max)
         ]
@@ -220,7 +232,8 @@ def build_solids_scorecard(results, *,
 
     solids_max = (
         max(eligible, key=lambda r: r['single_pass_CH4_conversion'])
-        if eligible else None
+        if eligible
+        else None
     )
     h_parked = [r for r in solids if r['h_parked'] and _t_k(r) >= headline_t_min]
     mmbcr_max = max(
@@ -251,7 +264,8 @@ def build_solids_scorecard(results, *,
             'legacy 4-point headline when t_min=1200 and t_max is open. '
             'The Ni judge headline is the 650–700 °C filament ROI '
             f'({NI_JUDGE_HEADLINE_T_MIN:g}–{NI_JUDGE_HEADLINE_T_MAX:g} K); '
-            'X>X_eq and carbon-balance failures are never the headline.'),
+            'X>X_eq and carbon-balance failures are never the headline.'
+        ),
         'headline': headline,
         'headline_solids_conversion': judge_x,
         'solids_max_excluding_h_parked': solids_max,

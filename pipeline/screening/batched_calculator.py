@@ -28,8 +28,9 @@ class _Request:
 class BatchedInferenceService:
     """Own a fairchem model and dynamically batch requests by total atoms."""
 
-    def __init__(self, calculator, max_batch_atoms: int = 768,
-                 batch_wait_ms: float = 3.0):
+    def __init__(
+        self, calculator, max_batch_atoms: int = 768, batch_wait_ms: float = 3.0
+    ):
         if max_batch_atoms < 1:
             raise ValueError('max_batch_atoms must be positive')
         if batch_wait_ms < 0:
@@ -40,7 +41,8 @@ class BatchedInferenceService:
         self._requests: queue.Queue = queue.Queue()
         self._stop = object()
         self._thread = threading.Thread(
-            target=self._serve, name='fairchem-batch-server', daemon=True)
+            target=self._serve, name='fairchem-batch-server', daemon=True
+        )
         self._thread.start()
 
     def calculator_proxy(self) -> Calculator:
@@ -116,11 +118,13 @@ class BatchedInferenceService:
                     raise ValueError('Atoms object has no atoms inside.')
                 self.calculator._check_atoms_pbc(atoms)
                 self.calculator.predictor.validate_atoms_data(
-                    atoms, self.calculator.task_name)
+                    atoms, self.calculator.task_name
+                )
                 data.append(self.calculator.a2g(atoms))
 
             predictions = self.calculator.predictor.predict(
-                atomicdata_list_to_batch(data))
+                atomicdata_list_to_batch(data)
+            )
             n_systems = len(requests)
             atom_offset = 0
             for index, request in enumerate(requests):
@@ -137,11 +141,12 @@ class BatchedInferenceService:
                         energy = float(array[index])
                         result['energy'] = result['free_energy'] = energy
                     elif key == 'forces':
-                        result['forces'] = array[atom_offset:atom_offset + n_atoms]
+                        result['forces'] = array[atom_offset : atom_offset + n_atoms]
                     elif key == 'stress':
                         stress = array[index] if array.shape[0] == n_systems else array
                         result['stress'] = full_3x3_to_voigt_6_stress(
-                            np.asarray(stress).reshape(3, 3))
+                            np.asarray(stress).reshape(3, 3)
+                        )
                 atom_offset += n_atoms
                 request.result = result
         except BaseException as exc:
@@ -160,8 +165,7 @@ class BatchedFAIRChemCalculator(Calculator):
         self.service = service
         self.implemented_properties = list(service.calculator.implemented_properties)
 
-    def calculate(self, atoms=None, properties=('energy',),
-                  system_changes=all_changes):
+    def calculate(self, atoms=None, properties=('energy',), system_changes=all_changes):
         """Evaluate one atomic system through the batched inference service.
 
         Args:
