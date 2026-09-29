@@ -1277,6 +1277,20 @@ are concatenated under a total-atom budget, so variable-size structures do not
 incur dense padding. The legacy multi-process engine remains available through
 the screeners' `engine='legacy'` argument for controlled fallback comparisons.
 
+Completed, convergence-qualified eSEN results are reused from application-local
+SQLite caches (`results/screening/esen_result_cache.sqlite` and
+`results/fuel_cell/esen_result_cache.sqlite`). The cache does **not** place JSON
+documents inside SQLite. Each result field is stored with an explicit scalar
+type (`none`, `bool`, `int`, `float`, or `str`) and a corresponding typed value
+column; nested or otherwise unstructured values are rejected from reuse.
+Entries are keyed by application, immutable screening-protocol ID, scientific
+implementation digest, and canonical candidate ID. Consequently, a code,
+dependency, protocol, or candidate change produces a cache miss rather than
+silently reusing incompatible evidence. Only valid results with every recorded
+convergence gate satisfied are admitted. An all-cache-hit request avoids model
+loading and CUDA worker startup, while returned rows retain the caller's order
+and duplicates.
+
 On the local three-GPU host, an identical 14-class smoke campaign took 46.9 s
 with dynamic batching versus 49.4 s with two legacy model processes per GPU
 (5.2% faster while halving resident model replicas). A paired-inference

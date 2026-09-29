@@ -262,6 +262,46 @@ support search and screening; selected screening records feed reactor,
 simulation, and validation stages; evidence modules inspect artifacts rather
 than silently changing scientific results.
 
+### 4.1 Data representation and persistence boundary
+
+The repository distinguishes internal state from external interchange:
+
+- In-process component handoffs use named `TypedDict` records, dataclasses,
+  protocols, NumPy arrays, or explicitly typed scalar mappings.
+- Mutable internal persistence uses typed SQLite columns when the data is a
+  cache, queue, index, or resumable execution state.
+- JSON is retained at genuine external boundaries: user configuration,
+  repository fixtures, OpenFOAM/FEniCSx/Cantera/QE handoffs, provenance
+  manifests, and exported scientific reports. Loaders validate identity,
+  schema, units, checksums, completeness, and convergence as applicable before
+  those documents influence selection.
+
+This boundary avoids treating JSON or `dict[str, Any]` as the project's hidden
+type system while preserving interoperable solver artifacts. Converting an
+external JSON document to another syntax would not improve safety by itself;
+the important requirements are a named contract, one validation point, and
+typed values after admission.
+
+The eSEN/FairChem calculation cache demonstrates the internal rule. Pyrolysis
+and ORR screening each use a local SQLite database containing a keyed entry
+table and a field table. Every cached value has one of five explicit scalar
+types (`none`, `bool`, `int`, `float`, `str`) and occupies only its matching
+value column. Floating-point values use hexadecimal representation to preserve
+their exact binary value. Lists, nested mappings, and other opaque values are
+not cached. Reuse additionally requires:
+
+1. the same application and immutable screening protocol;
+2. the same canonical candidate ID;
+3. the same digest of the scientific implementation and dependency versions;
+4. `valid is True`; and
+5. every recorded convergence flag to be true.
+
+A cache miss executes the ordinary GPU path. An entirely cached request does
+not import Torch or initialize CUDA workers, and cache expansion preserves the
+original request order and duplicate candidates. The cache is an optimization
+only: inability to encode or reuse a record never promotes a candidate and
+never weakens a scientific gate.
+
 ## 5. The 21.1-billion-candidate design space
 
 ### 5.1 What the number means

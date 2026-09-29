@@ -400,8 +400,7 @@ def run_orr_screening(genomes: List[tuple], db_filename: str = "fc_screening.csv
             output_subdir='fuel_cell',
             start_message='ORR screening {count} candidates...',
             completion_label='ORR screening',
-            progress_noun='cand',
-            protocol_id=SCREENING_PROTOCOL_ID,
+            progress_noun='cand', protocol_id=SCREENING_PROTOCOL_ID,
             cache_path=FUEL_CELL_DIR / 'esen_result_cache.sqlite'))
 
     valid_df = df[df['valid'] == True]

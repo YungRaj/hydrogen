@@ -1093,8 +1093,7 @@ def run_screening(genomes: List[tuple], db_filename: str = "surface_screening.cs
             manifest_path=SCREENING_DIR / 'surface_worker_health.json',
             output_subdir='screening',
             start_message='Screening {count} catalyst candidates...',
-            completion_label='Screening',
-            protocol_id=SCREENING_PROTOCOL_ID,
+            completion_label='Screening', protocol_id=SCREENING_PROTOCOL_ID,
             cache_path=SCREENING_DIR / 'esen_result_cache.sqlite'))
 
     # Summary statistics

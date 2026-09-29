@@ -665,7 +665,8 @@ def main():
     readiness = {'turquoise_hydrogen': h2_ready, 'fuel_cell': fc_ready,
                  'ready': h2_ready['ready'] and fc_ready['ready']}
     from pipeline.evidence.campaign_status import assess_campaign
-    readiness['six_point_status'] = assess_campaign('results', pyrolysis_mode=args.mode)
+    readiness['six_point_status'] = assess_campaign(
+        results_dir, pyrolysis_mode=args.mode)
     readiness['ready'] = readiness['ready'] and readiness['six_point_status']['ready']
     save_json(readiness, 'campaign_readiness.json')
     if args.final_campaign and not readiness['ready']:

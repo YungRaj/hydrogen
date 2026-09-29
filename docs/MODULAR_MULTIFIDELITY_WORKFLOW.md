@@ -79,10 +79,13 @@ flowchart LR
 ```
 
 The principal orchestration and scientific-result boundaries use named data
-models, dataclasses, NumPy arrays, or validated JSON documents. Runtime mappings
-remain compatible with existing artifacts, while their declared shapes live in
-`pipeline/data_models/`. That package and the selected small boundaries listed
-in `pyrightconfig.json` are checked strictly by Pyright. A unit test can
+models, dataclasses, NumPy arrays, or validated external documents. Internal
+runtime state should not use JSON strings or anonymous `dict[str, Any]` values
+as a component-to-component data bus. Where compatibility requires mappings,
+their declared shapes live in `pipeline/data_models/`; deserialization occurs
+once at the filesystem or solver boundary and the resulting value is validated
+before scientific code consumes it. That package and the selected small
+boundaries listed in `pyrightconfig.json` are checked strictly by Pyright. A unit test can
 therefore exercise case feature
 extraction, record extraction, model fitting, prediction, serialization, and
 escalation without installing or launching any external solver.
@@ -176,6 +179,17 @@ before the mapping is exposed internally as a `PhysicalCaseDocument`. Templates,
 malformed records, and incomplete evidence therefore retain their previous
 rejection behavior while downstream functions receive an explicit document
 shape.
+
+JSON is therefore an external interchange format here, not an internal type
+system. It remains appropriate for user-authored configuration, immutable
+scientific fixtures, solver handoffs, checksummed provenance manifests, and
+human/tool-readable exported reports. Mutable internal caches and queues should
+prefer typed database columns or named Python models. The eSEN result cache is
+the reference implementation: `pipeline/screening/result_cache.py` stores only
+explicit scalar fields in SQLite, rejects nested values, and keys reuse to the
+application, protocol, implementation digest, and candidate identity. This
+keeps persistence inspectable without allowing arbitrary JSON blobs to become
+implicit internal APIs.
 
 The full graph is runtime-tested entirely in memory. That contract verifies the
 discovery outputs handed to reactor and DFT stages, phase order, state

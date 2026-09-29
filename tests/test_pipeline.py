@@ -930,8 +930,8 @@ def test_candidate_ids_are_canonical():
     assert candidate_id(perovskite_a) == candidate_id(perovskite_b)
 
 
-def test_screening_result_cache_fails_closed():
-    """Only exact-protocol, exact-implementation converged results are reused."""
+def test_screening_cache_uses_typed_scalar_storage():
+    import sqlite3
     import tempfile
     from pathlib import Path
     from pipeline.screening.result_cache import (
@@ -939,38 +939,63 @@ def test_screening_result_cache_fails_closed():
 
     protocol = 'model:relax-v1:application-v1'
     genome = ('SAC', 'Fe', 'N4', 'N-graphene', 'none')
-    complete = {
+    result = {
         'genome': str(genome), 'material_class': 'SAC',
         'screening_protocol': protocol, 'valid': True,
-        'relax_clean_converged': True,
-        'relax_adsorbate_converged': True, 'E_act': 0.7,
+        'relax_clean_converged': True, 'E_act': 0.7,
+        'optional_value': None, 'relax_clean_steps': 12,
     }
     with tempfile.TemporaryDirectory() as temporary:
         database = Path(temporary) / 'cache.sqlite'
         assert store_completed_results(
-            database, 'test', protocol, 'digest-a', [genome], [complete]) == 1
-        assert 0 in load_cached_results(
-            database, 'test', protocol, 'digest-a', [genome])
-        assert not load_cached_results(
-            database, 'test', protocol, 'digest-b', [genome])
-        assert not load_cached_results(
-            database, 'test', 'different-protocol', 'digest-a', [genome])
+            database, 'test', protocol, 'digest', [genome], [result]) == 1
+        restored = load_cached_results(
+            database, 'test', protocol, 'digest', [genome])[0]
+        assert restored == result
+        with sqlite3.connect(database) as connection:
+            columns = {row[1] for row in connection.execute(
+                'PRAGMA table_info(screening_cache_fields)')}
+            assert 'result_json' not in columns
+            assert {'field_type', 'bool_value', 'int_value',
+                    'float_value', 'str_value'} <= columns
 
-        incomplete = dict(complete, relax_adsorbate_converged=False)
-        invalid = dict(complete, valid=False)
+        unsupported = dict(result, nested={'untyped': True})
         assert store_completed_results(
-            database, 'test', protocol, 'digest-a', [genome, genome],
-            [incomplete, invalid]) == 0
-        try:
-            store_completed_results(
-                database, 'test', protocol, 'digest-a', [genome], [])
-            raise AssertionError('mismatched cache inputs must be rejected')
-        except ValueError:
-            pass
+            database, 'test', protocol, 'other-digest', [genome],
+            [unsupported]) == 0
+        assert not load_cached_results(
+            database, 'test', protocol, 'other-digest', [genome])
 
 
-def test_screening_result_cache_preserves_request_mapping():
-    """Cache lookup retains input ordering and duplicate candidate positions."""
+def test_screening_cache_fails_closed_on_identity_changes():
+    import tempfile
+    from pathlib import Path
+    from pipeline.screening.result_cache import (
+        load_cached_results, store_completed_results)
+
+    protocol = 'model:relax-v1:application-v1'
+    genome = ('SAC', 'Fe', 'N4', 'N-graphene', 'none')
+    result = {
+        'genome': str(genome), 'material_class': 'SAC',
+        'screening_protocol': protocol, 'valid': True,
+        'relax_clean_converged': True, 'E_act': 0.7,
+    }
+    with tempfile.TemporaryDirectory() as temporary:
+        database = Path(temporary) / 'cache.sqlite'
+        store_completed_results(
+            database, 'test', protocol, 'digest', [genome], [result])
+        assert not load_cached_results(
+            database, 'test', protocol, 'changed-digest', [genome])
+        assert not load_cached_results(
+            database, 'test', 'changed-protocol', 'digest', [genome])
+        incomplete = dict(result, relax_clean_converged=False)
+        assert store_completed_results(
+            database, 'test', protocol, 'new-digest', [genome],
+            [incomplete]) == 0
+
+
+def test_screening_cache_preserves_request_mapping():
+    """Typed cache lookup retains ordering and duplicate candidate positions."""
     import tempfile
     from pathlib import Path
     from pipeline.screening.result_cache import (
@@ -979,13 +1004,14 @@ def test_screening_result_cache_preserves_request_mapping():
     protocol = 'model:relax-v1:application-v1'
     first = ('SAC', 'Fe', 'N4', 'N-graphene', 'none')
     second = ('SAC', 'Co', 'N4', 'N-graphene', 'none')
+
     def record(genome):
         return {
             'genome': str(genome), 'material_class': 'SAC',
             'screening_protocol': protocol, 'valid': True,
-            'relax_clean_converged': True,
-            'relax_adsorbate_converged': True, 'E_act': 0.7,
+            'relax_clean_converged': True, 'E_act': 0.7,
         }
+
     with tempfile.TemporaryDirectory() as temporary:
         database = Path(temporary) / 'cache.sqlite'
         store_completed_results(
@@ -994,7 +1020,8 @@ def test_screening_result_cache_preserves_request_mapping():
         loaded = load_cached_results(
             database, 'test', protocol, 'digest', [second, first, second])
         assert list(loaded) == [0, 1, 2]
-        assert loaded[0]['E_act'] == loaded[2]['E_act'] == 0.7
+        assert loaded[0]['genome'] == loaded[2]['genome'] == str(second)
+        assert loaded[1]['genome'] == str(first)
 
 
 def test_design_space_audit_preserves_all_sizable_classes():
@@ -2578,10 +2605,12 @@ if __name__ == '__main__':
     test("Pyrolysis mode coking bonus", test_pyrolysis_mode_coking_bonus)
     test("Discovery batch covers unseen regions", test_discovery_batch_prioritizes_unseen_regions)
     test("Canonical candidate IDs", test_candidate_ids_are_canonical)
-    test("Screening result cache fails closed",
-         test_screening_result_cache_fails_closed)
-    test("Screening result cache preserves request mapping",
-         test_screening_result_cache_preserves_request_mapping)
+    test("Screening cache uses typed scalar storage",
+         test_screening_cache_uses_typed_scalar_storage)
+    test("Screening cache fails closed on identity changes",
+         test_screening_cache_fails_closed_on_identity_changes)
+    test("Screening cache preserves request mapping",
+         test_screening_cache_preserves_request_mapping)
     test("Crossover preserves class", test_crossover_preserves_class)
     test("Mutation preserves class", test_mutation_preserves_class)
     test("Deterministic hierarchical pool", test_deterministic_hierarchical_pool)

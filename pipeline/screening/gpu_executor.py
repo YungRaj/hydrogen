@@ -5,29 +5,12 @@ from __future__ import annotations
 import multiprocessing as mp
 import os
 import time
-import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Sequence
 
 from pipeline.utils import print_banner, save_screening_db
 from pipeline.screening.worker_supervisor import collect_results, emit, start_heartbeat
-
-
-def _record_cache_health(path: Path, requested: int, hits: int,
-                         computed: int) -> None:
-    """Add cache accounting without discarding worker supervision evidence."""
-    if not path.exists():
-        return
-    payload = json.loads(path.read_text())
-    payload['completed'] = requested
-    payload['expected'] = requested
-    payload['cache_hits'] = hits
-    payload['computed'] = computed
-    payload['deduplicated_reuses'] = requested - hits - computed
-    temporary = path.with_suffix(path.suffix + '.tmp')
-    temporary.write_text(json.dumps(payload, indent=2) + '\n')
-    temporary.replace(path)
 
 
 @dataclass(frozen=True)
@@ -161,7 +144,7 @@ def run_gpu_screening(
     """
     import pandas as pd
 
-    requested_genomes = list(genomes)
+    requested = list(genomes)
     cached: dict[int, dict] = {}
     implementation = None
     if spec.cache_path is not None and spec.protocol_id is not None:
@@ -170,46 +153,38 @@ def run_gpu_screening(
         implementation = implementation_digest(worker_target)
         cached = load_cached_results(
             spec.cache_path, spec.application, spec.protocol_id,
-            implementation, requested_genomes)
+            implementation, requested)
 
-    # Evaluate each uncached canonical candidate once, even if the caller
-    # supplied it more than once. Results are expanded back to input order.
     from pipeline.search.discovery import candidate_id
     misses, miss_ids = [], set()
-    for index, genome in enumerate(requested_genomes):
+    for index, genome in enumerate(requested):
         if index in cached:
             continue
-        cid = candidate_id(genome)
-        if cid not in miss_ids:
+        identity = candidate_id(genome)
+        if identity not in miss_ids:
             misses.append(genome)
-            miss_ids.add(cid)
+            miss_ids.add(identity)
 
-    if not requested_genomes:
+    if not requested:
         frame = pd.DataFrame()
         path = save_screening_db(frame, db_filename, subdir=spec.output_subdir)
-        logger.info(f'{spec.completion_label}: no candidates; saved empty result to {path}')
+        logger.info(
+            f'{spec.completion_label}: no candidates; saved empty result to {path}')
         return frame
 
-    if not misses:
-        results = []
-        for index in range(len(requested_genomes)):
-            result = dict(cached[index])
-            result['genome'] = str(requested_genomes[index])
-            result['material_class'] = requested_genomes[index][0]
-            result['cache_hit'] = True
-            results.append(result)
-        frame = pd.DataFrame(results)
+    if requested and not misses:
+        rows = []
+        for index, genome in enumerate(requested):
+            row = dict(cached[index])
+            row['genome'] = str(genome)
+            row['material_class'] = genome[0]
+            row['cache_hit'] = True
+            rows.append(row)
+        frame = pd.DataFrame(rows)
         path = save_screening_db(frame, db_filename, subdir=spec.output_subdir)
-        from pipeline.screening.worker_supervisor import write_health_manifest
-        write_health_manifest(
-            spec.manifest_path, spec.application, 'complete', {}, len(results),
-            len(results), [{'kind': 'cache_complete', 'worker_id': -1,
-                            'elapsed_s': 0.0,
-                            'detail': {'cache_hits': len(results)}}])
-        _record_cache_health(spec.manifest_path, len(results), len(results), 0)
         logger.info(
-            f'{spec.completion_label} cache hit: {len(frame)} results loaded from '
-            f'{spec.cache_path}; saved to {path}')
+            f'{spec.completion_label} cache hit: {len(frame)} typed result(s) '
+            f'loaded; saved to {path}')
         return frame
 
     import torch
@@ -220,9 +195,9 @@ def run_gpu_screening(
     mp.set_start_method('spawn', force=True)
 
     print_banner(spec.banner)
-    logger.info(spec.start_message.format(count=len(requested_genomes)))
+    logger.info(spec.start_message.format(count=len(requested)))
     if cached:
-        logger.info(f'Reusing {len(cached)} content-addressed result(s); '
+        logger.info(f'Reusing {len(cached)} typed cached result(s); '
                     f'evaluating {len(misses)} cache miss(es)')
     device_count = torch.cuda.device_count()
     if device_count < 1:
@@ -270,8 +245,6 @@ def run_gpu_screening(
         spec.application, spec.manifest_path, progress=report_progress)
     for process in workers.values():
         process.join(timeout=30)
-    _record_cache_health(
-        spec.manifest_path, len(requested_genomes), len(cached), len(misses))
 
     if spec.cache_path is not None and spec.protocol_id is not None and implementation:
         from pipeline.screening.result_cache import store_completed_results
@@ -279,20 +252,20 @@ def run_gpu_screening(
             spec.cache_path, spec.application, spec.protocol_id,
             implementation, misses, results)
 
-    by_id = {candidate_id(genome): result
-             for genome, result in zip(misses, results)}
-    ordered = []
-    for index, genome in enumerate(requested_genomes):
+    computed = {candidate_id(genome): result
+                for genome, result in zip(misses, results)}
+    rows = []
+    for index, genome in enumerate(requested):
         if index in cached:
-            result = dict(cached[index])
-            result['cache_hit'] = True
+            row = dict(cached[index])
+            row['cache_hit'] = True
         else:
-            result = dict(by_id[candidate_id(genome)])
-            result['cache_hit'] = False
-        result['genome'] = str(genome)
-        result['material_class'] = genome[0]
-        ordered.append(result)
-    frame = pd.DataFrame(ordered)
+            row = dict(computed[candidate_id(genome)])
+            row['cache_hit'] = False
+        row['genome'] = str(genome)
+        row['material_class'] = genome[0]
+        rows.append(row)
+    frame = pd.DataFrame(rows)
     path = save_screening_db(
         frame, db_filename, subdir=spec.output_subdir)
     logger.info(
