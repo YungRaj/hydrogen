@@ -165,10 +165,20 @@ def test_metalfreecarbon_zero_cost():
 
 
 def test_pemfc_application_scope():
-    from pipeline.search.scope import pemfc_cathode_scope
+    import pandas as pd
+    from pipeline.search.scope import pemfc_cathode_scope, scope_pemfc_pool
     assert pemfc_cathode_scope(('SAC', 'Fe'))['status'] == 'candidate'
     assert pemfc_cathode_scope(('MoltenMetal', 'Ga'))['status'] == 'out_of_scope'
     assert pemfc_cathode_scope(('MetalHydride', 'La'))['status'] == 'out_of_scope'
+    frame = pd.DataFrame([
+        {'genome': "('SAC', 'Fe')", 'valid': True},
+        {'genome': "('MoltenMetal', 'Ga')", 'valid': True},
+        {'genome': "('MetalHydride', 'La')", 'valid': True},
+    ])
+    pool, summary = scope_pemfc_pool(frame)
+    assert pool.genome.tolist() == ["('SAC', 'Fe')"]
+    assert summary == {'filter': 'pemfc_cathode_scope',
+                       'admissible_count': 1, 'dropped_count': 2}
 
 
 def test_novelty_time_split_benchmark():

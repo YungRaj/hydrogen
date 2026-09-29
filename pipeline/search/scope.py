@@ -256,6 +256,39 @@ def scope_pyrolysis_pool(
                   'dropped_count': int(len(df) - len(pool))}
 
 
+def scope_pemfc_pool(
+        df: FrameT, genome_col: str = 'genome'
+        ) -> tuple[FrameT, AdmissibilitySummary]:
+    """Return candidates with a physically defined direct PEMFC cathode.
+
+    Search coverage remains unchanged: every encoded material class is still
+    traversed and certified.  This boundary only prevents classes such as
+    molten metals and metal hydrides from being interpreted as solid PEMFC
+    catalyst layers.  Genome-less fixture and legacy tables are retained with
+    an explicit note so callers do not fail silently.
+
+    Args:
+        df: Candidate table entering PEMFC validation or stack modeling.
+        genome_col: Column containing the encoded catalyst genome.
+
+    Returns:
+        The type-preserving admissible pool and a named filter summary.
+    """
+    if df is None:
+        raise ValueError('screening frame is required for PEMFC cathode scope')
+    if genome_col not in df.columns:
+        return df, {'filter': None,
+                    'reason': f'{genome_col} column absent; admissibility not applied'}
+    mask = df[genome_col].map(
+        lambda raw: (
+            pemfc_cathode_scope(genome)['status'] == 'candidate'
+            if (genome := parse_encoded_genome(raw)) is not None else False))
+    pool = df[mask].copy()
+    return pool, {'filter': 'pemfc_cathode_scope',
+                  'admissible_count': int(len(pool)),
+                  'dropped_count': int(len(df) - len(pool))}
+
+
 def is_validation_quota_class(material_class: str, application: str = None) -> bool:
     """Reserved eSen/DFT slots: dead classes stay enumerated, they do not get a quota.
 

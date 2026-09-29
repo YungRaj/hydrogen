@@ -562,14 +562,16 @@ def main():
 
         fc_pareto, fc_screening_db = run_fc_branch_discovery(fc_config)
 
+        from pipeline.search.scope import scope_pemfc_pool
         fc_valid = fc_screening_db[fc_screening_db['valid'] == True].copy()
         fc_evidence = annotate_evidence(
             fc_screening_db, 'orr_overpotential_V')
+        fc_pool, fc_scope = scope_pemfc_pool(fc_screening_db)
         top_fc = select_for_reactor(
-            fc_screening_db, 30, 'orr_overpotential_V',
+            fc_pool, 30, 'orr_overpotential_V',
             min_per_class=1)
         fc_validation = select_for_validation(
-            fc_screening_db, min(args.validation_batch, len(fc_screening_db)),
+            fc_pool, min(args.validation_batch, len(fc_pool)),
             'orr_overpotential_V', min_per_class=args.min_validation_per_class)
         fc_validation_path = results_dir / 'fuel_cell' / 'validation_slate.csv'
         fc_validation_path.parent.mkdir(parents=True, exist_ok=True)
@@ -582,6 +584,7 @@ def main():
             'pemfc_model_count': len(top_fc),
             'validation_resolution_count': len(fc_validation),
             'validation_slate': str(fc_validation_path),
+            'pemfc_scope': fc_scope,
             'candidate_dispositions': fc_evidence[
                 'candidate_disposition'].value_counts().to_dict(),
             'elapsed_s': time.time() - t5,

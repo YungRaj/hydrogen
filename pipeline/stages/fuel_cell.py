@@ -115,7 +115,9 @@ def run_fuel_cell_stage(*, top_k_pemfc: int, stack_cells: int,
         raise ValueError('fuel-cell limits must be physically positive')
     services = services or default_fuel_cell_services()
     cathodes = services.screen_cathodes()
-    valid = cathodes[cathodes['valid'] == True].copy()
+    from pipeline.search.scope import scope_pemfc_pool
+    cathode_pool, _ = scope_pemfc_pool(cathodes)
+    valid = cathode_pool[cathode_pool['valid'] == True].copy()
     top = valid.nsmallest(top_k_pemfc, 'orr_overpotential_V') \
         if 'orr_overpotential_V' in valid.columns else valid.head(top_k_pemfc)
     pemfc = []
