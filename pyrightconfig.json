@@ -5,7 +5,8 @@
     "pipeline/reactors/modes.py",
     "pipeline/stages/contracts.py",
     "pipeline/stages/orchestration.py",
-    "pipeline/campaigns/ledger.py"
+    "pipeline/campaigns/ledger.py",
+    "pipeline/simulation/artifact_store.py"
   ],
   "exclude": [
     "results",

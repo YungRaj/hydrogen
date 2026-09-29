@@ -15,6 +15,8 @@ from typing import Any, Protocol, Sequence, TypedDict
 from pipeline.data_models.quantum import DFTResult, VQEResult
 from pipeline.data_models.reactors import ReactorResult
 from pipeline.data_models.fuel_cells import EmptyStackResult, PEMFCResult, StackResult
+from pipeline.data_models.discovery import AdmissibilitySummary, EquilibriumSummary
+from pipeline.data_models.reactors import SolidsScorecard
 
 
 class TableLike(Protocol):
@@ -61,7 +63,7 @@ class DiscoveryState(_DiscoveryStateOptional):
     valid_count: int
     top_catalysts_count: int
     dft_resolution_count: int
-    admissibility: dict[str, Any]
+    admissibility: AdmissibilitySummary
     candidate_dispositions: dict[str, int]
 
 
@@ -75,8 +77,8 @@ class DiscoveryProducts(TypedDict):
 
 
 class _ReactorBatchStateOptional(TypedDict, total=False):
-    equilibrium_check: dict[str, Any]
-    solids_scorecard: dict[str, Any]
+    equilibrium_check: EquilibriumSummary
+    solids_scorecard: SolidsScorecard
     best_conversion: float | None
     best_conversion_scope: str
     mmbcr_max_conversion: float | None
@@ -147,7 +149,7 @@ class ReportProducts(TypedDict):
 
 
 class _SelectedCandidatesOptional(TypedDict, total=False):
-    admissibility: dict[str, Any]
+    admissibility: AdmissibilitySummary
 
 
 class SelectedCandidates(_SelectedCandidatesOptional):
@@ -169,7 +171,7 @@ class CandidateSelection:
     screening_database: TableLike
     top_catalysts: TableLike
     dft_candidates: CandidateBatch
-    admissibility: dict[str, Any] | None = None
+    admissibility: AdmissibilitySummary | None = None
 
     @classmethod
     def from_discovery(cls, products: DiscoveryProducts) -> "CandidateSelection":

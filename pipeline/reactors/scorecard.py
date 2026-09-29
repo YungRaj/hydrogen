@@ -8,6 +8,7 @@ argument, not a module constant.
 from __future__ import annotations
 
 from pipeline.reactors.eligibility import is_usable_result
+from pipeline.data_models.reactors import SolidsMetricRow, SolidsScorecard
 
 SOLIDS_TYPES = frozenset({'PFR', 'Fluidized'})
 H_PARKED_E_ACT_MAX = 0.05
@@ -128,7 +129,7 @@ def in_headline_band(record: dict, t_min: float,
     return True
 
 
-def metric_row(record: dict) -> dict:
+def metric_row(record: dict) -> SolidsMetricRow:
     """Project a reactor result into the solids-scorecard metric schema.
 
     Args:
@@ -161,7 +162,8 @@ def metric_row(record: dict) -> dict:
 def build_solids_scorecard(results, *,
                            judge_catalyst: str | None = None,
                            headline_t_min: float = DEFAULT_HEADLINE_T_MIN,
-                           headline_t_max: float | None = None) -> dict:
+                           headline_t_max: float | None = None
+                           ) -> SolidsScorecard:
     """Build fail-closed PFR, fluidized, and MMBCR comparison summaries.
 
     Args:
@@ -261,7 +263,7 @@ def build_solids_scorecard(results, *,
     }
 
 
-def log_solids_scorecard(scorecard: dict, logger) -> None:
+def log_solids_scorecard(scorecard: SolidsScorecard, logger) -> None:
     """Write the principal scorecard decisions to a supplied logger.
 
     Args:

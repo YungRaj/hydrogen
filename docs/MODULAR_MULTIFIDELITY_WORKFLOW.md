@@ -151,6 +151,16 @@ pandas internals in additional runtime classes. Failed surrogate predictions
 remain explicitly fail-closed, and an absent stack retains the backward-
 compatible empty-dictionary representation.
 
+Discovery and reactor evidence use the same boundary rule. The encoded-phase
+admissibility decision is an `AdmissibilitySummary`, equilibrium comparisons
+are `EquilibriumSummary` records, and the solid-catalyst ranking handoff is a
+`SolidsScorecard` composed of unit-bearing `SolidsMetricRow` values. External
+OpenFOAM/FEniCSx evidence is represented by `ExternalSolverArtifact`; loading
+it returns a discriminated `ValidArtifactResult | InvalidArtifactResult` union.
+Consumers must therefore observe `valid: true` before accessing an artifact,
+while rejected evidence always carries an explicit reason. These are static
+descriptions of the existing fail-closed JSON contracts, not new solver logic.
+
 External physical-case JSON remains backward compatible. The existing
 fail-closed identity, units, provenance, calibration, and physical checks run
 before the mapping is exposed internally as a `PhysicalCaseDocument`. Templates,

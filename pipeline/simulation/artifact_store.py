@@ -4,13 +4,18 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Callable, Mapping
+from typing import Callable
+
+from pipeline.data_models.artifacts import (
+    ArtifactValidationResult, ExternalSolverArtifact)
 
 
 def persist_validated_artifact(
-        artifact: Mapping, *, results_dir: str | Path, candidate_id: str,
+        artifact: ExternalSolverArtifact, *, results_dir: str | Path,
+        candidate_id: str,
         mode: str, reactor_type: str, temperature_K: float,
-        path_builder: Callable, validator: Callable) -> Path:
+        path_builder: Callable[..., Path],
+        validator: Callable[..., ArtifactValidationResult]) -> Path:
     """Write by atomic replacement and retain only validator-accepted artifacts.
 
         The target is removed if validation fails, preventing an invalid partial
@@ -37,7 +42,7 @@ def persist_validated_artifact(
     temporary.replace(target)
     validated = validator(
         results_dir, candidate_id, mode, reactor_type, temperature_K)
-    if not validated['valid']:
+    if validated['valid'] is False:
         target.unlink(missing_ok=True)
         failed = ', '.join(validated.get('failed_checks', ()))
         raise RuntimeError(

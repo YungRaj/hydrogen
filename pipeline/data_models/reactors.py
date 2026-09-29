@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal, TypedDict
+from typing import Literal, TypedDict
 
 from pipeline.reactors.modes import ReactorTypeName
+from pipeline.data_models.artifacts import ArtifactValidationResult
 
 
 ReactorStatus = Literal[
@@ -44,7 +45,7 @@ class ReactorResult(TypedDict, total=False):
     mock: bool
     can_exclude_candidate: bool
     limitations: list[str]
-    multiphysics_evidence: dict[str, Any]
+    multiphysics_evidence: ArtifactValidationResult | None
 
 
 class ReactorSweepSummary(TypedDict):
@@ -71,3 +72,45 @@ class CandidateReactorResult(ReactorSweepSummary):
     E_act: float
     mechanism_file: str | None
     sweep: list[ReactorResult]
+
+
+SolidsMetricRow = TypedDict('SolidsMetricRow', {
+    'catalyst_name': str | None,
+    'reactor_type': ReactorTypeName | None,
+    'T_K': float | None,
+    'single_pass_CH4_conversion': float,
+    'active_sv_1_m': float | None,
+    'WHSV_h-1': float | None,
+    'ergun_delta_p_Pa': float | None,
+    'ergun_delta_p_bar': float | None,
+    'ergun_ok': bool | None,
+    'catalyst_E_act_eV': float | None,
+    'catalyst_dE_H_eV': float | None,
+    'h_parked': bool,
+    'catalyst_particle_mm': float | None,
+    'metal_loading': float | None,
+    'metal_dispersion': float | None,
+    'exceeds_equilibrium': bool,
+    'carbon_balance_ok': bool | None,
+}, total=False)
+"""Unit-bearing reactor fields used to rank solid catalysts."""
+
+
+class SolidsScorecard(TypedDict):
+    """Fail-closed comparison of PFR/fluidized solids and MMBCR output."""
+
+    judge_catalyst: str | None
+    headline_catalyst: str | None
+    judge_catalyst_requested: str | None
+    judge_reason: str
+    headline_t_min: float
+    headline_t_max: float | None
+    headline_band_note: str
+    headline: dict[str, SolidsMetricRow]
+    headline_solids_conversion: float | None
+    solids_max_excluding_h_parked: SolidsMetricRow | None
+    h_parked_excluded: list[SolidsMetricRow]
+    mmbcr_max_conversion: float | None
+    mmbcr_note: str
+    n_solids_records: int
+    n_mmbcr_records: int

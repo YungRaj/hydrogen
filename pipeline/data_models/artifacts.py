@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TypedDict
+from typing import Any, Literal, TypedDict
 
 from pipeline.reactors.modes import PathwayModeName, ReactorTypeName
 
@@ -76,3 +76,62 @@ class SurrogateInputDocument(TypedDict):
     reactor_type: ReactorTypeName
     units_in_field_names: bool
     values: dict[str, float]
+
+
+class SolverProvenanceDocument(TypedDict):
+    """Hashes and observed coupling data tying outputs to pristine inputs."""
+
+    input_sha256: str
+    model_source: str
+    fenics_model_sha256: str | None
+    hydrodynamic_handoff: dict[str, Any] | None
+    observed_coupling_iterations: list[dict[str, Any]]
+
+
+class _ExternalSolverArtifactOptional(TypedDict, total=False):
+    calibration: dict[str, Any]
+    mechanism: dict[str, Any]
+    electrolyte_phase: str
+    solver_coupling: dict[str, Any]
+    model_validation: dict[str, Any]
+
+
+class ExternalSolverArtifact(_ExternalSolverArtifactOptional):
+    """Validated output common to OpenFOAM/FEniCSx reactor modes."""
+
+    schema_version: int
+    candidate_id: str
+    pathway_mode: PathwayModeName
+    reactor_type: ReactorTypeName
+    temperature_K: float
+    complete: Literal[True]
+    backend_solvers: dict[str, str]
+    convergence: dict[str, Any]
+    outputs: dict[str, float]
+    provenance: SolverProvenanceDocument
+    physical_case: PhysicalCaseSummary
+    surrogate_inputs: SurrogateInputDocument
+
+
+class _InvalidArtifactOptional(TypedDict, total=False):
+    failed_checks: list[str]
+    path: str
+    error: str
+
+
+class InvalidArtifactResult(_InvalidArtifactOptional):
+    """Fail-closed explanation returned when external evidence is unusable."""
+
+    valid: Literal[False]
+    reason: str
+
+
+class ValidArtifactResult(TypedDict):
+    """Identity-checked external artifact admitted to downstream modeling."""
+
+    valid: Literal[True]
+    artifact: ExternalSolverArtifact
+    path: str
+
+
+ArtifactValidationResult = ValidArtifactResult | InvalidArtifactResult

@@ -168,6 +168,41 @@ def test_transport_and_fuel_cell_payloads_have_named_component_contracts():
             'cost_per_kW'} <= StackResult.__required_keys__
 
 
+def test_discovery_reactor_and_solver_artifacts_have_named_contracts():
+    """Selection, scorecard, and solver evidence retain traceable identities."""
+    from typing import get_type_hints
+
+    from pipeline.data_models.artifacts import (
+        ArtifactValidationResult, ExternalSolverArtifact,
+        InvalidArtifactResult, ValidArtifactResult)
+    from pipeline.data_models.discovery import AdmissibilitySummary
+    from pipeline.data_models.reactors import SolidsMetricRow, SolidsScorecard
+    from pipeline.reactors.scorecard import build_solids_scorecard, metric_row
+    from pipeline.search.scope import scope_pyrolysis_pool
+    from pipeline.simulation.result_contract import load_validated_artifact
+
+    assert get_type_hints(scope_pyrolysis_pool)['return'] == \
+        tuple[get_type_hints(scope_pyrolysis_pool)['df'], AdmissibilitySummary]
+    assert get_type_hints(metric_row)['return'] is SolidsMetricRow
+    assert get_type_hints(build_solids_scorecard)['return'] is SolidsScorecard
+    assert get_type_hints(load_validated_artifact)['return'] == \
+        ArtifactValidationResult
+    assert {'filter'} <= AdmissibilitySummary.__required_keys__
+    assert {'judge_reason', 'headline', 'mmbcr_max_conversion'} <= \
+        SolidsScorecard.__required_keys__
+    assert {'candidate_id', 'outputs', 'provenance', 'surrogate_inputs'} <= \
+        ExternalSolverArtifact.__required_keys__
+    assert ValidArtifactResult.__required_keys__ == {'valid', 'artifact', 'path'}
+    assert {'valid', 'reason'} <= InvalidArtifactResult.__required_keys__
+
+    missing = load_validated_artifact(
+        None, 'candidate', 'mmbcr', 'MMBCR', 1000.0)
+    assert missing == {
+        'valid': False,
+        'reason': 'multiphysics_results_dir_not_configured',
+    }
+
+
 def test_all_default_service_factories_produce_callable_boundaries():
     from pipeline.simulation.reactor_handoff import default_reactor_coupling_services
     from pipeline.simulation.external_runner import default_solver_execution_services

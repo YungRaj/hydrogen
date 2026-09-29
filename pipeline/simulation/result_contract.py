@@ -11,6 +11,8 @@ import math
 from functools import lru_cache
 from pathlib import Path
 
+from pipeline.data_models.artifacts import ArtifactValidationResult
+
 
 SCHEMA_VERSION = 1
 MODE_SOLVERS = {
@@ -215,7 +217,7 @@ def artifact_path(root: str | Path, candidate_id: str, pathway_mode: str,
 
 def load_validated_artifact(root: str | Path | None, candidate_id: str,
                             pathway_mode: str, reactor_type: str,
-                            temperature_K: float) -> dict:
+                            temperature_K: float) -> ArtifactValidationResult:
     """Load solver evidence and reject incomplete, mismatched, or unconverged data.
 
     Args:

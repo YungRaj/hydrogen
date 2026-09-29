@@ -30,6 +30,7 @@ from pipeline.simulation.solver_handoff import (
     validate_coupling_state, validate_solver_coupling)
 from pipeline.simulation.solver_execution import SolverExecutionServices
 from pipeline.simulation.artifact_store import persist_validated_artifact
+from pipeline.data_models.artifacts import ExternalSolverArtifact
 
 
 def _tree_digest(path: Path, extra_files: tuple[Path, ...] = ()) -> str:
@@ -267,7 +268,7 @@ def run_backend(*, mode: str, reactor_type: str, candidate_id: str,
             raise RuntimeError('coupling proof does not match runner-observed iterations')
         metadata['solver_coupling'] = coupling
         versions['cantera'] = execution.cantera_version()
-    artifact = {
+    artifact: ExternalSolverArtifact = {
         'schema_version': SCHEMA_VERSION,
         'candidate_id': candidate_id,
         'pathway_mode': mode,

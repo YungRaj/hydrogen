@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Optional
+from typing import Callable, Optional, cast
 
 from pipeline.data_models.stages import DiscoveryProducts, DiscoveryState
+from pipeline.data_models.discovery import AdmissibilitySummary
 from pipeline.stages.contracts import StageOutcome
 
 
@@ -84,9 +85,11 @@ def run_discovery_stage(*, initial_samples: int, leaf_size: int,
     # Validity is applied per route by the selectors (the validation route
     # may rescue invalid rows), so the pool is drawn from the full table.
     if services.select_admissible is not None:
-        pool, admissibility = services.select_admissible(database)
+        pool, raw_admissibility = services.select_admissible(database)
+        admissibility = cast(AdmissibilitySummary, raw_admissibility)
     else:
-        pool, admissibility = database, {'filter': None}
+        pool = database
+        admissibility: AdmissibilitySummary = {'filter': None}
     reactor = services.select_reactor(
         pool, top_k_reactor, 'E_act', min_per_class=1)
     validation = services.select_validation(

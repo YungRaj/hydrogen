@@ -6,6 +6,12 @@ indexed-space coverage certificate or the 21.1B denominator.
 """
 
 import ast
+from typing import TypeVar
+
+from pipeline.data_models.discovery import AdmissibilitySummary
+
+
+FrameT = TypeVar('FrameT')
 
 
 DIRECT_PEMFC_CATHODE_CLASSES = frozenset({
@@ -203,6 +209,9 @@ def select_turquoise_pyrolysis_candidates(df, top_k=None, genome_col: str = 'gen
     Args:
         df: Input controlling df.
         genome_col: Input controlling genome col.
+
+    Returns:
+        A dataframe containing only phase-admissible candidate rows.
     """
     if df is None:
         raise ValueError('screening frame is required for turquoise pyrolysis scope')
@@ -217,7 +226,9 @@ def select_turquoise_pyrolysis_candidates(df, top_k=None, genome_col: str = 'gen
     return scoped.head(int(top_k))
 
 
-def scope_pyrolysis_pool(df, genome_col: str = 'genome'):
+def scope_pyrolysis_pool(
+        df: FrameT, genome_col: str = 'genome'
+        ) -> tuple[FrameT, AdmissibilitySummary]:
     """Admissibility pool for slate drawing, tolerant of genome-less frames.
 
     Returns ``(pool, note)``. Rows whose encoded phase is unstable at the
@@ -230,6 +241,9 @@ def scope_pyrolysis_pool(df, genome_col: str = 'genome'):
     Args:
         df: Input controlling df.
         genome_col: Input controlling genome col.
+
+    Returns:
+        The type-preserving admissible pool and a named filter summary.
     """
     if df is None:
         raise ValueError('screening frame is required for turquoise pyrolysis scope')
