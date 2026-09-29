@@ -139,7 +139,7 @@ def test_transport_and_fuel_cell_payloads_have_named_component_contracts():
     from typing import get_type_hints
 
     from pipeline.data_models.fuel_cells import PEMFCResult, StackResult
-    from pipeline.data_models.stages import FuelCellProducts
+    from pipeline.data_models.stages import FuelCellProducts, TableLike
     from pipeline.data_models.transport import (
         ReactorClosure, TransportModelDocument, TransportPrediction,
         TransportTrainingResult)
@@ -157,6 +157,8 @@ def test_transport_and_fuel_cell_payloads_have_named_component_contracts():
     assert get_type_hints(simulate_pemfc)['return'] is PEMFCResult
     assert get_type_hints(model_stack)['return'] is StackResult
     assert get_type_hints(FuelCellProducts)['pemfc_results'] == list[PEMFCResult]
+    assert get_type_hints(FuelCellProducts)['cathode_database'] is TableLike
+    assert get_type_hints(FuelCellProducts)['valid_cathodes'] is TableLike
 
     assert {'usable', 'decision', 'reason',
             'candidate_exclusion_authorized'} <= TransportPrediction.__required_keys__

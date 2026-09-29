@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from dataclasses import dataclass
-from typing import Any, Protocol, Sequence, TypedDict
+from typing import Protocol, Sequence, TypedDict
 
 from pipeline.data_models.quantum import DFTResult, VQEResult
 from pipeline.data_models.reactors import ReactorResult
@@ -132,8 +132,8 @@ class FuelCellState(_FuelCellStateOptional):
 
 class FuelCellProducts(TypedDict):
     """Detailed fuel-cell screening, cell, and stack products."""
-    cathode_database: Any
-    valid_cathodes: Any
+    cathode_database: TableLike
+    valid_cathodes: TableLike
     pemfc_results: list[PEMFCResult]
     stack_result: StackResult | EmptyStackResult
 
