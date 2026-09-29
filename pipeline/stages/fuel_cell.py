@@ -3,10 +3,55 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, Protocol
 
 from pipeline.data_models.stages import FuelCellProducts, FuelCellState
+from pipeline.data_models.fuel_cells import (
+    EmptyStackResult, PEMFCResult, StackResult)
 from pipeline.stages.contracts import StageOutcome
+
+
+class CathodeTable(Protocol):
+    """Small dataframe surface required by the fuel-cell coordinator."""
+
+    columns: object
+
+    def __len__(self) -> int: ...
+    def __getitem__(self, key): ...
+    def copy(self) -> "CathodeTable":
+        """Return an isolated table preserving the cathode schema.
+
+        Returns:
+            An independent cathode table with the same columns.
+        """
+        ...
+
+    def nsmallest(self, n: int, column: str) -> "CathodeTable":
+        """Return the lowest rows ranked by one numeric column.
+
+        Args:
+            n: Maximum number of rows to retain.
+            column: Numeric column used for ascending selection.
+
+        Returns:
+            A cathode table containing the selected rows.
+        """
+        ...
+
+    def head(self, n: int) -> "CathodeTable":
+        """Return the first cathode records.
+
+        Args:
+            n: Maximum number of rows to retain.
+
+        Returns:
+            A cathode table containing the leading rows.
+        """
+        ...
+
+    def iterrows(self):
+        """Yield index and row pairs for selected cathodes."""
+        ...
 
 
 @dataclass(frozen=True)
@@ -38,7 +83,7 @@ def default_fuel_cell_services() -> FuelCellServices:
         run_cathode_screening, sweep_membranes, StackConfig, model_stack)
 
 
-def fuel_cell_composite_score(result: dict) -> float:
+def fuel_cell_composite_score(result: PEMFCResult) -> float:
     """Preserve the established efficiency/power/overpotential priority.
 
     Args:
@@ -78,7 +123,7 @@ def run_fuel_cell_stage(*, top_k_pemfc: int, stack_cells: int,
         pemfc.extend(services.sweep_membranes(
             row['name'], row.get('orr_overpotential_V', 0.4),
             material_class=row.get('material_class', None)))
-    stack = {}
+    stack: StackResult | EmptyStackResult = {}
     if pemfc:
         best = max(pemfc, key=fuel_cell_composite_score)
         stack = services.model_stack(services.build_stack_config(

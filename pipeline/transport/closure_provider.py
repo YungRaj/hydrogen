@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import math
-from typing import Mapping
+from typing import Any, Mapping
+
+from pipeline.data_models.transport import ReactorClosure
+from pipeline.transport.surrogate import TransportSurrogate
 
 
-def resolve_reactor_closure(*, full_physics: Mapping, surrogate,
+def resolve_reactor_closure(*, full_physics: Mapping[str, Any],
+                            surrogate: TransportSurrogate | None,
                             features: Mapping[str, float] | None,
                             pathway_mode: str, reactor_type: str,
-                            temperature_K: float) -> dict:
+                            temperature_K: float) -> ReactorClosure:
     """Prefer validated physics, otherwise admit only a safe surrogate closure.
 
     Args:
@@ -27,7 +31,7 @@ def resolve_reactor_closure(*, full_physics: Mapping, surrogate,
         return {
             'available': True, 'source': 'validated_full_physics',
             'outputs': dict(full_physics['artifact']['outputs']),
-            'evidence': full_physics,
+            'evidence': dict(full_physics),
             'candidate_exclusion_authorized': False,
         }
     if surrogate is None:
@@ -69,16 +73,16 @@ def resolve_reactor_closure(*, full_physics: Mapping, surrogate,
     if prediction.get('usable') is not True:
         return {
             'available': False, 'source': 'full_physics_required',
-            'reason': prediction.get('reason', 'transport_surrogate_rejected'),
+            'reason': prediction.get('reason') or 'transport_surrogate_rejected',
             'surrogate_prediction': prediction,
             'full_physics': dict(full_physics),
             'candidate_exclusion_authorized': False,
         }
     return {
         'available': True, 'source': 'calibrated_transport_surrogate',
-        'outputs': dict(prediction['predictions']),
-        'uncertainty_1sigma': dict(prediction['uncertainty_1sigma']),
-        'validation_rmse': dict(prediction['validation_rmse']),
+        'outputs': dict(prediction.get('predictions', {})),
+        'uncertainty_1sigma': dict(prediction.get('uncertainty_1sigma', {})),
+        'validation_rmse': dict(prediction.get('validation_rmse', {})),
         'model_sha256': surrogate.sha256(),
         'training_case_ids': list(surrogate.training_case_ids),
         'validation_case_ids': list(surrogate.validation_case_ids),

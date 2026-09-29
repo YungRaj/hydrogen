@@ -19,6 +19,7 @@ from pipeline.utils import (
     setup_logger, save_json, F_const, R_gas, FUEL_CELL_DIR,
     METAL_PRICE_USD_KG,
 )
+from pipeline.data_models.fuel_cells import StackResult
 
 logger = setup_logger('fc_stack', 'fuel_cell/stack_model.log')
 
@@ -62,7 +63,7 @@ class StackConfig:
     T_ambient_K: float = 298.15      # Ambient temperature
 
 
-def model_stack(config: StackConfig) -> Dict:
+def model_stack(config: StackConfig) -> StackResult:
     """
         Compute stack-level performance, weight, volume, cost, and efficiency.
 
@@ -154,7 +155,7 @@ def model_stack(config: StackConfig) -> Dict:
     total_cost_usd = catalyst_cost_usd + membrane_cost_usd + plate_cost_usd + assembly_cost_usd + bop_cost_usd
     cost_per_kW = total_cost_usd / net_power_kW if net_power_kW > 0 else float('inf')
 
-    result = {
+    result: StackResult = {
         # Stack performance
         'n_cells': config.n_cells,
         'stack_voltage_V': float(stack_voltage_V),

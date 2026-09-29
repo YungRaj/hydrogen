@@ -14,6 +14,7 @@ from typing import Any, Protocol, Sequence, TypedDict
 
 from pipeline.data_models.quantum import DFTResult, VQEResult
 from pipeline.data_models.reactors import ReactorResult
+from pipeline.data_models.fuel_cells import EmptyStackResult, PEMFCResult, StackResult
 
 
 class TableLike(Protocol):
@@ -131,8 +132,8 @@ class FuelCellProducts(TypedDict):
     """Detailed fuel-cell screening, cell, and stack products."""
     cathode_database: Any
     valid_cathodes: Any
-    pemfc_results: list[dict[str, Any]]
-    stack_result: dict[str, Any]
+    pemfc_results: list[PEMFCResult]
+    stack_result: StackResult | EmptyStackResult
 
 
 class ReportState(TypedDict):

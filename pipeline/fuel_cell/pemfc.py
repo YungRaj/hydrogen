@@ -21,6 +21,7 @@ from pipeline.utils import (
     R_gas, F_const, E_ORR_eq, k_B_eV, eV_to_J,
     setup_logger, save_json, FUEL_CELL_DIR,
 )
+from pipeline.data_models.fuel_cells import PEMFCResult
 
 logger = setup_logger('pemfc_model', 'fuel_cell/pemfc_simulation.log')
 
@@ -229,7 +230,7 @@ def compute_limiting_current(config: PEMFCConfig) -> float:
     return j_L_cm2
 
 
-def simulate_pemfc(config: PEMFCConfig) -> Dict:
+def simulate_pemfc(config: PEMFCConfig) -> PEMFCResult:
     """
         Compute the full polarization curve for a PEMFC cell.
 
@@ -317,7 +318,7 @@ def simulate_pemfc(config: PEMFCConfig) -> Dict:
     rated_power = rated_current * 0.6
     efficiency_rated = 0.6 / E_thermo
 
-    result = {
+    result: PEMFCResult = {
         'cathode_catalyst': config.cathode_catalyst,
         'membrane': config.membrane_name,
         'T_K': config.T_K,
@@ -353,8 +354,9 @@ def simulate_pemfc(config: PEMFCConfig) -> Dict:
     return result
 
 
-def sweep_membranes(cathode_name: str, orr_eta: float, membranes: List[Dict] = None,
-                    material_class: str = None) -> List[Dict]:
+def sweep_membranes(cathode_name: str, orr_eta: float,
+                    membranes: List[Dict] | None = None,
+                    material_class: str | None = None) -> list[PEMFCResult]:
     """Sweep membrane types for a given cathode catalyst.
 
         If material_class is provided, uses the class-specific Tafel slope

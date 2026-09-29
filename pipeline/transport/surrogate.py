@@ -12,11 +12,13 @@ import hashlib
 import json
 import math
 from pathlib import Path
-from typing import Iterable, Mapping
+from typing import Iterable, Mapping, cast
 
 import numpy as np
 
 from pipeline.simulation.result_contract import REQUIRED_OUTPUTS
+from pipeline.data_models.transport import (
+    TransportModelDocument, TransportPrediction)
 
 
 MODEL_SCHEMA_VERSION = 1
@@ -188,7 +190,7 @@ class TransportSurrogate:
             self.to_dict(), sort_keys=True, separators=(',', ':')).encode()
         return hashlib.sha256(payload).hexdigest()
 
-    def predict(self, features: Mapping[str, float]) -> dict:
+    def predict(self, features: Mapping[str, float]) -> TransportPrediction:
         """Predict outputs and uncertainty for one feature vector.
 
         Args:
@@ -215,8 +217,9 @@ class TransportSurrogate:
             physical = finite and _physical_closure(
                 self.reactor_type, prediction_map, actual)
         except (TypeError, ValueError) as exc:
-            return {'usable': False, 'decision': 'full_physics_required',
-                    'reason': str(exc)}
+            return {
+                'usable': False, 'decision': 'full_physics_required',
+                'reason': str(exc), 'candidate_exclusion_authorized': False}
         usable = finite and physical and not outside and not uncertain
         return {
             'usable': usable,
@@ -233,7 +236,7 @@ class TransportSurrogate:
             'candidate_exclusion_authorized': False,
         }
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> TransportModelDocument:
         """Serialize the trained surrogate and its validation metadata.
 
         Returns:
@@ -248,7 +251,8 @@ class TransportSurrogate:
             'center': self.center.tolist(), 'scale': self.scale.tolist(),
             'feature_min': self.feature_min.tolist(),
             'feature_max': self.feature_max.tolist(),
-            'coefficients': self.coefficients.tolist(),
+            'coefficients': cast(list[list[list[float]]],
+                                 self.coefficients.tolist()),
             'validation_rmse': self.validation_rmse.tolist(),
             'uncertainty_limits': self.uncertainty_limits.tolist(),
             'training_case_ids': list(self.training_case_ids),

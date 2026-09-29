@@ -134,6 +134,40 @@ def test_pipeline_state_and_scientific_result_models_trace_real_boundaries():
     assert result['valid_transition_state'] is False
 
 
+def test_transport_and_fuel_cell_payloads_have_named_component_contracts():
+    """High-value numerical handoffs must not regress to anonymous dictionaries."""
+    from typing import get_type_hints
+
+    from pipeline.data_models.fuel_cells import PEMFCResult, StackResult
+    from pipeline.data_models.stages import FuelCellProducts
+    from pipeline.data_models.transport import (
+        ReactorClosure, TransportModelDocument, TransportPrediction,
+        TransportTrainingResult)
+    from pipeline.fuel_cell.pemfc import simulate_pemfc
+    from pipeline.fuel_cell.stack import model_stack
+    from pipeline.transport.closure_provider import resolve_reactor_closure
+    from pipeline.transport.surrogate import TransportSurrogate
+    from pipeline.transport.training import train_and_publish_transport_model
+
+    assert get_type_hints(TransportSurrogate.predict)['return'] is TransportPrediction
+    assert get_type_hints(TransportSurrogate.to_dict)['return'] is TransportModelDocument
+    assert get_type_hints(resolve_reactor_closure)['return'] is ReactorClosure
+    assert get_type_hints(train_and_publish_transport_model)['return'] is \
+        TransportTrainingResult
+    assert get_type_hints(simulate_pemfc)['return'] is PEMFCResult
+    assert get_type_hints(model_stack)['return'] is StackResult
+    assert get_type_hints(FuelCellProducts)['pemfc_results'] == list[PEMFCResult]
+
+    assert {'usable', 'decision', 'reason',
+            'candidate_exclusion_authorized'} <= TransportPrediction.__required_keys__
+    assert {'predictions', 'uncertainty_1sigma',
+            'validation_rmse'} <= TransportPrediction.__optional_keys__
+    assert {'peak_power_W_cm2', 'peak_voltage_V',
+            'current_density'} <= PEMFCResult.__required_keys__
+    assert {'net_power_kW', 'system_efficiency',
+            'cost_per_kW'} <= StackResult.__required_keys__
+
+
 def test_all_default_service_factories_produce_callable_boundaries():
     from pipeline.simulation.reactor_handoff import default_reactor_coupling_services
     from pipeline.simulation.external_runner import default_solver_execution_services

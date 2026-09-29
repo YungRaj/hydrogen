@@ -140,6 +140,17 @@ results, and campaign-ledger records in strict mode. Run it with
 untyped numerical callables and dictionaries are replaced; the repository does
 not claim that all numerical implementation modules are already strictly typed.
 
+Transport and fuel-cell handoffs also have named payload contracts while
+retaining the established dictionary/JSON representation. Transport fitting,
+serialization, prediction, uncertainty, closure selection, and model-publication
+results use the contracts in `pipeline/data_models/transport.py`. PEMFC sweeps
+and stack modeling use the unit-bearing records in
+`pipeline/data_models/fuel_cells.py`. These contracts make component inputs and
+outputs discoverable to readers and static analysis without wrapping NumPy or
+pandas internals in additional runtime classes. Failed surrogate predictions
+remain explicitly fail-closed, and an absent stack retains the backward-
+compatible empty-dictionary representation.
+
 External physical-case JSON remains backward compatible. The existing
 fail-closed identity, units, provenance, calibration, and physical checks run
 before the mapping is exposed internally as a `PhysicalCaseDocument`. Templates,

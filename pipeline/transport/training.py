@@ -10,6 +10,7 @@ from pipeline.transport.surrogate import (
     fit_transport_surrogate, record_from_artifact)
 from pipeline.simulation.result_contract import load_validated_artifact
 from pipeline.transport.registry import TransportModelRegistry
+from pipeline.data_models.transport import TransportTrainingResult
 
 
 @dataclass(frozen=True)
@@ -37,7 +38,8 @@ def train_and_publish_transport_model(
         validation_rmse_limits: Mapping[str, float], ensemble_size: int = 8,
         ridge: float = 1e-8, random_seed: int = 0,
         artifact_loader: Callable = load_validated_artifact,
-        model_fitter: Callable = fit_transport_surrogate) -> dict:
+        model_fitter: Callable = fit_transport_surrogate
+        ) -> TransportTrainingResult:
     """Validate every declared label, fit a blind holdout, and publish atomically.
 
         Partitions are supplied before fitting rather than selected opportunistically
