@@ -244,6 +244,7 @@ def run_streaming_scan(config: ScanConfig,
     started = time.time()
     # Exact bounded top-K state lives in memory; only entrants are written.
     global_best = {}
+    global_candidate_ids = {}
     for row in conn.execute(
             "SELECT candidate_id, global_index, primary_score, objectives, genome "
             "FROM global_archive WHERE application=?", (config.application,)
@@ -254,6 +255,7 @@ def run_streaming_scan(config: ScanConfig,
         genome = tuple(genome)
         key = canonicalize_genome(genome)
         global_best[key] = (key, "", row[1], row[2], np.asarray(json.loads(row[3])), genome)
+        global_candidate_ids[key] = row[0]
 
     while next_index < config.stop:
         if config.deadline_epoch_s is not None and time.time() >= config.deadline_epoch_s:
@@ -287,7 +289,13 @@ def run_streaming_scan(config: ScanConfig,
             region_best = {}
             regional_objective_best = {}
             changed_global = set()
-            for index, genome, obj in zip(accepted_indices, genomes, objectives):
+            # Candidate identities are content hashes and therefore relatively
+            # expensive.  Compute each once per batch and reuse it for every
+            # objective's deterministic tie break instead of serializing and
+            # hashing the same genome repeatedly.
+            batch_candidate_ids = [candidate_id(genome) for genome in genomes]
+            for index, genome, obj, cid in zip(
+                    accepted_indices, genomes, objectives, batch_candidate_ids):
                 record = _candidate_record(index, genome, obj)
                 key, region, _, primary, _, _ = record
                 previous_region = region_best.get(region)
@@ -301,6 +309,7 @@ def run_streaming_scan(config: ScanConfig,
                 previous_global = global_best.get(key)
                 if previous_global is None or primary < previous_global[3]:
                     global_best[key] = record
+                    global_candidate_ids[key] = cid
                     changed_global.add(key)
 
             # Reduce in memory before touching SQLite. This is exact for the
@@ -312,9 +321,11 @@ def run_streaming_scan(config: ScanConfig,
                 # or whether indices were processed serially or by shards.
                 keep = sorted(
                     global_best.values(),
-                    key=lambda record: (record[3], candidate_id(record[5]))
+                    key=lambda record: (record[3], global_candidate_ids[record[0]])
                 )[:config.global_archive_size]
                 global_best = {r[0]: r for r in keep}
+                global_candidate_ids = {
+                    key: global_candidate_ids[key] for key in global_best}
             for record in region_best.values():
                 _upsert_region(conn, config, record)
             for (_, objective_index), record in regional_objective_best.items():
@@ -331,7 +342,7 @@ def run_streaming_scan(config: ScanConfig,
                 best_local = sorted(
                     range(len(genomes)),
                     key=lambda i: (float(objectives[i, objective_index]),
-                                   candidate_id(genomes[i]))
+                                   batch_candidate_ids[i])
                 )[:per_objective_limit]
                 archive_count = conn.execute(
                     "SELECT COUNT(*) FROM objective_archive "
