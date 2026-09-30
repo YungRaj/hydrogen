@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "batch_id": "20260930-catalyst-03",
+  "manifest_sha256": "14cc4df80393fab621ef412489f0643c61a474ff2a7c7f780045eeac8ca3379b",
+  "outcome_sha256": {
+    "turquoise_hydrogen": "a9c2f878187266763e31bc498b7956f35a293736a30cfe5606e241f7f9457bbb",
+    "fuel_cell_orr": "9d1198cb0a2d4734881db45b06d573f681b9035d16c73867673dd10c9891df50"
+  },
+  "results": [
+    {
+      "application": "turquoise_hydrogen",
+      "eligible": 56,
+      "valid": 44,
+      "budget": 20,
+      "hit_cutoff": 0.0730348601341605,
+      "policy_hits": {
+        "catalyst": 4,
+        "uncertainty": 3,
+        "validity": 3
+      },
+      "policy_matched_random_mean_hits": 3.21408,
+      "policy_matched_random_95pct": [
+        1.0,
+        6.0
+      ],
+      "acceptance_passed": false
+    },
+    {
+      "application": "fuel_cell_orr",
+      "eligible": 48,
+      "valid": 30,
+      "budget": 18,
+      "hit_cutoff": 0.957667696446178,
+      "policy_hits": {
+        "catalyst": 6,
+        "uncertainty": 1,
+        "validity": 3
+      },
+      "policy_matched_random_mean_hits": 2.2462,
+      "policy_matched_random_95pct": [
+        0.0,
+        4.0
+      ],
+      "acceptance_passed": true
+    }
+  ],
+  "acceptance_passed": false
+}
