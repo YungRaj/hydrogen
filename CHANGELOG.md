@@ -4,6 +4,11 @@
 
 ### Added
 
+- A chronological, equal-budget search-policy acceptance benchmark covering six
+  locked rounds and both applications. It compares the production policy with
+  random sampling, uncertainty ranking, and validity ranking, and fails unless
+  catalyst guidance beats every control independently and in aggregate.
+
 - Six explicit methane-conversion pathway modes, with thermocatalytic operation
   as the default.
 - Portable OpenFOAM, FEniCSx, and Cantera solver discovery and execution.
@@ -39,6 +44,13 @@
   `validation_required`.
 
 ### Changed
+
+- Catalyst-guided, coverage-safe branch-and-bound is now the repository-wide
+  production standard. Finished candidates train the final primary metric
+  directly, with a shrinkage-controlled material-class residual correction.
+  Uncertainty and validity remain validation signals and benchmark controls,
+  not production branch priorities. The tracked benchmark finds 62 hits versus
+  43 uncertainty, 41 validity, and a random 97.5% bound of 53.
 
 - Packed-bed PFR geometry distinguishes total catalyst-bed area from void gas
   residence volume.

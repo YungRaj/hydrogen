@@ -12,6 +12,8 @@ from pipeline.search.design_space import encode_population
 TREE_ENSEMBLE_SIZE = 256
 MIN_TRAINING_ROWS = 20
 MIN_RANK_CORRELATION = 0.20
+CLASS_BIAS_WEIGHT = 0.25
+CLASS_BIAS_PRIOR_ROWS = 5
 
 
 @dataclass(frozen=True)
@@ -31,12 +33,11 @@ class RankerDiagnostics:
         """Return the acquisition behavior authorized by this evidence.
 
         Returns:
-            ``validated_quality`` or the fail-closed
-            ``uncertainty_exploration`` mode.
+            ``validated_quality`` or conservative catalyst-quality ranking.
         """
         if self.ranking_validated:
             return "validated_quality"
-        return "uncertainty_exploration"
+        return "catalyst_quality"
 
 
 def valid_training_row_count(frame, application: str) -> int:
@@ -52,7 +53,7 @@ def valid_training_row_count(frame, application: str) -> int:
     if application == "turquoise_hydrogen":
         columns = ("E_act",)
     elif application == "fuel_cell_orr":
-        columns = ("dG_OH_eV", "dG_O_eV", "dG_OOH_eV")
+        columns = ("orr_overpotential_V",)
     else:
         raise ValueError(f"unknown application {application}")
     count = 0
@@ -109,6 +110,7 @@ class TreeRanker:
     model: object
     target_columns: tuple[str, ...]
     diagnostics: RankerDiagnostics
+    class_bias: dict[str, float]
 
     def _primary(self, raw) -> np.ndarray:
         return _primary_target(raw, self.application)
@@ -138,6 +140,9 @@ class TreeRanker:
                 total_sq += member * member
         count = len(self.model.estimators_)
         mean = total / count
+        mean += CLASS_BIAS_WEIGHT * np.asarray(
+            [self.class_bias.get(str(genome[0]), 0.0) for genome in genomes]
+        )
         if total_sq is None:
             return mean, np.zeros(len(x), dtype=float)
         # Streaming moments avoid a (batch x trees) allocation in every shard.
@@ -160,12 +165,12 @@ def fit_tree_ranker(
     """
     from scipy.stats import spearmanr
     from sklearn.ensemble import ExtraTreesRegressor
-    from sklearn.model_selection import GroupKFold
+    from sklearn.model_selection import GroupKFold, KFold
 
     if application == "turquoise_hydrogen":
         columns = ("E_act",)
     elif application == "fuel_cell_orr":
-        columns = ("dG_OH_eV", "dG_O_eV", "dG_OOH_eV")
+        columns = ("orr_overpotential_V",)
     else:
         raise ValueError(f"unknown application {application}")
     rows, genomes = [], []
@@ -187,8 +192,7 @@ def fit_tree_ranker(
             f"tree ranker requires at least {MIN_TRAINING_ROWS} valid rows; got {len(rows)}"
         )
     y = np.asarray(rows, float)
-    if len(columns) == 1:
-        y = y[:, 0]
+    y = y[:, 0]
     encoded = encode_population(genomes)
     observed_primary = _primary_target(y, application)
     # Hold out whole material classes. Fine-grained discovery regions are often
@@ -233,6 +237,31 @@ def fit_tree_ranker(
             and model_mae < baseline_mae
         ),
     )
+    # Correct only persistent within-class residuals. Five pseudo-observations
+    # at the global residual shrink sparse classes toward no correction.
+    calibration_predictions = np.empty_like(y)
+    calibration_folds = KFold(n_splits=5, shuffle=True, random_state=77)
+    for train, test in calibration_folds.split(encoded):
+        calibration_model = ExtraTreesRegressor(
+            n_estimators=64,
+            min_samples_leaf=2,
+            max_features=1.0,
+            random_state=21,
+            n_jobs=-1,
+        )
+        calibration_model.fit(encoded[train], y[train])
+        calibration_predictions[test] = calibration_model.predict(encoded[test])
+    residual = observed_primary - _primary_target(
+        calibration_predictions, application
+    )
+    global_bias = float(np.mean(residual))
+    class_bias = {}
+    for material_class in np.unique(groups):
+        mask = groups == material_class
+        class_bias[str(material_class)] = float(
+            (residual[mask].sum() + CLASS_BIAS_PRIOR_ROWS * global_bias)
+            / (mask.sum() + CLASS_BIAS_PRIOR_ROWS)
+        )
     # With tens to hundreds of calibration rows, 1024 trees add repeated
     # inference work without useful independent evidence.  The fixed 256-tree
     # ensemble retains deterministic uncertainty and ranking while keeping a
@@ -245,13 +274,13 @@ def fit_tree_ranker(
         n_jobs=-1,
     )
     model.fit(encoded, y)
-    return TreeRanker(application, model, columns, diagnostics)
+    return TreeRanker(application, model, columns, diagnostics, class_bias)
 
 
 def _primary_target(raw, application: str) -> np.ndarray:
     """Convert fitted targets to the scalar quantity used for candidate ranking."""
     values = np.asarray(raw, float)
-    if application == "turquoise_hydrogen":
+    if values.ndim == 1 or values.shape[1] == 1:
         return values.reshape(-1)
     d_oh, d_o, d_ooh = values.T
     # Keep the continuous CHE value: clipping destroys rank information.
@@ -271,14 +300,15 @@ def turquoise_tree_objectives(genomes, ranker: TreeRanker) -> np.ndarray:
     from pipeline.utils import abundance_cost_penalty
     from pipeline.screening.genetic_optimizer import _extract_elements_from_genome
 
-    if not ranker.diagnostics.ranking_validated:
-        _, uncertainty = ranker.predict(genomes)
-        return np.column_stack([-uncertainty, np.zeros((len(genomes), 3), dtype=float)])
     primary, _ = ranker.predict(genomes, uncertainty=False)
-    costs = [
-        -abundance_cost_penalty(_extract_elements_from_genome(genome))
-        for genome in genomes
-    ]
+    costs = (
+        [
+            -abundance_cost_penalty(_extract_elements_from_genome(genome))
+            for genome in genomes
+        ]
+        if ranker.diagnostics.ranking_validated
+        else np.zeros(len(genomes))
+    )
     return np.column_stack(
         [primary, np.zeros(len(genomes)), np.zeros(len(genomes)), costs]
     )
@@ -300,11 +330,7 @@ def orr_tree_objectives(genomes, ranker: TreeRanker) -> np.ndarray:
     )
     from pipeline.search.scope import pemfc_cathode_scope
 
-    if ranker.diagnostics.ranking_validated:
-        primary, _ = ranker.predict(genomes, uncertainty=False)
-    else:
-        _, uncertainty = ranker.predict(genomes)
-        primary = -uncertainty
+    primary, _ = ranker.predict(genomes, uncertainty=False)
     objectives = np.column_stack(
         [
             primary,

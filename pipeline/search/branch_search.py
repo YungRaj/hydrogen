@@ -1,8 +1,10 @@
-"""Safe deterministic divide-and-conquer search over the catalyst space.
+"""Catalyst-guided, coverage-safe search over the indexed catalyst space.
 
-Surrogate probes determine processing order, never exclusion.  A node is pruned
-only when every encoded member has been checked by conservative hard constraints.
-All other leaves are delegated to the exhaustive scanner.
+Finished-candidate primary-metric predictions determine processing order, never
+exclusion. A node is pruned only when every encoded member has been checked by
+conservative hard constraints. All other leaves are delegated to the exhaustive
+scanner. Uncertainty and validity ranking are benchmark controls, not alternate
+production branch priorities.
 """
 
 from __future__ import annotations
@@ -32,7 +34,7 @@ from pipeline.screening.ood import CLASS_CONFIDENCE
 
 @dataclass
 class BranchConfig:
-    """Configure a persistent divide-and-conquer search.
+    """Configure persistent catalyst-guided, coverage-safe search.
 
     Attributes:
         application: Configured application value.
@@ -290,7 +292,7 @@ def _refresh_pending(conn, config: BranchConfig, scorer) -> int:
 def run_branch_and_bound(
     config: BranchConfig, scorer: Callable[[List[tuple]], np.ndarray]
 ) -> dict:
-    """Recursively schedule and exhaustively resolve catalyst-space leaves.
+    """Schedule catalyst-guided leaves and preserve exhaustive coverage.
 
     Args:
         config: Configuration controlling this operation.

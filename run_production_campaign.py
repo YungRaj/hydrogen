@@ -152,7 +152,7 @@ def main():
         print(f"  GPU[{i}] {gpu_names[i]} — {gpu_mem[i]:.1f} GB")
     print(f"  CPUs: {os.cpu_count()} cores")
     print(f"  Mode: {args.mode.upper()}")
-    print(f"  Search: deterministic branch-and-bound only")
+    print("  Search: catalyst-guided, coverage-safe branch-and-bound")
     print(f"  Calibration probes: {args.calibration_probes:,}")
     print(f"  Validation batch: {args.validation_batch:,}")
     print(f"  Prior-art records: {prior_registry.count():,}")
@@ -539,7 +539,7 @@ def main():
         # Allocate 60% of remaining time to FC screening, 40% to PEMFC/stack
         time_str = f"{remaining_hours:.1f}h" if remaining_hours != float('inf') else "unlimited"
         print(f"  Remaining time: {time_str}")
-        print(f"  FC search: deterministic branch-and-bound")
+        print("  FC search: catalyst-guided, coverage-safe branch-and-bound")
         print(f"  Same 21.1B encoded design space, ORR-specific objectives")
 
         from pipeline.screening.fc_genetic_optimizer import run_fc_branch_discovery, FCBranchDiscoveryConfig

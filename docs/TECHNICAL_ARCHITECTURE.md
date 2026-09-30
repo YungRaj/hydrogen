@@ -172,7 +172,7 @@ Important controls include `--hours`, `--branch-max-leaves`,
 
 This is the compact six-phase end-to-end orchestrator. Its phases are:
 
-1. deterministic branch-and-bound discovery;
+1. deterministic catalyst-guided, coverage-safe branch-and-bound discovery;
 2. Cantera reactor simulation;
 3. Quantum ESPRESSO DFT validation;
 4. CUDA-Q VQE diagnostics;
@@ -375,9 +375,10 @@ chemical rejection.
 ### 6.1 Why branch the space
 
 A full high-fidelity calculation on every configuration is infeasible. The
-branch search divides each class's integer interval into a binary tree. Probe
-scores estimate which unresolved branches are promising or uncertain, while
-leaf intervals are streamed through persistent scanners.
+branch search divides each class's integer interval into a binary tree. Finished
+valid candidates train a ranker on the final application metric, and probe
+predictions estimate which unresolved branches contain better catalysts. Leaf
+intervals are streamed through persistent scanners.
 
 The implementation is in:
 
@@ -420,6 +421,12 @@ larger. Repeatedly unproductive regions receive lower priority, not zero
 coverage. When a campaign resumes, a bounded number of stale pending priorities
 can be refreshed using the latest calibration evidence.
 
+Catalyst-guided priority is the only supported production acquisition policy.
+Random sampling, uncertainty ranking, and validity/coverage ranking are retained
+as equal-budget benchmark controls. Uncertainty and validity may allocate
+follow-up validation work, but they do not replace predicted primary catalyst
+performance in the branch scheduler.
+
 ### 6.4 Persistent scanning and archives
 
 `run_sharded_scan` divides a leaf among independent CPU scanner processes.
@@ -431,14 +438,18 @@ These scans use cheap deterministic features or trained rankers. They are a way
 to decide which candidates deserve expensive calculations; they are not a
 substitute for those calculations.
 
-The tree rankers are fail-closed. Five-fold cross-validation groups rows by
-material class, so a model must predict held-out classes rather than benefit
-from closely related rows in both train and validation folds. Quality ranking is
-enabled only when the held-out predictions have Spearman correlation >= 0.20
-and beat a fold-specific median baseline on MAE. Otherwise branch acquisition
-uses ensemble uncertainty only. Coverage traversal and class quotas are
-unchanged, and the uncertainty acquisition value is kept separate from the
-predicted physical observable written to the validation ledger.
+Tree-ranker diagnostics remain fail-closed for secondary physical claims.
+Five-fold cross-validation groups rows by material class, so secondary
+objectives are enabled only when held-out predictions have Spearman correlation
+>= 0.20 and beat a fold-specific median baseline on MAE. Branch scheduling uses
+the primary predicted catalyst metric even below that threshold. A chronological
+six-round benchmark showed that this finished-candidate signal found 62 hits,
+versus 43 for uncertainty, 41 for validity, and a random 97.5% bound of 53, at
+equal budgets. The primary model learns the final barrier or overpotential
+directly. A 0.25-weight, five-row-prior class correction removes persistent
+out-of-fold residual bias without letting sparse classes dominate.
+Coverage traversal and class quotas are unchanged, and predictions remain
+separate from the physical observations written to the validation ledger.
 
 ### 6.5 Coverage certificates
 
@@ -1728,6 +1739,14 @@ random sampling, and deterministic expert-style scoring over compatible legacy
 outcomes. It reports enrichment and uncertainty statistics. Because the
 outcomes are legacy computational screening values, this is methodological
 evidence rather than a prospective discovery result.
+
+`pipeline/evidence/search_policy_benchmark.py` is the production-policy
+acceptance benchmark. It walks locked rounds chronologically, trains only on
+earlier finished candidates, preserves equal budgets and class floors, and
+compares catalyst-guided priority with random, uncertainty, and validity
+ranking. The tracked result in `docs/evidence/search_policy_benchmark.json`
+records 62 catalyst-guided hits versus 43 uncertainty, 41 validity, and a random
+97.5% bound of 53. Both applications and the combined result must pass.
 
 ### 17.4 Hash-verified evidence manifest
 

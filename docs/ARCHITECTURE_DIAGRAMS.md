@@ -16,7 +16,7 @@ flowchart TB
     subgraph EXPLORE["1 · Explore the design space"]
         direction LR
         SPACE["21.1B indexed candidates<br/>across 14 material classes"]
-        SEARCH["Coverage-guided<br/>branch-and-bound search"]
+        SEARCH["Catalyst-guided, coverage-safe<br/>branch-and-bound search"]
         SCREEN["Fast physical and<br/>machine-learned screening"]
         ARCHIVE["Diverse Pareto archive<br/>and regional champions"]
         SPACE --> SEARCH --> SCREEN --> ARCHIVE
@@ -42,7 +42,7 @@ flowchart TB
     ARCHIVE --> ATOMISTIC --> REPORT
     ARCHIVE --> POWER --> REPORT
     ARCHIVE --> NOVELTY
-    REPORT -. "uncertainty and disagreement guide the next round" .-> SEARCH
+    REPORT -. "finished catalyst outcomes guide the next round" .-> SEARCH
 
     classDef explore fill:#e8f1ff,stroke:#2563eb,color:#172554
     classDef validate fill:#e8f8ee,stroke:#15803d,color:#052e16
@@ -63,7 +63,7 @@ flowchart TB
     ROOT["Index the complete design space"]
     PARTITION["Partition by material class<br/>and chemical region"]
     PROBE["Probe every region with a<br/>deterministic low-discrepancy schedule"]
-    PRIORITY{"Does this branch show<br/>promise or uncertainty?"}
+    PRIORITY{"Do finished-candidate models predict<br/>better catalyst performance?"}
     REFINE["Subdivide and evaluate sooner"]
     DEFER["Lower its priority<br/>but retain coverage"]
     FLOOR["Apply the fixed regional budget"]
@@ -76,7 +76,7 @@ flowchart TB
     PRIORITY -- "Not yet" --> DEFER --> FLOOR --> LEAF
     LEAF --> RESULTS
     LEAF --> CERTIFICATE
-    RESULTS -. "calibration feedback" .-> PROBE
+    RESULTS -. "primary-metric catalyst feedback" .-> PROBE
 
     classDef structure fill:#eef2ff,stroke:#4338ca,color:#1e1b4b
     classDef decision fill:#fff1f2,stroke:#be123c,color:#4c0519
@@ -90,6 +90,9 @@ flowchart TB
 
 Priority controls ordering and discretionary compute, not exclusion. Each
 region retains a floor, and the certificate records what remains unvisited.
+Catalyst quality is the standard production priority. Uncertainty and validity
+are retained for diagnostics, validation allocation, and benchmark controls;
+they do not replace the primary catalyst metric in branch scheduling.
 
 ## Multi-fidelity learning and referral loop
 

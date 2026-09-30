@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Second-round locked pilot for the improved divide-and-conquer selector."""
+"""Locked pilots and acceptance benchmark for catalyst-guided search."""
 
 from __future__ import annotations
 
@@ -327,8 +327,8 @@ def prepare(per_class: int = 4, extra_slots: int = 6) -> None:
         )
     else:
         selector = (
-            "production small-data ranker with held-out-class reliability gate, "
-            "class floor, and fail-closed uncertainty exploration"
+            "production finished-candidate quality ranker with class floor; "
+            "secondary objectives require held-out-class validation"
         )
     payload = {
         "schema_version": 1,
@@ -524,7 +524,14 @@ def analyze() -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "action", choices=("prepare", "evaluate-pyrolysis", "evaluate-orr", "analyze")
+        "action",
+        choices=(
+            "prepare",
+            "evaluate-pyrolysis",
+            "evaluate-orr",
+            "analyze",
+            "benchmark-policies",
+        ),
     )
     parser.add_argument("--per-class", type=int, default=4)
     parser.add_argument("--extra-slots", type=int, default=6)
@@ -535,5 +542,21 @@ if __name__ == "__main__":
         evaluate("turquoise_hydrogen")
     elif args.action == "evaluate-orr":
         evaluate("fuel_cell_orr")
-    else:
+    elif args.action == "analyze":
         analyze()
+    else:
+        from pipeline.evidence.search_policy_benchmark import (
+            run_search_policy_benchmark,
+            write_search_policy_benchmark,
+        )
+
+        result = run_search_policy_benchmark()
+        output = write_search_policy_benchmark(
+            result, "docs/evidence/search_policy_benchmark.json"
+        )
+        print(json.dumps(result, indent=2))
+        print(f"Benchmark: {output}")
+        if not result["combined"]["catalyst_beats_all_baselines"] or not all(
+            row["catalyst_beats_all_baselines"] for row in result["applications"]
+        ):
+            raise SystemExit("catalyst policy did not beat every baseline")

@@ -441,7 +441,7 @@ def run_branch_discovery(
     config: BranchDiscoveryConfig = BranchDiscoveryConfig(),
     existing_db: Optional[pd.DataFrame] = None,
 ):
-    """Single supported production search: deterministic branch-and-bound.
+    """Run the standard catalyst-guided turquoise-hydrogen branch search.
 
     Args:
         config: Configuration controlling this operation.

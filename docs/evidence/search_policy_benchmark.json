@@ -1,0 +1,241 @@
+{
+  "applications": [
+    {
+      "application": "turquoise_hydrogen",
+      "catalyst_beats_all_baselines": true,
+      "policies": {
+        "catalyst": {
+          "development_hits": 27,
+          "frozen_hits": 8,
+          "hit_rate": 0.2916666666666667,
+          "hits": 35,
+          "selected": 120
+        },
+        "uncertainty": {
+          "development_hits": 16,
+          "frozen_hits": 3,
+          "hit_rate": 0.15833333333333333,
+          "hits": 19,
+          "selected": 120
+        },
+        "validity": {
+          "development_hits": 16,
+          "frozen_hits": 3,
+          "hit_rate": 0.15833333333333333,
+          "hits": 19,
+          "selected": 120
+        }
+      },
+      "random": {
+        "hits_95pct": [
+          18.0,
+          32.0
+        ],
+        "mean_hits": 24.72892,
+        "trials": 50000
+      },
+      "rounds": [
+        {
+          "budget": 20,
+          "eligible": 49,
+          "hit_cutoff": 0.01,
+          "hits": {
+            "catalyst": 9,
+            "uncertainty": 7,
+            "validity": 4
+          },
+          "round": "v2",
+          "valid": 48
+        },
+        {
+          "budget": 20,
+          "eligible": 51,
+          "hit_cutoff": 0.01,
+          "hits": {
+            "catalyst": 8,
+            "uncertainty": 2,
+            "validity": 3
+          },
+          "round": "v3",
+          "valid": 46
+        },
+        {
+          "budget": 20,
+          "eligible": 51,
+          "hit_cutoff": 0.0868329942221421,
+          "hits": {
+            "catalyst": 7,
+            "uncertainty": 4,
+            "validity": 5
+          },
+          "round": "v4",
+          "valid": 46
+        },
+        {
+          "budget": 20,
+          "eligible": 56,
+          "hit_cutoff": 0.01,
+          "hits": {
+            "catalyst": 3,
+            "uncertainty": 3,
+            "validity": 4
+          },
+          "round": "v5",
+          "valid": 47
+        },
+        {
+          "budget": 20,
+          "eligible": 56,
+          "hit_cutoff": 0.3374265832901273,
+          "hits": {
+            "catalyst": 3,
+            "uncertainty": 3,
+            "validity": 1
+          },
+          "round": "v6",
+          "valid": 40
+        },
+        {
+          "budget": 20,
+          "eligible": 56,
+          "hit_cutoff": 0.6366734194755985,
+          "hits": {
+            "catalyst": 5,
+            "uncertainty": 0,
+            "validity": 2
+          },
+          "round": "v7",
+          "valid": 44
+        }
+      ],
+      "selected": 120
+    },
+    {
+      "application": "fuel_cell_orr",
+      "catalyst_beats_all_baselines": true,
+      "policies": {
+        "catalyst": {
+          "development_hits": 20,
+          "frozen_hits": 7,
+          "hit_rate": 0.25,
+          "hits": 27,
+          "selected": 108
+        },
+        "uncertainty": {
+          "development_hits": 17,
+          "frozen_hits": 7,
+          "hit_rate": 0.2222222222222222,
+          "hits": 24,
+          "selected": 108
+        },
+        "validity": {
+          "development_hits": 16,
+          "frozen_hits": 6,
+          "hit_rate": 0.2037037037037037,
+          "hits": 22,
+          "selected": 108
+        }
+      },
+      "random": {
+        "hits_95pct": [
+          13.0,
+          25.0
+        ],
+        "mean_hits": 19.01676,
+        "trials": 50000
+      },
+      "rounds": [
+        {
+          "budget": 18,
+          "eligible": 43,
+          "hit_cutoff": 1.9191971672475907,
+          "hits": {
+            "catalyst": 6,
+            "uncertainty": 4,
+            "validity": 6
+          },
+          "round": "v2",
+          "valid": 41
+        },
+        {
+          "budget": 18,
+          "eligible": 43,
+          "hit_cutoff": 1.475720490306616,
+          "hits": {
+            "catalyst": 4,
+            "uncertainty": 4,
+            "validity": 3
+          },
+          "round": "v3",
+          "valid": 41
+        },
+        {
+          "budget": 18,
+          "eligible": 45,
+          "hit_cutoff": 1.4683779898285847,
+          "hits": {
+            "catalyst": 5,
+            "uncertainty": 4,
+            "validity": 4
+          },
+          "round": "v4",
+          "valid": 43
+        },
+        {
+          "budget": 18,
+          "eligible": 48,
+          "hit_cutoff": 1.2800331425070808,
+          "hits": {
+            "catalyst": 5,
+            "uncertainty": 5,
+            "validity": 3
+          },
+          "round": "v5",
+          "valid": 33
+        },
+        {
+          "budget": 18,
+          "eligible": 48,
+          "hit_cutoff": 1.1732857880294296,
+          "hits": {
+            "catalyst": 3,
+            "uncertainty": 4,
+            "validity": 3
+          },
+          "round": "v6",
+          "valid": 35
+        },
+        {
+          "budget": 18,
+          "eligible": 48,
+          "hit_cutoff": 1.1597912740707255,
+          "hits": {
+            "catalyst": 4,
+            "uncertainty": 3,
+            "validity": 3
+          },
+          "round": "v7",
+          "valid": 34
+        }
+      ],
+      "selected": 108
+    }
+  ],
+  "combined": {
+    "catalyst_beats_all_baselines": true,
+    "hits": {
+      "catalyst": 62,
+      "uncertainty": 43,
+      "validity": 41
+    },
+    "random_hits_95pct": [
+      35.0,
+      53.0
+    ],
+    "random_mean_hits": 43.74568,
+    "selected": 228
+  },
+  "hit_definition": "valid candidate in best 20% of its locked round",
+  "method": "chronological finished-candidate walk-forward",
+  "schema_version": 1
+}

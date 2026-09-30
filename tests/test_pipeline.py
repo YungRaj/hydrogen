@@ -334,12 +334,13 @@ def test_small_data_rankers_preserve_continuous_targets():
     )
     ranker = fit_tree_ranker(pyro, 'turquoise_hydrogen')
     assert len(ranker.model.estimators_) == TREE_ENSEMBLE_SIZE == 256
+    assert ranker.class_bias
     assert ranker.diagnostics.sample_count == len(genomes)
     assert ranker.diagnostics.held_out_group_count >= 2
     assert ranker.diagnostics.validation_strategy == 'held_out_material_class_cv'
     assert ranker.diagnostics.acquisition_mode in {
         'validated_quality',
-        'uncertainty_exploration',
+        'catalyst_quality',
     }
     assert np.isfinite(ranker.diagnostics.spearman_correlation)
     assert np.isfinite(ranker.diagnostics.model_mae)
@@ -352,12 +353,11 @@ def test_small_data_rankers_preserve_continuous_targets():
         {
             'genome': [repr(g) for g in genomes],
             'valid': True,
-            'dG_OH_eV': np.linspace(-1, 1, len(genomes)),
-            'dG_O_eV': np.linspace(-2, 2, len(genomes)),
-            'dG_OOH_eV': np.linspace(3, 5, len(genomes)),
+            'orr_overpotential_V': np.linspace(0.1, 1.5, len(genomes)),
         }
     )
     ranker = fit_tree_ranker(orr, 'fuel_cell_orr')
+    assert ranker.target_columns == ('orr_overpotential_V',)
     mean, _ = ranker.predict(genomes[:5])
     assert np.all(np.isfinite(mean)) and len(set(mean.tolist())) > 1
 
@@ -380,7 +380,7 @@ def test_small_data_rankers_preserve_continuous_targets():
     assert merged.loc[merged.genome == 'duplicate', 'value'].iloc[0] == 2
 
 
-def test_unvalidated_ranker_cannot_supply_candidate_quality():
+def test_unvalidated_ranker_uses_catalyst_quality_without_secondary_claims():
     from types import SimpleNamespace
 
     from pipeline.search.indexed_space import deterministic_tree_probes
@@ -399,16 +399,23 @@ def test_unvalidated_ranker_cannot_supply_candidate_quality():
         baseline_mae=1.0,
         ranking_validated=False,
     )
-    assert diagnostics.acquisition_mode == 'uncertainty_exploration'
+    assert diagnostics.acquisition_mode == 'catalyst_quality'
     candidates = deterministic_tree_probes(8)
-    uncertainty = np.linspace(0.1, 0.8, len(candidates))
+    quality = np.linspace(0.8, 0.1, len(candidates))
     ranker = SimpleNamespace(
         diagnostics=diagnostics,
-        predict=lambda genomes: (np.zeros(len(genomes)), uncertainty[: len(genomes)]),
+        predict=lambda genomes, uncertainty=True: (
+            quality[: len(genomes)],
+            (
+                np.linspace(0.1, 0.8, len(genomes))
+                if uncertainty
+                else np.zeros(len(genomes))
+            ),
+        ),
     )
     pyrolysis = turquoise_tree_objectives(candidates, ranker)
-    assert np.allclose(pyrolysis[:, 0], -uncertainty)
-    assert np.all(pyrolysis[:, 1:] == 0.0)
+    assert np.allclose(pyrolysis[:, 0], quality)
+    assert np.all(pyrolysis[:, 1:3] == 0.0)
 
     orr_ranker = ranker
     objectives = orr_tree_objectives(candidates, orr_ranker)
@@ -438,7 +445,7 @@ def test_ranker_cannot_validate_without_held_out_material_classes():
     diagnostics = fit_tree_ranker(frame, 'turquoise_hydrogen').diagnostics
     assert diagnostics.held_out_group_count == 1
     assert diagnostics.ranking_validated is False
-    assert diagnostics.acquisition_mode == 'uncertainty_exploration'
+    assert diagnostics.acquisition_mode == 'catalyst_quality'
 
 
 def test_six_point_status_fails_closed():
@@ -1836,6 +1843,7 @@ def test_production_has_only_branch_candidate_search():
     assert not present, f"Legacy candidate-search paths remain in production: {present}"
     assert 'run_branch_discovery' in source
     assert 'run_fc_branch_discovery' in source
+    assert source.count('catalyst-guided, coverage-safe branch-and-bound') == 2
     assert 'QE executables are resolved at execution time' in source
     resolver = (REPO_ROOT / 'pipeline/simulation/executables.py').read_text()
     assert 'generic PATH and Conda QE builds are' in resolver
@@ -1852,6 +1860,12 @@ def test_readme_matches_branch_only_contract():
     assert 'Deterministic Branch-and-Bound Discovery' in readme
     assert '--calibration-probes' in readme
     assert '--branch-leaf-size' in readme
+    assert 'Standard search policy: catalyst-guided' in readme
+    assert '62 catalyst-guided hits' in readme
+    assert (
+        'Uncertainty ranking and validity/coverage ranking remain benchmark controls'
+        in readme
+    )
     forbidden = [
         '--pop',
         '--gens',
@@ -3477,6 +3491,14 @@ if __name__ == '__main__':
     test(
         "Small-data rankers preserve continuous targets",
         test_small_data_rankers_preserve_continuous_targets,
+    )
+    test(
+        "Unvalidated ranker uses primary catalyst quality only",
+        test_unvalidated_ranker_uses_catalyst_quality_without_secondary_claims,
+    )
+    test(
+        "Ranker requires held-out classes for secondary claims",
+        test_ranker_cannot_validate_without_held_out_material_classes,
     )
     test("Six-point status fails closed", test_six_point_status_fails_closed)
     test("Adaptive validation policy", test_adaptive_validation_policy)

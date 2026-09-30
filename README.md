@@ -61,7 +61,7 @@ flowchart TB
     subgraph EXPLORE["1 · Explore the design space"]
         direction LR
         SPACE["21.1B indexed candidates<br/>across 14 material classes"]
-        SEARCH["Coverage-guided<br/>branch-and-bound search"]
+        SEARCH["Catalyst-guided, coverage-safe<br/>branch-and-bound search"]
         SCREEN["Fast physical and<br/>machine-learned screening"]
         ARCHIVE["Diverse Pareto archive<br/>and regional champions"]
         SPACE --> SEARCH --> SCREEN --> ARCHIVE
@@ -87,7 +87,7 @@ flowchart TB
     ARCHIVE --> ATOMISTIC --> REPORT
     ARCHIVE --> POWER --> REPORT
     ARCHIVE --> NOVELTY
-    REPORT -. "uncertainty and disagreement guide the next round" .-> SEARCH
+    REPORT -. "finished catalyst outcomes guide the next round" .-> SEARCH
 
     classDef explore fill:#e8f1ff,stroke:#2563eb,color:#172554
     classDef validate fill:#e8f8ee,stroke:#15803d,color:#052e16
@@ -105,7 +105,7 @@ flowchart TB
     ROOT["Index the complete design space"]
     PARTITION["Partition by material class<br/>and chemical region"]
     PROBE["Probe every region with a<br/>deterministic low-discrepancy schedule"]
-    PRIORITY{"Does this branch show<br/>promise or uncertainty?"}
+    PRIORITY{"Do finished-candidate models predict<br/>better catalyst performance?"}
     REFINE["Subdivide and evaluate sooner"]
     DEFER["Lower its priority<br/>but retain coverage"]
     FLOOR["Apply the fixed regional budget"]
@@ -118,7 +118,7 @@ flowchart TB
     PRIORITY -- "Not yet" --> DEFER --> FLOOR --> LEAF
     LEAF --> RESULTS
     LEAF --> CERTIFICATE
-    RESULTS -. "calibration feedback" .-> PROBE
+    RESULTS -. "primary-metric catalyst feedback" .-> PROBE
 
     classDef structure fill:#eef2ff,stroke:#4338ca,color:#1e1b4b
     classDef decision fill:#fff1f2,stroke:#be123c,color:#4c0519
@@ -141,6 +141,24 @@ The repository has one production launcher and one current pilot launcher:
 | Check scientific and implementation invariants | `tests/test_pipeline.py`, `audit_pipeline.py` | readiness and claim gates under `pipeline/` |
 | Inspect/resume production QE validation | `run_validation_campaign.py` | converged endpoints → NEB and clean → ORR adsorbates/references |
 | Monitor an active local run | `live_dashboard.py` | generated state under `results/` |
+
+### Standard search policy: catalyst-guided
+
+All production discovery uses **catalyst-guided, coverage-safe branch-and-bound**.
+Finished valid candidates train the application ranker on the final primary
+metric: activation barrier for turquoise hydrogen and ORR overpotential for
+fuel cells. Predicted primary performance orders unresolved branches; a small
+out-of-fold material-class bias correction incorporates persistent feedback
+without allowing sparse classes to dominate.
+
+This is the repository-wide standard, not an optional acquisition mode.
+Uncertainty ranking and validity/coverage ranking remain benchmark controls and
+validation-allocation signals; they do not steer production branch priority.
+Coverage remains mandatory through class floors and balanced exploration, and
+only exhaustive hard-constraint proofs may prune a branch. The locked
+chronological benchmark found 62 catalyst-guided hits, versus 43 for uncertainty,
+41 for validity, and a random-sampling 97.5% bound of 53 at equal budgets. See
+[`docs/evidence/search_policy_benchmark.json`](docs/evidence/search_policy_benchmark.json).
 
 ## Current Reactor-Mode Readiness
 
@@ -931,7 +949,7 @@ hydrogen/
 │   │   ├── reactors.py            # Reactor conditions and sweep summaries
 │   │   ├── evidence.py            # Dispositions, readiness, and ledger events
 │   │   └── campaigns.py           # Persisted master-pipeline state
-│   ├── search/                    # Coverage-guided traversal and acquisition
+│   ├── search/                    # Catalyst-guided, coverage-safe traversal
 │   │   ├── design_space.py        # 21.1B encoded design space
 │   │   ├── scope.py               # Application admissibility rules
 │   │   ├── indexed_space.py       # O(1) candidate addressing and shards
@@ -1165,8 +1183,9 @@ industrial standards.
 
 #### Production divide-and-conquer search
 
-Use deterministic hierarchical branch-and-bound to process the most promising,
-uncertain, novel, and populous regions first while retaining exhaustive coverage:
+Use deterministic catalyst-guided branch-and-bound to process branches with the
+best predicted primary catalyst performance first while retaining exhaustive
+coverage and periodic balanced exploration:
 
 ```bash
 python run_production_campaign.py \
@@ -1346,7 +1365,11 @@ class validation budget on new archive candidates.
 
 Ranker diagnostics are emitted with the calibration logs, including sample and
 held-out-class counts, validation strategy, rank correlation, model and baseline
-MAE, and the resulting `validated_quality` or `uncertainty_exploration` mode.
+MAE, and the resulting `validated_quality` or primary-only `catalyst_quality`
+mode. Secondary objectives remain disabled unless held-out-class validation
+passes. The primary ranker learns the final application metric directly and
+applies a small, shrinkage-controlled material-class bias correction estimated
+from out-of-fold residuals of finished candidates.
 An acquisition score such as negative ensemble uncertainty is never recorded as
 a physical barrier or overpotential: paired validation records retain the
 model's actual predicted physical quantity.

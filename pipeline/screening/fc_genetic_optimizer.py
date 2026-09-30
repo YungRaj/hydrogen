@@ -545,7 +545,7 @@ def _train_orr_ensemble_from_db(
 
 
 def run_fc_branch_discovery(config: FCBranchDiscoveryConfig, existing_db=None):
-    """Single supported ORR production search: deterministic branch-and-bound.
+    """Run the standard catalyst-guided ORR branch search.
 
     Args:
         config: Configuration controlling this operation.
