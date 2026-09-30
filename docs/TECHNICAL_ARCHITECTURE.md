@@ -431,6 +431,15 @@ These scans use cheap deterministic features or trained rankers. They are a way
 to decide which candidates deserve expensive calculations; they are not a
 substitute for those calculations.
 
+The tree rankers are fail-closed. Five-fold cross-validation groups rows by
+material class, so a model must predict held-out classes rather than benefit
+from closely related rows in both train and validation folds. Quality ranking is
+enabled only when the held-out predictions have Spearman correlation >= 0.20
+and beat a fold-specific median baseline on MAE. Otherwise branch acquisition
+uses ensemble uncertainty only. Coverage traversal and class quotas are
+unchanged, and the uncertainty acquisition value is kept separate from the
+predicted physical observable written to the validation ledger.
+
 ### 6.5 Coverage certificates
 
 `verify_branch_coverage` checks that terminal intervals form an exact partition

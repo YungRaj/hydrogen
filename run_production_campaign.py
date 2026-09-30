@@ -313,13 +313,13 @@ def main():
             n_reactor = min(20, len(top_catalysts))
             for i, (_, row) in enumerate(top_catalysts.head(n_reactor).iterrows()):
                 e_act = row.get('E_act', 1.0)
-                cat_name = f"catalyst_{i}"
+                candidate_key = str(row.get('candidate_id', f'catalyst_{i}'))
+                if Path(candidate_key).name != candidate_key:
+                    raise ValueError('candidate_id is not a safe path component')
+                cat_name = candidate_key
                 print(f"  Reactor sim {i+1}/{n_reactor}: E_act={e_act:.3f} eV")
                 try:
                     kinetics_validation = None
-                    candidate_key = str(row.get('candidate_id', cat_name))
-                    if Path(candidate_key).name != candidate_key:
-                        raise ValueError('candidate_id is not a safe path component')
                     validation_path = (Path(args.kinetics_validation_dir) / candidate_key /
                                        'pyrolysis_validation.json')
                     if validation_path.is_file():
@@ -339,6 +339,7 @@ def main():
                     best_conv = best_condition.get('CH4_conversion', 0)
                     reactor_results.append({
                         'catalyst': cat_name,
+                        'candidate_id': candidate_key,
                         'E_act': e_act,
                         'best_conversion': best_conv,
                         'n_conditions': len(sweep),
@@ -600,7 +601,9 @@ def main():
 
             pemfc_results = []
             for _, row in top_fc.iterrows():
-                name = row.get('name', str(row.get('genome', ''))[:30])
+                name = str(row.get('candidate_id', ''))
+                if not name or Path(name).name != name:
+                    raise ValueError('PEMFC candidate_id is missing or unsafe')
                 eta = row.get('orr_overpotential_V', 0.4)
                 mat_cls = row.get('material_class', None)
                 mem = sweep_membranes(name, eta, material_class=mat_cls)

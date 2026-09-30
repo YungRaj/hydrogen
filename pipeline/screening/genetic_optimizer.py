@@ -501,6 +501,11 @@ def run_branch_discovery(
         evidence = merge_compatible_evidence(extra, evidence, SCREENING_PROTOCOL_ID)
     save_screening_db(evidence, 'branch_calibration.csv')
     model = fit_tree_ranker(evidence, 'turquoise_hydrogen')
+    logger.info(
+        'Pyrolysis ranker diagnostics: %s; acquisition_mode=%s',
+        model.diagnostics,
+        model.diagnostics.acquisition_mode,
+    )
     score_population = lambda pop: turquoise_tree_objectives(pop, model)
     summary = run_branch_and_bound(
         BranchConfig(
@@ -553,8 +558,10 @@ def run_branch_discovery(
         db_filename='branch_champions.csv',
         workers_per_gpu=2,
     )
+    predicted_mean, _ = model.predict([archive[i] for i in validate_idx])
     predictions = {
-        candidate_id(archive[i]): float(objectives[i, 0]) for i in validate_idx
+        candidate_id(archive[i]): float(predicted_mean[position])
+        for position, i in enumerate(validate_idx)
     }
     record_screening_frame(
         config.exhaustive_db,

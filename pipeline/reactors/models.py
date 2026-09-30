@@ -210,6 +210,7 @@ def simulate_reactor(config: ReactorConfig, coupling_services=None) -> ReactorRe
             'reactor_type': config.reactor_type,
             'pathway_mode': config.pathway_mode,
             'catalyst_name': config.catalyst_name,
+            'candidate_id': config.candidate_id,
             'T_K': config.T_inlet_K,
             'material_class': config.material_class,
             'reason': reason,
@@ -313,6 +314,7 @@ def simulate_reactor(config: ReactorConfig, coupling_services=None) -> ReactorRe
         result.setdefault('status', 'complete')
         result.update(
             {
+                'candidate_id': config.candidate_id,
                 'pathway_mode': config.pathway_mode,
                 'material_class': config.material_class,
                 'bed_or_interface': spec.bed_or_interface,
@@ -417,6 +419,7 @@ def run_reactor_sweep(
                 result = {
                     'status': 'failed',
                     'valid': False,
+                    'candidate_id': candidate_id,
                     'reactor_type': rt,
                     'pathway_mode': pathway_mode,
                     'material_class': material_class,
@@ -434,6 +437,7 @@ def run_reactor_sweep(
                     'Reactor condition failed without excluding candidate: '
                     f'{rt} {catalyst_name} {T} K: {exc}'
                 )
+            result.setdefault('candidate_id', candidate_id)
             results.append(result)
 
     return results

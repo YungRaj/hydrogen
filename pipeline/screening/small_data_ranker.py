@@ -11,6 +11,32 @@ from pipeline.search.design_space import encode_population
 
 TREE_ENSEMBLE_SIZE = 256
 MIN_TRAINING_ROWS = 20
+MIN_RANK_CORRELATION = 0.20
+
+
+@dataclass(frozen=True)
+class RankerDiagnostics:
+    """Out-of-fold evidence deciding whether predictions may rank candidates."""
+
+    sample_count: int
+    held_out_group_count: int
+    validation_strategy: str
+    spearman_correlation: float
+    model_mae: float
+    baseline_mae: float
+    ranking_validated: bool
+
+    @property
+    def acquisition_mode(self) -> str:
+        """Return the acquisition behavior authorized by this evidence.
+
+        Returns:
+            ``validated_quality`` or the fail-closed
+            ``uncertainty_exploration`` mode.
+        """
+        if self.ranking_validated:
+            return "validated_quality"
+        return "uncertainty_exploration"
 
 
 def valid_training_row_count(frame, application: str) -> int:
@@ -82,14 +108,10 @@ class TreeRanker:
     application: str
     model: object
     target_columns: tuple[str, ...]
+    diagnostics: RankerDiagnostics
 
     def _primary(self, raw) -> np.ndarray:
-        raw = np.asarray(raw, float)
-        if self.application == "turquoise_hydrogen":
-            return raw.reshape(-1)
-        d_oh, d_o, d_ooh = raw.T
-        # Keep the continuous CHE value: clipping destroys rank information.
-        return 1.23 + np.maximum.reduce([d_ooh - 4.92, d_o - d_ooh, d_oh - d_o, -d_oh])
+        return _primary_target(raw, self.application)
 
     def predict(
         self, genomes, *, uncertainty: bool = True
@@ -136,7 +158,9 @@ def fit_tree_ranker(
     Returns:
         Computed `TreeRanker` result.
     """
+    from scipy.stats import spearmanr
     from sklearn.ensemble import ExtraTreesRegressor
+    from sklearn.model_selection import GroupKFold
 
     if application == "turquoise_hydrogen":
         columns = ("E_act",)
@@ -165,6 +189,50 @@ def fit_tree_ranker(
     y = np.asarray(rows, float)
     if len(columns) == 1:
         y = y[:, 0]
+    encoded = encode_population(genomes)
+    observed_primary = _primary_target(y, application)
+    # Hold out whole material classes. Fine-grained discovery regions are often
+    # unique in a small calibration set and would therefore provide no stronger
+    # separation than ordinary row-wise folds.
+    groups = np.asarray([str(genome[0]) for genome in genomes])
+    group_count = len(np.unique(groups))
+    out_of_fold = np.empty_like(y)
+    baseline_predictions = np.empty(len(observed_primary), dtype=float)
+    if group_count >= 2:
+        folds = GroupKFold(n_splits=min(5, group_count))
+        for train, test in folds.split(encoded, y, groups):
+            validation_model = ExtraTreesRegressor(
+                n_estimators=TREE_ENSEMBLE_SIZE,
+                min_samples_leaf=1,
+                max_features=1.0,
+                random_state=random_state,
+                n_jobs=-1,
+            )
+            validation_model.fit(encoded[train], y[train])
+            out_of_fold[test] = validation_model.predict(encoded[test])
+            baseline_predictions[test] = np.median(observed_primary[train])
+        predicted_primary = _primary_target(out_of_fold, application)
+    else:
+        predicted_primary = np.full(len(observed_primary), np.median(observed_primary))
+        baseline_predictions.fill(np.median(observed_primary))
+    correlation = float(spearmanr(observed_primary, predicted_primary).statistic)
+    if not np.isfinite(correlation):
+        correlation = 0.0
+    model_mae = float(np.mean(np.abs(observed_primary - predicted_primary)))
+    baseline_mae = float(np.mean(np.abs(observed_primary - baseline_predictions)))
+    diagnostics = RankerDiagnostics(
+        sample_count=len(rows),
+        held_out_group_count=group_count,
+        validation_strategy="held_out_material_class_cv",
+        spearman_correlation=correlation,
+        model_mae=model_mae,
+        baseline_mae=baseline_mae,
+        ranking_validated=(
+            group_count >= 2
+            and correlation >= MIN_RANK_CORRELATION
+            and model_mae < baseline_mae
+        ),
+    )
     # With tens to hundreds of calibration rows, 1024 trees add repeated
     # inference work without useful independent evidence.  The fixed 256-tree
     # ensemble retains deterministic uncertainty and ranking while keeping a
@@ -176,8 +244,18 @@ def fit_tree_ranker(
         random_state=random_state,
         n_jobs=-1,
     )
-    model.fit(encode_population(genomes), y)
-    return TreeRanker(application, model, columns)
+    model.fit(encoded, y)
+    return TreeRanker(application, model, columns, diagnostics)
+
+
+def _primary_target(raw, application: str) -> np.ndarray:
+    """Convert fitted targets to the scalar quantity used for candidate ranking."""
+    values = np.asarray(raw, float)
+    if application == "turquoise_hydrogen":
+        return values.reshape(-1)
+    d_oh, d_o, d_ooh = values.T
+    # Keep the continuous CHE value: clipping destroys rank information.
+    return 1.23 + np.maximum.reduce([d_ooh - 4.92, d_o - d_ooh, d_oh - d_o, -d_oh])
 
 
 def turquoise_tree_objectives(genomes, ranker: TreeRanker) -> np.ndarray:
@@ -193,6 +271,9 @@ def turquoise_tree_objectives(genomes, ranker: TreeRanker) -> np.ndarray:
     from pipeline.utils import abundance_cost_penalty
     from pipeline.screening.genetic_optimizer import _extract_elements_from_genome
 
+    if not ranker.diagnostics.ranking_validated:
+        _, uncertainty = ranker.predict(genomes)
+        return np.column_stack([-uncertainty, np.zeros((len(genomes), 3), dtype=float)])
     primary, _ = ranker.predict(genomes, uncertainty=False)
     costs = [
         -abundance_cost_penalty(_extract_elements_from_genome(genome))
@@ -219,12 +300,24 @@ def orr_tree_objectives(genomes, ranker: TreeRanker) -> np.ndarray:
     )
     from pipeline.search.scope import pemfc_cathode_scope
 
-    primary, _ = ranker.predict(genomes, uncertainty=False)
+    if ranker.diagnostics.ranking_validated:
+        primary, _ = ranker.predict(genomes, uncertainty=False)
+    else:
+        _, uncertainty = ranker.predict(genomes)
+        primary = -uncertainty
     objectives = np.column_stack(
         [
             primary,
-            [-_fenton_from_genome(g) for g in genomes],
-            [_cost_from_genome(g) for g in genomes],
+            (
+                [-_fenton_from_genome(g) for g in genomes]
+                if ranker.diagnostics.ranking_validated
+                else np.zeros(len(genomes))
+            ),
+            (
+                [_cost_from_genome(g) for g in genomes]
+                if ranker.diagnostics.ranking_validated
+                else np.zeros(len(genomes))
+            ),
             np.zeros(len(genomes)),
         ]
     )

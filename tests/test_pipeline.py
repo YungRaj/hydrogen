@@ -334,6 +334,16 @@ def test_small_data_rankers_preserve_continuous_targets():
     )
     ranker = fit_tree_ranker(pyro, 'turquoise_hydrogen')
     assert len(ranker.model.estimators_) == TREE_ENSEMBLE_SIZE == 256
+    assert ranker.diagnostics.sample_count == len(genomes)
+    assert ranker.diagnostics.held_out_group_count >= 2
+    assert ranker.diagnostics.validation_strategy == 'held_out_material_class_cv'
+    assert ranker.diagnostics.acquisition_mode in {
+        'validated_quality',
+        'uncertainty_exploration',
+    }
+    assert np.isfinite(ranker.diagnostics.spearman_correlation)
+    assert np.isfinite(ranker.diagnostics.model_mae)
+    assert np.isfinite(ranker.diagnostics.baseline_mae)
     mean, uncertainty = ranker.predict(genomes[:5])
     assert np.all(np.isfinite(mean)) and np.all(uncertainty >= 0)
     fast_mean, omitted_uncertainty = ranker.predict(genomes[:5], uncertainty=False)
@@ -368,6 +378,67 @@ def test_small_data_rankers_preserve_continuous_targets():
     merged = merge_compatible_evidence(current, ledger, 'v2')
     assert set(merged.genome) == {'old', 'new', 'duplicate'}
     assert merged.loc[merged.genome == 'duplicate', 'value'].iloc[0] == 2
+
+
+def test_unvalidated_ranker_cannot_supply_candidate_quality():
+    from types import SimpleNamespace
+
+    from pipeline.search.indexed_space import deterministic_tree_probes
+    from pipeline.screening.small_data_ranker import (
+        RankerDiagnostics,
+        orr_tree_objectives,
+        turquoise_tree_objectives,
+    )
+
+    diagnostics = RankerDiagnostics(
+        sample_count=20,
+        held_out_group_count=10,
+        validation_strategy='held_out_material_class_cv',
+        spearman_correlation=-0.1,
+        model_mae=2.0,
+        baseline_mae=1.0,
+        ranking_validated=False,
+    )
+    assert diagnostics.acquisition_mode == 'uncertainty_exploration'
+    candidates = deterministic_tree_probes(8)
+    uncertainty = np.linspace(0.1, 0.8, len(candidates))
+    ranker = SimpleNamespace(
+        diagnostics=diagnostics,
+        predict=lambda genomes: (np.zeros(len(genomes)), uncertainty[: len(genomes)]),
+    )
+    pyrolysis = turquoise_tree_objectives(candidates, ranker)
+    assert np.allclose(pyrolysis[:, 0], -uncertainty)
+    assert np.all(pyrolysis[:, 1:] == 0.0)
+
+    orr_ranker = ranker
+    objectives = orr_tree_objectives(candidates, orr_ranker)
+    from pipeline.search.scope import pemfc_cathode_scope
+
+    in_scope = [
+        row
+        for row, genome in zip(objectives, candidates)
+        if pemfc_cathode_scope(genome)['status'] == 'candidate'
+    ]
+    assert np.allclose(np.asarray(in_scope)[:, 1:], 0.0)
+
+
+def test_ranker_cannot_validate_without_held_out_material_classes():
+    import pandas as pd
+
+    from pipeline.screening.small_data_ranker import fit_tree_ranker
+
+    genome = ('SAC', 'Fe', 'N4', 'N-graphene', 'none')
+    frame = pd.DataFrame(
+        {
+            'genome': [repr(genome)] * 20,
+            'valid': True,
+            'E_act': np.linspace(0.2, 1.2, 20),
+        }
+    )
+    diagnostics = fit_tree_ranker(frame, 'turquoise_hydrogen').diagnostics
+    assert diagnostics.held_out_group_count == 1
+    assert diagnostics.ranking_validated is False
+    assert diagnostics.acquisition_mode == 'uncertainty_exploration'
 
 
 def test_six_point_status_fails_closed():

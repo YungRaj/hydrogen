@@ -1090,7 +1090,14 @@ removed after their useful logic was incorporated into this runner and
 2. **eSen-SM evaluation** — for each candidate, build an atomic slab or cluster, enforce periodic boundary conditions (`pbc=True`), relax with BFGS, compute H*/CH₃*/C* adsorption energies
 3. **Train deterministic small-data rankers** — turquoise hydrogen ranks the
    continuous activation barrier; ORR predicts OH/O/OOH adsorption energies and
-   derives an unclipped CHE overpotential so saturated labels cannot erase order
+   derives an unclipped CHE overpotential so saturated labels cannot erase order.
+   Before either ranker may drive quality exploitation, five-fold validation
+   holds out entire material classes and requires both a Spearman correlation of
+   at least 0.20 and lower MAE than a training-fold median baseline. A ranker
+   that fails either test remains available for uncertainty estimation, but its
+   predicted quality, cost, and heuristic objectives cannot promote candidates;
+   acquisition becomes deterministic uncertainty exploration with the same
+   coverage and per-class validation guarantees.
 4. **Divide all class ranges recursively** — deterministic surrogate probes prioritize child branches but never authorize pruning
 5. **Resolve every terminal branch** — a branch is either exhaustively streamed or hard-pruned only after every member fails conservative feasibility rules
 6. **Retain global and regional champions** — unfamiliar chemistry regions remain represented even when familiar chemistry dominates the global scores
@@ -1336,6 +1343,13 @@ genome, and folded into later rankers. Rows without the exact screening protocol
 ID are not reused. Thus disagreement feedback changes later allocation and model
 fit instead of merely being logged; every campaign still spends its reserved
 class validation budget on new archive candidates.
+
+Ranker diagnostics are emitted with the calibration logs, including sample and
+held-out-class counts, validation strategy, rank correlation, model and baseline
+MAE, and the resulting `validated_quality` or `uncertainty_exploration` mode.
+An acquisition score such as negative ensemble uncertainty is never recorded as
+a physical barrier or overpotential: paired validation records retain the
+model's actual predicted physical quantity.
 
 Candidate DFT validation is also resource bounded. `--qe-mpi-ranks` and
 `--qe-omp-threads` control each Quantum ESPRESSO process, while

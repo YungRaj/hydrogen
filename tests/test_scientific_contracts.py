@@ -227,6 +227,7 @@ def test_incompatible_bed_is_non_excluding_and_never_simulated():
         pathway_mode='thermocatalytic_pfr',
         material_class='MoltenMetal',
         catalyst_name='contract',
+        candidate_id='canonical-id',
     )
     with patch.object(reactor_models, 'simulate_pfr') as simulation:
         result = reactor_models.simulate_reactor(config)
@@ -234,6 +235,7 @@ def test_incompatible_bed_is_non_excluding_and_never_simulated():
     assert result['status'] == 'not_applicable'
     assert result['can_exclude_candidate'] is False
     assert result['material_class'] == 'MoltenMetal'
+    assert result['candidate_id'] == 'canonical-id'
 
 
 def test_reactor_geometry_contract_rejects_nonphysical_beds():
@@ -1324,6 +1326,30 @@ def test_refactored_protocol_executor_and_reactor_stage_contracts():
     assert result['best_condition']['CH4_conversion'] == 0.4
     assert write.call_args.kwargs['kinetics'].methane_activation_eV == 0.72
     assert sweep.call_args.kwargs['reactor_types'] == ['PFR']
+
+
+def test_reactor_sweep_preserves_candidate_identity_on_success_and_failure():
+    from pipeline.reactors.models import run_reactor_sweep
+
+    with patch(
+        'pipeline.reactors.models.simulate_reactor',
+        side_effect=[{'status': 'complete'}, RuntimeError('stiff condition')],
+    ):
+        results = run_reactor_sweep(
+            'canonical-id',
+            'mechanism.yaml',
+            temperatures=[800.0, 900.0],
+            reactor_types=['PFR'],
+            candidate_id='canonical-id',
+            pathway_mode='thermocatalytic_pfr',
+        )
+
+    assert [result['candidate_id'] for result in results] == [
+        'canonical-id',
+        'canonical-id',
+    ]
+    assert results[0]['status'] == 'complete'
+    assert results[1]['status'] == 'failed'
 
 
 def test_arrhenius_matches_joule_and_ev_forms():
