@@ -1140,10 +1140,7 @@ def test_tafel_all_classes():
 
 def test_pyrolysis_mode_coking_bonus():
     import os
-    from pipeline.screening.genetic_optimizer import (
-        compute_objectives_surrogate,
-        GAConfig,
-    )
+    from pipeline.screening.genetic_optimizer import compute_objectives_surrogate
     from pipeline.screening.surrogate_model import CatalystSurrogate
 
     # Mock surrogate and population
@@ -1910,12 +1907,11 @@ def test_retired_ga_entry_points_are_blocked():
     from pipeline.screening.genetic_optimizer import run_genetic_algorithm
     from pipeline.screening.fc_genetic_optimizer import (
         run_fc_genetic_algorithm,
-        FCGAConfig,
     )
 
     for fn, args in (
         (run_genetic_algorithm, ()),
-        (run_fc_genetic_algorithm, (FCGAConfig(),)),
+        (run_fc_genetic_algorithm, ()),
     ):
         try:
             fn(*args)

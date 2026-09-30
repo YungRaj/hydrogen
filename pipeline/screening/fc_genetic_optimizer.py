@@ -1,46 +1,23 @@
 #!/usr/bin/env python3
 # Fuel-cell objectives and branch-search orchestration.
-"""
-NSGA-II Genetic Algorithm for Fuel Cell ORR Cathode Catalysts.
+"""Fuel-cell ORR objectives and catalyst-guided branch discovery.
 
-4-objective Pareto optimization:
-  1. Minimize ORR overpotential (η → 0 = ideal)
-  2. Maximize Fenton stability (radical resistance)
-  3. Minimize cost (crustal abundance penalty)
-  4. Maximize binding strength (dissolution resistance)
-
-Uses the same 21.1B indexed encoded space as the methane pyrolysis GA,
-but trains a separate surrogate NN and evaluates ORR descriptors.
+The Pareto helpers remain part of objective and archive selection. Genetic and
+random candidate generation are retired; the compatibility entry point below
+fails explicitly instead of retaining an unreachable implementation.
 """
 
-import os
-import sys
-import ast
-import time
-import random
-import logging
 import numpy as np
 import pandas as pd
 from dataclasses import dataclass
 from typing import List, Optional
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-from pipeline.utils import setup_logger, save_json, FUEL_CELL_DIR
+from pipeline.utils import setup_logger, FUEL_CELL_DIR
 from pipeline.search.design_space import (
-    generate_population,
-    crossover,
-    mutate,
-    encode_genome,
     encode_population,
-    ALL_MATERIAL_CLASSES,
     FEATURE_DIM,
-    generate_hierarchical_htvs_pool,
 )
 from pipeline.search.discovery import (
-    select_discovery_batch,
-    coverage_summary,
     add_discovery_metadata,
     candidate_id,
 )
@@ -48,38 +25,6 @@ import torch
 
 logger = setup_logger('fc_genetic_optimizer', 'fuel_cell/fc_genetic_optimizer.log')
 
-
-@dataclass
-class FCGAConfig:
-    """Configuration for fuel cell ORR genetic algorithm."""
-
-    pop_size: int = 1000
-    n_generations: int = 3000
-    initial_fairchem_samples: int = 500
-    fairchem_eval_interval: int = 5
-    fairchem_eval_top_k: int = 500
-    surrogate_retrain_interval: int = 5
-    mutation_rate: float = 0.35
-    crossover_rate: float = 0.7
-    explore_interval: int = 3  # Run exploration shots every N Fairchem intervals
-    explore_per_class: int = 5  # Random GNN evaluations per class during exploration
-    n_models: int = 3  # Number of models in surrogate ensemble
-    htvs_pool_size: int = 20000  # High-throughput virtual screening pool size
-    reinjection_interval: int = 20  # Periodically reinject top candidates from new pool
-    device: str = 'cuda'
-    seed: int = 42
-    exhaustive_scan: bool = False
-    exhaustive_start: int = 0
-    exhaustive_stop: Optional[int] = None
-    exhaustive_batch_size: int = 65536
-    exhaustive_db: str = str(FUEL_CELL_DIR / 'indexed_scan.sqlite')
-    exhaustive_worker_id: int = 0
-    exhaustive_num_workers: int = 1
-    branch_search: bool = False
-    branch_leaf_size: int = 1_000_000
-    branch_probe_count: int = 9
-    branch_max_leaves: Optional[int] = None
-    expected_space_size: Optional[int] = None
 
 
 @dataclass
@@ -441,106 +386,12 @@ def nsga2_select(population, objectives, n_select):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-def _train_orr_model_inplace(
-    model: ORRCatalystSurrogate, X: np.ndarray, Y: np.ndarray, device: str
-):
-    """Train a single ORR surrogate model in-place."""
-    import torch
-    import torch.nn as nn
-    from torch.utils.data import DataLoader, TensorDataset
-
-    X_t = torch.tensor(X, dtype=torch.float32).to(device)
-    y_val_t = torch.tensor(Y[:, 0], dtype=torch.float32).unsqueeze(1).to(device)
-    y_eta_t = torch.tensor(Y[:, 1], dtype=torch.float32).unsqueeze(1).to(device)
-    y_bind_t = torch.tensor(Y[:, 2], dtype=torch.float32).unsqueeze(1).to(device)
-
-    dataset = TensorDataset(X_t, y_val_t, y_eta_t, y_bind_t)
-    loader = DataLoader(dataset, batch_size=256, shuffle=False, drop_last=False)
-
-    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-4)
-    bce_loss = nn.BCEWithLogitsLoss()
-    mse_loss = nn.MSELoss()
-
-    model.train()
-    for epoch in range(100):
-        for batch in loader:
-            bX, bV, bE, bB = batch
-            optimizer.zero_grad()
-            valid_logit, pred_eta, pred_binding = model(bX)
-
-            loss_v = bce_loss(valid_logit, bV)
-            mask = (bV > 0.5).squeeze()
-            if mask.sum() > 0:
-                loss_e = mse_loss(pred_eta.squeeze(-1)[mask], bE.squeeze(-1)[mask])
-                loss_b = mse_loss(pred_binding.squeeze(-1)[mask], bB.squeeze(-1)[mask])
-                loss = loss_v + 2.0 * (loss_e + loss_b)
-            else:
-                loss = loss_v
-
-            loss.backward()
-            optimizer.step()
 
 
-def _train_orr_ensemble_from_db(
-    db: pd.DataFrame, device: str, n_models: int = 3
-) -> Optional[ORRSurrogateEnsemble]:
-    """Train ORR surrogate ensemble from ORR Fairchem screening data."""
-    valid_mask = db['valid'] == True
-    valid_db = db[valid_mask].copy()
-
-    if len(valid_db) < 20:
-        logger.warning(f"Only {len(valid_db)} valid ORR samples, too few for surrogate")
-        return None
-
-    # Parse genomes and encode
-    genomes = []
-    for _, row in db.iterrows():
-        try:
-            g = ast.literal_eval(row['genome'])
-            genomes.append(g)
-        except Exception:
-            genomes.append(None)
-
-    features = []
-    targets = []  # [valid, orr_eta, binding]
-
-    for i, g in enumerate(genomes):
-        if g is None:
-            continue
-        try:
-            feat = encode_genome(g)
-            row = db.iloc[i]
-            valid = 1.0 if row.get('valid', False) else 0.0
-            eta = float(row.get('orr_overpotential_V', 5.0)) if valid else 5.0
-            binding = float(row.get('binding_strength', 0.0)) if valid else 0.0
-            features.append(feat)
-            targets.append([valid, eta, binding])
-        except Exception:
-            continue
-
-    if len(features) < 20:
-        return None
-
-    X = np.array(features)
-    Y = np.array(targets)
-    n_samples = len(X)
-
-    ensemble = ORRSurrogateEnsemble(n_models=n_models).to(device)
-
-    for i, model in enumerate(ensemble.models):
-        logger.info(f"Training ORR ensemble member {i+1}/{n_models}...")
-        # Deterministic cyclic resampling; candidate evidence is never randomly sampled.
-        indices = (np.arange(n_samples) * (2 * i + 1) + i) % n_samples
-        X_b = X[indices]
-        Y_b = Y[indices]
-        _train_orr_model_inplace(model, X_b, Y_b, device)
-
-    logger.info(f"ORR surrogate ensemble trained on {n_samples} samples")
-    return ensemble
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# MAIN GA LOOP
+# BRANCH DISCOVERY
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
@@ -694,338 +545,11 @@ def run_fc_branch_discovery(config: FCBranchDiscoveryConfig, existing_db=None):
     return champions, add_discovery_metadata(evidence)
 
 
-def run_fc_genetic_algorithm(config: FCGAConfig, existing_db=None):
-    """
-        Run NSGA-II genetic algorithm for ORR fuel cell cathode catalyst discovery.
+def run_fc_genetic_algorithm(*_args: object, **_kwargs: object) -> None:
+    """Reject the retired fuel-cell genetic-search entry point.
 
-    Args:
-        config: Configuration controlling this operation.
-        existing_db: Existing db used by this operation.
-
-    Returns:
-        Computed result described above.
+    Catalyst-guided branch discovery is the only supported candidate search.
     """
     raise RuntimeError(
         "Genetic/random candidate search was retired; use run_fc_branch_discovery()"
     )
-    random.seed(config.seed)
-    np.random.seed(config.seed)
-
-    logger.info(f"ORR FC-GA: Population={config.pop_size}, Gens={config.n_generations}")
-
-    # ── Phase A: Initial Fairchem ORR Screening ─────────────────────────────
-    if existing_db is not None and len(existing_db) > 50:
-        logger.info(f"Using existing ORR database: {len(existing_db)} entries")
-        all_fairchem_results = existing_db
-    else:
-        logger.info(
-            f"Generating {config.initial_fairchem_samples} initial ORR Fairchem samples..."
-        )
-        initial_pop = generate_hierarchical_htvs_pool(
-            config.initial_fairchem_samples, campaign_round=0
-        )
-        from pipeline.screening.fc_screener import run_orr_screening
-
-        all_fairchem_results = run_orr_screening(
-            initial_pop, db_filename="fc_initial_screening.csv", workers_per_gpu=2
-        )
-
-    # ── Phase B: Train ORR Surrogate Ensemble ───────────────────────────────
-    model = _train_orr_ensemble_from_db(
-        all_fairchem_results, config.device, n_models=config.n_models
-    )
-
-    indexed_seeds = []
-    if config.branch_search and model is not None:
-        from pipeline.search.branch_search import BranchConfig, run_branch_and_bound
-        from pipeline.search.exhaustive_search import load_archive_genomes
-
-        summary = run_branch_and_bound(
-            BranchConfig(
-                application='fuel_cell_orr',
-                database=config.exhaustive_db,
-                leaf_size=config.branch_leaf_size,
-                probe_count=config.branch_probe_count,
-                scan_batch_size=config.exhaustive_batch_size,
-                max_leaves=config.branch_max_leaves,
-                expected_population=config.expected_space_size,
-                certificate_path=str(FUEL_CELL_DIR / 'coverage_certificate.json'),
-            ),
-            lambda pop: compute_orr_objectives_surrogate(pop, model, config.device),
-        )
-        logger.info(f"Branch-and-bound ORR scan: {summary}")
-        indexed_seeds = load_archive_genomes(
-            config.exhaustive_db, 'fuel_cell_orr', config.htvs_pool_size
-        )
-    elif config.exhaustive_scan and model is not None:
-        from pipeline.search.exhaustive_search import (
-            ScanConfig,
-            run_streaming_scan,
-            load_archive_genomes,
-        )
-        from pipeline.search.indexed_space import TOTAL_SIZE
-
-        summary = run_streaming_scan(
-            ScanConfig(
-                application='fuel_cell_orr',
-                database=config.exhaustive_db,
-                start=config.exhaustive_start,
-                stop=(
-                    TOTAL_SIZE
-                    if config.exhaustive_stop is None
-                    else config.exhaustive_stop
-                ),
-                batch_size=config.exhaustive_batch_size,
-                worker_id=config.exhaustive_worker_id,
-                num_workers=config.exhaustive_num_workers,
-            ),
-            lambda pop: compute_orr_objectives_surrogate(pop, model, config.device),
-        )
-        logger.info(f"Indexed ORR global scan: {summary}")
-        indexed_seeds = load_archive_genomes(
-            config.exhaustive_db, 'fuel_cell_orr', config.htvs_pool_size
-        )
-
-    # ── Phase C: Evolutionary Loop ──────────────────────────────────────────
-    if model is not None:
-        logger.info(
-            f"Generating HTVS pool of {config.htvs_pool_size} candidates for initial seeding..."
-        )
-        htvs_pool = generate_hierarchical_htvs_pool(
-            config.htvs_pool_size,
-            scorer=lambda pop: compute_orr_objectives_surrogate(
-                pop, model, config.device
-            )[:, 0],
-        )
-        htvs_obj = compute_orr_objectives_surrogate(htvs_pool, model, config.device)
-        if indexed_seeds:
-            htvs_pool = list({str(g): g for g in indexed_seeds + htvs_pool}.values())
-            htvs_obj = compute_orr_objectives_surrogate(htvs_pool, model, config.device)
-        logger.info(
-            f"Selecting top {config.pop_size} Pareto-optimal seeds using acquisition LCB/UCB values..."
-        )
-        seed_idx = nsga2_select(htvs_pool, htvs_obj, config.pop_size)
-        population = [htvs_pool[i] for i in seed_idx]
-    else:
-        population = generate_hierarchical_htvs_pool(config.pop_size, campaign_round=0)
-
-    fronts = [[]]
-    fairchem_round = 0
-
-    for gen in range(1, config.n_generations + 1):
-        t_gen = time.time()
-
-        # Evaluate with surrogate
-        if model is not None:
-            objectives = compute_orr_objectives_surrogate(
-                population, model, config.device
-            )
-        else:
-            objectives = np.random.rand(len(population), 4)
-
-        # NSGA-II selection
-        selected_idx = nsga2_select(population, objectives, config.pop_size // 2)
-        parents = [population[i] for i in selected_idx]
-
-        # Generate offspring
-        offspring = []
-        while len(offspring) < config.pop_size:
-            i1 = random.randint(0, len(parents) - 1)
-            i2 = random.randint(0, len(parents) - 1)
-            if random.random() < config.crossover_rate:
-                child = crossover(parents[i1], parents[i2])
-            else:
-                child = parents[i1]
-            child = mutate(child, rate=config.mutation_rate)
-            offspring.append(child)
-
-        # ── Class-Diversity Enforcement ─────────────────────────────────
-        combined = parents + offspring
-        min_per_class = max(2, config.pop_size // 20)
-        class_counts = {}
-        for g in combined:
-            cls = g[0]
-            class_counts[cls] = class_counts.get(cls, 0) + 1
-
-        diversity_injections = []
-        from pipeline.search.scope import VALIDATION_QUOTA_EXEMPT_CLASSES
-
-        for cls in ALL_MATERIAL_CLASSES:
-            if cls in VALIDATION_QUOTA_EXEMPT_CLASSES:
-                continue
-            deficit = min_per_class - class_counts.get(cls, 0)
-            if deficit > 0:
-                fresh = generate_population(deficit, material_class=cls)
-                diversity_injections.extend(fresh)
-
-        if diversity_injections:
-            combined = (
-                combined[: len(combined) - len(diversity_injections)]
-                + diversity_injections
-            )
-
-        combined_obj = (
-            compute_orr_objectives_surrogate(combined, model, config.device)
-            if model
-            else np.random.rand(len(combined), 4)
-        )
-        final_idx = nsga2_select(combined, combined_obj, config.pop_size)
-        population = [combined[i] for i in final_idx]
-        final_obj = combined_obj[final_idx]
-
-        # ── Periodic Fairchem ORR Validation ────────────────────────────
-        if gen % config.fairchem_eval_interval == 0 or gen == 1:
-            fairchem_round += 1
-            logger.info(
-                f"  Gen {gen}: Running Fairchem ORR validation on top {config.fairchem_eval_top_k}..."
-            )
-
-            fronts = fast_non_dominated_sort(final_obj)
-            from pipeline.screening.ood import compute_model_confidence
-
-            confidences = [
-                compute_model_confidence(g, _extract_elements_from_genome(g))
-                for g in population
-            ]
-            evaluated = []
-            if 'genome' in all_fairchem_results.columns:
-                for raw in all_fairchem_results['genome'].dropna():
-                    try:
-                        evaluated.append(
-                            ast.literal_eval(raw)
-                            if isinstance(raw, str)
-                            else tuple(raw)
-                        )
-                    except (ValueError, SyntaxError, TypeError):
-                        continue
-            top_indices = select_discovery_batch(
-                population,
-                final_obj,
-                config.fairchem_eval_top_k,
-                evaluated=evaluated,
-                confidence=confidences,
-            )
-            top_genomes = [population[i] for i in top_indices]
-
-            from pipeline.screening.fc_screener import run_orr_screening
-
-            fairchem_df = run_orr_screening(
-                top_genomes, db_filename=f"fc_fairchem_gen{gen}.csv", workers_per_gpu=2
-            )
-            all_fairchem_results = pd.concat(
-                [all_fairchem_results, fairchem_df], ignore_index=True
-            )
-
-            # ── Exploration Shots: probe EVERY class with real GNN ───────
-            if fairchem_round % config.explore_interval == 0:
-                explore_genomes = []
-                from pipeline.search.scope import VALIDATION_QUOTA_EXEMPT_CLASSES
-
-                for cls in ALL_MATERIAL_CLASSES:
-                    if cls in VALIDATION_QUOTA_EXEMPT_CLASSES:
-                        continue
-                    explore_genomes.extend(
-                        generate_population(
-                            config.explore_per_class, material_class=cls
-                        )
-                    )
-                n_explore = len(explore_genomes)
-                logger.info(
-                    f"  Gen {gen}: EXPLORATION — evaluating {n_explore} random "
-                    f"candidates across all 14 classes with real GNN (ORR)..."
-                )
-                explore_df = run_orr_screening(
-                    explore_genomes,
-                    db_filename=f"fc_explore_gen{gen}.csv",
-                    workers_per_gpu=2,
-                )
-                all_fairchem_results = pd.concat(
-                    [all_fairchem_results, explore_df], ignore_index=True
-                )
-
-                # Inject promising exploration candidates into population
-                if 'orr_overpotential' in explore_df.columns:
-                    good_explores = explore_df[
-                        (explore_df['valid'] == True)
-                        & (
-                            explore_df['orr_overpotential']
-                            < explore_df['orr_overpotential'].quantile(0.3)
-                        )
-                    ]
-                    if len(good_explores) > 0:
-                        logger.info(
-                            f"    Found {len(good_explores)} promising ORR exploration "
-                            f"candidates — injecting into population"
-                        )
-                        for _, row in good_explores.iterrows():
-                            try:
-                                g = ast.literal_eval(row['genome'])
-                                replace_idx = random.randint(0, len(population) - 1)
-                                population[replace_idx] = g
-                            except Exception:
-                                pass
-
-        # ── Periodic HTVS Global Reinjection ────────────────────────────────
-        if model is not None and gen % config.reinjection_interval == 0:
-            logger.info(
-                f"  Gen {gen}: Global HTVS — screening 10,000 fresh candidates..."
-            )
-            reinject_pool = generate_hierarchical_htvs_pool(
-                10000,
-                scorer=lambda pop: compute_orr_objectives_surrogate(
-                    pop, model, config.device
-                )[:, 0],
-                campaign_round=gen // config.reinjection_interval,
-            )
-            reinject_obj = compute_orr_objectives_surrogate(
-                reinject_pool, model, config.device
-            )
-
-            n_inject = max(10, config.pop_size // 10)
-            inject_idx = nsga2_select(reinject_pool, reinject_obj, n_inject)
-            inject_genomes = [reinject_pool[i] for i in inject_idx]
-
-            # Merge with current population and select the top pop_size
-            combined_pop = population + inject_genomes
-            combined_obj = compute_orr_objectives_surrogate(
-                combined_pop, model, config.device
-            )
-            keep_idx = nsga2_select(combined_pop, combined_obj, config.pop_size)
-            population = [combined_pop[i] for i in keep_idx]
-            final_obj = combined_obj[keep_idx]
-
-        # ── Retrain Surrogate Ensemble ──────────────────────────────────────
-        if gen % config.surrogate_retrain_interval == 0:
-            logger.info(
-                f"  Gen {gen}: Retraining ORR surrogate ensemble on {len(all_fairchem_results)} samples..."
-            )
-            model = _train_orr_ensemble_from_db(
-                all_fairchem_results, config.device, n_models=config.n_models
-            )
-
-        # ── Logging ─────────────────────────────────────────────────────
-        if gen % 10 == 0 or gen == 1:
-            best_eta = final_obj[:, 0].min()
-            pareto = len(fronts[0]) if fronts else 0
-            n_unique = len(set(str(g) for g in population))
-            elapsed = time.time() - t_gen
-            logger.info(
-                f"  Gen {gen}/{config.n_generations}: "
-                f"best_η={best_eta:.4f} V, "
-                f"pareto_size={pareto}, "
-                f"pop_diversity={n_unique}, "
-                f"({elapsed:.1f}s)"
-            )
-
-    # ── Return Results ──────────────────────────────────────────────────────
-    all_fairchem_results = add_discovery_metadata(all_fairchem_results)
-    final_objectives = (
-        compute_orr_objectives_surrogate(population, model, config.device)
-        if model
-        else np.random.rand(len(population), 4)
-    )
-    fronts = fast_non_dominated_sort(final_objectives)
-    pareto_genomes = [population[i] for i in fronts[0]]
-    logger.info(f"  Coverage: {coverage_summary(population)}")
-
-    return pareto_genomes, all_fairchem_results

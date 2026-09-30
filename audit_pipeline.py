@@ -300,7 +300,7 @@ check(
 print("\n═══ SURROGATE PREDICTIONS ═══")
 
 import torch
-from pipeline.screening.genetic_optimizer import CatalystSurrogate, predict_batch
+from pipeline.screening.surrogate_model import CatalystSurrogate, predict_batch
 from pipeline.screening.fc_genetic_optimizer import ORRCatalystSurrogate
 from pipeline.search.design_space import encode_population
 
