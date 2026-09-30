@@ -36,8 +36,30 @@ def _root(batch: str) -> Path:
 
 
 def _outcome(batch: str, app: str) -> Path:
-    folder, suffix = ('screening', 'pyrolysis') if app == 'turquoise_hydrogen' else ('fuel_cell', 'orr')
+    locations = {
+        'turquoise_hydrogen': ('screening', 'pyrolysis'),
+        'fuel_cell_orr': ('fuel_cell', 'orr'),
+    }
+    if app not in locations:
+        raise ValueError(f'unknown application {app}')
+    folder, suffix = locations[app]
     return Path('results') / folder / 'prospective' / f'{batch}_{suffix}.csv'
+
+
+def _completed_outcomes(app: str) -> list[Path]:
+    """Return checksum-verified outcomes from finalized prospective batches."""
+    paths = []
+    for analysis in sorted(ROOT.glob('batches/*/analysis.json')):
+        report = json.loads(analysis.read_text())
+        batch = str(report['batch_id'])
+        path = _outcome(batch, app)
+        expected = report.get('outcome_sha256', {}).get(app)
+        if expected is None:
+            continue
+        if not path.is_file() or _hash(path) != expected:
+            raise RuntimeError(f'finalized outcome checksum mismatch: {path}')
+        paths.append(path)
+    return paths
 
 
 def _training(app: str, valid_only: bool = True) -> pd.DataFrame:
@@ -47,7 +69,7 @@ def _training(app: str, valid_only: bool = True) -> pd.DataFrame:
     frames.append(pd.read_csv(seed))
     folder, suffix = ('screening', 'pyrolysis') if app == 'turquoise_hydrogen' else ('fuel_cell', 'orr')
     paths = sorted(Path(f'results/{folder}/pilot').glob(f'divide_conquer_v*_{suffix}.csv'))
-    paths += sorted(Path(f'results/{folder}/prospective').glob(f'*_{suffix}.csv'))
+    paths += _completed_outcomes(app)
     frames += [pd.read_csv(path) for path in paths]
     frame = pd.concat(frames, ignore_index=True, sort=False)
     if valid_only:
@@ -157,6 +179,9 @@ def evaluate(batch: str, app: str) -> pd.DataFrame:
     Returns:
         Complete screening table.
     """
+    outcome = _outcome(batch, app)
+    if outcome.exists():
+        raise FileExistsError(f'prospective outcome is immutable: {outcome}')
     data=json.loads((_root(batch)/'manifest.json').read_text()); record=next(x for x in data['records'] if x['application']==app)
     allowed=set(record['eligible_ids']); pool=[ast.literal_eval(x) for x,i in zip(record['pool'],record['candidate_ids']) if i in allowed]
     if app=='turquoise_hydrogen':
@@ -181,6 +206,20 @@ def analyze(batch: str) -> Path:
     for record in data['records']:
         app=record['application']; column='E_act' if app=='turquoise_hydrogen' else 'orr_overpotential_V'
         frame=pd.read_csv(_outcome(batch,app)); values={}; genomes={}
+        required = {'genome', 'valid', column}
+        missing = required - set(frame.columns)
+        if missing:
+            raise ValueError(f'{app} outcome missing columns: {sorted(missing)}')
+        identities = [candidate_id(ast.literal_eval(raw)) for raw in frame.genome]
+        if len(identities) != len(set(identities)):
+            raise ValueError(f'{app} outcome contains duplicate candidates')
+        expected = set(record['eligible_ids'])
+        observed = set(identities)
+        if observed != expected:
+            raise ValueError(
+                f'{app} outcome candidate mismatch: '
+                f'missing={len(expected - observed)}, extra={len(observed - expected)}'
+            )
         for _,row in frame.iterrows():
             genome=ast.literal_eval(row.genome); identity=candidate_id(genome); genomes[identity]=genome
             valid: bool = bool(row.valid) and bool(np.isfinite(float(row[column])))

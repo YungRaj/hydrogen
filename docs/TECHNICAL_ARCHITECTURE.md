@@ -201,6 +201,11 @@ indexed in `docs/evidence/legacy_pilot_rounds.jsonl` and never select runtime
 behavior. Batch declarations and observations append to shared ledgers, so a
 new evidence batch does not create a new algorithm version.
 
+Outcome files are immutable after creation. Analysis requires exactly one row
+for every locked eligible candidate and rejects missing, extra, or duplicate
+identities. Later ranker training accepts prospective evidence only from a
+finalized analysis whose recorded SHA-256 matches the outcome file.
+
 ORR catalyst acquisition ranks a lower-confidence quality estimate with an
 explicit invalidity penalty. Its fixed coefficients are development evidence
 from completed batches; uncertainty-only and validity-only policies remain

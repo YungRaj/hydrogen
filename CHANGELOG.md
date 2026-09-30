@@ -45,6 +45,10 @@
 
 ### Changed
 
+- Prospective campaign evidence now fails closed on outcome overwrites,
+  incomplete or duplicate candidate coverage, and finalized-file checksum
+  mismatches. Only analyzed, checksum-verified batches may enter later training.
+
 - ORR prospective acquisition now combines predicted overpotential with a
   bounded invalidity penalty and uncertainty bonus. The challenger preserves
   every v2-v8 hit count and improves the completed unified batch from five to

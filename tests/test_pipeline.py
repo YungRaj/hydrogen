@@ -1941,6 +1941,102 @@ def test_orr_catalyst_acquisition_is_typed_and_fail_closed():
         raise AssertionError('mismatched ORR acquisition arrays were accepted')
 
 
+def test_prospective_campaign_rejects_mutable_or_unverified_outcomes():
+    import hashlib
+    import json
+    import tempfile
+    from pathlib import Path
+
+    import run_divide_conquer_pilot as campaign
+
+    original_root = campaign.ROOT
+    original_outcome = campaign._outcome
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        campaign.ROOT = root / 'campaign'
+        campaign._outcome = lambda batch, app: root / f'{batch}_{app}.csv'
+        try:
+            outcome = campaign._outcome('locked', 'fuel_cell_orr')
+            outcome.write_text('immutable\n')
+            try:
+                campaign.evaluate('locked', 'fuel_cell_orr')
+            except FileExistsError as exc:
+                assert 'immutable' in str(exc)
+            else:
+                raise AssertionError('existing prospective outcome was overwritten')
+
+            analysis = campaign.ROOT / 'batches/locked/analysis.json'
+            analysis.parent.mkdir(parents=True)
+            analysis.write_text(
+                json.dumps(
+                    {
+                        'batch_id': 'locked',
+                        'outcome_sha256': {
+                            'fuel_cell_orr': hashlib.sha256(
+                                outcome.read_bytes()
+                            ).hexdigest()
+                        },
+                    }
+                )
+            )
+            assert campaign._completed_outcomes('fuel_cell_orr') == [outcome]
+            outcome.write_text('tampered\n')
+            try:
+                campaign._completed_outcomes('fuel_cell_orr')
+            except RuntimeError as exc:
+                assert 'checksum mismatch' in str(exc)
+            else:
+                raise AssertionError('tampered finalized outcome entered training')
+        finally:
+            campaign.ROOT = original_root
+            campaign._outcome = original_outcome
+
+
+def test_prospective_analysis_requires_exact_candidate_coverage():
+    import json
+    import tempfile
+    from pathlib import Path
+
+    import pandas as pd
+    import run_divide_conquer_pilot as campaign
+    from pipeline.search.discovery import candidate_id
+
+    original_root = campaign.ROOT
+    original_outcome = campaign._outcome
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        campaign.ROOT = root / 'campaign'
+        campaign._outcome = lambda batch, app: root / f'{batch}_{app}.csv'
+        try:
+            genome = ('MetalFreeCarbon', 'graphitic', 0.01, 'none', 'graphene', 'N')
+            manifest = campaign.ROOT / 'batches/incomplete/manifest.json'
+            manifest.parent.mkdir(parents=True)
+            manifest.write_text(
+                json.dumps(
+                    {
+                        'records': [
+                            {
+                                'application': 'turquoise_hydrogen',
+                                'eligible_ids': [candidate_id(genome)],
+                            }
+                        ]
+                    }
+                )
+            )
+            pd.DataFrame(
+                [{'genome': repr(genome), 'valid': True, 'E_act': 0.5}] * 2
+            ).to_csv(campaign._outcome('incomplete', 'turquoise_hydrogen'), index=False)
+            try:
+                campaign.analyze('incomplete')
+            except ValueError as exc:
+                assert 'duplicate candidates' in str(exc)
+            else:
+                raise AssertionError('duplicate prospective outcomes were analyzed')
+        finally:
+            campaign.ROOT = original_root
+            campaign._outcome = original_outcome
+
+
 def test_industrial_viability_gates_fail_closed():
     from pipeline.validation.viability import (
         evaluate_turquoise,
