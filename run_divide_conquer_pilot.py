@@ -9,6 +9,7 @@ import hashlib
 import json
 import math
 import os
+import subprocess
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -64,7 +65,7 @@ def _pool(per_class: int = 4) -> list[tuple]:
     return pool
 
 
-def _training_frame(application: str) -> pd.DataFrame:
+def _training_frame(application: str, *, valid_only: bool = True) -> pd.DataFrame:
     spec = next(x for x in default_specs() if x.application == application)
     legacy = load_legacy_outcomes(spec).drop(
         columns=["parsed_genome", "candidate_id", "replicates"]
@@ -85,7 +86,8 @@ def _training_frame(application: str) -> pd.DataFrame:
             if f"divide_conquer_{ROUND}_" not in prior_round.name:
                 frames.append(pd.read_csv(prior_round))
     combined = pd.concat(frames, ignore_index=True, sort=False)
-    combined = combined[combined.valid.eq(True)].copy()
+    if valid_only:
+        combined = combined[combined.valid.eq(True)].copy()
     combined["_cid"] = [
         candidate_id(ast.literal_eval(g) if isinstance(g, str) else tuple(g))
         for g in combined.genome
@@ -104,7 +106,9 @@ def prepare(per_class: int = 4, extra_slots: int = 6) -> None:
         The computed prepare result.
     """
     import torch
+    from sklearn.ensemble import ExtraTreesClassifier
     from pipeline.search.adaptive_validation import allocate_validation_batch
+    from pipeline.evidence.search_policy_benchmark import _coverage_select
     from pipeline.screening.genetic_optimizer import (
         _train_ensemble_from_db,
         compute_objectives_surrogate,
@@ -123,6 +127,7 @@ def prepare(per_class: int = 4, extra_slots: int = 6) -> None:
         torch.manual_seed(20260720)
         np.random.seed(20260720)
         training = _training_frame(application)
+        validity_training = _training_frame(application, valid_only=False)
         ranker_diagnostics = None
         if ROUND not in ("v2", "v3", "v4"):
             from pipeline.screening.small_data_ranker import (
@@ -264,15 +269,50 @@ def prepare(per_class: int = 4, extra_slots: int = 6) -> None:
         if ROUND == "v2" or ROUND not in ("v2", "v3", "v4"):
             eligible_objectives = objectives[eligible]
             eligible_uncertainty = uncertainty[eligible]
-            local_selected = allocate_validation_batch(
-                candidates,
-                eligible_objectives,
-                budget,
-                str(ROOT / "allocation.sqlite"),
-                application,
-                min_per_class=1,
-                uncertainties=eligible_uncertainty,
-            )
+            if ROUND == "v8":
+                validity_genomes = [
+                    ast.literal_eval(raw) if isinstance(raw, str) else tuple(raw)
+                    for raw in validity_training.genome
+                ]
+                validity_model = ExtraTreesClassifier(
+                    n_estimators=256,
+                    min_samples_leaf=2,
+                    max_features=1.0,
+                    class_weight="balanced",
+                    random_state=20260722,
+                    n_jobs=-1,
+                ).fit(
+                    encode_population(validity_genomes),
+                    validity_training.valid.eq(True).to_numpy(dtype=int),
+                )
+                valid_class = list(validity_model.classes_).index(1)
+                validity_scores = validity_model.predict_proba(
+                    encode_population(pool)
+                )[:, valid_class]
+                policy_local = {
+                    "catalyst": _coverage_select(
+                        -eligible_objectives[:, 0], candidates, budget
+                    ),
+                    "uncertainty": _coverage_select(
+                        eligible_uncertainty, candidates, budget
+                    ),
+                    "validity": _coverage_select(
+                        validity_scores[eligible], candidates, budget
+                    ),
+                }
+                local_selected = policy_local["catalyst"]
+            else:
+                validity_scores = np.zeros(len(pool))
+                local_selected = allocate_validation_batch(
+                    candidates,
+                    eligible_objectives,
+                    budget,
+                    str(ROOT / "allocation.sqlite"),
+                    application,
+                    min_per_class=1,
+                    uncertainties=eligible_uncertainty,
+                )
+                policy_local = {"catalyst": local_selected}
             selected = [eligible[i] for i in local_selected]
             coverage_selected = selected
         else:
@@ -282,6 +322,12 @@ def prepare(per_class: int = 4, extra_slots: int = 6) -> None:
             selected = sorted(
                 eligible, key=lambda i: (float(objectives[i, 0]), candidate_id(pool[i]))
             )[:budget]
+            policy_local = {
+                "catalyst": np.asarray(
+                    [eligible.index(index) for index in selected], dtype=int
+                )
+            }
+            validity_scores = np.zeros(len(pool))
             coverage_selected = []
             for material_class in sorted(classes):
                 indices = [i for i in eligible if pool[i][0] == material_class]
@@ -309,9 +355,16 @@ def prepare(per_class: int = 4, extra_slots: int = 6) -> None:
                 "budget": budget,
                 "quota_classes": quota_classes,
                 "selected_ids": [ids[i] for i in selected],
+                "policy_selected_ids": {
+                    name: [ids[eligible[i]] for i in indices]
+                    for name, indices in policy_local.items()
+                },
                 "coverage_validation_ids": [ids[i] for i in coverage_selected],
                 "primary_scores": {ids[i]: float(objectives[i, 0]) for i in eligible},
                 "uncertainties": {ids[i]: float(uncertainty[i]) for i in eligible},
+                "validity_scores": {
+                    ids[i]: float(validity_scores[i]) for i in eligible
+                },
                 "ranker_diagnostics": ranker_diagnostics,
                 "random_seed": 20260720,
                 "random_trials": 50_000,
@@ -334,7 +387,28 @@ def prepare(per_class: int = 4, extra_slots: int = 6) -> None:
         "schema_version": 1,
         "locked_before_outcomes": True,
         "created_utc": datetime.now(timezone.utc).isoformat(),
+        "git_commit": subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip(),
+        "policy_source_sha256": hashlib.sha256(
+            Path("pipeline/screening/small_data_ranker.py").read_bytes()
+            + Path(__file__).read_bytes()
+        ).hexdigest(),
         "selector": selector,
+        "acceptance": {
+            "hit_definition": "valid candidate in best 20% of its locked pool",
+            "equal_budget_required": True,
+            "class_floor_required": True,
+            "catalyst_must_beat": [
+                "uncertainty",
+                "validity",
+                "policy_matched_random_97_5pct",
+            ],
+            "required_independently_for_each_application": True,
+        },
         "records": records,
     }
     MANIFEST.write_text(json.dumps(payload, indent=2) + "\n")
@@ -392,6 +466,12 @@ def analyze() -> None:
     results = []
     combined_selected = combined_hits = 0
     random_trial_hits = None
+    matched_random_trial_hits = None
+    combined_policy_hits = {
+        "catalyst": 0,
+        "uncertainty": 0,
+        "validity": 0,
+    }
     for record in payload["records"]:
         frame = pd.read_csv(paths[record["application"]])
         outcome = (
@@ -411,7 +491,11 @@ def analyze() -> None:
         def hits(ids):
             return sum(cid in values and values[cid] <= cutoff for cid in ids)
 
-        selected_hits = hits(record["selected_ids"])
+        policy_ids = record.get(
+            "policy_selected_ids", {"catalyst": record["selected_ids"]}
+        )
+        policy_hits = {name: hits(ids) for name, ids in policy_ids.items()}
+        selected_hits = policy_hits["catalyst"]
         rng = np.random.default_rng(record["random_seed"])
         random_hits = np.array(
             [
@@ -443,6 +527,14 @@ def analyze() -> None:
             )
             matched_random_hits.append(hits(chosen))
         matched_random_hits = np.asarray(matched_random_hits)
+        matched_random_upper = float(np.quantile(matched_random_hits, 0.975))
+        required_controls_present = {"uncertainty", "validity"} <= set(policy_hits)
+        prospective_pass = bool(
+            required_controls_present
+            and policy_hits["catalyst"] > policy_hits["uncertainty"]
+            and policy_hits["catalyst"] > policy_hits["validity"]
+            and policy_hits["catalyst"] > matched_random_upper
+        )
         scored_valid = [cid for cid in eligible if cid in values]
         score_values = np.array([record["primary_scores"][cid] for cid in scored_valid])
         outcome_values = np.array([values[cid] for cid in scored_valid])
@@ -465,6 +557,8 @@ def analyze() -> None:
                 "hit_cutoff": cutoff,
                 "hits": selected_hits,
                 "hit_rate": hit_rate,
+                "policy_hits": policy_hits,
+                "prospective_acceptance_passed": prospective_pass,
                 "random_mean_hits": float(random_hits.mean()),
                 "random_mean_hit_rate": random_rate,
                 "random_hits_95pct": [
@@ -474,7 +568,7 @@ def analyze() -> None:
                 "coverage_matched_random_mean_hits": float(matched_random_hits.mean()),
                 "coverage_matched_random_95pct": [
                     float(np.quantile(matched_random_hits, 0.025)),
-                    float(np.quantile(matched_random_hits, 0.975)),
+                    matched_random_upper,
                 ],
                 "enrichment_vs_coverage_matched_random": selected_hits
                 / matched_random_hits.mean(),
@@ -495,11 +589,21 @@ def analyze() -> None:
         )
         combined_selected += record["budget"]
         combined_hits += selected_hits
+        for name in combined_policy_hits:
+            combined_policy_hits[name] += policy_hits.get(name, 0)
         random_trial_hits = (
             random_hits
             if random_trial_hits is None
             else random_trial_hits + random_hits
         )
+        matched_random_trial_hits = (
+            matched_random_hits
+            if matched_random_trial_hits is None
+            else matched_random_trial_hits + matched_random_hits
+        )
+    matched_random_combined_upper = float(
+        np.quantile(matched_random_trial_hits, 0.975)
+    )
     combined = {
         "selected": combined_selected,
         "hits": combined_hits,
@@ -512,6 +616,19 @@ def analyze() -> None:
         "enrichment_vs_random": combined_hits / random_trial_hits.mean(),
         "beats_random_95pct": bool(
             combined_hits > np.quantile(random_trial_hits, 0.975)
+        ),
+        "policy_hits": combined_policy_hits,
+        "coverage_matched_random_95pct": [
+            float(np.quantile(matched_random_trial_hits, 0.025)),
+            matched_random_combined_upper,
+        ],
+        "prospective_acceptance_passed": bool(
+            combined_policy_hits["catalyst"]
+            > combined_policy_hits["uncertainty"]
+            and combined_policy_hits["catalyst"]
+            > combined_policy_hits["validity"]
+            and combined_policy_hits["catalyst"] > matched_random_combined_upper
+            and all(row["prospective_acceptance_passed"] for row in results)
         ),
     }
     output = {"results": results, "combined": combined}
