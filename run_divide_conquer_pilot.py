@@ -50,15 +50,24 @@ def _pool(per_class: int = 4) -> list[tuple]:
         )
     pool = []
     for material_class in CLASS_ORDER:
-        # Draw extra deterministic points so exclusion never shrinks a class.
-        indices = _probe_indices(0, CLASS_SIZES[material_class], per_class * 5 + 7)
         choices = []
-        for index in indices:
-            genome = candidate_at_class(material_class, index)
-            if candidate_id(genome) not in prior:
-                choices.append(genome)
-            if len(choices) == per_class:
+        probe_count = max(32, per_class * 8)
+        while len(choices) < per_class:
+            indices = _probe_indices(
+                0,
+                CLASS_SIZES[material_class],
+                min(probe_count, CLASS_SIZES[material_class]),
+            )
+            choices = []
+            for index in indices:
+                genome = candidate_at_class(material_class, index)
+                if candidate_id(genome) not in prior:
+                    choices.append(genome)
+                if len(choices) == per_class:
+                    break
+            if probe_count >= CLASS_SIZES[material_class]:
                 break
+            probe_count = min(probe_count * 2, CLASS_SIZES[material_class])
         if len(choices) != per_class:
             raise RuntimeError(f"could not create fresh pool for {material_class}")
         pool.extend(choices)
