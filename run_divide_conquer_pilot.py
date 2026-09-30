@@ -1,703 +1,223 @@
 #!/usr/bin/env python3
-"""Locked pilots and acceptance benchmark for catalyst-guided search."""
+"""One append-only prospective campaign for catalyst-guided search.
 
+Historical v2-v8 files are evidence inputs only; batch IDs never select code.
+"""
 from __future__ import annotations
 
-import argparse
-import ast
-import hashlib
-import json
-import math
-import os
-import subprocess
-from dataclasses import asdict
+import argparse, ast, hashlib, json, subprocess
 from datetime import datetime, timezone
 from pathlib import Path
-
 import numpy as np
 import pandas as pd
 
-from pipeline.search.scope import is_validation_quota_class, pemfc_cathode_scope
+from pipeline.evidence.pilot_benchmark import default_specs, load_legacy_outcomes
+from pipeline.evidence.search_policy_benchmark import _coverage_select
 from pipeline.search.branch_search import _probe_indices
 from pipeline.search.design_space import encode_population
 from pipeline.search.discovery import candidate_id
 from pipeline.search.indexed_space import CLASS_ORDER, CLASS_SIZES, candidate_at_class
-from pipeline.evidence.pilot_benchmark import default_specs, load_legacy_outcomes
+from pipeline.search.scope import pemfc_cathode_scope
+
+ROOT = Path('results/prospective_search')
+HISTORY = Path('docs/evidence/legacy_pilot_rounds.jsonl')
+APPS = (('turquoise_hydrogen', 'E_act', 'pyrolysis'),
+        ('fuel_cell_orr', 'orr_overpotential_V', 'orr'))
 
 
-ROUND = os.environ.get("PILOT_ROUND", "v2")
-ROOT = Path("results/pilot") / f"divide_conquer_{ROUND}"
-MANIFEST = ROOT / "manifest.json"
+def _hash(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _pool(per_class: int = 4) -> list[tuple]:
-    """Fresh low-discrepancy candidates, excluding the first pilot pool."""
+def _root(batch: str) -> Path:
+    if not batch or not all(c.isalnum() or c in '-_' for c in batch):
+        raise ValueError('invalid batch ID')
+    return ROOT / 'batches' / batch
+
+
+def _outcome(batch: str, app: str) -> Path:
+    folder, suffix = ('screening', 'pyrolysis') if app == 'turquoise_hydrogen' else ('fuel_cell', 'orr')
+    return Path('results') / folder / 'prospective' / f'{batch}_{suffix}.csv'
+
+
+def _training(app: str, valid_only: bool = True) -> pd.DataFrame:
+    spec = next(x for x in default_specs() if x.application == app)
+    frames = [load_legacy_outcomes(spec).drop(columns=['parsed_genome', 'candidate_id', 'replicates'])]
+    seed = Path('results/screening/pilot/prospective_pyrolysis.csv' if app == 'turquoise_hydrogen' else 'results/fuel_cell/pilot/prospective_orr.csv')
+    frames.append(pd.read_csv(seed))
+    folder, suffix = ('screening', 'pyrolysis') if app == 'turquoise_hydrogen' else ('fuel_cell', 'orr')
+    paths = sorted(Path(f'results/{folder}/pilot').glob(f'divide_conquer_v*_{suffix}.csv'))
+    paths += sorted(Path(f'results/{folder}/prospective').glob(f'*_{suffix}.csv'))
+    frames += [pd.read_csv(path) for path in paths]
+    frame = pd.concat(frames, ignore_index=True, sort=False)
+    if valid_only:
+        frame = frame[frame.valid.eq(True)].copy()
+    frame['_id'] = [candidate_id(ast.literal_eval(x)) for x in frame.genome]
+    return frame.drop_duplicates('_id', keep='last').drop(columns='_id')
+
+
+def _prior() -> set[str]:
     prior = set()
-    old = Path("results/pilot/prospective_manifest.json")
-    if old.exists():
-        payload = json.loads(old.read_text())
-        prior.update(
-            candidate_id(ast.literal_eval(raw)) for raw in payload["pilots"][0]["pool"]
-        )
-    for manifest_path in sorted(
-        Path("results/pilot").glob("divide_conquer_v*/manifest.json")
-    ):
-        if manifest_path.parent == ROOT:
-            continue
-        payload = json.loads(manifest_path.read_text())
-        prior.update(
-            candidate_id(ast.literal_eval(raw)) for raw in payload["records"][0]["pool"]
-        )
-    pool = []
-    for material_class in CLASS_ORDER:
-        choices = []
-        probe_count = max(32, per_class * 8)
+    paths = list(Path('results/pilot').glob('divide_conquer_v*/manifest.json'))
+    paths += list(ROOT.glob('batches/*/manifest.json'))
+    for path in paths:
+        records = json.loads(path.read_text()).get('records', [])
+        if records:
+            prior.update(candidate_id(ast.literal_eval(x)) for x in records[0]['pool'])
+    return prior
+
+
+def _pool(per_class: int) -> list[tuple]:
+    prior, pool = _prior(), []
+    for cls in CLASS_ORDER:
+        count, choices = max(32, per_class * 8), []
         while len(choices) < per_class:
-            indices = _probe_indices(
-                0,
-                CLASS_SIZES[material_class],
-                min(probe_count, CLASS_SIZES[material_class]),
-            )
-            choices = []
-            for index in indices:
-                genome = candidate_at_class(material_class, index)
-                if candidate_id(genome) not in prior:
-                    choices.append(genome)
-                if len(choices) == per_class:
-                    break
-            if probe_count >= CLASS_SIZES[material_class]:
-                break
-            probe_count = min(probe_count * 2, CLASS_SIZES[material_class])
-        if len(choices) != per_class:
-            raise RuntimeError(f"could not create fresh pool for {material_class}")
-        pool.extend(choices)
+            candidates = [candidate_at_class(cls, i) for i in _probe_indices(0, CLASS_SIZES[cls], min(count, CLASS_SIZES[cls]))]
+            choices = [g for g in candidates if candidate_id(g) not in prior][:per_class]
+            if count >= CLASS_SIZES[cls]: break
+            count = min(count * 2, CLASS_SIZES[cls])
+        if len(choices) != per_class: raise RuntimeError(f'fresh pool exhausted for {cls}')
+        pool += choices
     return pool
 
 
-def _training_frame(application: str, *, valid_only: bool = True) -> pd.DataFrame:
-    spec = next(x for x in default_specs() if x.application == application)
-    legacy = load_legacy_outcomes(spec).drop(
-        columns=["parsed_genome", "candidate_id", "replicates"]
-    )
-    extra_path = (
-        Path("results/screening/pilot/prospective_pyrolysis.csv")
-        if application == "turquoise_hydrogen"
-        else Path("results/fuel_cell/pilot/prospective_orr.csv")
-    )
-    extra = pd.read_csv(extra_path)
-    frames = [legacy, extra]
-    if ROUND != "v2":
-        subdir = "screening" if application == "turquoise_hydrogen" else "fuel_cell"
-        suffix = "pyrolysis" if application == "turquoise_hydrogen" else "orr"
-        for prior_round in sorted(
-            Path(f"results/{subdir}/pilot").glob(f"divide_conquer_v*_{suffix}.csv")
-        ):
-            if f"divide_conquer_{ROUND}_" not in prior_round.name:
-                frames.append(pd.read_csv(prior_round))
-    combined = pd.concat(frames, ignore_index=True, sort=False)
-    if valid_only:
-        combined = combined[combined.valid.eq(True)].copy()
-    combined["_cid"] = [
-        candidate_id(ast.literal_eval(g) if isinstance(g, str) else tuple(g))
-        for g in combined.genome
-    ]
-    return combined.drop_duplicates("_cid", keep="last").drop(columns="_cid")
-
-
-def prepare(per_class: int = 4, extra_slots: int = 6) -> None:
-    """Load and validate the inputs required by this command stage.
+def prepare(batch: str, per_class: int = 4, extra_slots: int = 6) -> Path:
+    """Lock one standard-policy batch before outcomes exist.
 
     Args:
-        per_class: Reserved validation requests per material class.
-        extra_slots: Additional requests allocated by adaptive priority.
+        batch: Unique append-only batch identifier.
+        per_class: Fresh pool members per material class.
+        extra_slots: Budget remaining after class floors.
 
     Returns:
-        The computed prepare result.
+        Locked manifest path.
     """
-    import torch
+    from dataclasses import asdict
     from sklearn.ensemble import ExtraTreesClassifier
-    from pipeline.search.adaptive_validation import allocate_validation_batch
-    from pipeline.evidence.search_policy_benchmark import _coverage_select
-    from pipeline.screening.genetic_optimizer import (
-        _train_ensemble_from_db,
-        compute_objectives_surrogate,
-    )
-    from pipeline.screening.fc_genetic_optimizer import (
-        _train_orr_ensemble_from_db,
-        compute_orr_objectives_surrogate,
-        ORRSurrogateEnsemble,
-    )
-    from pipeline.screening.surrogate_model import SurrogateEnsemble, predict_ensemble
-
-    ROOT.mkdir(parents=True, exist_ok=True)
-    pool = _pool(per_class)
-    records = []
-    for application in ("turquoise_hydrogen", "fuel_cell_orr"):
-        torch.manual_seed(20260720)
-        np.random.seed(20260720)
-        training = _training_frame(application)
-        validity_training = _training_frame(application, valid_only=False)
-        ranker_diagnostics = None
-        if ROUND not in ("v2", "v3", "v4"):
-            from pipeline.screening.small_data_ranker import (
-                fit_tree_ranker,
-                orr_tree_objectives,
-                turquoise_tree_objectives,
-            )
-
-            eligible = (
-                list(range(len(pool)))
-                if application == "turquoise_hydrogen"
-                else [
-                    i
-                    for i, genome in enumerate(pool)
-                    if pemfc_cathode_scope(genome)["status"] == "candidate"
-                ]
-            )
-            model = fit_tree_ranker(training, application)
-            objectives = (
-                turquoise_tree_objectives(pool, model)
-                if application == "turquoise_hydrogen"
-                else orr_tree_objectives(pool, model)
-            )
-            _, uncertainty = model.predict(pool)
-            ranker_diagnostics = asdict(model.diagnostics)
-            ranker_diagnostics["acquisition_mode"] = (
-                model.diagnostics.acquisition_mode
-            )
-        elif ROUND != "v2":
-            from sklearn.ensemble import ExtraTreesRegressor
-
-            outcome = (
-                "E_act"
-                if application == "turquoise_hydrogen"
-                else "orr_overpotential_V"
-            )
-            eligible = (
-                list(range(len(pool)))
-                if application == "turquoise_hydrogen"
-                else [
-                    i
-                    for i, genome in enumerate(pool)
-                    if pemfc_cathode_scope(genome)["status"] == "candidate"
-                ]
-            )
-            training = training[
-                np.isfinite(pd.to_numeric(training[outcome], errors="coerce"))
-            ]
-            x_train = encode_population(
-                [
-                    ast.literal_eval(g) if isinstance(g, str) else tuple(g)
-                    for g in training.genome
-                ]
-            )
-            y_train = training[outcome].to_numpy(float)
-            leaf = 1 if application == "turquoise_hydrogen" else 3
-            x_pool = encode_population(pool)
-            if application == "fuel_cell_orr" and ROUND not in ("v2", "v3"):
-                adsorption = ["dG_OH_eV", "dG_O_eV", "dG_OOH_eV"]
-                finite = (
-                    training[adsorption]
-                    .apply(pd.to_numeric, errors="coerce")
-                    .notna()
-                    .all(axis=1)
-                )
-                model = ExtraTreesRegressor(
-                    n_estimators=1024,
-                    min_samples_leaf=1,
-                    max_features=1.0,
-                    random_state=20260721,
-                    n_jobs=-1,
-                )
-                model.fit(
-                    x_train[finite.to_numpy()],
-                    training.loc[finite, adsorption].to_numpy(float),
-                )
-
-                def eta(prediction):
-                    d_oh, d_o, d_ooh = prediction.T
-                    return 1.23 + np.maximum.reduce(
-                        [d_ooh - 4.92, d_o - d_ooh, d_oh - d_o, -d_oh]
-                    )
-
-                primary = eta(model.predict(x_pool))
-                members = np.column_stack(
-                    [eta(tree.predict(x_pool)) for tree in model.estimators_]
-                )
-            else:
-                model = ExtraTreesRegressor(
-                    n_estimators=1024,
-                    min_samples_leaf=leaf,
-                    max_features=1.0,
-                    random_state=20260721,
-                    n_jobs=-1,
-                )
-                model.fit(x_train, y_train)
-                primary = model.predict(x_pool)
-                members = np.column_stack(
-                    [tree.predict(x_pool) for tree in model.estimators_]
-                )
-            uncertainty = members.std(axis=1)
-            objectives = np.column_stack([primary, np.zeros((len(pool), 3))])
-        elif application == "turquoise_hydrogen":
-            eligible = list(range(len(pool)))
-            model = _train_ensemble_from_db(training, "cuda", n_models=3)
-            objectives = compute_objectives_surrogate(pool, model, "cuda")
-            uncertainty = (
-                predict_ensemble(model, encode_population(pool), "cuda")["E_act_std"]
-                if isinstance(model, SurrogateEnsemble)
-                else np.zeros(len(pool))
-            )
-        else:
-            eligible = [
-                i
-                for i, genome in enumerate(pool)
-                if pemfc_cathode_scope(genome)["status"] == "candidate"
-            ]
-            model = _train_orr_ensemble_from_db(training, "cuda", n_models=3)
-            objectives = compute_orr_objectives_surrogate(pool, model, "cuda")
-            uncertainty = np.zeros(len(pool))
-            if isinstance(model, ORRSurrogateEnsemble):
-                x = torch.FloatTensor(encode_population(pool)).to("cuda")
-                members = []
-                for member in model.models:
-                    member.eval()
-                    with torch.no_grad():
-                        _, eta, _ = member(x)
-                    members.append(eta.cpu().numpy().ravel())
-                uncertainty = np.column_stack(members).std(axis=1)
-
+    from pipeline.screening.small_data_ranker import fit_tree_ranker, orr_tree_objectives, turquoise_tree_objectives
+    root, manifest = _root(batch), _root(batch) / 'manifest.json'
+    if manifest.exists(): raise FileExistsError(manifest)
+    if any(_outcome(batch, app).exists() for app, _, _ in APPS): raise RuntimeError('outcomes predate lock')
+    pool, records = _pool(per_class), []
+    ids = [candidate_id(g) for g in pool]
+    for app, _, _ in APPS:
+        train, all_train = _training(app), _training(app, False)
+        eligible = list(range(len(pool))) if app == 'turquoise_hydrogen' else [i for i,g in enumerate(pool) if pemfc_cathode_scope(g)['status'] == 'candidate']
+        ranker = fit_tree_ranker(train, app)
+        obj = turquoise_tree_objectives(pool, ranker) if app == 'turquoise_hydrogen' else orr_tree_objectives(pool, ranker)
+        _, uncertainty = ranker.predict(pool)
+        genomes = [ast.literal_eval(x) for x in all_train.genome]
+        validity = ExtraTreesClassifier(n_estimators=256, min_samples_leaf=2, max_features=1.0, class_weight='balanced', random_state=20260722, n_jobs=-1)
+        validity.fit(encode_population(genomes), all_train.valid.eq(True).to_numpy(int))
+        vscore = validity.predict_proba(encode_population(pool))[:, list(validity.classes_).index(1)]
         candidates = [pool[i] for i in eligible]
-        classes = {g[0] for g in candidates}
-        quota_classes = sorted(
-            material_class
-            for material_class in classes
-            if is_validation_quota_class(material_class, application)
-        )
-        budget = min(len(candidates), len(classes) + extra_slots)
-        if ROUND == "v2" or ROUND not in ("v2", "v3", "v4"):
-            eligible_objectives = objectives[eligible]
-            eligible_uncertainty = uncertainty[eligible]
-            if ROUND == "v8":
-                validity_genomes = [
-                    ast.literal_eval(raw) if isinstance(raw, str) else tuple(raw)
-                    for raw in validity_training.genome
-                ]
-                validity_model = ExtraTreesClassifier(
-                    n_estimators=256,
-                    min_samples_leaf=2,
-                    max_features=1.0,
-                    class_weight="balanced",
-                    random_state=20260722,
-                    n_jobs=-1,
-                ).fit(
-                    encode_population(validity_genomes),
-                    validity_training.valid.eq(True).to_numpy(dtype=int),
-                )
-                valid_class = list(validity_model.classes_).index(1)
-                validity_scores = validity_model.predict_proba(
-                    encode_population(pool)
-                )[:, valid_class]
-                policy_local = {
-                    "catalyst": _coverage_select(
-                        -eligible_objectives[:, 0], candidates, budget
-                    ),
-                    "uncertainty": _coverage_select(
-                        eligible_uncertainty, candidates, budget
-                    ),
-                    "validity": _coverage_select(
-                        validity_scores[eligible], candidates, budget
-                    ),
-                }
-                local_selected = policy_local["catalyst"]
-            else:
-                validity_scores = np.zeros(len(pool))
-                local_selected = allocate_validation_batch(
-                    candidates,
-                    eligible_objectives,
-                    budget,
-                    str(ROOT / "allocation.sqlite"),
-                    application,
-                    min_per_class=1,
-                    uncertainties=eligible_uncertainty,
-                )
-                policy_local = {"catalyst": local_selected}
-            selected = [eligible[i] for i in local_selected]
-            coverage_selected = selected
-        else:
-            # Discovery and calibration are distinct ledgers. Discovery is the
-            # reproducible priority ranking tested against random; calibration
-            # retains one uncertain representative per chemistry class.
-            selected = sorted(
-                eligible, key=lambda i: (float(objectives[i, 0]), candidate_id(pool[i]))
-            )[:budget]
-            policy_local = {
-                "catalyst": np.asarray(
-                    [eligible.index(index) for index in selected], dtype=int
-                )
-            }
-            validity_scores = np.zeros(len(pool))
-            coverage_selected = []
-            for material_class in sorted(classes):
-                indices = [i for i in eligible if pool[i][0] == material_class]
-                coverage_selected.append(
-                    max(indices, key=lambda i: (uncertainty[i], candidate_id(pool[i])))
-                )
-        ids = [candidate_id(g) for g in pool]
-        records.append(
-            {
-                "application": application,
-                "training_rows": len(training),
-                "training_digest": hashlib.sha256(
-                    "\n".join(
-                        sorted(
-                            candidate_id(
-                                ast.literal_eval(g) if isinstance(g, str) else tuple(g)
-                            )
-                            for g in training.genome
-                        )
-                    ).encode()
-                ).hexdigest(),
-                "pool": [repr(g) for g in pool],
-                "candidate_ids": ids,
-                "eligible_ids": [ids[i] for i in eligible],
-                "budget": budget,
-                "quota_classes": quota_classes,
-                "selected_ids": [ids[i] for i in selected],
-                "policy_selected_ids": {
-                    name: [ids[eligible[i]] for i in indices]
-                    for name, indices in policy_local.items()
-                },
-                "coverage_validation_ids": [ids[i] for i in coverage_selected],
-                "primary_scores": {ids[i]: float(objectives[i, 0]) for i in eligible},
-                "uncertainties": {ids[i]: float(uncertainty[i]) for i in eligible},
-                "validity_scores": {
-                    ids[i]: float(validity_scores[i]) for i in eligible
-                },
-                "ranker_diagnostics": ranker_diagnostics,
-                "random_seed": 20260720,
-                "random_trials": 50_000,
-            }
-        )
-        del model
-        torch.cuda.empty_cache()
-    if ROUND == "v2":
-        selector = "class-floor + improvement + uncertainty + calibration"
-    elif ROUND in ("v3", "v4"):
-        selector = (
-            "deterministic small-data tree ranking; separate class calibration slate"
-        )
-    else:
-        selector = (
-            "production finished-candidate quality ranker with class floor; "
-            "secondary objectives require held-out-class validation"
-        )
-    payload = {
-        "schema_version": 1,
-        "locked_before_outcomes": True,
-        "created_utc": datetime.now(timezone.utc).isoformat(),
-        "git_commit": subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout.strip(),
-        "policy_source_sha256": hashlib.sha256(
-            Path("pipeline/screening/small_data_ranker.py").read_bytes()
-            + Path(__file__).read_bytes()
-        ).hexdigest(),
-        "selector": selector,
-        "acceptance": {
-            "hit_definition": "valid candidate in best 20% of its locked pool",
-            "equal_budget_required": True,
-            "class_floor_required": True,
-            "catalyst_must_beat": [
-                "uncertainty",
-                "validity",
-                "policy_matched_random_97_5pct",
-            ],
-            "required_independently_for_each_application": True,
-        },
-        "records": records,
-    }
-    MANIFEST.write_text(json.dumps(payload, indent=2) + "\n")
-    print(f"Locked divide-and-conquer pilot: {MANIFEST}")
+        budget = min(len(candidates), len({g[0] for g in candidates}) + extra_slots)
+        local = {'catalyst': _coverage_select(-obj[eligible,0], candidates, budget),
+                 'uncertainty': _coverage_select(uncertainty[eligible], candidates, budget),
+                 'validity': _coverage_select(vscore[eligible], candidates, budget)}
+        records.append({'application': app, 'training_rows': len(train),
+          'training_digest': hashlib.sha256('\n'.join(sorted(candidate_id(ast.literal_eval(x)) for x in train.genome)).encode()).hexdigest(),
+          'pool': [repr(g) for g in pool], 'candidate_ids': ids,
+          'eligible_ids': [ids[i] for i in eligible], 'budget': budget,
+          'policy_selected_ids': {name: [ids[eligible[i]] for i in ix] for name,ix in local.items()},
+          'ranker_diagnostics': asdict(ranker.diagnostics), 'random_seed': 20260720, 'random_trials': 50000})
+    ROOT.mkdir(parents=True, exist_ok=True)
+    campaign = ROOT / 'manifest.json'
+    if not campaign.exists():
+        campaign.write_text(json.dumps({'schema_version':1,'campaign':'prospective_catalyst_search','append_only':True,'historical_evidence':str(HISTORY)}, indent=2)+'\n')
+    payload = {'schema_version':2,'batch_id':batch,'locked_before_outcomes':True,
+      'created_utc':datetime.now(timezone.utc).isoformat(),
+      'git_commit':subprocess.run(['git','rev-parse','HEAD'],check=True,capture_output=True,text=True).stdout.strip(),
+      'policy_source_sha256':hashlib.sha256(Path(__file__).read_bytes()+Path('pipeline/screening/small_data_ranker.py').read_bytes()).hexdigest(),
+      'acceptance':{'catalyst_must_beat':['uncertainty','validity','policy_matched_random_97_5pct'],'required_independently_for_each_application':True},'records':records}
+    root.mkdir(parents=True, exist_ok=False); manifest.write_text(json.dumps(payload,indent=2)+'\n')
+    with (ROOT/'batches.jsonl').open('a') as f: f.write(json.dumps({'batch_id':batch,'manifest_sha256':_hash(manifest)})+'\n')
+    return manifest
 
 
-def evaluate(application: str) -> None:
-    """Evaluate one candidate for the pilot strategy.
+def evaluate(batch: str, app: str) -> pd.DataFrame:
+    """Evaluate every eligible candidate in a locked batch.
 
     Args:
-        application: Scientific application or objective family.
-    """
-    payload = json.loads(MANIFEST.read_text())
-    record = next(x for x in payload["records"] if x["application"] == application)
-    allowed = set(record["eligible_ids"])
-    pool = [
-        ast.literal_eval(raw)
-        for raw, cid in zip(record["pool"], record["candidate_ids"])
-        if cid in allowed
-    ]
-    if application == "turquoise_hydrogen":
-        from pipeline.screening.surface_screener import run_screening
-
-        frame = run_screening(
-            pool,
-            db_filename=f"pilot/divide_conquer_{ROUND}_pyrolysis.csv",
-            workers_per_gpu=1,
-        )
-    else:
-        from pipeline.screening.fc_screener import run_orr_screening
-
-        frame = run_orr_screening(
-            pool, db_filename=f"pilot/divide_conquer_{ROUND}_orr.csv", workers_per_gpu=1
-        )
-    print(
-        f"{application}: evaluated={len(frame)}, valid={int(frame.valid.eq(True).sum())}"
-    )
-
-
-def analyze() -> None:
-    """Aggregate completed pilot observations into comparison metrics.
+        batch: Locked batch identifier.
+        app: Application to screen.
 
     Returns:
-        The computed analyze result.
+        Complete screening table.
     """
-    payload = json.loads(MANIFEST.read_text())
-    paths = {
-        "turquoise_hydrogen": Path(
-            f"results/screening/pilot/divide_conquer_{ROUND}_pyrolysis.csv"
-        ),
-        "fuel_cell_orr": Path(
-            f"results/fuel_cell/pilot/divide_conquer_{ROUND}_orr.csv"
-        ),
-    }
-    results = []
-    combined_selected = combined_hits = 0
-    random_trial_hits = None
-    matched_random_trial_hits = None
-    combined_policy_hits = {
-        "catalyst": 0,
-        "uncertainty": 0,
-        "validity": 0,
-    }
-    for record in payload["records"]:
-        frame = pd.read_csv(paths[record["application"]])
-        outcome = (
-            "E_act"
-            if record["application"] == "turquoise_hydrogen"
-            else "orr_overpotential_V"
-        )
-        values = {}
-        for _, row in frame.iterrows():
-            if bool(row.valid) and np.isfinite(float(row[outcome])):
-                genome = ast.literal_eval(row.genome)
-                values[candidate_id(genome)] = float(row[outcome])
-        eligible = record["eligible_ids"]
-        valid_values = np.array([values[cid] for cid in eligible if cid in values])
-        cutoff = float(np.quantile(valid_values, 0.20))
-
-        def hits(ids):
-            return sum(cid in values and values[cid] <= cutoff for cid in ids)
-
-        policy_ids = record.get(
-            "policy_selected_ids", {"catalyst": record["selected_ids"]}
-        )
-        policy_hits = {name: hits(ids) for name, ids in policy_ids.items()}
-        selected_hits = policy_hits["catalyst"]
-        rng = np.random.default_rng(record["random_seed"])
-        random_hits = np.array(
-            [
-                hits(rng.choice(eligible, record["budget"], replace=False))
-                for _ in range(record["random_trials"])
-            ]
-        )
-        # Policy-matched random control: the same one-per-class coverage floor,
-        # with remaining slots sampled uniformly. This isolates whether scoring
-        # adds value beyond the coverage policy itself.
-        by_class = {}
-        genome_by_id = dict(
-            zip(record["candidate_ids"], map(ast.literal_eval, record["pool"]))
-        )
-        quota_classes = set(record["quota_classes"])
-        for cid in eligible:
-            material_class = genome_by_id[cid][0]
-            if material_class in quota_classes:
-                by_class.setdefault(material_class, []).append(cid)
-        matched_random_hits = []
-        for _ in range(record["random_trials"]):
-            chosen = [
-                rng.choice(by_class[material_class])
-                for material_class in sorted(by_class)
-            ]
-            remaining = [cid for cid in eligible if cid not in chosen]
-            chosen.extend(
-                rng.choice(remaining, record["budget"] - len(chosen), replace=False)
-            )
-            matched_random_hits.append(hits(chosen))
-        matched_random_hits = np.asarray(matched_random_hits)
-        matched_random_upper = float(np.quantile(matched_random_hits, 0.975))
-        required_controls_present = {"uncertainty", "validity"} <= set(policy_hits)
-        prospective_pass = bool(
-            required_controls_present
-            and policy_hits["catalyst"] > policy_hits["uncertainty"]
-            and policy_hits["catalyst"] > policy_hits["validity"]
-            and policy_hits["catalyst"] > matched_random_upper
-        )
-        scored_valid = [cid for cid in eligible if cid in values]
-        score_values = np.array([record["primary_scores"][cid] for cid in scored_valid])
-        outcome_values = np.array([values[cid] for cid in scored_valid])
-        rank_correlation = float(
-            pd.Series(score_values).corr(pd.Series(outcome_values), method="spearman")
-        )
-        primary_only = sorted(
-            eligible, key=lambda cid: (record["primary_scores"][cid], cid)
-        )[: record["budget"]]
-        primary_hits = hits(primary_only)
-        unique, counts = np.unique(valid_values, return_counts=True)
-        hit_rate = selected_hits / record["budget"]
-        random_rate = float(random_hits.mean() / record["budget"])
-        results.append(
-            {
-                "application": record["application"],
-                "pool": len(eligible),
-                "valid": len(values),
-                "budget": record["budget"],
-                "hit_cutoff": cutoff,
-                "hits": selected_hits,
-                "hit_rate": hit_rate,
-                "policy_hits": policy_hits,
-                "prospective_acceptance_passed": prospective_pass,
-                "random_mean_hits": float(random_hits.mean()),
-                "random_mean_hit_rate": random_rate,
-                "random_hits_95pct": [
-                    float(np.quantile(random_hits, 0.025)),
-                    float(np.quantile(random_hits, 0.975)),
-                ],
-                "coverage_matched_random_mean_hits": float(matched_random_hits.mean()),
-                "coverage_matched_random_95pct": [
-                    float(np.quantile(matched_random_hits, 0.025)),
-                    matched_random_upper,
-                ],
-                "enrichment_vs_coverage_matched_random": selected_hits
-                / matched_random_hits.mean(),
-                "beats_coverage_matched_random_95pct": bool(
-                    selected_hits > np.quantile(matched_random_hits, 0.975)
-                ),
-                "enrichment_vs_random": hit_rate / random_rate,
-                "beats_random_95pct": bool(
-                    selected_hits > np.quantile(random_hits, 0.975)
-                ),
-                "spearman_rank_correlation": rank_correlation,
-                "unique_outcomes": len(unique),
-                "largest_tie": int(counts.max()),
-                "primary_only_diagnostic_hits": primary_hits,
-                "primary_only_diagnostic_enrichment": (primary_hits / record["budget"])
-                / random_rate,
-            }
-        )
-        combined_selected += record["budget"]
-        combined_hits += selected_hits
-        for name in combined_policy_hits:
-            combined_policy_hits[name] += policy_hits.get(name, 0)
-        random_trial_hits = (
-            random_hits
-            if random_trial_hits is None
-            else random_trial_hits + random_hits
-        )
-        matched_random_trial_hits = (
-            matched_random_hits
-            if matched_random_trial_hits is None
-            else matched_random_trial_hits + matched_random_hits
-        )
-    matched_random_combined_upper = float(
-        np.quantile(matched_random_trial_hits, 0.975)
-    )
-    combined = {
-        "selected": combined_selected,
-        "hits": combined_hits,
-        "hit_rate": combined_hits / combined_selected,
-        "random_mean_hits": float(random_trial_hits.mean()),
-        "random_hits_95pct": [
-            float(np.quantile(random_trial_hits, 0.025)),
-            float(np.quantile(random_trial_hits, 0.975)),
-        ],
-        "enrichment_vs_random": combined_hits / random_trial_hits.mean(),
-        "beats_random_95pct": bool(
-            combined_hits > np.quantile(random_trial_hits, 0.975)
-        ),
-        "policy_hits": combined_policy_hits,
-        "coverage_matched_random_95pct": [
-            float(np.quantile(matched_random_trial_hits, 0.025)),
-            matched_random_combined_upper,
-        ],
-        "prospective_acceptance_passed": bool(
-            combined_policy_hits["catalyst"]
-            > combined_policy_hits["uncertainty"]
-            and combined_policy_hits["catalyst"]
-            > combined_policy_hits["validity"]
-            and combined_policy_hits["catalyst"] > matched_random_combined_upper
-            and all(row["prospective_acceptance_passed"] for row in results)
-        ),
-    }
-    source_artifacts = {
-        "manifest": MANIFEST,
-        "turquoise_hydrogen_outcomes": paths["turquoise_hydrogen"],
-        "fuel_cell_orr_outcomes": paths["fuel_cell_orr"],
-    }
-    output = {
-        "schema_version": 2,
-        "locked_git_commit": payload.get("git_commit"),
-        "source_sha256": {
-            name: hashlib.sha256(path.read_bytes()).hexdigest()
-            for name, path in source_artifacts.items()
-        },
-        "acceptance": payload.get("acceptance"),
-        "results": results,
-        "combined": combined,
-    }
-    path = ROOT / "analysis.json"
-    path.write_text(json.dumps(output, indent=2) + "\n")
-    print(json.dumps(output, indent=2))
-    print(f"Analysis: {path}")
+    data=json.loads((_root(batch)/'manifest.json').read_text()); record=next(x for x in data['records'] if x['application']==app)
+    allowed=set(record['eligible_ids']); pool=[ast.literal_eval(x) for x,i in zip(record['pool'],record['candidate_ids']) if i in allowed]
+    if app=='turquoise_hydrogen':
+        from pipeline.screening.surface_screener import run_screening
+        return run_screening(pool,db_filename=f'prospective/{batch}_pyrolysis.csv',workers_per_gpu=1)
+    from pipeline.screening.fc_screener import run_orr_screening
+    return run_orr_screening(pool,db_filename=f'prospective/{batch}_orr.csv',workers_per_gpu=1)
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "action",
-        choices=(
-            "prepare",
-            "evaluate-pyrolysis",
-            "evaluate-orr",
-            "analyze",
-            "benchmark-policies",
-        ),
-    )
-    parser.add_argument("--per-class", type=int, default=4)
-    parser.add_argument("--extra-slots", type=int, default=6)
-    args = parser.parse_args()
-    if args.action == "prepare":
-        prepare(args.per_class, args.extra_slots)
-    elif args.action == "evaluate-pyrolysis":
-        evaluate("turquoise_hydrogen")
-    elif args.action == "evaluate-orr":
-        evaluate("fuel_cell_orr")
-    elif args.action == "analyze":
-        analyze()
-    else:
-        from pipeline.evidence.search_policy_benchmark import (
-            run_search_policy_benchmark,
-            write_search_policy_benchmark,
-        )
+def analyze(batch: str) -> Path:
+    """Analyze a completed batch once and append its observations.
 
-        result = run_search_policy_benchmark()
-        output = write_search_policy_benchmark(
-            result, "docs/evidence/search_policy_benchmark.json"
-        )
-        print(json.dumps(result, indent=2))
-        print(f"Benchmark: {output}")
-        if not result["combined"]["catalyst_beats_all_baselines"] or not all(
-            row["catalyst_beats_all_baselines"] for row in result["applications"]
-        ):
-            raise SystemExit("catalyst policy did not beat every baseline")
+    Args:
+        batch: Completed batch identifier.
+
+    Returns:
+        Immutable batch analysis path.
+    """
+    root=_root(batch); target=root/'analysis.json'
+    if target.exists(): raise FileExistsError(target)
+    manifest=root/'manifest.json'; data=json.loads(manifest.read_text()); results=[]; observations=[]
+    for record in data['records']:
+        app=record['application']; column='E_act' if app=='turquoise_hydrogen' else 'orr_overpotential_V'
+        frame=pd.read_csv(_outcome(batch,app)); values={}; genomes={}
+        for _,row in frame.iterrows():
+            genome=ast.literal_eval(row.genome); identity=candidate_id(genome); genomes[identity]=genome
+            valid=bool(row.valid) and np.isfinite(float(row[column])); value=float(row[column]) if valid else None
+            if valid: values[identity]=value
+            observations.append({'batch_id':batch,'application':app,'candidate_id':identity,'valid':valid,'outcome':value})
+        cutoff=float(np.quantile(list(values.values()),.2))
+        hits=lambda ids:sum(i in values and values[i]<=cutoff for i in ids)
+        policy={name:hits(ids) for name,ids in record['policy_selected_ids'].items()}
+        by_class={}
+        for identity in record['eligible_ids']: by_class.setdefault(genomes[identity][0],[]).append(identity)
+        rng=np.random.default_rng(record['random_seed']); random=[]
+        for _ in range(record['random_trials']):
+            chosen=[rng.choice(by_class[name]) for name in sorted(by_class)]; remaining=[i for i in record['eligible_ids'] if i not in chosen]
+            chosen.extend(rng.choice(remaining,record['budget']-len(chosen),replace=False)); random.append(hits(chosen))
+        upper=float(np.quantile(random,.975)); passed=policy['catalyst']>policy['uncertainty'] and policy['catalyst']>policy['validity'] and policy['catalyst']>upper
+        results.append({'application':app,'eligible':len(record['eligible_ids']),'valid':len(values),'budget':record['budget'],'hit_cutoff':cutoff,'policy_hits':policy,'policy_matched_random_mean_hits':float(np.mean(random)),'policy_matched_random_95pct':[float(np.quantile(random,.025)),upper],'acceptance_passed':bool(passed)})
+    report={'schema_version':1,'batch_id':batch,'manifest_sha256':_hash(manifest),'outcome_sha256':{app:_hash(_outcome(batch,app)) for app,_,_ in APPS},'results':results,'acceptance_passed':all(x['acceptance_passed'] for x in results)}
+    target.write_text(json.dumps(report,indent=2)+'\n')
+    with (ROOT/'outcomes.jsonl').open('a') as f:
+        for row in observations:f.write(json.dumps(row,sort_keys=True)+'\n')
+    reports=[json.loads(path.read_text()) for path in sorted(ROOT.glob('batches/*/analysis.json'))]
+    (ROOT/'analysis.json').write_text(json.dumps({'schema_version':1,'batches':[x['batch_id'] for x in reports],'batches_passed':sum(x['acceptance_passed'] for x in reports),'latest':reports[-1]},indent=2)+'\n')
+    return target
+
+
+def archive_history() -> Path:
+    """Write one checksum ledger for immutable v2-v8 evidence.
+
+    Returns:
+        Historical ledger path.
+    """
+    rows=[]
+    for manifest in sorted(Path('results/pilot').glob('divide_conquer_v*/manifest.json')):
+        version=manifest.parent.name.removeprefix('divide_conquer_'); artifacts={'manifest':manifest}
+        for name,path in [('analysis',manifest.parent/'analysis.json'),('pyrolysis',Path(f'results/screening/pilot/divide_conquer_{version}_pyrolysis.csv')),('orr',Path(f'results/fuel_cell/pilot/divide_conquer_{version}_orr.csv'))]:
+            if path.exists(): artifacts[name]=path
+        rows.append({'historical_round':version,'read_only':True,'artifacts':{k:{'path':str(v),'sha256':_hash(v)} for k,v in artifacts.items()}})
+    HISTORY.parent.mkdir(parents=True,exist_ok=True); HISTORY.write_text(''.join(json.dumps(x,sort_keys=True)+'\n' for x in rows)); return HISTORY
+
+
+def main() -> None:
+    """Dispatch the prospective campaign command-line interface."""
+    parser=argparse.ArgumentParser(); parser.add_argument('action',choices=('prepare','evaluate-pyrolysis','evaluate-orr','analyze','archive-history')); parser.add_argument('--batch'); parser.add_argument('--per-class',type=int,default=4); parser.add_argument('--extra-slots',type=int,default=6); args=parser.parse_args()
+    if args.action=='archive-history': print(archive_history()); return
+    if not args.batch: parser.error('--batch is required')
+    if args.action=='prepare': print(prepare(args.batch,args.per_class,args.extra_slots))
+    elif args.action=='evaluate-pyrolysis': print(evaluate(args.batch,'turquoise_hydrogen').shape)
+    elif args.action=='evaluate-orr': print(evaluate(args.batch,'fuel_cell_orr').shape)
+    else: print(analyze(args.batch))
+
+
+if __name__=='__main__': main()

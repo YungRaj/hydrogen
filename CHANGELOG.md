@@ -45,6 +45,11 @@
 
 ### Changed
 
+- Collapsed version-specific pilot control flow into one append-only prospective
+  campaign. Historical v2-v8 artifacts remain checksum-indexed read-only
+  evidence; future batch IDs share one policy, manifest schema, outcome ledger,
+  and cumulative analysis.
+
 - Catalyst-guided, coverage-safe branch-and-bound is now the repository-wide
   production standard. Finished candidates train the final primary metric
   directly, with a shrinkage-controlled material-class residual correction.

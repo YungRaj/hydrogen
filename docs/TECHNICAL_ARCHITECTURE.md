@@ -194,11 +194,12 @@ because another process may still own them.
 
 ### `run_divide_conquer_pilot.py`
 
-This constructs and evaluates the reproducible pilot benchmark used to compare
-the divide-and-conquer method with random sampling and a deterministic expert
-heuristic. The pilot uses legacy computational outcomes; its evidence level is
-therefore explicitly lower than a blinded experimental benchmark. It measures
-search-selection performance, not physical catalyst superiority.
+This is the stable entry point for one append-only prospective search campaign.
+Each arbitrary batch ID uses the same catalyst, uncertainty, validity, and
+policy-matched-random definitions. Historical v2-v8 artifacts are checksum-
+indexed in `docs/evidence/legacy_pilot_rounds.jsonl` and never select runtime
+behavior. Batch declarations and observations append to shared ledgers, so a
+new evidence batch does not create a new algorithm version.
 
 ### `audit_pipeline.py` and the test programs
 

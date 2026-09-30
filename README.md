@@ -1102,21 +1102,18 @@ performance. Other rounds exposed model drift, establishing a release criterion:
 a challenger should not replace an incumbent without new locked validation.
 Persistent automatic model promotion is not yet treated as completed scientific
 infrastructure. The reproducible pilot entry point is
-`run_divide_conquer_pilot.py`; it writes locked manifests and raw selections
-under the gitignored `results/pilot/`, `results/screening/pilot/`, and
-`results/fuel_cell/pilot/` directories. Preserve campaign artifacts in external
-storage when they are needed for publication or audit rather than committing
-generated outputs to the source repository. Earlier exploratory launchers were
-removed after their useful logic was incorporated into this runner and
-`pipeline/evidence/pilot_benchmark.py`.
+`run_divide_conquer_pilot.py`. Historical v2-v8 files are immutable evidence
+indexed by `docs/evidence/legacy_pilot_rounds.jsonl`; they no longer select code
+paths. Future work uses one append-only `results/prospective_search/` campaign
+with stable manifests, `batches.jsonl`, `outcomes.jsonl`, and cumulative
+analysis. A batch ID identifies evidence, not an algorithm version.
 
 ### Phase 1: Deterministic Branch-and-Bound Discovery
 
 1. **Calibrate at deterministic tree probes** — recursively bisected probe points from all 14 class roots establish initial model evidence; these probes do not count as population coverage
 2. **eSen-SM evaluation** — for each candidate, build an atomic slab or cluster, enforce periodic boundary conditions (`pbc=True`), relax with BFGS, compute H*/CH₃*/C* adsorption energies
 3. **Train deterministic small-data rankers** — turquoise hydrogen ranks the
-   continuous activation barrier; ORR predicts OH/O/OOH adsorption energies and
-   derives an unclipped CHE overpotential so saturated labels cannot erase order.
+   continuous activation barrier and ORR ranks the final continuous overpotential.
    Before either ranker may drive quality exploitation, five-fold validation
    holds out entire material classes and requires both a Spearman correlation of
    at least 0.20 and lower MAE than a training-fold median baseline. A ranker
