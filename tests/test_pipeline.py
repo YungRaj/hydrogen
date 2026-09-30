@@ -1921,6 +1921,26 @@ def test_retired_ga_entry_points_are_blocked():
             raise AssertionError(f"{fn.__name__} still permits legacy search")
 
 
+def test_orr_catalyst_acquisition_is_typed_and_fail_closed():
+    from pipeline.screening.small_data_ranker import orr_catalyst_acquisition
+
+    score = orr_catalyst_acquisition(
+        np.array([1.0, 1.0]),
+        np.array([0.0, 0.4]),
+        np.array([1.0, 0.0]),
+    )
+    assert score.dtype == float
+    assert np.allclose(score, [-1.0, -1.65])
+    try:
+        orr_catalyst_acquisition(
+            np.array([1.0]), np.array([0.1, 0.2]), np.array([1.0])
+        )
+    except ValueError as exc:
+        assert 'identical shapes' in str(exc)
+    else:
+        raise AssertionError('mismatched ORR acquisition arrays were accepted')
+
+
 def test_industrial_viability_gates_fail_closed():
     from pipeline.validation.viability import (
         evaluate_turquoise,

@@ -1108,6 +1108,16 @@ paths. Future work uses one append-only `results/prospective_search/` campaign
 with stable manifests, `batches.jsonl`, `outcomes.jsonl`, and cumulative
 analysis. A batch ID identifies evidence, not an algorithm version.
 
+The first unified batch, `20260930-catalyst-01`, passed the turquoise-hydrogen
+criterion (7/20 hits versus 1 uncertainty, 4 validity, and a random 97.5% bound
+of 6) but failed the combined release criterion because ORR tied its random
+bound (5/18 hits versus a bound of 5). Post-batch development therefore adds a
+bounded ORR lower-confidence score: predicted overpotential remains primary,
+with a 0.75 V invalidity penalty and a 0.25× ensemble-uncertainty bonus. This
+challenger preserves every historical v2-v8 hit count and retrospectively raises
+the unified ORR batch from 5 to 6 hits; that retrospective result is not
+prospective proof and requires a new locked batch.
+
 ### Phase 1: Deterministic Branch-and-Bound Discovery
 
 1. **Calibrate at deterministic tree probes** — recursively bisected probe points from all 14 class roots establish initial model evidence; these probes do not count as population coverage

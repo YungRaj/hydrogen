@@ -201,6 +201,11 @@ indexed in `docs/evidence/legacy_pilot_rounds.jsonl` and never select runtime
 behavior. Batch declarations and observations append to shared ledgers, so a
 new evidence batch does not create a new algorithm version.
 
+ORR catalyst acquisition ranks a lower-confidence quality estimate with an
+explicit invalidity penalty. Its fixed coefficients are development evidence
+from completed batches; uncertainty-only and validity-only policies remain
+unchanged controls, and promotion still requires a subsequent locked batch.
+
 ### `audit_pipeline.py` and the test programs
 
 `audit_pipeline.py` checks repository and scientific-policy contracts.

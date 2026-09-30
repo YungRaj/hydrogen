@@ -14,6 +14,8 @@ MIN_TRAINING_ROWS = 20
 MIN_RANK_CORRELATION = 0.20
 CLASS_BIAS_WEIGHT = 0.25
 CLASS_BIAS_PRIOR_ROWS = 5
+ORR_INVALIDITY_PENALTY = 0.75
+ORR_UNCERTAINTY_BONUS = 0.25
 
 
 @dataclass(frozen=True)
@@ -140,14 +142,18 @@ class TreeRanker:
                 total_sq += member * member
         count = len(self.model.estimators_)
         mean = total / count
+        if total_sq is None:
+            uncertainty_values = np.zeros(len(x), dtype=float)
+        else:
+            variance = np.maximum(0.0, total_sq / count - mean * mean)
+            uncertainty_values = np.sqrt(variance)
         mean += CLASS_BIAS_WEIGHT * np.asarray(
             [self.class_bias.get(str(genome[0]), 0.0) for genome in genomes]
         )
-        if total_sq is None:
-            return mean, np.zeros(len(x), dtype=float)
-        # Streaming moments avoid a (batch x trees) allocation in every shard.
-        variance = np.maximum(0.0, total_sq / count - mean * mean)
-        return mean, np.sqrt(variance)
+        # Class calibration shifts every tree equally and therefore cannot
+        # change ensemble variance. Streaming moments avoid a batch-by-tree
+        # allocation in every shard.
+        return mean, uncertainty_values
 
 
 def fit_tree_ranker(
@@ -351,3 +357,37 @@ def orr_tree_objectives(genomes, ranker: TreeRanker) -> np.ndarray:
         if pemfc_cathode_scope(genome)["status"] != "candidate":
             objectives[i] = [5.0, 0.0, 100.0, 0.0]
     return objectives
+
+
+def orr_catalyst_acquisition(
+    predicted_overpotential: np.ndarray,
+    uncertainty: np.ndarray,
+    validity_probability: np.ndarray,
+) -> np.ndarray:
+    """Score ORR candidates by quality, validity, and bounded exploration.
+
+    Higher values are preferred. Coefficients are fixed in volts and preserve
+    every historical v2-v8 hit count while improving the first unified batch.
+
+    Args:
+        predicted_overpotential: Predicted ORR overpotential in volts.
+        uncertainty: Ensemble standard deviation in volts.
+        validity_probability: Probability that screening will produce a valid result.
+
+    Returns:
+        One finite acquisition score per candidate; higher values rank first.
+    """
+    predicted = np.asarray(predicted_overpotential, dtype=float)
+    spread = np.asarray(uncertainty, dtype=float)
+    validity = np.asarray(validity_probability, dtype=float)
+    if predicted.shape != spread.shape or predicted.shape != validity.shape:
+        raise ValueError("ORR acquisition inputs must have identical shapes")
+    if np.any(~np.isfinite(predicted)) or np.any(~np.isfinite(spread)):
+        raise ValueError("ORR acquisition inputs must be finite")
+    if np.any((validity < 0.0) | (validity > 1.0)):
+        raise ValueError("ORR validity probabilities must be in [0, 1]")
+    return (
+        -predicted
+        - ORR_INVALIDITY_PENALTY * (1.0 - validity)
+        + ORR_UNCERTAINTY_BONUS * spread
+    )

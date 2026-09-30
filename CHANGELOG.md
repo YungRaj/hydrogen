@@ -45,6 +45,12 @@
 
 ### Changed
 
+- ORR prospective acquisition now combines predicted overpotential with a
+  bounded invalidity penalty and uncertainty bonus. The challenger preserves
+  every v2-v8 hit count and improves the completed unified batch from five to
+  six retrospective hits; a new locked batch remains required for prospective
+  acceptance. Ensemble variance is now calculated before class-bias shifts.
+
 - Collapsed version-specific pilot control flow into one append-only prospective
   campaign. Historical v2-v8 artifacts remain checksum-indexed read-only
   evidence; future batch IDs share one policy, manifest schema, outcome ledger,

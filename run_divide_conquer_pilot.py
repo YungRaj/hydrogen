@@ -94,7 +94,12 @@ def prepare(batch: str, per_class: int = 4, extra_slots: int = 6) -> Path:
     """
     from dataclasses import asdict
     from sklearn.ensemble import ExtraTreesClassifier
-    from pipeline.screening.small_data_ranker import fit_tree_ranker, orr_tree_objectives, turquoise_tree_objectives
+    from pipeline.screening.small_data_ranker import (
+        fit_tree_ranker,
+        orr_catalyst_acquisition,
+        orr_tree_objectives,
+        turquoise_tree_objectives,
+    )
     root, manifest = _root(batch), _root(batch) / 'manifest.json'
     if manifest.exists(): raise FileExistsError(manifest)
     if any(_outcome(batch, app).exists() for app, _, _ in APPS): raise RuntimeError('outcomes predate lock')
@@ -112,7 +117,14 @@ def prepare(batch: str, per_class: int = 4, extra_slots: int = 6) -> Path:
         vscore = validity.predict_proba(encode_population(pool))[:, list(validity.classes_).index(1)]
         candidates = [pool[i] for i in eligible]
         budget = min(len(candidates), len({g[0] for g in candidates}) + extra_slots)
-        local = {'catalyst': _coverage_select(-obj[eligible,0], candidates, budget),
+        catalyst_score = (
+            -obj[eligible, 0]
+            if app == 'turquoise_hydrogen'
+            else orr_catalyst_acquisition(
+                obj[eligible, 0], uncertainty[eligible], vscore[eligible]
+            )
+        )
+        local = {'catalyst': _coverage_select(catalyst_score, candidates, budget),
                  'uncertainty': _coverage_select(uncertainty[eligible], candidates, budget),
                  'validity': _coverage_select(vscore[eligible], candidates, budget)}
         records.append({'application': app, 'training_rows': len(train),
