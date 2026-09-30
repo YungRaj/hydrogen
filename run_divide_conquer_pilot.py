@@ -120,6 +120,7 @@ def prepare(batch: str, per_class: int = 4, extra_slots: int = 6) -> Path:
         fit_tree_ranker,
         orr_catalyst_acquisition,
         orr_tree_objectives,
+        turquoise_catalyst_acquisition,
         turquoise_tree_objectives,
     )
     root, manifest = _root(batch), _root(batch) / 'manifest.json'
@@ -140,7 +141,9 @@ def prepare(batch: str, per_class: int = 4, extra_slots: int = 6) -> Path:
         candidates = [pool[i] for i in eligible]
         budget = min(len(candidates), len({g[0] for g in candidates}) + extra_slots)
         catalyst_score = (
-            -obj[eligible, 0]
+            turquoise_catalyst_acquisition(
+                obj[eligible, 0], vscore[eligible]
+            )
             if app == 'turquoise_hydrogen'
             else orr_catalyst_acquisition(
                 obj[eligible, 0], uncertainty[eligible], vscore[eligible]

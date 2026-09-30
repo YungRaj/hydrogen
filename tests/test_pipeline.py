@@ -1750,6 +1750,22 @@ def test_orr_catalyst_acquisition_is_typed_and_fail_closed():
         raise AssertionError('mismatched ORR acquisition arrays were accepted')
 
 
+def test_turquoise_catalyst_acquisition_penalizes_invalid_candidates():
+    from pipeline.screening.small_data_ranker import turquoise_catalyst_acquisition
+
+    score = turquoise_catalyst_acquisition(
+        np.array([0.5, 0.5]), np.array([1.0, 0.0])
+    )
+    assert score.dtype == float
+    assert np.allclose(score, [-0.5, -1.25])
+    try:
+        turquoise_catalyst_acquisition(np.array([0.5]), np.array([1.2]))
+    except ValueError as exc:
+        assert 'in [0, 1]' in str(exc)
+    else:
+        raise AssertionError('invalid turquoise probability was accepted')
+
+
 def test_prospective_campaign_rejects_mutable_or_unverified_outcomes():
     import hashlib
     import json
@@ -3384,6 +3400,22 @@ if __name__ == '__main__':
     test(
         "Ranker requires held-out classes for secondary claims",
         test_ranker_cannot_validate_without_held_out_material_classes,
+    )
+    test(
+        "ORR acquisition is typed and fail-closed",
+        test_orr_catalyst_acquisition_is_typed_and_fail_closed,
+    )
+    test(
+        "Turquoise acquisition penalizes invalid candidates",
+        test_turquoise_catalyst_acquisition_penalizes_invalid_candidates,
+    )
+    test(
+        "Prospective outcomes are immutable and verified",
+        test_prospective_campaign_rejects_mutable_or_unverified_outcomes,
+    )
+    test(
+        "Prospective analysis requires exact coverage",
+        test_prospective_analysis_requires_exact_candidate_coverage,
     )
     test("Six-point status fails closed", test_six_point_status_fails_closed)
     test("Adaptive validation policy", test_adaptive_validation_policy)

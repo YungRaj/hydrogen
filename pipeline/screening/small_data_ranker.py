@@ -14,7 +14,7 @@ MIN_TRAINING_ROWS = 20
 MIN_RANK_CORRELATION = 0.20
 CLASS_BIAS_WEIGHT = 0.25
 CLASS_BIAS_PRIOR_ROWS = 5
-ORR_INVALIDITY_PENALTY = 0.75
+INVALIDITY_PENALTY = 0.75
 ORR_UNCERTAINTY_BONUS = 0.25
 
 
@@ -388,6 +388,30 @@ def orr_catalyst_acquisition(
         raise ValueError("ORR validity probabilities must be in [0, 1]")
     return (
         -predicted
-        - ORR_INVALIDITY_PENALTY * (1.0 - validity)
+        - INVALIDITY_PENALTY * (1.0 - validity)
         + ORR_UNCERTAINTY_BONUS * spread
     )
+
+
+def turquoise_catalyst_acquisition(
+    predicted_activation_energy: np.ndarray,
+    validity_probability: np.ndarray,
+) -> np.ndarray:
+    """Score low-barrier candidates while penalizing failed evaluations.
+
+    Args:
+        predicted_activation_energy: Predicted activation energy in electronvolts.
+        validity_probability: Probability that screening produces a valid result.
+
+    Returns:
+        One finite acquisition score per candidate; higher values rank first.
+    """
+    predicted = np.asarray(predicted_activation_energy, dtype=float)
+    validity = np.asarray(validity_probability, dtype=float)
+    if predicted.shape != validity.shape:
+        raise ValueError("turquoise acquisition inputs must have identical shapes")
+    if np.any(~np.isfinite(predicted)):
+        raise ValueError("turquoise activation predictions must be finite")
+    if np.any((validity < 0.0) | (validity > 1.0)):
+        raise ValueError("turquoise validity probabilities must be in [0, 1]")
+    return -predicted - INVALIDITY_PENALTY * (1.0 - validity)
