@@ -556,6 +556,37 @@ The pipeline relies on Meta's FAIR Chemistry **eSen (EquiformerV2 Energy-Conserv
 
 ## Usage
 
+### Campaign qualification (seconds, no scientific solver launch)
+
+Before spending a campaign budget, run the fail-closed qualification harness:
+
+```bash
+conda run -n fairchem-env python -m pipeline.evidence.campaign_qualification \
+  --mode thermocatalytic_pfr \
+  --output results/campaign_qualification.json
+```
+
+It checks all 14 design-space classes, deterministic candidate identities,
+unsafe and malformed negative controls, mode/reactor routing, required solver
+availability, isolated task-queue recovery, interrupted-versus-uninterrupted
+indexed-search equivalence, and exact typed-cache reuse/invalidation. If an
+existing screening table is supplied with `--candidate-table`, it also checks
+required columns, candidate ID uniqueness, and recognized material classes.
+PFR needs no external case manifest. Modes containing Fluidized, MMBCR, NTEC,
+or Electrochemical reactors fail closed unless `--case-manifest` supplies
+completed, identity-checked physical cases covering every required reactor.
+The host gate also requires a writable results directory, at least 10 GB free
+by default, and one or more NVIDIA devices visible through `nvidia-smi`; adjust
+only the storage floor with `--minimum-free-disk-gb` when qualifying a smaller
+bounded run.
+Analytical canaries verify Arrhenius temperature/barrier monotonicity, the ideal
+ORR computational-hydrogen-electrode identity, and exact inert-tracer methane
+conversion. It does not run eSEN, Cantera, QE, CUDA-Q, OpenFOAM, or FEniCSx
+calculations. Exit code `0` means the bounded campaign is operationally
+qualified; exit code `2` identifies a blocking preflight failure. This is
+permission to begin a canary campaign, not evidence that any catalyst is
+scientifically validated.
+
 ### Quick Test (5 min)
 
 ```bash

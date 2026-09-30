@@ -83,6 +83,85 @@ def test_candidate_file_adapter_preserves_distinct_reactor_and_validation_routes
     assert 'hazard' not in validation_ids
 
 
+def test_campaign_qualification_is_fast_fail_closed_and_environment_injectable():
+    from pipeline.evidence.campaign_qualification import HostResources, qualify_campaign
+
+    available = lambda mode: {'missing': [], 'mode': mode}
+    resources = lambda path: HostResources(True, 100.0, 3)
+    report = qualify_campaign(
+        mode='thermocatalytic_pfr',
+        samples_per_class=64,
+        preflight=available,
+        resource_probe=resources,
+    )
+    assert report.ready
+    assert all(check.passed for check in report.checks if check.blocking)
+
+    missing = lambda mode: {'missing': ['cantera'], 'mode': mode}
+    blocked = qualify_campaign(
+        mode='thermocatalytic_pfr',
+        samples_per_class=64,
+        preflight=missing,
+        resource_probe=resources,
+    )
+    assert not blocked.ready
+    solver = next(check for check in blocked.checks if check.name == 'solver_preflight')
+    assert solver.blocking and not solver.passed
+
+    missing_case = qualify_campaign(
+        mode='ntec',
+        samples_per_class=64,
+        preflight=available,
+        resource_probe=resources,
+    )
+    assert not missing_case.ready
+    physical = next(
+        check for check in missing_case.checks if check.name == 'physical_case_inputs'
+    )
+    assert physical.blocking and not physical.passed
+
+    no_gpu = qualify_campaign(
+        mode='thermocatalytic_pfr',
+        samples_per_class=64,
+        preflight=available,
+        resource_probe=lambda path: HostResources(True, 100.0, 0),
+    )
+    assert not no_gpu.ready
+    host = next(check for check in no_gpu.checks if check.name == 'host_resources')
+    assert host.blocking and not host.passed
+
+    invalid_mode = qualify_campaign(
+        mode='not-a-mode',
+        samples_per_class=64,
+        preflight=lambda mode: (_ for _ in ()).throw(RuntimeError('bad preflight')),
+        resource_probe=resources,
+    )
+    assert not invalid_mode.ready
+    failed = {check.name for check in invalid_mode.checks if not check.passed}
+    assert {'reactor_routing', 'solver_preflight', 'physical_case_inputs'} <= failed
+
+    with tempfile.TemporaryDirectory() as temporary:
+        table = Path(temporary) / 'candidates.csv'
+        table.write_text('candidate_id,material_class\ncanonical-1,SAC\n')
+        typed_table = qualify_campaign(
+            mode='thermocatalytic_pfr',
+            candidate_table=table,
+            samples_per_class=64,
+            preflight=available,
+            resource_probe=resources,
+        )
+        assert typed_table.ready
+        table.write_text('candidate_id,material_class\ncanonical-1,SAC,extra\n')
+        malformed_table = qualify_campaign(
+            mode='thermocatalytic_pfr',
+            candidate_table=table,
+            samples_per_class=64,
+            preflight=available,
+            resource_probe=resources,
+        )
+        assert not malformed_table.ready
+
+
 def test_typed_contracts_preserve_runtime_compatibility_and_fail_early():
     """Typed boundaries must retain mappings while rejecting bad config."""
     from dataclasses import FrozenInstanceError

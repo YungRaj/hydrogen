@@ -1235,6 +1235,18 @@ def test_candidate_ids_are_canonical():
     assert candidate_id(perovskite_a) == candidate_id(perovskite_b)
 
 
+def test_screening_rows_preserve_canonical_identity():
+    from pipeline.screening.gpu_executor import ScreeningIdentity
+    from pipeline.search.discovery import candidate_id
+
+    genome = ('SAC', 'Fe', 'N4', 'N-graphene', 'OH')
+    identity = ScreeningIdentity.from_genome(genome)
+
+    assert identity.candidate_id == candidate_id(genome)
+    assert identity.encoded_genome == str(genome)
+    assert identity.material_class == 'SAC'
+
+
 def test_screening_cache_uses_typed_scalar_storage():
     import sqlite3
     import tempfile
@@ -3460,6 +3472,10 @@ if __name__ == '__main__':
         test_discovery_batch_prioritizes_unseen_regions,
     )
     test("Canonical candidate IDs", test_candidate_ids_are_canonical)
+    test(
+        "Screening rows preserve canonical identity",
+        test_screening_rows_preserve_canonical_identity,
+    )
     test(
         "Screening cache uses typed scalar storage",
         test_screening_cache_uses_typed_scalar_storage,

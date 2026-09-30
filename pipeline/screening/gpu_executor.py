@@ -5,6 +5,7 @@ from __future__ import annotations
 import multiprocessing as mp
 import os
 import time
+from collections.abc import MutableMapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Sequence
@@ -26,6 +27,40 @@ class ScreeningRunSpec:
     progress_noun: str = 'candidates'
     protocol_id: str | None = None
     cache_path: Path | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ScreeningIdentity:
+    """Stable typed identity attached at the screening persistence boundary."""
+
+    candidate_id: str
+    encoded_genome: str
+    material_class: str
+
+    @classmethod
+    def from_genome(cls, genome: tuple) -> ScreeningIdentity:
+        """Build identity from one canonical candidate genome.
+
+        Args:
+            genome: Canonical encoded catalyst candidate.
+
+        Returns:
+            Immutable identity ready for attachment to an external table row.
+        """
+        from pipeline.search.discovery import candidate_id
+
+        return cls(candidate_id(genome), str(genome), str(genome[0]))
+
+
+def _attach_identity(
+    row: MutableMapping[str, object], genome: tuple, *, cache_hit: bool
+) -> None:
+    """Populate the legacy pandas-row adapter from a typed identity."""
+    identity = ScreeningIdentity.from_genome(genome)
+    row['candidate_id'] = identity.candidate_id
+    row['genome'] = identity.encoded_genome
+    row['material_class'] = identity.material_class
+    row['cache_hit'] = cache_hit
 
 
 def execution_layout(
@@ -201,9 +236,7 @@ def run_gpu_screening(
         rows = []
         for index, genome in enumerate(requested):
             row = dict(cached[index])
-            row['genome'] = str(genome)
-            row['material_class'] = genome[0]
-            row['cache_hit'] = True
+            _attach_identity(row, genome, cache_hit=True)
             rows.append(row)
         frame = pd.DataFrame(rows)
         path = save_screening_db(frame, db_filename, subdir=spec.output_subdir)
@@ -315,13 +348,13 @@ def run_gpu_screening(
     rows = []
     for index, genome in enumerate(requested):
         if index in cached:
-            row = dict(cached[index])
-            row['cache_hit'] = True
+            result = cached[index]
+            cache_hit = True
         else:
-            row = dict(computed[candidate_id(genome)])
-            row['cache_hit'] = False
-        row['genome'] = str(genome)
-        row['material_class'] = genome[0]
+            result = computed[candidate_id(genome)]
+            cache_hit = False
+        row = dict(result)
+        _attach_identity(row, genome, cache_hit=cache_hit)
         rows.append(row)
     frame = pd.DataFrame(rows)
     path = save_screening_db(frame, db_filename, subdir=spec.output_subdir)
