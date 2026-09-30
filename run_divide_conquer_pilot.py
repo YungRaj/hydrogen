@@ -171,7 +171,8 @@ def analyze(batch: str) -> Path:
         frame=pd.read_csv(_outcome(batch,app)); values={}; genomes={}
         for _,row in frame.iterrows():
             genome=ast.literal_eval(row.genome); identity=candidate_id(genome); genomes[identity]=genome
-            valid=bool(row.valid) and np.isfinite(float(row[column])); value=float(row[column]) if valid else None
+            valid: bool = bool(row.valid) and bool(np.isfinite(float(row[column])))
+            value = float(row[column]) if valid else None
             if valid: values[identity]=value
             observations.append({'batch_id':batch,'application':app,'candidate_id':identity,'valid':valid,'outcome':value})
         cutoff=float(np.quantile(list(values.values()),.2))
@@ -186,9 +187,12 @@ def analyze(batch: str) -> Path:
         upper=float(np.quantile(random,.975)); passed=policy['catalyst']>policy['uncertainty'] and policy['catalyst']>policy['validity'] and policy['catalyst']>upper
         results.append({'application':app,'eligible':len(record['eligible_ids']),'valid':len(values),'budget':record['budget'],'hit_cutoff':cutoff,'policy_hits':policy,'policy_matched_random_mean_hits':float(np.mean(random)),'policy_matched_random_95pct':[float(np.quantile(random,.025)),upper],'acceptance_passed':bool(passed)})
     report={'schema_version':1,'batch_id':batch,'manifest_sha256':_hash(manifest),'outcome_sha256':{app:_hash(_outcome(batch,app)) for app,_,_ in APPS},'results':results,'acceptance_passed':all(x['acceptance_passed'] for x in results)}
+    serialized_observations = ''.join(
+        json.dumps(row, sort_keys=True) + '\n' for row in observations
+    )
     target.write_text(json.dumps(report,indent=2)+'\n')
     with (ROOT/'outcomes.jsonl').open('a') as f:
-        for row in observations:f.write(json.dumps(row,sort_keys=True)+'\n')
+        f.write(serialized_observations)
     reports=[json.loads(path.read_text()) for path in sorted(ROOT.glob('batches/*/analysis.json'))]
     (ROOT/'analysis.json').write_text(json.dumps({'schema_version':1,'batches':[x['batch_id'] for x in reports],'batches_passed':sum(x['acceptance_passed'] for x in reports),'latest':reports[-1]},indent=2)+'\n')
     return target

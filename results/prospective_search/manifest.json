@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "campaign": "prospective_catalyst_search",
+  "append_only": true,
+  "historical_evidence": "docs/evidence/legacy_pilot_rounds.jsonl"
+}
