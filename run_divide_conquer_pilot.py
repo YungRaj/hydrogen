@@ -640,7 +640,22 @@ def analyze() -> None:
             and all(row["prospective_acceptance_passed"] for row in results)
         ),
     }
-    output = {"results": results, "combined": combined}
+    source_artifacts = {
+        "manifest": MANIFEST,
+        "turquoise_hydrogen_outcomes": paths["turquoise_hydrogen"],
+        "fuel_cell_orr_outcomes": paths["fuel_cell_orr"],
+    }
+    output = {
+        "schema_version": 2,
+        "locked_git_commit": payload.get("git_commit"),
+        "source_sha256": {
+            name: hashlib.sha256(path.read_bytes()).hexdigest()
+            for name, path in source_artifacts.items()
+        },
+        "acceptance": payload.get("acceptance"),
+        "results": results,
+        "combined": combined,
+    }
     path = ROOT / "analysis.json"
     path.write_text(json.dumps(output, indent=2) + "\n")
     print(json.dumps(output, indent=2))

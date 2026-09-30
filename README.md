@@ -160,6 +160,14 @@ chronological benchmark found 62 catalyst-guided hits, versus 43 for uncertainty
 41 for validity, and a random-sampling 97.5% bound of 53 at equal budgets. See
 [`docs/evidence/search_policy_benchmark.json`](docs/evidence/search_policy_benchmark.json).
 
+The subsequently preregistered prospective v8 round did **not** pass that
+acceptance bar: catalyst guidance found 7 combined hits, versus 6 for
+uncertainty, 7 for validity, and a policy-matched random 97.5% bound of 9.
+Pyrolysis underperformed validity, while ORR beat both ranked controls but only
+tied the random upper bound. Catalyst guidance remains the production policy,
+but the retrospective enrichment is not prospective proof and further policy
+changes require a newly locked round rather than tuning against v8.
+
 ## Current Reactor-Mode Readiness
 
 The repository distinguishes executable software from scientifically validated

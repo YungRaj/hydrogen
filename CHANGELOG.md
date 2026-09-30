@@ -73,6 +73,12 @@
 
 ### Validation
 
+- The preregistered prospective v8 search-policy holdout completed on 56
+  pyrolysis and 48 in-scope ORR candidates. It failed its locked acceptance
+  rule: catalyst guidance produced 7 combined hits versus 6 uncertainty, 7
+  validity, and a policy-matched random 97.5% bound of 9. The negative result
+  and raw outcomes are retained; no post-outcome tuning is reported as proof.
+
 - 74 pipeline tests, 42 scientific contracts, and 24 exclusion-audit checks
   pass locally (six contracts require QE pseudopotentials, `fairchem`, or
   OpenFOAM on the host).

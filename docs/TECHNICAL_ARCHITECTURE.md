@@ -1748,6 +1748,13 @@ ranking. The tracked result in `docs/evidence/search_policy_benchmark.json`
 records 62 catalyst-guided hits versus 43 uncertainty, 41 validity, and a random
 97.5% bound of 53. Both applications and the combined result must pass.
 
+The preregistered prospective v8 holdout did not pass: catalyst guidance found
+7 combined hits, uncertainty 6, validity 7, and the policy-matched random 97.5%
+bound was 9. Pyrolysis was 2/2/4 and ORR was 5/4/3 respectively; ORR tied its
+random upper bound of 5 rather than exceeding it. This negative result is
+retained with the locked manifest and raw outcome tables. It prevents the
+retrospective benchmark from being described as prospective validation.
+
 ### 17.4 Hash-verified evidence manifest
 
 `pipeline/evidence/manifest.py` requires each evidence record to name a

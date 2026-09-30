@@ -1,0 +1,114 @@
+{
+  "schema_version": 2,
+  "locked_git_commit": "b21cd31b83f3c6635cc0e99866cd2013ccb37ab7",
+  "source_sha256": {
+    "manifest": "30fce5d99274b2ff90fd71a98b17fdc0e2a1c568fc5186043260f320bbf3f91d",
+    "turquoise_hydrogen_outcomes": "2f1f142df9fb9c68087538240569d155f5e5367f70d6ff8c1412024a0f3a5c40",
+    "fuel_cell_orr_outcomes": "86dc49bcfd013a1a077d5620c63bc64816cf8f2225a827185809059d6246e244"
+  },
+  "acceptance": {
+    "hit_definition": "valid candidate in best 20% of its locked pool",
+    "equal_budget_required": true,
+    "class_floor_required": true,
+    "catalyst_must_beat": [
+      "uncertainty",
+      "validity",
+      "policy_matched_random_97_5pct"
+    ],
+    "required_independently_for_each_application": true
+  },
+  "results": [
+    {
+      "application": "turquoise_hydrogen",
+      "pool": 56,
+      "valid": 44,
+      "budget": 20,
+      "hit_cutoff": 0.02347778129578959,
+      "hits": 2,
+      "hit_rate": 0.1,
+      "policy_hits": {
+        "catalyst": 2,
+        "uncertainty": 2,
+        "validity": 4
+      },
+      "prospective_acceptance_passed": false,
+      "random_mean_hits": 3.21616,
+      "random_mean_hit_rate": 0.160808,
+      "random_hits_95pct": [
+        1.0,
+        6.0
+      ],
+      "coverage_matched_random_mean_hits": 2.66856,
+      "coverage_matched_random_95pct": [
+        0.0,
+        5.0
+      ],
+      "enrichment_vs_coverage_matched_random": 0.7494678778067573,
+      "beats_coverage_matched_random_95pct": false,
+      "enrichment_vs_random": 0.6218596089746778,
+      "beats_random_95pct": false,
+      "spearman_rank_correlation": 0.2924713207908173,
+      "unique_outcomes": 36,
+      "largest_tie": 9,
+      "primary_only_diagnostic_hits": 3,
+      "primary_only_diagnostic_enrichment": 0.9327894134620167
+    },
+    {
+      "application": "fuel_cell_orr",
+      "pool": 48,
+      "valid": 39,
+      "budget": 18,
+      "hit_cutoff": 1.2668378656506665,
+      "hits": 5,
+      "hit_rate": 0.2777777777777778,
+      "policy_hits": {
+        "catalyst": 5,
+        "uncertainty": 4,
+        "validity": 3
+      },
+      "prospective_acceptance_passed": false,
+      "random_mean_hits": 2.9951,
+      "random_mean_hit_rate": 0.16639444444444443,
+      "random_hits_95pct": [
+        1.0,
+        5.0
+      ],
+      "coverage_matched_random_mean_hits": 3.00056,
+      "coverage_matched_random_95pct": [
+        1.0,
+        5.0
+      ],
+      "enrichment_vs_coverage_matched_random": 1.6663556136187911,
+      "beats_coverage_matched_random_95pct": false,
+      "enrichment_vs_random": 1.6693933424593506,
+      "beats_random_95pct": false,
+      "spearman_rank_correlation": 0.5109312100849608,
+      "unique_outcomes": 21,
+      "largest_tie": 19,
+      "primary_only_diagnostic_hits": 6,
+      "primary_only_diagnostic_enrichment": 2.0032720109512203
+    }
+  ],
+  "combined": {
+    "selected": 38,
+    "hits": 7,
+    "hit_rate": 0.18421052631578946,
+    "random_mean_hits": 6.21126,
+    "random_hits_95pct": [
+      3.0,
+      10.0
+    ],
+    "enrichment_vs_random": 1.1269855069663803,
+    "beats_random_95pct": false,
+    "policy_hits": {
+      "catalyst": 7,
+      "uncertainty": 6,
+      "validity": 7
+    },
+    "coverage_matched_random_95pct": [
+      2.0,
+      9.0
+    ],
+    "prospective_acceptance_passed": false
+  }
+}
