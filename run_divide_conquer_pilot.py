@@ -9,13 +9,14 @@ import hashlib
 import json
 import math
 import os
+from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-from pipeline.search.scope import pemfc_cathode_scope
+from pipeline.search.scope import is_validation_quota_class, pemfc_cathode_scope
 from pipeline.search.branch_search import _probe_indices
 from pipeline.search.design_space import encode_population
 from pipeline.search.discovery import candidate_id
@@ -122,7 +123,35 @@ def prepare(per_class: int = 4, extra_slots: int = 6) -> None:
         torch.manual_seed(20260720)
         np.random.seed(20260720)
         training = _training_frame(application)
-        if ROUND != "v2":
+        ranker_diagnostics = None
+        if ROUND not in ("v2", "v3", "v4"):
+            from pipeline.screening.small_data_ranker import (
+                fit_tree_ranker,
+                orr_tree_objectives,
+                turquoise_tree_objectives,
+            )
+
+            eligible = (
+                list(range(len(pool)))
+                if application == "turquoise_hydrogen"
+                else [
+                    i
+                    for i, genome in enumerate(pool)
+                    if pemfc_cathode_scope(genome)["status"] == "candidate"
+                ]
+            )
+            model = fit_tree_ranker(training, application)
+            objectives = (
+                turquoise_tree_objectives(pool, model)
+                if application == "turquoise_hydrogen"
+                else orr_tree_objectives(pool, model)
+            )
+            _, uncertainty = model.predict(pool)
+            ranker_diagnostics = asdict(model.diagnostics)
+            ranker_diagnostics["acquisition_mode"] = (
+                model.diagnostics.acquisition_mode
+            )
+        elif ROUND != "v2":
             from sklearn.ensemble import ExtraTreesRegressor
 
             outcome = (
@@ -226,8 +255,13 @@ def prepare(per_class: int = 4, extra_slots: int = 6) -> None:
 
         candidates = [pool[i] for i in eligible]
         classes = {g[0] for g in candidates}
+        quota_classes = sorted(
+            material_class
+            for material_class in classes
+            if is_validation_quota_class(material_class, application)
+        )
         budget = min(len(candidates), len(classes) + extra_slots)
-        if ROUND == "v2":
+        if ROUND == "v2" or ROUND not in ("v2", "v3", "v4"):
             eligible_objectives = objectives[eligible]
             eligible_uncertainty = uncertainty[eligible]
             local_selected = allocate_validation_batch(
@@ -273,21 +307,29 @@ def prepare(per_class: int = 4, extra_slots: int = 6) -> None:
                 "candidate_ids": ids,
                 "eligible_ids": [ids[i] for i in eligible],
                 "budget": budget,
+                "quota_classes": quota_classes,
                 "selected_ids": [ids[i] for i in selected],
                 "coverage_validation_ids": [ids[i] for i in coverage_selected],
                 "primary_scores": {ids[i]: float(objectives[i, 0]) for i in eligible},
                 "uncertainties": {ids[i]: float(uncertainty[i]) for i in eligible},
+                "ranker_diagnostics": ranker_diagnostics,
                 "random_seed": 20260720,
                 "random_trials": 50_000,
             }
         )
         del model
         torch.cuda.empty_cache()
-    selector = (
-        "class-floor + improvement + uncertainty + calibration"
-        if ROUND == "v2"
-        else "deterministic small-data tree ranking; separate class calibration slate"
-    )
+    if ROUND == "v2":
+        selector = "class-floor + improvement + uncertainty + calibration"
+    elif ROUND in ("v3", "v4"):
+        selector = (
+            "deterministic small-data tree ranking; separate class calibration slate"
+        )
+    else:
+        selector = (
+            "production small-data ranker with held-out-class reliability gate, "
+            "class floor, and fail-closed uncertainty exploration"
+        )
     payload = {
         "schema_version": 1,
         "locked_before_outcomes": True,
@@ -384,8 +426,11 @@ def analyze() -> None:
         genome_by_id = dict(
             zip(record["candidate_ids"], map(ast.literal_eval, record["pool"]))
         )
+        quota_classes = set(record["quota_classes"])
         for cid in eligible:
-            by_class.setdefault(genome_by_id[cid][0], []).append(cid)
+            material_class = genome_by_id[cid][0]
+            if material_class in quota_classes:
+                by_class.setdefault(material_class, []).append(cid)
         matched_random_hits = []
         for _ in range(record["random_trials"]):
             chosen = [
