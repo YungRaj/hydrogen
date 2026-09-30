@@ -208,15 +208,3 @@ def reactor_applicability(
             f'{material_class}_is_not_compatible_with_{spec.bed_or_interface}'
         )
     return True, None
-
-
-def is_ntec_mode(mode: str | None) -> bool:
-    """Return whether a pathway selects NTEC physics.
-
-    Args:
-        mode: Configured methane-conversion pathway.
-
-    Returns:
-        True when the stated condition holds; otherwise False.
-    """
-    return resolve_pathway_mode(mode).name == 'ntec'

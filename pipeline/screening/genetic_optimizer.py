@@ -2,12 +2,10 @@
 # Turquoise-hydrogen objectives and branch-search orchestration.
 """Turquoise-hydrogen objectives and catalyst-guided branch discovery.
 
-The Pareto helpers remain part of objective and archive selection. Genetic and
-random candidate generation are retired; the compatibility entry point below
-fails explicitly instead of retaining an unreachable implementation.
+The Pareto helper remains part of archive selection. Candidate generation is
+handled exclusively by catalyst-guided branch discovery.
 """
 
-import os
 import numpy as np
 import pandas as pd
 from typing import List, Optional
@@ -17,16 +15,7 @@ from pipeline.utils import (
     setup_logger,
     save_screening_db,
     load_screening_db,
-    abundance_cost_penalty,
     SCREENING_DIR,
-)
-from pipeline.search.design_space import (
-    encode_population,
-)
-from pipeline.screening.surrogate_model import (
-    predict_batch,
-    SurrogateEnsemble,
-    predict_ensemble,
 )
 from pipeline.search.discovery import (
     add_discovery_metadata,
@@ -37,26 +26,15 @@ logger = setup_logger('genetic_optimizer', 'screening/genetic_optimizer.log')
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# NSGA-II IMPLEMENTATION
+# PARETO ARCHIVE SELECTION
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-def dominates(obj_a: np.ndarray, obj_b: np.ndarray) -> bool:
-    """Return True if solution a dominates solution b (all ≤, at least one <).
-
-    Args:
-        obj_a: Obj a used by this operation.
-        obj_b: Obj b used by this operation.
-
-    Returns:
-        True when the documented condition holds; otherwise False.
-    """
-    return np.all(obj_a <= obj_b) and np.any(obj_a < obj_b)
 
 
 def fast_non_dominated_sort(objectives: np.ndarray) -> List[List[int]]:
     """
-        NSGA-II fast non-dominated sort using vectorized Pareto front extraction.
+        Fast non-dominated sort using vectorized Pareto-front extraction.
 
     Args:
         objectives: Objectives used by this operation.
@@ -87,171 +65,11 @@ def fast_non_dominated_sort(objectives: np.ndarray) -> List[List[int]]:
     return fronts
 
 
-def crowding_distance(objectives: np.ndarray, front: List[int]) -> np.ndarray:
-    """
-        Compute crowding distance for individuals in a front.
-        Used to maintain diversity on the Pareto front.
-
-    Args:
-        objectives: Objectives used by this operation.
-        front: Ordered values supplying front.
-
-    Returns:
-        Computed `np.ndarray` result.
-    """
-    n = len(front)
-    if n <= 2:
-        return np.full(n, np.inf)
-
-    distances = np.zeros(n)
-    m = objectives.shape[1]
-
-    for k in range(m):
-        obj_vals = objectives[front, k]
-        sorted_idx = np.argsort(obj_vals)
-        distances[sorted_idx[0]] = np.inf
-        distances[sorted_idx[-1]] = np.inf
-
-        obj_range = obj_vals[sorted_idx[-1]] - obj_vals[sorted_idx[0]]
-        if obj_range < 1e-12:
-            continue
-
-        for i in range(1, n - 1):
-            distances[sorted_idx[i]] += (
-                obj_vals[sorted_idx[i + 1]] - obj_vals[sorted_idx[i - 1]]
-            ) / obj_range
-
-    return distances
-
-
-def nsga2_select(
-    population: List[tuple], objectives: np.ndarray, n_select: int
-) -> List[int]:
-    """
-        NSGA-II selection: prefer lower rank, then higher crowding distance.
-        Returns indices of selected individuals.
-
-    Args:
-        population: Ordered values supplying population.
-        objectives: Objectives used by this operation.
-        n_select: Number of select to use.
-
-    Returns:
-        List of computed or validated records.
-    """
-    fronts = fast_non_dominated_sort(objectives)
-    selected = []
-
-    for front in fronts:
-        if len(selected) + len(front) <= n_select:
-            selected.extend(front)
-        else:
-            # Need partial front: select by crowding distance
-            cd = crowding_distance(objectives, front)
-            sorted_by_cd = sorted(range(len(front)), key=lambda i: -cd[i])
-            remaining = n_select - len(selected)
-            for i in sorted_by_cd[:remaining]:
-                selected.append(front[i])
-            break
-
-    return selected
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # OBJECTIVE COMPUTATION
 # ═══════════════════════════════════════════════════════════════════════════════
-
-
-def compute_objectives_surrogate(
-    population: List[tuple], model: object, device: str = 'cuda:0'
-) -> np.ndarray:
-    """
-        Compute 4 objectives using the surrogate model or surrogate ensemble.
-        All objectives are MINIMIZED (negate what should be maximized).
-
-        If model is a SurrogateEnsemble, uses LCB (for E_act and segregation energy)
-        and UCB (for coking resistance index) with kappa = 1.0 to drive active learning.
-
-        E_act is scaled by OOD confidence penalty to discount predictions
-        from material classes outside the eSen-SM training distribution.
-
-        Returns: (N, 4) array
-
-    Args:
-        population: Ordered values supplying population.
-        model: Fitted model used for inference.
-        device: CPU or GPU device requested for execution.
-    """
-    from pipeline.screening.ood import compute_model_confidence, confidence_penalty
-
-    X = encode_population(population)
-
-    if isinstance(model, SurrogateEnsemble):
-        preds = predict_ensemble(model, X, device=device)
-        kappa = 1.0
-        e_act_pred = preds['E_act'] - kappa * preds['E_act_std']
-        coking_pred = preds['coking_index'] + kappa * preds['coking_index_std']
-        seg_pred = preds['segregation_energy'] - kappa * preds['segregation_energy_std']
-        valid_prob = preds['valid_prob']
-    else:
-        preds = predict_batch(model, X, device=device)
-        e_act_pred = preds['E_act']
-        coking_pred = preds['coking_index']
-        seg_pred = preds['segregation_energy']
-        valid_prob = preds['valid_prob']
-
-    # Objective 1: E_act (minimize) × confidence penalty
-    obj1 = e_act_pred.copy()
-
-    # Objective 2: Coking resistance (maximize → negate for minimization).
-    # Neutralize for classes with no slab (e.g. MoltenMetal).
-    from pipeline.search.scope import slab_coking_index_scope
-
-    coking = coking_pred.copy()
-    py_mode = os.environ.get('PYROLYSIS_MODE', 'thermocatalytic')
-    if py_mode == 'ntec':
-        from pipeline.electrochemistry.ntec import (
-            conditions_from_environment,
-            ntec_assistance,
-        )
-
-        assistance = ntec_assistance(conditions_from_environment())
-        for i, g in enumerate(population):
-            if slab_coking_index_scope(g)['status'] != 'candidate':
-                continue
-            if any(
-                e in {'Ga', 'In', 'Sn', 'Bi'} for e in _extract_elements_from_genome(g)
-            ):
-                coking[i] += assistance['coking_bonus']
-    obj2 = -coking
-    for i, g in enumerate(population):
-        if slab_coking_index_scope(g)['status'] == 'out_of_scope':
-            obj2[i] = 0.0
-
-    # Objective 3: Stability (minimize segregation energy — more negative = more stable)
-    obj3 = seg_pred.copy()  # already: negative = good
-
-    # Objective 4: Material cost (minimize)
-    cost_penalties = np.array(
-        [abundance_cost_penalty(_extract_elements_from_genome(g)) for g in population]
-    )
-    obj4 = (
-        -cost_penalties
-    )  # abundance_cost_penalty returns [-2, 0]; negate so abundant → small
-
-    # Apply OOD confidence penalty to E_act
-    for i, g in enumerate(population):
-        elements = _extract_elements_from_genome(g)
-        conf = compute_model_confidence(g, elements)
-        obj1[i] += confidence_penalty(conf)  # additive OOD penalty
-
-    objectives = np.column_stack([obj1, obj2, obj3, obj4])
-
-    # Penalty for invalid candidates (push them to worst-case objectives)
-    invalid_mask = valid_prob < 0.5
-    objectives[invalid_mask] = [5.0, 0.0, 1.0, 3.0]  # worst-case values
-
-    return objectives
 
 
 def _extract_elements_from_genome(genome: tuple) -> List[str]:
@@ -504,13 +322,3 @@ def run_branch_discovery(
     )
     evidence.attrs['experimental_slate'] = [archive[i] for i in slate_idx]
     return champions, add_discovery_metadata(evidence)
-
-
-def run_genetic_algorithm(*_args: object, **_kwargs: object) -> None:
-    """Reject the retired genetic-search entry point.
-
-    Catalyst-guided branch discovery is the only supported candidate search.
-    """
-    raise RuntimeError(
-        "Genetic/random candidate search was retired; use run_branch_discovery()"
-    )

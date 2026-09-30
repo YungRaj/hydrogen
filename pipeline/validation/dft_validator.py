@@ -3,7 +3,7 @@
 """
 Quantum ESPRESSO DFT Validation Pipeline for Methane Pyrolysis Catalysts.
 
-For champion catalysts from the MACE screening / genetic algorithm:
+For champion catalysts from catalyst-guided screening:
   1. Bulk structure optimization (vc-relax)
   2. Slab generation with correct Miller indices
   3. Adsorption energy calculations (H*, CH₃*, C*)
@@ -17,17 +17,14 @@ import os
 import sys
 import json
 import re
-import numpy as np
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional
+from typing import List, Tuple, Optional
 
 from pipeline.data_models.quantum import DFTResult
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from pipeline.utils import (
-    BASE_DIR,
     DFT_DIR,
-    QE_PSEUDO_DIR,
     Ry_to_eV,
     setup_logger,
     print_banner,

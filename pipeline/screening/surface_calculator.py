@@ -25,8 +25,6 @@ import os
 import shlex
 import sys
 import json
-import time
-import logging
 import urllib.request
 import numpy as np
 from pathlib import Path
@@ -34,11 +32,10 @@ from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 
 from ase import Atoms
-from ase.calculators.calculator import Calculator, all_changes
-from ase.io import write as ase_write
+from ase.calculators.calculator import Calculator
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from pipeline.utils import setup_logger, save_json, BASE_DIR
+from pipeline.utils import setup_logger, BASE_DIR
 
 logger = setup_logger('surface_calculator', 'screening/surface_calculator.log')
 
@@ -156,68 +153,6 @@ def lookup_adsorption_energy(
             return float(np.median(energies))
     return None
 
-
-def build_calibration_table(
-    elements: List[str] = None, facets: List[str] = None, adsorbates: List[str] = None
-) -> Dict:
-    """
-        Build a lookup table of known DFT adsorption energies from Catalysis-Hub.
-        Used to calibrate MACE predictions against ground truth.
-
-    Args:
-        elements: Ordered values supplying elements.
-        facets: Ordered values supplying facets.
-        adsorbates: Ordered values supplying adsorbates.
-
-    Returns:
-        Dictionary containing the computed values, status, and supporting metadata.
-    """
-    if elements is None:
-        elements = [
-            'Pt',
-            'Pd',
-            'Ni',
-            'Cu',
-            'Au',
-            'Ag',
-            'Rh',
-            'Ir',
-            'Ru',
-            'Fe',
-            'Co',
-            'Mo',
-            'W',
-            'Re',
-            'Mn',
-            'Ti',
-        ]
-    if facets is None:
-        facets = ['111', '100', '211']
-    if adsorbates is None:
-        adsorbates = ['H', 'OH', 'O', 'CH3', 'C']
-
-    table = {}
-    n_found = 0
-    for elem in elements:
-        for facet in facets:
-            for ads in adsorbates:
-                key = f'{elem}_{facet}_{ads}'
-                e = lookup_adsorption_energy(elem, facet, ads)
-                if e is not None:
-                    table[key] = e
-                    n_found += 1
-                time.sleep(0.1)  # rate limit
-
-    logger.info(f"Calibration table: {n_found} entries from Catalysis-Hub")
-    cache_path = BASE_DIR / 'models' / 'catalysis_hub_calibration.json'
-    cache_path.parent.mkdir(parents=True, exist_ok=True)
-    save_json(table, str(cache_path))
-    return table
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# TIER 2b: EQUIFORMERV2 / eSen (OC20/OC22 surface-trained GNN)
-# ═══════════════════════════════════════════════════════════════════════════════
 
 
 def _ensure_hf_token():
@@ -435,180 +370,7 @@ def get_qe_calculator(atoms: Atoms, config: QEConfig = None) -> Optional[Calcula
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-def evaluate_with_tier(
-    atoms: Atoms, adsorbate: str, tier: int = 1, device: str = 'cuda:0'
-) -> Dict:
-    """
-        Evaluate adsorption energy using the specified fidelity tier.
 
-        Tier 1: MACE-MP-0 (fast, ~2s, bulk-trained)
-        Tier 2: OC20 EquiformerV2 + Catalysis-Hub validation (medium, ~5s, surface-trained)
-        Tier 3: Quantum ESPRESSO DFT (slow, ~hours, gold standard)
-
-        Returns dict with energy, forces, fidelity metadata.
-
-    Args:
-        atoms: Atomic structure consumed by the calculator.
-        adsorbate: Adsorbate used by this operation.
-        tier: Tier used by this operation.
-        device: CPU or GPU device requested for execution.
-
-    Returns:
-        Dictionary containing the computed values, status, and supporting metadata.
-    """
-    result = {'tier': tier, 'adsorbate': adsorbate, 'n_atoms': len(atoms)}
-
-    if tier == 1:
-        calc = get_mace_calculator(device)
-        atoms.calc = calc
-        from ase.optimize import BFGS
-
-        BFGS(atoms, logfile=None).run(fmax=0.08, steps=100)
-        result['energy'] = atoms.get_potential_energy()
-        result['max_force'] = float(abs(atoms.get_forces()).max())
-        result['model'] = 'MACE-MP-0 (bulk)'
-
-    elif tier == 2:
-        # Try OC20 surface model first
-        ocp_calc = get_ocp_calculator(device=device)
-        if ocp_calc is not None:
-            atoms.calc = ocp_calc
-            from ase.optimize import BFGS
-
-            BFGS(atoms, logfile=None).run(fmax=0.05, steps=150)
-            result['energy'] = atoms.get_potential_energy()
-            result['max_force'] = float(abs(atoms.get_forces()).max())
-            result['model'] = 'EquiformerV2 (OC20-surface)'
-        else:
-            # Fall back to MACE + Catalysis-Hub correction
-            calc = get_mace_calculator(device)
-            atoms.calc = calc
-            from ase.optimize import BFGS
-
-            BFGS(atoms, logfile=None).run(fmax=0.08, steps=100)
-            mace_energy = atoms.get_potential_energy()
-
-            # Look up reference from Catalysis-Hub
-            symbols = atoms.get_chemical_symbols()
-            metal = [s for s in set(symbols) if s not in ('H', 'C', 'O', 'N')]
-            if metal:
-                ref_energy = lookup_adsorption_energy(metal[0], '111', adsorbate)
-                if ref_energy is not None:
-                    result['catalysis_hub_ref'] = ref_energy
-                    result['model'] = 'MACE-MP-0 + Catalysis-Hub calibration'
-                else:
-                    result['model'] = 'MACE-MP-0 (no reference found)'
-            else:
-                result['model'] = 'MACE-MP-0 (fallback)'
-
-            result['energy'] = mace_energy
-            result['max_force'] = float(abs(atoms.get_forces()).max())
-
-    elif tier == 3:
-        qe_calc = get_qe_calculator(atoms)
-        if qe_calc is not None:
-            atoms.calc = qe_calc
-            result['energy'] = atoms.get_potential_energy()
-            result['max_force'] = float(abs(atoms.get_forces()).max())
-            result['model'] = 'Quantum ESPRESSO (DFT-PBE)'
-        else:
-            result['error'] = 'QE not available'
-            result['model'] = 'N/A'
-
-    return result
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# CROSS-VALIDATION: Compare MACE vs Catalysis-Hub
-# ═══════════════════════════════════════════════════════════════════════════════
-
-
-def cross_validate_mace(elements: List[str] = None, device: str = 'cuda:0') -> Dict:
-    """
-        Compare MACE-MP-0 predictions against Catalysis-Hub DFT data
-        for known systems. Computes MAE, RMSE, and systematic bias.
-
-        This tells us how much to trust MACE for novel catalysts.
-
-    Args:
-        elements: Ordered values supplying elements.
-        device: CPU or GPU device requested for execution.
-
-    Returns:
-        Dictionary containing the computed values, status, and supporting metadata.
-    """
-    from ase.build import fcc111, add_adsorbate
-    from ase.optimize import BFGS
-
-    if elements is None:
-        elements = ['Pt', 'Pd', 'Ni', 'Cu', 'Au', 'Ag', 'Rh', 'Ru']
-
-    calc = get_mace_calculator(device)
-
-    mace_energies = []
-    dft_energies = []
-    systems = []
-
-    for elem in elements:
-        for ads in ['H', 'O', 'OH']:
-            # MACE prediction
-            slab = fcc111(elem, size=(2, 2, 3), vacuum=10.0)
-            e_clean = slab.copy()
-            e_clean.calc = calc
-            BFGS(e_clean, logfile=None).run(fmax=0.1, steps=50)
-            E_clean = e_clean.get_potential_energy()
-
-            slab_ads = slab.copy()
-            if ads == 'OH':
-                add_adsorbate(slab_ads, 'O', height=1.9, position='ontop')
-                from ase import Atom
-
-                slab_ads.append(
-                    Atom('H', position=slab_ads[-1].position + [0, 0, 0.97])
-                )
-            elif ads == 'O':
-                add_adsorbate(slab_ads, 'O', height=1.7, position='ontop')
-            else:
-                add_adsorbate(slab_ads, ads, height=1.5, position='ontop')
-            slab_ads.calc = calc
-            BFGS(slab_ads, logfile=None).run(fmax=0.1, steps=50)
-            E_ads = slab_ads.get_potential_energy()
-            dE_mace = E_ads - E_clean
-
-            # Catalysis-Hub reference
-            dE_dft = lookup_adsorption_energy(elem, '111', ads)
-
-            if dE_dft is not None:
-                mace_energies.append(dE_mace)
-                dft_energies.append(dE_dft)
-                systems.append(f'{elem}(111)+{ads}*')
-                logger.info(
-                    f"  {elem}(111)+{ads}*: MACE={dE_mace:.3f}, DFT={dE_dft:.3f} eV"
-                )
-
-    if len(mace_energies) > 0:
-        mace_arr = np.array(mace_energies)
-        dft_arr = np.array(dft_energies)
-        errors = mace_arr - dft_arr
-        mae = float(np.mean(np.abs(errors)))
-        rmse = float(np.sqrt(np.mean(errors**2)))
-        bias = float(np.mean(errors))
-
-        result = {
-            'n_comparisons': len(systems),
-            'MAE_eV': round(mae, 4),
-            'RMSE_eV': round(rmse, 4),
-            'systematic_bias_eV': round(bias, 4),
-            'systems': systems,
-            'mace_energies': [round(e, 4) for e in mace_energies],
-            'dft_energies': [round(e, 4) for e in dft_energies],
-        }
-        logger.info(
-            f"MACE vs DFT: MAE={mae:.3f} eV, RMSE={rmse:.3f} eV, bias={bias:.3f} eV"
-        )
-        return result
-
-    return {'error': 'No comparison data available'}
 
 
 if __name__ == '__main__':

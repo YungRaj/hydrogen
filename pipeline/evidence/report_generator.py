@@ -11,18 +11,14 @@ Generates a comprehensive Markdown report with:
   - Techno-economic summary
 """
 
-import os
 import sys
 import json
-import glob
-import numpy as np
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict
 from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from pipeline.utils import (
-    RESULTS_DIR,
     SCREENING_DIR,
     REACTOR_DIR,
     DFT_DIR,
@@ -30,7 +26,6 @@ from pipeline.utils import (
     FUEL_CELL_DIR,
     REPORTS_DIR,
     setup_logger,
-    save_json,
     load_json,
 )
 

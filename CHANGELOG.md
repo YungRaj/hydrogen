@@ -45,6 +45,10 @@
 
 ### Changed
 
+- Removed the retired PyTorch surrogate/NSGA-II subsystem, compatibility entry
+  points, unreferenced reactor helpers, and unused imports. Production search
+  now exposes only the tree-ranker and catalyst-guided branch path.
+
 - Prospective campaign evidence now fails closed on outcome overwrites,
   incomplete or duplicate candidate coverage, and finalized-file checksum
   mismatches. Only analyzed, checksum-verified batches may enter later training.

@@ -11,8 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 import ast
-from collections import Counter
-from typing import Iterable, List, Mapping, Optional, Sequence, Tuple
+from typing import Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -90,24 +89,6 @@ def discovery_region(genome: tuple) -> Tuple[str, ...]:
         return cls, "-".join(g[1]), str(g[2])
     return tuple([cls] + [str(x) for x in g[1:3]])
 
-
-def coverage_summary(genomes: Iterable[tuple]) -> dict:
-    """Return JSON-serializable class and chemistry-cell coverage.
-
-    Args:
-        genomes: Sequence of encoded catalyst candidates.
-
-    Returns:
-        Dictionary containing the computed values, status, and supporting metadata.
-    """
-    canonical = {candidate_id(g): canonicalize_genome(g) for g in genomes}
-    class_counts = Counter(g[0] for g in canonical.values())
-    regions = {discovery_region(g) for g in canonical.values()}
-    return {
-        "unique_candidates": len(canonical),
-        "unique_regions": len(regions),
-        "class_counts": dict(sorted(class_counts.items())),
-    }
 
 
 def add_discovery_metadata(frame):

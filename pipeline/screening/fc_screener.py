@@ -18,18 +18,15 @@ Parallelized across all available GPUs with 2 workers per device.
 """
 
 import os
-import sys
-import random
 import numpy as np
 import multiprocessing as mp
-from typing import List, Tuple, Dict, Optional
+from typing import List
 
-from ase import Atoms, Atom
+from ase import Atom
 from pipeline.screening.relaxation import relax_with_record, require_relaxation
 from pipeline.screening.protocols import ORR_PROTOCOL
 
 from pipeline.utils import (
-    BASE_DIR,
     FUEL_CELL_DIR,
     setup_logger,
     orr_overpotential,

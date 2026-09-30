@@ -10,7 +10,7 @@ or gets a wrong default.
 Run: conda run -n fairchem-env python audit_pipeline.py
 """
 
-import sys, os, re, ast, importlib
+import sys, os, re
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -294,104 +294,6 @@ check(
 )
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# 7. SURROGATE MODELS — NO NaN PREDICTIONS
-# ═══════════════════════════════════════════════════════════════════════════════
-print("\n═══ SURROGATE PREDICTIONS ═══")
-
-import torch
-from pipeline.screening.surrogate_model import CatalystSurrogate, predict_batch
-from pipeline.screening.fc_genetic_optimizer import ORRCatalystSurrogate
-from pipeline.search.design_space import encode_population
-
-# CH4 surrogate
-ch4_model = CatalystSurrogate(input_dim=FEATURE_DIM)
-ch4_model.eval()
-ch4_nan_classes = []
-for cls in ALL_14:
-    pop = [generate_random_genome(cls) for _ in range(20)]
-    X = encode_population(pop)
-    preds = predict_batch(ch4_model, X, device='cpu')
-    for key in preds:
-        arr = preds[key]
-        if hasattr(arr, '__len__') and any(np.isnan(arr)):
-            ch4_nan_classes.append(f"{cls}/{key}")
-
-check(
-    "CH4 surrogate: no NaN (280 preds)",
-    len(ch4_nan_classes) == 0,
-    f"NaN in: {ch4_nan_classes}",
-)
-
-# ORR surrogate
-orr_model = ORRCatalystSurrogate(input_dim=FEATURE_DIM)
-orr_model.eval()
-orr_nan_classes = []
-for cls in ALL_14:
-    pop = [generate_random_genome(cls) for _ in range(20)]
-    X_tensor = torch.FloatTensor(encode_population(pop))
-    with torch.no_grad():
-        valid_logit, pred_eta, pred_binding = orr_model(X_tensor)
-    for name, tensor in [
-        ('valid', valid_logit),
-        ('eta', pred_eta),
-        ('binding', pred_binding),
-    ]:
-        if torch.any(torch.isnan(tensor)):
-            orr_nan_classes.append(f"{cls}/{name}")
-
-check(
-    "ORR surrogate: no NaN (280 preds)",
-    len(orr_nan_classes) == 0,
-    f"NaN in: {orr_nan_classes}",
-)
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# 8. NSGA-II OBJECTIVES — NO NaN, PENALTIES WORK
-# ═══════════════════════════════════════════════════════════════════════════════
-print("\n═══ NSGA-II OBJECTIVES ═══")
-
-from pipeline.screening.fc_genetic_optimizer import compute_orr_objectives_surrogate
-from pipeline.screening.genetic_optimizer import compute_objectives_surrogate
-
-# ORR objectives
-orr_obj_failures = []
-for cls in ALL_14:
-    pop = [generate_random_genome(cls) for _ in range(20)]
-    try:
-        obj = compute_orr_objectives_surrogate(pop, orr_model, 'cpu')
-        if np.any(np.isnan(obj)):
-            orr_obj_failures.append(f"{cls}: NaN in objectives")
-        if np.any(np.isinf(obj)):
-            orr_obj_failures.append(f"{cls}: Inf in objectives")
-    except Exception as ex:
-        orr_obj_failures.append(f"{cls}: {str(ex)[:80]}")
-
-check(
-    "ORR NSGA-II objectives (280 candidates, no NaN)",
-    len(orr_obj_failures) == 0,
-    f"Failures: {orr_obj_failures}",
-)
-
-# CH4 objectives
-ch4_obj_failures = []
-for cls in ALL_14:
-    pop = [generate_random_genome(cls) for _ in range(20)]
-    try:
-        obj = compute_objectives_surrogate(pop, ch4_model, 'cpu')
-        if np.any(np.isnan(obj)):
-            ch4_obj_failures.append(f"{cls}: NaN in objectives")
-        if np.any(np.isinf(obj)):
-            ch4_obj_failures.append(f"{cls}: Inf in objectives")
-    except Exception as ex:
-        ch4_obj_failures.append(f"{cls}: {str(ex)[:80]}")
-
-check(
-    "CH4 NSGA-II objectives (280 candidates, no NaN)",
-    len(ch4_obj_failures) == 0,
-    f"Failures: {ch4_obj_failures}",
-)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -428,7 +330,6 @@ check(
 # ═══════════════════════════════════════════════════════════════════════════════
 print("\n═══ COST & FENTON SCORING ═══")
 
-from pipeline.utils import abundance_cost_penalty
 from pipeline.screening.fc_genetic_optimizer import (
     _fenton_from_genome,
     _cost_from_genome,

@@ -241,9 +241,6 @@ def _kinetics_evidence(config: ReactorConfig) -> dict:
     }
 
 
-def _kinetics_metadata(config: ReactorConfig) -> dict:
-    return _mechanism_metadata(config).get('inputs', {})
-
 
 def _policy_metadata(config: ReactorConfig) -> Dict:
     return {
@@ -480,14 +477,6 @@ def inventory_roi_grid_cells():
     )
 
 
-def _load_candidate_phases(config: ReactorConfig):
-    """Upstream name: gas plus the required candidate-specific surface."""
-    gas, _graphite, surf = _load_gas_and_surface(config)
-    if surf is None:
-        raise RuntimeError(
-            f'candidate surface phase failed to load: '
-            f'{config.catalyst_name}_surface')
-    return gas, surf
 
 
 def _load_gas_and_surface(config: ReactorConfig):
@@ -762,13 +751,6 @@ def _h2_atom_balance_metric(ch4_initial: float, final_conv: float, x_h2: float) 
     return float(np.clip(h_in_h2 / max(h_in_ch4 * final_conv, 1e-10), 0, 1))
 
 
-def _solid_c_from_balance(ch4_initial: float, final_conv: float,
-                          x_c2h2: float, x_c2h4: float, x_c2h6: float) -> float:
-    c_in_c2 = 2.0 * (x_c2h2 + x_c2h4 + x_c2h6)
-    c_to_solid = final_conv * ch4_initial - c_in_c2
-    if final_conv <= 0.01:
-        return 0.0
-    return float(np.clip(c_to_solid / max(final_conv * ch4_initial, 1e-10), 0, 1))
 
 
 def _tabulated_x_eq(T_K: float) -> float:

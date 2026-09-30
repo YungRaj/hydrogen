@@ -18,17 +18,16 @@ This module provides three layers of OOD detection:
            Cheap, applied to every genome.
 
   Layer 3: dual_model_disagreement() — runs both eSen-SM and MACE-MP-0
-           and measures energy disagreement. Expensive, applied only
-           to top-k candidates during periodic GA validation.
+           and measures energy disagreement for validation candidates.
 
 The combined confidence score is used to discount screening results:
   - confidence > 0.7  → trust the prediction
   - confidence 0.4-0.7 → flag for Tier 3 DFT validation
-  - confidence < 0.4  → heavily penalize in NSGA-II ranking
+  - confidence < 0.4  → prioritize independent validation
 """
 
 import numpy as np
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Optional
 import logging
 
 logger = logging.getLogger('ood_detector')
@@ -284,7 +283,7 @@ def compute_model_confidence(
 
 def confidence_penalty(confidence: float) -> float:
     """
-        Convert model confidence to NSGA-II objective penalty.
+        Convert model confidence to a bounded ranking penalty.
 
         Applied ADDITIVELY to predicted properties:
           confidence 1.0 → penalty 0.0 (no change)

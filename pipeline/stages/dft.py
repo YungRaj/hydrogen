@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import ast
-from typing import Callable, Iterable, Mapping, MutableMapping
+from typing import Callable, Mapping, MutableMapping
 
 from pipeline.data_models.stages import DFTProducts, DFTState
 from pipeline.stages.contracts import StageOutcome

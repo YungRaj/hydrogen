@@ -10,7 +10,6 @@ extend-exclude = '''
   | results/
   | models/
   | mechanisms/
-  | live_dashboard\.py$
   | run_production_campaign\.py$
   | run_validation_campaign\.py$
   | runsweep\.py$

@@ -140,7 +140,6 @@ The repository has one production launcher and one current pilot launcher:
 | Reproduce the locked divide-and-conquer pilot | `run_divide_conquer_pilot.py` | `pipeline/evidence/pilot_benchmark.py`, `pipeline/screening/small_data_ranker.py` |
 | Check scientific and implementation invariants | `tests/test_pipeline.py`, `audit_pipeline.py` | readiness and claim gates under `pipeline/` |
 | Inspect/resume production QE validation | `run_validation_campaign.py` | converged endpoints → NEB and clean → ORR adsorbates/references |
-| Monitor an active local run | `live_dashboard.py` | generated state under `results/` |
 
 ### Standard search policy: catalyst-guided
 
@@ -191,8 +190,8 @@ Inside `pipeline/`, source is grouped by responsibility:
 
 - **`search/`:** `indexed_space.py`, `exhaustive_search.py`, `branch_search.py`,
   `discovery.py`, and `adaptive_validation.py`.
-- **`screening/`:** `surface_screener.py`, `fc_screener.py`,
-  `surrogate_model.py`, and `small_data_ranker.py`.
+- **`screening/`:** `surface_screener.py`, `fc_screener.py`, and
+  `small_data_ranker.py`.
 - **`validation/`:** `qe_workflows.py`, `orr_workflows.py`,
   `dft_validator.py`, and `dft_fuel_cell.py`.
 - **`reactors/`:** methane-conversion routing, Cantera mechanisms, thermal
@@ -364,7 +363,7 @@ Each genome encodes into a **353-dimensional** feature vector for the surrogate 
 | Software | Version | Role | Phase |
 |----------|---------|------|-------|
 | **Meta eSen-SM** | OC25 | Equivariant GNN potential — screening slab relaxation, energies and forces; BEP converts descriptors to provisional barriers | 1, 5 |
-| **PyTorch** | 2.11.0 | Multi-GPU GNN inference + surrogate NN training/prediction | 1, 5 |
+| **PyTorch** | 2.11.0 | Multi-GPU fairchem/eSen inference | 1, 5 |
 | **CUDA-Q** | 0.12.0 | Variational Quantum Eigensolver on GPU quantum simulator | 4 |
 | **cuQuantum** | 26.6.0 | Accelerated statevector simulation backend for CUDA-Q | 4 |
 | **Cantera** | 3.2.0 | Chemical kinetics — reactor ODEs with custom YAML mechanisms | 2 |
@@ -382,11 +381,11 @@ Each genome encodes into a **353-dimensional** feature vector for the surrogate 
 | **SciPy** | 1.15.2 | Electrode kinetics, Nernst equation, ODE integration |
 | **Pandas** | 2.3.3 | Screening database I/O, population tracking |
 
-### Custom Models (Pure Python/PyTorch)
+### Custom Models
 
 | Module | Physics |
 |--------|---------|
-| `screening/surrogate_model.py` | Multi-task NN predicting E_act, coking, validity (~1000× faster than eSen-SM) |
+| `screening/small_data_ranker.py` | Deterministic application-specific tree rankers and acquisition scores |
 | `search/branch_search.py` | Persistent deterministic branch subdivision, priority, and coverage certification |
 | `fuel_cell/pemfc.py` | 1D through-MEA PEM fuel cell (Tafel + Ohmic + mass transport losses) |
 | `fuel_cell/stack.py` | N-cell stack scaling with balance-of-plant and $/kW techno-economics |
@@ -965,11 +964,10 @@ hydrogen/
 │   │   ├── branch_search.py       # Divide-and-conquer and certificates
 │   │   ├── discovery.py           # Canonical IDs and diverse champions
 │   │   └── adaptive_validation.py # Validation-budget allocation
-│   ├── screening/                 # Structures, surrogates, and ranking
+│   ├── screening/                 # Structures, screening, and ranking
 │   │   ├── ood.py                 # Confidence and OOD policy
 │   │   ├── surface_screener.py    # Turquoise-hydrogen eSen screening
 │   │   ├── fc_screener.py         # ORR eSen screening
-│   │   ├── surrogate_model.py     # Multi-task surrogate model
 │   │   └── small_data_ranker.py   # Application-specific tree rankers
 │   ├── validation/                # High-fidelity scientific checks
 │   │   ├── qe_workflows.py        # Candidate-specific QE/NEB workflows

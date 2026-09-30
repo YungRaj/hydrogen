@@ -2,9 +2,8 @@
 # Fuel-cell objectives and branch-search orchestration.
 """Fuel-cell ORR objectives and catalyst-guided branch discovery.
 
-The Pareto helpers remain part of objective and archive selection. Genetic and
-random candidate generation are retired; the compatibility entry point below
-fails explicitly instead of retaining an unreachable implementation.
+The Pareto helpers remain part of objective and archive selection. Candidate
+generation is handled exclusively by catalyst-guided branch discovery.
 """
 
 import numpy as np
@@ -13,16 +12,10 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 from pipeline.utils import setup_logger, FUEL_CELL_DIR
-from pipeline.search.design_space import (
-    encode_population,
-    FEATURE_DIM,
-)
 from pipeline.search.discovery import (
     add_discovery_metadata,
     candidate_id,
 )
-import torch
-
 logger = setup_logger('fc_genetic_optimizer', 'fuel_cell/fc_genetic_optimizer.log')
 
 
@@ -73,69 +66,8 @@ class FCBranchDiscoveryConfig:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# ORR-SPECIFIC OBJECTIVES & SURROGATE DEFINITIONS
+# ORR-SPECIFIC OBJECTIVES
 # ═══════════════════════════════════════════════════════════════════════════════
-
-
-class ORRCatalystSurrogate(torch.nn.Module):
-    """
-    Custom surrogate neural network for Fuel Cell ORR catalyst property prediction.
-    Shared backbone → validity, ORR overpotential, and binding stability heads.
-    """
-
-    def __init__(
-        self, input_dim: int = FEATURE_DIM, hidden_dims: tuple = (512, 256, 128)
-    ):
-        super().__init__()
-        import torch.nn as nn
-
-        layers = []
-        prev_dim = input_dim
-        for h_dim in hidden_dims:
-            layers.extend(
-                [
-                    nn.Linear(prev_dim, h_dim),
-                    nn.BatchNorm1d(h_dim),
-                    nn.GELU(),
-                    nn.Dropout(0.1),
-                ]
-            )
-            prev_dim = h_dim
-        self.backbone = nn.Sequential(*layers)
-        self.head_valid = nn.Sequential(
-            nn.Linear(prev_dim, 32), nn.GELU(), nn.Linear(32, 1)
-        )
-        self.head_orr_eta = nn.Sequential(
-            nn.Linear(prev_dim, 32), nn.GELU(), nn.Linear(32, 1)
-        )
-        self.head_binding = nn.Sequential(
-            nn.Linear(prev_dim, 32), nn.GELU(), nn.Linear(32, 1)
-        )
-
-    def forward(self, x: torch.Tensor):
-        """Evaluate the neural-network forward pass.
-
-        Args:
-            x: Feature matrix or tensor consumed by the fitted model.
-
-        Returns:
-            The network output tensor for the supplied batch.
-        """
-        features = self.backbone(x)
-        valid_logit = self.head_valid(features)
-        orr_eta = self.head_orr_eta(features)
-        binding = self.head_binding(features)
-        return valid_logit, orr_eta, binding
-
-
-class ORRSurrogateEnsemble(torch.nn.Module):
-    """Ensemble of ORRCatalystSurrogate models for epistemic uncertainty estimation."""
-
-    def __init__(self, n_models: int = 3, input_dim: int = FEATURE_DIM):
-        super().__init__()
-        self.models = torch.nn.ModuleList(
-            [ORRCatalystSurrogate(input_dim=input_dim) for _ in range(n_models)]
-        )
 
 
 def _fenton_from_genome(genome: tuple) -> float:
@@ -146,82 +78,13 @@ def _fenton_from_genome(genome: tuple) -> float:
     return float(max(0, 10 - fenton_risk))
 
 
-def compute_orr_objectives_surrogate(
-    population: List[tuple], model, device: str
-) -> np.ndarray:
-    """
-        Compute 4 ORR objectives for a population using the ORR surrogate NN or Ensemble.
-
-    Args:
-        population: Ordered values supplying population.
-        model: Fitted model used for inference.
-        device: CPU or GPU device requested for execution.
-
-    Returns:
-        Computed `np.ndarray` result.
-    """
-    from pipeline.screening.ood import compute_model_confidence, confidence_penalty
-
-    features = encode_population(population)
-    import torch
-
-    X = torch.FloatTensor(features).to(device)
-
-    if isinstance(model, ORRSurrogateEnsemble):
-        preds_eta_list = []
-        preds_bind_list = []
-        p_valid_list = []
-        for single_model in model.models:
-            single_model.eval()
-            with torch.no_grad():
-                valid_logit, pred_eta, pred_binding = single_model(X)
-            p_valid_list.append(torch.sigmoid(valid_logit).cpu().numpy().flatten())
-            preds_eta_list.append(pred_eta.cpu().numpy().flatten())
-            preds_bind_list.append(pred_binding.cpu().numpy().flatten())
-
-        # Aggregate with acquisition UCB/LCB (kappa = 1.0)
-        p_valid = np.column_stack(p_valid_list).mean(axis=1)
-        eta_arr = np.column_stack(preds_eta_list)
-        # Minimize overpotential → LCB = mean - std
-        pred_eta = eta_arr.mean(axis=1) - 1.0 * eta_arr.std(axis=1)
-        bind_arr = np.column_stack(preds_bind_list)
-        # Maximize binding strength → negate for minimization → UCB = mean + std
-        pred_binding = bind_arr.mean(axis=1) + 1.0 * bind_arr.std(axis=1)
-    else:
-        model.eval()
-        with torch.no_grad():
-            valid_logit, pred_eta, pred_binding = model(X)
-        p_valid = torch.sigmoid(valid_logit).cpu().numpy().flatten()
-        pred_eta = pred_eta.cpu().numpy().flatten()
-        pred_binding = pred_binding.cpu().numpy().flatten()
-
-    n = len(population)
-    objectives = np.zeros((n, 4))
-
-    for i in range(n):
-        from pipeline.search.scope import pemfc_cathode_scope
-
-        in_scope = pemfc_cathode_scope(population[i])['status'] == 'candidate'
-        if p_valid[i] > 0.3 and in_scope:
-            elements = _extract_elements_from_genome(population[i])
-            conf = compute_model_confidence(population[i], elements)
-            penalty = confidence_penalty(conf)
-
-            objectives[i, 0] = pred_eta[i] + penalty  # additive OOD penalty
-            objectives[i, 1] = -_fenton_from_genome(population[i])
-            objectives[i, 2] = _cost_from_genome(population[i])
-            objectives[i, 3] = -pred_binding[i]
-        else:
-            objectives[i, :] = [5.0, 0.0, 100.0, 0.0]  # penalty
-
-    return objectives
 
 
 def _cost_from_genome(genome: tuple) -> float:
     """Compute cost penalty from genome elements.
 
     abundance_cost_penalty() returns [-2, 0] where 0 = abundant, -2 = rare.
-    Since NSGA-II minimizes all objectives, we negate so that:
+    Since archive objectives are minimized, negate the penalty so that:
       abundant → 0 (good)    rare → +2 (bad, penalized)
     """
     from pipeline.utils import abundance_cost_penalty
@@ -279,12 +142,12 @@ def _extract_elements_from_genome(genome: tuple) -> List[str]:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# NSGA-II (reused from methane GA — same algorithm)
+# PARETO ARCHIVE SELECTION
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
 def fast_non_dominated_sort(objectives: np.ndarray) -> List[List[int]]:
-    """NSGA-II fast non-dominated sorting using vectorized Pareto front extraction.
+    """Fast non-dominated sorting using vectorized Pareto-front extraction.
 
     Args:
         objectives: Objectives used by this operation.
@@ -313,79 +176,6 @@ def fast_non_dominated_sort(objectives: np.ndarray) -> List[List[int]]:
         remaining_indices = np.delete(remaining_indices, front_sub_idx)
 
     return fronts
-
-
-def crowding_distance(objectives: np.ndarray, front: List[int]) -> np.ndarray:
-    """Compute crowding distances for a Pareto front.
-
-    Args:
-        objectives: Objectives used by this operation.
-        front: Ordered values supplying front.
-
-    Returns:
-        Computed `np.ndarray` result.
-    """
-    n = len(front)
-    if n <= 2:
-        return np.full(n, np.inf)
-
-    distances = np.zeros(n)
-    m = objectives.shape[1]
-
-    for obj_idx in range(m):
-        sorted_indices = np.argsort(objectives[front, obj_idx])
-        distances[sorted_indices[0]] = np.inf
-        distances[sorted_indices[-1]] = np.inf
-
-        obj_range = (
-            objectives[front[sorted_indices[-1]], obj_idx]
-            - objectives[front[sorted_indices[0]], obj_idx]
-        )
-        if obj_range < 1e-10:
-            continue
-
-        for i in range(1, n - 1):
-            distances[sorted_indices[i]] += (
-                objectives[front[sorted_indices[i + 1]], obj_idx]
-                - objectives[front[sorted_indices[i - 1]], obj_idx]
-            ) / obj_range
-
-    return distances
-
-
-def nsga2_select(population, objectives, n_select):
-    """NSGA-II selection with non-dominated sorting + crowding distance.
-
-    Args:
-        population: Population used by this operation.
-        objectives: Objectives used by this operation.
-        n_select: Number of select to use.
-
-    Returns:
-        Computed result described above.
-    """
-    fronts = fast_non_dominated_sort(objectives)
-    selected = []
-
-    for front in fronts:
-        if len(selected) + len(front) <= n_select:
-            selected.extend(front)
-        else:
-            remaining = n_select - len(selected)
-            if remaining > 0:
-                cd = crowding_distance(objectives, front)
-                top_cd = np.argsort(-cd)[:remaining]
-                selected.extend([front[i] for i in top_cd])
-            break
-
-    return selected
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# ORR SURROGATE TRAINING
-# ═══════════════════════════════════════════════════════════════════════════════
-
-
 
 
 
@@ -543,13 +333,3 @@ def run_fc_branch_discovery(config: FCBranchDiscoveryConfig, existing_db=None):
     )
     evidence.attrs['experimental_slate'] = [archive[i] for i in slate_idx]
     return champions, add_discovery_metadata(evidence)
-
-
-def run_fc_genetic_algorithm(*_args: object, **_kwargs: object) -> None:
-    """Reject the retired fuel-cell genetic-search entry point.
-
-    Catalyst-guided branch discovery is the only supported candidate search.
-    """
-    raise RuntimeError(
-        "Genetic/random candidate search was retired; use run_fc_branch_discovery()"
-    )

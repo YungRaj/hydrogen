@@ -12,7 +12,6 @@ density / prefactor dominate — Phase 2 cannot rank catalysts.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Dict, List, Optional
 
 import numpy as np

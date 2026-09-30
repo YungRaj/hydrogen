@@ -12,18 +12,16 @@ For the single best catalyst from each material class:
 This script is designed to run in the quantum-env (CUDA-Q).
 """
 
-import os
 import sys
 import json
 import numpy as np
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Optional
 
 from pipeline.data_models.quantum import VQEResult
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from pipeline.utils import (
-    VQE_DIR,
     Ha_to_eV,
     setup_logger,
     print_banner,

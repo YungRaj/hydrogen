@@ -11,17 +11,12 @@ Scales single-cell PEMFC results to a practical fuel cell stack:
   - Techno-economic analysis ($/kW)
 """
 
-import numpy as np
-from typing import Dict, List, Optional
 from dataclasses import dataclass
 
 from pipeline.utils import (
     setup_logger,
     save_json,
     F_const,
-    R_gas,
-    FUEL_CELL_DIR,
-    METAL_PRICE_USD_KG,
 )
 from pipeline.data_models.fuel_cells import StackResult
 

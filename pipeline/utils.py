@@ -7,9 +7,7 @@ for the turquoise hydrogen → fuel cell simulation pipeline.
 
 import os
 import sys
-import time
 import json
-import hashlib
 import logging
 import tempfile
 import numpy as np
@@ -21,7 +19,7 @@ try:
 except ImportError:
     HAS_PANDAS = False
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional, Any
+from typing import List, Tuple, Optional
 
 # ─── Project Paths ──────────────────────────────────────────────────────────────
 
@@ -389,69 +387,6 @@ def print_banner(title: str, width: int = 80):
 # ─── Genome Hashing & Serialization ─────────────────────────────────────────────
 
 
-def genome_hash(genome: tuple) -> str:
-    """Create a deterministic hash for a catalyst genome for deduplication.
-
-    Args:
-        genome: Encoded catalyst composition and structural configuration.
-
-    Returns:
-        Computed `str` result.
-    """
-    serialized = json.dumps(genome, sort_keys=True, default=str)
-    return hashlib.md5(serialized.encode()).hexdigest()[:12]
-
-
-def genome_to_dict(genome: tuple, material_class: str) -> Dict[str, Any]:
-    """Convert a genome tuple to a labeled dictionary based on material class.
-
-    Args:
-        genome: Encoded catalyst composition and structural configuration.
-        material_class: Canonical catalyst material-class name.
-
-    Returns:
-        Dictionary containing the computed values, status, and supporting metadata.
-    """
-    if material_class == 'MoltenMetal':
-        return {
-            'material_class': material_class,
-            'host_metal': genome[0],
-            'promoter': genome[1],
-            'promoter_at_pct': genome[2],
-            'temperature_K': genome[3],
-        }
-    elif material_class == 'SolidCatalyst':
-        return {
-            'material_class': material_class,
-            'active_metal': genome[0],
-            'support': genome[1],
-            'facet': genome[2],
-            'strain': genome[3],
-            'dopants': genome[4],
-            'num_substitutions': genome[5],
-            'num_vacancies': genome[6],
-        }
-    elif material_class in ('SAC', 'DAC'):
-        return {
-            'material_class': material_class,
-            'metal_1': genome[0],
-            'metal_2': genome[1] if material_class == 'DAC' else None,
-            'coordination': genome[2] if material_class == 'DAC' else genome[1],
-            'substrate': genome[3] if material_class == 'DAC' else genome[2],
-        }
-    elif material_class in ('MOF', 'COF'):
-        return {
-            'material_class': material_class,
-            'metal_node': genome[0],
-            'linker': genome[1],
-            'cavity': genome[2],
-            'pore_size_A': genome[3],
-        }
-    else:
-        return {'material_class': material_class, 'genome': genome}
-
-
-# ─── Cost & Feasibility Scoring ──────────────────────────────────────────────────
 
 
 def abundance_cost_penalty(elements: List[str]) -> float:
@@ -572,23 +507,6 @@ def is_valid_for_application(
         return material_class in VALID_CLASSES_FUEL_CELL
     return True  # unknown application — allow all
 
-
-def material_cost_usd_per_kg(
-    elements: List[str], fractions: Optional[List[float]] = None
-) -> float:
-    """Estimate raw material cost in $/kg for a multi-component catalyst.
-
-    Args:
-        elements: Ordered values supplying elements.
-        fractions: Fractions used by this operation.
-
-    Returns:
-        Computed `float` value in the units documented above.
-    """
-    if fractions is None:
-        fractions = [1.0 / len(elements)] * len(elements)
-    cost = sum(METAL_PRICE_USD_KG.get(e, 50.0) * f for e, f in zip(elements, fractions))
-    return cost
 
 
 def is_molten_at_temperature(metal: str, temperature_K: float) -> bool:
@@ -744,32 +662,6 @@ def orr_overpotential(dG_OH: float, dG_O: float, dG_OOH: float) -> Tuple[float, 
     return max(eta, 0.0), rds_name
 
 
-def butler_volmer_current(
-    j0: float,
-    eta: float,
-    alpha_a: float = 0.5,
-    alpha_c: float = 0.5,
-    T_K: float = 353.0,
-) -> float:
-    """
-    Butler-Volmer equation for electrode kinetics.
-    j = j₀ * [exp(αₐFη/RT) − exp(−αcFη/RT)]
-
-    Args:
-        j0: Exchange current density (A/cm²)
-        eta: Overpotential (V), positive for anodic
-        alpha_a: Anodic transfer coefficient
-        alpha_c: Cathodic transfer coefficient
-        T_K: Temperature (K)
-    Returns:
-        Current density (A/cm²)
-    """
-    f = F_const / (R_gas * T_K)
-    return j0 * (np.exp(alpha_a * f * eta) - np.exp(-alpha_c * f * eta))
-
-
-# ─── Data I/O ────────────────────────────────────────────────────────────────────
-
 
 def save_screening_db(df, filename: str, subdir: str = "screening"):
     """Save a screening database as CSV.
@@ -848,57 +740,3 @@ def load_json(filename: str, subdir: str = "reports") -> Optional[dict]:
         with open(path, 'r') as f:
             return json.load(f)
     return None
-
-
-# ─── Subprocess Helpers ──────────────────────────────────────────────────────────
-
-
-def conda_run_cmd(env_name: str, python_cmd: str, cwd: Optional[str] = None) -> str:
-    """Build a conda run command string.
-
-    Args:
-        env_name: Env name used by this operation.
-        python_cmd: Python cmd used by this operation.
-        cwd: Cwd used by this operation.
-
-    Returns:
-        Computed `str` result.
-    """
-    cmd = f"conda run -n {env_name} python {python_cmd}"
-    return cmd
-
-
-def run_in_env(
-    env_name: str,
-    script_path: str,
-    args: str = "",
-    cwd: Optional[str] = None,
-    check: bool = True,
-):
-    """Execute a Python script in a specific conda environment.
-
-    Args:
-        env_name: Env name used by this operation.
-        script_path: Filesystem location used for script path.
-        args: Args used by this operation.
-        cwd: Cwd used by this operation.
-        check: Whether to enable check.
-
-    Returns:
-        Computed result described above.
-    """
-    import shlex
-    import subprocess
-
-    cmd = ['conda', 'run', '-n', env_name, 'python', script_path]
-    if args:
-        cmd.extend(shlex.split(args))
-    work_dir = cwd or str(BASE_DIR)
-    result = subprocess.run(cmd, cwd=work_dir, capture_output=True, text=True)
-    if check and result.returncode != 0:
-        raise RuntimeError(
-            f"Command failed in {env_name}:\n"
-            f"CMD: {shlex.join(cmd)}\n"
-            f"STDERR: {result.stderr[-2000:]}"
-        )
-    return result

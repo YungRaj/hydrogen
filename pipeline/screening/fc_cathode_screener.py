@@ -14,24 +14,18 @@ For each candidate, computes:
   - Fenton susceptibility index
 """
 
-import os
 import sys
-import time
 import numpy as np
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from pipeline.utils import (
     setup_logger,
     print_banner,
     save_screening_db,
-    FUEL_CELL_DIR,
     orr_overpotential,
     abundance_cost_penalty,
-    ZPE_H2,
-    TS_H2,
-    CRUSTAL_ABUNDANCE_PPM,
 )
 
 logger = setup_logger('fc_cathode', 'fuel_cell/cathode_screening.log')

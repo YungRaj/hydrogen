@@ -14,18 +14,14 @@ Outputs: Polarization curve (V-I), peak power density, efficiency
 """
 
 import numpy as np
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List
 from dataclasses import dataclass
 
 from pipeline.utils import (
     R_gas,
     F_const,
-    E_ORR_eq,
-    k_B_eV,
-    eV_to_J,
     setup_logger,
     save_json,
-    FUEL_CELL_DIR,
 )
 from pipeline.data_models.fuel_cells import PEMFCResult
 

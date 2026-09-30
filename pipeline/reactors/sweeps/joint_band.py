@@ -19,13 +19,11 @@ from pipeline.utils import SWEEPS_DIR, repo_relative
 from pipeline.reactors.sweeps.carbon_criteria import (
     NI_FILAMENT_YIELD_BAND,
     NI_TOS_LIFETIME_BAND_H,
-    SWEEP_NAMES,
     _finite,
     _row_brief,
     in_band,
     is_scorable,
     load_runs,
-    sweep_value,
 )
 
 JOINT_SWEEP = 'ni_np_b67_joint'

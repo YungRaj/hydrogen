@@ -16,7 +16,6 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
 import numpy as np
-import torch
 
 PASS = 0
 FAIL = 0
@@ -131,68 +130,6 @@ def test_feature_dim_matches_components():
     assert FEATURE_DIM == expected, f"FEATURE_DIM={FEATURE_DIM} != computed {expected}"
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# 3. SURROGATES
-# ═══════════════════════════════════════════════════════════════════════════════
-
-
-def test_ch4_surrogate_no_nan():
-    from pipeline.search.design_space import (
-        generate_random_genome,
-        encode_genome,
-        FEATURE_DIM,
-    )
-    from pipeline.screening.surrogate_model import CatalystSurrogate
-
-    model = CatalystSurrogate(input_dim=FEATURE_DIM)
-    model.eval()
-    pop = [generate_random_genome() for _ in range(500)]
-    X = torch.FloatTensor(np.array([encode_genome(g) for g in pop]))
-    with torch.no_grad():
-        out = model(X)
-    for i, o in enumerate(out):
-        assert not torch.any(torch.isnan(o)), f"CH4 surrogate head {i} has NaN"
-
-
-def test_orr_surrogate_no_nan():
-    from pipeline.search.design_space import (
-        generate_random_genome,
-        encode_genome,
-        FEATURE_DIM,
-    )
-    from pipeline.screening.fc_genetic_optimizer import ORRCatalystSurrogate
-
-    model = ORRCatalystSurrogate(input_dim=FEATURE_DIM)
-    model.eval()
-    pop = [generate_random_genome() for _ in range(500)]
-    X = torch.FloatTensor(np.array([encode_genome(g) for g in pop]))
-    with torch.no_grad():
-        out = model(X)
-    for i, o in enumerate(out):
-        assert not torch.any(torch.isnan(o)), f"ORR surrogate head {i} has NaN"
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# 4. NSGA-II
-# ═══════════════════════════════════════════════════════════════════════════════
-
-
-def test_nsga2_sorts_correctly():
-    from pipeline.search.design_space import generate_random_genome, FEATURE_DIM
-    from pipeline.screening.fc_genetic_optimizer import (
-        ORRCatalystSurrogate,
-        compute_orr_objectives_surrogate,
-        fast_non_dominated_sort,
-    )
-
-    model = ORRCatalystSurrogate(input_dim=FEATURE_DIM)
-    model.eval()
-    pop = [generate_random_genome() for _ in range(500)]
-    obj = compute_orr_objectives_surrogate(pop, model, 'cpu')
-    fronts = fast_non_dominated_sort(obj)
-    total = sum(len(f) for f in fronts)
-    assert total == 500, f"NSGA-II lost genomes: {total} != 500"
-    assert not np.any(np.isnan(obj)), "NaN in objectives"
 
 
 def test_cost_and_fenton_ranges():
@@ -1044,29 +981,6 @@ def test_ood_penalty_scales_objectives():
     assert abs(confidence_penalty(0.0) - 1.0) < 0.01, "conf=0.0 should give penalty=1.0"
 
 
-def test_ood_nsga2_integration():
-    from pipeline.search.design_space import generate_random_genome, FEATURE_DIM
-    from pipeline.screening.fc_genetic_optimizer import (
-        ORRCatalystSurrogate,
-        compute_orr_objectives_surrogate,
-    )
-
-    model = ORRCatalystSurrogate(input_dim=FEATURE_DIM)
-    model.eval()
-    # Generate OOD and in-distribution populations
-    in_dist = [generate_random_genome('SolidCatalyst') for _ in range(50)]
-    ood = [generate_random_genome('MetalFreeCarbon') for _ in range(50)]
-    obj_in = compute_orr_objectives_surrogate(in_dist, model, 'cpu')
-    obj_ood = compute_orr_objectives_surrogate(ood, model, 'cpu')
-    # OOD overpotentials (obj[:, 0]) should be inflated by penalty
-    mean_in = obj_in[:, 0].mean()
-    mean_ood = obj_ood[:, 0].mean()
-    # OOD should have higher (worse) mean overpotential after penalty
-    # (MetalFreeCarbon conf ~0.15 → penalty ~2.7×)
-    assert (
-        mean_ood > mean_in
-    ), f"OOD penalty not working: mean_in={mean_in:.3f}, mean_ood={mean_ood:.3f}"
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 13. EXHAUSTIVE COVERAGE — NO CLASS GETS PRUNED
@@ -1137,94 +1051,6 @@ def test_tafel_all_classes():
     for cls in ALL_MATERIAL_CLASSES:
         assert cls in TAFEL_SLOPE_BY_CLASS, f"TAFEL_SLOPE missing: {cls}"
 
-
-def test_pyrolysis_mode_coking_bonus():
-    import os
-    from pipeline.screening.genetic_optimizer import compute_objectives_surrogate
-    from pipeline.screening.surrogate_model import CatalystSurrogate
-
-    # Mock surrogate and population
-    model = CatalystSurrogate()
-    # We want a genome with Ga/In/Sn/Bi (e.g. MoltenMetal with Sb/Ga) and one without (e.g. SolidCatalyst with Fe)
-    pop = [
-        ('MoltenMetal', 'Ga', 'None', 0.0, 1000),  # low-melting metal Ga
-        ('SolidCatalyst', 'Fe', 'None', 'fcc111', 0.0, ['Fe'], 0, 0),  # non-liquid Fe
-    ]
-
-    from unittest.mock import patch
-
-    with patch('pipeline.screening.genetic_optimizer.predict_batch') as mock_predict:
-        mock_predict.return_value = {
-            'valid_prob': np.array([1.0, 1.0]),
-            'E_act': np.array([0.5, 0.6]),
-            'coking_index': np.array([1.0, 2.0]),
-            'segregation_energy': np.array([-0.1, -0.2]),
-        }
-
-        # NTEC without measured operating evidence must not create a bonus.
-        os.environ['PYROLYSIS_MODE'] = 'ntec'
-        os.environ.pop('NTEC_CONDITIONS_JSON', None)
-        objs_unknown = compute_objectives_surrogate(pop, model, device='cpu')
-
-        # Operating evidence alone is insufficient without a paired control.
-        import json
-
-        os.environ['NTEC_CONDITIONS_JSON'] = json.dumps(
-            {
-                'shear_rate_s': 1e4,
-                'interfacial_field_V_m': 1e8,
-                'mechanical_power_W_kg': 1e3,
-                'carbon_detachment_fraction': 1.0,
-                'field_measurement_source': 'test:field-measurement',
-            }
-        )
-        objs_uncalibrated = compute_objectives_surrogate(pop, model, device='cpu')
-
-        # Explicit paired NTEC/control measurements activate the bounded transfer.
-        os.environ['NTEC_CONDITIONS_JSON'] = json.dumps(
-            {
-                'shear_rate_s': 1e4,
-                'interfacial_field_V_m': 1e8,
-                'mechanical_power_W_kg': 1e3,
-                'carbon_detachment_fraction': 1.0,
-                'field_measurement_source': 'test:field-measurement',
-                'paired_control_source': 'test:paired-control',
-                'paired_control_count': 2,
-                'measured_barrier_reduction_eV': 0.25,
-                'measured_coking_delta_eV': 3.0,
-            }
-        )
-        objs_ntec = compute_objectives_surrogate(pop, model, device='cpu')
-
-        # Test under thermocatalytic mode
-        os.environ['PYROLYSIS_MODE'] = 'thermocatalytic'
-        objs_thermo = compute_objectives_surrogate(pop, model, device='cpu')
-
-    # Reset environment
-    if 'PYROLYSIS_MODE' in os.environ:
-        del os.environ['PYROLYSIS_MODE']
-    os.environ.pop('NTEC_CONDITIONS_JSON', None)
-
-    # Molten metals have no slab, so the slab-derived coking descriptor is
-    # deliberately neutral in every mode. Measured NTEC detachment must be
-    # represented by pathway evidence, not attached to an inapplicable slab
-    # quantity.
-    diff_ga = objs_ntec[0, 1] - objs_thermo[0, 1]
-    assert np.isclose(
-        diff_ga, 0.0
-    ), f"Out-of-scope molten-metal slab coking objective was modified: {diff_ga}"
-    assert np.isclose(
-        objs_unknown[0, 1], objs_thermo[0, 1]
-    ), "NTEC without measured inputs must receive zero bonus"
-    assert np.isclose(
-        objs_uncalibrated[0, 1], objs_thermo[0, 1]
-    ), "NTEC operating inputs without a paired control must receive zero bonus"
-
-    # For Fe catalyst, there should be no bonus, so diff should be 0.0
-    diff_fe = objs_ntec[1, 1] - objs_thermo[1, 1]
-    assert np.isclose(
-        diff_fe, 0.0
-    ), f"Non-liquid metal Fe coking bonus applied incorrectly, got diff: {diff_fe}"
 
 
 def test_cathode_sac_genome_5tuple():
@@ -1903,23 +1729,6 @@ def test_root_documentation_is_canonical():
     assert (root / 'docs/TURQUOISE_HYDROGEN.md').is_file()
 
 
-def test_retired_ga_entry_points_are_blocked():
-    from pipeline.screening.genetic_optimizer import run_genetic_algorithm
-    from pipeline.screening.fc_genetic_optimizer import (
-        run_fc_genetic_algorithm,
-    )
-
-    for fn, args in (
-        (run_genetic_algorithm, ()),
-        (run_fc_genetic_algorithm, ()),
-    ):
-        try:
-            fn(*args)
-        except RuntimeError as exc:
-            assert 'retired' in str(exc)
-        else:
-            raise AssertionError(f"{fn.__name__} still permits legacy search")
-
 
 def test_orr_catalyst_acquisition_is_typed_and_fail_closed():
     from pipeline.screening.small_data_ranker import orr_catalyst_acquisition
@@ -2112,36 +1921,6 @@ def test_industrial_viability_gates_fail_closed():
     assert good_fc['status'] == 'pass'
     assert evaluate_fuel_cell({'orr_overpotential_V': 0.6})['status'] == 'fail'
 
-
-def test_coking_loss_masks_nan_targets():
-    """NaN coking targets must not train the coking head or poison other heads."""
-    import torch
-    import torch.nn as nn
-    from pipeline.search.design_space import FEATURE_DIM
-    from pipeline.screening.surrogate_model import _masked_mse, train_surrogate
-
-    mse = nn.MSELoss()
-    pred = torch.tensor([[1.0], [2.0], [3.0]])
-    target = torch.tensor([[1.0], [float('nan')], [3.0]])
-    valid = torch.tensor([True, True, True])
-    loss = _masked_mse(pred, target, valid, mse)
-    assert torch.isfinite(loss)
-    assert torch.isclose(loss, torch.tensor(0.0))
-
-    rng = np.random.default_rng(0)
-    n = 16
-    X = rng.standard_normal((n, FEATURE_DIM)).astype(np.float32)
-    y_valid = np.ones(n, dtype=np.float32)
-    y_de = rng.standard_normal(n).astype(np.float32)
-    y_coking = rng.standard_normal(n).astype(np.float32)
-    y_coking[:6] = np.nan
-    y_seg = rng.standard_normal(n).astype(np.float32)
-    y_e = np.abs(rng.standard_normal(n)).astype(np.float32) + 0.2
-    model = train_surrogate(
-        X, y_valid, y_de, y_coking, y_seg, y_e, epochs=2, batch_size=8, device='cpu'
-    )
-    for p in model.parameters():
-        assert torch.isfinite(p).all()
 
 
 def test_slab_coking_scope_excludes_molten_metal():
@@ -3586,12 +3365,6 @@ if __name__ == '__main__':
     test("All classes encode (no NaN)", test_encode_all_classes_no_nan)
     test("FEATURE_DIM matches components", test_feature_dim_matches_components)
 
-    print("\n── Surrogates ──")
-    test("CH4 surrogate (no NaN)", test_ch4_surrogate_no_nan)
-    test("ORR surrogate (no NaN)", test_orr_surrogate_no_nan)
-
-    print("\n── Pareto Objectives ──")
-    test("Pareto sorting is correct", test_nsga2_sorts_correctly)
     test("Cost & Fenton in range", test_cost_and_fenton_ranges)
     test("MetalFreeCarbon cost = 0", test_metalfreecarbon_zero_cost)
     test("PEMFC application scope", test_pemfc_application_scope)
@@ -3661,7 +3434,6 @@ if __name__ == '__main__':
     test("High confidence for metals", test_ood_high_confidence_metals)
     test("Low confidence for OOD classes", test_ood_low_confidence_ood)
     test("Penalty scales objectives", test_ood_penalty_scales_objectives)
-    test("Confidence affects objectives", test_ood_nsga2_integration)
 
     print("\n── Exhaustive Coverage ──")
     test("All elements in abundance table", test_all_elements_in_abundance_table)
@@ -3671,7 +3443,6 @@ if __name__ == '__main__':
     test("OOD confidence all 14 classes", test_ood_confidence_all_classes)
     test("Tafel slope all 14 classes", test_tafel_all_classes)
     test("Cathode SAC genomes 5-tuple", test_cathode_sac_genome_5tuple)
-    test("Pyrolysis mode coking bonus", test_pyrolysis_mode_coking_bonus)
     test(
         "Discovery batch covers unseen regions",
         test_discovery_batch_prioritizes_unseen_regions,
@@ -3745,9 +3516,6 @@ if __name__ == '__main__':
         test_readme_contains_no_machine_specific_paths,
     )
     test("Root documentation is canonical", test_root_documentation_is_canonical)
-    test(
-        "Retired GA entry points are blocked", test_retired_ga_entry_points_are_blocked
-    )
     test(
         "Industrial viability gates fail closed",
         test_industrial_viability_gates_fail_closed,

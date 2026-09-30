@@ -5,7 +5,7 @@ Catalyst Design Space Definitions for Turquoise Hydrogen Production.
 
 Defines the complete, physically grounded chemical space of catalysts
 organized by material class. Each class has:
-  - A genome specification (tuple structure for the genetic algorithm)
+  - A canonical tuple genome specification
   - A random genome generator
   - A feature encoder for surrogate model training
   - Constraints that ensure only lab-synthesizable candidates are generated
@@ -19,11 +19,9 @@ Material Classes:
 
 import random
 import numpy as np
-from typing import List, Tuple, Dict, Optional
-from dataclasses import dataclass, field
+from typing import List, Dict, Optional
 
 from pipeline.utils import (
-    CRUSTAL_ABUNDANCE_PPM, MELTING_POINT_K, METAL_PRICE_USD_KG,
     is_molten_at_temperature, TOXIC_ELEMENTS,
 )
 

@@ -16,12 +16,11 @@ Parallelized across all available GPUs with 4 workers per device.
 """
 
 import os
-import sys
 import random
 import hashlib
 import numpy as np
 import multiprocessing as mp
-from typing import List, Tuple, Dict, Optional
+from typing import List, Tuple, Dict
 
 # ASE imports
 from ase import Atoms, Atom
@@ -31,16 +30,12 @@ from pipeline.screening.relaxation import relax_with_record, require_relaxation
 from pipeline.screening.protocols import PYROLYSIS_PROTOCOL
 
 from pipeline.utils import (
-    BASE_DIR,
     SCREENING_DIR,
     setup_logger,
-    k_B_eV,
     bep_activation_energy,
     arrhenius_rate,
     abundance_cost_penalty,
     check_element_safety,
-    CRUSTAL_ABUNDANCE_PPM,
-    MELTING_POINT_K,
 )
 
 logger = setup_logger('surface_screener', 'screening/surface_screening.log')

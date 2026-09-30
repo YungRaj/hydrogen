@@ -10,7 +10,6 @@ Generates QE input files for each intermediate adsorbed on the active site,
 then computes the theoretical ORR overpotential.
 """
 
-import os
 import sys
 import json
 import numpy as np
@@ -76,27 +75,6 @@ TS_CORRECTIONS_eV = {
     'O2_g': 0.63,
 }
 
-
-def compute_dG_adsorbate(
-    E_slab_ads: float, E_slab_clean: float, E_ref: float, ads_type: str
-) -> float:
-    """
-    Compute adsorption free energy using CHE method.
-
-    ΔG = ΔE + ΔZPE − TΔS
-
-    Args:
-        E_slab_ads: DFT energy of slab + adsorbate (eV)
-        E_slab_clean: DFT energy of clean slab (eV)
-        E_ref: Reference molecule energy (eV)
-        ads_type: 'OH*', 'O*', or 'OOH*'
-
-    Returns: Adsorption free energy (eV)
-    """
-    dE = E_slab_ads - E_slab_clean - E_ref
-    dZPE = ZPE_CORRECTIONS_eV.get(ads_type, 0.0)
-    dTS = TS_CORRECTIONS_eV.get(ads_type, 0.0)
-    return dE + dZPE - dTS
 
 
 def validate_orr_catalyst(
