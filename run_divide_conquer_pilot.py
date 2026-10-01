@@ -118,7 +118,6 @@ def prepare(batch: str, per_class: int = 4, extra_slots: int = 6) -> Path:
     from sklearn.ensemble import ExtraTreesClassifier
     from pipeline.screening.small_data_ranker import (
         CLASS_SUCCESS_WEIGHT,
-        ORR_EXPLORATION_SLOTS,
         class_success_probability,
         fit_tree_ranker,
         orr_catalyst_acquisition,
@@ -155,18 +154,7 @@ def prepare(batch: str, per_class: int = 4, extra_slots: int = 6) -> Path:
         catalyst_score += CLASS_SUCCESS_WEIGHT * class_success_probability(
             all_train, candidates, app
         )
-        catalyst_selection = _coverage_select(
-            catalyst_score,
-            candidates,
-            budget,
-            exploration_scores=(
-                uncertainty[eligible] if app == 'fuel_cell_orr' else None
-            ),
-            exploration_slots=(
-                ORR_EXPLORATION_SLOTS if app == 'fuel_cell_orr' else 0
-            ),
-        )
-        local = {'catalyst': catalyst_selection,
+        local = {'catalyst': _coverage_select(catalyst_score, candidates, budget),
                  'uncertainty': _coverage_select(uncertainty[eligible], candidates, budget),
                  'validity': _coverage_select(vscore[eligible], candidates, budget)}
         records.append({'application': app, 'training_rows': len(train),
