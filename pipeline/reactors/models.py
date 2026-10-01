@@ -49,6 +49,7 @@ from pipeline.utils import (
 from pipeline.reactors.modes import (
     DEFAULT_MODE,
     REACTOR_MODELS,
+    ReactorModel,
     reactor_applicability,
     reactor_types_for_mode,
     validate_mode_reactors,
@@ -174,6 +175,32 @@ from pipeline.reactors.electrochemical_models import (
 )
 
 
+def _result_context(config: ReactorConfig, spec: ReactorModel) -> ReactorResult:
+    """Return provenance fields shared by every reactor disposition."""
+    return {
+        'reactor_type': config.reactor_type,
+        'pathway_mode': config.pathway_mode,
+        'catalyst_name': config.catalyst_name,
+        'candidate_id': config.candidate_id,
+        'T_K': config.T_inlet_K,
+        'material_class': config.material_class,
+        'bed_or_interface': spec.bed_or_interface,
+        'cantera_reactor_model': spec.cantera_model,
+        'reaction_domain': spec.reaction_domain,
+        'reactor_model_fidelity': spec.fidelity,
+    }
+
+
+def _save_reactor_result(config: ReactorConfig, result: ReactorResult) -> None:
+    """Persist one reactor disposition under its canonical filename."""
+    REACTOR_DIR.mkdir(parents=True, exist_ok=True)
+    filename = (
+        f"{config.reactor_type}_{config.catalyst_name}_"
+        f"{int(config.T_inlet_K)}K.json"
+    )
+    save_json(result, filename, subdir='reactor')
+
+
 def simulate_reactor(config: ReactorConfig, coupling_services=None) -> ReactorResult:
     """Run the appropriate reactor simulation based on config.reactor_type.
 
@@ -207,19 +234,10 @@ def simulate_reactor(config: ReactorConfig, coupling_services=None) -> ReactorRe
         result = {
             'status': 'not_applicable',
             'valid': False,
-            'reactor_type': config.reactor_type,
-            'pathway_mode': config.pathway_mode,
-            'catalyst_name': config.catalyst_name,
-            'candidate_id': config.candidate_id,
-            'T_K': config.T_inlet_K,
-            'material_class': config.material_class,
+            **_result_context(config, spec),
             'reason': reason,
             'can_exclude_candidate': False,
             'reactor_evidence_tier': 'not_applicable_non_excluding',
-            'bed_or_interface': spec.bed_or_interface,
-            'cantera_reactor_model': spec.cantera_model,
-            'reaction_domain': spec.reaction_domain,
-            'reactor_model_fidelity': spec.fidelity,
         }
     else:
         from pipeline.simulation.result_contract import EXTERNAL_SOLVERS
@@ -285,26 +303,12 @@ def simulate_reactor(config: ReactorConfig, coupling_services=None) -> ReactorRe
                 result = {
                     'status': 'validation_required',
                     'valid': False,
-                    'reactor_type': config.reactor_type,
-                    'pathway_mode': config.pathway_mode,
-                    'catalyst_name': config.catalyst_name,
-                    'T_K': config.T_inlet_K,
-                    'candidate_id': config.candidate_id,
-                    'material_class': config.material_class,
+                    **_result_context(config, spec),
                     'multiphysics_evidence': loaded,
                     'can_exclude_candidate': False,
                     'reactor_evidence_tier': 'required_solver_evidence_missing',
-                    'bed_or_interface': spec.bed_or_interface,
-                    'cantera_reactor_model': spec.cantera_model,
-                    'reaction_domain': spec.reaction_domain,
-                    'reactor_model_fidelity': spec.fidelity,
                 }
-                REACTOR_DIR.mkdir(parents=True, exist_ok=True)
-                fname = (
-                    f"{config.reactor_type}_{config.catalyst_name}_"
-                    f"{int(config.T_inlet_K)}K.json"
-                )
-                save_json(result, fname, subdir='reactor')
+                _save_reactor_result(config, result)
                 return result
             if loaded['valid']:
                 coupling_services.couple_evidence(config, loaded)
@@ -314,13 +318,7 @@ def simulate_reactor(config: ReactorConfig, coupling_services=None) -> ReactorRe
         result.setdefault('status', 'complete')
         result.update(
             {
-                'candidate_id': config.candidate_id,
-                'pathway_mode': config.pathway_mode,
-                'material_class': config.material_class,
-                'bed_or_interface': spec.bed_or_interface,
-                'cantera_reactor_model': spec.cantera_model,
-                'reaction_domain': spec.reaction_domain,
-                'reactor_model_fidelity': spec.fidelity,
+                **_result_context(config, spec),
                 'multiphysics_evidence': config.multiphysics_artifact,
                 'reactor_closure_evidence': config.reactor_closure_evidence,
             }
@@ -333,13 +331,7 @@ def simulate_reactor(config: ReactorConfig, coupling_services=None) -> ReactorRe
             result['reactor_evidence_limitations'] = limitations
             result['can_exclude_candidate'] = False
 
-    # Save result
-    REACTOR_DIR.mkdir(parents=True, exist_ok=True)
-    fname = (
-        f"{config.reactor_type}_{config.catalyst_name}_{int(config.T_inlet_K)}K.json"
-    )
-    save_json(result, fname, subdir='reactor')
-
+    _save_reactor_result(config, result)
     return result
 
 
@@ -430,9 +422,7 @@ def run_reactor_sweep(
                     'can_exclude_candidate': False,
                     'reactor_evidence_tier': 'failed_simulation',
                 }
-                REACTOR_DIR.mkdir(parents=True, exist_ok=True)
-                fname = f"{rt}_{catalyst_name}_{int(T)}K.json"
-                save_json(result, fname, subdir='reactor')
+                _save_reactor_result(config, result)
                 logger.error(
                     'Reactor condition failed without excluding candidate: '
                     f'{rt} {catalyst_name} {T} K: {exc}'
