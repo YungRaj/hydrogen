@@ -318,77 +318,32 @@ def orr_worker(
         candidate_threads: Candidate threads used by this operation.
         batched: Whether to enable batched.
     """
-    try:
-        import os
+    from pipeline.screening.gpu_executor import run_gpu_worker
 
-        os.environ['CUDA_VISIBLE_DEVICES'] = gpu_uuid
-        os.environ['OMP_NUM_THREADS'] = '1'
-        os.environ['MKL_NUM_THREADS'] = '1'
-        os.environ['OPENBLAS_NUM_THREADS'] = '1'
-        os.environ['VECLIB_MAXIMUM_THREADS'] = '1'
-        os.environ['NUMEXPR_NUM_THREADS'] = '1'
-
-        # Limit CPU threads to prevent multiprocessing CPU over-subscription thrashing
-        import torch
-
-        torch.set_num_threads(1)
-        torch.set_num_interop_threads(1)
-
-        from pipeline.screening.surface_calculator import get_ocp_calculator
-
-        calc = get_ocp_calculator(
-            model_name='esen-sm-conserving-all-oc25', device='cuda'
+    def prepare_evaluator(calculator):
+        water_reference = compute_water_ref(calculator)
+        hydrogen_reference = compute_h2_ref(calculator)
+        return lambda genome, thread_calculator: evaluate_orr_candidate(
+            genome,
+            thread_calculator,
+            water_reference,
+            hydrogen_reference,
         )
 
-        service = None
-        if batched:
-            from pipeline.screening.batched_calculator import BatchedInferenceService
-
-            service = BatchedInferenceService(calc)
-            ref_calc = service.calculator_proxy()
-        else:
-            ref_calc = calc
-        e_h2o = compute_water_ref(ref_calc)
-        e_h2 = compute_h2_ref(ref_calc)
-        from pipeline.screening.gpu_executor import run_worker_loop
-
-        def evaluate(genome, thread_calc):
-            return evaluate_orr_candidate(genome, thread_calc, e_h2o, e_h2)
-
-        def error_record(genome, exc):
-            return {
-                'genome': str(genome),
-                'material_class': genome[0],
-                'valid': False,
-                'worker_id': worker_id,
-                'gpu_id': gpu_id,
-                'screening_protocol': SCREENING_PROTOCOL_ID,
-                'candidate_disposition': 'validation_required',
-                'needs_dft_validation': True,
-                'error': str(exc)[:200],
-            }
-
-        run_worker_loop(
-            worker_id,
-            task_queue,
-            result_queue,
-            stop_event,
-            candidate_threads,
-            batched,
-            calc,
-            evaluate,
-            error_record,
-            batch_service=service,
-            result_context={'gpu_id': gpu_id},
-        )
-    except Exception as e:
-        logger.error(f"ORR Worker {worker_id} failed: {e}")
-        try:
-            from pipeline.screening.worker_supervisor import emit
-
-            emit(result_queue, 'fatal', worker_id, str(e)[:500])
-        except Exception:
-            pass
+    run_gpu_worker(
+        worker_id,
+        gpu_id,
+        gpu_uuid,
+        task_queue,
+        result_queue,
+        stop_event,
+        candidate_threads,
+        batched,
+        prepare_evaluator,
+        SCREENING_PROTOCOL_ID,
+        logger,
+        'ORR worker',
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

@@ -166,6 +166,103 @@ def run_worker_loop(
         heartbeat.join(timeout=2)
 
 
+def run_gpu_worker(
+    worker_id: int,
+    gpu_id: int,
+    gpu_uuid: str,
+    task_queue,
+    result_queue,
+    stop_event,
+    candidate_threads: int,
+    batched: bool,
+    prepare_evaluator: Callable,
+    protocol_id: str,
+    logger,
+    label: str,
+) -> None:
+    """Initialize one eSEN worker and run an application evaluator.
+
+    Args:
+        worker_id: Stable process identifier used by supervision.
+        gpu_id: Physical GPU index recorded with results.
+        gpu_uuid: CUDA device UUID used to isolate the child process.
+        task_queue: Queue of indexed catalyst genomes.
+        result_queue: Queue receiving worker lifecycle and result messages.
+        stop_event: Shared signal indicating that no more work will arrive.
+        candidate_threads: Concurrent candidate consumers in batched mode.
+        batched: Whether consumers share the dynamic batching service.
+        prepare_evaluator: Builds the application evaluator from a calculator.
+        protocol_id: Screening protocol attached to failure records.
+        logger: Application logger receiving initialization failures.
+        label: Human-readable worker label for diagnostics.
+
+    Returns:
+        None after the worker drains its queue or reports a fatal error.
+    """
+    try:
+        os.environ['CUDA_VISIBLE_DEVICES'] = gpu_uuid
+        for name in (
+            'OMP_NUM_THREADS',
+            'MKL_NUM_THREADS',
+            'OPENBLAS_NUM_THREADS',
+            'VECLIB_MAXIMUM_THREADS',
+            'NUMEXPR_NUM_THREADS',
+        ):
+            os.environ[name] = '1'
+
+        import torch
+
+        torch.set_num_threads(1)
+        torch.set_num_interop_threads(1)
+
+        from pipeline.screening.surface_calculator import get_ocp_calculator
+
+        calculator = get_ocp_calculator(
+            model_name='esen-sm-conserving-all-oc25', device='cuda'
+        )
+        batch_service = None
+        evaluator_calculator = calculator
+        if batched:
+            from pipeline.screening.batched_calculator import BatchedInferenceService
+
+            batch_service = BatchedInferenceService(calculator)
+            evaluator_calculator = batch_service.calculator_proxy()
+        evaluator = prepare_evaluator(evaluator_calculator)
+
+        def error_record(genome: tuple, exc: Exception) -> dict:
+            return {
+                'genome': str(genome),
+                'material_class': genome[0],
+                'valid': False,
+                'worker_id': worker_id,
+                'gpu_id': gpu_id,
+                'screening_protocol': protocol_id,
+                'candidate_disposition': 'validation_required',
+                'needs_dft_validation': True,
+                'error': str(exc)[:200],
+            }
+
+        run_worker_loop(
+            worker_id,
+            task_queue,
+            result_queue,
+            stop_event,
+            candidate_threads,
+            batched,
+            calculator,
+            evaluator,
+            error_record,
+            batch_service=batch_service,
+            result_context={'gpu_id': gpu_id},
+        )
+    except Exception as exc:
+        logger.error('%s %s failed to initialize: %s', label, worker_id, exc)
+        try:
+            emit(result_queue, 'fatal', worker_id, str(exc)[:500])
+        except Exception:
+            pass
+
+
 def run_gpu_screening(
     genomes: Sequence[tuple],
     db_filename: str,
