@@ -18,6 +18,26 @@ class ElectrochemicalReactorConfig(Protocol):
     T_inlet_K: float
 
 
+def _pathway_result(
+    config: ElectrochemicalReactorConfig,
+    reactor_type: str,
+    pathway_mode: str,
+    *,
+    complete: bool,
+) -> ReactorResult:
+    """Return the shared identity and disposition for a coupled pathway."""
+    return {
+        'status': 'complete' if complete else 'validation_required',
+        'valid': complete,
+        'reactor_type': reactor_type,
+        'pathway_mode': pathway_mode,
+        'catalyst_name': config.catalyst_name,
+        'candidate_id': config.candidate_id,
+        'T_K': config.T_inlet_K,
+        'can_exclude_candidate': False,
+    }
+
+
 def simulate_ntec_pathway(config: ElectrochemicalReactorConfig) -> ReactorResult:
     """Build an NTEC result from validated coupled-physics evidence.
 
@@ -38,13 +58,7 @@ def simulate_ntec_pathway(config: ElectrochemicalReactorConfig) -> ReactorResult
         artifact = evidence['artifact']
         outputs = artifact['outputs']
         return {
-            'status': 'complete',
-            'valid': True,
-            'reactor_type': 'NTEC',
-            'pathway_mode': 'ntec',
-            'catalyst_name': config.catalyst_name,
-            'candidate_id': config.candidate_id,
-            'T_K': config.T_inlet_K,
+            **_pathway_result(config, 'NTEC', 'ntec', complete=True),
             'CH4_conversion': float(outputs['CH4_conversion']),
             'H2_selectivity': float(outputs['H2_selectivity']),
             'solid_C_selectivity': float(outputs['solid_C_selectivity']),
@@ -52,18 +66,11 @@ def simulate_ntec_pathway(config: ElectrochemicalReactorConfig) -> ReactorResult
             'ntec_assistance': assistance,
             'multiphysics_evidence': evidence,
             'reactor_evidence_tier': 'calibrated_multiphysics_screening',
-            'can_exclude_candidate': False,
         }
     return {
-        'status': 'validation_required',
-        'valid': False,
-        'reactor_type': 'NTEC',
-        'pathway_mode': 'ntec',
-        'catalyst_name': config.catalyst_name,
-        'T_K': config.T_inlet_K,
+        **_pathway_result(config, 'NTEC', 'ntec', complete=False),
         'ntec_assistance': assistance,
         'reactor_evidence_tier': 'pathway_model_pending',
-        'can_exclude_candidate': False,
         'limitations': [
             'candidate_specific_ntec_pathway_kinetics_required',
             'liquid_solid_hydrodynamic_model_required',
@@ -95,14 +102,10 @@ def simulate_electrochemical_pathway(
         outputs = artifact['outputs']
         phase = artifact.get('electrolyte_phase', phase)
         return {
-            'status': 'complete',
-            'valid': True,
-            'reactor_type': 'Electrochemical',
-            'pathway_mode': 'electrochemical',
+            **_pathway_result(
+                config, 'Electrochemical', 'electrochemical', complete=True
+            ),
             'electrolyte_phase': phase,
-            'catalyst_name': config.catalyst_name,
-            'candidate_id': config.candidate_id,
-            'T_K': config.T_inlet_K,
             **{
                 name: float(outputs[name])
                 for name in (
@@ -117,19 +120,14 @@ def simulate_electrochemical_pathway(
             'electrochemical_evidence': evidence,
             'multiphysics_evidence': solver_evidence,
             'reactor_evidence_tier': 'mechanistic_multiphysics_screening',
-            'can_exclude_candidate': False,
         }
     return {
-        'status': 'validation_required',
-        'valid': False,
-        'reactor_type': 'Electrochemical',
-        'pathway_mode': 'electrochemical',
+        **_pathway_result(
+            config, 'Electrochemical', 'electrochemical', complete=False
+        ),
         'electrolyte_phase': phase,
-        'catalyst_name': config.catalyst_name,
-        'T_K': config.T_inlet_K,
         'electrochemical_evidence': evidence,
         'reactor_evidence_tier': 'pathway_model_pending',
-        'can_exclude_candidate': False,
         'limitations': [
             'candidate_specific_electrochemical_kinetics_required',
             f'{phase or "unspecified"}_electrolyte_transport_model_required',
