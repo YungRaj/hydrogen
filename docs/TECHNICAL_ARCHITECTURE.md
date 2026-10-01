@@ -427,6 +427,12 @@ larger. Repeatedly unproductive regions receive lower priority, not zero
 coverage. When a campaign resumes, a bounded number of stale pending priorities
 can be refreshed using the latest calibration evidence.
 
+Within priority mode, completed outcomes contribute a smoothed material-class
+hit rate. The scheduler combines that feedback with predicted primary catalyst
+quality, while class floors and balanced exploration remain authoritative.
+Feedback is applied to a copied scheduling objective only; physical objective
+values stored in archives and reports are unchanged.
+
 Catalyst-guided priority is the only supported production acquisition policy.
 Random sampling, uncertainty ranking, and validity/coverage ranking are retained
 as equal-budget benchmark controls. Uncertainty and validity may allocate
@@ -454,6 +460,10 @@ versus 43 for uncertainty, 41 for validity, and a random 97.5% bound of 53, at
 equal budgets. The primary model learns the final barrier or overpotential
 directly. A 0.25-weight, five-row-prior class correction removes persistent
 out-of-fold residual bias without letting sparse classes dominate.
+Branch scheduling additionally uses a 0.75-weight class hit probability with a
+five-row global prior. This uses finished candidates to direct traversal while
+retaining nonzero coverage for every class and leaving scientific outputs
+unchanged.
 Coverage traversal and class quotas are unchanged, and predictions remain
 separate from the physical observations written to the validation ledger.
 

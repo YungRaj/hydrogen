@@ -1788,6 +1788,28 @@ def test_class_success_probability_is_smoothed_and_outcome_driven():
     assert score[0] > score[2] > score[1]
 
 
+def test_branch_feedback_changes_priority_not_physical_objectives():
+    import pandas as pd
+    from pipeline.screening.small_data_ranker import guide_branch_objectives
+
+    strong = ('SAC', 'Fe', 'N4', 'N-graphene', 'none')
+    weak = ('DAC', 'Fe', 'Co', 'N6', 'N-graphene')
+    frame = pd.DataFrame(
+        {
+            'genome': [repr(strong)] * 5 + [repr(weak)] * 5,
+            'valid': [True] * 10,
+            'E_act': [0.1] * 5 + [2.0] * 5,
+        }
+    )
+    physical = np.array([[1.0, 4.0], [1.0, 7.0]])
+    guided = guide_branch_objectives(
+        physical, frame, [strong, weak], 'turquoise_hydrogen'
+    )
+    assert np.array_equal(physical, np.array([[1.0, 4.0], [1.0, 7.0]]))
+    assert guided[0, 0] < guided[1, 0]
+    assert np.array_equal(guided[:, 1], physical[:, 1])
+
+
 def test_prospective_campaign_rejects_mutable_or_unverified_outcomes():
     import hashlib
     import json
@@ -3434,6 +3456,10 @@ if __name__ == '__main__':
     test(
         "Class success feedback is smoothed and outcome-driven",
         test_class_success_probability_is_smoothed_and_outcome_driven,
+    )
+    test(
+        "Branch feedback changes priority only",
+        test_branch_feedback_changes_priority_not_physical_objectives,
     )
     test(
         "Prospective outcomes are immutable and verified",

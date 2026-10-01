@@ -148,7 +148,10 @@ Finished valid candidates train the application ranker on the final primary
 metric: activation barrier for turquoise hydrogen and ORR overpotential for
 fuel cells. Predicted primary performance orders unresolved branches; a small
 out-of-fold material-class bias correction incorporates persistent feedback
-without allowing sparse classes to dominate.
+without allowing sparse classes to dominate. Completed outcomes also provide a
+smoothed per-class hit rate that improves scheduling priority for productive
+branches. This feedback changes traversal order only: it never changes a
+physical catalyst metric, removes a class floor, or authorizes pruning.
 
 This is the repository-wide standard, not an optional acquisition mode.
 Uncertainty ranking and validity/coverage ranking remain benchmark controls and

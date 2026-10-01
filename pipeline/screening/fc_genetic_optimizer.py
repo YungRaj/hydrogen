@@ -210,6 +210,7 @@ def run_fc_branch_discovery(config: FCBranchDiscoveryConfig, existing_db=None):
     from pipeline.screening.small_data_ranker import (
         MIN_TRAINING_ROWS,
         fit_tree_ranker,
+        guide_branch_objectives,
         merge_compatible_evidence,
         orr_tree_objectives,
         valid_training_row_count,
@@ -255,6 +256,9 @@ def run_fc_branch_discovery(config: FCBranchDiscoveryConfig, existing_db=None):
         model.diagnostics.acquisition_mode,
     )
     score_population = lambda pop: orr_tree_objectives(pop, model)
+    branch_score_population = lambda pop: guide_branch_objectives(
+        score_population(pop), evidence, pop, 'fuel_cell_orr'
+    )
     summary = run_branch_and_bound(
         BranchConfig(
             application='fuel_cell_orr',
@@ -271,7 +275,7 @@ def run_fc_branch_discovery(config: FCBranchDiscoveryConfig, existing_db=None):
             refresh_pending_priorities=config.refresh_pending_priorities,
             scan_workers=config.scan_workers,
         ),
-        score_population,
+        branch_score_population,
     )
     logger.info(f"ORR branch discovery: {summary}")
     archive = load_archive_genomes(

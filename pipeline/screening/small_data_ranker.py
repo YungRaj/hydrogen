@@ -463,3 +463,26 @@ def class_success_probability(
     return np.asarray(
         [rates.get(str(genome[0]), global_rate) for genome in genomes], dtype=float
     )
+
+
+def guide_branch_objectives(
+    objectives: np.ndarray, frame, genomes, application: str
+) -> np.ndarray:
+    """Apply completed-candidate class feedback to branch scheduling only.
+
+    Args:
+        objectives: Physical candidate objectives with lower primary values preferred.
+        frame: Completed screening records available before branch scheduling.
+        genomes: Candidate genomes represented by the objective rows.
+        application: ``turquoise_hydrogen`` or ``fuel_cell_orr``.
+
+    Returns:
+        A copied objective matrix whose primary column includes branch feedback.
+    """
+    guided = np.asarray(objectives, dtype=float).copy()
+    if guided.ndim != 2 or len(guided) != len(genomes) or guided.shape[1] == 0:
+        raise ValueError("branch objectives must have shape (N, M) with M >= 1")
+    guided[:, 0] -= CLASS_SUCCESS_WEIGHT * class_success_probability(
+        frame, genomes, application
+    )
+    return guided

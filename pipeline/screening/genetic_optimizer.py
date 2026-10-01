@@ -200,6 +200,7 @@ def run_branch_discovery(
     from pipeline.screening.small_data_ranker import (
         MIN_TRAINING_ROWS,
         fit_tree_ranker,
+        guide_branch_objectives,
         merge_compatible_evidence,
         turquoise_tree_objectives,
         valid_training_row_count,
@@ -242,6 +243,9 @@ def run_branch_discovery(
         model.diagnostics.acquisition_mode,
     )
     score_population = lambda pop: turquoise_tree_objectives(pop, model)
+    branch_score_population = lambda pop: guide_branch_objectives(
+        score_population(pop), evidence, pop, 'turquoise_hydrogen'
+    )
     summary = run_branch_and_bound(
         BranchConfig(
             application='turquoise_hydrogen',
@@ -260,7 +264,7 @@ def run_branch_discovery(
             refresh_pending_priorities=config.refresh_pending_priorities,
             scan_workers=config.scan_workers,
         ),
-        score_population,
+        branch_score_population,
     )
     logger.info(f"Branch discovery: {summary}")
     archive = load_archive_genomes(
