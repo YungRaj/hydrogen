@@ -8,7 +8,7 @@ covering solid-gas and solid-liquid interfaces for ~88 elements. However,
 our 14-class design space includes material types NOT in that training data
 (MOFs, metal-free carbon, metal hydrides, etc.).
 
-This module provides three layers of OOD detection:
+This module provides two layers of OOD detection:
 
   Layer 1: CLASS_CONFIDENCE — static prior based on training set coverage.
            Free, applied to every genome.
@@ -17,20 +17,14 @@ This module provides three layers of OOD detection:
            were well-represented in OC20/OC25 surface calculations.
            Cheap, applied to every genome.
 
-  Layer 3: dual_model_disagreement() — runs both eSen-SM and MACE-MP-0
-           and measures energy disagreement for validation candidates.
-
 The combined confidence score is used to discount screening results:
   - confidence > 0.7  → trust the prediction
-  - confidence 0.4-0.7 → flag for Tier 3 DFT validation
+  - confidence 0.4-0.7 → flag for DFT validation
   - confidence < 0.4  → prioritize independent validation
 """
 
 import numpy as np
-from typing import Dict, List, Optional
-import logging
-
-logger = logging.getLogger('ood_detector')
+from typing import List
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -169,95 +163,22 @@ def element_coverage_score(elements: List[str]) -> float:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-def dual_model_disagreement(
-    atoms, primary_calc, fallback_calc, property_name: str = 'energy'
-) -> Dict:
-    """
-        Compare predictions from two calculators on the same structure.
-
-        Returns dict with:
-          - 'primary_energy': energy from primary model (eSen-SM)
-          - 'fallback_energy': energy from fallback model (MACE/EquiformerV2)
-          - 'disagreement_eV': absolute difference
-          - 'relative_disagreement': |diff| / mean(|energies|)
-          - 'is_ood': True if disagreement exceeds threshold
-
-        Should only be called on top-k candidates during validation rounds.
-
-    Args:
-        atoms: Atomic structure consumed by the calculator.
-        primary_calc: Primary calc used by this operation.
-        fallback_calc: Fallback calc used by this operation.
-        property_name: Property name used by this operation.
-
-    Returns:
-        Dictionary containing the computed values, status, and supporting metadata.
-    """
-    from ase.optimize import BFGS
-
-    result = {}
-
-    try:
-        # Primary model (eSen-SM)
-        atoms_p = atoms.copy()
-        atoms_p.calc = primary_calc
-        BFGS(atoms_p, logfile=None).run(fmax=0.1, steps=50)
-        e_primary = atoms_p.get_potential_energy()
-        result['primary_energy'] = float(e_primary)
-    except Exception as e:
-        result['primary_error'] = str(e)[:100]
-        e_primary = None
-
-    try:
-        # Fallback model (MACE-MP-0 or second eSen variant)
-        atoms_f = atoms.copy()
-        atoms_f.calc = fallback_calc
-        BFGS(atoms_f, logfile=None).run(fmax=0.1, steps=50)
-        e_fallback = atoms_f.get_potential_energy()
-        result['fallback_energy'] = float(e_fallback)
-    except Exception as e:
-        result['fallback_error'] = str(e)[:100]
-        e_fallback = None
-
-    if e_primary is not None and e_fallback is not None:
-        diff = abs(e_primary - e_fallback)
-        mean_abs = (abs(e_primary) + abs(e_fallback)) / 2.0
-        rel_diff = diff / max(mean_abs, 0.01)
-
-        result['disagreement_eV'] = float(diff)
-        result['relative_disagreement'] = float(rel_diff)
-        # OOD threshold: >2 eV absolute OR >50% relative
-        result['is_ood'] = bool(diff > 2.0 or rel_diff > 0.5)
-    else:
-        result['disagreement_eV'] = float('inf')
-        result['relative_disagreement'] = float('inf')
-        result['is_ood'] = True  # can't verify → assume OOD
-
-    return result
-
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # COMBINED CONFIDENCE SCORE
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-def compute_model_confidence(
-    genome: tuple, elements: List[str], dual_result: Optional[Dict] = None
-) -> float:
+def compute_model_confidence(genome: tuple, elements: List[str]) -> float:
     """
         Compute combined confidence score for a screening prediction.
 
-        Combines:
-          - Layer 1: class-level prior (40% weight)
-          - Layer 2: element coverage (30% weight)
-          - Layer 3: dual-model disagreement if available (30% weight)
+        Combines the class-level prior with element coverage.
 
         Returns: float in [0, 1], where 1.0 = high confidence, 0.0 = don't trust.
 
     Args:
         genome: Encoded catalyst composition and structural configuration.
         elements: Ordered values supplying elements.
-        dual_result: Dual result used by this operation.
     """
     mat_class = genome[0]
 
@@ -267,16 +188,7 @@ def compute_model_confidence(
     # Layer 2: element coverage
     elem_conf = element_coverage_score(elements)
 
-    if dual_result is not None and 'relative_disagreement' in dual_result:
-        # Layer 3 available: use all three
-        rel_dis = dual_result['relative_disagreement']
-        # Convert disagreement to confidence: 0% disagreement → 1.0, 100% → 0.0
-        dual_conf = max(0.0, 1.0 - rel_dis)
-
-        confidence = 0.50 * cls_conf + 0.25 * elem_conf + 0.25 * dual_conf
-    else:
-        # No dual model: class prior dominates (it captures structural coverage)
-        confidence = 0.65 * cls_conf + 0.35 * elem_conf
+    confidence = 0.65 * cls_conf + 0.35 * elem_conf
 
     return float(np.clip(confidence, 0.0, 1.0))
 

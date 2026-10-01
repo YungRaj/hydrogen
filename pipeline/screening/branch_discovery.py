@@ -73,28 +73,13 @@ class BranchDiscoveryWorkflow:
     refill_prefix: str
     evidence_db: str
     champions_db: str
-    database_subdir: Optional[str]
+    database_subdir: str
     certificate_path: Path
     validation_fidelity: float
     diagnostics_label: str
     screener: Screener
     objective_function: ObjectiveFunction
     logger: logging.Logger
-
-
-def _load_evidence(workflow: BranchDiscoveryWorkflow) -> pd.DataFrame:
-    if workflow.database_subdir is None:
-        return load_screening_db(workflow.evidence_db)
-    return load_screening_db(workflow.evidence_db, subdir=workflow.database_subdir)
-
-
-def _save_evidence(
-    frame: pd.DataFrame, filename: str, workflow: BranchDiscoveryWorkflow
-) -> None:
-    if workflow.database_subdir is None:
-        save_screening_db(frame, filename)
-    else:
-        save_screening_db(frame, filename, subdir=workflow.database_subdir)
 
 
 def run_guided_branch_discovery(
@@ -122,7 +107,9 @@ def run_guided_branch_discovery(
         )
 
     evidence = merge_compatible_evidence(
-        evidence, _load_evidence(workflow), workflow.protocol_id
+        evidence,
+        load_screening_db(workflow.evidence_db, subdir=workflow.database_subdir),
+        workflow.protocol_id,
     )
     attempted = {str(value) for value in evidence.get('genome', [])}
     refill_limit = max(
@@ -150,7 +137,9 @@ def run_guided_branch_discovery(
         )
         evidence = merge_compatible_evidence(extra, evidence, workflow.protocol_id)
 
-    _save_evidence(evidence, workflow.calibration_db, workflow)
+    save_screening_db(
+        evidence, workflow.calibration_db, subdir=workflow.database_subdir
+    )
     model = fit_tree_ranker(evidence, workflow.application)
     workflow.logger.info(
         '%s ranker diagnostics: %s; acquisition_mode=%s',
@@ -230,7 +219,7 @@ def run_guided_branch_discovery(
         None,
         workflow.protocol_id,
     )
-    _save_evidence(evidence, workflow.evidence_db, workflow)
+    save_screening_db(evidence, workflow.evidence_db, subdir=workflow.database_subdir)
     if config.prior_art_db:
         from pipeline.evidence.prior_art import annotate_prior_art
 

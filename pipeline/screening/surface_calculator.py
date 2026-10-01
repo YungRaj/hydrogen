@@ -3,32 +3,17 @@
 """
 Multi-Fidelity Surface Catalysis Calculator.
 
-Replaces the single bulk MACE-MP-0 model with a tiered approach:
-
-  Tier 1 (Screening): MACE-MP-0 — fast (~2s/candidate), bulk-trained
-                       Used for screening the 21.1B encoded space
-
-  Tier 2 (Validation): Catalysis-Hub lookup + EquiformerV2 (OC20)
-                        Real DFT surface energies from 100k+ reactions
-                        OC20-trained GNN for surface adsorption
-
-  Tier 3 (High-fidelity): Quantum ESPRESSO DFT
+  Tier 1 (Screening): eSEN/UMA surface GNN
+  Tier 2 (High-fidelity): Quantum ESPRESSO DFT
                            Full periodic slab DFT with PAW pseudopotentials
                            ~1-4 hours per candidate
-
-Each tier provides an ASE-compatible calculator interface.
-The campaign uses Tier 1 for population screening, Tier 2 for
-top-k validation, and Tier 3 for champion catalysts.
 """
 
 import os
 import shlex
 import sys
-import json
-import urllib.request
-import numpy as np
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Optional, Tuple
 from dataclasses import dataclass
 
 from ase import Atoms
@@ -41,119 +26,13 @@ logger = setup_logger('surface_calculator', 'screening/surface_calculator.log')
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# TIER 1: MACE-MP-0 (existing — unchanged)
+# TIER 1: SURFACE GNN
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-def get_mace_calculator(device='cuda:0', model='medium'):
-    """Load MACE-MP-0 calculator (bulk materials model, fast screening).
-
-    Args:
-        device: CPU or GPU device requested for execution.
-        model: Fitted model used for inference.
-
-    Returns:
-        Computed result described above.
-    """
-    from mace.calculators import mace_mp
-
-    return mace_mp(model=model, device=device)
-
-
 # ═══════════════════════════════════════════════════════════════════════════════
-# TIER 2a: CATALYSIS-HUB LOOKUP (real DFT data, 100k+ reactions)
+# CALCULATOR CONSTRUCTION
 # ═══════════════════════════════════════════════════════════════════════════════
-
-CATALYSIS_HUB_URL = 'https://api.catalysis-hub.org/graphql'
-
-
-def query_catalysis_hub(
-    surface: str, facet: str = None, adsorbate: str = None, limit: int = 50
-) -> List[Dict]:
-    """
-    Query Catalysis-Hub for DFT-computed adsorption/reaction energies.
-
-    Args:
-        surface: Surface composition (e.g., "Pt", "NiFe", "Pd3Au")
-        facet: Crystal facet (e.g., "111", "100", "211")
-        adsorbate: Adsorbate species (e.g., "H", "OH", "CH3")
-        limit: Max results
-
-    Returns: List of reaction energy records from the database.
-    """
-    filters = [f'first:{limit}']
-    if surface:
-        filters.append(f'surfaceComposition:"{surface}"')
-    if facet:
-        filters.append(f'facet:"{facet}"')
-    if adsorbate:
-        filters.append(f'products:"star{adsorbate}"')
-
-    query = """{{
-        reactions({filters}) {{
-            edges {{
-                node {{
-                    reactionEnergy
-                    activationEnergy
-                    surfaceComposition
-                    facet
-                    products
-                    reactants
-                    chemicalComposition
-                    reactionSystems {{
-                        name
-                        aseId
-                    }}
-                    sites
-                }}
-            }}
-        }}
-    }}""".format(
-        filters=','.join(filters)
-    )
-
-    try:
-        req = urllib.request.Request(
-            f'{CATALYSIS_HUB_URL}?query={urllib.parse.quote(query)}',
-            headers={'Accept': 'application/json'},
-        )
-        resp = urllib.request.urlopen(req, timeout=15)
-        data = json.loads(resp.read())
-        edges = data.get('data', {}).get('reactions', {}).get('edges', [])
-        results = [e['node'] for e in edges]
-        logger.info(f"Catalysis-Hub: {len(results)} results for {surface}({facet})")
-        return results
-    except Exception as e:
-        logger.warning(f"Catalysis-Hub query failed: {e}")
-        return []
-
-
-def lookup_adsorption_energy(
-    element: str, facet: str, adsorbate: str
-) -> Optional[float]:
-    """
-        Look up a specific adsorption energy from Catalysis-Hub.
-
-        Returns energy in eV if found, None otherwise.
-
-    Args:
-        element: Element used by this operation.
-        facet: Facet used by this operation.
-        adsorbate: Adsorbate used by this operation.
-
-    Returns:
-        Computed `Optional[float]` result.
-    """
-    results = query_catalysis_hub(element, facet, adsorbate, limit=5)
-    if results:
-        energies = [
-            r['reactionEnergy'] for r in results if r.get('reactionEnergy') is not None
-        ]
-        if energies:
-            return float(np.median(energies))
-    return None
-
-
 
 def _ensure_hf_token():
     """Load HuggingFace token from .hf_token file or env var."""
@@ -240,7 +119,7 @@ def get_ocp_calculator(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# TIER 3: QUANTUM ESPRESSO (full DFT — highest fidelity)
+# TIER 2: QUANTUM ESPRESSO (full DFT — highest fidelity)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
@@ -366,7 +245,7 @@ def get_qe_calculator(atoms: Atoms, config: QEConfig = None) -> Optional[Calcula
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# MULTI-FIDELITY EVALUATION
+# COMMAND-LINE AVAILABILITY CHECK
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
@@ -374,19 +253,15 @@ def get_qe_calculator(atoms: Atoms, config: QEConfig = None) -> Optional[Calcula
 
 
 if __name__ == '__main__':
-    print("=== Surface Calculator Multi-Fidelity Tiers ===")
-    print()
-    print("Tier 1: MACE-MP-0 (bulk) — AVAILABLE")
-
+    print("=== Surface Calculator Fidelity Tiers ===")
     ocp = get_ocp_calculator()
     if ocp:
-        print("Tier 2: EquiformerV2 (OC20 surface) — AVAILABLE")
+        print("Tier 1: eSEN/UMA surface GNN — AVAILABLE")
     else:
-        print("Tier 2: EquiformerV2 — NOT AVAILABLE (need HF_TOKEN for UMA/eSen)")
-        print("        Catalysis-Hub API — AVAILABLE (100k+ DFT reactions)")
+        print("Tier 1: eSEN/UMA surface GNN — NOT AVAILABLE")
 
     qe = get_qe_calculator(Atoms('Pt'))
     if qe:
-        print("Tier 3: Quantum ESPRESSO — AVAILABLE")
+        print("Tier 2: Quantum ESPRESSO — AVAILABLE")
     else:
-        print("Tier 3: Quantum ESPRESSO — NEEDS PSEUDOPOTENTIALS")
+        print("Tier 2: Quantum ESPRESSO — NEEDS PSEUDOPOTENTIALS")

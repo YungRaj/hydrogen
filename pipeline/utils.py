@@ -64,7 +64,6 @@ def repo_relative(path) -> str:
 
 # ─── Conda Environments ─────────────────────────────────────────────────────────
 
-ENV_MACE = "deepmd-env"  # MACE-MP-0, PyTorch, ASE
 ENV_BATTERY = "battery-env"  # ASE, Pymatgen, Pandas
 ENV_CANTERA = "cp2k-env"  # Cantera 3.2
 ENV_QUANTUM = "quantum-env"  # CUDA-Q

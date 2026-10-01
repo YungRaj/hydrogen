@@ -54,7 +54,7 @@ def run_branch_discovery(
         refill_prefix='branch_calibration_refill',
         evidence_db='branch_ranker_evidence.csv',
         champions_db='branch_champions.csv',
-        database_subdir=None,
+        database_subdir='screening',
         certificate_path=(
             SCREENING_DIR / 'turquoise_hydrogen_coverage_certificate.json'
         ),

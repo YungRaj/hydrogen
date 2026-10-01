@@ -191,19 +191,6 @@ def phase_stable_at_application_T(
     return {'status': 'candidate', 'reason': None}
 
 
-def turquoise_pyrolysis_scope(genome: tuple, T_K: float = None) -> dict:
-    """Admissibility for turquoise methane-pyrolysis ranking / Phase 2.
-
-    Args:
-        genome: Input controlling genome.
-        T_K: Input controlling T K.
-
-    Returns:
-        Validated dict output for this operation.
-    """
-    return phase_stable_at_application_T(genome, T_K, APPLICATION_PYROLYSIS)
-
-
 def parse_encoded_genome(raw):
     """Parse a screening-row genome (tuple or literal string) or return None.
 

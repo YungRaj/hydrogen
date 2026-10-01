@@ -2,7 +2,7 @@
 Turquoise Hydrogen → Fuel Cell: End-to-End Multi-Scale Simulation Pipeline
 
 Phases:
-  1. MACE-MP-0 High-Throughput Catalyst Screening & Genetic Optimization
+  1. Catalyst-Guided Branch Discovery with eSEN/UMA Screening
   2. Cantera Reactor-Scale Simulation (MMBCR, PFR, Fluidized Bed)
   3. Quantum ESPRESSO DFT Validation
   4. CUDA-Q VQE Transition-State Quantum Chemistry
