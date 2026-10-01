@@ -1788,6 +1788,25 @@ def test_class_success_probability_is_smoothed_and_outcome_driven():
     assert score[0] > score[2] > score[1]
 
 
+def test_coverage_selection_reserves_bounded_exploration_slots():
+    from pipeline.evidence.search_policy_benchmark import _coverage_select
+
+    genomes = [
+        ('SAC', 'Fe', 'N4', 'N-graphene', 'none'),
+        ('SAC', 'Co', 'N4', 'N-graphene', 'none'),
+        ('DAC', 'Fe', 'Co', 'N6', 'N-graphene'),
+        ('DAC', 'Fe', 'Ni', 'N6', 'N-graphene'),
+    ]
+    chosen = _coverage_select(
+        np.array([4.0, 3.0, 2.0, 1.0]),
+        genomes,
+        3,
+        exploration_scores=np.array([0.0, 1.0, 0.0, 4.0]),
+        exploration_slots=1,
+    )
+    assert set(chosen) == {0, 2, 3}
+
+
 def test_prospective_campaign_rejects_mutable_or_unverified_outcomes():
     import hashlib
     import json
@@ -3434,6 +3453,10 @@ if __name__ == '__main__':
     test(
         "Class success feedback is smoothed and outcome-driven",
         test_class_success_probability_is_smoothed_and_outcome_driven,
+    )
+    test(
+        "Coverage selection reserves bounded exploration",
+        test_coverage_selection_reserves_bounded_exploration_slots,
     )
     test(
         "Prospective outcomes are immutable and verified",

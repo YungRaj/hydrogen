@@ -81,23 +81,46 @@ def _round_path(root: Path, round_name: str, application: str) -> Path:
 
 
 def _coverage_select(
-    scores: np.ndarray, genomes: Sequence[tuple], budget: int
+    scores: np.ndarray,
+    genomes: Sequence[tuple],
+    budget: int,
+    *,
+    exploration_scores: np.ndarray | None = None,
+    exploration_slots: int = 0,
 ) -> np.ndarray:
-    """Apply the production class floor, then spend remaining slots by score."""
+    """Apply the class floor, then split remaining slots by quality and exploration."""
+    if exploration_slots < 0 or exploration_slots > budget:
+        raise ValueError("exploration slots must be between zero and budget")
+    if exploration_slots and exploration_scores is None:
+        raise ValueError("exploration scores are required for exploration slots")
     by_class: dict[str, list[int]] = {}
     for index, genome in enumerate(genomes):
         by_class.setdefault(str(genome[0]), []).append(index)
+    if budget - exploration_slots < len(by_class):
+        raise ValueError("exploration slots cannot displace the class floor")
     selected = [
         max(indices, key=lambda i: (float(scores[i]), candidate_id(genomes[i])))
         for _, indices in sorted(by_class.items())
     ]
     selected.sort(key=lambda i: (-float(scores[i]), candidate_id(genomes[i])))
     chosen = set(selected)
-    remainder = sorted(
+    quality_remainder = sorted(
         (i for i in range(len(genomes)) if i not in chosen),
         key=lambda i: (-float(scores[i]), candidate_id(genomes[i])),
     )
-    return np.asarray((selected + remainder)[:budget], dtype=int)
+    quality_budget = budget - exploration_slots
+    selected = (selected + quality_remainder)[:quality_budget]
+    chosen = set(selected)
+    if exploration_slots:
+        assert exploration_scores is not None
+        exploration = sorted(
+            (i for i in range(len(genomes)) if i not in chosen),
+            key=lambda i: (
+                -float(exploration_scores[i]), candidate_id(genomes[i])
+            ),
+        )[:exploration_slots]
+        selected.extend(exploration)
+    return np.asarray(selected, dtype=int)
 
 
 def run_search_policy_benchmark(spec: BenchmarkSpec = BenchmarkSpec()) -> dict:
