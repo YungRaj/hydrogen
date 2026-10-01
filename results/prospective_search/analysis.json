@@ -7,30 +7,31 @@
     "20260930-catalyst-04-powered",
     "20260930-catalyst-05-validity-aware",
     "20260930-catalyst-06-branch-feedback",
-    "20260930-catalyst-07-branch-feedback"
+    "20260930-catalyst-07-branch-feedback",
+    "20260930-catalyst-08-bounded-exploration"
   ],
   "batches_passed": 0,
   "latest": {
     "schema_version": 1,
-    "batch_id": "20260930-catalyst-07-branch-feedback",
-    "manifest_sha256": "ea5cbd818ff25ad3efa90ea28f69461bf5a93949d6ca968d9fde654134b59293",
+    "batch_id": "20260930-catalyst-08-bounded-exploration",
+    "manifest_sha256": "f67850bc0a4984cdc5963f66f51d4d5cde92e9c18b47eee06648e8fd918cc6bf",
     "outcome_sha256": {
-      "turquoise_hydrogen": "71cbabc611c3a1b9cd9111543ff86102b6343da7e5cf9091e857320ea07ad719",
-      "fuel_cell_orr": "19a9afc29d25c0457a97358b96cd58218375fc794ffd45bd9ab1cf94fe35c5fe"
+      "turquoise_hydrogen": "23bc828a21be39b96fff2519c53b556efdd8490a9cd40b137188b667fb9c69dd",
+      "fuel_cell_orr": "f1463203d2efa47fa5375de3356783cacd3706e32ec83fde9875f73682baff24"
     },
     "results": [
       {
         "application": "turquoise_hydrogen",
         "eligible": 56,
-        "valid": 41,
+        "valid": 44,
         "budget": 20,
-        "hit_cutoff": 0.4989045858383178,
+        "hit_cutoff": 1.0137766914367345,
         "policy_hits": {
-          "catalyst": 5,
-          "uncertainty": 1,
-          "validity": 5
+          "catalyst": 4,
+          "uncertainty": 4,
+          "validity": 4
         },
-        "policy_matched_random_mean_hits": 3.21296,
+        "policy_matched_random_mean_hits": 3.22142,
         "policy_matched_random_95pct": [
           1.0,
           6.0
@@ -40,17 +41,17 @@
       {
         "application": "fuel_cell_orr",
         "eligible": 48,
-        "valid": 32,
+        "valid": 37,
         "budget": 18,
-        "hit_cutoff": 0.9822854649722611,
+        "hit_cutoff": 1.2913957651853527,
         "policy_hits": {
-          "catalyst": 4,
+          "catalyst": 3,
           "uncertainty": 5,
-          "validity": 3
+          "validity": 2
         },
-        "policy_matched_random_mean_hits": 2.62476,
+        "policy_matched_random_mean_hits": 2.99998,
         "policy_matched_random_95pct": [
-          0.0,
+          1.0,
           5.0
         ],
         "acceptance_passed": false

@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "batch_id": "20260930-catalyst-08-bounded-exploration",
+  "manifest_sha256": "f67850bc0a4984cdc5963f66f51d4d5cde92e9c18b47eee06648e8fd918cc6bf",
+  "outcome_sha256": {
+    "turquoise_hydrogen": "23bc828a21be39b96fff2519c53b556efdd8490a9cd40b137188b667fb9c69dd",
+    "fuel_cell_orr": "f1463203d2efa47fa5375de3356783cacd3706e32ec83fde9875f73682baff24"
+  },
+  "results": [
+    {
+      "application": "turquoise_hydrogen",
+      "eligible": 56,
+      "valid": 44,
+      "budget": 20,
+      "hit_cutoff": 1.0137766914367345,
+      "policy_hits": {
+        "catalyst": 4,
+        "uncertainty": 4,
+        "validity": 4
+      },
+      "policy_matched_random_mean_hits": 3.22142,
+      "policy_matched_random_95pct": [
+        1.0,
+        6.0
+      ],
+      "acceptance_passed": false
+    },
+    {
+      "application": "fuel_cell_orr",
+      "eligible": 48,
+      "valid": 37,
+      "budget": 18,
+      "hit_cutoff": 1.2913957651853527,
+      "policy_hits": {
+        "catalyst": 3,
+        "uncertainty": 5,
+        "validity": 2
+      },
+      "policy_matched_random_mean_hits": 2.99998,
+      "policy_matched_random_95pct": [
+        1.0,
+        5.0
+      ],
+      "acceptance_passed": false
+    }
+  ],
+  "acceptance_passed": false
+}
