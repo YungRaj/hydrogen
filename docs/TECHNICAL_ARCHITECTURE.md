@@ -390,10 +390,12 @@ The implementation is in:
 
 - `pipeline/search/branch_search.py` for the interval tree and scheduler;
 - `pipeline/search/exhaustive_search.py` for leaf scanning and archives;
+- `pipeline/screening/branch_discovery.py` for shared calibration, scheduling,
+  validation, and evidence persistence;
 - `pipeline/screening/genetic_optimizer.py::run_branch_discovery` for the
-  turquoise-hydrogen integration;
+  thin turquoise-hydrogen integration;
 - `pipeline/screening/fc_genetic_optimizer.py::run_fc_branch_discovery` for the
-  fuel-cell integration.
+  thin fuel-cell integration.
 
 The filenames retain earlier “genetic optimizer” terminology for compatibility,
 but the production entry points use branch discovery. Legacy GA entry points
