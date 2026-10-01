@@ -1752,19 +1752,14 @@ more credibly than re-ranking examples already known to the system.
 
 ### 17.3 Pilot benchmark
 
-`pipeline/evidence/pilot_benchmark.py` compares divide-and-conquer, seeded
-random sampling, and deterministic expert-style scoring over compatible legacy
-outcomes. It reports enrichment and uncertainty statistics. Because the
-outcomes are legacy computational screening values, this is methodological
-evidence rather than a prospective discovery result.
+`pipeline/evidence/pilot_benchmark.py` retains only the compatible legacy-outcome
+loader needed to audit historical evidence. The superseded benchmark generators
+were removed after their results were frozen.
 
-`pipeline/evidence/search_policy_benchmark.py` is the production-policy
-acceptance benchmark. It walks locked rounds chronologically, trains only on
-earlier finished candidates, preserves equal budgets and class floors, and
-compares catalyst-guided priority with random, uncertainty, and validity
-ranking. The tracked result in `docs/evidence/search_policy_benchmark.json`
+The tracked historical result in `docs/evidence/search_policy_benchmark.json`
 records 62 catalyst-guided hits versus 43 uncertainty, 41 validity, and a random
-97.5% bound of 53. Both applications and the combined result must pass.
+97.5% bound of 53. The immutable result remains methodological evidence; it is
+not an executable production-policy gate or a prospective discovery claim.
 
 The preregistered prospective v8 holdout did not pass: catalyst guidance found
 7 combined hits, uncertainty 6, validity 7, and the policy-matched random 97.5%

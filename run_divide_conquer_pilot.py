@@ -12,7 +12,6 @@ import numpy as np
 import pandas as pd
 
 from pipeline.evidence.pilot_benchmark import default_specs, load_legacy_outcomes
-from pipeline.evidence.search_policy_benchmark import _coverage_select
 from pipeline.search.branch_search import _probe_indices
 from pipeline.search.design_space import encode_population
 from pipeline.search.discovery import candidate_id
@@ -23,6 +22,34 @@ ROOT = Path('results/prospective_search')
 HISTORY = Path('docs/evidence/legacy_pilot_rounds.jsonl')
 APPS = (('turquoise_hydrogen', 'E_act', 'pyrolysis'),
         ('fuel_cell_orr', 'orr_overpotential_V', 'orr'))
+
+
+def _coverage_select(
+    scores: np.ndarray, genomes: list[tuple], budget: int
+) -> np.ndarray:
+    """Apply one class-floor slot before filling the budget by score."""
+    by_class: dict[str, list[int]] = {}
+    for index, genome in enumerate(genomes):
+        by_class.setdefault(str(genome[0]), []).append(index)
+    selected = [
+        max(
+            indices,
+            key=lambda index: (
+                float(scores[index]),
+                candidate_id(genomes[index]),
+            ),
+        )
+        for _, indices in sorted(by_class.items())
+    ]
+    selected.sort(
+        key=lambda index: (-float(scores[index]), candidate_id(genomes[index]))
+    )
+    chosen = set(selected)
+    remainder = sorted(
+        (index for index in range(len(genomes)) if index not in chosen),
+        key=lambda index: (-float(scores[index]), candidate_id(genomes[index])),
+    )
+    return np.asarray((selected + remainder)[:budget], dtype=int)
 
 
 def _hash(path: Path) -> str:
