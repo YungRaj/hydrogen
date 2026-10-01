@@ -1766,6 +1766,28 @@ def test_turquoise_catalyst_acquisition_penalizes_invalid_candidates():
         raise AssertionError('invalid turquoise probability was accepted')
 
 
+def test_class_success_probability_is_smoothed_and_outcome_driven():
+    import pandas as pd
+    from pipeline.screening.small_data_ranker import class_success_probability
+
+    strong = ('SAC', 'Fe', 'N4', 'N-graphene', 'none')
+    weak = ('DAC', 'Fe', 'Co', 'N6', 'N-graphene')
+    frame = pd.DataFrame(
+        {
+            'genome': [repr(strong)] * 5 + [repr(weak)] * 5,
+            'valid': [True] * 10,
+            'E_act': [0.1] * 5 + [2.0] * 5,
+        }
+    )
+    score = class_success_probability(
+        frame, [strong, weak, ('MOF', 'Fe', 'BDC', 'N4', 10.0)],
+        'turquoise_hydrogen',
+    )
+    assert score.shape == (3,)
+    assert np.all((score > 0.0) & (score < 1.0))
+    assert score[0] > score[2] > score[1]
+
+
 def test_prospective_campaign_rejects_mutable_or_unverified_outcomes():
     import hashlib
     import json
@@ -3408,6 +3430,10 @@ if __name__ == '__main__':
     test(
         "Turquoise acquisition penalizes invalid candidates",
         test_turquoise_catalyst_acquisition_penalizes_invalid_candidates,
+    )
+    test(
+        "Class success feedback is smoothed and outcome-driven",
+        test_class_success_probability_is_smoothed_and_outcome_driven,
     )
     test(
         "Prospective outcomes are immutable and verified",

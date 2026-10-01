@@ -117,6 +117,8 @@ def prepare(batch: str, per_class: int = 4, extra_slots: int = 6) -> Path:
     from dataclasses import asdict
     from sklearn.ensemble import ExtraTreesClassifier
     from pipeline.screening.small_data_ranker import (
+        CLASS_SUCCESS_WEIGHT,
+        class_success_probability,
         fit_tree_ranker,
         orr_catalyst_acquisition,
         orr_tree_objectives,
@@ -148,6 +150,9 @@ def prepare(batch: str, per_class: int = 4, extra_slots: int = 6) -> Path:
             else orr_catalyst_acquisition(
                 obj[eligible, 0], uncertainty[eligible], vscore[eligible]
             )
+        )
+        catalyst_score += CLASS_SUCCESS_WEIGHT * class_success_probability(
+            all_train, candidates, app
         )
         local = {'catalyst': _coverage_select(catalyst_score, candidates, budget),
                  'uncertainty': _coverage_select(uncertainty[eligible], candidates, budget),

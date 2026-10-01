@@ -16,6 +16,8 @@ CLASS_BIAS_WEIGHT = 0.25
 CLASS_BIAS_PRIOR_ROWS = 5
 INVALIDITY_PENALTY = 0.75
 ORR_UNCERTAINTY_BONUS = 0.25
+CLASS_SUCCESS_WEIGHT = 0.75
+CLASS_SUCCESS_PRIOR_ROWS = 5
 
 
 @dataclass(frozen=True)
@@ -415,3 +417,49 @@ def turquoise_catalyst_acquisition(
     if np.any((validity < 0.0) | (validity > 1.0)):
         raise ValueError("turquoise validity probabilities must be in [0, 1]")
     return -predicted - INVALIDITY_PENALTY * (1.0 - validity)
+
+
+def class_success_probability(
+    frame, genomes, application: str
+) -> np.ndarray:
+    """Estimate smoothed catalyst-hit probability for each material class.
+
+    Args:
+        frame: Completed screening records available before selection.
+        genomes: Candidate genomes receiving class feedback.
+        application: ``turquoise_hydrogen`` or ``fuel_cell_orr``.
+
+    Returns:
+        One probability per candidate, estimated only from completed outcomes.
+    """
+    outcome = {
+        "turquoise_hydrogen": "E_act",
+        "fuel_cell_orr": "orr_overpotential_V",
+    }.get(application)
+    if outcome is None:
+        raise ValueError(f"unknown application {application}")
+    values = np.asarray(frame[outcome], dtype=float)
+    valid = frame["valid"].eq(True).to_numpy() & np.isfinite(values)
+    if not np.any(valid):
+        raise ValueError("class success feedback requires valid outcomes")
+    threshold = float(np.quantile(values[valid], 0.20))
+    hits = valid & (np.nan_to_num(values, nan=np.inf) <= threshold)
+    classes = np.asarray(
+        [
+            str(ast.literal_eval(raw)[0]) if isinstance(raw, str) else str(raw[0])
+            for raw in frame["genome"]
+        ]
+    )
+    global_rate = float(
+        (hits.sum() + 2.0) / (len(hits) + 2 * CLASS_SUCCESS_PRIOR_ROWS)
+    )
+    rates = {}
+    for material_class in np.unique(classes):
+        mask = classes == material_class
+        rates[material_class] = float(
+            (hits[mask].sum() + CLASS_SUCCESS_PRIOR_ROWS * global_rate)
+            / (mask.sum() + CLASS_SUCCESS_PRIOR_ROWS)
+        )
+    return np.asarray(
+        [rates.get(str(genome[0]), global_rate) for genome in genomes], dtype=float
+    )
