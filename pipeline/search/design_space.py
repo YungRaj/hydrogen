@@ -26,6 +26,43 @@ from pipeline.utils import (
 )
 
 
+def extract_elements(genome: tuple) -> List[str]:
+    """Return the metallic elements encoded by a catalyst genome.
+
+    Args:
+        genome: Encoded catalyst composition and structural configuration.
+
+    Returns:
+        Element symbols used by cost, safety, and stability calculations.
+    """
+    material_class = genome[0]
+    if material_class == 'MoltenMetal':
+        elements = [genome[1], genome[2]]
+    elif material_class == 'SolidCatalyst':
+        elements = [genome[1], *genome[5]]
+    elif material_class == 'SAC':
+        elements = [genome[1]]
+    elif material_class in ('DAC', 'SAA'):
+        elements = [genome[1], genome[2]]
+    elif material_class in ('MOF', 'COF'):
+        elements = [genome[1]]
+    elif material_class in ('Perovskite', 'Spinel'):
+        elements = [genome[1], genome[2], genome[3]]
+    elif material_class == 'MetalHydride':
+        elements = [genome[1], genome[3]]
+    elif material_class == 'MAXPhase':
+        elements = [genome[1], genome[2], genome[5]]
+    elif material_class == 'MXene':
+        elements = [genome[1], genome[5]]
+    elif material_class == 'HEA':
+        elements = list(genome[1])
+    elif material_class == 'MetalFreeCarbon':
+        elements = []
+    else:
+        raise ValueError(f"unknown material class: {material_class}")
+    return [str(element) for element in elements if element != 'None']
+
+
 def _safe(elements: list) -> list:
     """Remove toxic/radioactive elements from a design space list."""
     return [e for e in elements if e not in TOXIC_ELEMENTS]

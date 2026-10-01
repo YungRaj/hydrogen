@@ -16,6 +16,32 @@ from typing import Iterable, List, Optional, Sequence, Tuple
 import numpy as np
 
 
+def fast_non_dominated_sort(objectives: np.ndarray) -> List[List[int]]:
+    """Partition minimization objectives into Pareto fronts.
+
+    Args:
+        objectives: Candidate rows with one or more minimized objectives.
+
+    Returns:
+        Candidate indices grouped from the best to worst Pareto front.
+    """
+    remaining = np.arange(len(objectives))
+    fronts: List[List[int]] = []
+    while len(remaining):
+        subset = objectives[remaining]
+        efficient = np.ones(len(subset), dtype=bool)
+        for index in range(len(subset)):
+            if efficient[index]:
+                dominated = np.all(subset[index] <= subset, axis=1) & np.any(
+                    subset[index] < subset, axis=1
+                )
+                efficient[dominated] = False
+        front_indices = np.flatnonzero(efficient)
+        fronts.append(remaining[front_indices].tolist())
+        remaining = np.delete(remaining, front_indices)
+    return fronts
+
+
 def canonicalize_genome(genome: tuple) -> tuple:
     """Return a stable representation without changing site semantics.
 

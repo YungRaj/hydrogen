@@ -35,6 +35,7 @@ from pipeline.utils import (
     is_valid_for_application,
 )
 from pipeline.screening.surface_screener import generate_structure
+from pipeline.search.design_space import extract_elements as _extract_elements
 
 logger = setup_logger('fc_screener', 'fuel_cell/fc_screening.log')
 
@@ -288,54 +289,6 @@ def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> di
         result['needs_dft_validation'] = True
 
     return result
-
-
-def _extract_elements(genome: tuple) -> List[str]:
-    """Extract metallic elements from genome for cost/Fenton scoring."""
-    mat_class = genome[0]
-    elements = []
-    if mat_class == 'MoltenMetal':
-        elements.append(genome[1])
-        if genome[2] != 'None':
-            elements.append(genome[2])
-    elif mat_class == 'SolidCatalyst':
-        elements.append(genome[1])
-        for d in genome[5]:
-            elements.append(d)
-    elif mat_class == 'SAC':
-        elements.append(genome[1])
-    elif mat_class == 'DAC':
-        elements.extend([genome[1], genome[2]])
-    elif mat_class in ('MOF', 'COF'):
-        if genome[1] != 'None':
-            elements.append(genome[1])
-    elif mat_class == 'Perovskite':
-        elements.extend([genome[1], genome[2]])
-        if genome[3] != 'None':
-            elements.append(genome[3])
-    elif mat_class == 'MetalHydride':
-        elements.append(genome[1])
-        if genome[3] != 'None':
-            elements.append(genome[3])
-    elif mat_class == 'MAXPhase':
-        elements.extend([genome[1], genome[2]])
-        if genome[5] != 'None':
-            elements.append(genome[5])
-    elif mat_class == 'HEA':
-        elements.extend(list(genome[1]))
-    elif mat_class == 'Spinel':
-        elements.extend([genome[1], genome[2]])
-        if genome[3] != 'None':
-            elements.append(genome[3])
-    elif mat_class == 'MXene':
-        elements.append(genome[1])
-        if genome[5] != 'None':
-            elements.append(genome[5])
-    elif mat_class == 'SAA':
-        elements.extend([genome[1], genome[2]])
-    elif mat_class == 'MetalFreeCarbon':
-        pass  # no metals
-    return [e for e in elements if e != 'None']
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

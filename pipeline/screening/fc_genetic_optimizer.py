@@ -9,12 +9,16 @@ generation is handled exclusively by catalyst-guided branch discovery.
 import numpy as np
 import pandas as pd
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Optional
 
 from pipeline.utils import setup_logger, FUEL_CELL_DIR
 from pipeline.search.discovery import (
     add_discovery_metadata,
     candidate_id,
+    fast_non_dominated_sort,
+)
+from pipeline.search.design_space import (
+    extract_elements as _extract_elements_from_genome,
 )
 logger = setup_logger('fc_genetic_optimizer', 'fuel_cell/fc_genetic_optimizer.log')
 
@@ -93,91 +97,8 @@ def _cost_from_genome(genome: tuple) -> float:
     return -abundance_cost_penalty(elements)
 
 
-def _extract_elements_from_genome(genome: tuple) -> List[str]:
-    """Extract metallic elements from a genome for cost scoring."""
-    mat_class = genome[0]
-    elements = []
-    if mat_class == 'MoltenMetal':
-        elements.append(genome[1])
-        if genome[2] != 'None':
-            elements.append(genome[2])
-    elif mat_class == 'SolidCatalyst':
-        elements.append(genome[1])
-        for d in genome[5]:
-            elements.append(d)
-    elif mat_class == 'SAC':
-        elements.append(genome[1])
-    elif mat_class == 'DAC':
-        elements.extend([genome[1], genome[2]])
-    elif mat_class in ('MOF', 'COF'):
-        if genome[1] != 'None':
-            elements.append(genome[1])
-    elif mat_class == 'Perovskite':
-        elements.extend([genome[1], genome[2]])
-        if genome[3] != 'None':
-            elements.append(genome[3])
-    elif mat_class == 'MetalHydride':
-        elements.append(genome[1])
-        if genome[3] != 'None':
-            elements.append(genome[3])
-    elif mat_class == 'MAXPhase':
-        elements.extend([genome[1], genome[2]])
-        if genome[5] != 'None':
-            elements.append(genome[5])
-    elif mat_class == 'HEA':
-        elements.extend(list(genome[1]))
-    elif mat_class == 'Spinel':
-        elements.extend([genome[1], genome[2]])
-        if genome[3] != 'None':
-            elements.append(genome[3])
-    elif mat_class == 'MXene':
-        elements.append(genome[1])
-        if genome[5] != 'None':
-            elements.append(genome[5])
-    elif mat_class == 'SAA':
-        elements.extend([genome[1], genome[2]])
-    elif mat_class == 'MetalFreeCarbon':
-        pass  # no metals — zero cost
-    return [e for e in elements if e != 'None']
-
-
 # ═══════════════════════════════════════════════════════════════════════════════
-# PARETO ARCHIVE SELECTION
 # ═══════════════════════════════════════════════════════════════════════════════
-
-
-def fast_non_dominated_sort(objectives: np.ndarray) -> List[List[int]]:
-    """Fast non-dominated sorting using vectorized Pareto-front extraction.
-
-    Args:
-        objectives: Objectives used by this operation.
-
-    Returns:
-        List of computed or validated records.
-    """
-    n = len(objectives)
-    remaining_indices = np.arange(n)
-    fronts = []
-
-    while len(remaining_indices) > 0:
-        sub_objs = objectives[remaining_indices]
-        is_efficient = np.ones(len(sub_objs), dtype=bool)
-        for i in range(len(sub_objs)):
-            if is_efficient[i]:
-                dominated = np.all(sub_objs[i] <= sub_objs, axis=1) & np.any(
-                    sub_objs[i] < sub_objs, axis=1
-                )
-                is_efficient[dominated] = False
-
-        front_sub_idx = np.where(is_efficient)[0]
-        front_global_idx = remaining_indices[front_sub_idx].tolist()
-        fronts.append(front_global_idx)
-
-        remaining_indices = np.delete(remaining_indices, front_sub_idx)
-
-    return fronts
-
-
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

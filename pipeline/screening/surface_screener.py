@@ -28,6 +28,7 @@ from ase.build import fcc111, fcc100, bcc110, hcp0001, molecule
 from ase.constraints import FixAtoms
 from pipeline.screening.relaxation import relax_with_record, require_relaxation
 from pipeline.screening.protocols import PYROLYSIS_PROTOCOL
+from pipeline.search.design_space import extract_elements as _extract_elements
 
 from pipeline.utils import (
     SCREENING_DIR,
@@ -1174,54 +1175,6 @@ def _compute_binding_energy(structure, calc, e_clean, genome):
         return (e_clean - e_empty - e_metal) / 10.0  # normalized
     except Exception:
         return 0.0
-
-
-def _extract_elements(genome: tuple) -> List[str]:
-    """Extract the list of metallic elements from a genome for cost scoring."""
-    mat_class = genome[0]
-    elements = []
-    if mat_class == 'MoltenMetal':
-        elements.append(genome[1])
-        if genome[2] != 'None':
-            elements.append(genome[2])
-    elif mat_class == 'SolidCatalyst':
-        elements.append(genome[1])
-        for d in genome[5]:
-            elements.append(d)
-    elif mat_class == 'SAC':
-        elements.append(genome[1])
-    elif mat_class == 'DAC':
-        elements.extend([genome[1], genome[2]])
-    elif mat_class in ('MOF', 'COF'):
-        if genome[1] != 'None':
-            elements.append(genome[1])
-    elif mat_class == 'Perovskite':
-        elements.extend([genome[1], genome[2]])
-        if genome[3] != 'None':
-            elements.append(genome[3])
-    elif mat_class == 'MetalHydride':
-        elements.append(genome[1])
-        if genome[3] != 'None':
-            elements.append(genome[3])
-    elif mat_class == 'MAXPhase':
-        elements.extend([genome[1], genome[2]])
-        if genome[5] != 'None':
-            elements.append(genome[5])
-    elif mat_class == 'HEA':
-        elements.extend(list(genome[1]))
-    elif mat_class == 'Spinel':
-        elements.extend([genome[1], genome[2]])
-        if genome[3] != 'None':
-            elements.append(genome[3])
-    elif mat_class == 'MXene':
-        elements.append(genome[1])
-        if genome[5] != 'None':
-            elements.append(genome[5])
-    elif mat_class == 'SAA':
-        elements.extend([genome[1], genome[2]])
-    elif mat_class == 'MetalFreeCarbon':
-        pass  # no metals
-    return [e for e in elements if e != 'None']
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
