@@ -20,6 +20,34 @@ from pipeline.reactors.modes import (
     DEFAULT_MODE, MODE_CHOICES, reactor_types_for_mode)
 
 
+def _branch_config_kwargs(
+    args: argparse.Namespace, deadline_epoch_s: float
+) -> dict[str, object]:
+    """Translate shared CLI settings into either branch-discovery config."""
+    return {
+        'initial_fairchem_samples': args.calibration_probes,
+        'fairchem_eval_top_k': args.validation_batch,
+        'exhaustive_batch_size': args.scan_batch_size,
+        'branch_leaf_size': args.branch_leaf_size,
+        'branch_probe_count': args.branch_probes,
+        'branch_max_leaves': (
+            None if args.branch_max_leaves == 0 else args.branch_max_leaves
+        ),
+        'expected_space_size': args.expected_space_size,
+        'max_runtime_s': (
+            None
+            if args.hours == 0
+            else max(0.0, deadline_epoch_s - time.time())
+        ),
+        'prior_art_db': args.prior_art_db,
+        'min_validation_per_class': args.min_validation_per_class,
+        'min_resolved_leaves_per_class': args.branch_class_floor,
+        'branch_exploration_interval': args.branch_exploration_interval,
+        'refresh_pending_priorities': args.branch_priority_refresh,
+        'scan_workers': args.scan_workers,
+    }
+
+
 def main():
     """Run the module command-line entry point.
     """
@@ -241,23 +269,7 @@ def main():
 
     from pipeline.screening.genetic_optimizer import run_branch_discovery, BranchDiscoveryConfig
 
-    branch_config = BranchDiscoveryConfig(
-        initial_fairchem_samples=args.calibration_probes,
-        fairchem_eval_top_k=args.validation_batch,
-        exhaustive_batch_size=args.scan_batch_size,
-        branch_leaf_size=args.branch_leaf_size,
-        branch_probe_count=args.branch_probes,
-        branch_max_leaves=None if args.branch_max_leaves == 0 else args.branch_max_leaves,
-        expected_space_size=args.expected_space_size,
-        # One wall-clock budget covers the entire dual-application campaign.
-        max_runtime_s=None if args.hours == 0 else max(0.0, t_deadline - time.time()),
-        prior_art_db=args.prior_art_db,
-        min_validation_per_class=args.min_validation_per_class,
-        min_resolved_leaves_per_class=args.branch_class_floor,
-        branch_exploration_interval=args.branch_exploration_interval,
-        refresh_pending_priorities=args.branch_priority_refresh,
-        scan_workers=args.scan_workers,
-    )
+    branch_config = BranchDiscoveryConfig(**_branch_config_kwargs(args, t_deadline))
 
     pareto_genomes, screening_db = run_branch_discovery(branch_config)
 
@@ -545,20 +557,7 @@ def main():
         from pipeline.screening.fc_genetic_optimizer import run_fc_branch_discovery, FCBranchDiscoveryConfig
 
         fc_config = FCBranchDiscoveryConfig(
-            initial_fairchem_samples=args.calibration_probes,
-            fairchem_eval_top_k=args.validation_batch,
-            exhaustive_batch_size=args.scan_batch_size,
-            branch_leaf_size=args.branch_leaf_size,
-            branch_probe_count=args.branch_probes,
-            branch_max_leaves=None if args.branch_max_leaves == 0 else args.branch_max_leaves,
-            expected_space_size=args.expected_space_size,
-            max_runtime_s=None if args.hours == 0 else max(0.0, t_deadline - time.time()),
-            prior_art_db=args.prior_art_db,
-            min_validation_per_class=args.min_validation_per_class,
-            min_resolved_leaves_per_class=args.branch_class_floor,
-            branch_exploration_interval=args.branch_exploration_interval,
-            refresh_pending_priorities=args.branch_priority_refresh,
-            scan_workers=args.scan_workers,
+            **_branch_config_kwargs(args, t_deadline)
         )
 
         fc_pareto, fc_screening_db = run_fc_branch_discovery(fc_config)
