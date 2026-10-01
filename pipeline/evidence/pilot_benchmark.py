@@ -18,9 +18,6 @@ class PilotSpec:
     application: str
     paths: tuple[str, ...]
     outcome: str
-    folds: int = 5
-    selection_fraction: float = 0.20
-    random_trials: int = 20_000
 
 
 def _genome(value: object) -> tuple:
