@@ -95,6 +95,7 @@ def run_fc_branch_discovery(
             AdvancementCriterion('fenton_stability', 7.0, 'max'),
             AdvancementCriterion('model_confidence', 0.5, 'max'),
         ),
+        portfolio_path=FUEL_CELL_DIR / 'advancement_portfolio.json',
         logger=logger,
     )
     return run_guided_branch_discovery(config, workflow, existing_db)

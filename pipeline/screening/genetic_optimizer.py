@@ -70,6 +70,7 @@ def run_branch_discovery(
             AdvancementCriterion('E_act', ADVANCEMENT_BARRIER_EV, 'min'),
             AdvancementCriterion('model_confidence', 0.5, 'max'),
         ),
+        portfolio_path=SCREENING_DIR / 'advancement_portfolio.json',
         logger=logger,
     )
     return run_guided_branch_discovery(config, workflow, existing_db)

@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import ast
+import os
 import sqlite3
+import tempfile
 import time
 from collections import defaultdict
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Literal, Mapping, Sequence
+from typing import Any, Literal, Mapping, Sequence
 
 import numpy as np
 import pandas as pd
@@ -92,6 +96,141 @@ def advancement_scorecard(
     result['advancement_reason'] = reasons
     result['advancement_gate_score'] = scores
     return result
+
+
+def write_portfolio_artifact(
+    path: str | Path,
+    application: str,
+    protocol_id: str,
+    criteria: Sequence[AdvancementCriterion],
+    candidates: Sequence[tuple],
+    objectives: np.ndarray,
+    evidence: pd.DataFrame,
+    indices: Sequence[int],
+    budget: Mapping[str, Any] | None = None,
+) -> Path:
+    """Atomically persist a versioned, self-contained advancement portfolio.
+
+    Args:
+        path: Destination JSON path.
+        application: Scientific objective represented by the portfolio.
+        protocol_id: Screening protocol that produced the evidence.
+        criteria: Exact scorecard gates applied to the evidence.
+        candidates: Screened candidates aligned with evidence rows.
+        objectives: Surrogate objectives aligned with candidates.
+        evidence: Scorecard-annotated screening rows.
+        indices: Ordered candidate indices selected for handoff.
+        budget: Enforced pilot resource limits, when running as a pilot.
+
+    Returns:
+        Path to the atomically written portfolio artifact.
+    """
+    if len(candidates) != len(evidence) or len(candidates) != len(objectives):
+        raise ValueError('portfolio candidates, objectives, and evidence must align')
+    records = []
+    for rank, index in enumerate(indices, 1):
+        row = evidence.iloc[index]
+        genome = candidates[index]
+        records.append(
+            {
+                'rank': rank,
+                'candidate_id': candidate_id(genome),
+                'genome': repr(genome),
+                'material_class': str(genome[0]),
+                'region': '|'.join(discovery_region(genome)),
+                'objectives': [float(value) for value in objectives[index]],
+                'gate_values': {
+                    criterion.column: (
+                        None
+                        if pd.isna(row.get(criterion.column))
+                        else float(row.get(criterion.column))
+                    )
+                    for criterion in criteria
+                },
+                'candidate_disposition': str(
+                    row.get('candidate_disposition', '')
+                ),
+                'needs_dft_validation': bool(
+                    False
+                    if pd.isna(row.get('needs_dft_validation', False))
+                    else row.get('needs_dft_validation', False)
+                ),
+                'advancement_status': str(row['advancement_status']),
+                'advancement_reason': str(row['advancement_reason']),
+                'advancement_gate_score': float(row['advancement_gate_score']),
+            }
+        )
+    gates = [
+        {
+            'column': criterion.column,
+            'threshold': criterion.threshold,
+            'direction': criterion.direction,
+        }
+        for criterion in criteria
+    ]
+    digest_body = {
+        'application': application,
+        'protocol_id': protocol_id,
+        'scorecard': gates,
+        'pilot_budget': dict(budget) if budget is not None else None,
+        'records': records,
+    }
+    digest_payload = json.dumps(
+        digest_body, sort_keys=True, separators=(',', ':')
+    ).encode()
+    document = {
+        'schema_version': 1,
+        'generated_utc': datetime.now(timezone.utc).isoformat(),
+        **digest_body,
+        'portfolio_sha256': hashlib.sha256(digest_payload).hexdigest(),
+    }
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        mode='w', dir=target.parent, prefix=f'.{target.name}.',
+        suffix='.tmp', delete=False
+    ) as handle:
+        temporary = Path(handle.name)
+        try:
+            json.dump(document, handle, indent=2, sort_keys=True)
+            handle.write('\n')
+            handle.flush()
+            os.fsync(handle.fileno())
+        except Exception:
+            temporary.unlink(missing_ok=True)
+            raise
+    temporary.replace(target)
+    return target
+
+
+def verify_portfolio_artifact(path: str | Path) -> dict[str, Any]:
+    """Verify the schema and content digest of a portfolio handoff artifact.
+
+    Args:
+        path: Portfolio JSON path to verify.
+
+    Returns:
+        Validation result containing ``valid`` and a list of errors.
+    """
+    try:
+        document = json.loads(Path(path).read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        return {'valid': False, 'errors': [f'unreadable:{exc}']}
+    required = ('application', 'protocol_id', 'scorecard', 'pilot_budget', 'records')
+    errors = []
+    if document.get('schema_version') != 1:
+        errors.append('schema_version')
+    missing = [field for field in required if field not in document]
+    if missing:
+        errors.append('missing:' + ','.join(missing))
+    if not errors:
+        body = {field: document[field] for field in required}
+        expected = hashlib.sha256(
+            json.dumps(body, sort_keys=True, separators=(',', ':')).encode()
+        ).hexdigest()
+        if document.get('portfolio_sha256') != expected:
+            errors.append('checksum_mismatch')
+    return {'valid': not errors, 'errors': errors}
 
 
 def _connect(database: str):

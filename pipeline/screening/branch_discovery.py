@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Callable, Optional, Sequence, TypeAlias
 
@@ -17,6 +17,7 @@ from pipeline.search.adaptive_validation import (
     experimental_slate,
     persist_experimental_slate,
     record_screening_frame,
+    write_portfolio_artifact,
 )
 from pipeline.search.branch_search import BranchConfig, run_branch_and_bound
 from pipeline.search.discovery import (
@@ -42,6 +43,20 @@ Screener: TypeAlias = Callable[..., pd.DataFrame]
 ObjectiveFunction: TypeAlias = Callable[[Population, TreeRanker], np.ndarray]
 
 
+@dataclass(frozen=True, slots=True)
+class PilotBudget:
+    """Hard upper bounds required before a small GPU pilot may start."""
+
+    calibration_candidates: int = 500
+    validation_candidates: int = 500
+    portfolio_candidates: int = 50
+    archive_candidates: int = 20_000
+    branch_leaves: int = 14
+    runtime_s: float = 86_400.0
+    scan_workers: int = 8
+    workers_per_gpu: int = 2
+
+
 @dataclass
 class BranchDiscoveryConfig:
     """Configure the common catalyst-guided branch workflow."""
@@ -63,6 +78,8 @@ class BranchDiscoveryConfig:
     branch_exploration_interval: int = 4
     refresh_pending_priorities: int = 10_000
     scan_workers: int = 8
+    workers_per_gpu: int = 2
+    pilot_budget: PilotBudget | None = None
 
 
 @dataclass(frozen=True)
@@ -83,7 +100,52 @@ class BranchDiscoveryWorkflow:
     screener: Screener
     objective_function: ObjectiveFunction
     advancement_criteria: tuple[AdvancementCriterion, ...]
+    portfolio_path: Path
     logger: logging.Logger
+
+
+def validate_pilot_budget(config: BranchDiscoveryConfig) -> None:
+    """Reject an unbounded or oversized pilot before any screening starts.
+
+    Args:
+        config: Proposed branch-discovery resources and optional pilot limits.
+    """
+    budget = config.pilot_budget
+    if budget is None:
+        return
+    positive_limits = (
+        budget.calibration_candidates,
+        budget.validation_candidates,
+        budget.portfolio_candidates,
+        budget.archive_candidates,
+        budget.branch_leaves,
+        budget.runtime_s,
+        budget.scan_workers,
+        budget.workers_per_gpu,
+    )
+    if any(value <= 0 for value in positive_limits):
+        raise ValueError('pilot budget limits must be positive')
+    requested = {
+        'initial_fairchem_samples': (
+            config.initial_fairchem_samples, budget.calibration_candidates
+        ),
+        'fairchem_eval_top_k': (
+            config.fairchem_eval_top_k, budget.validation_candidates
+        ),
+        'experimental_slate_size': (
+            config.experimental_slate_size, budget.portfolio_candidates
+        ),
+        'htvs_pool_size': (config.htvs_pool_size, budget.archive_candidates),
+        'branch_max_leaves': (config.branch_max_leaves, budget.branch_leaves),
+        'max_runtime_s': (config.max_runtime_s, budget.runtime_s),
+        'scan_workers': (config.scan_workers, budget.scan_workers),
+        'workers_per_gpu': (config.workers_per_gpu, budget.workers_per_gpu),
+    }
+    for name, (value, limit) in requested.items():
+        if value is None:
+            raise ValueError(f'pilot requires bounded {name}')
+        if value > limit:
+            raise ValueError(f'pilot {name}={value} exceeds budget {limit}')
 
 
 def run_guided_branch_discovery(
@@ -101,13 +163,14 @@ def run_guided_branch_discovery(
     Returns:
         Pareto champion genomes and the annotated screening evidence.
     """
+    validate_pilot_budget(config)
     if existing_db is not None and len(existing_db) > 50:
         evidence = existing_db
     else:
         evidence = workflow.screener(
             deterministic_tree_probes(config.initial_fairchem_samples),
             db_filename=workflow.calibration_db,
-            workers_per_gpu=2,
+            workers_per_gpu=config.workers_per_gpu,
         )
 
     evidence = merge_compatible_evidence(
@@ -120,6 +183,8 @@ def run_guided_branch_discovery(
         config.initial_fairchem_samples * 3,
         config.initial_fairchem_samples + MIN_TRAINING_ROWS,
     )
+    if config.pilot_budget is not None:
+        refill_limit = min(refill_limit, config.pilot_budget.calibration_candidates)
     probe_pool = deterministic_tree_probes(refill_limit)
     refill_round = 0
     while valid_training_row_count(evidence, workflow.application) < MIN_TRAINING_ROWS:
@@ -137,7 +202,7 @@ def run_guided_branch_discovery(
         extra = workflow.screener(
             refill,
             db_filename=f'{workflow.refill_prefix}_{refill_round}.csv',
-            workers_per_gpu=2,
+            workers_per_gpu=config.workers_per_gpu,
         )
         evidence = merge_compatible_evidence(extra, evidence, workflow.protocol_id)
 
@@ -202,7 +267,7 @@ def run_guided_branch_discovery(
     validated = workflow.screener(
         validation_genomes,
         db_filename=workflow.champions_db,
-        workers_per_gpu=2,
+        workers_per_gpu=config.workers_per_gpu,
     )
     validated = advancement_scorecard(validated, workflow.advancement_criteria)
     predicted_mean, _ = model.predict(validation_genomes)
@@ -249,6 +314,17 @@ def run_guided_branch_discovery(
         validation_genomes,
         validation_objectives,
         slate_indices,
+    )
+    write_portfolio_artifact(
+        workflow.portfolio_path,
+        workflow.application,
+        workflow.protocol_id,
+        workflow.advancement_criteria,
+        validation_genomes,
+        validation_objectives,
+        validated,
+        slate_indices,
+        asdict(config.pilot_budget) if config.pilot_budget is not None else None,
     )
     evidence.attrs['experimental_slate'] = [
         validation_genomes[index] for index in slate_indices

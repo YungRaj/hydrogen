@@ -412,6 +412,13 @@ def test_adaptive_validation_policy():
         regional_calibration,
         priority_adjustment,
         persist_experimental_slate,
+        verify_portfolio_artifact,
+        write_portfolio_artifact,
+    )
+    from pipeline.screening.branch_discovery import (
+        BranchDiscoveryConfig,
+        PilotBudget,
+        validate_pilot_budget,
     )
 
     candidates = [
@@ -516,6 +523,48 @@ def test_adaptive_validation_policy():
         )
         assert prioritized[0] == 0
         assert 3 not in prioritized
+        artifact = Path(tmp) / 'portfolio.json'
+        write_portfolio_artifact(
+            artifact,
+            'test',
+            'test-protocol-v1',
+            (
+                AdvancementCriterion('activity', 0.4, 'min'),
+                AdvancementCriterion('confidence', 0.5, 'max'),
+            ),
+            candidates[:4],
+            objectives[:4],
+            scorecard,
+            prioritized,
+            {'runtime_s': 3600, 'validation_candidates': 4},
+        )
+        portfolio = __import__('json').loads(artifact.read_text())
+        assert portfolio['schema_version'] == 1
+        assert len(portfolio['portfolio_sha256']) == 64
+        assert portfolio['records'][0]['candidate_id']
+        assert portfolio['records'][0]['gate_values']['activity'] == 0.2
+        assert verify_portfolio_artifact(artifact)['valid']
+        portfolio['records'][0]['advancement_status'] = 'hold'
+        artifact.write_text(__import__('json').dumps(portfolio))
+        assert verify_portfolio_artifact(artifact)['errors'] == ['checksum_mismatch']
+        bounded = BranchDiscoveryConfig(
+            exhaustive_db=db,
+            branch_max_leaves=14,
+            max_runtime_s=3600,
+            pilot_budget=PilotBudget(),
+        )
+        validate_pilot_budget(bounded)
+        try:
+            validate_pilot_budget(
+                BranchDiscoveryConfig(
+                    exhaustive_db=db,
+                    pilot_budget=PilotBudget(),
+                )
+            )
+        except ValueError as exc:
+            assert 'pilot requires bounded branch_max_leaves' in str(exc)
+        else:
+            raise AssertionError('pilot must reject unbounded branch traversal')
         persist_experimental_slate(db, 'test', candidates, objectives, slate)
         import sqlite3
 

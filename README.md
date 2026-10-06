@@ -1163,6 +1163,30 @@ objective tradeoffs or search coverage. These are preliminary screening gates,
 not a declaration of scale-up readiness; selectivity, lifetime, synthesis,
 reactor, process, economic, and experimental gates remain downstream.
 
+Small GPU pilots must opt into `PilotBudget` and provide finite branch-leaf and
+wall-time limits. The preflight rejects candidate, archive, portfolio, worker,
+leaf, or runtime requests above the declared envelope before screening starts;
+GPU worker recovery remains limited to one restart per worker. For example:
+
+```python
+from pipeline.screening.branch_discovery import PilotBudget
+from pipeline.screening.genetic_optimizer import BranchDiscoveryConfig
+
+pilot = BranchDiscoveryConfig(
+    branch_max_leaves=14,
+    max_runtime_s=86_400,
+    pilot_budget=PilotBudget(),
+)
+```
+
+Each successful run atomically writes `advancement_portfolio.json` beside the
+application results. Its versioned, SHA-256-verifiable contents include the
+screening protocol, exact scorecard thresholds, enforced pilot budget, canonical
+candidate identities, chemistry regions, objective values, measured gate values,
+advancement decisions, and reasons. The portable test suite performs the entire
+budget-preflight → scorecard → diverse selection → SQLite handoff → verified JSON
+artifact path without requiring a GPU.
+
 #### What “novel” means
 
 The discovery engine uses **campaign novelty**: a candidate has not previously been
