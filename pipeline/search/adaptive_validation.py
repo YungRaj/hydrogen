@@ -7,12 +7,91 @@ import ast
 import sqlite3
 import time
 from collections import defaultdict
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping, Sequence
+from typing import Literal, Mapping, Sequence
 
 import numpy as np
+import pandas as pd
 
 from pipeline.search.discovery import candidate_id, discovery_region, _quality_score
+
+AdvancementStatus = Literal[
+    'advance', 'validation_required', 'hold', 'hard_excluded'
+]
+
+
+@dataclass(frozen=True, slots=True)
+class AdvancementCriterion:
+    """One explicit, auditable gate in a candidate advancement scorecard."""
+
+    column: str
+    threshold: float
+    direction: Literal['min', 'max']
+
+
+def advancement_scorecard(
+    frame: pd.DataFrame, criteria: Sequence[AdvancementCriterion]
+) -> pd.DataFrame:
+    """Classify validated rows without turning missing evidence into failure.
+
+    Args:
+        frame: Screening rows containing candidate evidence.
+        criteria: Required numerical gates for near-term advancement.
+
+    Returns:
+        A copy with advancement status, failed or missing gates, and gate score.
+    """
+    result = frame.copy()
+    statuses: list[AdvancementStatus] = []
+    reasons: list[str] = []
+    scores: list[float] = []
+    for _, row in result.iterrows():
+        disposition = str(row.get('candidate_disposition', ''))
+        if disposition == 'hard_excluded':
+            statuses.append('hard_excluded')
+            reasons.append('candidate_disposition')
+            scores.append(float('-inf'))
+            continue
+        missing: list[str] = []
+        failed: list[str] = []
+        passed = 0
+        for criterion in criteria:
+            try:
+                value = float(row.get(criterion.column))
+            except (TypeError, ValueError):
+                value = float('nan')
+            if not np.isfinite(value):
+                missing.append(criterion.column)
+            elif (
+                criterion.direction == 'min' and value <= criterion.threshold
+            ) or (
+                criterion.direction == 'max' and value >= criterion.threshold
+            ):
+                passed += 1
+            else:
+                failed.append(criterion.column)
+        validation_flag = row.get('needs_dft_validation', False)
+        needs_validation = disposition == 'validation_required' or (
+            not pd.isna(validation_flag) and bool(validation_flag)
+        )
+        if missing:
+            statuses.append('validation_required')
+            reasons.append('missing:' + ','.join(missing))
+        elif needs_validation:
+            statuses.append('validation_required')
+            reasons.append('higher_fidelity_validation_required')
+        elif failed:
+            statuses.append('hold')
+            reasons.append('failed:' + ','.join(failed))
+        else:
+            statuses.append('advance')
+            reasons.append('all_gates_passed')
+        scores.append(passed / len(criteria) if criteria else 1.0)
+    result['advancement_status'] = statuses
+    result['advancement_reason'] = reasons
+    result['advancement_gate_score'] = scores
+    return result
 
 
 def _connect(database: str):
@@ -261,7 +340,10 @@ def allocate_validation_batch(
 
 
 def experimental_slate(
-    candidates: Sequence[tuple], objectives: np.ndarray, n_select: int
+    candidates: Sequence[tuple],
+    objectives: np.ndarray,
+    n_select: int,
+    advancement_priority: Sequence[float] | None = None,
 ) -> list[int]:
     """Preserve chemistry diversity: one regional champion before repeats.
 
@@ -269,25 +351,35 @@ def experimental_slate(
         candidates: Candidate records to process.
         objectives: Objectives used by this operation.
         n_select: Number of select to use.
+        advancement_priority: Optional validated gate priority; higher ranks first.
 
     Returns:
         List of computed or validated records.
     """
     quality = _quality_score(np.asarray(objectives, float))
+    priority = (
+        np.zeros(len(candidates), dtype=float)
+        if advancement_priority is None
+        else np.asarray(advancement_priority, dtype=float)
+    )
+    if len(priority) != len(candidates):
+        raise ValueError('advancement_priority must match candidates')
+    eligible = [i for i in range(len(candidates)) if np.isfinite(priority[i])]
+    n_select = min(max(n_select, 0), len(eligible))
     ids = [candidate_id(g) for g in candidates]
     by_region = defaultdict(list)
-    for i, genome in enumerate(candidates):
-        by_region[discovery_region(genome)].append(i)
+    for i in eligible:
+        by_region[discovery_region(candidates[i])].append(i)
     champions = [
-        max(indices, key=lambda i: (quality[i], ids[i]))
+        max(indices, key=lambda i: (priority[i], quality[i], ids[i]))
         for _, indices in sorted(by_region.items())
     ]
-    champions.sort(key=lambda i: (-quality[i], ids[i]))
+    champions.sort(key=lambda i: (-priority[i], -quality[i], ids[i]))
     selected = champions[: min(n_select, len(champions))]
     chosen = set(selected)
     remainder = sorted(
-        (i for i in range(len(candidates)) if i not in chosen),
-        key=lambda i: (-quality[i], ids[i]),
+        (i for i in eligible if i not in chosen),
+        key=lambda i: (-priority[i], -quality[i], ids[i]),
     )
     selected.extend(remainder[: max(0, n_select - len(selected))])
     return selected

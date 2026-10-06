@@ -10,6 +10,7 @@ from pipeline.search.design_space import (
     extract_elements as _extract_elements_from_genome,
 )
 from pipeline.search.discovery import fast_non_dominated_sort
+from pipeline.search.adaptive_validation import AdvancementCriterion
 from pipeline.screening.branch_discovery import (
     BranchDiscoveryConfig as _BranchDiscoveryConfig,
     BranchDiscoveryWorkflow,
@@ -18,6 +19,7 @@ from pipeline.screening.branch_discovery import (
 from pipeline.utils import SCREENING_DIR, setup_logger
 
 logger = setup_logger('genetic_optimizer', 'screening/genetic_optimizer.log')
+ADVANCEMENT_BARRIER_EV = 0.8
 
 
 @dataclass
@@ -58,10 +60,16 @@ def run_branch_discovery(
         certificate_path=(
             SCREENING_DIR / 'turquoise_hydrogen_coverage_certificate.json'
         ),
-        validation_fidelity=0.8,
+        validation_fidelity=ADVANCEMENT_BARRIER_EV,
         diagnostics_label='Pyrolysis',
         screener=run_screening,
         objective_function=turquoise_tree_objectives,
+        advancement_criteria=(
+            AdvancementCriterion('valid', 1.0, 'max'),
+            AdvancementCriterion('pyrolysis_viable', 1.0, 'max'),
+            AdvancementCriterion('E_act', ADVANCEMENT_BARRIER_EV, 'min'),
+            AdvancementCriterion('model_confidence', 0.5, 'max'),
+        ),
         logger=logger,
     )
     return run_guided_branch_discovery(config, workflow, existing_db)

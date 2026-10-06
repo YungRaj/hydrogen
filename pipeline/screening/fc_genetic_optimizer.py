@@ -6,6 +6,8 @@ from typing import Optional
 
 import pandas as pd
 
+from pipeline.search.adaptive_validation import AdvancementCriterion
+
 from pipeline.search.design_space import (
     extract_elements as _extract_elements_from_genome,
 )
@@ -18,6 +20,7 @@ from pipeline.screening.branch_discovery import (
 from pipeline.utils import FUEL_CELL_DIR, setup_logger
 
 logger = setup_logger('fc_genetic_optimizer', 'fuel_cell/fc_genetic_optimizer.log')
+ADVANCEMENT_OVERPOTENTIAL_V = 0.4
 
 FENTON_RISK: dict[str, int] = {
     'Fe': 3,
@@ -79,10 +82,19 @@ def run_fc_branch_discovery(
         champions_db='fc_branch_champions.csv',
         database_subdir='fuel_cell',
         certificate_path=FUEL_CELL_DIR / 'coverage_certificate.json',
-        validation_fidelity=0.40,
+        validation_fidelity=ADVANCEMENT_OVERPOTENTIAL_V,
         diagnostics_label='ORR',
         screener=run_orr_screening,
         objective_function=orr_tree_objectives,
+        advancement_criteria=(
+            AdvancementCriterion('valid', 1.0, 'max'),
+            AdvancementCriterion('fc_viable', 1.0, 'max'),
+            AdvancementCriterion(
+                'orr_overpotential_V', ADVANCEMENT_OVERPOTENTIAL_V, 'min'
+            ),
+            AdvancementCriterion('fenton_stability', 7.0, 'max'),
+            AdvancementCriterion('model_confidence', 0.5, 'max'),
+        ),
         logger=logger,
     )
     return run_guided_branch_discovery(config, workflow, existing_db)

@@ -11,6 +11,8 @@ import numpy as np
 import pandas as pd
 
 from pipeline.search.adaptive_validation import (
+    AdvancementCriterion,
+    advancement_scorecard,
     allocate_validation_batch,
     experimental_slate,
     persist_experimental_slate,
@@ -46,6 +48,7 @@ class BranchDiscoveryConfig:
 
     initial_fairchem_samples: int = 500
     fairchem_eval_top_k: int = 500
+    experimental_slate_size: int = 50
     htvs_pool_size: int = 20000
     exhaustive_batch_size: int = 65536
     exhaustive_db: str = ""
@@ -79,6 +82,7 @@ class BranchDiscoveryWorkflow:
     diagnostics_label: str
     screener: Screener
     objective_function: ObjectiveFunction
+    advancement_criteria: tuple[AdvancementCriterion, ...]
     logger: logging.Logger
 
 
@@ -200,6 +204,7 @@ def run_guided_branch_discovery(
         db_filename=workflow.champions_db,
         workers_per_gpu=2,
     )
+    validated = advancement_scorecard(validated, workflow.advancement_criteria)
     predicted_mean, _ = model.predict(validation_genomes)
     predictions = {
         candidate_id(genome): float(predicted_mean[position])
@@ -224,13 +229,28 @@ def run_guided_branch_discovery(
         from pipeline.evidence.prior_art import annotate_prior_art
 
         evidence = annotate_prior_art(evidence, config.prior_art_db)
-    slate_indices = experimental_slate(archive, objectives, validation_count)
+    validation_objectives = objectives[validation_indices]
+    status_priority = {
+        'advance': 3.0,
+        'validation_required': 2.0,
+        'hold': 1.0,
+        'hard_excluded': float('-inf'),
+    }
+    slate_count = min(config.experimental_slate_size, validation_count)
+    slate_indices = experimental_slate(
+        validation_genomes,
+        validation_objectives,
+        slate_count,
+        [status_priority[str(value)] for value in validated['advancement_status']],
+    )
     persist_experimental_slate(
         config.exhaustive_db,
         workflow.application,
-        archive,
-        objectives,
+        validation_genomes,
+        validation_objectives,
         slate_indices,
     )
-    evidence.attrs['experimental_slate'] = [archive[index] for index in slate_indices]
+    evidence.attrs['experimental_slate'] = [
+        validation_genomes[index] for index in slate_indices
+    ]
     return champions, add_discovery_metadata(evidence)

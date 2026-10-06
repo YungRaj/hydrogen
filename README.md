@@ -1144,8 +1144,24 @@ Each represented material class receives a fixed quota first. Remaining slots
 combine expected improvement, ensemble uncertainty, regional calibration error,
 and observed productivity. Paired surrogate/Fairchem/DFT/experimental results are
 stored by chemistry region in SQLite. Large disagreement moves a region earlier;
-repeated low productivity moves it later but never prunes it. A separate
-`experimental_slate` table preserves one champion per region before repeats.
+repeated low productivity moves it later but never prunes it. The validated rows
+then pass through an explicit advancement scorecard. The
+turquoise-hydrogen gate requires a complete, phase-viable result with
+`E_act <= 0.8 eV` and model confidence of at least `0.5`. The ORR gate requires
+a complete, application-viable result with overpotential `<= 0.4 V`, Fenton
+stability `>= 7`, and model confidence of at least `0.5`. Missing evidence and
+rows marked for DFT remain `validation_required`; they are not treated as poor
+chemistry. Failed complete rows are held, and hard hazards are excluded.
+
+The `experimental_slate` table is a bounded handoff portfolio (50 candidates by
+default), drawn only from the atomistically screened validation batch. It ranks
+near-term advancement candidates first, unresolved high-upside candidates
+second, and held candidates third while preserving one champion per chemistry
+region before repeats. Hard-excluded candidates never enter the slate. The
+underlying Pareto archive remains intact, so this decision layer does not erase
+objective tradeoffs or search coverage. These are preliminary screening gates,
+not a declaration of scale-up readiness; selectivity, lifetime, synthesis,
+reactor, process, economic, and experimental gates remain downstream.
 
 #### What “novel” means
 

@@ -401,8 +401,11 @@ def test_six_point_status_fails_closed():
 
 def test_adaptive_validation_policy():
     import tempfile
+    import pandas as pd
     from pathlib import Path
     from pipeline.search.adaptive_validation import (
+        AdvancementCriterion,
+        advancement_scorecard,
         allocate_validation_batch,
         experimental_slate,
         record_validation,
@@ -473,6 +476,46 @@ def test_adaptive_validation_policy():
         assert priority_adjustment(db, 'test', [candidates[1]]) < 0.0
         slate = experimental_slate(candidates, objectives, 5)
         assert len(slate) == 5 and len(set(slate)) == 5
+        scorecard = advancement_scorecard(
+            pd.DataFrame(
+                [
+                    {
+                        'candidate_disposition': 'quantitative_screening',
+                        'activity': 0.2,
+                        'confidence': 0.8,
+                    },
+                    {
+                        'candidate_disposition': 'quantitative_screening',
+                        'activity': 0.7,
+                        'confidence': 0.8,
+                    },
+                    {
+                        'candidate_disposition': 'validation_required',
+                        'activity': 0.1,
+                    },
+                    {'candidate_disposition': 'hard_excluded'},
+                ]
+            ),
+            (
+                AdvancementCriterion('activity', 0.4, 'min'),
+                AdvancementCriterion('confidence', 0.5, 'max'),
+            ),
+        )
+        assert scorecard['advancement_status'].tolist() == [
+            'advance',
+            'hold',
+            'validation_required',
+            'hard_excluded',
+        ]
+        assert scorecard.loc[2, 'advancement_reason'] == 'missing:confidence'
+        prioritized = experimental_slate(
+            candidates[:4],
+            objectives[:4],
+            3,
+            [3.0, 1.0, 2.0, float('-inf')],
+        )
+        assert prioritized[0] == 0
+        assert 3 not in prioritized
         persist_experimental_slate(db, 'test', candidates, objectives, slate)
         import sqlite3
 
