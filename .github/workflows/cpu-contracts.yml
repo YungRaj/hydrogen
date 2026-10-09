@@ -13,5 +13,8 @@ jobs:
         with:
           python-version: '3.11'
           cache: pip
-      - run: pip install numpy pandas scipy scikit-learn pytest
-      - run: python -m pytest -q tests/test_prospective_contracts.py
+      - run: pip install numpy pandas scipy scikit-learn ase cantera pyyaml
+      - run: python tests/test_prospective_contracts.py
+      - run: python tests/test_pipeline.py
+      - run: python tests/test_source_documentation_contracts.py
+      - run: python tests/test_test_runner.py

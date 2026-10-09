@@ -34,7 +34,7 @@ from pipeline.utils import (
     check_element_safety,
     is_valid_for_application,
 )
-from pipeline.screening.surface_screener import generate_structure
+from pipeline.screening.surface_screener import adsorption_site, generate_structure
 from pipeline.search.design_space import extract_elements as _extract_elements
 
 logger = setup_logger('fc_screener', 'fuel_cell/fc_screening.log')
@@ -163,17 +163,11 @@ def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> di
         e_clean = structure.get_potential_energy()
         result['e_clean'] = e_clean
 
-        # Active site position
-        if len(active_idx) > 0 and active_idx[0] < len(structure):
-            ads_base = structure[active_idx[0]].position.copy()
-        else:
-            ads_base = structure.positions.mean(axis=0)
-
         # 2. OH* adsorption
         slab_oh = structure.copy()
-        oh_pos = ads_base + np.array([0.0, 0.0, 1.9])
+        oh_pos, ads_direction = adsorption_site(structure, active_idx, 1.9)
         slab_oh.append(Atom('O', position=oh_pos))
-        slab_oh.append(Atom('H', position=oh_pos + np.array([0.0, 0.0, 0.97])))
+        slab_oh.append(Atom('H', position=oh_pos + 0.97 * ads_direction))
         slab_oh.calc = calc
         budget = ORR_PROTOCOL.adsorbate
         if not require_relaxation(
@@ -192,7 +186,7 @@ def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> di
 
         # 3. O* adsorption
         slab_o = structure.copy()
-        o_pos = ads_base + np.array([0.0, 0.0, 1.7])
+        o_pos, _ = adsorption_site(structure, active_idx, 1.7)
         slab_o.append(Atom('O', position=o_pos))
         slab_o.calc = calc
         if not require_relaxation(result, slab_o, 'o', budget.fmax_eV_A, budget.steps):
@@ -209,9 +203,11 @@ def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> di
 
         # 4. OOH* adsorption
         slab_ooh = structure.copy()
-        o1_pos = ads_base + np.array([0.0, 0.0, 1.9])
+        o1_pos, ads_direction = adsorption_site(structure, active_idx, 1.9)
         o2_pos = o1_pos + np.array([1.2, 0.0, 0.6])
-        h_pos = o2_pos + np.array([0.0, 0.0, 0.97])
+        if ads_direction[2] < 0:
+            o2_pos[2] = o1_pos[2] - 0.6
+        h_pos = o2_pos + 0.97 * ads_direction
         slab_ooh.append(Atom('O', position=o1_pos))
         slab_ooh.append(Atom('O', position=o2_pos))
         slab_ooh.append(Atom('H', position=h_pos))

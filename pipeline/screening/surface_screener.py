@@ -419,6 +419,35 @@ def generate_porphyrin_cluster(
     return atoms
 
 
+def adsorption_site(
+    atoms: Atoms, active_indices: list[int], distance: float
+) -> tuple[np.ndarray, np.ndarray]:
+    """Choose the less crowded side of a surface or molecular active site.
+
+    Args:
+        atoms: Relaxed catalyst structure.
+        active_indices: Atom indices defining the active site.
+        distance: Adsorbate distance from the active-site centroid in angstrom.
+
+    Returns:
+        Adsorbate position and outward unit direction.
+    """
+    indices = [index for index in active_indices if 0 <= index < len(atoms)]
+    base = (
+        atoms.positions[indices].mean(axis=0)
+        if indices
+        else atoms.positions.mean(axis=0)
+    )
+    directions = (np.array([0.0, 0.0, 1.0]), np.array([0.0, 0.0, -1.0]))
+
+    def clearance(direction: np.ndarray) -> float:
+        position = base + distance * direction
+        return float(np.linalg.norm(atoms.positions - position, axis=1).min())
+
+    direction = max(directions, key=clearance)
+    return base + distance * direction, direction
+
+
 def generate_structure(genome: tuple) -> Tuple[Atoms, list, str]:
     """
         Generate an atomic structure from a catalyst genome.
@@ -469,9 +498,25 @@ def generate_structure(genome: tuple) -> Tuple[Atoms, list, str]:
         else:
             _, m1, m2, coord, substrate = genome
             cluster = generate_porphyrin_cluster(m1, coord, substrate=substrate)
-            pos = cluster[0].position.copy()
-            pos[0] += 2.5
-            cluster.append(Atom(m2, position=pos))
+            separation = 2.5
+            cluster[0].position[0] -= separation / 2.0
+            second = cluster[0].position.copy()
+            second[0] += separation
+            midpoint_x = 0.5 * (cluster[0].position[0] + second[0])
+            coordination_count = 8 if coord in ('N8', 'N4N4') else 6
+            for index in range(1, 1 + coordination_count):
+                atom = cluster[index]
+                if min(
+                    np.linalg.norm(atom.position - cluster[0].position),
+                    np.linalg.norm(atom.position - second),
+                ) < 1.2:
+                    atom.position[0] = (
+                        second[0] + 2.0
+                        if atom.position[0] >= midpoint_x
+                        else cluster[0].position[0] - 2.0
+                    )
+            cluster.append(Atom(m2, position=second))
+            return cluster, [0, len(cluster) - 1], mat_class
         return cluster, [0], mat_class
 
     elif mat_class in ('MOF', 'COF'):
@@ -944,17 +989,13 @@ def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
         e_clean = structure.get_potential_energy()
         result['e_clean'] = e_clean
 
-        # Identify adsorption site (top of first active atom)
-        if len(active_idx) > 0 and active_idx[0] < len(structure):
-            ads_pos = structure[active_idx[0]].position.copy()
-        else:
-            ads_pos = structure.positions.mean(axis=0)
-        ads_pos[2] += 1.8  # 1.8 Å above surface
+        # Choose the open side of the active site. This avoids placing an
+        # adsorbate through an encoded axial ligand or a second DAC metal.
+        ads_pos, ads_direction = adsorption_site(structure, active_idx, 1.8)
 
         # 2. H* adsorption
         slab_h = structure.copy()
-        h_pos = ads_pos.copy()
-        h_pos[2] = ads_pos[2] - 0.3  # H binds closer
+        h_pos = ads_pos - 0.3 * ads_direction
         slab_h.append(Atom('H', position=h_pos))
         slab_h.calc = calc
         budget = PYROLYSIS_PROTOCOL.adsorbate
@@ -968,9 +1009,10 @@ def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
         slab_ch3 = structure.copy()
         c_pos = ads_pos.copy()
         slab_ch3.append(Atom('C', position=c_pos))
-        slab_ch3.append(Atom('H', position=c_pos + np.array([0.0, 1.02, 0.35])))
-        slab_ch3.append(Atom('H', position=c_pos + np.array([-0.88, -0.51, 0.35])))
-        slab_ch3.append(Atom('H', position=c_pos + np.array([0.88, -0.51, 0.35])))
+        z_offset = 0.35 * ads_direction
+        slab_ch3.append(Atom('H', position=c_pos + np.array([0.0, 1.02, 0.0]) + z_offset))
+        slab_ch3.append(Atom('H', position=c_pos + np.array([-0.88, -0.51, 0.0]) + z_offset))
+        slab_ch3.append(Atom('H', position=c_pos + np.array([0.88, -0.51, 0.0]) + z_offset))
         slab_ch3.calc = calc
         if not require_relaxation(
             result, slab_ch3, 'ch3', budget.fmax_eV_A, budget.steps
@@ -982,8 +1024,7 @@ def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
 
         # 4. C* adsorption (coking indicator)
         slab_c = structure.copy()
-        c_ads_pos = ads_pos.copy()
-        c_ads_pos[2] -= 0.4  # C binds closer to surface
+        c_ads_pos = ads_pos - 0.4 * ads_direction
         slab_c.append(Atom('C', position=c_ads_pos))
         slab_c.calc = calc
         if not require_relaxation(result, slab_c, 'c', budget.fmax_eV_A, budget.steps):

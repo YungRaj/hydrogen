@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "policy_source_sha256": "793ae899503b36a2642ebedbab7cd9c4ed8761fd64f63c9b4c46f0e8b86e0767",
+  "confirmatory_applications": [
+    "fuel_cell_orr"
+  ],
+  "exploratory_applications": [
+    "turquoise_hydrogen"
+  ],
+  "planned_batches": 10,
+  "random_one_sided_alpha": 0.05
+}

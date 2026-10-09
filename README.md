@@ -1315,7 +1315,7 @@ Optimization is applied at the bottleneck appropriate to each fidelity layer:
    direct A/B control. Scientific tests cover equations, device affinity, energy/
    force invariance, and single-versus-batched inference equivalence.
 
-Every eSen geometry state is fail-closed under screening protocol `relax-v3`.
+Every eSen geometry state is fail-closed under screening protocol `relax-v4`.
 Clean structures and each adsorbate retain the final maximum force, optimizer
 steps, requested force threshold, termination reason, and SHA-256 geometry
 digest. Exhausting the BFGS step allowance is an incomplete calculation—not a

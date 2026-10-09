@@ -2209,6 +2209,24 @@ def test_phase_stable_at_application_t_per_class():
     )
 
 
+def test_sac_dac_adsorption_sites_are_collision_free():
+    from pipeline.screening.surface_screener import adsorption_site, generate_structure
+
+    candidates = [
+        ('SAC', 'Fe', 'N4', 'N-graphene', 'OH'),
+        ('DAC', 'Fe', 'Co', 'N6', 'N-graphene'),
+        ('DAC', 'Fe', 'Co', 'N8', 'N-graphene'),
+    ]
+    for genome in candidates:
+        structure, active, _ = generate_structure(genome)
+        distances = structure.get_all_distances(mic=True)
+        distances[np.eye(len(structure), dtype=bool)] = np.inf
+        assert float(distances.min()) >= 0.35
+        position, _ = adsorption_site(structure, active, 1.5)
+        clearance = np.linalg.norm(structure.positions - position, axis=1).min()
+        assert float(clearance) >= 1.4
+
+
 def test_turquoise_pyrolysis_select_excludes_metal_hydride():
     import pandas as pd
     from pipeline.search.scope import (
@@ -3773,6 +3791,10 @@ if __name__ == '__main__':
         test_industrial_viability_gates_fail_closed,
     )
     test("Phase stability per class", test_phase_stable_at_application_t_per_class)
+    test(
+        "SAC and DAC adsorption sites are collision-free",
+        test_sac_dac_adsorption_sites_are_collision_free,
+    )
     test(
         "Pyrolysis select excludes unstable phases",
         test_turquoise_pyrolysis_select_excludes_metal_hydride,

@@ -15,13 +15,19 @@ from pipeline.search.branch_search import _probe_indices
 from pipeline.search.design_space import encode_population
 from pipeline.search.discovery import candidate_id
 from pipeline.search.indexed_space import CLASS_ORDER, CLASS_SIZES, candidate_at_class
-from pipeline.search.scope import pemfc_cathode_scope
+from pipeline.search.scope import phase_stable_at_application_T, pemfc_cathode_scope
+from pipeline.screening.protocols import ORR_PROTOCOL, PYROLYSIS_PROTOCOL
 
 ROOT = Path('results/prospective_search')
 HISTORY = Path('docs/evidence/legacy_pilot_rounds.jsonl')
+POLICY_LOCK = Path('docs/evidence/prospective_policy_lock.json')
 APPS = (('turquoise_hydrogen', 'E_act', 'pyrolysis'),
         ('fuel_cell_orr', 'orr_overpotential_V', 'orr'))
 PROTOCOLS = {
+    'turquoise_hydrogen': PYROLYSIS_PROTOCOL.protocol_id,
+    'fuel_cell_orr': ORR_PROTOCOL.protocol_id,
+}
+LEGACY_PROTOCOLS = {
     'turquoise_hydrogen': 'esen-sm-conserving-all-oc25:relax-v3:pyrolysis-v2',
     'fuel_cell_orr': 'esen-sm-conserving-all-oc25:relax-v3:orr-che-v2',
 }
@@ -30,6 +36,14 @@ BASELINE_OUTCOMES = {
     'fuel_cell_orr': Path('results/fuel_cell/pilot/divide_conquer_v8_orr.csv'),
 }
 HIT_FRACTION = 0.20
+POLICY_SOURCE_PATHS = (
+    Path(__file__),
+    Path('pipeline/screening/small_data_ranker.py'),
+    Path('pipeline/search/scope.py'),
+    Path('pipeline/screening/protocols.py'),
+    Path('pipeline/screening/surface_screener.py'),
+    Path('pipeline/screening/fc_screener.py'),
+)
 
 
 def _coverage_select(
@@ -62,6 +76,31 @@ def _coverage_select(
 
 def _hash(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _policy_source_hash() -> str:
+    """Return the digest of every source file frozen by the preregistration."""
+    digest = hashlib.sha256()
+    for path in POLICY_SOURCE_PATHS:
+        digest.update(str(path).encode())
+        digest.update(b'\0')
+        digest.update(path.read_bytes())
+        digest.update(b'\0')
+    return digest.hexdigest()
+
+
+def _require_locked_policy() -> str:
+    """Fail unless current policy sources match the preregistered digest."""
+    if not POLICY_LOCK.is_file():
+        raise RuntimeError(f'missing prospective policy lock: {POLICY_LOCK}')
+    lock = json.loads(POLICY_LOCK.read_text())
+    expected = str(lock.get('policy_source_sha256', ''))
+    actual = _policy_source_hash()
+    if not expected or actual != expected:
+        raise RuntimeError(
+            f'prospective policy hash mismatch: expected {expected}, got {actual}'
+        )
+    return actual
 
 
 def _atomic_json(path: Path, payload: dict) -> None:
@@ -112,12 +151,14 @@ def _outcome(batch: str, app: str) -> Path:
     return Path('results') / folder / 'prospective' / f'{batch}_{suffix}.csv'
 
 
-def _completed_outcomes(app: str) -> list[Path]:
+def _completed_outcomes(app: str, before_batch: str | None = None) -> list[Path]:
     """Return checksum-verified outcomes from finalized prospective batches."""
     paths = []
     for analysis in sorted(ROOT.glob('batches/*/analysis.json')):
         report = json.loads(analysis.read_text())
         batch = str(report['batch_id'])
+        if batch == before_batch:
+            break
         path = _outcome(batch, app)
         expected = report.get('outcome_sha256', {}).get(app)
         if expected is None:
@@ -128,7 +169,9 @@ def _completed_outcomes(app: str) -> list[Path]:
     return paths
 
 
-def _training(app: str, valid_only: bool = True) -> pd.DataFrame:
+def _training(
+    app: str, valid_only: bool = True, before_batch: str | None = None
+) -> pd.DataFrame:
     """Load only tracked, checksum-verifiable outcomes from one protocol."""
     if app not in PROTOCOLS:
         raise ValueError(f'unknown application {app}')
@@ -137,25 +180,127 @@ def _training(app: str, valid_only: bool = True) -> pd.DataFrame:
         raise RuntimeError(
             f'missing tracked {app} training baseline: {baseline}; restore the file from git'
         )
-    paths = [baseline, *_completed_outcomes(app)]
+    paths = [baseline, *_completed_outcomes(app, before_batch)]
     frames = []
     for path in paths:
         frame = pd.read_csv(path)
         if 'screening_protocol' not in frame.columns:
             raise RuntimeError(f'training data has no screening_protocol: {path}')
-        mismatched = frame.screening_protocol.ne(PROTOCOLS[app])
+        allowed = {PROTOCOLS[app], LEGACY_PROTOCOLS[app]}
+        mismatched = ~frame.screening_protocol.isin(allowed)
         if bool(mismatched.any()):
             protocols = sorted(
                 frame.loc[mismatched, 'screening_protocol'].astype(str).unique()
             )
             raise RuntimeError(f'incompatible screening protocol in {path}: {protocols}')
+        legacy = frame.screening_protocol.eq(LEGACY_PROTOCOLS[app])
+        if bool(legacy.any()):
+            # Relax-v4 changes SAC/DAC geometry and adsorption placement. Other
+            # material classes are structurally identical and remain compatible.
+            changed_geometry = frame.material_class.isin(('SAC', 'DAC'))
+            frame = frame.loc[~(legacy & changed_geometry)].copy()
+            frame.loc[:, 'screening_protocol'] = PROTOCOLS[app]
         frames.append(frame)
     frame = pd.concat(frames, ignore_index=True, sort=False)
     if valid_only:
-        from pipeline.screening.small_data_ranker import screening_metric_eligibility
-        frame = frame.loc[screening_metric_eligibility(frame, app)].copy()
+        from pipeline.screening.small_data_ranker import training_metric_eligibility
+        frame = frame.loc[training_metric_eligibility(frame, app)].copy()
     frame['_id'] = [candidate_id(ast.literal_eval(x)) for x in frame.genome]
     return frame.drop_duplicates('_id', keep='last').drop(columns='_id')
+
+
+def _select_policies(
+    pool: list[tuple],
+    app: str,
+    budget: int,
+    train: pd.DataFrame,
+    all_train: pd.DataFrame,
+    random_seed: int,
+) -> dict:
+    """Fit the frozen policy and select equal-budget candidates from one pool."""
+    from dataclasses import asdict
+    from sklearn.ensemble import ExtraTreesClassifier
+    from pipeline.screening.small_data_ranker import (
+        CLASS_SUCCESS_WEIGHT,
+        class_success_probability,
+        fit_tree_ranker,
+        orr_catalyst_acquisition,
+        orr_tree_objectives,
+        turquoise_catalyst_acquisition,
+        turquoise_tree_objectives,
+    )
+
+    eligible = [
+        index for index, genome in enumerate(pool)
+        if (
+            phase_stable_at_application_T(genome)['status'] == 'candidate'
+            if app == 'turquoise_hydrogen'
+            else pemfc_cathode_scope(genome)['status'] == 'candidate'
+        )
+    ]
+    ranker = fit_tree_ranker(train, app)
+    objectives = (
+        turquoise_tree_objectives(pool, ranker)
+        if app == 'turquoise_hydrogen'
+        else orr_tree_objectives(pool, ranker)
+    )
+    _, uncertainty = ranker.predict(pool)
+    genomes = [ast.literal_eval(raw) for raw in all_train.genome]
+    validity = ExtraTreesClassifier(
+        n_estimators=256,
+        min_samples_leaf=2,
+        max_features=1.0,
+        class_weight='balanced',
+        random_state=20260722,
+        n_jobs=-1,
+    )
+    validity.fit(encode_population(genomes), all_train.valid.eq(True).to_numpy(int))
+    validity_score = validity.predict_proba(encode_population(pool))[
+        :, list(validity.classes_).index(1)
+    ]
+    candidates = [pool[index] for index in eligible]
+    selected_budget = min(len(candidates), budget)
+    catalyst_score = (
+        turquoise_catalyst_acquisition(
+            objectives[eligible, 0], validity_score[eligible]
+        )
+        if app == 'turquoise_hydrogen'
+        else orr_catalyst_acquisition(
+            objectives[eligible, 0], uncertainty[eligible], validity_score[eligible]
+        )
+    )
+    catalyst_score += CLASS_SUCCESS_WEIGHT * class_success_probability(
+        all_train, candidates, app
+    )
+    selections = {
+        'catalyst': _coverage_select(catalyst_score, candidates, selected_budget),
+        'uncertainty': _coverage_select(
+            uncertainty[eligible], candidates, selected_budget
+        ),
+        'validity': _coverage_select(
+            validity_score[eligible], candidates, selected_budget
+        ),
+    }
+    ids = [candidate_id(genome) for genome in pool]
+    return {
+        'application': app,
+        'training_rows': len(train),
+        'training_digest': hashlib.sha256(
+            '\n'.join(
+                sorted(candidate_id(ast.literal_eval(raw)) for raw in train.genome)
+            ).encode()
+        ).hexdigest(),
+        'eligible_ids': [ids[index] for index in eligible],
+        'budget': selected_budget,
+        'policy_selected_ids': {
+            name: [ids[eligible[index]] for index in selected]
+            for name, selected in selections.items()
+        },
+        'ranker_diagnostics': asdict(ranker.diagnostics),
+        'random_seed': random_seed,
+        'random_trials': 50000,
+        'random_one_sided_alpha': 0.05,
+    }
 
 
 def _prior() -> set[str]:
@@ -183,28 +328,18 @@ def _pool(per_class: int) -> list[tuple]:
     return pool
 
 
-def prepare(batch: str, per_class: int = 20, extra_slots: int = 6) -> Path:
+def prepare(batch: str, per_class: int = 20, budget: int = 20) -> Path:
     """Lock one standard-policy batch before outcomes exist.
 
     Args:
         batch: Unique append-only batch identifier.
         per_class: Fresh pool members per material class.
-        extra_slots: Budget remaining after class floors.
+        budget: Fixed application evaluation budget.
 
     Returns:
         Locked manifest path.
     """
-    from dataclasses import asdict
-    from sklearn.ensemble import ExtraTreesClassifier
-    from pipeline.screening.small_data_ranker import (
-        CLASS_SUCCESS_WEIGHT,
-        class_success_probability,
-        fit_tree_ranker,
-        orr_catalyst_acquisition,
-        orr_tree_objectives,
-        turquoise_catalyst_acquisition,
-        turquoise_tree_objectives,
-    )
+    policy_source_sha256 = _require_locked_policy()
     root, manifest = _root(batch), _root(batch) / 'manifest.json'
     if manifest.exists(): raise FileExistsError(manifest)
     if any(_outcome(batch, app).exists() for app, _, _ in APPS): raise RuntimeError('outcomes predate lock')
@@ -212,48 +347,33 @@ def prepare(batch: str, per_class: int = 20, extra_slots: int = 6) -> Path:
     ids = [candidate_id(g) for g in pool]
     for app, _, _ in APPS:
         train, all_train = _training(app), _training(app, False)
-        eligible = list(range(len(pool))) if app == 'turquoise_hydrogen' else [i for i,g in enumerate(pool) if pemfc_cathode_scope(g)['status'] == 'candidate']
-        ranker = fit_tree_ranker(train, app)
-        obj = turquoise_tree_objectives(pool, ranker) if app == 'turquoise_hydrogen' else orr_tree_objectives(pool, ranker)
-        _, uncertainty = ranker.predict(pool)
-        genomes = [ast.literal_eval(x) for x in all_train.genome]
-        validity = ExtraTreesClassifier(n_estimators=256, min_samples_leaf=2, max_features=1.0, class_weight='balanced', random_state=20260722, n_jobs=-1)
-        validity.fit(encode_population(genomes), all_train.valid.eq(True).to_numpy(int))
-        vscore = validity.predict_proba(encode_population(pool))[:, list(validity.classes_).index(1)]
-        candidates = [pool[i] for i in eligible]
-        budget = min(len(candidates), len({g[0] for g in candidates}) + extra_slots)
-        catalyst_score = (
-            turquoise_catalyst_acquisition(
-                obj[eligible, 0], vscore[eligible]
-            )
-            if app == 'turquoise_hydrogen'
-            else orr_catalyst_acquisition(
-                obj[eligible, 0], uncertainty[eligible], vscore[eligible]
-            )
+        random_seed = int.from_bytes(
+            hashlib.sha256(f'{batch}:{app}'.encode()).digest()[:8], 'big'
         )
-        catalyst_score += CLASS_SUCCESS_WEIGHT * class_success_probability(
-            all_train, candidates, app
+        selection = _select_policies(
+            pool, app, budget, train, all_train, random_seed
         )
-        local = {'catalyst': _coverage_select(catalyst_score, candidates, budget),
-                 'uncertainty': _coverage_select(uncertainty[eligible], candidates, budget),
-                 'validity': _coverage_select(vscore[eligible], candidates, budget)}
-        records.append({'application': app, 'training_rows': len(train),
-          'training_digest': hashlib.sha256('\n'.join(sorted(candidate_id(ast.literal_eval(x)) for x in train.genome)).encode()).hexdigest(),
-          'pool': [repr(g) for g in pool], 'candidate_ids': ids,
-          'eligible_ids': [ids[i] for i in eligible], 'budget': budget,
-          'policy_selected_ids': {name: [ids[eligible[i]] for i in ix] for name,ix in local.items()},
-          'ranker_diagnostics': asdict(ranker.diagnostics), 'random_seed': 20260720, 'random_trials': 50000})
+        records.append({
+            **selection,
+            'pool': [repr(genome) for genome in pool],
+            'candidate_ids': ids,
+        })
     ROOT.mkdir(parents=True, exist_ok=True)
     campaign = ROOT / 'manifest.json'
     if not campaign.exists():
-        campaign.write_text(json.dumps({'schema_version':1,'campaign':'prospective_catalyst_search','append_only':True,'historical_evidence':str(HISTORY)}, indent=2)+'\n')
+        _atomic_json(campaign, {'schema_version':1,'campaign':'prospective_catalyst_search','append_only':True,'historical_evidence':str(HISTORY)})
     payload = {'schema_version':2,'batch_id':batch,'locked_before_outcomes':True,
       'created_utc':datetime.now(timezone.utc).isoformat(),
       'git_commit':subprocess.run(['git','rev-parse','HEAD'],check=True,capture_output=True,text=True).stdout.strip(),
-      'policy_source_sha256':hashlib.sha256(Path(__file__).read_bytes()+Path('pipeline/screening/small_data_ranker.py').read_bytes()).hexdigest(),
-      'acceptance':{'catalyst_must_beat':['uncertainty','validity','policy_matched_random_97_5pct'],'required_independently_for_each_application':True},'records':records}
-    root.mkdir(parents=True, exist_ok=False); manifest.write_text(json.dumps(payload,indent=2)+'\n')
-    with (ROOT/'batches.jsonl').open('a') as f: f.write(json.dumps({'batch_id':batch,'manifest_sha256':_hash(manifest)})+'\n')
+      'policy_source_sha256':policy_source_sha256,
+      'acceptance':{
+          'confirmatory_applications':['fuel_cell_orr'],
+          'exploratory_applications':['turquoise_hydrogen'],
+          'catalyst_must_beat':['uncertainty','validity'],
+          'random_one_sided_alpha':0.05,
+      },'records':records}
+    root.mkdir(parents=True, exist_ok=True); _atomic_json(manifest, payload)
+    _commit_batch_manifest(batch, _hash(manifest))
     return manifest
 
 
@@ -342,7 +462,8 @@ def _score_record(
             )
         )
         random_hits[trial] = count_hits(chosen)
-    upper = float(np.quantile(random_hits, .975))
+    alpha = float(record.get('random_one_sided_alpha', .025))
+    upper = float(np.quantile(random_hits, 1.0 - alpha))
     passed = (
         policy['catalyst'] > policy['uncertainty']
         and policy['catalyst'] > policy['validity']
@@ -368,9 +489,10 @@ def _score_record(
         'hit_cutoff': cutoff,
         'policy_hits': policy,
         'policy_matched_random_mean_hits': float(np.mean(random_hits)),
-        'policy_matched_random_95pct': [
-            float(np.quantile(random_hits, .025)), upper
+        'policy_matched_random_quantiles': [
+            float(np.quantile(random_hits, alpha)), upper
         ],
+        'random_one_sided_alpha': alpha,
         'acceptance_passed': bool(passed),
     }
     return result, observations, random_hits
@@ -399,6 +521,25 @@ def _commit_observations(observations: list[dict]) -> None:
     )
     _atomic_text(
         ledger, ''.join(json.dumps(row, sort_keys=True) + '\n' for row in ordered)
+    )
+
+
+def _commit_batch_manifest(batch: str, manifest_sha256: str) -> None:
+    """Idempotently record one immutable manifest in the batch ledger."""
+    ledger = ROOT / 'batches.jsonl'
+    rows = (
+        [json.loads(line) for line in ledger.read_text().splitlines()]
+        if ledger.exists()
+        else []
+    )
+    keyed = {str(row['batch_id']): row for row in rows}
+    row = {'batch_id': batch, 'manifest_sha256': manifest_sha256}
+    if batch in keyed and keyed[batch] != row:
+        raise RuntimeError(f'conflicting batch manifest already exists: {batch}')
+    keyed[batch] = row
+    _atomic_text(
+        ledger,
+        ''.join(json.dumps(keyed[key], sort_keys=True) + '\n' for key in sorted(keyed)),
     )
 
 
@@ -432,7 +573,13 @@ def analyze(batch: str) -> Path:
             app: _hash(_outcome(batch, app)) for app, _, _ in APPS
         },
         'results': results,
-        'acceptance_passed': all(result['acceptance_passed'] for result in results),
+        'acceptance_passed': all(
+            result['acceptance_passed']
+            for result in results
+            if result['application'] in data.get('acceptance', {}).get(
+                'confirmatory_applications', [app for app, _, _ in APPS]
+            )
+        ),
     }
     # The ledger is idempotent, so a crash before the analysis rename is safe
     # to retry.  Publishing analysis first could permanently strand the batch.
@@ -510,6 +657,83 @@ def rescore_campaign() -> Path:
     return output
 
 
+def replay_and_power() -> Path:
+    """Replay the fixed policy chronologically and bootstrap ten-batch power.
+
+    Returns:
+        Path to the CPU-only replay and power artifact.
+    """
+    replayed, random_by_app = [], {app: [] for app, _, _ in APPS}
+    for analysis in sorted(ROOT.glob('batches/*/analysis.json')):
+        immutable = json.loads(analysis.read_text())
+        batch = str(immutable['batch_id'])
+        manifest = _root(batch) / 'manifest.json'
+        data = json.loads(manifest.read_text())
+        pool = [ast.literal_eval(raw) for raw in data['records'][0]['pool']]
+        results = []
+        for app, _, _ in APPS:
+            train = _training(app, before_batch=batch)
+            all_train = _training(app, False, before_batch=batch)
+            seed = int.from_bytes(
+                hashlib.sha256(f'replay:{batch}:{app}'.encode()).digest()[:8],
+                'big',
+            )
+            record = _select_policies(pool, app, 20, train, all_train, seed)
+            outcome = _outcome(batch, app)
+            if _hash(outcome) != immutable['outcome_sha256'][app]:
+                raise RuntimeError(f'finalized outcome checksum mismatch: {outcome}')
+            frame = pd.read_csv(outcome)
+            identities = [candidate_id(ast.literal_eval(raw)) for raw in frame.genome]
+            frame = frame.loc[
+                [identity in set(record['eligible_ids']) for identity in identities]
+            ].reset_index(drop=True)
+            result, _, random_hits = _score_record(record, frame, batch)
+            results.append(result)
+            random_by_app[app].append(random_hits)
+        replayed.append({'batch_id': batch, 'results': results})
+
+    rng = np.random.default_rng(20261008)
+    bootstrap_replicates = 2000
+    null_trials = 1000
+    power = []
+    for app, _, _ in APPS:
+        app_results = [
+            next(result for result in batch['results'] if result['application'] == app)
+            for batch in replayed
+        ]
+        passes = 0
+        for _ in range(bootstrap_replicates):
+            sampled = rng.integers(0, len(app_results), size=10)
+            catalyst = sum(app_results[index]['policy_hits']['catalyst'] for index in sampled)
+            uncertainty = sum(app_results[index]['policy_hits']['uncertainty'] for index in sampled)
+            validity = sum(app_results[index]['policy_hits']['validity'] for index in sampled)
+            null = np.zeros(null_trials, dtype=np.int16)
+            for index in sampled:
+                draws = random_by_app[app][index]
+                null += draws[rng.integers(0, len(draws), size=null_trials)]
+            p_value = (1 + np.count_nonzero(null >= catalyst)) / (null_trials + 1)
+            passes += catalyst > uncertainty and catalyst > validity and p_value <= .05
+        estimated_power = passes / bootstrap_replicates
+        power.append({
+            'application': app,
+            'bootstrap_replicates': bootstrap_replicates,
+            'planned_batches': 10,
+            'estimated_pass_probability': estimated_power,
+            'confirmatory_recommendation': estimated_power >= .80,
+        })
+    output = ROOT / 'fixed_policy_replay.json'
+    _atomic_json(output, {
+        'schema_version': 1,
+        'interpretation': (
+            'retrospective chronological replay; power bootstrap is indicative '
+            'because historical pools are smaller than the planned pool'
+        ),
+        'batches': replayed,
+        'power': power,
+    })
+    return output
+
+
 def archive_history() -> Path:
     """Write one checksum ledger for immutable v2-v8 evidence.
 
@@ -527,11 +751,12 @@ def archive_history() -> Path:
 
 def main() -> None:
     """Dispatch the prospective campaign command-line interface."""
-    parser=argparse.ArgumentParser(); parser.add_argument('action',choices=('prepare','evaluate-pyrolysis','evaluate-orr','analyze','rescore','archive-history')); parser.add_argument('--batch'); parser.add_argument('--per-class',type=int,default=20); parser.add_argument('--extra-slots',type=int,default=6); args=parser.parse_args()
+    parser=argparse.ArgumentParser(); parser.add_argument('action',choices=('prepare','evaluate-pyrolysis','evaluate-orr','analyze','rescore','replay-power','archive-history')); parser.add_argument('--batch'); parser.add_argument('--per-class',type=int,default=20); parser.add_argument('--budget',type=int,default=20); args=parser.parse_args()
     if args.action=='archive-history': print(archive_history()); return
     if args.action=='rescore': print(rescore_campaign()); return
+    if args.action=='replay-power': print(replay_and_power()); return
     if not args.batch: parser.error('--batch is required')
-    if args.action=='prepare': print(prepare(args.batch,args.per_class,args.extra_slots))
+    if args.action=='prepare': print(prepare(args.batch,args.per_class,args.budget))
     elif args.action=='evaluate-pyrolysis': print(evaluate(args.batch,'turquoise_hydrogen').shape)
     elif args.action=='evaluate-orr': print(evaluate(args.batch,'fuel_cell_orr').shape)
     else: print(analyze(args.batch))

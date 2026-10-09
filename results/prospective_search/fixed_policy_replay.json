@@ -1,0 +1,445 @@
+{
+  "schema_version": 1,
+  "interpretation": "retrospective chronological replay; power bootstrap is indicative because historical pools are smaller than the planned pool",
+  "batches": [
+    {
+      "batch_id": "20260930-catalyst-01",
+      "results": [
+        {
+          "application": "turquoise_hydrogen",
+          "eligible": 36,
+          "valid": 27,
+          "budget": 20,
+          "hit_definition": "deterministic_top_0.2_eligible",
+          "hit_count": 6,
+          "hit_cutoff": 0.7693120598792831,
+          "policy_hits": {
+            "catalyst": 3,
+            "uncertainty": 5,
+            "validity": 1
+          },
+          "policy_matched_random_mean_hits": 3.3313,
+          "policy_matched_random_quantiles": [
+            1.0,
+            5.0
+          ],
+          "random_one_sided_alpha": 0.05,
+          "acceptance_passed": false
+        },
+        {
+          "application": "fuel_cell_orr",
+          "eligible": 48,
+          "valid": 34,
+          "budget": 20,
+          "hit_definition": "deterministic_top_0.2_eligible",
+          "hit_count": 7,
+          "hit_cutoff": 1.2614473652243658,
+          "policy_hits": {
+            "catalyst": 5,
+            "uncertainty": 4,
+            "validity": 5
+          },
+          "policy_matched_random_mean_hits": 2.91816,
+          "policy_matched_random_quantiles": [
+            1.0,
+            5.0
+          ],
+          "random_one_sided_alpha": 0.05,
+          "acceptance_passed": false
+        }
+      ]
+    },
+    {
+      "batch_id": "20260930-catalyst-02",
+      "results": [
+        {
+          "application": "turquoise_hydrogen",
+          "eligible": 36,
+          "valid": 23,
+          "budget": 20,
+          "hit_definition": "deterministic_top_0.2_eligible",
+          "hit_count": 5,
+          "hit_cutoff": 0.8688377857209645,
+          "policy_hits": {
+            "catalyst": 2,
+            "uncertainty": 3,
+            "validity": 1
+          },
+          "policy_matched_random_mean_hits": 2.78372,
+          "policy_matched_random_quantiles": [
+            1.0,
+            4.0
+          ],
+          "random_one_sided_alpha": 0.05,
+          "acceptance_passed": false
+        },
+        {
+          "application": "fuel_cell_orr",
+          "eligible": 48,
+          "valid": 32,
+          "budget": 20,
+          "hit_definition": "deterministic_top_0.2_eligible",
+          "hit_count": 7,
+          "hit_cutoff": 1.4590557154417287,
+          "policy_hits": {
+            "catalyst": 4,
+            "uncertainty": 3,
+            "validity": 2
+          },
+          "policy_matched_random_mean_hits": 2.91326,
+          "policy_matched_random_quantiles": [
+            1.0,
+            5.0
+          ],
+          "random_one_sided_alpha": 0.05,
+          "acceptance_passed": false
+        }
+      ]
+    },
+    {
+      "batch_id": "20260930-catalyst-03",
+      "results": [
+        {
+          "application": "turquoise_hydrogen",
+          "eligible": 36,
+          "valid": 21,
+          "budget": 20,
+          "hit_definition": "deterministic_top_0.2_eligible",
+          "hit_count": 5,
+          "hit_cutoff": 0.7317280006409339,
+          "policy_hits": {
+            "catalyst": 2,
+            "uncertainty": 2,
+            "validity": 2
+          },
+          "policy_matched_random_mean_hits": 2.77754,
+          "policy_matched_random_quantiles": [
+            1.0,
+            4.0
+          ],
+          "random_one_sided_alpha": 0.05,
+          "acceptance_passed": false
+        },
+        {
+          "application": "fuel_cell_orr",
+          "eligible": 48,
+          "valid": 30,
+          "budget": 20,
+          "hit_definition": "deterministic_top_0.2_eligible",
+          "hit_count": 6,
+          "hit_cutoff": 0.8682695282399655,
+          "policy_hits": {
+            "catalyst": 2,
+            "uncertainty": 1,
+            "validity": 4
+          },
+          "policy_matched_random_mean_hits": 2.49626,
+          "policy_matched_random_quantiles": [
+            1.0,
+            4.0
+          ],
+          "random_one_sided_alpha": 0.05,
+          "acceptance_passed": false
+        }
+      ]
+    },
+    {
+      "batch_id": "20260930-catalyst-04-powered",
+      "results": [
+        {
+          "application": "turquoise_hydrogen",
+          "eligible": 72,
+          "valid": 45,
+          "budget": 20,
+          "hit_definition": "deterministic_top_0.2_eligible",
+          "hit_count": 9,
+          "hit_cutoff": 0.8254342079162938,
+          "policy_hits": {
+            "catalyst": 4,
+            "uncertainty": 4,
+            "validity": 1
+          },
+          "policy_matched_random_mean_hits": 2.4963,
+          "policy_matched_random_quantiles": [
+            1.0,
+            5.0
+          ],
+          "random_one_sided_alpha": 0.05,
+          "acceptance_passed": false
+        },
+        {
+          "application": "fuel_cell_orr",
+          "eligible": 96,
+          "valid": 69,
+          "budget": 20,
+          "hit_definition": "deterministic_top_0.2_eligible",
+          "hit_count": 14,
+          "hit_cutoff": 1.45681076610088,
+          "policy_hits": {
+            "catalyst": 9,
+            "uncertainty": 3,
+            "validity": 2
+          },
+          "policy_matched_random_mean_hits": 2.92784,
+          "policy_matched_random_quantiles": [
+            1.0,
+            5.0
+          ],
+          "random_one_sided_alpha": 0.05,
+          "acceptance_passed": true
+        }
+      ]
+    },
+    {
+      "batch_id": "20260930-catalyst-05-validity-aware",
+      "results": [
+        {
+          "application": "turquoise_hydrogen",
+          "eligible": 36,
+          "valid": 23,
+          "budget": 20,
+          "hit_definition": "deterministic_top_0.2_eligible",
+          "hit_count": 5,
+          "hit_cutoff": 0.8391828179360032,
+          "policy_hits": {
+            "catalyst": 4,
+            "uncertainty": 2,
+            "validity": 3
+          },
+          "policy_matched_random_mean_hits": 2.77374,
+          "policy_matched_random_quantiles": [
+            1.0,
+            4.0
+          ],
+          "random_one_sided_alpha": 0.05,
+          "acceptance_passed": false
+        },
+        {
+          "application": "fuel_cell_orr",
+          "eligible": 48,
+          "valid": 32,
+          "budget": 20,
+          "hit_definition": "deterministic_top_0.2_eligible",
+          "hit_count": 7,
+          "hit_cutoff": 1.7072595299184323,
+          "policy_hits": {
+            "catalyst": 2,
+            "uncertainty": 4,
+            "validity": 4
+          },
+          "policy_matched_random_mean_hits": 2.91576,
+          "policy_matched_random_quantiles": [
+            1.0,
+            5.0
+          ],
+          "random_one_sided_alpha": 0.05,
+          "acceptance_passed": false
+        }
+      ]
+    },
+    {
+      "batch_id": "20260930-catalyst-06-branch-feedback",
+      "results": [
+        {
+          "application": "turquoise_hydrogen",
+          "eligible": 36,
+          "valid": 22,
+          "budget": 20,
+          "hit_definition": "deterministic_top_0.2_eligible",
+          "hit_count": 5,
+          "hit_cutoff": 1.2021911263465683,
+          "policy_hits": {
+            "catalyst": 2,
+            "uncertainty": 2,
+            "validity": 3
+          },
+          "policy_matched_random_mean_hits": 2.77412,
+          "policy_matched_random_quantiles": [
+            1.0,
+            4.0
+          ],
+          "random_one_sided_alpha": 0.05,
+          "acceptance_passed": false
+        },
+        {
+          "application": "fuel_cell_orr",
+          "eligible": 48,
+          "valid": 41,
+          "budget": 20,
+          "hit_definition": "deterministic_top_0.2_eligible",
+          "hit_count": 9,
+          "hit_cutoff": 1.2069013651609102,
+          "policy_hits": {
+            "catalyst": 6,
+            "uncertainty": 5,
+            "validity": 3
+          },
+          "policy_matched_random_mean_hits": 3.74614,
+          "policy_matched_random_quantiles": [
+            2.0,
+            6.0
+          ],
+          "random_one_sided_alpha": 0.05,
+          "acceptance_passed": false
+        }
+      ]
+    },
+    {
+      "batch_id": "20260930-catalyst-07-branch-feedback",
+      "results": [
+        {
+          "application": "turquoise_hydrogen",
+          "eligible": 36,
+          "valid": 21,
+          "budget": 20,
+          "hit_definition": "deterministic_top_0.2_eligible",
+          "hit_count": 5,
+          "hit_cutoff": 0.8973159790039403,
+          "policy_hits": {
+            "catalyst": 3,
+            "uncertainty": 4,
+            "validity": 2
+          },
+          "policy_matched_random_mean_hits": 2.77824,
+          "policy_matched_random_quantiles": [
+            1.0,
+            4.0
+          ],
+          "random_one_sided_alpha": 0.05,
+          "acceptance_passed": false
+        },
+        {
+          "application": "fuel_cell_orr",
+          "eligible": 48,
+          "valid": 32,
+          "budget": 20,
+          "hit_definition": "deterministic_top_0.2_eligible",
+          "hit_count": 7,
+          "hit_cutoff": 0.96936648601294,
+          "policy_hits": {
+            "catalyst": 5,
+            "uncertainty": 3,
+            "validity": 3
+          },
+          "policy_matched_random_mean_hits": 2.91606,
+          "policy_matched_random_quantiles": [
+            1.0,
+            5.0
+          ],
+          "random_one_sided_alpha": 0.05,
+          "acceptance_passed": false
+        }
+      ]
+    },
+    {
+      "batch_id": "20260930-catalyst-08-bounded-exploration",
+      "results": [
+        {
+          "application": "turquoise_hydrogen",
+          "eligible": 36,
+          "valid": 25,
+          "budget": 20,
+          "hit_definition": "deterministic_top_0.2_eligible",
+          "hit_count": 5,
+          "hit_cutoff": 1.2823872089385988,
+          "policy_hits": {
+            "catalyst": 3,
+            "uncertainty": 2,
+            "validity": 3
+          },
+          "policy_matched_random_mean_hits": 2.78124,
+          "policy_matched_random_quantiles": [
+            1.0,
+            4.0
+          ],
+          "random_one_sided_alpha": 0.05,
+          "acceptance_passed": false
+        },
+        {
+          "application": "fuel_cell_orr",
+          "eligible": 48,
+          "valid": 37,
+          "budget": 20,
+          "hit_definition": "deterministic_top_0.2_eligible",
+          "hit_count": 8,
+          "hit_cutoff": 1.2709434565305675,
+          "policy_hits": {
+            "catalyst": 4,
+            "uncertainty": 3,
+            "validity": 2
+          },
+          "policy_matched_random_mean_hits": 3.32532,
+          "policy_matched_random_quantiles": [
+            2.0,
+            5.0
+          ],
+          "random_one_sided_alpha": 0.05,
+          "acceptance_passed": false
+        }
+      ]
+    },
+    {
+      "batch_id": "20260930-catalyst-09-branch-feedback",
+      "results": [
+        {
+          "application": "turquoise_hydrogen",
+          "eligible": 36,
+          "valid": 16,
+          "budget": 20,
+          "hit_definition": "deterministic_top_0.2_eligible",
+          "hit_count": 4,
+          "hit_cutoff": 1.023949146270786,
+          "policy_hits": {
+            "catalyst": 3,
+            "uncertainty": 4,
+            "validity": 2
+          },
+          "policy_matched_random_mean_hits": 2.2208,
+          "policy_matched_random_quantiles": [
+            1.0,
+            4.0
+          ],
+          "random_one_sided_alpha": 0.05,
+          "acceptance_passed": false
+        },
+        {
+          "application": "fuel_cell_orr",
+          "eligible": 48,
+          "valid": 36,
+          "budget": 20,
+          "hit_definition": "deterministic_top_0.2_eligible",
+          "hit_count": 8,
+          "hit_cutoff": 2.1086388481557368,
+          "policy_hits": {
+            "catalyst": 3,
+            "uncertainty": 4,
+            "validity": 5
+          },
+          "policy_matched_random_mean_hits": 3.3367,
+          "policy_matched_random_quantiles": [
+            2.0,
+            5.0
+          ],
+          "random_one_sided_alpha": 0.05,
+          "acceptance_passed": false
+        }
+      ]
+    }
+  ],
+  "power": [
+    {
+      "application": "turquoise_hydrogen",
+      "bootstrap_replicates": 2000,
+      "planned_batches": 10,
+      "estimated_pass_probability": 0.025,
+      "confirmatory_recommendation": false
+    },
+    {
+      "application": "fuel_cell_orr",
+      "bootstrap_replicates": 2000,
+      "planned_batches": 10,
+      "estimated_pass_probability": 0.843,
+      "confirmatory_recommendation": true
+    }
+  ]
+}

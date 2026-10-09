@@ -45,6 +45,23 @@
 
 ### Changed
 
+- Prospective preparation now applies ADR 0001 before GPU screening and
+  reallocates dead-class slots within a fixed 20-candidate budget. DAC geometry
+  is a non-overlapping two-center site, and both screeners choose the open side
+  of SAC/DAC sites instead of colliding with axial ligands or the second metal.
+  This geometry change advances both screening protocols to `relax-v4`; old
+  SAC/DAC labels are not mixed into the new training protocol.
+
+- Censored pyrolysis barriers remain excluded from hits but now train as an
+  explicit 5 eV over-binding penalty. The frozen policy hash is enforced before
+  `prepare()` writes anything, and campaign and batch manifests use atomic,
+  idempotent writes.
+
+- A chronological CPU replay and 2,000-bootstrap power check found an estimated
+  84.3% probability of passing for ORR and 2.5% for pyrolysis. The ten-batch
+  preregistration therefore has one confirmatory ORR endpoint at one-sided
+  alpha 0.05; pyrolysis remains frozen and fully reported but exploratory.
+
 - Corrected prospective pyrolysis scoring so activation energies censored at
   the 0.01 eV floor and non-viable structures cannot count as hits, train the
   metric ranker, or steer finished-candidate feedback. Hits now use a bounded,

@@ -575,8 +575,8 @@ checks, and converged DFT before a quantitative discovery claim.
 Both screening applications use immutable protocol identifiers from
 `pipeline/screening/protocols.py`. Current IDs are:
 
-- `esen-sm-conserving-all-oc25:relax-v3:pyrolysis-v2`
-- `esen-sm-conserving-all-oc25:relax-v3:orr-che-v2`
+- `esen-sm-conserving-all-oc25:relax-v4:pyrolysis-v3`
+- `esen-sm-conserving-all-oc25:relax-v4:orr-che-v3`
 
 Reference calculations use a target force of 0.05 eV/A with 200 steps. Clean
 surfaces use 0.08 eV/A with 150 steps. Adsorbates use 0.08 eV/A with 100 steps.

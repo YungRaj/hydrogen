@@ -18,6 +18,7 @@ INVALIDITY_PENALTY = 0.75
 ORR_UNCERTAINTY_BONUS = 0.25
 CLASS_SUCCESS_WEIGHT = 0.75
 CLASS_SUCCESS_PRIOR_ROWS = 5
+CENSORED_E_ACT_PENALTY_EV = 5.0
 
 
 def screening_metric_eligibility(frame, application: str) -> np.ndarray:
@@ -57,6 +58,39 @@ def screening_metric_eligibility(frame, application: str) -> np.ndarray:
     return eligible
 
 
+def training_metric_eligibility(frame, application: str) -> np.ndarray:
+    """Return rows permitted to train the continuous metric ranker.
+
+    Censored pyrolysis barriers remain useful negative evidence: they identify
+    the over-binding region, but their numerical floor is not a measured target.
+    Non-viable phases remain excluded because selection cannot act on them.
+
+    Args:
+        frame: Screening records containing validity and application metrics.
+        application: ``turquoise_hydrogen`` or ``fuel_cell_orr``.
+
+    Returns:
+        Boolean training mask aligned with ``frame``.
+    """
+    outcome = {
+        "turquoise_hydrogen": "E_act",
+        "fuel_cell_orr": "orr_overpotential_V",
+    }.get(application)
+    if outcome is None:
+        raise ValueError(f"unknown application {application}")
+    if outcome not in frame.columns or "valid" not in frame.columns:
+        return np.zeros(len(frame), dtype=bool)
+    import pandas as pd
+
+    values = pd.to_numeric(frame[outcome], errors="coerce").to_numpy(dtype=float)
+    eligible = frame["valid"].eq(True).to_numpy() & np.isfinite(values)
+    if application == "turquoise_hydrogen":
+        if "pyrolysis_viable" not in frame.columns:
+            return np.zeros(len(frame), dtype=bool)
+        eligible &= frame["pyrolysis_viable"].eq(True).to_numpy()
+    return eligible
+
+
 @dataclass(frozen=True)
 class RankerDiagnostics:
     """Out-of-fold evidence deciding whether predictions may rank candidates."""
@@ -91,7 +125,7 @@ def valid_training_row_count(frame, application: str) -> int:
     Returns:
         Computed `int` value in the units documented above.
     """
-    eligible = screening_metric_eligibility(frame, application)
+    eligible = training_metric_eligibility(frame, application)
     count = 0
     for position, (_, row) in enumerate(frame.iterrows()):
         if not eligible[position]:
@@ -214,12 +248,17 @@ def fit_tree_ranker(
     else:
         raise ValueError(f"unknown application {application}")
     rows, genomes = [], []
-    eligible = screening_metric_eligibility(frame, application)
+    eligible = training_metric_eligibility(frame, application)
     for position, (_, row) in enumerate(frame.iterrows()):
         if not eligible[position]:
             continue
         try:
             values = [float(row[column]) for column in columns]
+            if (
+                application == "turquoise_hydrogen"
+                and row.get("E_act_censored", False) == True
+            ):
+                values[0] = CENSORED_E_ACT_PENALTY_EV
             genome = (
                 ast.literal_eval(row["genome"])
                 if isinstance(row["genome"], str)

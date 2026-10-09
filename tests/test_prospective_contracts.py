@@ -1,6 +1,7 @@
 """Dependency-light contracts for prospective scoring and training gates."""
 
 from pathlib import Path
+import json
 import sys
 import tempfile
 import unittest
@@ -13,6 +14,7 @@ sys.path.insert(0, str(REPO_ROOT))
 import run_divide_conquer_pilot as campaign
 from pipeline.search.discovery import candidate_id
 from pipeline.screening.small_data_ranker import screening_metric_eligibility
+from pipeline.screening.small_data_ranker import training_metric_eligibility
 
 
 class ProspectiveContracts(unittest.TestCase):
@@ -26,6 +28,10 @@ class ProspectiveContracts(unittest.TestCase):
         self.assertEqual(
             screening_metric_eligibility(frame, 'turquoise_hydrogen').tolist(),
             [False, False, True, False],
+        )
+        self.assertEqual(
+            training_metric_eligibility(frame, 'turquoise_hydrogen').tolist(),
+            [True, False, True, False],
         )
 
     def test_tied_hit_class_is_bounded_by_top_k(self) -> None:
@@ -91,6 +97,24 @@ class ProspectiveContracts(unittest.TestCase):
                     campaign._commit_observations([{**row, 'outcome': 0.5}])
             finally:
                 campaign.ROOT = original
+
+    def test_policy_lock_is_enforced(self) -> None:
+        original = campaign.POLICY_LOCK
+        with tempfile.TemporaryDirectory() as directory:
+            campaign.POLICY_LOCK = Path(directory) / 'lock.json'
+            try:
+                expected = campaign._policy_source_hash()
+                campaign.POLICY_LOCK.write_text(json.dumps({
+                    'policy_source_sha256': expected,
+                }))
+                self.assertEqual(campaign._require_locked_policy(), expected)
+                campaign.POLICY_LOCK.write_text(json.dumps({
+                    'policy_source_sha256': '0' * 64,
+                }))
+                with self.assertRaisesRegex(RuntimeError, 'hash mismatch'):
+                    campaign._require_locked_policy()
+            finally:
+                campaign.POLICY_LOCK = original
 
 
 if __name__ == '__main__':

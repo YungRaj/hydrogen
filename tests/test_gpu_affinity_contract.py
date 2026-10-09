@@ -47,7 +47,7 @@ def main():
     used = {int(value) for value in frame['gpu_id'].dropna().tolist()}
     assert used == set(range(expected)), (used, expected)
     assert frame['screening_protocol'].notna().all()
-    assert frame['screening_protocol'].str.contains('relax-v3', regex=False).all()
+    assert frame['screening_protocol'].str.contains('relax-v4', regex=False).all()
     valid = frame[frame['valid'].eq(True)]
     convergence_columns = [column for column in frame if column.endswith('_converged')]
     assert convergence_columns
