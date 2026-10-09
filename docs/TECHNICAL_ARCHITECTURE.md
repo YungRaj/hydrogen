@@ -456,11 +456,12 @@ Tree-ranker diagnostics remain fail-closed for secondary physical claims.
 Five-fold cross-validation groups rows by material class, so secondary
 objectives are enabled only when held-out predictions have Spearman correlation
 >= 0.20 and beat a fold-specific median baseline on MAE. Branch scheduling uses
-the primary predicted catalyst metric even below that threshold. A chronological
-six-round benchmark showed that this finished-candidate signal found 62 hits,
-versus 43 for uncertainty, 41 for validity, and a random 97.5% bound of 53, at
-equal budgets. The primary model learns the final barrier or overpotential
-directly. A 0.25-weight, five-row-prior class correction removes persistent
+the primary predicted catalyst metric even below that threshold. The primary
+model learns the final barrier or overpotential directly. The historical
+policy benchmark is exploratory: its pyrolysis definition
+admitted censored floor values and is not prospective proof. The corrected
+analysis and frozen next test are linked from `STATUS.md`. A 0.25-weight,
+five-row-prior class correction removes persistent
 out-of-fold residual bias without letting sparse classes dominate.
 Branch scheduling additionally uses a 0.75-weight class hit probability with a
 five-row global prior. This uses finished candidates to direct traversal while

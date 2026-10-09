@@ -157,18 +157,19 @@ This is the repository-wide standard, not an optional acquisition mode.
 Uncertainty ranking and validity/coverage ranking remain benchmark controls and
 validation-allocation signals; they do not steer production branch priority.
 Coverage remains mandatory through class floors and balanced exploration, and
-only exhaustive hard-constraint proofs may prune a branch. The locked
-chronological benchmark found 62 catalyst-guided hits, versus 43 for uncertainty,
-41 for validity, and a random-sampling 97.5% bound of 53 at equal budgets. See
-[`docs/evidence/search_policy_benchmark.json`](docs/evidence/search_policy_benchmark.json).
+only exhaustive hard-constraint proofs may prune a branch. Historical policy
+benchmarks are exploratory because their pyrolysis metric admitted censored
+floor values. The corrected prospective summary and current gates are in
+[`STATUS.md`](STATUS.md).
 
-The subsequently preregistered prospective v8 round did **not** pass that
+The historical prospective v8 round did **not** pass its
 acceptance bar: catalyst guidance found 7 combined hits, versus 6 for
 uncertainty, 7 for validity, and a policy-matched random 97.5% bound of 9.
 Pyrolysis underperformed validity, while ORR beat both ranked controls but only
 tied the random upper bound. Catalyst guidance remains the production policy,
-but the retrospective enrichment is not prospective proof and further policy
-changes require a newly locked round rather than tuning against v8.
+but the retrospective enrichment is not prospective proof. The next powered
+test is frozen in
+[`docs/evidence/prospective_prereg.md`](docs/evidence/prospective_prereg.md).
 
 ## Current Reactor-Mode Readiness
 

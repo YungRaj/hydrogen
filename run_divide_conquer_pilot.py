@@ -5,13 +5,12 @@ Historical v2-v8 files are evidence inputs only; batch IDs never select code.
 """
 from __future__ import annotations
 
-import argparse, ast, hashlib, json, subprocess
+import argparse, ast, hashlib, json, os, subprocess, tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from pipeline.evidence.pilot_benchmark import default_specs, load_legacy_outcomes
 from pipeline.search.branch_search import _probe_indices
 from pipeline.search.design_space import encode_population
 from pipeline.search.discovery import candidate_id
@@ -22,6 +21,15 @@ ROOT = Path('results/prospective_search')
 HISTORY = Path('docs/evidence/legacy_pilot_rounds.jsonl')
 APPS = (('turquoise_hydrogen', 'E_act', 'pyrolysis'),
         ('fuel_cell_orr', 'orr_overpotential_V', 'orr'))
+PROTOCOLS = {
+    'turquoise_hydrogen': 'esen-sm-conserving-all-oc25:relax-v3:pyrolysis-v2',
+    'fuel_cell_orr': 'esen-sm-conserving-all-oc25:relax-v3:orr-che-v2',
+}
+BASELINE_OUTCOMES = {
+    'turquoise_hydrogen': Path('results/screening/pilot/divide_conquer_v8_pyrolysis.csv'),
+    'fuel_cell_orr': Path('results/fuel_cell/pilot/divide_conquer_v8_orr.csv'),
+}
+HIT_FRACTION = 0.20
 
 
 def _coverage_select(
@@ -54,6 +62,37 @@ def _coverage_select(
 
 def _hash(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _atomic_json(path: Path, payload: dict) -> None:
+    """Replace one JSON artifact atomically after flushing it to disk."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary = tempfile.mkstemp(prefix=f'.{path.name}.', dir=path.parent)
+    try:
+        with os.fdopen(descriptor, 'w') as stream:
+            json.dump(payload, stream, indent=2)
+            stream.write('\n')
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    except BaseException:
+        Path(temporary).unlink(missing_ok=True)
+        raise
+
+
+def _atomic_text(path: Path, content: str) -> None:
+    """Replace one text artifact atomically after flushing it to disk."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary = tempfile.mkstemp(prefix=f'.{path.name}.', dir=path.parent)
+    try:
+        with os.fdopen(descriptor, 'w') as stream:
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    except BaseException:
+        Path(temporary).unlink(missing_ok=True)
+        raise
 
 
 def _root(batch: str) -> Path:
@@ -90,17 +129,31 @@ def _completed_outcomes(app: str) -> list[Path]:
 
 
 def _training(app: str, valid_only: bool = True) -> pd.DataFrame:
-    spec = next(x for x in default_specs() if x.application == app)
-    frames = [load_legacy_outcomes(spec).drop(columns=['parsed_genome', 'candidate_id', 'replicates'])]
-    seed = Path('results/screening/pilot/prospective_pyrolysis.csv' if app == 'turquoise_hydrogen' else 'results/fuel_cell/pilot/prospective_orr.csv')
-    frames.append(pd.read_csv(seed))
-    folder, suffix = ('screening', 'pyrolysis') if app == 'turquoise_hydrogen' else ('fuel_cell', 'orr')
-    paths = sorted(Path(f'results/{folder}/pilot').glob(f'divide_conquer_v*_{suffix}.csv'))
-    paths += _completed_outcomes(app)
-    frames += [pd.read_csv(path) for path in paths]
+    """Load only tracked, checksum-verifiable outcomes from one protocol."""
+    if app not in PROTOCOLS:
+        raise ValueError(f'unknown application {app}')
+    baseline = BASELINE_OUTCOMES[app]
+    if not baseline.is_file():
+        raise RuntimeError(
+            f'missing tracked {app} training baseline: {baseline}; restore the file from git'
+        )
+    paths = [baseline, *_completed_outcomes(app)]
+    frames = []
+    for path in paths:
+        frame = pd.read_csv(path)
+        if 'screening_protocol' not in frame.columns:
+            raise RuntimeError(f'training data has no screening_protocol: {path}')
+        mismatched = frame.screening_protocol.ne(PROTOCOLS[app])
+        if bool(mismatched.any()):
+            protocols = sorted(
+                frame.loc[mismatched, 'screening_protocol'].astype(str).unique()
+            )
+            raise RuntimeError(f'incompatible screening protocol in {path}: {protocols}')
+        frames.append(frame)
     frame = pd.concat(frames, ignore_index=True, sort=False)
     if valid_only:
-        frame = frame[frame.valid.eq(True)].copy()
+        from pipeline.screening.small_data_ranker import screening_metric_eligibility
+        frame = frame.loc[screening_metric_eligibility(frame, app)].copy()
     frame['_id'] = [candidate_id(ast.literal_eval(x)) for x in frame.genome]
     return frame.drop_duplicates('_id', keep='last').drop(columns='_id')
 
@@ -130,7 +183,7 @@ def _pool(per_class: int) -> list[tuple]:
     return pool
 
 
-def prepare(batch: str, per_class: int = 4, extra_slots: int = 6) -> Path:
+def prepare(batch: str, per_class: int = 20, extra_slots: int = 6) -> Path:
     """Lock one standard-policy batch before outcomes exist.
 
     Args:
@@ -226,62 +279,235 @@ def evaluate(batch: str, app: str) -> pd.DataFrame:
     return run_orr_screening(pool,db_filename=f'prospective/{batch}_orr.csv',workers_per_gpu=1)
 
 
+def _score_record(
+    record: dict, frame: pd.DataFrame, batch: str
+) -> tuple[dict, list[dict], np.ndarray]:
+    """Score one locked application record with deterministic top-k hits."""
+    from pipeline.screening.small_data_ranker import screening_metric_eligibility
+
+    app = str(record['application'])
+    column = 'E_act' if app == 'turquoise_hydrogen' else 'orr_overpotential_V'
+    required = {'genome', 'valid', column}
+    if app == 'turquoise_hydrogen':
+        required |= {'E_act_censored', 'pyrolysis_viable'}
+    missing = required - set(frame.columns)
+    if missing:
+        raise ValueError(f'{app} outcome missing columns: {sorted(missing)}')
+    identities = [candidate_id(ast.literal_eval(raw)) for raw in frame.genome]
+    if len(identities) != len(set(identities)):
+        raise ValueError(f'{app} outcome contains duplicate candidates')
+    expected = set(record['eligible_ids'])
+    observed = set(identities)
+    if observed != expected:
+        raise ValueError(
+            f'{app} outcome candidate mismatch: '
+            f'missing={len(expected - observed)}, extra={len(observed - expected)}'
+        )
+    eligible = screening_metric_eligibility(frame, app)
+    ranked = sorted(
+        (
+            (float(frame.iloc[position][column]), identity)
+            for position, identity in enumerate(identities)
+            if eligible[position]
+        ),
+        key=lambda item: (item[0], item[1]),
+    )
+    if not ranked:
+        raise ValueError(f'{app} outcome contains no eligible metrics')
+    hit_count = max(1, int(np.ceil(HIT_FRACTION * len(ranked))))
+    hit_ids = {identity for _, identity in ranked[:hit_count]}
+    cutoff = ranked[hit_count - 1][0]
+    count_hits = lambda ids: sum(identity in hit_ids for identity in ids)
+    policy = {
+        name: count_hits(selected)
+        for name, selected in record['policy_selected_ids'].items()
+    }
+    genomes = {
+        identity: ast.literal_eval(raw)
+        for identity, raw in zip(identities, frame.genome)
+    }
+    by_class: dict[str, list[str]] = {}
+    for identity in record['eligible_ids']:
+        by_class.setdefault(str(genomes[identity][0]), []).append(identity)
+    rng = np.random.default_rng(record['random_seed'])
+    random_hits = np.empty(record['random_trials'], dtype=np.int16)
+    for trial in range(record['random_trials']):
+        chosen = [str(rng.choice(by_class[name])) for name in sorted(by_class)]
+        remaining = [
+            identity for identity in record['eligible_ids'] if identity not in chosen
+        ]
+        chosen.extend(
+            str(identity) for identity in rng.choice(
+                remaining, record['budget'] - len(chosen), replace=False
+            )
+        )
+        random_hits[trial] = count_hits(chosen)
+    upper = float(np.quantile(random_hits, .975))
+    passed = (
+        policy['catalyst'] > policy['uncertainty']
+        and policy['catalyst'] > policy['validity']
+        and policy['catalyst'] > upper
+    )
+    observations = []
+    for position, identity in enumerate(identities):
+        value = float(frame.iloc[position][column]) if eligible[position] else None
+        observations.append({
+            'batch_id': batch,
+            'application': app,
+            'candidate_id': identity,
+            'valid': bool(eligible[position]),
+            'outcome': value,
+        })
+    result = {
+        'application': app,
+        'eligible': len(record['eligible_ids']),
+        'valid': len(ranked),
+        'budget': record['budget'],
+        'hit_definition': f'deterministic_top_{HIT_FRACTION:g}_eligible',
+        'hit_count': hit_count,
+        'hit_cutoff': cutoff,
+        'policy_hits': policy,
+        'policy_matched_random_mean_hits': float(np.mean(random_hits)),
+        'policy_matched_random_95pct': [
+            float(np.quantile(random_hits, .025)), upper
+        ],
+        'acceptance_passed': bool(passed),
+    }
+    return result, observations, random_hits
+
+
+def _commit_observations(observations: list[dict]) -> None:
+    """Idempotently commit candidate-keyed observations to the ledger."""
+    ledger = ROOT / 'outcomes.jsonl'
+    existing_rows = (
+        [json.loads(line) for line in ledger.read_text().splitlines()]
+        if ledger.exists()
+        else []
+    )
+    keyed = {
+        (row['batch_id'], row['application'], row['candidate_id']): row
+        for row in existing_rows
+    }
+    for row in observations:
+        key = (row['batch_id'], row['application'], row['candidate_id'])
+        if key in keyed and keyed[key] != row:
+            raise RuntimeError(f'conflicting observation already exists: {key}')
+        keyed[key] = row
+    ordered = sorted(
+        keyed.values(),
+        key=lambda row: (row['batch_id'], row['application'], row['candidate_id']),
+    )
+    _atomic_text(
+        ledger, ''.join(json.dumps(row, sort_keys=True) + '\n' for row in ordered)
+    )
+
+
 def analyze(batch: str) -> Path:
-    """Analyze a completed batch once and append its observations.
+    """Analyze a completed batch once and atomically commit its evidence.
 
     Args:
-        batch: Completed batch identifier.
+        batch: Completed locked batch identifier.
 
     Returns:
-        Immutable batch analysis path.
+        Path to the immutable batch analysis.
     """
-    root=_root(batch); target=root/'analysis.json'
-    if target.exists(): raise FileExistsError(target)
-    manifest=root/'manifest.json'; data=json.loads(manifest.read_text()); results=[]; observations=[]
+    root = _root(batch)
+    target = root / 'analysis.json'
+    if target.exists():
+        raise FileExistsError(target)
+    manifest = root / 'manifest.json'
+    data = json.loads(manifest.read_text())
+    results, observations = [], []
     for record in data['records']:
-        app=record['application']; column='E_act' if app=='turquoise_hydrogen' else 'orr_overpotential_V'
-        frame=pd.read_csv(_outcome(batch,app)); values={}; genomes={}
-        required = {'genome', 'valid', column}
-        missing = required - set(frame.columns)
-        if missing:
-            raise ValueError(f'{app} outcome missing columns: {sorted(missing)}')
-        identities = [candidate_id(ast.literal_eval(raw)) for raw in frame.genome]
-        if len(identities) != len(set(identities)):
-            raise ValueError(f'{app} outcome contains duplicate candidates')
-        expected = set(record['eligible_ids'])
-        observed = set(identities)
-        if observed != expected:
-            raise ValueError(
-                f'{app} outcome candidate mismatch: '
-                f'missing={len(expected - observed)}, extra={len(observed - expected)}'
-            )
-        for _,row in frame.iterrows():
-            genome=ast.literal_eval(row.genome); identity=candidate_id(genome); genomes[identity]=genome
-            valid: bool = bool(row.valid) and bool(np.isfinite(float(row[column])))
-            value = float(row[column]) if valid else None
-            if valid: values[identity]=value
-            observations.append({'batch_id':batch,'application':app,'candidate_id':identity,'valid':valid,'outcome':value})
-        cutoff=float(np.quantile(list(values.values()),.2))
-        hits=lambda ids:sum(i in values and values[i]<=cutoff for i in ids)
-        policy={name:hits(ids) for name,ids in record['policy_selected_ids'].items()}
-        by_class={}
-        for identity in record['eligible_ids']: by_class.setdefault(genomes[identity][0],[]).append(identity)
-        rng=np.random.default_rng(record['random_seed']); random=[]
-        for _ in range(record['random_trials']):
-            chosen=[rng.choice(by_class[name]) for name in sorted(by_class)]; remaining=[i for i in record['eligible_ids'] if i not in chosen]
-            chosen.extend(rng.choice(remaining,record['budget']-len(chosen),replace=False)); random.append(hits(chosen))
-        upper=float(np.quantile(random,.975)); passed=policy['catalyst']>policy['uncertainty'] and policy['catalyst']>policy['validity'] and policy['catalyst']>upper
-        results.append({'application':app,'eligible':len(record['eligible_ids']),'valid':len(values),'budget':record['budget'],'hit_cutoff':cutoff,'policy_hits':policy,'policy_matched_random_mean_hits':float(np.mean(random)),'policy_matched_random_95pct':[float(np.quantile(random,.025)),upper],'acceptance_passed':bool(passed)})
-    report={'schema_version':1,'batch_id':batch,'manifest_sha256':_hash(manifest),'outcome_sha256':{app:_hash(_outcome(batch,app)) for app,_,_ in APPS},'results':results,'acceptance_passed':all(x['acceptance_passed'] for x in results)}
-    serialized_observations = ''.join(
-        json.dumps(row, sort_keys=True) + '\n' for row in observations
-    )
-    target.write_text(json.dumps(report,indent=2)+'\n')
-    with (ROOT/'outcomes.jsonl').open('a') as f:
-        f.write(serialized_observations)
-    reports=[json.loads(path.read_text()) for path in sorted(ROOT.glob('batches/*/analysis.json'))]
-    (ROOT/'analysis.json').write_text(json.dumps({'schema_version':1,'batches':[x['batch_id'] for x in reports],'batches_passed':sum(x['acceptance_passed'] for x in reports),'latest':reports[-1]},indent=2)+'\n')
+        result, rows, _ = _score_record(
+            record, pd.read_csv(_outcome(batch, record['application'])), batch
+        )
+        results.append(result)
+        observations.extend(rows)
+    report = {
+        'schema_version': 2,
+        'batch_id': batch,
+        'manifest_sha256': _hash(manifest),
+        'outcome_sha256': {
+            app: _hash(_outcome(batch, app)) for app, _, _ in APPS
+        },
+        'results': results,
+        'acceptance_passed': all(result['acceptance_passed'] for result in results),
+    }
+    # The ledger is idempotent, so a crash before the analysis rename is safe
+    # to retry.  Publishing analysis first could permanently strand the batch.
+    _commit_observations(observations)
+    _atomic_json(target, report)
+    reports = [
+        json.loads(path.read_text())
+        for path in sorted(ROOT.glob('batches/*/analysis.json'))
+    ]
+    _atomic_json(ROOT / 'analysis.json', {
+        'schema_version': 1,
+        'batches': [item['batch_id'] for item in reports],
+        'batches_passed': sum(item['acceptance_passed'] for item in reports),
+        'latest': reports[-1],
+    })
     return target
+
+
+def rescore_campaign() -> Path:
+    """Write a retrospective corrected analysis without changing batch evidence.
+
+    Returns:
+        Path to the new campaign-level retrospective artifact.
+    """
+    batch_reports, random_by_app = [], {app: [] for app, _, _ in APPS}
+    for analysis in sorted(ROOT.glob('batches/*/analysis.json')):
+        immutable = json.loads(analysis.read_text())
+        batch = str(immutable['batch_id'])
+        manifest = _root(batch) / 'manifest.json'
+        if _hash(manifest) != immutable['manifest_sha256']:
+            raise RuntimeError(f'finalized manifest checksum mismatch: {manifest}')
+        data = json.loads(manifest.read_text())
+        results = []
+        for record in data['records']:
+            app = str(record['application'])
+            outcome = _outcome(batch, app)
+            if _hash(outcome) != immutable['outcome_sha256'][app]:
+                raise RuntimeError(f'finalized outcome checksum mismatch: {outcome}')
+            result, _, random_hits = _score_record(record, pd.read_csv(outcome), batch)
+            results.append(result)
+            random_by_app[app].append(random_hits)
+        batch_reports.append({'batch_id': batch, 'results': results})
+    pooled = []
+    for app, _, _ in APPS:
+        app_results = [
+            next(result for result in batch['results'] if result['application'] == app)
+            for batch in batch_reports
+        ]
+        random_sum = np.sum(np.vstack(random_by_app[app]), axis=0)
+        policy_hits = {
+            policy: int(sum(result['policy_hits'][policy] for result in app_results))
+            for policy in ('catalyst', 'uncertainty', 'validity')
+        }
+        observed = policy_hits['catalyst']
+        pooled.append({
+            'application': app,
+            'policy_hits': policy_hits,
+            'policy_matched_random_mean_hits': float(np.mean(random_sum)),
+            'policy_matched_random_95pct': [
+                float(np.quantile(random_sum, .025)),
+                float(np.quantile(random_sum, .975)),
+            ],
+            'random_one_sided_p_value': float(
+                (1 + np.count_nonzero(random_sum >= observed)) / (len(random_sum) + 1)
+            ),
+        })
+    output = ROOT / 'rescored_analysis.json'
+    _atomic_json(output, {
+        'schema_version': 1,
+        'interpretation': 'retrospective_exploratory_not_confirmatory',
+        'hit_definition': f'deterministic_top_{HIT_FRACTION:g}_eligible',
+        'batches': batch_reports,
+        'pooled': pooled,
+    })
+    return output
 
 
 def archive_history() -> Path:
@@ -301,8 +527,9 @@ def archive_history() -> Path:
 
 def main() -> None:
     """Dispatch the prospective campaign command-line interface."""
-    parser=argparse.ArgumentParser(); parser.add_argument('action',choices=('prepare','evaluate-pyrolysis','evaluate-orr','analyze','archive-history')); parser.add_argument('--batch'); parser.add_argument('--per-class',type=int,default=4); parser.add_argument('--extra-slots',type=int,default=6); args=parser.parse_args()
+    parser=argparse.ArgumentParser(); parser.add_argument('action',choices=('prepare','evaluate-pyrolysis','evaluate-orr','analyze','rescore','archive-history')); parser.add_argument('--batch'); parser.add_argument('--per-class',type=int,default=20); parser.add_argument('--extra-slots',type=int,default=6); args=parser.parse_args()
     if args.action=='archive-history': print(archive_history()); return
+    if args.action=='rescore': print(rescore_campaign()); return
     if not args.batch: parser.error('--batch is required')
     if args.action=='prepare': print(prepare(args.batch,args.per_class,args.extra_slots))
     elif args.action=='evaluate-pyrolysis': print(evaluate(args.batch,'turquoise_hydrogen').shape)

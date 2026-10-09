@@ -1133,9 +1133,12 @@ def test_ranker_counts_only_finite_valid_training_rows():
 
     frame = pd.DataFrame(
         [
-            {'genome': "('SAC', 'Fe')", 'valid': True, 'E_act': 0.5},
-            {'genome': "('SAC', 'Co')", 'valid': False, 'E_act': 0.4},
-            {'genome': "('SAC', 'Ni')", 'valid': True, 'E_act': float('nan')},
+            {'genome': "('SAC', 'Fe')", 'valid': True, 'E_act': 0.5,
+             'E_act_censored': False, 'pyrolysis_viable': True},
+            {'genome': "('SAC', 'Co')", 'valid': False, 'E_act': 0.4,
+             'E_act_censored': False, 'pyrolysis_viable': True},
+            {'genome': "('SAC', 'Ni')", 'valid': True, 'E_act': float('nan'),
+             'E_act_censored': False, 'pyrolysis_viable': True},
         ]
     )
     assert valid_training_row_count(frame, 'turquoise_hydrogen') == 1
@@ -2789,6 +2792,8 @@ def test_ranker_throughput_and_uncertainty_do_not_change_mean():
             'genome': [repr(x) for x in training],
             'valid': True,
             'E_act': np.linspace(0.1, 2.0, len(training)),
+            'E_act_censored': False,
+            'pyrolysis_viable': True,
         }
     )
     ranker = fit_tree_ranker(frame, 'turquoise_hydrogen')

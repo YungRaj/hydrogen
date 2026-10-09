@@ -187,11 +187,6 @@ def build_solids_scorecard(
         and r.get('reactor_type') == 'MMBCR'
         and is_usable_result(r)
     ]
-    eligible = [
-        metric_row(r)
-        for r in solids_src
-        if is_scoreable_solids(r) and not is_h_parked(r)
-    ]
     judge_src = (
         [r for r in solids_src if r.get('catalyst_name') == judge_catalyst]
         if judge_catalyst
@@ -206,17 +201,19 @@ def build_solids_scorecard(
             'MMBCR X_eq is not a solids rank'
         )
     else:
-        pool = eligible
-        rank_key = lambda r: r['single_pass_CH4_conversion']
+        # B5/B6 remain open: Phase 2 conversion describes a specified judge,
+        # but is not authorized to choose among catalysts.
+        pool = []
+        rank_key = _t_k
         if judge_catalyst:
             judge_reason = (
                 f'{judge_catalyst} missing from solids results; '
-                'headline is best non-H-parked; MMBCR X_eq is not a rank'
+                'no catalyst fallback while B5/B6 are open'
             )
         else:
             judge_reason = (
-                'no named judge; headline is best non-H-parked; '
-                'MMBCR X_eq is not a solids rank'
+                'no named judge; Phase 2 conversion has no ranking authority '
+                'while B5/B6 are open'
             )
 
     headline = {}
@@ -230,11 +227,6 @@ def build_solids_scorecard(
         if candidates:
             headline[reactor_type] = max(candidates, key=rank_key)
 
-    solids_max = (
-        max(eligible, key=lambda r: r['single_pass_CH4_conversion'])
-        if eligible
-        else None
-    )
     h_parked = [r for r in solids if r['h_parked'] and _t_k(r) >= headline_t_min]
     mmbcr_max = max(
         (float(r.get('CH4_conversion') or 0.0) for r in mmbcr),
@@ -268,7 +260,8 @@ def build_solids_scorecard(
         ),
         'headline': headline,
         'headline_solids_conversion': judge_x,
-        'solids_max_excluding_h_parked': solids_max,
+        'ranking_authority': False,
+        'solids_max_excluding_h_parked': None,
         'h_parked_excluded': h_parked,
         'mmbcr_max_conversion': mmbcr_max,
         'mmbcr_note': 'X_eq by construction for large Da; not a catalyst rank (B5)',

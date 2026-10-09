@@ -267,6 +267,8 @@ def test_small_data_rankers_preserve_continuous_targets():
             'genome': [repr(g) for g in genomes],
             'valid': True,
             'E_act': np.linspace(0.1, 2.0, len(genomes)),
+            'E_act_censored': False,
+            'pyrolysis_viable': True,
         }
     )
     ranker = fit_tree_ranker(pyro, 'turquoise_hydrogen')
@@ -377,6 +379,8 @@ def test_ranker_cannot_validate_without_held_out_material_classes():
             'genome': [repr(genome)] * 20,
             'valid': True,
             'E_act': np.linspace(0.2, 1.2, 20),
+            'E_act_censored': False,
+            'pyrolysis_viable': True,
         }
     )
     diagnostics = fit_tree_ranker(frame, 'turquoise_hydrogen').diagnostics
@@ -1776,7 +1780,7 @@ def test_readme_matches_branch_only_contract():
     assert '--calibration-probes' in readme
     assert '--branch-leaf-size' in readme
     assert 'Standard search policy: catalyst-guided' in readme
-    assert '62 catalyst-guided hits' in readme
+    assert 'corrected prospective summary' in readme
     assert (
         'Uncertainty ranking and validity/coverage ranking remain benchmark controls'
         in readme
@@ -1816,7 +1820,7 @@ def test_root_documentation_is_canonical():
     root_docs = {
         path.name for pattern in ('*.md', '*.rst') for path in root.glob(pattern)
     }
-    assert root_docs <= {'README.md', 'CHANGELOG.md'}, root_docs
+    assert root_docs <= {'README.md', 'CHANGELOG.md', 'STATUS.md'}, root_docs
     assert (root / 'docs/FUEL_CELL.md').is_file()
     assert (root / 'docs/TURQUOISE_HYDROGEN.md').is_file()
 
@@ -1869,6 +1873,8 @@ def test_class_success_probability_is_smoothed_and_outcome_driven():
             'genome': [repr(strong)] * 5 + [repr(weak)] * 5,
             'valid': [True] * 10,
             'E_act': [0.1] * 5 + [2.0] * 5,
+            'E_act_censored': [False] * 10,
+            'pyrolysis_viable': [True] * 10,
         }
     )
     score = class_success_probability(
@@ -1891,6 +1897,8 @@ def test_branch_feedback_changes_priority_not_physical_objectives():
             'genome': [repr(strong)] * 5 + [repr(weak)] * 5,
             'valid': [True] * 10,
             'E_act': [0.1] * 5 + [2.0] * 5,
+            'E_act_censored': [False] * 10,
+            'pyrolysis_viable': [True] * 10,
         }
     )
     physical = np.array([[1.0, 4.0], [1.0, 7.0]])
@@ -1984,9 +1992,15 @@ def test_prospective_analysis_requires_exact_candidate_coverage():
                     }
                 )
             )
-            pd.DataFrame(
-                [{'genome': repr(genome), 'valid': True, 'E_act': 0.5}] * 2
-            ).to_csv(campaign._outcome('incomplete', 'turquoise_hydrogen'), index=False)
+            pd.DataFrame([{
+                'genome': repr(genome),
+                'valid': True,
+                'E_act': 0.5,
+                'E_act_censored': False,
+                'pyrolysis_viable': True,
+            }] * 2).to_csv(
+                campaign._outcome('incomplete', 'turquoise_hydrogen'), index=False
+            )
             try:
                 campaign.analyze('incomplete')
             except ValueError as exc:
@@ -1996,6 +2010,61 @@ def test_prospective_analysis_requires_exact_candidate_coverage():
         finally:
             campaign.ROOT = original_root
             campaign._outcome = original_outcome
+
+
+def test_prospective_hits_exclude_censored_and_nonviable_rows():
+    import pandas as pd
+    import run_divide_conquer_pilot as campaign
+    from pipeline.search.discovery import candidate_id
+
+    genomes = [
+        ('MetalFreeCarbon', 'graphitic', 0.01 + index / 1000, 'none', 'graphene', 'N')
+        for index in range(10)
+    ]
+    identities = [candidate_id(genome) for genome in genomes]
+    frame = pd.DataFrame({
+        'genome': [repr(genome) for genome in genomes],
+        'valid': True,
+        'E_act': [0.01, 0.02] + [0.5] * 8,
+        'E_act_censored': [True] + [False] * 9,
+        'pyrolysis_viable': [True, False] + [True] * 8,
+    })
+    record = {
+        'application': 'turquoise_hydrogen',
+        'eligible_ids': identities,
+        'budget': 2,
+        'policy_selected_ids': {
+            'catalyst': identities[:2],
+            'uncertainty': identities[2:4],
+            'validity': identities[4:6],
+        },
+        'random_seed': 7,
+        'random_trials': 100,
+    }
+    result, observations, _ = campaign._score_record(record, frame, 'test')
+    assert result['valid'] == 8
+    assert result['hit_count'] == 2
+    assert result['policy_hits']['catalyst'] == 0
+    assert sum(row['valid'] for row in observations[:2]) == 0
+    assert max(result['policy_hits'].values()) <= result['hit_count']
+
+
+def test_prospective_training_missing_baseline_has_clear_error():
+    import run_divide_conquer_pilot as campaign
+
+    original = campaign.BASELINE_OUTCOMES
+    campaign.BASELINE_OUTCOMES = {
+        **original,
+        'turquoise_hydrogen': Path('/definitely/missing/training.csv'),
+    }
+    try:
+        campaign._training('turquoise_hydrogen')
+    except RuntimeError as exc:
+        assert 'missing tracked' in str(exc)
+    else:
+        raise AssertionError('missing training input did not fail closed')
+    finally:
+        campaign.BASELINE_OUTCOMES = original
 
 
 def test_industrial_viability_gates_fail_closed():
@@ -2819,16 +2888,13 @@ def test_scorecard_excludes_equilibrium_overshoot_from_every_rank():
         [
             row('ni_np_lit', 1300.0, 0.9997, overshoot=True),
             row('ni_np_lit', 1300.0, 0.0065),
-        ]
+        ],
+        judge_catalyst='ni_np_lit',
     )
     assert abs(card['headline']['PFR']['single_pass_CH4_conversion'] - 0.0065) < 1e-12
     assert card['headline']['PFR']['exceeds_equilibrium'] is False
-    assert (
-        abs(
-            card['solids_max_excluding_h_parked']['single_pass_CH4_conversion'] - 0.0065
-        )
-        < 1e-12
-    )
+    assert card['ranking_authority'] is False
+    assert card['solids_max_excluding_h_parked'] is None
     assert card['n_solids_records'] == 2
 
 
@@ -2884,12 +2950,12 @@ def test_usable_result_baseline_shared_across_consumers():
     estimate = estimate_scenario_range(summary['best_condition']['CH4_conversion'])
     assert estimate['estimates']['base']['h2_cost_usd_kg'] > 0
 
-    card = build_solids_scorecard([overshoot, carbon_fail, ok])
-    assert abs(card['headline']['PFR']['single_pass_CH4_conversion'] - 0.20) < 1e-12
-    assert (
-        abs(card['solids_max_excluding_h_parked']['single_pass_CH4_conversion'] - 0.20)
-        < 1e-12
+    card = build_solids_scorecard(
+        [overshoot, carbon_fail, ok], judge_catalyst='ni_np_lit'
     )
+    assert abs(card['headline']['PFR']['single_pass_CH4_conversion'] - 0.20) < 1e-12
+    assert card['ranking_authority'] is False
+    assert card['solids_max_excluding_h_parked'] is None
     assert card['n_solids_records'] == 3
 
     hit = {
@@ -3200,11 +3266,13 @@ def test_solids_scorecard_judges_cat_9_not_h_parked():
     assert card['headline']['PFR']['WHSV_h-1'] == 900.0
     assert card['headline']['Fluidized']['single_pass_CH4_conversion'] == 0.0122
     assert abs(card['mmbcr_max_conversion'] - 0.985) < 1e-9
-    assert card['solids_max_excluding_h_parked']['catalyst_name'] == 'cat_9'
+    assert card['ranking_authority'] is False
+    assert card['solids_max_excluding_h_parked'] is None
     unnamed = build_solids_scorecard([h_parked, judge, fluid, melt])
     assert unnamed['judge_catalyst_requested'] is None
     assert unnamed['judge_catalyst'] is None
-    assert unnamed['headline_catalyst'] == 'cat_9'
+    assert unnamed['headline_catalyst'] is None
+    assert unnamed['headline'] == {}
 
 
 def test_solids_run_requires_loaded_surface():
@@ -3560,6 +3628,14 @@ if __name__ == '__main__':
     test(
         "Prospective analysis requires exact coverage",
         test_prospective_analysis_requires_exact_candidate_coverage,
+    )
+    test(
+        "Prospective hits exclude censored and nonviable rows",
+        test_prospective_hits_exclude_censored_and_nonviable_rows,
+    )
+    test(
+        "Prospective training missing input fails clearly",
+        test_prospective_training_missing_baseline_has_clear_error,
     )
     test("Six-point status fails closed", test_six_point_status_fails_closed)
     test("Adaptive validation policy", test_adaptive_validation_policy)

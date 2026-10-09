@@ -271,7 +271,7 @@ def run_suite(
             suite.path,
             suite.environment,
             suite.category,
-            "failed",
+            "skipped",
             None,
             0.0,
             command,
@@ -375,7 +375,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     finished_at = datetime.now(timezone.utc)
     counts = {
         status: sum(result.status == status for result in results)
-        for status in ("passed", "failed", "timed_out")
+        for status in ("passed", "skipped", "failed", "timed_out")
     }
     report = {
         "schema_version": 1,
@@ -392,7 +392,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     }
     write_report(args.output, report)
     print(
-        f"\nSummary: {counts['passed']} passed, {counts['failed']} failed, "
+        f"\nSummary: {counts['passed']} passed, {counts['skipped']} skipped, "
+        f"{counts['failed']} failed, "
         f"{counts['timed_out']} timed out"
     )
     print(

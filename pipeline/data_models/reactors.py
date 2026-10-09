@@ -113,6 +113,7 @@ class SolidsScorecard(TypedDict):
     headline_band_note: str
     headline: dict[str, SolidsMetricRow]
     headline_solids_conversion: float | None
+    ranking_authority: bool
     solids_max_excluding_h_parked: SolidsMetricRow | None
     h_parked_excluded: list[SolidsMetricRow]
     mmbcr_max_conversion: float | None

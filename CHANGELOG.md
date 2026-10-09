@@ -45,6 +45,24 @@
 
 ### Changed
 
+- Corrected prospective pyrolysis scoring so activation energies censored at
+  the 0.01 eV floor and non-viable structures cannot count as hits, train the
+  metric ranker, or steer finished-candidate feedback. Hits now use a bounded,
+  deterministic top-quintile rank with candidate-ID tie breaking. The new
+  immutable retrospective rescore reports pooled pyrolysis hits of 14 catalyst,
+  10 uncertainty, and 18 validity versus a 15.90 random mean; ORR remains
+  40, 36, and 23 versus 24.73. Batches 01–09 are exploratory, not prospective
+  proof.
+
+- Prospective training now uses only tracked, current-protocol outcomes and
+  fails clearly on missing or incompatible evidence. Candidate observations
+  are committed through an idempotent atomic ledger before analysis is
+  published, making interrupted analysis safe to retry.
+
+- Phase 2 solids conversion is explicitly diagnostic while B5/B6 remain open:
+  it may report a named judge but cannot select a fallback catalyst, rank the
+  handoff slate, or authorize DFT advancement.
+
 - Removed the retired PyTorch surrogate/NSGA-II subsystem, compatibility entry
   points, unreferenced reactor helpers, and unused imports. Production search
   now exposes only the tree-ranker and catalyst-guided branch path.

@@ -554,7 +554,12 @@ def record_screening_frame(
         or observed_column not in frame.columns
     ):
         return recorded
-    for _, row in frame.iterrows():
+    from pipeline.screening.small_data_ranker import screening_metric_eligibility
+
+    eligible = screening_metric_eligibility(frame, application)
+    for position, (_, row) in enumerate(frame.iterrows()):
+        if not eligible[position]:
+            continue
         try:
             genome = (
                 ast.literal_eval(row['genome'])
@@ -566,7 +571,6 @@ def record_screening_frame(
             if (
                 cid not in predictions
                 or not np.isfinite(observed)
-                or not bool(row.get('valid', True))
             ):
                 continue
             record_validation(

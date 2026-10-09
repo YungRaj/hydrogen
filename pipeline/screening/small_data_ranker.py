@@ -20,6 +20,43 @@ CLASS_SUCCESS_WEIGHT = 0.75
 CLASS_SUCCESS_PRIOR_ROWS = 5
 
 
+def screening_metric_eligibility(frame, application: str) -> np.ndarray:
+    """Return rows whose metric may guide discovery or count as a hit.
+
+    Pyrolysis values clipped at the model floor are censored observations, not
+    evidence of a low barrier.  Non-viable pyrolysis structures likewise must
+    not train or reward the search policy.  Missing gate columns fail closed.
+
+    Args:
+        frame: Screening records containing validity and application metrics.
+        application: ``turquoise_hydrogen`` or ``fuel_cell_orr``.
+
+    Returns:
+        Boolean eligibility mask aligned with ``frame``.
+    """
+    outcome = {
+        "turquoise_hydrogen": "E_act",
+        "fuel_cell_orr": "orr_overpotential_V",
+    }.get(application)
+    if outcome is None:
+        raise ValueError(f"unknown application {application}")
+    if outcome not in frame.columns or "valid" not in frame.columns:
+        return np.zeros(len(frame), dtype=bool)
+    import pandas as pd
+
+    values = pd.to_numeric(frame[outcome], errors="coerce").to_numpy(dtype=float)
+    eligible = frame["valid"].eq(True).to_numpy() & np.isfinite(values)
+    if application == "turquoise_hydrogen":
+        if (
+            "E_act_censored" not in frame.columns
+            or "pyrolysis_viable" not in frame.columns
+        ):
+            return np.zeros(len(frame), dtype=bool)
+        eligible &= frame["E_act_censored"].eq(False).to_numpy()
+        eligible &= frame["pyrolysis_viable"].eq(True).to_numpy()
+    return eligible
+
+
 @dataclass(frozen=True)
 class RankerDiagnostics:
     """Out-of-fold evidence deciding whether predictions may rank candidates."""
@@ -54,23 +91,18 @@ def valid_training_row_count(frame, application: str) -> int:
     Returns:
         Computed `int` value in the units documented above.
     """
-    if application == "turquoise_hydrogen":
-        columns = ("E_act",)
-    elif application == "fuel_cell_orr":
-        columns = ("orr_overpotential_V",)
-    else:
-        raise ValueError(f"unknown application {application}")
+    eligible = screening_metric_eligibility(frame, application)
     count = 0
-    for _, row in frame.iterrows():
+    for position, (_, row) in enumerate(frame.iterrows()):
+        if not eligible[position]:
+            continue
         try:
-            values = [float(row[column]) for column in columns]
             (
                 ast.literal_eval(row["genome"])
                 if isinstance(row["genome"], str)
                 else tuple(row["genome"])
             )
-            if bool(row.get("valid", True)) and np.all(np.isfinite(values)):
-                count += 1
+            count += 1
         except (ValueError, TypeError, SyntaxError, KeyError):
             continue
     return count
@@ -182,7 +214,10 @@ def fit_tree_ranker(
     else:
         raise ValueError(f"unknown application {application}")
     rows, genomes = [], []
-    for _, row in frame.iterrows():
+    eligible = screening_metric_eligibility(frame, application)
+    for position, (_, row) in enumerate(frame.iterrows()):
+        if not eligible[position]:
+            continue
         try:
             values = [float(row[column]) for column in columns]
             genome = (
@@ -190,9 +225,8 @@ def fit_tree_ranker(
                 if isinstance(row["genome"], str)
                 else tuple(row["genome"])
             )
-            if bool(row.get("valid", True)) and np.all(np.isfinite(values)):
-                rows.append(values)
-                genomes.append(genome)
+            rows.append(values)
+            genomes.append(genome)
         except (ValueError, TypeError, SyntaxError, KeyError):
             continue
     if len(rows) < MIN_TRAINING_ROWS:
@@ -439,7 +473,7 @@ def class_success_probability(
     if outcome is None:
         raise ValueError(f"unknown application {application}")
     values = np.asarray(frame[outcome], dtype=float)
-    valid = frame["valid"].eq(True).to_numpy() & np.isfinite(values)
+    valid = screening_metric_eligibility(frame, application)
     if not np.any(valid):
         raise ValueError("class success feedback requires valid outcomes")
     threshold = float(np.quantile(values[valid], 0.20))

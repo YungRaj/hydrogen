@@ -76,11 +76,19 @@ def test_json_report_is_atomic_and_complete():
         assert not target.with_suffix(".json.tmp").exists()
 
 
+def test_missing_environment_is_skipped_not_failed():
+    suite = run_tests.Suite("sample", "tests/sample.py", "sample-env", 10)
+    result = run_tests.run_suite(suite, None, 10, False)
+    assert result.status == "skipped"
+    assert result.reason and "required" in result.reason
+
+
 TESTS = (
     test_default_selection_is_portable_only,
     test_opt_ins_and_explicit_selection_are_deterministic,
     test_environment_resolution_is_portable_and_fail_closed,
     test_json_report_is_atomic_and_complete,
+    test_missing_environment_is_skipped_not_failed,
 )
 
 
