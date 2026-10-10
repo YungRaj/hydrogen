@@ -11,39 +11,40 @@
     "20260930-catalyst-08-bounded-exploration",
     "20260930-catalyst-09-branch-feedback",
     "smoke-relax-v4-20261009",
-    "prereg-01"
+    "prereg-01",
+    "prereg-02"
   ],
-  "batches_passed": 0,
+  "batches_passed": 1,
   "latest": {
     "schema_version": 2,
-    "batch_id": "prereg-01",
-    "manifest_sha256": "1e348f79badd2886967c3c5a42be6d4d790109050d4e0870a0541b7907a77a88",
+    "batch_id": "prereg-02",
+    "manifest_sha256": "61a1f2d595ec8eb1d360f72133b6ad21c87b5d3764548ae4c7fde94424179d6c",
     "outcome_sha256": {
-      "fuel_cell_orr": "bbbd763785621414a7a835b240408a0f04da59fb2ce3f67d8d88943bb1356a6e"
+      "fuel_cell_orr": "a9b2906d5708d2acd114752c1fc127fd883d5cbb64bbd15edf3cc04b9c9124e1"
     },
     "results": [
       {
         "application": "fuel_cell_orr",
         "eligible": 120,
-        "valid": 91,
+        "valid": 98,
         "budget": 20,
         "hit_definition": "deterministic_top_0.2_eligible",
-        "hit_count": 19,
-        "hit_cutoff": 1.5601387871205807,
+        "hit_count": 20,
+        "hit_cutoff": 1.150719040721655,
         "policy_hits": {
-          "catalyst": 6,
+          "catalyst": 8,
           "uncertainty": 3,
-          "validity": 6
+          "validity": 4
         },
-        "policy_matched_random_mean_hits": 3.18312,
+        "policy_matched_random_mean_hits": 3.34492,
         "policy_matched_random_quantiles": [
           1.0,
           6.0
         ],
         "random_one_sided_alpha": 0.05,
-        "acceptance_passed": false
+        "acceptance_passed": true
       }
     ],
-    "acceptance_passed": false
+    "acceptance_passed": true
   }
 }
