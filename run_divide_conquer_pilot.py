@@ -18,6 +18,7 @@ from pipeline.search.indexed_space import CLASS_ORDER, CLASS_SIZES, candidate_at
 from pipeline.search.scope import phase_stable_at_application_T, pemfc_cathode_scope
 from pipeline.screening.protocols import ORR_PROTOCOL, PYROLYSIS_PROTOCOL
 
+REPO_ROOT = Path(__file__).resolve().parent
 ROOT = Path('results/prospective_search')
 HISTORY = Path('docs/evidence/legacy_pilot_rounds.jsonl')
 POLICY_LOCK = Path('docs/evidence/prospective_policy_lock.json')
@@ -37,7 +38,7 @@ BASELINE_OUTCOMES = {
 }
 HIT_FRACTION = 0.20
 POLICY_SOURCE_PATHS = (
-    Path(__file__),
+    Path('run_divide_conquer_pilot.py'),
     Path('pipeline/screening/small_data_ranker.py'),
     Path('pipeline/search/scope.py'),
     Path('pipeline/screening/protocols.py'),
@@ -79,12 +80,14 @@ def _hash(path: Path) -> str:
 
 
 def _policy_source_hash() -> str:
-    """Return the digest of every source file frozen by the preregistration."""
+    """Return a checkout-independent digest of every frozen source file."""
     digest = hashlib.sha256()
-    for path in POLICY_SOURCE_PATHS:
-        digest.update(str(path).encode())
+    for relative_path in POLICY_SOURCE_PATHS:
+        normalized_path = relative_path.as_posix()
+        content = (REPO_ROOT / relative_path).read_bytes().replace(b'\r\n', b'\n')
+        digest.update(normalized_path.encode())
         digest.update(b'\0')
-        digest.update(path.read_bytes())
+        digest.update(content)
         digest.update(b'\0')
     return digest.hexdigest()
 
@@ -151,12 +154,39 @@ def _outcome(batch: str, app: str) -> Path:
     return Path('results') / folder / 'prospective' / f'{batch}_{suffix}.csv'
 
 
+def _batch_ledger_rows() -> list[dict]:
+    """Return batch records in append-only campaign chronology."""
+    ledger = ROOT / 'batches.jsonl'
+    if not ledger.exists():
+        return []
+    rows = [json.loads(line) for line in ledger.read_text().splitlines() if line.strip()]
+    batch_ids = [str(row['batch_id']) for row in rows]
+    if len(batch_ids) != len(set(batch_ids)):
+        raise RuntimeError('batch ledger contains duplicate batch IDs')
+    return rows
+
+
+def _ordered_finalized_batches() -> list[tuple[str, Path]]:
+    """Return finalized analyses in append-only batch-ledger order."""
+    finalized = []
+    for row in _batch_ledger_rows():
+        batch = str(row['batch_id'])
+        manifest = _root(batch) / 'manifest.json'
+        if not manifest.is_file() or _hash(manifest) != row['manifest_sha256']:
+            raise RuntimeError(f'batch ledger manifest mismatch: {manifest}')
+        analysis = _root(batch) / 'analysis.json'
+        if analysis.is_file():
+            finalized.append((batch, analysis))
+    return finalized
+
+
 def _completed_outcomes(app: str, before_batch: str | None = None) -> list[Path]:
     """Return checksum-verified outcomes from finalized prospective batches."""
     paths = []
-    for analysis in sorted(ROOT.glob('batches/*/analysis.json')):
+    for batch, analysis in _ordered_finalized_batches():
         report = json.loads(analysis.read_text())
-        batch = str(report['batch_id'])
+        if str(report['batch_id']) != batch:
+            raise RuntimeError(f'analysis batch ID mismatch: {analysis}')
         if batch == before_batch:
             break
         path = _outcome(batch, app)
@@ -328,18 +358,28 @@ def _pool(per_class: int) -> list[tuple]:
     return pool
 
 
-def prepare(batch: str, per_class: int = 20, budget: int = 20) -> Path:
+def prepare(
+    batch: str,
+    per_class: int = 20,
+    budget: int = 20,
+    evidence_role: str = 'confirmatory',
+) -> Path:
     """Lock one standard-policy batch before outcomes exist.
 
     Args:
         batch: Unique append-only batch identifier.
         per_class: Fresh pool members per material class.
         budget: Fixed application evaluation budget.
+        evidence_role: ``confirmatory`` or non-confirmatory ``smoke`` evidence.
 
     Returns:
         Locked manifest path.
     """
     policy_source_sha256 = _require_locked_policy()
+    if evidence_role not in ('confirmatory', 'smoke'):
+        raise ValueError(f'unknown evidence role {evidence_role}')
+    if evidence_role == 'confirmatory' and not batch.startswith('prereg-'):
+        raise ValueError('confirmatory batch IDs must start with prereg-')
     root, manifest = _root(batch), _root(batch) / 'manifest.json'
     if manifest.exists(): raise FileExistsError(manifest)
     if any(_outcome(batch, app).exists() for app, _, _ in APPS): raise RuntimeError('outcomes predate lock')
@@ -362,7 +402,7 @@ def prepare(batch: str, per_class: int = 20, budget: int = 20) -> Path:
     campaign = ROOT / 'manifest.json'
     if not campaign.exists():
         _atomic_json(campaign, {'schema_version':1,'campaign':'prospective_catalyst_search','append_only':True,'historical_evidence':str(HISTORY)})
-    payload = {'schema_version':2,'batch_id':batch,'locked_before_outcomes':True,
+    payload = {'schema_version':3,'batch_id':batch,'evidence_role':evidence_role,'locked_before_outcomes':True,
       'created_utc':datetime.now(timezone.utc).isoformat(),
       'git_commit':subprocess.run(['git','rev-parse','HEAD'],check=True,capture_output=True,text=True).stdout.strip(),
       'policy_source_sha256':policy_source_sha256,
@@ -532,14 +572,17 @@ def _commit_batch_manifest(batch: str, manifest_sha256: str) -> None:
         if ledger.exists()
         else []
     )
-    keyed = {str(row['batch_id']): row for row in rows}
     row = {'batch_id': batch, 'manifest_sha256': manifest_sha256}
-    if batch in keyed and keyed[batch] != row:
+    existing = next(
+        (item for item in rows if str(item['batch_id']) == batch), None
+    )
+    if existing is not None and existing != row:
         raise RuntimeError(f'conflicting batch manifest already exists: {batch}')
-    keyed[batch] = row
+    if existing is None:
+        rows.append(row)
     _atomic_text(
         ledger,
-        ''.join(json.dumps(keyed[key], sort_keys=True) + '\n' for key in sorted(keyed)),
+        ''.join(json.dumps(item, sort_keys=True) + '\n' for item in rows),
     )
 
 
@@ -587,7 +630,7 @@ def analyze(batch: str) -> Path:
     _atomic_json(target, report)
     reports = [
         json.loads(path.read_text())
-        for path in sorted(ROOT.glob('batches/*/analysis.json'))
+        for _, path in _ordered_finalized_batches()
     ]
     _atomic_json(ROOT / 'analysis.json', {
         'schema_version': 1,
@@ -605,9 +648,10 @@ def rescore_campaign() -> Path:
         Path to the new campaign-level retrospective artifact.
     """
     batch_reports, random_by_app = [], {app: [] for app, _, _ in APPS}
-    for analysis in sorted(ROOT.glob('batches/*/analysis.json')):
+    for batch, analysis in _ordered_finalized_batches():
         immutable = json.loads(analysis.read_text())
-        batch = str(immutable['batch_id'])
+        if str(immutable['batch_id']) != batch:
+            raise RuntimeError(f'analysis batch ID mismatch: {analysis}')
         manifest = _root(batch) / 'manifest.json'
         if _hash(manifest) != immutable['manifest_sha256']:
             raise RuntimeError(f'finalized manifest checksum mismatch: {manifest}')
@@ -664,9 +708,10 @@ def replay_and_power() -> Path:
         Path to the CPU-only replay and power artifact.
     """
     replayed, random_by_app = [], {app: [] for app, _, _ in APPS}
-    for analysis in sorted(ROOT.glob('batches/*/analysis.json')):
+    for batch, analysis in _ordered_finalized_batches():
         immutable = json.loads(analysis.read_text())
-        batch = str(immutable['batch_id'])
+        if str(immutable['batch_id']) != batch:
+            raise RuntimeError(f'analysis batch ID mismatch: {analysis}')
         manifest = _root(batch) / 'manifest.json'
         data = json.loads(manifest.read_text())
         pool = [ast.literal_eval(raw) for raw in data['records'][0]['pool']]
@@ -695,31 +740,60 @@ def replay_and_power() -> Path:
     rng = np.random.default_rng(20261008)
     bootstrap_replicates = 2000
     null_trials = 1000
+    planned_batches = int(json.loads(POLICY_LOCK.read_text())['planned_batches'])
     power = []
     for app, _, _ in APPS:
         app_results = [
             next(result for result in batch['results'] if result['application'] == app)
             for batch in replayed
         ]
-        passes = 0
-        for _ in range(bootstrap_replicates):
-            sampled = rng.integers(0, len(app_results), size=10)
-            catalyst = sum(app_results[index]['policy_hits']['catalyst'] for index in sampled)
-            uncertainty = sum(app_results[index]['policy_hits']['uncertainty'] for index in sampled)
-            validity = sum(app_results[index]['policy_hits']['validity'] for index in sampled)
-            null = np.zeros(null_trials, dtype=np.int16)
-            for index in sampled:
-                draws = random_by_app[app][index]
-                null += draws[rng.integers(0, len(draws), size=null_trials)]
-            p_value = (1 + np.count_nonzero(null >= catalyst)) / (null_trials + 1)
-            passes += catalyst > uncertainty and catalyst > validity and p_value <= .05
-        estimated_power = passes / bootstrap_replicates
+        def estimate(indices: list[int], planned_batches: int) -> float:
+            passes = 0
+            for _ in range(bootstrap_replicates):
+                sampled = rng.choice(indices, size=planned_batches, replace=True)
+                catalyst = sum(
+                    app_results[index]['policy_hits']['catalyst'] for index in sampled
+                )
+                uncertainty = sum(
+                    app_results[index]['policy_hits']['uncertainty'] for index in sampled
+                )
+                validity = sum(
+                    app_results[index]['policy_hits']['validity'] for index in sampled
+                )
+                null = np.zeros(null_trials, dtype=np.int16)
+                for index in sampled:
+                    draws = random_by_app[app][index]
+                    null += draws[rng.integers(0, len(draws), size=null_trials)]
+                p_value = (
+                    1 + np.count_nonzero(null >= catalyst)
+                ) / (null_trials + 1)
+                passes += (
+                    catalyst > uncertainty
+                    and catalyst > validity
+                    and p_value <= .05
+                )
+            return passes / bootstrap_replicates
+
+        all_indices = list(range(len(app_results)))
+        ten_batch_power = estimate(all_indices, 10)
+        without_powered = [
+            index for index, batch in enumerate(replayed)
+            if batch['batch_id'] != '20260930-catalyst-04-powered'
+        ]
+        estimated_power = estimate(all_indices, planned_batches)
+        leave_batch_04_out_power = estimate(without_powered, planned_batches)
         power.append({
             'application': app,
             'bootstrap_replicates': bootstrap_replicates,
-            'planned_batches': 10,
+            'planned_batches': planned_batches,
             'estimated_pass_probability': estimated_power,
-            'confirmatory_recommendation': estimated_power >= .80,
+            'ten_batch_pass_probability': ten_batch_power,
+            'leave_batch_04_out_pass_probability': leave_batch_04_out_power,
+            'leave_batch_04_out_power_curve': {
+                str(batch_count): estimate(without_powered, batch_count)
+                for batch_count in (10, 15, 20, 25, 30)
+            },
+            'confirmatory_recommendation': leave_batch_04_out_power >= .80,
         })
     output = ROOT / 'fixed_policy_replay.json'
     _atomic_json(output, {
@@ -731,6 +805,128 @@ def replay_and_power() -> Path:
         'batches': replayed,
         'power': power,
     })
+    return output
+
+
+def confirmatory_analysis() -> Path:
+    """Evaluate only fully collected batches registered under the policy lock.
+
+    Before all planned batches exist, this writes progress metadata without a
+    statistic, p-value, or verdict. The final analysis is immutable.
+
+    Returns:
+        Path to either the interim progress or final confirmatory artifact.
+    """
+    lock = json.loads(POLICY_LOCK.read_text())
+    locked_hash = _require_locked_policy()
+    planned = int(lock['planned_batches'])
+    confirmatory_apps = tuple(lock['confirmatory_applications'])
+    exploratory_apps = tuple(lock.get('exploratory_applications', ()))
+    included: list[tuple[str, dict, dict]] = []
+    excluded = []
+    for batch, analysis_path in _ordered_finalized_batches():
+        analysis = json.loads(analysis_path.read_text())
+        manifest_path = _root(batch) / 'manifest.json'
+        manifest = json.loads(manifest_path.read_text())
+        reason = None
+        if manifest.get('evidence_role') != 'confirmatory':
+            reason = 'not_confirmatory_role'
+        elif manifest.get('policy_source_sha256') != locked_hash:
+            reason = 'policy_hash_mismatch'
+        elif not batch.startswith('prereg-'):
+            reason = 'batch_id_not_preregistered'
+        elif analysis.get('manifest_sha256') != _hash(manifest_path):
+            raise RuntimeError(f'confirmatory manifest checksum mismatch: {batch}')
+        if reason:
+            excluded.append({'batch_id': batch, 'reason': reason})
+        else:
+            included.append((batch, manifest, analysis))
+    if len(included) > planned:
+        raise RuntimeError(
+            f'confirmatory batch count exceeds preregistration: {len(included)} > {planned}'
+        )
+    if len(included) < planned:
+        progress = ROOT / 'confirmatory_progress.json'
+        _atomic_json(progress, {
+            'schema_version': 1,
+            'status': 'collecting',
+            'policy_source_sha256': locked_hash,
+            'planned_batches': planned,
+            'completed_batches': len(included),
+            'remaining_batches': planned - len(included),
+            'batch_ids': [batch for batch, _, _ in included],
+            'excluded': excluded,
+            'inferential_statistics_withheld': True,
+        })
+        return progress
+
+    output = ROOT / 'confirmatory_analysis.json'
+    if output.exists():
+        raise FileExistsError(f'confirmatory analysis is immutable: {output}')
+    results_by_app: dict[str, list[tuple[dict, np.ndarray]]] = {
+        app: [] for app, _, _ in APPS
+    }
+    for batch, manifest, analysis in included:
+        records = {
+            str(record['application']): record for record in manifest['records']
+        }
+        for app, _, _ in APPS:
+            outcome = _outcome(batch, app)
+            if _hash(outcome) != analysis['outcome_sha256'][app]:
+                raise RuntimeError(f'confirmatory outcome checksum mismatch: {outcome}')
+            result, _, random_hits = _score_record(
+                records[app], pd.read_csv(outcome), batch
+            )
+            results_by_app[app].append((result, random_hits))
+    pooled = []
+    for app, _, _ in APPS:
+        scored = results_by_app[app]
+        random_sum = np.sum(
+            np.vstack([random_hits for _, random_hits in scored]), axis=0
+        )
+        policy_hits = {
+            policy: int(sum(result['policy_hits'][policy] for result, _ in scored))
+            for policy in ('catalyst', 'uncertainty', 'validity')
+        }
+        catalyst = policy_hits['catalyst']
+        p_value = float(
+            (1 + np.count_nonzero(random_sum >= catalyst)) / (len(random_sum) + 1)
+        )
+        alpha = float(lock['random_one_sided_alpha'])
+        is_confirmatory = app in confirmatory_apps
+        passed = (
+            catalyst > policy_hits['uncertainty']
+            and catalyst > policy_hits['validity']
+            and p_value <= alpha
+        ) if is_confirmatory else None
+        pooled.append({
+            'application': app,
+            'evidence_role': (
+                'confirmatory' if is_confirmatory else 'exploratory'
+            ),
+            'policy_hits': policy_hits,
+            'policy_matched_random_mean_hits': float(np.mean(random_sum)),
+            'random_one_sided_p_value': p_value,
+            'random_one_sided_alpha': alpha if is_confirmatory else None,
+            'acceptance_passed': passed,
+        })
+    report = {
+        'schema_version': 1,
+        'status': 'complete',
+        'policy_source_sha256': locked_hash,
+        'planned_batches': planned,
+        'batch_ids': [batch for batch, _, _ in included],
+        'confirmatory_applications': list(confirmatory_apps),
+        'exploratory_applications': list(exploratory_apps),
+        'pooled': pooled,
+        'acceptance_passed': all(
+            result['acceptance_passed']
+            for result in pooled
+            if result['evidence_role'] == 'confirmatory'
+        ),
+        'excluded': excluded,
+    }
+    _atomic_json(output, report)
     return output
 
 
@@ -751,12 +947,13 @@ def archive_history() -> Path:
 
 def main() -> None:
     """Dispatch the prospective campaign command-line interface."""
-    parser=argparse.ArgumentParser(); parser.add_argument('action',choices=('prepare','evaluate-pyrolysis','evaluate-orr','analyze','rescore','replay-power','archive-history')); parser.add_argument('--batch'); parser.add_argument('--per-class',type=int,default=20); parser.add_argument('--budget',type=int,default=20); args=parser.parse_args()
+    parser=argparse.ArgumentParser(); parser.add_argument('action',choices=('prepare','evaluate-pyrolysis','evaluate-orr','analyze','rescore','replay-power','confirmatory-analysis','archive-history')); parser.add_argument('--batch'); parser.add_argument('--per-class',type=int,default=20); parser.add_argument('--budget',type=int,default=20); parser.add_argument('--evidence-role',choices=('confirmatory','smoke'),default='confirmatory'); args=parser.parse_args()
     if args.action=='archive-history': print(archive_history()); return
     if args.action=='rescore': print(rescore_campaign()); return
     if args.action=='replay-power': print(replay_and_power()); return
+    if args.action=='confirmatory-analysis': print(confirmatory_analysis()); return
     if not args.batch: parser.error('--batch is required')
-    if args.action=='prepare': print(prepare(args.batch,args.per_class,args.budget))
+    if args.action=='prepare': print(prepare(args.batch,args.per_class,args.budget,args.evidence_role))
     elif args.action=='evaluate-pyrolysis': print(evaluate(args.batch,'turquoise_hydrogen').shape)
     elif args.action=='evaluate-orr': print(evaluate(args.batch,'fuel_cell_orr').shape)
     else: print(analyze(args.batch))

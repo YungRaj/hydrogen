@@ -5,6 +5,7 @@ import json
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import pandas as pd
 
@@ -115,6 +116,140 @@ class ProspectiveContracts(unittest.TestCase):
                     campaign._require_locked_policy()
             finally:
                 campaign.POLICY_LOCK = original
+
+    def test_policy_hash_is_independent_of_working_directory(self) -> None:
+        expected = campaign._policy_source_hash()
+        previous = Path.cwd()
+        with tempfile.TemporaryDirectory() as directory:
+            try:
+                __import__('os').chdir(directory)
+                self.assertEqual(campaign._policy_source_hash(), expected)
+            finally:
+                __import__('os').chdir(previous)
+        self.assertEqual(campaign._require_locked_policy(), expected)
+
+    def test_confirmatory_progress_excludes_smoke_and_mismatched_hash(self) -> None:
+        original_root, original_lock = campaign.ROOT, campaign.POLICY_LOCK
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            campaign.ROOT = root / 'campaign'
+            campaign.POLICY_LOCK = root / 'lock.json'
+            digest = campaign._policy_source_hash()
+            campaign.POLICY_LOCK.write_text(json.dumps({
+                'policy_source_sha256': digest,
+                'confirmatory_applications': ['fuel_cell_orr'],
+                'exploratory_applications': ['turquoise_hydrogen'],
+                'planned_batches': 10,
+                'random_one_sided_alpha': 0.05,
+            }))
+            try:
+                rows = []
+                for batch, role, policy_hash in (
+                    ('prereg-01', 'confirmatory', digest),
+                    ('smoke-v4-01', 'smoke', digest),
+                    ('prereg-old', 'confirmatory', '0' * 64),
+                ):
+                    folder = campaign.ROOT / 'batches' / batch
+                    folder.mkdir(parents=True)
+                    manifest = folder / 'manifest.json'
+                    manifest.write_text(json.dumps({
+                        'batch_id': batch,
+                        'evidence_role': role,
+                        'policy_source_sha256': policy_hash,
+                    }))
+                    analysis = folder / 'analysis.json'
+                    analysis.write_text(json.dumps({
+                        'batch_id': batch,
+                        'manifest_sha256': campaign._hash(manifest),
+                    }))
+                    rows.append({
+                        'batch_id': batch,
+                        'manifest_sha256': campaign._hash(manifest),
+                    })
+                campaign.ROOT.mkdir(exist_ok=True)
+                (campaign.ROOT / 'batches.jsonl').write_text(
+                    ''.join(json.dumps(row) + '\n' for row in rows)
+                )
+                output = campaign.confirmatory_analysis()
+                progress = json.loads(output.read_text())
+                self.assertEqual(progress['batch_ids'], ['prereg-01'])
+                self.assertEqual(progress['completed_batches'], 1)
+                self.assertTrue(progress['inferential_statistics_withheld'])
+                self.assertNotIn('p_value', output.read_text())
+            finally:
+                campaign.ROOT, campaign.POLICY_LOCK = original_root, original_lock
+
+    def test_confirmatory_verdict_waits_for_exactly_ten_batches(self) -> None:
+        original_root, original_lock = campaign.ROOT, campaign.POLICY_LOCK
+        original_outcome = campaign._outcome
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            campaign.ROOT = root / 'campaign'
+            campaign.POLICY_LOCK = root / 'lock.json'
+            campaign._outcome = lambda batch, app: root / f'{batch}-{app}.csv'
+            digest = campaign._policy_source_hash()
+            campaign.POLICY_LOCK.write_text(json.dumps({
+                'policy_source_sha256': digest,
+                'confirmatory_applications': ['fuel_cell_orr'],
+                'exploratory_applications': ['turquoise_hydrogen'],
+                'planned_batches': 10,
+                'random_one_sided_alpha': 0.05,
+            }))
+            try:
+                ledger = []
+                for index in range(10):
+                    batch = f'prereg-{index + 1:02d}'
+                    folder = campaign.ROOT / 'batches' / batch
+                    folder.mkdir(parents=True)
+                    manifest = folder / 'manifest.json'
+                    manifest.write_text(json.dumps({
+                        'batch_id': batch,
+                        'evidence_role': 'confirmatory',
+                        'policy_source_sha256': digest,
+                        'records': [
+                            {'application': app} for app, _, _ in campaign.APPS
+                        ],
+                    }))
+                    outcome_hashes = {}
+                    for app, _, _ in campaign.APPS:
+                        outcome = campaign._outcome(batch, app)
+                        outcome.write_text('value\n1\n')
+                        outcome_hashes[app] = campaign._hash(outcome)
+                    analysis = folder / 'analysis.json'
+                    analysis.write_text(json.dumps({
+                        'batch_id': batch,
+                        'manifest_sha256': campaign._hash(manifest),
+                        'outcome_sha256': outcome_hashes,
+                    }))
+                    ledger.append({
+                        'batch_id': batch,
+                        'manifest_sha256': campaign._hash(manifest),
+                    })
+                campaign.ROOT.mkdir(exist_ok=True)
+                (campaign.ROOT / 'batches.jsonl').write_text(
+                    ''.join(json.dumps(row) + '\n' for row in ledger)
+                )
+                fake_result = {
+                    'policy_hits': {'catalyst': 2, 'uncertainty': 1, 'validity': 0}
+                }
+                with patch.object(
+                    campaign,
+                    '_score_record',
+                    return_value=(fake_result, [], __import__('numpy').zeros(50)),
+                ):
+                    output = campaign.confirmatory_analysis()
+                report = json.loads(output.read_text())
+                self.assertEqual(report['status'], 'complete')
+                self.assertEqual(len(report['batch_ids']), 10)
+                self.assertTrue(report['acceptance_passed'])
+                pyrolysis = next(
+                    row for row in report['pooled']
+                    if row['application'] == 'turquoise_hydrogen'
+                )
+                self.assertIsNone(pyrolysis['acceptance_passed'])
+            finally:
+                campaign.ROOT, campaign.POLICY_LOCK = original_root, original_lock
+                campaign._outcome = original_outcome
 
 
 if __name__ == '__main__':

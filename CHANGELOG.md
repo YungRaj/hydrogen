@@ -57,10 +57,16 @@
   `prepare()` writes anything, and campaign and batch manifests use atomic,
   idempotent writes.
 
-- A chronological CPU replay and 2,000-bootstrap power check found an estimated
-  84.3% probability of passing for ORR and 2.5% for pyrolysis. The ten-batch
-  preregistration therefore has one confirmatory ORR endpoint at one-sided
-  alpha 0.05; pyrolysis remains frozen and fully reported but exploratory.
+- A chronological CPU replay and 2,000-bootstrap power check now includes a
+  leave-oversized-batch-04-out sensitivity analysis. Ten batches provided only
+  57.9% conservative ORR power; the locked 30-batch design estimates 83.3%
+  conservatively and 98.4% on all replay evidence. ORR remains the sole
+  confirmatory endpoint at one-sided alpha 0.05; pyrolysis is exploratory.
+
+- Policy hashing now uses normalized repository-relative paths, adsorption-site
+  changes are restricted to SAC/DAC while every other class retains its legacy
+  atop geometry, batch chronology comes from the append-only ledger, and a new
+  confirmatory analysis withholds p-values until every locked batch is complete.
 
 - Corrected prospective pyrolysis scoring so activation energies censored at
   the 0.01 eV floor and non-viable structures cannot count as hits, train the

@@ -448,6 +448,33 @@ def adsorption_site(
     return base + distance * direction, direction
 
 
+def screening_adsorption_site(
+    atoms: Atoms,
+    active_indices: list[int],
+    material_class: str,
+    distance: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Preserve legacy slab atop sites while avoiding SAC/DAC collisions.
+
+    Args:
+        atoms: Relaxed catalyst structure.
+        active_indices: Atom indices defining the active site.
+        material_class: Encoded catalyst material class.
+        distance: Adsorbate distance from the active site in angstrom.
+
+    Returns:
+        Adsorbate position and outward unit direction.
+    """
+    if material_class in ('SAC', 'DAC'):
+        return adsorption_site(atoms, active_indices, distance)
+    if active_indices and 0 <= active_indices[0] < len(atoms):
+        base = atoms[active_indices[0]].position.copy()
+    else:
+        base = atoms.positions.mean(axis=0)
+    direction = np.array([0.0, 0.0, 1.0])
+    return base + distance * direction, direction
+
+
 def generate_structure(genome: tuple) -> Tuple[Atoms, list, str]:
     """
         Generate an atomic structure from a catalyst genome.
@@ -991,7 +1018,9 @@ def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
 
         # Choose the open side of the active site. This avoids placing an
         # adsorbate through an encoded axial ligand or a second DAC metal.
-        ads_pos, ads_direction = adsorption_site(structure, active_idx, 1.8)
+        ads_pos, ads_direction = screening_adsorption_site(
+            structure, active_idx, mat_class, 1.8
+        )
 
         # 2. H* adsorption
         slab_h = structure.copy()

@@ -430,15 +430,33 @@
     {
       "application": "turquoise_hydrogen",
       "bootstrap_replicates": 2000,
-      "planned_batches": 10,
-      "estimated_pass_probability": 0.025,
+      "planned_batches": 30,
+      "estimated_pass_probability": 0.042,
+      "ten_batch_pass_probability": 0.025,
+      "leave_batch_04_out_pass_probability": 0.001,
+      "leave_batch_04_out_power_curve": {
+        "10": 0.0045,
+        "15": 0.0035,
+        "20": 0.0015,
+        "25": 0.003,
+        "30": 0.003
+      },
       "confirmatory_recommendation": false
     },
     {
       "application": "fuel_cell_orr",
       "bootstrap_replicates": 2000,
-      "planned_batches": 10,
-      "estimated_pass_probability": 0.843,
+      "planned_batches": 30,
+      "estimated_pass_probability": 0.984,
+      "ten_batch_pass_probability": 0.843,
+      "leave_batch_04_out_pass_probability": 0.833,
+      "leave_batch_04_out_power_curve": {
+        "10": 0.579,
+        "15": 0.6805,
+        "20": 0.768,
+        "25": 0.815,
+        "30": 0.834
+      },
       "confirmatory_recommendation": true
     }
   ]

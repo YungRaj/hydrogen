@@ -1936,6 +1936,8 @@ def test_prospective_campaign_rejects_mutable_or_unverified_outcomes():
 
             analysis = campaign.ROOT / 'batches/locked/analysis.json'
             analysis.parent.mkdir(parents=True)
+            manifest = analysis.parent / 'manifest.json'
+            manifest.write_text(json.dumps({'batch_id': 'locked'}))
             analysis.write_text(
                 json.dumps(
                     {
@@ -1947,6 +1949,12 @@ def test_prospective_campaign_rejects_mutable_or_unverified_outcomes():
                         },
                     }
                 )
+            )
+            (campaign.ROOT / 'batches.jsonl').write_text(
+                json.dumps({
+                    'batch_id': 'locked',
+                    'manifest_sha256': campaign._hash(manifest),
+                }) + '\n'
             )
             assert campaign._completed_outcomes('fuel_cell_orr') == [outcome]
             outcome.write_text('tampered\n')
@@ -2225,6 +2233,33 @@ def test_sac_dac_adsorption_sites_are_collision_free():
         position, _ = adsorption_site(structure, active, 1.5)
         clearance = np.linalg.norm(structure.positions - position, axis=1).min()
         assert float(clearance) >= 1.4
+
+
+def test_non_sac_dac_adsorption_sites_preserve_legacy_atop_geometry():
+    from pipeline.search.design_space import (
+        ALL_MATERIAL_CLASSES,
+        generate_random_genome,
+    )
+    from pipeline.screening.surface_screener import (
+        generate_structure,
+        screening_adsorption_site,
+    )
+
+    for material_class in ALL_MATERIAL_CLASSES:
+        if material_class in ('SAC', 'DAC'):
+            continue
+        genome = generate_random_genome(material_class)
+        structure, active, _ = generate_structure(genome)
+        position, direction = screening_adsorption_site(
+            structure, active, material_class, 1.8
+        )
+        base = (
+            structure[active[0]].position
+            if active and active[0] < len(structure)
+            else structure.positions.mean(axis=0)
+        )
+        assert np.array_equal(direction, np.array([0.0, 0.0, 1.0]))
+        assert np.allclose(position, base + np.array([0.0, 0.0, 1.8]))
 
 
 def test_turquoise_pyrolysis_select_excludes_metal_hydride():
@@ -3794,6 +3829,10 @@ if __name__ == '__main__':
     test(
         "SAC and DAC adsorption sites are collision-free",
         test_sac_dac_adsorption_sites_are_collision_free,
+    )
+    test(
+        "Other adsorption sites preserve legacy atop geometry",
+        test_non_sac_dac_adsorption_sites_preserve_legacy_atop_geometry,
     )
     test(
         "Pyrolysis select excludes unstable phases",
