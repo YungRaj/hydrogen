@@ -350,7 +350,12 @@ def _pool(per_class: int) -> list[tuple]:
         count, choices = max(32, per_class * 8), []
         while len(choices) < per_class:
             candidates = [candidate_at_class(cls, i) for i in _probe_indices(0, CLASS_SIZES[cls], min(count, CLASS_SIZES[cls]))]
-            choices = [g for g in candidates if candidate_id(g) not in prior][:per_class]
+            fresh: dict[str, tuple] = {}
+            for genome in candidates:
+                identity = candidate_id(genome)
+                if identity not in prior and identity not in fresh:
+                    fresh[identity] = genome
+            choices = list(fresh.values())[:per_class]
             if count >= CLASS_SIZES[cls]: break
             count = min(count * 2, CLASS_SIZES[cls])
         if len(choices) != per_class: raise RuntimeError(f'fresh pool exhausted for {cls}')

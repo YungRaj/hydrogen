@@ -45,6 +45,10 @@
 
 ### Changed
 
+- Prospective pool generation now removes within-pool canonical-ID duplicates.
+  A 35-pool dry run found one MoltenMetal alias in projected batch 32; the
+  corrected generator supplies 350 unique candidates for every material class.
+
 - The preregistered campaign now screens ORR only, with 10 candidates per class,
   a locked 20-candidate selection budget, and 35 batches. The corrected cost is
   up to 120 screened candidates per batch. The finalized relax-v4 geometry smoke

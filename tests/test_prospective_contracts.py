@@ -19,6 +19,23 @@ from pipeline.screening.small_data_ranker import training_metric_eligibility
 
 
 class ProspectiveContracts(unittest.TestCase):
+    def test_pool_deduplicates_canonical_candidate_ids(self) -> None:
+        first = ('MoltenMetal', 'In', 'Dy', 0.0, 950)
+        duplicate = ('MoltenMetal', 'In', 'In', 0.5, 950)
+        self.assertEqual(candidate_id(first), candidate_id(duplicate))
+        with patch.object(campaign, 'CLASS_ORDER', ('MoltenMetal',)), \
+             patch.object(campaign, 'CLASS_SIZES', {'MoltenMetal': 3}), \
+             patch.object(campaign, '_prior', return_value=set()), \
+             patch.object(campaign, '_probe_indices', return_value=[0, 1, 2]), \
+             patch.object(
+                 campaign,
+                 'candidate_at_class',
+                 side_effect=(first, duplicate, ('MoltenMetal', 'Ga', 'In', 0.5, 950)),
+             ):
+            pool = campaign._pool(2)
+        self.assertEqual(len(pool), 2)
+        self.assertEqual(len({candidate_id(genome) for genome in pool}), 2)
+
     def test_censored_and_nonviable_pyrolysis_are_ineligible(self) -> None:
         frame = pd.DataFrame({
             'valid': [True, True, True, False],
