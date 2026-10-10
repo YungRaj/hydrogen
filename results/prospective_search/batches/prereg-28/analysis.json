@@ -1,0 +1,32 @@
+{
+  "schema_version": 2,
+  "batch_id": "prereg-28",
+  "manifest_sha256": "0816bfc179f0317f917e231a92271076c77b71b032c893d99430be712ace5f48",
+  "outcome_sha256": {
+    "fuel_cell_orr": "8f4f7763585f5750a2dacd448be83526724aafe1237dad0d40a544dc96f12dac"
+  },
+  "results": [
+    {
+      "application": "fuel_cell_orr",
+      "eligible": 120,
+      "valid": 108,
+      "budget": 20,
+      "hit_definition": "deterministic_top_0.2_eligible",
+      "hit_count": 22,
+      "hit_cutoff": 1.4230855644643023,
+      "policy_hits": {
+        "catalyst": 7,
+        "uncertainty": 6,
+        "validity": 5
+      },
+      "policy_matched_random_mean_hits": 3.67416,
+      "policy_matched_random_quantiles": [
+        1.0,
+        6.0
+      ],
+      "random_one_sided_alpha": 0.05,
+      "acceptance_passed": true
+    }
+  ],
+  "acceptance_passed": true
+}
