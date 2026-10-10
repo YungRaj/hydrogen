@@ -10,3 +10,4 @@
 {"batch_id": "smoke-relax-v4-20261009", "manifest_sha256": "b98af09d1f12bc9cc2dfaf09d0a68c7dabbb84dc89cf4a2cc1ab7af2245430cb"}
 {"batch_id": "prereg-01", "manifest_sha256": "1e348f79badd2886967c3c5a42be6d4d790109050d4e0870a0541b7907a77a88"}
 {"batch_id": "prereg-02", "manifest_sha256": "61a1f2d595ec8eb1d360f72133b6ad21c87b5d3764548ae4c7fde94424179d6c"}
+{"batch_id": "prereg-03", "manifest_sha256": "d60acc6917b5f121bdd8244130569011666bc30d45f88d42479e39e7d2f7f235"}
