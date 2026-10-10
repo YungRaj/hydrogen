@@ -44,31 +44,32 @@
     "prereg-31",
     "prereg-32",
     "prereg-33",
-    "prereg-34"
+    "prereg-34",
+    "prereg-35"
   ],
-  "batches_passed": 26,
+  "batches_passed": 27,
   "latest": {
     "schema_version": 2,
-    "batch_id": "prereg-34",
-    "manifest_sha256": "4ad368b19699bef3d70fd8bd2501cd09be4321ad3ad17a9c2a60e5410b3da3d0",
+    "batch_id": "prereg-35",
+    "manifest_sha256": "9607486ec4cbbc60a7e8b44c09c41382a9002adcf66fb01557f6ae2d97bb1748",
     "outcome_sha256": {
-      "fuel_cell_orr": "31a7e25aaecbfdf09404d515e85481e3c541f689fd642bc135b5ba6f2fa5fb0e"
+      "fuel_cell_orr": "1d3a2a03c7514c639cc00b266892d6ef2fb6c470393683094801e762179962aa"
     },
     "results": [
       {
         "application": "fuel_cell_orr",
         "eligible": 120,
-        "valid": 108,
+        "valid": 104,
         "budget": 20,
         "hit_definition": "deterministic_top_0.2_eligible",
-        "hit_count": 22,
-        "hit_cutoff": 1.362361992687101,
+        "hit_count": 21,
+        "hit_cutoff": 1.6532514628171886,
         "policy_hits": {
-          "catalyst": 8,
-          "uncertainty": 2,
-          "validity": 5
+          "catalyst": 13,
+          "uncertainty": 6,
+          "validity": 3
         },
-        "policy_matched_random_mean_hits": 3.6604,
+        "policy_matched_random_mean_hits": 3.496,
         "policy_matched_random_quantiles": [
           1.0,
           6.0
