@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "status": "complete",
+  "policy_source_sha256": "bd68883dcbb4d45d24462bcefe84e85fbd8a97aeb62c99cc5812c3df8b109920",
+  "planned_batches": 35,
+  "batch_ids": [
+    "prereg-01",
+    "prereg-02",
+    "prereg-03",
+    "prereg-04",
+    "prereg-05",
+    "prereg-06",
+    "prereg-07",
+    "prereg-08",
+    "prereg-09",
+    "prereg-10",
+    "prereg-11",
+    "prereg-12",
+    "prereg-13",
+    "prereg-14",
+    "prereg-15",
+    "prereg-16",
+    "prereg-17",
+    "prereg-18",
+    "prereg-19",
+    "prereg-20",
+    "prereg-21",
+    "prereg-22",
+    "prereg-23",
+    "prereg-24",
+    "prereg-25",
+    "prereg-26",
+    "prereg-27",
+    "prereg-28",
+    "prereg-29",
+    "prereg-30",
+    "prereg-31",
+    "prereg-32",
+    "prereg-33",
+    "prereg-34",
+    "prereg-35"
+  ],
+  "confirmatory_applications": [
+    "fuel_cell_orr"
+  ],
+  "exploratory_applications": [
+    "turquoise_hydrogen"
+  ],
+  "pooled": [
+    {
+      "application": "fuel_cell_orr",
+      "evidence_role": "confirmatory",
+      "policy_hits": {
+        "catalyst": 289,
+        "uncertainty": 149,
+        "validity": 153
+      },
+      "policy_matched_random_mean_hits": 120.2459,
+      "random_one_sided_p_value": 1.999960000799984e-05,
+      "random_one_sided_alpha": 0.05,
+      "acceptance_passed": true
+    }
+  ],
+  "acceptance_passed": true,
+  "excluded": [
+    {
+      "batch_id": "20260930-catalyst-01",
+      "reason": "not_confirmatory_role"
+    },
+    {
+      "batch_id": "20260930-catalyst-02",
+      "reason": "not_confirmatory_role"
+    },
+    {
+      "batch_id": "20260930-catalyst-03",
+      "reason": "not_confirmatory_role"
+    },
+    {
+      "batch_id": "20260930-catalyst-04-powered",
+      "reason": "not_confirmatory_role"
+    },
+    {
+      "batch_id": "20260930-catalyst-05-validity-aware",
+      "reason": "not_confirmatory_role"
+    },
+    {
+      "batch_id": "20260930-catalyst-06-branch-feedback",
+      "reason": "not_confirmatory_role"
+    },
+    {
+      "batch_id": "20260930-catalyst-07-branch-feedback",
+      "reason": "not_confirmatory_role"
+    },
+    {
+      "batch_id": "20260930-catalyst-08-bounded-exploration",
+      "reason": "not_confirmatory_role"
+    },
+    {
+      "batch_id": "20260930-catalyst-09-branch-feedback",
+      "reason": "not_confirmatory_role"
+    },
+    {
+      "batch_id": "smoke-relax-v4-20261009",
+      "reason": "not_confirmatory_role"
+    }
+  ]
+}
