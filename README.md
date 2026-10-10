@@ -162,14 +162,15 @@ benchmarks are exploratory because their pyrolysis metric admitted censored
 floor values. The corrected prospective summary and current gates are in
 [`STATUS.md`](STATUS.md).
 
-The historical prospective v8 round did **not** pass its
-acceptance bar: catalyst guidance found 7 combined hits, versus 6 for
-uncertainty, 7 for validity, and a policy-matched random 97.5% bound of 9.
-Pyrolysis underperformed validity, while ORR beat both ranked controls but only
-tied the random upper bound. Catalyst guidance remains the production policy,
-but the retrospective enrichment is not prospective proof. The next powered
-test is frozen in
-[`docs/evidence/prospective_prereg.md`](docs/evidence/prospective_prereg.md).
+The locked 35-batch ORR confirmatory campaign provides prospective proof for
+this policy: catalyst guidance found **289** pooled hits versus **149** for
+uncertainty, **153** for validity, and a policy-matched random mean of **120.25**
+(one-sided p = **0.000020**). The immutable result is
+`results/prospective_search/confirmatory_analysis.json`. This establishes
+computational enrichment under the eSen screening protocol; it does not
+establish DFT accuracy or experimental catalyst performance. The next evidence
+step is the checksum-locked 50-candidate slate at
+`results/dft/orr_confirmatory_slate.json`.
 
 ## Current Reactor-Mode Readiness
 

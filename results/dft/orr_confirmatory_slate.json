@@ -1,0 +1,907 @@
+{
+  "application": "fuel_cell_orr",
+  "records": [
+    {
+      "batch_id": "prereg-29",
+      "candidate_id": "3cafa1dd27033ac418d3",
+      "dG_OH_eV": 0.9666565085947514,
+      "dG_OOH_eV": 4.001822899281983,
+      "dG_O_eV": 2.8752483494579826,
+      "genome": "('COF', 'Co', 'Imine', 'N2P2', 6.0)",
+      "material_class": "COF",
+      "model_confidence": 0.447500000035,
+      "policy_membership": [
+        "catalyst"
+      ],
+      "predicted_overpotential_V": 0.31082289928198303,
+      "rank": 1,
+      "selection_role": "class_champion"
+    },
+    {
+      "batch_id": "prereg-06",
+      "candidate_id": "7fba4d6b4f15772edf2d",
+      "dG_OH_eV": 0.976752104908228,
+      "dG_OOH_eV": 3.9206528171896973,
+      "dG_O_eV": 2.310397065430883,
+      "genome": "('DAC', 'Pt', 'Sn', 'N8', 'BN_sheet')",
+      "material_class": "DAC",
+      "model_confidence": 0.5775000000349999,
+      "policy_membership": [],
+      "predicted_overpotential_V": 0.25224789509177215,
+      "rank": 2,
+      "selection_role": "class_champion"
+    },
+    {
+      "batch_id": "prereg-21",
+      "candidate_id": "1371fd2696264ba0a3d2",
+      "dG_OH_eV": 1.213012519031763,
+      "dG_OOH_eV": 3.7222456440329585,
+      "dG_O_eV": 2.3929318554699455,
+      "genome": "('HEA', ('Co', 'Ru', 'Ir', 'Sb', 'La', 'Ce'), 'amorphous', '100', 1100)",
+      "material_class": "HEA",
+      "model_confidence": 0.8477014328916923,
+      "policy_membership": [],
+      "predicted_overpotential_V": 0.04908066356181773,
+      "rank": 3,
+      "selection_role": "class_champion"
+    },
+    {
+      "batch_id": "prereg-26",
+      "candidate_id": "518e823e05a53fe97416",
+      "dG_OH_eV": 1.0093839789927006,
+      "dG_OOH_eV": 3.7263502582907426,
+      "dG_O_eV": 2.8381985791027295,
+      "genome": "('MAXPhase', 'Ti', 'In', 'N', 2, 'Cr', 'edge_1120')",
+      "material_class": "MAXPhase",
+      "model_confidence": 0.707500000035,
+      "policy_membership": [],
+      "predicted_overpotential_V": 0.340848320811987,
+      "rank": 4,
+      "selection_role": "class_champion"
+    },
+    {
+      "batch_id": "prereg-18",
+      "candidate_id": "56c74d76175883fef1fb",
+      "dG_OH_eV": 0.9566424514353276,
+      "dG_OOH_eV": 3.748069714009765,
+      "dG_O_eV": 2.7726053364574943,
+      "genome": "('MOF', 'Au', 'Oxalate', 'N3P', 16.0)",
+      "material_class": "MOF",
+      "model_confidence": 0.480000000035,
+      "policy_membership": [
+        "uncertainty"
+      ],
+      "predicted_overpotential_V": 0.27235754856467254,
+      "rank": 5,
+      "selection_role": "class_champion"
+    },
+    {
+      "batch_id": "prereg-23",
+      "candidate_id": "3fb051c06f48d5784c5f",
+      "dG_OH_eV": -0.1938192223013016,
+      "dG_OOH_eV": 0.6563868030906044,
+      "dG_O_eV": 0.7850159771740757,
+      "genome": "('MXene', 'W', 'CN', 3, 'S', 'Fe')",
+      "material_class": "MXene",
+      "model_confidence": 0.675000000035,
+      "policy_membership": [
+        "catalyst",
+        "validity"
+      ],
+      "predicted_overpotential_V": 1.4228192223013016,
+      "rank": 6,
+      "selection_role": "class_champion"
+    },
+    {
+      "batch_id": "prereg-06",
+      "candidate_id": "87d86cdaf36fda7c6831",
+      "dG_OH_eV": 1.2710316802561283,
+      "dG_OOH_eV": 3.51876730769873,
+      "dG_O_eV": 2.2276558049023185,
+      "genome": "('MetalFreeCarbon', 'oxidized', 0.01, 'edge_armchair', 'graphene', 'F')",
+      "material_class": "MetalFreeCarbon",
+      "model_confidence": 0.27249999999999996,
+      "policy_membership": [],
+      "predicted_overpotential_V": 0.2723758753538099,
+      "rank": 7,
+      "selection_role": "class_champion"
+    },
+    {
+      "batch_id": "prereg-16",
+      "candidate_id": "46aa11fb6311a1ce2249",
+      "dG_OH_eV": 1.3963850165903569,
+      "dG_OOH_eV": 3.81654496043918,
+      "dG_O_eV": 2.5252637036144483,
+      "genome": "('Perovskite', 'Gd', 'Zn', 'Mn', 0.15, 'none')",
+      "material_class": "Perovskite",
+      "model_confidence": 0.6527014328916925,
+      "policy_membership": [],
+      "predicted_overpotential_V": 0.1255449604391803,
+      "rank": 8,
+      "selection_role": "class_champion"
+    },
+    {
+      "batch_id": "prereg-33",
+      "candidate_id": "ab7e183d66b2e49921ed",
+      "dG_OH_eV": 1.2664701367914677,
+      "dG_OOH_eV": 3.724130700528625,
+      "dG_O_eV": 2.524359739571813,
+      "genome": "('SAA', 'Pd', 'Ga', '111', 5000)",
+      "material_class": "SAA",
+      "model_confidence": 0.902500000035,
+      "policy_membership": [
+        "validity"
+      ],
+      "predicted_overpotential_V": 0.03313070052862521,
+      "rank": 9,
+      "selection_role": "class_champion"
+    },
+    {
+      "batch_id": "prereg-32",
+      "candidate_id": "cdf618516215d8767394",
+      "dG_OH_eV": 1.0519652988016606,
+      "dG_OOH_eV": 4.009189794957642,
+      "dG_O_eV": 2.9399286873638664,
+      "genome": "('SAC', 'Cu', 'S4', 'Phosphorene', 'pyridine')",
+      "material_class": "SAC",
+      "model_confidence": 0.610000000035,
+      "policy_membership": [
+        "catalyst"
+      ],
+      "predicted_overpotential_V": 0.3181897949576422,
+      "rank": 10,
+      "selection_role": "class_champion"
+    },
+    {
+      "batch_id": "prereg-19",
+      "candidate_id": "c5ad001debb359e04c33",
+      "dG_OH_eV": 1.123257937580347,
+      "dG_OOH_eV": 3.6863440975546586,
+      "dG_O_eV": 2.2734130986034904,
+      "genome": "('SolidCatalyst', 'Au', 'NiP', 'fcc110', 0.05789473684210525, ('Mn', 'Cu'), 2, 0)",
+      "material_class": "SolidCatalyst",
+      "model_confidence": 0.9675000000349999,
+      "policy_membership": [],
+      "predicted_overpotential_V": 0.105742062419653,
+      "rank": 11,
+      "selection_role": "class_champion"
+    },
+    {
+      "batch_id": "prereg-19",
+      "candidate_id": "68ac3d4c5e69f37e7bf6",
+      "dG_OH_eV": 1.3312719489633469,
+      "dG_OOH_eV": 3.8455976948141233,
+      "dG_O_eV": 2.574095643311657,
+      "genome": "('Spinel', 'Zn', 'Co', 'Zr', 'mesoporous', 'graphene_oxide')",
+      "material_class": "Spinel",
+      "model_confidence": 0.740000000035,
+      "policy_membership": [],
+      "predicted_overpotential_V": 0.15459769481412344,
+      "rank": 12,
+      "selection_role": "class_champion"
+    },
+    {
+      "batch_id": "prereg-24",
+      "candidate_id": "730c6d4349990c81e975",
+      "dG_OH_eV": 1.1234868194162562,
+      "dG_OOH_eV": 3.2364930614829097,
+      "dG_O_eV": 2.1220115788280713,
+      "genome": "('SAA', 'Ag', 'Au', '100', 1000)",
+      "material_class": "SAA",
+      "model_confidence": 0.902500000035,
+      "policy_membership": [
+        "catalyst",
+        "validity"
+      ],
+      "predicted_overpotential_V": 0.23047524058818492,
+      "rank": 13,
+      "selection_role": "guided_top"
+    },
+    {
+      "batch_id": "prereg-30",
+      "candidate_id": "06d7172dc944ea7d38c7",
+      "dG_OH_eV": 1.4825685645639328,
+      "dG_OOH_eV": 3.718146751820959,
+      "dG_O_eV": 2.7315625317394483,
+      "genome": "('Perovskite', 'Ba', 'Sb', 'Co', 0.0, 'B_vacancy')",
+      "material_class": "Perovskite",
+      "model_confidence": 0.6527014328916925,
+      "policy_membership": [
+        "catalyst"
+      ],
+      "predicted_overpotential_V": 0.24241577991848917,
+      "rank": 14,
+      "selection_role": "guided_top"
+    },
+    {
+      "batch_id": "prereg-12",
+      "candidate_id": "3ab787b3c8004744ae8e",
+      "dG_OH_eV": 1.1596289302408695,
+      "dG_OOH_eV": 3.2366654381156,
+      "dG_O_eV": 2.275159037858251,
+      "genome": "('SAA', 'Pd', 'Au', '100', 5000)",
+      "material_class": "SAA",
+      "model_confidence": 0.902500000035,
+      "policy_membership": [
+        "catalyst",
+        "validity"
+      ],
+      "predicted_overpotential_V": 0.2674935997426511,
+      "rank": 15,
+      "selection_role": "guided_top"
+    },
+    {
+      "batch_id": "prereg-32",
+      "candidate_id": "f353706418ed8a755f1f",
+      "dG_OH_eV": 1.1605263377726078,
+      "dG_OOH_eV": 3.2232191070914302,
+      "dG_O_eV": 2.2756082184612785,
+      "genome": "('SAA', 'Pd', 'Au', '100', 2000)",
+      "material_class": "SAA",
+      "model_confidence": 0.902500000035,
+      "policy_membership": [
+        "catalyst",
+        "validity"
+      ],
+      "predicted_overpotential_V": 0.28138911136984834,
+      "rank": 16,
+      "selection_role": "guided_top"
+    },
+    {
+      "batch_id": "prereg-32",
+      "candidate_id": "383a5786185703639bcd",
+      "dG_OH_eV": 1.0494981433451176,
+      "dG_OOH_eV": 4.022212217748169,
+      "dG_O_eV": 2.93667427375913,
+      "genome": "('SAC', 'Cu', 'C4', 'Phosphorene', 'pyridine')",
+      "material_class": "SAC",
+      "model_confidence": 0.610000000035,
+      "policy_membership": [
+        "catalyst",
+        "validity"
+      ],
+      "predicted_overpotential_V": 0.33121221774816956,
+      "rank": 17,
+      "selection_role": "guided_top"
+    },
+    {
+      "batch_id": "prereg-20",
+      "candidate_id": "4605d672ccdbce8db71c",
+      "dG_OH_eV": 0.8965275909006596,
+      "dG_OOH_eV": 3.8987264141440425,
+      "dG_O_eV": 2.580898202210668,
+      "genome": "('SAC', 'Ce', 'N3B', 'N-mesoporous_carbon', 'O2')",
+      "material_class": "SAC",
+      "model_confidence": 0.470000000035,
+      "policy_membership": [
+        "catalyst"
+      ],
+      "predicted_overpotential_V": 0.3324724090993405,
+      "rank": 18,
+      "selection_role": "guided_top"
+    },
+    {
+      "batch_id": "prereg-07",
+      "candidate_id": "f656e4671f0a8153c927",
+      "dG_OH_eV": 0.8801162864267826,
+      "dG_OOH_eV": 3.7699770435690914,
+      "dG_O_eV": 2.369908250123266,
+      "genome": "('DAC', 'Sm', 'Ru', 'N3BN3', 'N-CNT')",
+      "material_class": "DAC",
+      "model_confidence": 0.498608834270667,
+      "policy_membership": [
+        "catalyst"
+      ],
+      "predicted_overpotential_V": 0.34888371357321746,
+      "rank": 19,
+      "selection_role": "guided_top"
+    },
+    {
+      "batch_id": "prereg-31",
+      "candidate_id": "ead9f66386a12a72e2aa",
+      "dG_OH_eV": 0.8783481742441654,
+      "dG_OOH_eV": 3.666863869130615,
+      "dG_O_eV": 2.693174279481176,
+      "genome": "('SAA', 'Pd', 'Ag', '111', 500)",
+      "material_class": "SAA",
+      "model_confidence": 0.902500000035,
+      "policy_membership": [
+        "catalyst",
+        "validity"
+      ],
+      "predicted_overpotential_V": 0.35065182575583465,
+      "rank": 20,
+      "selection_role": "guided_top"
+    },
+    {
+      "batch_id": "prereg-33",
+      "candidate_id": "dbc15731f8fdb0f99d43",
+      "dG_OH_eV": 1.4163320685922531,
+      "dG_OOH_eV": 4.0450872883199835,
+      "dG_O_eV": 2.4676350720225946,
+      "genome": "('Spinel', 'Ni', 'Co', 'W', 'nanoparticle', 'N-CNT')",
+      "material_class": "Spinel",
+      "model_confidence": 0.740000000035,
+      "policy_membership": [
+        "catalyst",
+        "validity"
+      ],
+      "predicted_overpotential_V": 0.3540872883199837,
+      "rank": 21,
+      "selection_role": "guided_top"
+    },
+    {
+      "batch_id": "prereg-20",
+      "candidate_id": "a8fcab58c4ea5ad84ca2",
+      "dG_OH_eV": 1.815776648670435,
+      "dG_OOH_eV": 4.050940941274142,
+      "dG_O_eV": 2.971028245240425,
+      "genome": "('Perovskite', 'Na', 'Fe', 'In', 0.25, 'none')",
+      "material_class": "Perovskite",
+      "model_confidence": 0.6527014328916925,
+      "policy_membership": [
+        "catalyst"
+      ],
+      "predicted_overpotential_V": 0.3599409412741421,
+      "rank": 22,
+      "selection_role": "guided_top"
+    },
+    {
+      "batch_id": "prereg-27",
+      "candidate_id": "bb928f4c40ee143d7174",
+      "dG_OH_eV": 0.8679140235483647,
+      "dG_OOH_eV": 3.62601227611298,
+      "dG_O_eV": 2.678091920167211,
+      "genome": "('SAA', 'Pt', 'Ag', '211', 100)",
+      "material_class": "SAA",
+      "model_confidence": 0.902500000035,
+      "policy_membership": [
+        "catalyst"
+      ],
+      "predicted_overpotential_V": 0.3610859764516354,
+      "rank": 23,
+      "selection_role": "guided_top"
+    },
+    {
+      "batch_id": "prereg-11",
+      "candidate_id": "4f112dec256800b8f5d7",
+      "dG_OH_eV": 0.8654802466928959,
+      "dG_OOH_eV": 3.727220009267305,
+      "dG_O_eV": 2.2697915203869092,
+      "genome": "('Perovskite', 'Ba', 'Rh', 'Al', 0.5, 'B_vacancy')",
+      "material_class": "Perovskite",
+      "model_confidence": 0.6527014328916925,
+      "policy_membership": [
+        "catalyst"
+      ],
+      "predicted_overpotential_V": 0.3635197533071042,
+      "rank": 24,
+      "selection_role": "guided_top"
+    },
+    {
+      "batch_id": "prereg-09",
+      "candidate_id": "7a83fee91102006b288b",
+      "dG_OH_eV": 0.9782417441904261,
+      "dG_OOH_eV": 3.351026009023136,
+      "dG_O_eV": 1.8313540585338821,
+      "genome": "('SAA', 'Pt', 'Ag', '111', 1000)",
+      "material_class": "SAA",
+      "model_confidence": 0.902500000035,
+      "policy_membership": [
+        "catalyst"
+      ],
+      "predicted_overpotential_V": 0.37588768565654407,
+      "rank": 25,
+      "selection_role": "guided_top"
+    },
+    {
+      "batch_id": "prereg-09",
+      "candidate_id": "c77b56fa00cdc515e3b7",
+      "dG_OH_eV": 1.758239569813013,
+      "dG_OOH_eV": 4.080399940907959,
+      "dG_O_eV": 2.6759213574230705,
+      "genome": "('SAA', 'Pt', 'Co', '100', 500)",
+      "material_class": "SAA",
+      "model_confidence": 0.902500000035,
+      "policy_membership": [
+        "catalyst"
+      ],
+      "predicted_overpotential_V": 0.3893999409079596,
+      "rank": 26,
+      "selection_role": "guided_top"
+    },
+    {
+      "batch_id": "prereg-29",
+      "candidate_id": "86d4a6562ed06d12f482",
+      "dG_OH_eV": 0.8391154433786869,
+      "dG_OOH_eV": 3.8796858295798335,
+      "dG_O_eV": 1.7309421665966547,
+      "genome": "('SAC', 'Fe', 'N3S', 'MoS2_sheet', 'CO')",
+      "material_class": "SAC",
+      "model_confidence": 0.610000000035,
+      "policy_membership": [
+        "catalyst"
+      ],
+      "predicted_overpotential_V": 0.38988455662131316,
+      "rank": 27,
+      "selection_role": "guided_top"
+    },
+    {
+      "batch_id": "prereg-07",
+      "candidate_id": "6b2e65d5cbfdbcddcddd",
+      "dG_OH_eV": 0.9306047584115891,
+      "dG_OOH_eV": 3.338784645497774,
+      "dG_O_eV": 2.5052174694836458,
+      "genome": "('Perovskite', 'Na', 'Ta', 'Ni', 0.3, 'none')",
+      "material_class": "Perovskite",
+      "model_confidence": 0.6527014328916925,
+      "policy_membership": [
+        "catalyst"
+      ],
+      "predicted_overpotential_V": 0.395432823985872,
+      "rank": 28,
+      "selection_role": "guided_top"
+    },
+    {
+      "batch_id": "prereg-15",
+      "candidate_id": "cae35c09006e266f2371",
+      "dG_OH_eV": 1.1744173194468022,
+      "dG_OOH_eV": 4.092737148702149,
+      "dG_O_eV": 2.830907262116674,
+      "genome": "('SAC', 'Pd', 'N3C', 'Phosphorene', 'none')",
+      "material_class": "SAC",
+      "model_confidence": 0.610000000035,
+      "policy_membership": [
+        "catalyst"
+      ],
+      "predicted_overpotential_V": 0.40173714870214905,
+      "rank": 29,
+      "selection_role": "guided_top"
+    },
+    {
+      "batch_id": "prereg-05",
+      "candidate_id": "d59d0d0dd2725f5a414b",
+      "dG_OH_eV": 0.8124986316263676,
+      "dG_OOH_eV": 3.8178946480155025,
+      "dG_O_eV": 2.0408393509686027,
+      "genome": "('SAA', 'Ir', 'In', '110', 10000)",
+      "material_class": "SAA",
+      "model_confidence": 0.902500000035,
+      "policy_membership": [
+        "catalyst",
+        "uncertainty"
+      ],
+      "predicted_overpotential_V": 0.4165013683736325,
+      "rank": 30,
+      "selection_role": "guided_top"
+    },
+    {
+      "batch_id": "prereg-03",
+      "candidate_id": "a0427c41d176ccfdf6bd",
+      "dG_OH_eV": 0.8677080298959925,
+      "dG_OOH_eV": 3.458009193837646,
+      "dG_O_eV": 2.6499833233654533,
+      "genome": "('SAA', 'Pd', 'Ag', '211', 100)",
+      "material_class": "SAA",
+      "model_confidence": 0.902500000035,
+      "policy_membership": [
+        "catalyst"
+      ],
+      "predicted_overpotential_V": 0.42097412952780733,
+      "rank": 31,
+      "selection_role": "guided_top"
+    },
+    {
+      "batch_id": "prereg-11",
+      "candidate_id": "101159f93bd9c6d9f6f8",
+      "dG_OH_eV": 1.3316603328287602,
+      "dG_OOH_eV": 3.299075792729858,
+      "dG_O_eV": 2.1334227688610587,
+      "genome": "('SAA', 'Pt', 'Ga', '211', 2000)",
+      "material_class": "SAA",
+      "model_confidence": 0.902500000035,
+      "policy_membership": [
+        "catalyst",
+        "validity"
+      ],
+      "predicted_overpotential_V": 0.4272375639677015,
+      "rank": 32,
+      "selection_role": "guided_top"
+    },
+    {
+      "batch_id": "prereg-05",
+      "candidate_id": "3a597e8baaee3ebe72d3",
+      "dG_OH_eV": 1.229347052723283,
+      "dG_OOH_eV": 3.9080328449607786,
+      "dG_O_eV": 2.3234357006848745,
+      "genome": "('Spinel', 'Fe', 'Ni', 'Y', 'nanosheet', 'carbon_black')",
+      "material_class": "Spinel",
+      "model_confidence": 0.740000000035,
+      "policy_membership": [
+        "uncertainty"
+      ],
+      "predicted_overpotential_V": 0.2170328449607788,
+      "rank": 33,
+      "selection_role": "uncertainty_control"
+    },
+    {
+      "batch_id": "prereg-06",
+      "candidate_id": "7ec3c045b95ab35fc877",
+      "dG_OH_eV": 1.054642501026392,
+      "dG_OOH_eV": 3.227139900624727,
+      "dG_O_eV": 2.2849511273205314,
+      "genome": "('SolidCatalyst', 'Au', 'MoO3', 'bcc211', 0.1, ('N', 'Ta'), 2, 0)",
+      "material_class": "SolidCatalyst",
+      "model_confidence": 0.7799556092414295,
+      "policy_membership": [
+        "uncertainty"
+      ],
+      "predicted_overpotential_V": 0.2868112266958045,
+      "rank": 34,
+      "selection_role": "uncertainty_control"
+    },
+    {
+      "batch_id": "prereg-25",
+      "candidate_id": "562943661cfb72e7e072",
+      "dG_OH_eV": 1.172881903797388,
+      "dG_OOH_eV": 3.9784101948142374,
+      "dG_O_eV": 2.3087338574230705,
+      "genome": "('HEA', ('Co', 'Ni', 'Hf', 'Re'), 'fcc_bcc_dual', '100', 1200)",
+      "material_class": "HEA",
+      "model_confidence": 0.902500000035,
+      "policy_membership": [
+        "uncertainty"
+      ],
+      "predicted_overpotential_V": 0.2874101948142376,
+      "rank": 35,
+      "selection_role": "uncertainty_control"
+    },
+    {
+      "batch_id": "prereg-29",
+      "candidate_id": "78c3bca65991f4d582d7",
+      "dG_OH_eV": 1.4892881537973313,
+      "dG_OOH_eV": 3.8388533100485267,
+      "dG_O_eV": 2.3627194531261386,
+      "genome": "('HEA', ('Co', 'Re', 'Ir', 'Pt', 'Ce'), 'fcc', '100', 900)",
+      "material_class": "HEA",
+      "model_confidence": 0.8685081580424162,
+      "policy_membership": [
+        "uncertainty"
+      ],
+      "predicted_overpotential_V": 0.35556870067119273,
+      "rank": 36,
+      "selection_role": "uncertainty_control"
+    },
+    {
+      "batch_id": "prereg-27",
+      "candidate_id": "ccd90970bc3389aec1f9",
+      "dG_OH_eV": 1.4096859122812748,
+      "dG_OOH_eV": 4.095612953603272,
+      "dG_O_eV": 2.771940148621801,
+      "genome": "('MOF', 'Mn', 'Imidazolate', 'O4', 16.0)",
+      "material_class": "MOF",
+      "model_confidence": 0.480000000035,
+      "policy_membership": [
+        "uncertainty"
+      ],
+      "predicted_overpotential_V": 0.4046129536032721,
+      "rank": 37,
+      "selection_role": "uncertainty_control"
+    },
+    {
+      "batch_id": "prereg-06",
+      "candidate_id": "eab03d20ac5cb0fc79d3",
+      "dG_OH_eV": 1.3473771239817143,
+      "dG_OOH_eV": 4.130567501485352,
+      "dG_O_eV": 2.374984181672338,
+      "genome": "('MOF', 'Ce', 'HITP', 'O4', 18.0)",
+      "material_class": "MOF",
+      "model_confidence": 0.34000000003499997,
+      "policy_membership": [
+        "uncertainty"
+      ],
+      "predicted_overpotential_V": 0.4395675014853522,
+      "rank": 38,
+      "selection_role": "uncertainty_control"
+    },
+    {
+      "batch_id": "prereg-02",
+      "candidate_id": "36706ae55f59ec4f8504",
+      "dG_OH_eV": 1.494781317859888,
+      "dG_OOH_eV": 3.830583046376737,
+      "dG_O_eV": 2.7433041699230705,
+      "genome": "('SolidCatalyst', 'Co', 'Graphite', 'fcc100', -0.05789473684210527, ('Cu', 'Sc'), 3, 0)",
+      "material_class": "SolidCatalyst",
+      "model_confidence": 0.9675000000349999,
+      "policy_membership": [
+        "validity"
+      ],
+      "predicted_overpotential_V": 0.1417211235463336,
+      "rank": 39,
+      "selection_role": "validity_control"
+    },
+    {
+      "batch_id": "prereg-05",
+      "candidate_id": "ef9803d8396fe9b5c300",
+      "dG_OH_eV": 1.34090405955905,
+      "dG_OOH_eV": 3.088719795644315,
+      "dG_O_eV": 2.2129162915050733,
+      "genome": "('Spinel', 'Fe', 'Cu', 'Nb', 'nanosheet', 'carbon_black')",
+      "material_class": "Spinel",
+      "model_confidence": 0.740000000035,
+      "policy_membership": [
+        "validity"
+      ],
+      "predicted_overpotential_V": 0.3569877680539768,
+      "rank": 40,
+      "selection_role": "validity_control"
+    },
+    {
+      "batch_id": "prereg-24",
+      "candidate_id": "2f38d51ba986c94ba69a",
+      "dG_OH_eV": 0.8815239097177983,
+      "dG_OOH_eV": 4.119601677358155,
+      "dG_O_eV": 2.5146073468029533,
+      "genome": "('SAC', 'Sb', 'O4', 'Phosphorene', 'O2')",
+      "material_class": "SAC",
+      "model_confidence": 0.610000000035,
+      "policy_membership": [
+        "validity"
+      ],
+      "predicted_overpotential_V": 0.4286016773581549,
+      "rank": 41,
+      "selection_role": "validity_control"
+    },
+    {
+      "batch_id": "prereg-05",
+      "candidate_id": "7e36da26795823ef060e",
+      "dG_OH_eV": 1.0551245833933354,
+      "dG_OOH_eV": 4.128464649617676,
+      "dG_O_eV": 2.425692952424291,
+      "genome": "('COF', 'Pt', 'Boroxine', 'O4', 10.0)",
+      "material_class": "COF",
+      "model_confidence": 0.447500000035,
+      "policy_membership": [
+        "validity"
+      ],
+      "predicted_overpotential_V": 0.4374646496176764,
+      "rank": 42,
+      "selection_role": "validity_control"
+    },
+    {
+      "batch_id": "prereg-18",
+      "candidate_id": "cef5b9bdd5a3145b4e70",
+      "dG_OH_eV": 1.3613126899301438,
+      "dG_OOH_eV": 3.553281258046602,
+      "dG_O_eV": 2.7660969860850377,
+      "genome": "('Spinel', 'Cu', 'Cu', 'Ce', 'nanoparticle', 'graphene_oxide')",
+      "material_class": "Spinel",
+      "model_confidence": 0.6852014328916924,
+      "policy_membership": [
+        "validity"
+      ],
+      "predicted_overpotential_V": 0.44181572803843583,
+      "rank": 43,
+      "selection_role": "validity_control"
+    },
+    {
+      "batch_id": "prereg-11",
+      "candidate_id": "d6eb6a966d4dcb7708c7",
+      "dG_OH_eV": 1.244757952839122,
+      "dG_OOH_eV": 4.163030098378648,
+      "dG_O_eV": 2.953170216828574,
+      "genome": "('SAC', 'Co', 'N2S2', 'Phosphorene', 'none')",
+      "material_class": "SAC",
+      "model_confidence": 0.610000000035,
+      "policy_membership": [
+        "validity"
+      ],
+      "predicted_overpotential_V": 0.4720300983786485,
+      "rank": 44,
+      "selection_role": "validity_control"
+    },
+    {
+      "batch_id": "prereg-18",
+      "candidate_id": "2e7fa45b0e15035b8384",
+      "dG_OH_eV": -5.019680199474097,
+      "dG_OOH_eV": -3.148375083506189,
+      "dG_O_eV": -5.257508360594536,
+      "genome": "('Perovskite', 'Ce', 'Sn', 'Nb', 0.05, 'none')",
+      "material_class": "Perovskite",
+      "model_confidence": 0.6527014328916925,
+      "policy_membership": [],
+      "predicted_overpotential_V": 3.0,
+      "rank": 45,
+      "selection_role": "coverage_control"
+    },
+    {
+      "batch_id": "prereg-34",
+      "candidate_id": "a0c3c0f2b2c0410501ef",
+      "dG_OH_eV": -3.1430894707143304,
+      "dG_OOH_eV": 7.193921516835665,
+      "dG_O_eV": -2.461417280882622,
+      "genome": "('MAXPhase', 'Nb', 'P', 'N', 2, 'Fe', 'edge_1010')",
+      "material_class": "MAXPhase",
+      "model_confidence": 0.5199556092414295,
+      "policy_membership": [],
+      "predicted_overpotential_V": 3.0,
+      "rank": 46,
+      "selection_role": "coverage_control"
+    },
+    {
+      "batch_id": "prereg-30",
+      "candidate_id": "51600ffb259aca92e11c",
+      "dG_OH_eV": -0.6872865532338619,
+      "dG_OOH_eV": -0.27465682178735373,
+      "dG_O_eV": -0.7643710009753668,
+      "genome": "('SAA', 'Pd', 'Co', '111', 1000)",
+      "material_class": "SAA",
+      "model_confidence": 0.902500000035,
+      "policy_membership": [],
+      "predicted_overpotential_V": 1.916286553233862,
+      "rank": 47,
+      "selection_role": "coverage_control"
+    },
+    {
+      "batch_id": "prereg-29",
+      "candidate_id": "9d534bdb73c262d40580",
+      "dG_OH_eV": -0.5433618400990963,
+      "dG_OOH_eV": -1.059398223459717,
+      "dG_O_eV": -0.7686467997729742,
+      "genome": "('DAC', 'Fe', 'Pr', 'N8', 'Phosphorene')",
+      "material_class": "DAC",
+      "model_confidence": 0.498608834270667,
+      "policy_membership": [],
+      "predicted_overpotential_V": 1.7723618400990964,
+      "rank": 48,
+      "selection_role": "coverage_control"
+    },
+    {
+      "batch_id": "prereg-04",
+      "candidate_id": "0cc10f36dedb70353ccb",
+      "dG_OH_eV": -2.392646965831518,
+      "dG_OOH_eV": -2.36851363331082,
+      "dG_O_eV": -1.6008425585925827,
+      "genome": "('HEA', ('V', 'Cu', 'Zn', 'Al', 'Ge', 'Ce'), 'fcc_bcc_dual', '111', 1100)",
+      "material_class": "HEA",
+      "model_confidence": 0.8739350657946708,
+      "policy_membership": [],
+      "predicted_overpotential_V": 3.0,
+      "rank": 49,
+      "selection_role": "coverage_control"
+    },
+    {
+      "batch_id": "prereg-14",
+      "candidate_id": "84b174c8d9a033265616",
+      "dG_OH_eV": -0.4845992897450924,
+      "dG_OOH_eV": -1.835499812662598,
+      "dG_O_eV": -0.6796818606555426,
+      "genome": "('DAC', 'Mo', 'Pr', 'N2S2N2', 'N-graphene')",
+      "material_class": "DAC",
+      "model_confidence": 0.498608834270667,
+      "policy_membership": [],
+      "predicted_overpotential_V": 2.3848179520070554,
+      "rank": 50,
+      "selection_role": "coverage_control"
+    }
+  ],
+  "schema_version": 1,
+  "screening_evidence": "esen_gnn_not_dft",
+  "selection_counts": {
+    "class_champion": 12,
+    "coverage_control": 6,
+    "guided_top": 20,
+    "uncertainty_control": 6,
+    "validity_control": 6
+  },
+  "slate_sha256": "a43490ae96e3e09ddd5e198d4dcc344904f8e77676bfd27dde148bc6ead11bab",
+  "source_sha256": {
+    "results/fuel_cell/prospective/prereg-01_orr.csv": "bbbd763785621414a7a835b240408a0f04da59fb2ce3f67d8d88943bb1356a6e",
+    "results/fuel_cell/prospective/prereg-02_orr.csv": "a9b2906d5708d2acd114752c1fc127fd883d5cbb64bbd15edf3cc04b9c9124e1",
+    "results/fuel_cell/prospective/prereg-03_orr.csv": "d022b1d1168c5a4ef6f502af8330f0a6a62021ddea8148a4372821139e9d909f",
+    "results/fuel_cell/prospective/prereg-04_orr.csv": "fd8cff492eaddc3644ab723739281a8ac72a9367c594c6b3c3959b8d1c12ef44",
+    "results/fuel_cell/prospective/prereg-05_orr.csv": "91c13c18021025eed6d9edc9dc3b928bb67f987370ee96905f1c836d5021fe99",
+    "results/fuel_cell/prospective/prereg-06_orr.csv": "52b92cdb768c48a43d2cb11ece73465b201c8614a5989f1f5eeb373571f4a2a5",
+    "results/fuel_cell/prospective/prereg-07_orr.csv": "5fffcf0e0e78f44ffa315973a3eb5598ff17c0667301d650fe38cdbf01f9d896",
+    "results/fuel_cell/prospective/prereg-08_orr.csv": "d3014dacf504cd3a1febe75f1d0aeb9084e752483a2fbaf88b6d2548666a02f2",
+    "results/fuel_cell/prospective/prereg-09_orr.csv": "053f4cab18e166e2334674d3c42fa23c17daa3e92e0ba16beb35a82304856692",
+    "results/fuel_cell/prospective/prereg-10_orr.csv": "c0e24d0767fa851b3d6ca204b52a0b9769fa16f87f0b60c5b0df5f0551e23217",
+    "results/fuel_cell/prospective/prereg-11_orr.csv": "3af73716a3ab663dff0bd0392e80e867d5aa382a27d6e46e5d50973e400f4da3",
+    "results/fuel_cell/prospective/prereg-12_orr.csv": "8564e483e26439f313dfaaf8b2ee463b8661f26cfdd0512f82526b62180bde12",
+    "results/fuel_cell/prospective/prereg-13_orr.csv": "6c09d9748d1981de12a2375e9998e1c5888945f835593c31d9eca638c88e207a",
+    "results/fuel_cell/prospective/prereg-14_orr.csv": "8f5b1b6f8fdc9dd81151cb0ce8cb8b91f644334547cda33aba5bc637c28493a0",
+    "results/fuel_cell/prospective/prereg-15_orr.csv": "234034eddb5c9bdbe4304ebcfdbb90b231ddf63e0c62c2f05834f989270edfb9",
+    "results/fuel_cell/prospective/prereg-16_orr.csv": "0dab85a471d2b66f03629e13d48b7d54f416ce42b323cd3f96d80d6b9cef9637",
+    "results/fuel_cell/prospective/prereg-17_orr.csv": "951083da377282667ae591ab9deaf547d0d4e7cbb576c3ffeb0dbe8c56dd3f1a",
+    "results/fuel_cell/prospective/prereg-18_orr.csv": "ca1995585da4ed03b15cdd2259a387f3e73d64d13d8861306abf3490fcaa05fa",
+    "results/fuel_cell/prospective/prereg-19_orr.csv": "c54134e108110ef5ce19c8e4ac6fc73f1418e35d871def95a290d04cd0140c23",
+    "results/fuel_cell/prospective/prereg-20_orr.csv": "2ab1653126791e63f9e54acde8b750a3e8bdad4b50be6bf845f2135e9d644e68",
+    "results/fuel_cell/prospective/prereg-21_orr.csv": "959cce9c8f3ec5a8af5b4edab694e530966b96317074ec87bae1beb5da8c31a2",
+    "results/fuel_cell/prospective/prereg-22_orr.csv": "450d9e0acfdb14fe9982c3707d5e9b1691a882e4e98d3052a836d43057daf2c5",
+    "results/fuel_cell/prospective/prereg-23_orr.csv": "1c63b58c6984bf22cd1612097de0ec3adedfdacc13770483800ae0650537668b",
+    "results/fuel_cell/prospective/prereg-24_orr.csv": "3b2b5e5f75b1acb1cc1b34ee8ade1421c8f1d6cd9f7df7f39210b852c152ce83",
+    "results/fuel_cell/prospective/prereg-25_orr.csv": "34afb13c2b6f095eb04b5a7bf2bd366736a890c823f626c3050be270971dff8f",
+    "results/fuel_cell/prospective/prereg-26_orr.csv": "72f2f70f8ca26f2ccbdb155cfa7373058eba9d96eb6df7df0aaab8facbba037a",
+    "results/fuel_cell/prospective/prereg-27_orr.csv": "ddf33c7a3b7edc80e1637c4616022cd67d2c72448d8518dd960342d477c757e4",
+    "results/fuel_cell/prospective/prereg-28_orr.csv": "8f4f7763585f5750a2dacd448be83526724aafe1237dad0d40a544dc96f12dac",
+    "results/fuel_cell/prospective/prereg-29_orr.csv": "430e952564c273acab708c5822d6dcaa67b9e171c24812f87bdd09cf6eaf53cd",
+    "results/fuel_cell/prospective/prereg-30_orr.csv": "a07d7b75b20553498c9791991b2e3d620566b163106f2e8f49461c7a4b9fda71",
+    "results/fuel_cell/prospective/prereg-31_orr.csv": "2e12f95cb618aa4031105fa44c9d08730368fa5d4d5daa30cee3d0b318200281",
+    "results/fuel_cell/prospective/prereg-32_orr.csv": "80f50183fabfbfcee866332503c19312e85ced5b354813b13bb1cea912ca6bc3",
+    "results/fuel_cell/prospective/prereg-33_orr.csv": "61cb80648a2c8602e18c826f7f0ea93457c510819c595c38e3a93eab01c800c5",
+    "results/fuel_cell/prospective/prereg-34_orr.csv": "31a7e25aaecbfdf09404d515e85481e3c541f689fd642bc135b5ba6f2fa5fb0e",
+    "results/fuel_cell/prospective/prereg-35_orr.csv": "1d3a2a03c7514c639cc00b266892d6ef2fb6c470393683094801e762179962aa",
+    "results/prospective_search/batches/prereg-01/analysis.json": "cf1da17f8f6c21d1afeb8b91b4f8a445d637710411228890d870e8e1ca1c0f9c",
+    "results/prospective_search/batches/prereg-01/manifest.json": "1e348f79badd2886967c3c5a42be6d4d790109050d4e0870a0541b7907a77a88",
+    "results/prospective_search/batches/prereg-02/analysis.json": "90737db465307b92f13f3e81e55632a8d537574cff2803e4ea06d36a5629c674",
+    "results/prospective_search/batches/prereg-02/manifest.json": "61a1f2d595ec8eb1d360f72133b6ad21c87b5d3764548ae4c7fde94424179d6c",
+    "results/prospective_search/batches/prereg-03/analysis.json": "1d2f911153adc264c64457f45e06dcd3608c686203a5fec9e09c9af973ccbf40",
+    "results/prospective_search/batches/prereg-03/manifest.json": "d60acc6917b5f121bdd8244130569011666bc30d45f88d42479e39e7d2f7f235",
+    "results/prospective_search/batches/prereg-04/analysis.json": "643cc4acf69d2070a2b65ecccbcbcb60d24e5b23848541d2c30603226201772b",
+    "results/prospective_search/batches/prereg-04/manifest.json": "a12c3c05a8982ca6fd90be698ff2876893f9d10987ce216b5d2e935c86a9bafe",
+    "results/prospective_search/batches/prereg-05/analysis.json": "c77d1d5e645d567c3c676d1d503bb1ff399d7fad4812fe7aab643d442cca21c6",
+    "results/prospective_search/batches/prereg-05/manifest.json": "db77245e3126f51dc820b5105ff246095a86714d2472421efe9730be021aab40",
+    "results/prospective_search/batches/prereg-06/analysis.json": "dc55d8c3e3a8a8eb3e8c81e380fc8523a91fe1c518dc4136b25099845c647f7f",
+    "results/prospective_search/batches/prereg-06/manifest.json": "36cd4e3199857a1617149b11aec27481b3b4cb90bb86948a9239a6622a4d80ca",
+    "results/prospective_search/batches/prereg-07/analysis.json": "3c15b70da7b7504419968014697d4a91cea684cf3a7904a953e7ec3b1d612634",
+    "results/prospective_search/batches/prereg-07/manifest.json": "851c7089ef7f3a357cfeca72938a45a1148d61d1a0c48f3808bd6862cae0c701",
+    "results/prospective_search/batches/prereg-08/analysis.json": "cc9eedf8dd7a3958c1cc8cb315dc06d9ff57a6cf60ebd1ca4fe8180f6b96be5f",
+    "results/prospective_search/batches/prereg-08/manifest.json": "2fa98471903f953348465ff985def872d50d26e2c5dc74e17121721c6c00134c",
+    "results/prospective_search/batches/prereg-09/analysis.json": "af13c334cd22084726a7afa113b4cad53470677c8613495e39f1d51527540655",
+    "results/prospective_search/batches/prereg-09/manifest.json": "74f2a430b393887a143615c40cf471f2ac26f266b955304ac38a351767a0982d",
+    "results/prospective_search/batches/prereg-10/analysis.json": "05ed218f78b70c6f80caefe081e362048bf47e2eef386958352a4b8bff06ac4c",
+    "results/prospective_search/batches/prereg-10/manifest.json": "38e95327ae4a5f59eb642a85e0f55ebf7f968e74614141eacaa49f87423cf376",
+    "results/prospective_search/batches/prereg-11/analysis.json": "abc0f2aa1a8dd14d1263425cee29201978f6c3c080701846ec33722526f06488",
+    "results/prospective_search/batches/prereg-11/manifest.json": "56dd53126320615ff23acd4978281c048fa2471ccabaebec5701f6efe7e96e80",
+    "results/prospective_search/batches/prereg-12/analysis.json": "2ccedc76e4d984c8cbb75480cc9a72e55b92f36b3df374bc77369ea3c88d883e",
+    "results/prospective_search/batches/prereg-12/manifest.json": "386afa2eee0018ab093bf683fefebce677dbd55db395c1c7671705deeb828086",
+    "results/prospective_search/batches/prereg-13/analysis.json": "8bda5464711c0f4ea6bd4da91392c55fb31f2a1313f1a80ee08cb23c50dfdd87",
+    "results/prospective_search/batches/prereg-13/manifest.json": "efb820dfe0efc20a9fc04aa306f44926831391c1cc6eb6a24f11f1891aabbbc8",
+    "results/prospective_search/batches/prereg-14/analysis.json": "1eab8360e22dcbb863279948dd12c0ae896bcf3b5c3c49f30c0b4cb95bdf4bf8",
+    "results/prospective_search/batches/prereg-14/manifest.json": "db03ee75313c7c034cc38ac5c6636bb537cbb49baaa6ab980384af2610de1d54",
+    "results/prospective_search/batches/prereg-15/analysis.json": "e688038589d3624420d2f62830b3710a04e361dddee49e396e5105e9eb2b9a94",
+    "results/prospective_search/batches/prereg-15/manifest.json": "ad7c4e4feefcf6a8a87de233bb5c193f26ae5c32124d5361ba66c29b2e154c73",
+    "results/prospective_search/batches/prereg-16/analysis.json": "5970d9a52d3aa1b641de10ba46a5a3c5f0ace56f8e92ee01b3cf2dc7a8139757",
+    "results/prospective_search/batches/prereg-16/manifest.json": "9ba87957a44e9fc479066ba758b2a0238c1da5e31e126e8d499c18fb05ab98a9",
+    "results/prospective_search/batches/prereg-17/analysis.json": "e86c5ba11529ab322ff71764a30ac2508bac1d637d903107348d598d904a4606",
+    "results/prospective_search/batches/prereg-17/manifest.json": "c74902da1ba59504bf19a9097bd0a41ad3afcc6cce0ebcf2f84111283dbb39f0",
+    "results/prospective_search/batches/prereg-18/analysis.json": "c48d4a14bb1b15a9f0bdc1cd68f4f5464a017d4f234c4c5093e24ddbf51088fb",
+    "results/prospective_search/batches/prereg-18/manifest.json": "96319ffcf1315f8394b47be24a7436f41f3d40366129e373ae209c67f50808c0",
+    "results/prospective_search/batches/prereg-19/analysis.json": "d7947e6e4c99922bca904e487a968450de189bf4e9518018a5a90308c37dd4e1",
+    "results/prospective_search/batches/prereg-19/manifest.json": "c358a46c81c2d99f419bba6ab580677a4296de56c0c6842ca98fa58340671f2e",
+    "results/prospective_search/batches/prereg-20/analysis.json": "1ed20599287db34761b70718c2b6351d2e9a23d94517628a1cb63c3db32bd9c1",
+    "results/prospective_search/batches/prereg-20/manifest.json": "224f696a700961d1ac137d7c788fb9d11621406c6af7e35db63656cf7720d599",
+    "results/prospective_search/batches/prereg-21/analysis.json": "4201788e40a3710170588b6ced4edabf72ebdc7735e78dfaab3877935bb80b95",
+    "results/prospective_search/batches/prereg-21/manifest.json": "03bb639452fb28067203d1b6d327e465ffcece05ba7734d56e2f921c130d5920",
+    "results/prospective_search/batches/prereg-22/analysis.json": "dc69474f1ce96ba4c109873d8796a73ca49176f52507e775b8bec441db453231",
+    "results/prospective_search/batches/prereg-22/manifest.json": "5112e5e6fea6662377a49e518cd53bdb96462f6ee1b93e9a4ae5f9a3a334004a",
+    "results/prospective_search/batches/prereg-23/analysis.json": "767e74f24573005f8993b10dfaa6b5c16e01d21e9773a05b84a324681cf95e77",
+    "results/prospective_search/batches/prereg-23/manifest.json": "b156fd4b6582434324d88eb05a7c138d5e3c82014b914bbeb3f6230cf75e1070",
+    "results/prospective_search/batches/prereg-24/analysis.json": "3db45da75ef8e7dbd178eaac0e77899e7c576a4436109a91d9e3ea3bfb1f2d84",
+    "results/prospective_search/batches/prereg-24/manifest.json": "555a34a9dcb63f8d0b839d93cd5b2a37ff7510ccc35b5980ec906801c8e01621",
+    "results/prospective_search/batches/prereg-25/analysis.json": "b399341b1390a58768c2a81d3040c9dca10e0859efa9d8b66e25a3c8ab3d21a3",
+    "results/prospective_search/batches/prereg-25/manifest.json": "734602005ba117475d904464e24f69ee77e6161cda60c4c4642f83d08ad23e3b",
+    "results/prospective_search/batches/prereg-26/analysis.json": "385692901164dc61832ad4d69f5eb9609a96191600d546a6276ce95350af800e",
+    "results/prospective_search/batches/prereg-26/manifest.json": "fafe3905bdf0b4f9b61bc7068f6339e6bd7a4a1d3087437eefac7d1c7b27cc93",
+    "results/prospective_search/batches/prereg-27/analysis.json": "f5516f37f950b85f94e1f62d05e386a382d0a07416a760c26ba468975d565358",
+    "results/prospective_search/batches/prereg-27/manifest.json": "4a5359cad5f8c2b17e55295faf6e0784ea5cc769e29e789f225173169f919b6c",
+    "results/prospective_search/batches/prereg-28/analysis.json": "48795e3c7f77d1a9f518d5d1986f09fa5cdaf9a7c28a2daab78841a63ee0c74c",
+    "results/prospective_search/batches/prereg-28/manifest.json": "0816bfc179f0317f917e231a92271076c77b71b032c893d99430be712ace5f48",
+    "results/prospective_search/batches/prereg-29/analysis.json": "0fac4e5b5840c1edc234850a6541153180de5937b89aa0ecd82c61f86cc66a76",
+    "results/prospective_search/batches/prereg-29/manifest.json": "c353ab0f407a2f9a54e08bfdc3f6dd8b73c1b9af2923807f7ff98db7669bf62f",
+    "results/prospective_search/batches/prereg-30/analysis.json": "5142423d3fc0e10e3c4553eea349f67e5919ecb8068a560b6550cbe12ab5469b",
+    "results/prospective_search/batches/prereg-30/manifest.json": "49b6b1631bdedf7247291be3b75dcef1452e63af6ca94c54d1c2e5ce2cac8875",
+    "results/prospective_search/batches/prereg-31/analysis.json": "71acb7146059c67c331c7d3ac42a84b1f1afe8b8c78dcec08ab7ccfd84c7b397",
+    "results/prospective_search/batches/prereg-31/manifest.json": "e72211d875f92f2fb3615eb3d0e0dbd429d5b6da6e81208303d40c6f710b716c",
+    "results/prospective_search/batches/prereg-32/analysis.json": "54e6cf084324020ff8250cd4edeb6df9afaa152a0682f78383f649b6e7a2faab",
+    "results/prospective_search/batches/prereg-32/manifest.json": "e13fec2afdde7c17b5c320d93d6299224be185f9a38707235195ab92ed8e224c",
+    "results/prospective_search/batches/prereg-33/analysis.json": "5bae36e1caa20edba1125abce943d45dacb1a895706d00db373c00d4462b94b3",
+    "results/prospective_search/batches/prereg-33/manifest.json": "7446ad17be24010c33422d8ce2aa744e0b424c9328ce87fa9c2e6594e7a2214a",
+    "results/prospective_search/batches/prereg-34/analysis.json": "d0424540424b7b3671cce961da89d4dccd6c7641330bde2a69a2ceecc17bf2a8",
+    "results/prospective_search/batches/prereg-34/manifest.json": "4ad368b19699bef3d70fd8bd2501cd09be4321ad3ad17a9c2a60e5410b3da3d0",
+    "results/prospective_search/batches/prereg-35/analysis.json": "1592b0b6b12fc112b19645e8cabc9118226d4459fadfe3217f224c3f24614035",
+    "results/prospective_search/batches/prereg-35/manifest.json": "9607486ec4cbbc60a7e8b44c09c41382a9002adcf66fb01557f6ae2d97bb1748",
+    "results/prospective_search/confirmatory_analysis.json": "89669c902d0b4930689c27a10cfeeb5efbebd673179c5d999f3434b47846be47"
+  },
+  "validation_goal": "measure GNN-to-DFT error, rank retention, and policy enrichment"
+}

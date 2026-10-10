@@ -13,12 +13,23 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
 import run_divide_conquer_pilot as campaign
+from pipeline.evidence.orr_dft_slate import verify_slate
 from pipeline.search.discovery import candidate_id
 from pipeline.screening.small_data_ranker import screening_metric_eligibility
 from pipeline.screening.small_data_ranker import training_metric_eligibility
 
 
 class ProspectiveContracts(unittest.TestCase):
+    def test_confirmatory_orr_dft_slate_is_checksum_locked(self) -> None:
+        source = REPO_ROOT / 'results/dft/orr_confirmatory_slate.json'
+        self.assertTrue(verify_slate(source))
+        with tempfile.TemporaryDirectory() as directory:
+            altered = Path(directory) / 'slate.json'
+            document = json.loads(source.read_text())
+            document['records'][0]['predicted_overpotential_V'] += 0.1
+            altered.write_text(json.dumps(document))
+            self.assertFalse(verify_slate(altered))
+
     def test_pool_deduplicates_canonical_candidate_ids(self) -> None:
         first = ('MoltenMetal', 'In', 'Dy', 0.0, 950)
         duplicate = ('MoltenMetal', 'In', 'In', 0.5, 950)

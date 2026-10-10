@@ -3,16 +3,15 @@
 - **Discovery policy:** catalyst-guided, coverage-safe branch-and-bound is the
   production standard. Uncertainty and validity are controls and validation
   signals, not production branch priorities.
-- **Prospective evidence:** batches 01–09 are exploratory. After excluding
-  censored and non-viable pyrolysis outcomes, pooled hits are pyrolysis
-  14 catalyst / 10 uncertainty / 18 validity / 15.90 random mean, and ORR
-  40 / 36 / 23 / 24.73. Only ORR exceeds policy-matched random in this
-  retrospective analysis.
-- **Next campaign:** the frozen 35-batch protocol screens only ORR, with 10
-  candidates per class and a 20-candidate policy budget. CPU replay including
-  the completed geometry smoke estimates 98.9% ORR pass probability; the
-  conservative estimate excluding oversized batch 04 is 83.5%. Do not edit
-  the policy while it runs.
+- **Confirmatory evidence:** the locked 35-batch ORR campaign passed. Catalyst
+  guidance found 289 pooled hits versus 149 for uncertainty, 153 for validity,
+  and a policy-matched random mean of 120.25. The preregistered one-sided
+  random p-value is 0.000020. Catalyst-guided, coverage-safe branch-and-bound
+  is therefore the evidence-backed production search policy for ORR.
+- **Next validation:** the checksum-locked 50-candidate ORR DFT slate contains
+  all 12 eligible material classes, 20 guided finalists, 12 class champions,
+  and 18 controls. It measures GNN-to-DFT error, rank retention, and whether
+  guided enrichment survives higher-fidelity calculation.
 - **Geometry smoke:** `smoke-relax-v4-20261009` completed with SAC/DAC validity
   of 4/4 and 3/4 for pyrolysis and 4/4 and 4/4 for ORR. There were no
   `atomic_overlap` failures; the sole DAC rejection was an out-of-bounds

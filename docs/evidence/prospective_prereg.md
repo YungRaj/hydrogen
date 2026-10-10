@@ -49,3 +49,13 @@ from its own batch and later batches cannot influence its selections.
 The test evaluates computational enrichment under the current eSen screening
 protocol. It does not establish DFT accuracy or experimental catalyst
 performance.
+
+## Locked result
+
+All 35 batches completed under policy digest
+`bd68883dcbb4d45d24462bcefe84e85fbd8a97aeb62c99cc5812c3df8b109920`.
+Catalyst guidance found 289 pooled hits, uncertainty ranking found 149,
+validity ranking found 153, and policy-matched random selection averaged
+120.2459. The one-sided random p-value was 0.0000199996 at alpha 0.05, so the
+preregistered ORR endpoint passed. The immutable machine-readable result is
+`results/prospective_search/confirmatory_analysis.json`.

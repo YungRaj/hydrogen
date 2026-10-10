@@ -4,6 +4,11 @@
 
 ### Added
 
+- A checksum-locked 50-candidate ORR DFT handoff built from the completed
+  confirmatory campaign. It preserves all 12 eligible material classes and
+  separates class champions, guided finalists, uncertainty/validity controls,
+  and coverage controls for GNN-to-DFT calibration and enrichment testing.
+
 - A chronological, equal-budget search-policy acceptance benchmark covering six
   locked rounds and both applications. It compares the production policy with
   random sampling, uncertainty ranking, and validity ranking, and fails unless
@@ -44,6 +49,12 @@
   `validation_required`.
 
 ### Changed
+
+- The 35-batch preregistered ORR campaign completed successfully. Catalyst
+  guidance produced 289 hits versus 149 uncertainty, 153 validity, and a
+  policy-matched random mean of 120.25 (one-sided p = 0.000020). The result
+  establishes catalyst-guided search as the prospectively validated ORR
+  production policy while retaining DFT and experimental claim boundaries.
 
 - Prospective pool generation now removes within-pool canonical-ID duplicates.
   A 35-pool dry run found one MoltenMetal alias in projected batch 32; the
