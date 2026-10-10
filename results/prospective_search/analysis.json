@@ -13,39 +13,40 @@
     "smoke-relax-v4-20261009",
     "prereg-01",
     "prereg-02",
-    "prereg-03"
+    "prereg-03",
+    "prereg-04"
   ],
   "batches_passed": 2,
   "latest": {
     "schema_version": 2,
-    "batch_id": "prereg-03",
-    "manifest_sha256": "d60acc6917b5f121bdd8244130569011666bc30d45f88d42479e39e7d2f7f235",
+    "batch_id": "prereg-04",
+    "manifest_sha256": "a12c3c05a8982ca6fd90be698ff2876893f9d10987ce216b5d2e935c86a9bafe",
     "outcome_sha256": {
-      "fuel_cell_orr": "d022b1d1168c5a4ef6f502af8330f0a6a62021ddea8148a4372821139e9d909f"
+      "fuel_cell_orr": "fd8cff492eaddc3644ab723739281a8ac72a9367c594c6b3c3959b8d1c12ef44"
     },
     "results": [
       {
         "application": "fuel_cell_orr",
         "eligible": 120,
-        "valid": 107,
+        "valid": 103,
         "budget": 20,
         "hit_definition": "deterministic_top_0.2_eligible",
-        "hit_count": 22,
-        "hit_cutoff": 1.3171922516226813,
+        "hit_count": 21,
+        "hit_cutoff": 1.3767952274680182,
         "policy_hits": {
           "catalyst": 7,
           "uncertainty": 4,
-          "validity": 3
+          "validity": 7
         },
-        "policy_matched_random_mean_hits": 3.67624,
+        "policy_matched_random_mean_hits": 3.50122,
         "policy_matched_random_quantiles": [
           1.0,
           6.0
         ],
         "random_one_sided_alpha": 0.05,
-        "acceptance_passed": true
+        "acceptance_passed": false
       }
     ],
-    "acceptance_passed": true
+    "acceptance_passed": false
   }
 }
