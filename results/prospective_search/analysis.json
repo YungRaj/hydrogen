@@ -10,55 +10,34 @@
     "20260930-catalyst-07-branch-feedback",
     "20260930-catalyst-08-bounded-exploration",
     "20260930-catalyst-09-branch-feedback",
-    "smoke-relax-v4-20261009"
+    "smoke-relax-v4-20261009",
+    "prereg-01"
   ],
   "batches_passed": 0,
   "latest": {
     "schema_version": 2,
-    "batch_id": "smoke-relax-v4-20261009",
-    "manifest_sha256": "b98af09d1f12bc9cc2dfaf09d0a68c7dabbb84dc89cf4a2cc1ab7af2245430cb",
+    "batch_id": "prereg-01",
+    "manifest_sha256": "1e348f79badd2886967c3c5a42be6d4d790109050d4e0870a0541b7907a77a88",
     "outcome_sha256": {
-      "turquoise_hydrogen": "19675319103050ddbbf964ebc6eecc780a0dba00af203a2ed9f005564bee8ed8",
-      "fuel_cell_orr": "9a1e052fd12bdf1f0af547db7a44382fa68f4f8c50e94b629006a7bfb7aa759f"
+      "fuel_cell_orr": "bbbd763785621414a7a835b240408a0f04da59fb2ce3f67d8d88943bb1356a6e"
     },
     "results": [
       {
-        "application": "turquoise_hydrogen",
-        "eligible": 36,
-        "valid": 28,
-        "budget": 20,
-        "hit_definition": "deterministic_top_0.2_eligible",
-        "hit_count": 6,
-        "hit_cutoff": 0.941243921518315,
-        "policy_hits": {
-          "catalyst": 3,
-          "uncertainty": 3,
-          "validity": 3
-        },
-        "policy_matched_random_mean_hits": 3.331,
-        "policy_matched_random_quantiles": [
-          2.0,
-          5.0
-        ],
-        "random_one_sided_alpha": 0.05,
-        "acceptance_passed": false
-      },
-      {
         "application": "fuel_cell_orr",
-        "eligible": 48,
-        "valid": 46,
+        "eligible": 120,
+        "valid": 91,
         "budget": 20,
         "hit_definition": "deterministic_top_0.2_eligible",
-        "hit_count": 10,
-        "hit_cutoff": 1.6112676514089108,
+        "hit_count": 19,
+        "hit_cutoff": 1.5601387871205807,
         "policy_hits": {
-          "catalyst": 5,
-          "uncertainty": 6,
-          "validity": 5
+          "catalyst": 6,
+          "uncertainty": 3,
+          "validity": 6
         },
-        "policy_matched_random_mean_hits": 4.16632,
+        "policy_matched_random_mean_hits": 3.18312,
         "policy_matched_random_quantiles": [
-          2.0,
+          1.0,
           6.0
         ],
         "random_one_sided_alpha": 0.05,
