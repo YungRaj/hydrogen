@@ -424,38 +424,89 @@
           "acceptance_passed": false
         }
       ]
+    },
+    {
+      "batch_id": "smoke-relax-v4-20261009",
+      "results": [
+        {
+          "application": "turquoise_hydrogen",
+          "eligible": 36,
+          "valid": 28,
+          "budget": 20,
+          "hit_definition": "deterministic_top_0.2_eligible",
+          "hit_count": 6,
+          "hit_cutoff": 0.941243921518315,
+          "policy_hits": {
+            "catalyst": 3,
+            "uncertainty": 3,
+            "validity": 3
+          },
+          "policy_matched_random_mean_hits": 3.3394,
+          "policy_matched_random_quantiles": [
+            2.0,
+            5.0
+          ],
+          "random_one_sided_alpha": 0.05,
+          "acceptance_passed": false
+        },
+        {
+          "application": "fuel_cell_orr",
+          "eligible": 48,
+          "valid": 46,
+          "budget": 20,
+          "hit_definition": "deterministic_top_0.2_eligible",
+          "hit_count": 10,
+          "hit_cutoff": 1.6112676514089108,
+          "policy_hits": {
+            "catalyst": 5,
+            "uncertainty": 6,
+            "validity": 5
+          },
+          "policy_matched_random_mean_hits": 4.17112,
+          "policy_matched_random_quantiles": [
+            2.0,
+            6.0
+          ],
+          "random_one_sided_alpha": 0.05,
+          "acceptance_passed": false
+        }
+      ]
     }
   ],
   "power": [
     {
       "application": "turquoise_hydrogen",
       "bootstrap_replicates": 2000,
-      "planned_batches": 30,
-      "estimated_pass_probability": 0.042,
-      "ten_batch_pass_probability": 0.025,
-      "leave_batch_04_out_pass_probability": 0.001,
+      "planned_batches": 35,
+      "estimated_pass_probability": 0.02,
+      "ten_batch_pass_probability": 0.014,
+      "leave_batch_04_out_pass_probability": 0.002,
       "leave_batch_04_out_power_curve": {
-        "10": 0.0045,
-        "15": 0.0035,
-        "20": 0.0015,
-        "25": 0.003,
-        "30": 0.003
+        "10": 0.0015,
+        "15": 0.002,
+        "20": 0.002,
+        "25": 0.0025,
+        "30": 0.0005,
+        "35": 0.001,
+        "40": 0.0005
       },
       "confirmatory_recommendation": false
     },
     {
       "application": "fuel_cell_orr",
       "bootstrap_replicates": 2000,
-      "planned_batches": 30,
-      "estimated_pass_probability": 0.984,
-      "ten_batch_pass_probability": 0.843,
-      "leave_batch_04_out_pass_probability": 0.833,
+      "planned_batches": 35,
+      "estimated_pass_probability": 0.989,
+      "ten_batch_pass_probability": 0.8105,
+      "leave_batch_04_out_pass_probability": 0.835,
       "leave_batch_04_out_power_curve": {
-        "10": 0.579,
-        "15": 0.6805,
-        "20": 0.768,
-        "25": 0.815,
-        "30": 0.834
+        "10": 0.5315,
+        "15": 0.6545,
+        "20": 0.7265,
+        "25": 0.759,
+        "30": 0.8045,
+        "35": 0.8315,
+        "40": 0.8305
       },
       "confirmatory_recommendation": true
     }

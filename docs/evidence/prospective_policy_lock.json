@@ -1,12 +1,14 @@
 {
   "schema_version": 1,
-  "policy_source_sha256": "605a8c78e687bdfac2415a0858e4d865119cc06cf28edb75781404e870ccaa2b",
+  "policy_source_sha256": "ff575b5fc8774613cea083596a937371dcc8200fbd1100d1d5ebf34f8ba27963",
   "confirmatory_applications": [
     "fuel_cell_orr"
   ],
   "exploratory_applications": [
     "turquoise_hydrogen"
   ],
-  "planned_batches": 30,
+  "planned_batches": 35,
+  "candidates_per_class": 10,
+  "selection_budget": 20,
   "random_one_sided_alpha": 0.05
 }

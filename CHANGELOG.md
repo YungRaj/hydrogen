@@ -45,6 +45,13 @@
 
 ### Changed
 
+- The preregistered campaign now screens ORR only, with 10 candidates per class,
+  a locked 20-candidate selection budget, and 35 batches. The corrected cost is
+  up to 120 screened candidates per batch. The finalized relax-v4 geometry smoke
+  had no SAC/DAC overlap failures, and the conservative ORR replay estimates
+  83.5% pass probability. Every finalized prior batch is explicitly available
+  to later sequential training while each prepared manifest remains immutable.
+
 - Prospective preparation now applies ADR 0001 before GPU screening and
   reallocates dead-class slots within a fixed 20-candidate budget. DAC geometry
   is a non-overlapping two-center site, and both screeners choose the open side

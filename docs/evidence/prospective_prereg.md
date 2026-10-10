@@ -9,34 +9,42 @@ probability of passing this design.
 - **Frozen policy:** the enforced digest is stored in
   `docs/evidence/prospective_policy_lock.json`. `prepare()` fails before writing
   a manifest if any frozen source differs.
-- **Pool and budget:** generate 20 fresh candidates per each of 14 material
-  classes, then apply application scope before screening. Pyrolysis excludes
-  COF, MOF, MXene, MetalHydride, and Perovskite under ADR 0001; ORR excludes
-  MetalHydride and MoltenMetal. Each application evaluates exactly 20
-  candidates, retaining one floor slot for every eligible class and reallocating
-  the remaining slots by policy score.
-- **Replicates:** exactly 30 completed batches. Failed infrastructure runs may
+- **Pool and budget:** generate 10 fresh candidates for each of 14 material
+  classes. The confirmatory campaign screens only ORR, whose scope excludes
+  MetalHydride and MoltenMetal, so each batch evaluates up to 120 candidates.
+  The 20-candidate policy selection retains one floor slot for every eligible
+  class and reallocates the remaining slots by policy score. The entire eligible
+  pool is screened because its outcomes define both the deterministic top-20%
+  hit set and the policy-matched random null.
+- **Replicates:** exactly 35 completed batches. Failed infrastructure runs may
   be retried under the same locked manifest but are not replaced selectively.
 - **Hit definition:** deterministic best `ceil(0.20 * n)` eligible outcomes,
   ordered by metric then candidate ID. Pyrolysis eligibility requires finite
   `E_act`, `valid=True`, `E_act_censored=False`, and
   `pyrolysis_viable=True`.
-- **Primary statistic:** summed ORR catalyst-policy hits across all 30 batches,
+- **Primary statistic:** summed ORR catalyst-policy hits across all 35 batches,
   compared with 50,000 policy-matched random draws using a one-sided
   permutation p-value.
 - **Controls:** summed uncertainty- and validity-policy hits remain reported.
   Confirmatory ORR catalyst guidance must exceed both controls.
 - **Error rate:** one confirmatory endpoint, one-sided `alpha = 0.05`.
-- **Stopping:** no efficacy stop or policy edit is allowed before all 30
+- **Stopping:** no efficacy stop or policy edit is allowed before all 35
   batches resolve. Safety, corruption, or protocol failures stop the campaign
   without counting as evidence.
 
-Pyrolysis uses the same frozen policy and is always reported, but it cannot
-pass or fail the confirmatory campaign. With 30 batches, the CPU chronological
-replay estimated 98.4% pass probability for ORR and 4.2% for pyrolysis. The
-conservative ORR estimate with oversized batch 04 removed was 83.3%; at only
-10 batches it was 57.9%. These estimates use 2,000 bootstraps and remain
-indicative because historical pools were smaller than the planned pools.
+Pyrolysis is excluded from confirmatory batches and may be evaluated only in
+separately labelled exploratory or smoke work. The batch count is fixed from a
+CPU chronological replay that includes the completed geometry smoke and must
+provide at least 80% estimated ORR pass probability when oversized historical
+batch 04 is removed. At 35 batches, the full-data estimate is 98.9% and the
+leave-batch-04-out estimate is 83.5%. These estimates use 2,000 bootstraps and
+remain indicative because historical pools were smaller than the planned pools.
+
+The policy is sequentially adaptive: every finalized batch available before a
+new manifest is prepared contributes eligible outcomes to that manifest's
+training data. This includes historical, smoke, exploratory, and earlier
+confirmatory batches. A manifest is immutable after preparation, so outcomes
+from its own batch and later batches cannot influence its selections.
 
 The test evaluates computational enrichment under the current eSen screening
 protocol. It does not establish DFT accuracy or experimental catalyst

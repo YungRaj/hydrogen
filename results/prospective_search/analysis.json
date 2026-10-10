@@ -9,53 +9,60 @@
     "20260930-catalyst-06-branch-feedback",
     "20260930-catalyst-07-branch-feedback",
     "20260930-catalyst-08-bounded-exploration",
-    "20260930-catalyst-09-branch-feedback"
+    "20260930-catalyst-09-branch-feedback",
+    "smoke-relax-v4-20261009"
   ],
   "batches_passed": 0,
   "latest": {
-    "schema_version": 1,
-    "batch_id": "20260930-catalyst-09-branch-feedback",
-    "manifest_sha256": "03a5e1d60f6dc104f108a4c45e3dd98170324bab583f72f9b968aec33fd03b5f",
+    "schema_version": 2,
+    "batch_id": "smoke-relax-v4-20261009",
+    "manifest_sha256": "b98af09d1f12bc9cc2dfaf09d0a68c7dabbb84dc89cf4a2cc1ab7af2245430cb",
     "outcome_sha256": {
-      "turquoise_hydrogen": "e6459952f099b6ae3bb15d8ab5863a76972861c1de4fb4935cd531c75f09d193",
-      "fuel_cell_orr": "b2508ab16525fd1a207458bce88d52ec2295b5c483ffd05e69e8df292029ecf1"
+      "turquoise_hydrogen": "19675319103050ddbbf964ebc6eecc780a0dba00af203a2ed9f005564bee8ed8",
+      "fuel_cell_orr": "9a1e052fd12bdf1f0af547db7a44382fa68f4f8c50e94b629006a7bfb7aa759f"
     },
     "results": [
       {
         "application": "turquoise_hydrogen",
-        "eligible": 56,
-        "valid": 41,
+        "eligible": 36,
+        "valid": 28,
         "budget": 20,
-        "hit_cutoff": 0.01,
+        "hit_definition": "deterministic_top_0.2_eligible",
+        "hit_count": 6,
+        "hit_cutoff": 0.941243921518315,
         "policy_hits": {
-          "catalyst": 6,
-          "uncertainty": 2,
+          "catalyst": 3,
+          "uncertainty": 3,
           "validity": 3
         },
-        "policy_matched_random_mean_hits": 3.57026,
-        "policy_matched_random_95pct": [
-          1.0,
-          6.0
+        "policy_matched_random_mean_hits": 3.331,
+        "policy_matched_random_quantiles": [
+          2.0,
+          5.0
         ],
+        "random_one_sided_alpha": 0.05,
         "acceptance_passed": false
       },
       {
         "application": "fuel_cell_orr",
         "eligible": 48,
-        "valid": 36,
-        "budget": 18,
-        "hit_cutoff": 2.1086388481557368,
+        "valid": 46,
+        "budget": 20,
+        "hit_definition": "deterministic_top_0.2_eligible",
+        "hit_count": 10,
+        "hit_cutoff": 1.6112676514089108,
         "policy_hits": {
-          "catalyst": 6,
-          "uncertainty": 5,
-          "validity": 4
+          "catalyst": 5,
+          "uncertainty": 6,
+          "validity": 5
         },
-        "policy_matched_random_mean_hits": 3.00788,
-        "policy_matched_random_95pct": [
-          1.0,
-          5.0
+        "policy_matched_random_mean_hits": 4.16632,
+        "policy_matched_random_quantiles": [
+          2.0,
+          6.0
         ],
-        "acceptance_passed": true
+        "random_one_sided_alpha": 0.05,
+        "acceptance_passed": false
       }
     ],
     "acceptance_passed": false

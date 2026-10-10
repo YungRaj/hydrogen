@@ -179,7 +179,7 @@ class ProspectiveContracts(unittest.TestCase):
             finally:
                 campaign.ROOT, campaign.POLICY_LOCK = original_root, original_lock
 
-    def test_confirmatory_verdict_waits_for_exactly_ten_batches(self) -> None:
+    def test_confirmatory_verdict_waits_for_exactly_ten_orr_batches(self) -> None:
         original_root, original_lock = campaign.ROOT, campaign.POLICY_LOCK
         original_outcome = campaign._outcome
         with tempfile.TemporaryDirectory() as directory:
@@ -206,12 +206,10 @@ class ProspectiveContracts(unittest.TestCase):
                         'batch_id': batch,
                         'evidence_role': 'confirmatory',
                         'policy_source_sha256': digest,
-                        'records': [
-                            {'application': app} for app, _, _ in campaign.APPS
-                        ],
+                        'records': [{'application': 'fuel_cell_orr'}],
                     }))
                     outcome_hashes = {}
-                    for app, _, _ in campaign.APPS:
+                    for app in ('fuel_cell_orr',):
                         outcome = campaign._outcome(batch, app)
                         outcome.write_text('value\n1\n')
                         outcome_hashes[app] = campaign._hash(outcome)
@@ -242,11 +240,10 @@ class ProspectiveContracts(unittest.TestCase):
                 self.assertEqual(report['status'], 'complete')
                 self.assertEqual(len(report['batch_ids']), 10)
                 self.assertTrue(report['acceptance_passed'])
-                pyrolysis = next(
-                    row for row in report['pooled']
-                    if row['application'] == 'turquoise_hydrogen'
+                self.assertEqual(
+                    [row['application'] for row in report['pooled']],
+                    ['fuel_cell_orr'],
                 )
-                self.assertIsNone(pyrolysis['acceptance_passed'])
             finally:
                 campaign.ROOT, campaign.POLICY_LOCK = original_root, original_lock
                 campaign._outcome = original_outcome

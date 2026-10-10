@@ -360,7 +360,7 @@ def _pool(per_class: int) -> list[tuple]:
 
 def prepare(
     batch: str,
-    per_class: int = 20,
+    per_class: int = 10,
     budget: int = 20,
     evidence_role: str = 'confirmatory',
 ) -> Path:
@@ -376,16 +376,29 @@ def prepare(
         Locked manifest path.
     """
     policy_source_sha256 = _require_locked_policy()
+    lock = json.loads(POLICY_LOCK.read_text())
     if evidence_role not in ('confirmatory', 'smoke'):
         raise ValueError(f'unknown evidence role {evidence_role}')
     if evidence_role == 'confirmatory' and not batch.startswith('prereg-'):
         raise ValueError('confirmatory batch IDs must start with prereg-')
+    if evidence_role == 'confirmatory':
+        expected_per_class = int(lock['candidates_per_class'])
+        expected_budget = int(lock['selection_budget'])
+        if (per_class, budget) != (expected_per_class, expected_budget):
+            raise ValueError(
+                'confirmatory design mismatch: expected '
+                f'per_class={expected_per_class}, budget={expected_budget}'
+            )
     root, manifest = _root(batch), _root(batch) / 'manifest.json'
     if manifest.exists(): raise FileExistsError(manifest)
     if any(_outcome(batch, app).exists() for app, _, _ in APPS): raise RuntimeError('outcomes predate lock')
     pool, records = _pool(per_class), []
     ids = [candidate_id(g) for g in pool]
-    for app, _, _ in APPS:
+    applications = (
+        APPS if evidence_role == 'smoke' else
+        tuple(item for item in APPS if item[0] in lock['confirmatory_applications'])
+    )
+    for app, _, _ in applications:
         train, all_train = _training(app), _training(app, False)
         random_seed = int.from_bytes(
             hashlib.sha256(f'{batch}:{app}'.encode()).digest()[:8], 'big'
@@ -406,9 +419,10 @@ def prepare(
       'created_utc':datetime.now(timezone.utc).isoformat(),
       'git_commit':subprocess.run(['git','rev-parse','HEAD'],check=True,capture_output=True,text=True).stdout.strip(),
       'policy_source_sha256':policy_source_sha256,
+      'design': {'candidates_per_class': per_class, 'selection_budget': budget},
       'acceptance':{
-          'confirmatory_applications':['fuel_cell_orr'],
-          'exploratory_applications':['turquoise_hydrogen'],
+          'confirmatory_applications':list(lock['confirmatory_applications']),
+          'exploratory_applications':list(lock.get('exploratory_applications', [])),
           'catalyst_must_beat':['uncertainty','validity'],
           'random_one_sided_alpha':0.05,
       },'records':records}
@@ -613,7 +627,10 @@ def analyze(batch: str) -> Path:
         'batch_id': batch,
         'manifest_sha256': _hash(manifest),
         'outcome_sha256': {
-            app: _hash(_outcome(batch, app)) for app, _, _ in APPS
+            str(record['application']): _hash(
+                _outcome(batch, str(record['application']))
+            )
+            for record in data['records']
         },
         'results': results,
         'acceptance_passed': all(
@@ -791,7 +808,7 @@ def replay_and_power() -> Path:
             'leave_batch_04_out_pass_probability': leave_batch_04_out_power,
             'leave_batch_04_out_power_curve': {
                 str(batch_count): estimate(without_powered, batch_count)
-                for batch_count in (10, 15, 20, 25, 30)
+                for batch_count in (10, 15, 20, 25, 30, 35, 40)
             },
             'confirmatory_recommendation': leave_batch_04_out_power >= .80,
         })
@@ -863,14 +880,21 @@ def confirmatory_analysis() -> Path:
     output = ROOT / 'confirmatory_analysis.json'
     if output.exists():
         raise FileExistsError(f'confirmatory analysis is immutable: {output}')
+    result_apps = tuple(
+        str(record['application']) for record in included[0][1]['records']
+    )
+    if set(result_apps) != set(confirmatory_apps):
+        raise RuntimeError('confirmatory manifests do not match locked applications')
     results_by_app: dict[str, list[tuple[dict, np.ndarray]]] = {
-        app: [] for app, _, _ in APPS
+        app: [] for app in result_apps
     }
     for batch, manifest, analysis in included:
         records = {
             str(record['application']): record for record in manifest['records']
         }
-        for app, _, _ in APPS:
+        if set(records) != set(result_apps):
+            raise RuntimeError('confirmatory application set changed between batches')
+        for app in result_apps:
             outcome = _outcome(batch, app)
             if _hash(outcome) != analysis['outcome_sha256'][app]:
                 raise RuntimeError(f'confirmatory outcome checksum mismatch: {outcome}')
@@ -879,7 +903,7 @@ def confirmatory_analysis() -> Path:
             )
             results_by_app[app].append((result, random_hits))
     pooled = []
-    for app, _, _ in APPS:
+    for app in result_apps:
         scored = results_by_app[app]
         random_sum = np.sum(
             np.vstack([random_hits for _, random_hits in scored]), axis=0
@@ -947,7 +971,7 @@ def archive_history() -> Path:
 
 def main() -> None:
     """Dispatch the prospective campaign command-line interface."""
-    parser=argparse.ArgumentParser(); parser.add_argument('action',choices=('prepare','evaluate-pyrolysis','evaluate-orr','analyze','rescore','replay-power','confirmatory-analysis','archive-history')); parser.add_argument('--batch'); parser.add_argument('--per-class',type=int,default=20); parser.add_argument('--budget',type=int,default=20); parser.add_argument('--evidence-role',choices=('confirmatory','smoke'),default='confirmatory'); args=parser.parse_args()
+    parser=argparse.ArgumentParser(); parser.add_argument('action',choices=('prepare','evaluate-pyrolysis','evaluate-orr','analyze','rescore','replay-power','confirmatory-analysis','archive-history')); parser.add_argument('--batch'); parser.add_argument('--per-class',type=int,default=10); parser.add_argument('--budget',type=int,default=20); parser.add_argument('--evidence-role',choices=('confirmatory','smoke'),default='confirmatory'); args=parser.parse_args()
     if args.action=='archive-history': print(archive_history()); return
     if args.action=='rescore': print(rescore_campaign()); return
     if args.action=='replay-power': print(replay_and_power()); return
