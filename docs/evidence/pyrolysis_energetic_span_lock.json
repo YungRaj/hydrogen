@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "locked_at": "2026-10-10",
+  "resamples": 10000,
+  "bootstrap_seed": 20261010,
+  "acceptance": {
+    "energetic_span_auc_min": 0.7,
+    "energetic_span_ci95_low_strictly_above": 0.5,
+    "auc_improvement_min": 0.1
+  },
+  "sha256": {
+    "docs/evidence/pyrolysis_benchmark_dataset.json": "e88c3e3fbd71f6700e559cd787fd334cd39d3086ac7ef90afd472928c7837daf",
+    "docs/evidence/pyrolysis_descriptor_parameters.json": "01f8860a62724029803c29d71af3460121c2c26e089a62dc68b2de25c13d2726",
+    "pipeline/evidence/pyrolysis_benchmark.py": "7968e0b7e2deb9f66914ec5cbacd32d275fcdbd5dcd21c6c15c6ea03ae4af461",
+    "pipeline/screening/surface_screener.py": "7d4b9608070b7b898808ec7f81b3d02b9e6b5b374b19931935cae5107b839f3f",
+    "pipeline/screening/protocols.py": "1e40e051c5ac6466ebbe1432fdbc07d69a6491adeaff4e0318faefd41dfcbb3e",
+    "pipeline/utils.py": "3917deea77c908b979ea036743de708be73bdcdca715d919145ce69cf4e4580a",
+    "pipeline/search/design_space.py": "8e7b587c89b37aec552cbe5ae7221a923760444e5640b2190dd425296ecd95b9"
+  }
+}

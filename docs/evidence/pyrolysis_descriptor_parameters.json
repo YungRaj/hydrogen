@@ -1,18 +1,23 @@
 {
   "schema_version": 1,
-  "descriptor_id": "minimal-cycle-energetic-span-v1",
+  "descriptor_id": "molten-rate-free-energy-span",
   "direction": "lower_is_better",
-  "formula": "max(E_act_raw, -2*dE_H, -dE_C, 0)",
+  "formula": "-kB*T*ln(mean_i(exp(-max(max(E_act_raw_i,0), -2*dE_H_i + mu_H2(T,1bar), -dE_C_i, 0)/(kB*T))))",
   "fitted_parameters": {},
   "terms": {
-    "E_act_raw": "uncensored BEP methane activation barrier already produced by the screening protocol",
-    "-2*dE_H": "thermodynamic cost to release two adsorbed H atoms as H2",
+    "E_act_raw": "per-replica uncensored BEP methane activation barrier, floored at zero because a physical forward barrier cannot be negative",
+    "-2*dE_H + mu_H2": "free-energy cost to release two adsorbed H atoms as ideal-gas H2 at the condition temperature and 1 bar",
     "-dE_C": "thermodynamic cost to release adsorbed C into the solid-carbon reference state"
   },
   "energy_unit": "eV",
-  "evidence_boundary": "A parameter-free thermodynamic screen over idealized GNN surfaces; it does not represent liquid hydrodynamics, off-site carbon nucleation, or a transition-state calculation.",
+  "standard_state": "H2 ideal gas at 1 bar; NIST Shomate H2 coefficients over 298-2500 K and H(298.15)-H(0)=8.468 kJ/mol",
+  "scope_gate": "Pure p-block molten hosts are unscorable until an independently validated host-specific activation model exists.",
+  "evidence_boundary": "A parameter-free rate average over five idealized GNN alloy configurations; it does not represent liquid hydrodynamics, equilibrium liquid disorder, off-site carbon nucleation, or a transition-state calculation.",
   "references": [
     "https://doi.org/10.1126/science.aao5023",
+    "https://webbook.nist.gov/cgi/cbook.cgi?ID=C1333740&Mask=1",
+    "https://doi.org/10.1021/acscatal.9b01833",
+    "https://doi.org/10.1021/acsaem.3c03235",
     "https://doi.org/10.1021/acscatal.3c02955",
     "docs/backlog/B6-off-site-carbon-nucleation.md"
   ]

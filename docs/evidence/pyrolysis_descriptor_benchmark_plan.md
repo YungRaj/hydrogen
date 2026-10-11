@@ -113,3 +113,19 @@ needed binary benchmark label.
 
 No pyrolysis campaign should be prepared unless this benchmark passes and a
 separate replay estimates at least 80% power under the proposed campaign design.
+
+## Rate/free-energy follow-up (2026-10-11)
+
+The parameter-free follow-up replaced arithmetic barrier averaging with a
+stable Arrhenius rate average and added the NIST H2 ideal-gas chemical potential
+at 1 bar. Pure-host molten BEP predictions are excluded because the shared
+class-level BEP line has no independent validation for p-block hosts.
+
+This target failed before held-out experimental scoring. For molten Cu45Bi55,
+Palmer et al. report two NEB barriers of 2.53 and 2.60 eV. The five locked eSen
+BEP replicas predict only 1.29–1.63 eV. The 24 previously seen conditions leave
+only one scoreable poor alloy after the pure-host scope gate and give a
+descriptive AUC of 0.333, which has no confirmatory authority. The new held-out
+set remains unconsumed because tuning or selecting it after this failure would
+weaken the next test. The machine-readable result is
+`docs/evidence/pyrolysis_rate_descriptor_result.json`.

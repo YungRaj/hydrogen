@@ -2,6 +2,7 @@
   "schema_version": 1,
   "status": "failed_acceptance_criteria",
   "acceptance_passed": false,
+  "analysis_lock_path": "docs/evidence/pyrolysis_energetic_span_lock.json",
   "analysis_lock_sha256": "8347ce333f95a975b2f823bb3521d636752756fb5288ed2619b0382eb9b608fd",
   "dataset_sha256": "21b5ff63a600262c3d704f7ae655349b1622e02eb195eeb425fdd06fdd7c5af4",
   "screening_csv_sha256": "c0f7867b5a81f7aba64791b8eae7a5fae540a1034e0f15945111fff055705317",

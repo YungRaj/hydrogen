@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "status": "failed_independent_dft_barrier_gate",
+  "acceptance_passed": false,
+  "analysis_lock_sha256": "e83112d275b1668ab05db7653c97f51888b2f156ac123799c7ab5d327124470a",
+  "screening_csv_sha256": "f266032463f8ff18e85dbede92aea02fb5ea32397ff82efe9874b7482598f85c",
+  "physics": {
+    "rate_average": "-kB*T*ln(mean(exp(-span_i/(kB*T))))",
+    "hydrogen_standard_state": "NIST H2 ideal gas at 1 bar",
+    "pure_host_bep_scope": "excluded"
+  },
+  "independent_dft_gate": {
+    "source": "https://doi.org/10.1021/acscatal.9b01833",
+    "genome": "('MoltenMetal', 'Bi', 'Cu', 45.0, 1273.15)",
+    "published_neb_barriers_eV": [2.53, 2.60],
+    "predicted_replica_barriers_eV": [
+      1.6259105920791626,
+      1.293334412574734,
+      1.4834928750991478,
+      1.395408272743191,
+      1.3462415933609009
+    ],
+    "rate_free_energy_span_eV": 1.3815874842358726,
+    "passed": false,
+    "reason": "Every predicted activation barrier underestimates the published transition-state range by at least 0.90 eV."
+  },
+  "exploratory_seen_conditions": {
+    "scoreable": 10,
+    "total": 24,
+    "active": 9,
+    "poor_or_poisoning": 1,
+    "descriptive_auc": 0.3333333333333333,
+    "confirmatory_authority": false
+  },
+  "held_out_conditions_scored": 0,
+  "held_out_decision": "Not consumed because the independent DFT gate failed before held-out scoring.",
+  "conclusion": "Rate averaging and H2 thermochemistry are physically better posed, but the inherited molten-metal BEP model is not quantitatively calibrated to an independent liquid-alloy transition-state barrier. No campaign or held-out experiment is authorized."
+}

@@ -1321,6 +1321,15 @@ def evaluate_candidate(
         }
         for field in ('E_act_raw', 'dE_H', 'dE_CH3', 'dE_C')
     }, sort_keys=True)
+    result['molten_replicas_json'] = json.dumps([
+        {
+            'structure_seed': int(row['structure_seed']),
+            'E_act_raw': float(row['E_act_raw']),
+            'dE_H': float(row['dE_H']),
+            'dE_C': float(row['dE_C']),
+        }
+        for row in valid_replicas
+    ], sort_keys=True)
     result['needs_dft_validation'] = True
     return result
 

@@ -25,6 +25,11 @@
   campaign is authorized. The result and model boundary are
   in `docs/evidence/pyrolysis_descriptor_benchmark_result.json` and
   `docs/evidence/pyrolysis_descriptor_benchmark_plan.md`.
+- **Pyrolysis rate/free-energy follow-up:** rate averaging and the NIST 1-bar
+  H2 chemical-potential correction are implemented and locked, but the inherited
+  molten BEP model predicts only 1.29–1.63 eV for Cu45Bi55 versus published NEB
+  barriers of 2.53–2.60 eV. The independent DFT gate therefore failed before
+  any new held-out experimental conditions were scored. No campaign is open.
 - **Pyrolysis selection:** reactor handoffs and headline barriers use only
   finite, valid, uncensored, phase-viable screening rows. Unresolved or
   censored rows remain eligible for higher-fidelity rescue, never reactor

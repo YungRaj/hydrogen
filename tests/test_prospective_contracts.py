@@ -1,6 +1,7 @@
 """Dependency-light contracts for prospective scoring and training gates."""
 
 from pathlib import Path
+import hashlib
 import json
 import sys
 import tempfile
@@ -18,7 +19,10 @@ from pipeline.evidence.orr_quality_diagnostic import verify_diagnostic
 from pipeline.evidence.pyrolysis_benchmark import (
     analyze_screening_results,
     dataset_digest,
+    effective_barrier_eV,
     energetic_span_eV,
+    h2_chemical_potential_eV,
+    rate_free_energy_span_eV,
     roc_auc,
     validate_benchmark,
     verify_analysis_lock,
@@ -105,6 +109,33 @@ class ProspectiveContracts(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'energetic-span input'):
             energetic_span_eV({'E_act': 0.8, 'dE_H': -0.2, 'dE_C': -0.3})
 
+    def test_rate_average_gives_fast_sites_their_arrhenius_weight(self) -> None:
+        effective = effective_barrier_eV([0.4, 1.5, 1.5, 1.5, 1.5], 1273.15)
+        self.assertLess(effective, 0.6)
+        self.assertGreater(effective, 0.4)
+        self.assertAlmostEqual(effective_barrier_eV([0.8] * 5, 1000.0), 0.8)
+
+    def test_h2_chemical_potential_uses_locked_one_bar_standard_state(self) -> None:
+        self.assertAlmostEqual(h2_chemical_potential_eV(1000.0), -1.42061, places=5)
+        self.assertAlmostEqual(h2_chemical_potential_eV(1300.0), -1.95043, places=5)
+        with self.assertRaisesRegex(ValueError, '298 <= T <= 2500'):
+            h2_chemical_potential_eV(200.0)
+
+    def test_rate_free_energy_span_rejects_unvalidated_pure_hosts(self) -> None:
+        replicas = json.dumps([
+            {'E_act_raw': 0.4, 'dE_H': -0.5, 'dE_C': 1.0},
+            {'E_act_raw': 1.5, 'dE_H': -0.5, 'dE_C': 1.0},
+        ])
+        alloy = {
+            'genome': "('MoltenMetal', 'Bi', 'Ni', 27.0, 1273.15)",
+            'temperature_K': 1273.15,
+            'molten_replicas_json': replicas,
+        }
+        self.assertLess(rate_free_energy_span_eV(alloy), 0.6)
+        pure = {**alloy, 'genome': "('MoltenMetal', 'Bi', 'None', 0.0, 1273.15)"}
+        with self.assertRaisesRegex(ValueError, 'outside validated scope'):
+            rate_free_energy_span_eV(pure)
+
     def test_roc_auc_handles_ties(self) -> None:
         self.assertEqual(roc_auc([True, False], [1.0, 0.0]), 1.0)
         self.assertEqual(roc_auc([True, False], [0.0, 1.0]), 0.0)
@@ -120,6 +151,18 @@ class ProspectiveContracts(unittest.TestCase):
     def test_pyrolysis_analysis_lock_matches_sources(self) -> None:
         lock = REPO_ROOT / 'docs/evidence/pyrolysis_descriptor_benchmark_lock.json'
         self.assertEqual(verify_analysis_lock(lock, REPO_ROOT), [])
+
+    def test_rate_descriptor_result_preserves_lock_and_screening_input(self) -> None:
+        result = json.loads((
+            REPO_ROOT / 'docs/evidence/pyrolysis_rate_descriptor_result.json'
+        ).read_text())
+        paths = {
+            'analysis_lock_sha256': 'docs/evidence/pyrolysis_descriptor_benchmark_lock.json',
+            'screening_csv_sha256': 'results/screening/pyrolysis_rate_descriptor.csv',
+        }
+        for key, relative in paths.items():
+            actual = hashlib.sha256((REPO_ROOT / relative).read_bytes()).hexdigest()
+            self.assertEqual(result[key], actual)
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             altered = json.loads(lock.read_text())

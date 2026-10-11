@@ -24,6 +24,109 @@ REQUIRED_TEXT_FIELDS = (
     'source_url',
 )
 TRUE_VALUES = (True, 'True', 'true', 1, '1')
+EV_PER_KJ_MOL = 1.0 / 96.4853321233
+K_B_EV_K = 8.617333262145e-5
+H2_H_298_MINUS_H_0_KJ_MOL = 8.468
+H2_SHOMATE = (
+    (298.0, 1000.0, (33.066178, -11.363417, 11.432816, -2.772874, -0.158558, -9.980797, 172.707974)),
+    (1000.0, 2500.0, (18.563083, 12.257357, -2.859786, 0.268238, 1.977990, -1.147438, 156.288133)),
+)
+
+
+def effective_barrier_eV(barriers: list[float], temperature_K: float) -> float:
+    """Return the barrier whose Arrhenius factor equals the mean site rate.
+
+    Args:
+        barriers: Non-negative replica barriers in eV.
+        temperature_K: Absolute condition temperature.
+
+    Returns:
+        Numerically stable rate-averaged effective barrier in eV.
+    """
+    if not barriers or temperature_K <= 0.0:
+        raise ValueError('rate averaging requires barriers and positive temperature')
+    values = [float(value) for value in barriers]
+    if not all(math.isfinite(value) and value >= 0.0 for value in values):
+        raise ValueError('rate averaging requires finite non-negative barriers')
+    minimum = min(values)
+    mean_relative_rate = sum(
+        math.exp(-(value - minimum) / (K_B_EV_K * temperature_K))
+        for value in values
+    ) / len(values)
+    return minimum - K_B_EV_K * temperature_K * math.log(mean_relative_rate)
+
+
+def h2_chemical_potential_eV(
+    temperature_K: float, pressure_bar: float = 1.0
+) -> float:
+    """Return H2 ideal-gas chemical potential relative to 0 K at 1 bar.
+
+    Args:
+        temperature_K: Absolute gas temperature within 298--2500 K.
+        pressure_bar: Ideal-gas H2 partial pressure in bar.
+
+    Returns:
+        Thermal enthalpy, entropy, and pressure correction in eV per H2.
+    """
+    if pressure_bar <= 0.0:
+        raise ValueError('H2 pressure must be positive')
+    selected = next(
+        (coefficients for low, high, coefficients in H2_SHOMATE
+         if low <= temperature_K <= high),
+        None,
+    )
+    if selected is None:
+        raise ValueError('H2 Shomate correction requires 298 <= T <= 2500 K')
+    a, b, c, d, e, f, g = selected
+    t = temperature_K / 1000.0
+    enthalpy_kj_mol = (
+        a * t + b * t**2 / 2.0 + c * t**3 / 3.0 + d * t**4 / 4.0
+        - e / t + f + H2_H_298_MINUS_H_0_KJ_MOL
+    )
+    entropy_j_mol_k = (
+        a * math.log(t) + b * t + c * t**2 / 2.0 + d * t**3 / 3.0
+        - e / (2.0 * t**2) + g
+    )
+    standard_eV = (
+        enthalpy_kj_mol - temperature_K * entropy_j_mol_k / 1000.0
+    ) * EV_PER_KJ_MOL
+    return standard_eV + K_B_EV_K * temperature_K * math.log(pressure_bar)
+
+
+def rate_free_energy_span_eV(row: dict[str, Any]) -> float:
+    """Return the rate-averaged, H2-free-energy-corrected molten score.
+
+    Args:
+        row: Completed ensemble screening row for a promoted molten alloy.
+
+    Returns:
+        Effective turnover-limiting free-energy span in eV.
+
+    Raises:
+        ValueError: If ensemble data are absent or the BEP scope is unsupported.
+    """
+    try:
+        genome = ast.literal_eval(str(row['genome']))
+        temperature_K = float(row['temperature_K'])
+        replicas = json.loads(str(row['molten_replicas_json']))
+    except (KeyError, TypeError, ValueError, SyntaxError, json.JSONDecodeError) as exc:
+        raise ValueError('missing molten rate/free-energy input') from exc
+    if genome[0] != 'MoltenMetal' or genome[2] == 'None':
+        raise ValueError('pure-host molten BEP barrier is outside validated scope')
+    h2_mu = h2_chemical_potential_eV(temperature_K)
+    spans: list[float] = []
+    for replica in replicas:
+        try:
+            activation = max(0.0, float(replica['E_act_raw']))
+            hydrogen_release = -2.0 * float(replica['dE_H']) + h2_mu
+            carbon_release = -float(replica['dE_C'])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError('missing molten rate/free-energy input') from exc
+        span = max(activation, hydrogen_release, carbon_release, 0.0)
+        if not math.isfinite(span):
+            raise ValueError('missing molten rate/free-energy input')
+        spans.append(span)
+    return effective_barrier_eV(spans, temperature_K)
 
 
 def energetic_span_eV(row: dict[str, Any]) -> float:

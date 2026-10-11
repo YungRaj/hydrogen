@@ -19,6 +19,12 @@
 
 ### Changed
 
+- Added parameter-free Arrhenius rate averaging across molten configurations,
+  the NIST Shomate H2 chemical-potential correction at 1 bar, retained
+  per-replica descriptors, and a fail-closed pure-host BEP scope gate. The
+  locked target failed independent validation against published Cu45Bi55 NEB
+  barriers, so the unseen experimental holdout remains unconsumed.
+
 - Corrected molten-alloy composition scaling so encoded atomic percent maps to
   the modeled 9-site surface instead of saturating it from a 36-atom count.
   Molten topology is now independent of temperature, quantitative results

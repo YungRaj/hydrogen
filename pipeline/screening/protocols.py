@@ -34,7 +34,7 @@ class ScreeningProtocol:
 
 
 PYROLYSIS_PROTOCOL = ScreeningProtocol(
-    protocol_id='esen-sm-conserving-all-oc25:relax-v4:pyrolysis-v5',
+    protocol_id='esen-sm-conserving-all-oc25:relax-v4:pyrolysis-v6',
     reference=RelaxationBudget(0.05, 200),
     clean=RelaxationBudget(0.08, 150),
     adsorbate=RelaxationBudget(0.08, 100),
