@@ -17,6 +17,12 @@
   without adding a parallel protocol; concentrated Ni33Sn67 remains invalid,
   leaving the 12-source poor-label gate one source short.
 
+### Changed
+
+- Simplified the external pyrolysis benchmark by removing its unused duplicate
+  source catalog and consolidating repeated label, field, truth-value, and AUC
+  handling. The validated records remain the single provenance source.
+
 - A checksum-bound descriptive ORR quality diagnostic over all 4,200
   confirmatory rows, plus a preregistration plan that prevents the proposed
   pyrolysis descriptor from being scored before its externally labelled,

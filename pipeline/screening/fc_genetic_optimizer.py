@@ -11,7 +11,6 @@ from pipeline.search.adaptive_validation import AdvancementCriterion
 from pipeline.search.design_space import (
     extract_elements as _extract_elements_from_genome,
 )
-from pipeline.search.discovery import fast_non_dominated_sort
 from pipeline.screening.branch_discovery import (
     BranchDiscoveryConfig as _BranchDiscoveryConfig,
     BranchDiscoveryWorkflow,

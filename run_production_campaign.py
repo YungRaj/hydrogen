@@ -52,7 +52,7 @@ def main():
     """Run the module command-line entry point.
     """
     parser = argparse.ArgumentParser(
-        description='GPU-Saturated Turquoise H₂ Catalyst Discovery v2'
+        description='GPU-Saturated Turquoise H₂ Catalyst Discovery'
     )
     parser.add_argument('--calibration-probes', type=int, default=500,
                         help='Deterministic binary-tree probes used to calibrate the surrogate')
@@ -609,15 +609,9 @@ def main():
                 pemfc_results.extend(mem)
 
             if pemfc_results:
-                # Optimize for highest efficiency and least overvoltage first and foremost,
-                # while maximizing peak power output as much as possible.
-                def fc_composite_score(r):
-                    eff = r.get('efficiency_at_peak', 0.0)
-                    power = r.get('peak_power_W_cm2', 0.0)
-                    eta = max(r.get('orr_overpotential_V', 0.4), 0.01)
-                    return (eff * power) / eta
+                from pipeline.fuel_cell import composite_score
 
-                best = max(pemfc_results, key=fc_composite_score)
+                best = max(pemfc_results, key=composite_score)
                 stack = model_stack(StackConfig(n_cells=400,
                     cell_voltage_V=best.get('peak_voltage_V', 0.65),
                     current_density_A_cm2=best.get('peak_current_A_cm2', 1.5)))

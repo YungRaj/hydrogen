@@ -13,6 +13,17 @@ from typing import Any
 from pipeline.search.discovery import candidate_id
 
 MIN_PER_LABEL = 12
+LABELS = ('active', 'poor_or_poisoning')
+REQUIRED_TEXT_FIELDS = (
+    'condition_id',
+    'catalyst_identity',
+    'reactor_context',
+    'source_id',
+    'source_family',
+    'label_basis',
+    'source_url',
+)
+TRUE_VALUES = (True, 'True', 'true', 1, '1')
 
 
 def energetic_span_eV(row: dict[str, Any]) -> float:
@@ -31,16 +42,14 @@ def energetic_span_eV(row: dict[str, Any]) -> float:
     Raises:
         ValueError: If a required value is missing, non-finite, or censored.
     """
-    values: dict[str, float] = {}
-    for name in ('E_act_raw', 'dE_H', 'dE_C'):
-        try:
-            value = float(row[name])
-        except (KeyError, TypeError, ValueError) as exc:
-            raise ValueError(f'missing finite {name}') from exc
-        if not math.isfinite(value):
-            raise ValueError(f'missing finite {name}')
-        values[name] = value
-    return max(values['E_act_raw'], -2.0 * values['dE_H'], -values['dE_C'], 0.0)
+    names = ('E_act_raw', 'dE_H', 'dE_C')
+    try:
+        e_act, d_e_h, d_e_c = (float(row[name]) for name in names)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError('missing finite energetic-span input') from exc
+    if not all(math.isfinite(value) for value in (e_act, d_e_h, d_e_c)):
+        raise ValueError('missing finite energetic-span input')
+    return max(e_act, -2.0 * d_e_h, -d_e_c, 0.0)
 
 
 def roc_auc(labels: list[bool], scores: list[float]) -> float:
@@ -53,22 +62,18 @@ def roc_auc(labels: list[bool], scores: list[float]) -> float:
     Returns:
         Area under the receiver-operating-characteristic curve.
     """
-    positives = sum(labels)
-    negatives = len(labels) - positives
-    if positives == 0 or negatives == 0 or len(labels) != len(scores):
+    if len(labels) != len(scores):
         raise ValueError('ROC AUC requires aligned positive and negative examples')
-    wins = 0.0
-    for index, positive in enumerate(labels):
-        if not positive:
-            continue
-        for other, negative in enumerate(labels):
-            if negative:
-                continue
-            if scores[index] > scores[other]:
-                wins += 1.0
-            elif scores[index] == scores[other]:
-                wins += 0.5
-    return wins / (positives * negatives)
+    positives = [score for label, score in zip(labels, scores) if label]
+    negatives = [score for label, score in zip(labels, scores) if not label]
+    if not positives or not negatives:
+        raise ValueError('ROC AUC requires aligned positive and negative examples')
+    wins = sum(
+        float(positive > negative) + 0.5 * float(positive == negative)
+        for positive in positives
+        for negative in negatives
+    )
+    return wins / (len(positives) * len(negatives))
 
 
 def grouped_bootstrap_auc(
@@ -151,7 +156,7 @@ def validate_benchmark(document: dict[str, Any], require_locked: bool = True) ->
     if not isinstance(records, list):
         return errors + ['records must be a list']
     condition_ids: set[str] = set()
-    sources: dict[str, set[str]] = {'active': set(), 'poor_or_poisoning': set()}
+    sources: dict[str, set[str]] = {label: set() for label in LABELS}
     for index, row in enumerate(records):
         prefix = f'record {index}'
         if not isinstance(row, dict):
@@ -162,15 +167,7 @@ def validate_benchmark(document: dict[str, Any], require_locked: bool = True) ->
             errors.append(f'{prefix} has invalid label')
         if row.get('exact_encoding') is not True:
             errors.append(f'{prefix} is not an exact encoding')
-        for field in (
-            'condition_id',
-            'catalyst_identity',
-            'reactor_context',
-            'source_id',
-            'source_family',
-            'label_basis',
-            'source_url',
-        ):
+        for field in REQUIRED_TEXT_FIELDS:
             if not isinstance(row.get(field), str) or not row[field].strip():
                 errors.append(f'{prefix} missing {field}')
         condition_id = row.get('condition_id')
@@ -285,10 +282,10 @@ def analyze_screening_results(
         if result is None:
             failures.append(f"{condition['condition_id']}: missing screening result")
             continue
-        if result.get('valid') not in (True, 'True', 'true', 1, '1'):
+        if result.get('valid') not in TRUE_VALUES:
             failures.append(f"{condition['condition_id']}: invalid screening result")
             continue
-        if result.get('pyrolysis_viable') not in (True, 'True', 'true', 1, '1'):
+        if result.get('pyrolysis_viable') not in TRUE_VALUES:
             failures.append(f"{condition['condition_id']}: non-viable screening result")
             continue
         try:

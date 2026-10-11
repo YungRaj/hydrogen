@@ -18,6 +18,7 @@ from typing import Dict
 from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from pipeline.fuel_cell import composite_score
 from pipeline.utils import (
     SCREENING_DIR,
     REACTOR_DIR,
@@ -385,13 +386,6 @@ def generate_full_report(pipeline_state: Dict = None) -> Path:
     stack_results = [r_ for r_ in data['fuel_cell'] if 'n_cells' in r_]
 
     if pemfc_results:
-        # Sort by the new composite efficiency-overvoltage-power score
-        def fc_composite_score(r):
-            eff = r.get('efficiency_at_peak', 0.0)
-            power = r.get('peak_power_W_cm2', 0.0)
-            eta = max(r.get('orr_overpotential_V', 0.4), 0.01)
-            return (eff * power) / eta
-
         r("### Single-Cell Performance\n")
         r(
             "| Cathode | Membrane | Peak Power (W/cm²) | OCV (V) | η (V) | Efficiency (Rated) |"
@@ -399,7 +393,7 @@ def generate_full_report(pipeline_state: Dict = None) -> Path:
         r(
             "|---------|----------|---------------------|---------|-------|--------------------|"
         )
-        sorted_pemfc = sorted(pemfc_results, key=fc_composite_score, reverse=True)
+        sorted_pemfc = sorted(pemfc_results, key=composite_score, reverse=True)
         for res in sorted_pemfc[:15]:
             r(
                 f"| {res.get('cathode_catalyst', '?')} | {res.get('membrane', '?')} | "

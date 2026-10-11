@@ -102,7 +102,7 @@ class ProspectiveContracts(unittest.TestCase):
         self.assertEqual(energetic_span_eV(balanced), 0.8)
         self.assertEqual(energetic_span_eV(hydrogen_parked), 4.0)
         self.assertEqual(energetic_span_eV(carbon_parked), 3.0)
-        with self.assertRaisesRegex(ValueError, 'E_act_raw'):
+        with self.assertRaisesRegex(ValueError, 'energetic-span input'):
             energetic_span_eV({'E_act': 0.8, 'dE_H': -0.2, 'dE_C': -0.3})
 
     def test_roc_auc_handles_ties(self) -> None:
