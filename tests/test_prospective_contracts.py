@@ -32,7 +32,7 @@ class ProspectiveContracts(unittest.TestCase):
         errors = validate_benchmark(draft)
         self.assertIn('dataset is not locked', errors)
         self.assertTrue(any('independent primary sources' in error for error in errors))
-        self.assertEqual(len(draft['records']), 7)
+        self.assertEqual(len(draft['records']), 15)
         self.assertTrue(all(row['exact_encoding'] for row in draft['records']))
 
     def test_complete_pyrolysis_benchmark_contract_can_lock(self) -> None:

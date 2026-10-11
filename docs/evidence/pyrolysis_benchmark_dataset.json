@@ -93,6 +93,110 @@
       "source_url": "https://doi.org/10.1016/j.ijhydene.2015.04.062",
       "exact_encoding": true,
       "genome": "('MoltenMetal', 'Sn', 'None', 0.0, 1173.15)"
+    },
+    {
+      "condition_id": "zaghloul-2021-ni096sn904-1223k",
+      "catalyst_identity": "molten Ni0.0962Sn0.9038 (5 wt% Ni)",
+      "temperature_K": 1223.15,
+      "reactor_context": "10 cm molten-metal bubble column, 35 vol% methane in nitrogen at 70 mL/min",
+      "source_id": "doi:10.1002/ceat.202100210",
+      "source_family": "10.1002/ceat.202100210:ni_sn_alloy",
+      "label": "active",
+      "label_basis": "the primary experiment identifies 5 wt% Ni-Sn as the best-performing tested medium and reports a dominant catalytic surface reaction",
+      "source_url": "https://doi.org/10.1002/ceat.202100210",
+      "exact_encoding": true,
+      "genome": "('MoltenMetal', 'Sn', 'Ni', 9.62, 1223.15)"
+    },
+    {
+      "condition_id": "zaghloul-2021-sn-1223k",
+      "catalyst_identity": "pure molten Sn",
+      "temperature_K": 1223.15,
+      "reactor_context": "10 cm molten-metal bubble column, 35 vol% methane in nitrogen at 70 mL/min",
+      "source_id": "doi:10.1002/ceat.202100210",
+      "source_family": "10.1002/ceat.202100210:pure_sn",
+      "label": "poor_or_poisoning",
+      "label_basis": "the primary comparison reports pure Sn as the lowest-performing tested medium after removal of headspace conversion",
+      "source_url": "https://doi.org/10.1002/ceat.202100210",
+      "exact_encoding": true,
+      "genome": "('MoltenMetal', 'Sn', 'None', 0.0, 1223.15)"
+    },
+    {
+      "condition_id": "wi-2024-ga-1221k",
+      "catalyst_identity": "pure molten Ga",
+      "temperature_K": 1221.15,
+      "reactor_context": "levitated molten-metal rate measurement with methane introduced only after the hydrogen-noise baseline stabilized",
+      "source_id": "doi:10.1007/s40831-024-00962-8",
+      "source_family": "10.1007/s40831-024-00962-8:pure_ga",
+      "label": "active",
+      "label_basis": "the corrected primary measurements rank Ga approximately tied with In as the fastest of the five tested pure molten metals",
+      "source_url": "https://doi.org/10.1007/s40831-024-00962-8",
+      "exact_encoding": true,
+      "genome": "('MoltenMetal', 'Ga', 'None', 0.0, 1221.15)"
+    },
+    {
+      "condition_id": "wi-2024-sn-1273k",
+      "catalyst_identity": "pure molten Sn",
+      "temperature_K": 1273.15,
+      "reactor_context": "levitated molten-metal rate measurement with methane introduced only after the hydrogen-noise baseline stabilized",
+      "source_id": "doi:10.1007/s40831-024-00962-8",
+      "source_family": "10.1007/s40831-024-00962-8:pure_sn",
+      "label": "poor_or_poisoning",
+      "label_basis": "the corrected primary measurements place Sn near the slow end of the tested pure-metal activity order and remove the earlier hydrogen-noise overestimate",
+      "source_url": "https://doi.org/10.1007/s40831-024-00962-8",
+      "exact_encoding": true,
+      "genome": "('MoltenMetal', 'Sn', 'None', 0.0, 1273.15)"
+    },
+    {
+      "condition_id": "baltrusaitis-2023-ni33sn67-1273k",
+      "catalyst_identity": "single-phase molten Ni0.33Sn0.67",
+      "temperature_K": 1273.15,
+      "reactor_context": "single-liquid-phase control in a molten reactor with 5 vol% methane in nitrogen at 200 sccm and conversion at or below 10%",
+      "source_id": "doi:10.1021/acscatal.3c02955",
+      "source_family": "10.1021/acscatal.3c02955:liquid_ni_sn",
+      "label": "poor_or_poisoning",
+      "label_basis": "the exact liquid-only control has a 355 +/- 9 kJ/mol apparent barrier, versus 158 +/- 2 kJ/mol after formation of the active solid-liquid phase",
+      "source_url": "https://doi.org/10.1021/acscatal.3c02955",
+      "exact_encoding": true,
+      "genome": "('MoltenMetal', 'Sn', 'Ni', 33.0, 1273.15)"
+    },
+    {
+      "condition_id": "kim-2025-zn45bi55-1023k",
+      "catalyst_identity": "molten Zn0.45Bi0.55",
+      "temperature_K": 1023.15,
+      "reactor_context": "quartz screening reactor, 10 mm molten layer, methane-argon flow over the melt at 20 mL/min",
+      "source_id": "doi:10.1016/j.cej.2025.161304",
+      "source_family": "10.1016/j.cej.2025.161304:zn_bi_alloy",
+      "label": "active",
+      "label_basis": "the primary study identifies Zn0.45Bi0.55 as its top screened binary alloy and measures a 157.0 kJ/mol apparent activation energy",
+      "source_url": "https://doi.org/10.1016/j.cej.2025.161304",
+      "exact_encoding": true,
+      "genome": "('MoltenMetal', 'Bi', 'Zn', 45.0, 1023.15)"
+    },
+    {
+      "condition_id": "kim-2025-bi-1023k",
+      "catalyst_identity": "pure molten Bi",
+      "temperature_K": 1023.15,
+      "reactor_context": "quartz screening reactor, 10 mm molten layer, methane-argon flow over the melt at 20 mL/min",
+      "source_id": "doi:10.1016/j.cej.2025.161304",
+      "source_family": "10.1016/j.cej.2025.161304:pure_bi",
+      "label": "poor_or_poisoning",
+      "label_basis": "the matched pure-Bi control has a 308.7 kJ/mol apparent activation energy, nearly twice the Zn-Bi alloy value",
+      "source_url": "https://doi.org/10.1016/j.cej.2025.161304",
+      "exact_encoding": true,
+      "genome": "('MoltenMetal', 'Bi', 'None', 0.0, 1023.15)"
+    },
+    {
+      "condition_id": "song-2026-ga11bi89-1073k",
+      "catalyst_identity": "molten Ga0.11Bi0.89",
+      "temperature_K": 1073.15,
+      "reactor_context": "molten-metal bubble column operated continuously for 158 h",
+      "source_id": "doi:10.1016/j.cej.2026.177345",
+      "source_family": "10.1016/j.cej.2026.177345:ga_bi_alloy",
+      "label": "active",
+      "label_basis": "the primary study reports stable hydrogen production for 158 h at 800 C and an apparent activation energy of 67.2 kJ/mol",
+      "source_url": "https://doi.org/10.1016/j.cej.2026.177345",
+      "exact_encoding": true,
+      "genome": "('MoltenMetal', 'Bi', 'Ga', 11.0, 1073.15)"
     }
   ],
   "candidate_sources": [
@@ -127,6 +231,26 @@
     {
       "family": "molten_tin_blank_control",
       "source_url": "https://doi.org/10.1016/j.ijhydene.2015.04.062"
+    },
+    {
+      "family": "molten_sn_ni_cu_comparison",
+      "source_url": "https://doi.org/10.1002/ceat.202100210"
+    },
+    {
+      "family": "corrected_pure_metal_rates",
+      "source_url": "https://doi.org/10.1007/s40831-024-00962-8"
+    },
+    {
+      "family": "single_phase_sn_ni_control",
+      "source_url": "https://doi.org/10.1021/acscatal.3c02955"
+    },
+    {
+      "family": "molten_zn_bi",
+      "source_url": "https://doi.org/10.1016/j.cej.2025.161304"
+    },
+    {
+      "family": "molten_ga_bi",
+      "source_url": "https://doi.org/10.1016/j.cej.2026.177345"
     }
   ],
   "dataset_sha256": null
