@@ -4,6 +4,13 @@
 
 ### Added
 
+- A locked 24-condition external pyrolysis benchmark, a parameter-free
+  activation/H-release/C-release energetic-span implementation, grouped
+  bootstrap AUC analysis, and byte-level analysis-lock enforcement. The first
+  frozen run failed its preregistered coverage gate (2/12 active and 10/12 poor
+  sources eligible), so it reports no AUC and authorizes no campaign rather
+  than silently retuning or dropping difficult literature conditions.
+
 - A checksum-bound descriptive ORR quality diagnostic over all 4,200
   confirmatory rows, plus a preregistration plan that prevents the proposed
   pyrolysis descriptor from being scored before its externally labelled,
@@ -11,8 +18,7 @@
 
 - A fail-closed pyrolysis benchmark dataset contract requiring stable source
   provenance, unique exact genome mappings, 12 independent source families per
-  label, and a matching content digest. The initial curation file is explicitly
-  incomplete and cannot be scored.
+  label, and a matching content digest.
 
 - A checksum-locked 50-candidate ORR DFT handoff built from the completed
   confirmatory campaign. It preserves all 12 eligible material classes and

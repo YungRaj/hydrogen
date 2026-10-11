@@ -16,8 +16,12 @@ import run_divide_conquer_pilot as campaign
 from pipeline.evidence.orr_dft_slate import verify_slate
 from pipeline.evidence.orr_quality_diagnostic import verify_diagnostic
 from pipeline.evidence.pyrolysis_benchmark import (
+    analyze_screening_results,
     dataset_digest,
+    energetic_span_eV,
+    roc_auc,
     validate_benchmark,
+    verify_analysis_lock,
 )
 from pipeline.search.discovery import candidate_id
 from pipeline.screening.small_data_ranker import screening_metric_eligibility
@@ -25,15 +29,13 @@ from pipeline.screening.small_data_ranker import training_metric_eligibility
 
 
 class ProspectiveContracts(unittest.TestCase):
-    def test_pyrolysis_benchmark_fails_closed_until_curation_is_complete(self) -> None:
-        draft = json.loads((
+    def test_pyrolysis_benchmark_is_complete_and_locked(self) -> None:
+        benchmark = json.loads((
             REPO_ROOT / 'docs/evidence/pyrolysis_benchmark_dataset.json'
         ).read_text())
-        errors = validate_benchmark(draft)
-        self.assertIn('dataset is not locked', errors)
-        self.assertTrue(any('independent primary sources' in error for error in errors))
-        self.assertEqual(len(draft['records']), 21)
-        self.assertTrue(all(row['exact_encoding'] for row in draft['records']))
+        self.assertEqual(validate_benchmark(benchmark), [])
+        self.assertEqual(len(benchmark['records']), 24)
+        self.assertTrue(all(row['exact_encoding'] for row in benchmark['records']))
 
     def test_complete_pyrolysis_benchmark_contract_can_lock(self) -> None:
         records = []
@@ -77,7 +79,7 @@ class ProspectiveContracts(unittest.TestCase):
 
         unsupported = {**document, 'records': [dict(row) for row in records]}
         unsupported['records'][0]['genome'] = repr(
-            ('MoltenMetal', 'Mg', 'None', 0.0, 973.15)
+            ('MoltenMetal', 'Hg', 'None', 0.0, 973.15)
         )
         unsupported['dataset_sha256'] = dataset_digest(unsupported)
         self.assertTrue(any(
@@ -92,6 +94,46 @@ class ProspectiveContracts(unittest.TestCase):
             'source_id and source_url disagree' in error
             for error in validate_benchmark(mismatched_source)
         ))
+
+    def test_pyrolysis_energetic_span_penalizes_product_poisoning(self) -> None:
+        balanced = {'E_act': 0.8, 'dE_H': -0.2, 'dE_C': -0.3}
+        hydrogen_parked = {'E_act': 0.1, 'dE_H': -2.0, 'dE_C': -0.3}
+        carbon_parked = {'E_act': 0.1, 'dE_H': -0.2, 'dE_C': -3.0}
+        self.assertEqual(energetic_span_eV(balanced), 0.8)
+        self.assertEqual(energetic_span_eV(hydrogen_parked), 4.0)
+        self.assertEqual(energetic_span_eV(carbon_parked), 3.0)
+        with self.assertRaisesRegex(ValueError, 'censored'):
+            energetic_span_eV({**balanced, 'E_act_censored': True})
+
+    def test_roc_auc_handles_ties(self) -> None:
+        self.assertEqual(roc_auc([True, False], [1.0, 0.0]), 1.0)
+        self.assertEqual(roc_auc([True, False], [0.0, 1.0]), 0.0)
+        self.assertEqual(roc_auc([True, False], [1.0, 1.0]), 0.5)
+
+    def test_descriptor_analysis_fails_closed_on_missing_screening(self) -> None:
+        benchmark = json.loads((
+            REPO_ROOT / 'docs/evidence/pyrolysis_benchmark_dataset.json'
+        ).read_text())
+        with self.assertRaisesRegex(ValueError, 'missing screening result'):
+            analyze_screening_results(benchmark, [])
+
+    def test_pyrolysis_analysis_lock_matches_sources(self) -> None:
+        lock = REPO_ROOT / 'docs/evidence/pyrolysis_descriptor_benchmark_lock.json'
+        self.assertEqual(verify_analysis_lock(lock, REPO_ROOT), [])
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            altered = json.loads(lock.read_text())
+            relative = 'pipeline/evidence/pyrolysis_benchmark.py'
+            target = root / relative
+            target.parent.mkdir(parents=True)
+            target.write_text('changed')
+            altered['sha256'] = {relative: altered['sha256'][relative]}
+            copied_lock = root / 'lock.json'
+            copied_lock.write_text(json.dumps(altered))
+            self.assertEqual(
+                verify_analysis_lock(copied_lock, root),
+                [f'locked file changed: {relative}'],
+            )
 
     def test_orr_quality_diagnostic_is_checksum_locked(self) -> None:
         source = REPO_ROOT / 'results/prospective_search/orr_quality_diagnostic.json'

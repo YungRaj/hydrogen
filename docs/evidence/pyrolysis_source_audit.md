@@ -25,9 +25,12 @@ training label.
 | [Liu et al. (2026)](https://doi.org/10.1039/d6sc05383a) | 1 | Exact Ni27Bi73 independently gives 33.3% conversion at 1000 °C in the quaternary-alloy baseline |
 | [Wang et al. (2008)](https://doi.org/10.1016/j.molcata.2007.12.018) | 1 | Pure molten Mg gives approximately 20% methane conversion at 700 °C |
 | [Serban et al. (2003)](https://doi.org/10.1021/ef020271q) | 1 | Pure molten Pb gives only approximately 4–10% methane conversion at 750 °C |
+| [Geißler et al. (2016)](https://doi.org/10.1016/j.cej.2016.04.066) | 1 | Pure Sn at 930 °C remains far below equilibrium in a packed bubble column and is used as heat-transfer medium, not an active catalyst |
+| [Neuschitzer et al. (2023)](https://doi.org/10.3390/en16207058) | 1 | Ascending-temperature trials over pure Sn show no methane conversion at the exact 900 °C condition |
+| [Busillo et al. (2024)](https://doi.org/10.1007/s11705-024-2437-x) | 1 | The exact 950 °C pure-Sn condition belongs to a direct molten-versus-empty-reactor comparison and is poor under its short residence time |
 
-These are twelve active and nine poor conditions from twelve distinct active
-and nine distinct poor primary publications. Multiple conditions from one
+These are twelve active and twelve poor conditions from twelve distinct active
+and twelve distinct poor primary publications. Multiple conditions from one
 publication do not increase the independent-source count.
 
 ## Audited but not admitted

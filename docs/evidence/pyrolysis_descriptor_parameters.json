@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "descriptor_id": "minimal-cycle-energetic-span-v1",
+  "direction": "lower_is_better",
+  "formula": "max(E_act, -2*dE_H, -dE_C, 0)",
+  "fitted_parameters": {},
+  "terms": {
+    "E_act": "BEP methane activation barrier already produced by the locked screening protocol",
+    "-2*dE_H": "thermodynamic cost to release two adsorbed H atoms as H2",
+    "-dE_C": "thermodynamic cost to release adsorbed C into the solid-carbon reference state"
+  },
+  "energy_unit": "eV",
+  "evidence_boundary": "A parameter-free thermodynamic screen over idealized GNN surfaces; it does not represent liquid hydrodynamics, off-site carbon nucleation, or a transition-state calculation.",
+  "references": [
+    "https://doi.org/10.1126/science.aao5023",
+    "https://doi.org/10.1021/acscatal.3c02955",
+    "docs/backlog/B6-off-site-carbon-nucleation.md"
+  ]
+}

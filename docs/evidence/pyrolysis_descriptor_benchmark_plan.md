@@ -1,7 +1,25 @@
 # Pyrolysis descriptor benchmark plan
 
-Status: **source audit expanded; active threshold met at 12 sources; blocked at 9 poor exact
-conditions; not locked; no descriptor scoring allowed**.
+Status: **benchmark executed and failed its coverage gate; no AUC was computed and
+no pyrolysis campaign is authorized**.
+
+## Result (2026-10-10)
+
+The locked run screened all 18 unique genomes represented by the 24 independent
+experimental conditions. Sixteen genomes completed, two were physically invalid,
+and eight completed genomes hit the frozen `E_act` censoring boundary. After the
+preregistered exclusions, only 2 active and 10 poor independent sources remained;
+12 per label were required. Therefore neither the current objective nor the
+energetic-span proposal received an AUC. Computing one from the survivors would
+change the analysis after seeing results.
+
+The immutable summary is
+`docs/evidence/pyrolysis_descriptor_benchmark_result.json`; its raw input is
+`results/screening/pyrolysis_benchmark.csv`. This is a useful negative result: the
+idealized-surface GNN/BEP protocol lacks external coverage for molten pyrolysis,
+especially for known-active alloys. The next model revision must preserve raw
+uncensored barriers and represent molten configurations more faithfully, then be
+locked and tested as a new benchmark version rather than altering this one.
 
 The machine-readable curation file is
 `docs/evidence/pyrolysis_benchmark_dataset.json`. The loader in

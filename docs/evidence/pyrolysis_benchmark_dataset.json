@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "locked": false,
-  "status": "blocked_insufficient_exact_primary_sources",
+  "locked": true,
+  "status": "locked_pending_descriptor_parameters",
   "records": [
     {
       "condition_id": "upham-2017-ni17bi83-1273k",
@@ -275,6 +275,45 @@
       "source_url": "https://doi.org/10.1021/ef020271q",
       "exact_encoding": true,
       "genome": "('MoltenMetal', 'Pb', 'None', 0.0, 1023.15)"
+    },
+    {
+      "condition_id": "geissler-2016-sn-1203k",
+      "catalyst_identity": "pure molten Sn",
+      "temperature_K": 1203.15,
+      "reactor_context": "quartz-glass molten-Sn bubble column with a quartz-ring packed bed, pure methane at 50-200 mL/min",
+      "source_id": "doi:10.1016/j.cej.2016.04.066",
+      "source_family": "10.1016/j.cej.2016.04.066:pure_sn",
+      "label": "poor_or_poisoning",
+      "label_basis": "the primary experiment reports low hydrogen yield at 930 C, far below equilibrium, and treats liquid Sn as the heat-transfer medium rather than an active catalyst",
+      "source_url": "https://doi.org/10.1016/j.cej.2016.04.066",
+      "exact_encoding": true,
+      "genome": "('MoltenMetal', 'Sn', 'None', 0.0, 1203.15)"
+    },
+    {
+      "condition_id": "neuschitzer-2023-sn-1173k",
+      "catalyst_identity": "pure molten Sn",
+      "temperature_K": 1173.15,
+      "reactor_context": "inductively heated graphite liquid-metal bubble column, 140 mm Sn bed and 2.000 SLM methane",
+      "source_id": "doi:10.3390/en16207058",
+      "source_family": "10.3390/en16207058:pure_sn",
+      "label": "poor_or_poisoning",
+      "label_basis": "the primary experiment reports no methane conversion until approximately 1000 C in ascending-temperature trials, so the exact 900 C Sn condition is an observed negative control",
+      "source_url": "https://doi.org/10.3390/en16207058",
+      "exact_encoding": true,
+      "genome": "('MoltenMetal', 'Sn', 'None', 0.0, 1173.15)"
+    },
+    {
+      "condition_id": "busillo-2024-sn-1223k",
+      "catalyst_identity": "pure molten Sn",
+      "temperature_K": 1223.15,
+      "reactor_context": "quartz bubble-column reactor with 20 cm Sn height and 30-60 mL/min methane, directly compared with the empty reactor",
+      "source_id": "doi:10.1007/s11705-024-2437-x",
+      "source_family": "10.1007/s11705-024-2437-x:pure_sn",
+      "label": "poor_or_poisoning",
+      "label_basis": "the primary experiment reports the exact 950 C Sn condition in a molten-versus-empty-reactor series and finds lower conversion in the Sn reactor because the melt provides only a short residence time",
+      "source_url": "https://doi.org/10.1007/s11705-024-2437-x",
+      "exact_encoding": true,
+      "genome": "('MoltenMetal', 'Sn', 'None', 0.0, 1223.15)"
     }
   ],
   "candidate_sources": [
@@ -353,7 +392,19 @@
     {
       "family": "molten_lead_direct_contact",
       "source_url": "https://doi.org/10.1021/ef020271q"
+    },
+    {
+      "family": "molten_tin_packed_bed",
+      "source_url": "https://doi.org/10.1016/j.cej.2016.04.066"
+    },
+    {
+      "family": "molten_tin_graphite_reactor",
+      "source_url": "https://doi.org/10.3390/en16207058"
+    },
+    {
+      "family": "molten_tin_blank_comparison",
+      "source_url": "https://doi.org/10.1007/s11705-024-2437-x"
     }
   ],
-  "dataset_sha256": null
+  "dataset_sha256": "92cd864c750d7481ca639e40cfbc3a4eb85b958eb2f8b7337b0594d866b2ae32"
 }

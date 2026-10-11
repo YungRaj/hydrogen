@@ -15,16 +15,14 @@
   invalid and 32.27% of valid rows were capped at 3.0 V. OOH non-convergence is
   the largest invalidity family. This is descriptive evidence for a future
   protocol revision; the locked v4 policy and verdict remain unchanged.
-- **Pyrolysis redesign:** descriptor scoring is paused until a cited external
-  active-versus-poor dataset and versioned parameter table are committed and
-  locked under `docs/evidence/pyrolysis_descriptor_benchmark_plan.md`. The
-  machine-readable draft contains three active and four poor exact molten-
-  catalyst conditions from primary sources. The completed source audit found
-  that the remaining studies depend on unencoded morphology, particle size,
-  ternary composition, phase state, or reactor geometry. The dataset remains
-  deliberately unlocked and unscoreable until each label has 12 distinct
-  primary publications or those physical variables are separately added and
-  validated.
+- **Pyrolysis redesign:** the external benchmark is complete and locked at 12
+  independent primary sources per label. Its first frozen run failed coverage:
+  only 2 active and 10 poor sources survived physical-validity and censoring
+  gates, so no AUC was computed. This rules out the current idealized-surface
+  GNN/BEP protocol as external validation for molten pyrolysis and authorizes
+  no new pyrolysis campaign. The immutable result and next-model boundary are
+  in `docs/evidence/pyrolysis_descriptor_benchmark_result.json` and
+  `docs/evidence/pyrolysis_descriptor_benchmark_plan.md`.
 - **Pyrolysis selection:** reactor handoffs and headline barriers use only
   finite, valid, uncensored, phase-viable screening rows. Unresolved or
   censored rows remain eligible for higher-fidelity rescue, never reactor
