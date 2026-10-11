@@ -17,9 +17,10 @@
   protocol revision; the locked v4 policy and verdict remain unchanged.
 - **Pyrolysis redesign:** the external benchmark is complete and locked at 12
   independent primary sources per label. Correct surface-layer composition
-  scaling made all 18 unique genomes and all 24 conditions scoreable. The
-  current raw barrier achieved AUC 0.500; the proposed energetic-span score
-  achieved AUC 0.333, an improvement of −0.167, and failed every acceptance
+  scaling and five-replica configurational averaging made all 18 unique genomes
+  and all 24 conditions scoreable. The current raw barrier achieved AUC 0.549;
+  the proposed energetic-span score achieved AUC 0.299, an improvement of
+  −0.250, and failed every acceptance
   threshold. Neither descriptor is externally validated, and no new pyrolysis
   campaign is authorized. The result and model boundary are
   in `docs/evidence/pyrolysis_descriptor_benchmark_result.json` and

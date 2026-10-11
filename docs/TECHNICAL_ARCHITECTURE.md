@@ -575,8 +575,13 @@ checks, and converged DFT before a quantitative discovery claim.
 Both screening applications use immutable protocol identifiers from
 `pipeline/screening/protocols.py`. Current IDs are:
 
-- `esen-sm-conserving-all-oc25:relax-v4:pyrolysis-v4`
+- `esen-sm-conserving-all-oc25:relax-v4:pyrolysis-v5`
 - `esen-sm-conserving-all-oc25:relax-v4:orr-che-v3`
+
+Molten-metal screening covers 132,480 canonical candidates and intentionally
+admits promoter concentrations through 50 at%. Each quantitative molten result
+is the mean of five deterministic surface configurations; at least four must
+complete, and the per-descriptor spread remains attached to the result.
 
 Reference calculations use a target force of 0.05 eV/A with 200 steps. Clean
 surfaces use 0.08 eV/A with 150 steps. Adsorbates use 0.08 eV/A with 100 steps.

@@ -18,6 +18,7 @@ Parallelized across all available GPUs with 4 workers per device.
 import os
 import random
 import hashlib
+import json
 import numpy as np
 import multiprocessing as mp
 from typing import List, Tuple, Dict
@@ -252,7 +253,6 @@ def generate_alloy_slab(
             'alloy-slab-v2',
             host,
             facet,
-            float(strain),
             tuple(dopants),
             int(n_sub),
             int(n_vac),
@@ -475,13 +475,16 @@ def screening_adsorption_site(
     return base + distance * direction, direction
 
 
-def generate_structure(genome: tuple) -> Tuple[Atoms, list, str]:
+def generate_structure(
+    genome: tuple, structure_seed: int = 0
+) -> Tuple[Atoms, list, str]:
     """
         Generate an atomic structure from a catalyst genome.
         Returns: (atoms, active_site_indices, material_class)
 
     Args:
         genome: Encoded catalyst composition and structural configuration.
+        structure_seed: Deterministic structural replica index.
     """
     mat_class = genome[0]
 
@@ -513,7 +516,13 @@ def generate_structure(genome: tuple) -> Tuple[Atoms, list, str]:
         thermal_strain = (float(temp) - 1000.0) * 1.0e-5
         facet = 'hcp0001' if host in {'Mg', 'Zn', 'Cd'} else 'fcc111'
         slab, top_idx = generate_alloy_slab(
-            host, facet, thermal_strain, dopants, n_sub, 0, seed_key=genome
+            host,
+            facet,
+            thermal_strain,
+            dopants,
+            n_sub,
+            0,
+            seed_key=('MoltenMetal', host, promoter, float(at_pct), structure_seed),
         )
         return slab, top_idx, mat_class
 
@@ -984,7 +993,9 @@ def compute_reference_energies(calc) -> Dict[str, float]:
     return refs
 
 
-def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
+def _evaluate_candidate_replica(
+    genome: tuple, calc, refs: dict, structure_seed: int
+) -> dict:
     """
         Evaluate a single catalyst candidate using Meta eSen-SM.
 
@@ -994,6 +1005,7 @@ def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
         genome: Encoded catalyst composition and structural configuration.
         calc: Atomic calculator used for the evaluation.
         refs: Mapping supplying refs.
+        structure_seed: Deterministic structural replica index.
 
     Returns:
         Dictionary containing the computed values, status, and supporting metadata.
@@ -1004,10 +1016,11 @@ def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
         'material_class': mat_class,
         'valid': False,
         'screening_protocol': SCREENING_PROTOCOL_ID,
+        'structure_seed': structure_seed,
     }
 
     try:
-        structure, active_idx, _ = generate_structure(genome)
+        structure, active_idx, _ = generate_structure(genome, structure_seed)
         structure.pbc = True  # eSen requires PBC set to True in all dimensions
 
         # 1. Relax clean surface/cluster
@@ -1037,6 +1050,14 @@ def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
         e_h = slab_h.get_potential_energy()
         dE_H = e_h - e_clean - 0.5 * refs['H2']
         result['dE_H'] = dE_H
+        h_index = len(slab_h) - 1
+        result['h_surface_clearance_A'] = float(min(
+            slab_h.get_distance(h_index, index, mic=True)
+            for index in range(h_index)
+        ))
+        result['h_height_above_surface_A'] = float(
+            slab_h[h_index].position[2] - slab_h.positions[:h_index, 2].max()
+        )
 
         # 3. CH₃* adsorption
         slab_ch3 = structure.copy()
@@ -1054,6 +1075,18 @@ def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
         e_ch3 = slab_ch3.get_potential_energy()
         dE_CH3 = e_ch3 - e_clean - refs['CH3']
         result['dE_CH3'] = dE_CH3
+        carbon_index = len(structure)
+        ch_bonds = [
+            slab_ch3.get_distance(carbon_index, index, mic=True)
+            for index in range(carbon_index + 1, carbon_index + 4)
+        ]
+        result['ch3_min_CH_A'] = float(min(ch_bonds))
+        result['ch3_max_CH_A'] = float(max(ch_bonds))
+        if result['ch3_min_CH_A'] < 0.7 or result['ch3_max_CH_A'] > 1.5:
+            result['error'] = 'CH3 adsorbate lost molecular integrity'
+            result['candidate_disposition'] = 'validation_required'
+            result['needs_dft_validation'] = True
+            return result
 
         # 4. C* adsorption (coking indicator)
         slab_c = structure.copy()
@@ -1065,6 +1098,14 @@ def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
         e_c = slab_c.get_potential_energy()
         dE_C = e_c - e_clean - refs['C']
         result['dE_C'] = dE_C
+        c_index = len(slab_c) - 1
+        result['c_surface_clearance_A'] = float(min(
+            slab_c.get_distance(c_index, index, mic=True)
+            for index in range(c_index)
+        ))
+        result['c_height_above_surface_A'] = float(
+            slab_c[c_index].position[2] - slab_c.positions[:c_index, 2].max()
+        )
 
         # 5. CH₄ → CH₃* + H* reaction energy
         dE_split = dE_CH3 + dE_H + refs['CH3'] + 0.5 * refs['H2'] - refs['CH4']
@@ -1196,6 +1237,91 @@ def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
         result['error'] = str(e)[:200]
         result['candidate_disposition'] = 'validation_required'
 
+    return result
+
+
+MOLTEN_ENSEMBLE_SIZE = 5
+MOLTEN_ENSEMBLE_MIN_VALID = 4
+MOLTEN_ENSEMBLE_FIELDS = (
+    'e_clean',
+    'dE_H',
+    'dE_CH3',
+    'dE_C',
+    'dE_split',
+    'E_act_raw',
+    'segregation_energy',
+    'h_surface_clearance_A',
+    'h_height_above_surface_A',
+    'ch3_min_CH_A',
+    'ch3_max_CH_A',
+    'c_surface_clearance_A',
+    'c_height_above_surface_A',
+)
+
+
+def evaluate_candidate(
+    genome: tuple, calc, refs: dict, structure_seed: int | None = None
+) -> dict:
+    """Evaluate one candidate, averaging molten alloys over five replicas.
+
+    A static alloy termination is not a reproducible representation of a
+    liquid surface. Production molten-metal results therefore average five
+    deterministic surface configurations. Passing ``structure_seed`` evaluates
+    one explicit replica for diagnostics; other material classes use seed zero.
+
+    Args:
+        genome: Encoded catalyst composition and conditions.
+        calc: Atomic calculator used for every replica.
+        refs: Gas-phase reference-energy mapping.
+        structure_seed: Explicit diagnostic replica, or None for production.
+
+    Returns:
+        Screening result with ensemble provenance for molten candidates.
+    """
+    if genome[0] != 'MoltenMetal' or structure_seed is not None:
+        return _evaluate_candidate_replica(
+            genome, calc, refs, 0 if structure_seed is None else structure_seed
+        )
+
+    replicas = [
+        _evaluate_candidate_replica(genome, calc, refs, seed)
+        for seed in range(MOLTEN_ENSEMBLE_SIZE)
+    ]
+    valid_replicas = [row for row in replicas if row.get('valid')]
+    failures = [row for row in replicas if not row.get('valid')]
+    if len(valid_replicas) < MOLTEN_ENSEMBLE_MIN_VALID:
+        result = dict(failures[0])
+        result['structure_seed'] = None
+        result['ensemble_size'] = MOLTEN_ENSEMBLE_SIZE
+        result['ensemble_valid_replicas'] = len(valid_replicas)
+        result['error'] = 'molten ensemble incomplete: ' + '; '.join(
+            str(row.get('error', 'invalid replica')) for row in failures
+        )
+        return result
+
+    result = dict(valid_replicas[0])
+    for field in MOLTEN_ENSEMBLE_FIELDS:
+        result[field] = float(
+            np.mean([float(row[field]) for row in valid_replicas])
+        )
+    result['structure_seed'] = None
+    result['ensemble_size'] = MOLTEN_ENSEMBLE_SIZE
+    result['ensemble_valid_replicas'] = len(valid_replicas)
+    result['ensemble_failed_replicas'] = len(failures)
+    result['E_act'] = max(0.01, min(float(result['E_act_raw']), 5.0))
+    result['E_act_censored'] = result['E_act'] in (0.01, 5.0)
+    result['rate_constant'] = arrhenius_rate(
+        1e13, result['E_act'], float(result['temperature_K'])
+    )
+    result['molten_replica_spread_json'] = json.dumps({
+        field: {
+            'min': min(float(row[field]) for row in valid_replicas),
+            'max': max(float(row[field]) for row in valid_replicas),
+            'std': float(np.std([float(row[field]) for row in valid_replicas])),
+        }
+        for field in ('E_act_raw', 'dE_H', 'dE_CH3', 'dE_C')
+    }, sort_keys=True)
+    result['needs_dft_validation'] = True
     return result
 
 

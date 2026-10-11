@@ -21,9 +21,15 @@
 
 - Corrected molten-alloy composition scaling so encoded atomic percent maps to
   the modeled 9-site surface instead of saturating it from a 36-atom count.
-  Ni33Sn67 is now physically scoreable, clearing external benchmark coverage;
-  the frozen analysis nevertheless rejects the energetic-span descriptor (AUC
-  0.333 versus 0.500 for the raw barrier), so no pyrolysis campaign is opened.
+  Molten topology is now independent of temperature, quantitative results
+  average five deterministic configurations (at least four must finish), and
+  post-relaxation adsorbate geometry is recorded with broken CH3 rejected.
+  Ni33Sn67 is physically scoreable, but the locked benchmark still rejects the
+  energetic-span descriptor (AUC 0.299 versus 0.549 for the raw barrier).
+
+- Documented and test-pinned the molten design space at 132,480 canonical
+  candidates, including promoter concentrations through the intentional
+  50 at% production limit.
 
 - Simplified the external pyrolysis benchmark by removing its unused duplicate
   source catalog and consolidating repeated label, field, truth-value, and AUC

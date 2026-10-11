@@ -12,11 +12,28 @@ percent against all 36 slab atoms while placing every substitution into the
 concentrated Ni33Sn67 condition physically scoreable and cleared the coverage
 gate: all 12 active and all 12 poor sources are eligible.
 
+Five fixed-topology replicas showed that a single alloy termination is noisy:
+for Bi–Ni 27 at% at 1273 K, the raw barrier spanned −1.336 to 1.595 eV and
+`dE_H` spanned −3.255 to 0.663 eV. Temperature had also been part of the
+substitution seed, confounding comparisons. The canonical screener now keeps
+topology fixed across temperature and averages five deterministic
+configurational snapshots, requiring at least four valid relaxations and
+retaining their spread. Short MD was not substituted for this ensemble because
+it would not sample promoter rearrangements on a screening trajectory.
+
 The frozen analysis then rejected the proposed descriptor. The current raw
-barrier achieved AUC 0.500 (grouped-bootstrap 95% CI 0.244–0.748); the
-energetic-span score achieved AUC 0.333 (0.117–0.578), an improvement of
-−0.167. It therefore missed the required AUC, lower-confidence-bound, and
+barrier achieved AUC 0.549 (grouped-bootstrap 95% CI 0.292–0.800); the
+energetic-span score achieved AUC 0.299 (0.081–0.543), an improvement of
+−0.250. It therefore missed the required AUC, lower-confidence-bound, and
 improvement thresholds.
+
+The apparent `dE_H ≈ −5 eV` boundary is not a clamp: pure Te replicas converge
+there with negligible spread. Only the derived operational barrier is clamped.
+Positive `dE_C` follows from the declared thermochemical carbon reference
+`E(CH4) − 2E(H2)` and is therefore carbon formation relative to methane and
+hydrogen, not isolated-atom adsorption. CH3 remained intact in every accepted
+ensemble; carbon relaxed below the top surface plane in 10 of 18 candidates,
+confirming that the carbon term overlaps the unresolved B6 transport physics.
 
 The immutable summary is
 `docs/evidence/pyrolysis_descriptor_benchmark_result.json`; its raw input is

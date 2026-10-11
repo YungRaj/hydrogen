@@ -860,6 +860,63 @@ def test_molten_alloy_composition_is_scaled_to_surface_sites():
     assert sum(atoms[index].symbol == 'Ni' for index in surface) == 3
 
 
+def test_molten_topology_is_temperature_independent_and_seeded():
+    from pipeline.screening.surface_screener import generate_structure
+
+    cold = ('MoltenMetal', 'Bi', 'Ni', 27.0, 1123.0)
+    hot = ('MoltenMetal', 'Bi', 'Ni', 27.0, 1273.0)
+    cold_atoms, _, _ = generate_structure(cold, structure_seed=0)
+    hot_atoms, _, _ = generate_structure(hot, structure_seed=0)
+    replica_atoms, _, _ = generate_structure(cold, structure_seed=1)
+
+    assert cold_atoms.get_chemical_symbols() == hot_atoms.get_chemical_symbols()
+    assert cold_atoms.get_chemical_symbols() != replica_atoms.get_chemical_symbols()
+
+
+def test_molten_candidates_average_five_deterministic_replicas():
+    from unittest.mock import patch
+    from pipeline.screening.surface_screener import evaluate_candidate
+
+    def replica(_genome, _calc, _refs, seed):
+        if seed == 4:
+            return {'valid': False, 'error': 'did not converge'}
+        value = float(seed)
+        return {
+            'genome': str(_genome),
+            'material_class': 'MoltenMetal',
+            'valid': True,
+            'structure_seed': seed,
+            'temperature_K': 1000.0,
+            'e_clean': value,
+            'dE_H': value,
+            'dE_CH3': value,
+            'dE_C': value,
+            'dE_split': value,
+            'E_act_raw': value,
+            'segregation_energy': value,
+            'h_surface_clearance_A': value,
+            'h_height_above_surface_A': value,
+            'ch3_min_CH_A': value,
+            'ch3_max_CH_A': value,
+            'c_surface_clearance_A': value,
+            'c_height_above_surface_A': value,
+        }
+
+    genome = ('MoltenMetal', 'Bi', 'Ni', 27.0, 1000.0)
+    with patch(
+        'pipeline.screening.surface_screener._evaluate_candidate_replica',
+        side_effect=replica,
+    ) as mocked:
+        result = evaluate_candidate(genome, None, {})
+    assert mocked.call_count == 5
+    assert result['ensemble_size'] == 5
+    assert result['ensemble_valid_replicas'] == 4
+    assert result['ensemble_failed_replicas'] == 1
+    assert result['E_act_raw'] == 1.5
+    assert result['dE_H'] == 1.5
+    assert result['needs_dft_validation'] is True
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 7. PEMFC MODEL
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1407,6 +1464,7 @@ def test_design_space_audit_preserves_all_sizable_classes():
     assert report['minimum_raw_per_class'] >= 1000
     assert report['minimum_projected_admissible_per_class'] >= 1000
     assert report['canonical_total'] < report['raw_cartesian_total']
+    assert report['classes']['MoltenMetal']['canonical_count'] == 132480
 
     assert not is_physically_admissible(
         ('SolidCatalyst', 'Ni', 'Al2O3', 'fcc111', 0.0, ('N', 'B'), 2, 0)
@@ -3723,6 +3781,14 @@ if __name__ == '__main__':
     test(
         "Molten alloy composition is scaled to surface sites",
         test_molten_alloy_composition_is_scaled_to_surface_sites,
+    )
+    test(
+        "Molten topology is temperature-independent and seeded",
+        test_molten_topology_is_temperature_independent_and_seeded,
+    )
+    test(
+        "Molten candidates average five deterministic replicas",
+        test_molten_candidates_average_five_deterministic_replicas,
     )
 
     print("\n── PEMFC Model ──")

@@ -2,9 +2,9 @@
   "schema_version": 1,
   "status": "failed_acceptance_criteria",
   "acceptance_passed": false,
-  "analysis_lock_sha256": "dc52e0abc07d91a38318e495b5cf5a80499de6b454e966330c6994767c5dc5d5",
+  "analysis_lock_sha256": "8347ce333f95a975b2f823bb3521d636752756fb5288ed2619b0382eb9b608fd",
   "dataset_sha256": "21b5ff63a600262c3d704f7ae655349b1622e02eb195eeb425fdd06fdd7c5af4",
-  "screening_csv_sha256": "272063b9c55a5eb37731e14440ee32a62ce5cdc66069f4863c1f567f2dd0fab7",
+  "screening_csv_sha256": "c0f7867b5a81f7aba64791b8eae7a5fae540a1034e0f15945111fff055705317",
   "unique_genomes_screened": 18,
   "valid_unique_genomes": 18,
   "invalid_unique_genomes": 0,
@@ -16,16 +16,16 @@
   "minimum_independent_sources_per_label": 12,
   "auc_computed": true,
   "current_E_act": {
-    "auc": 0.5,
-    "ci95_low": 0.24369747899159663,
-    "ci95_high": 0.7482517482517482
+    "auc": 0.5486111111111112,
+    "ci95_low": 0.2916666666666667,
+    "ci95_high": 0.8
   },
   "energetic_span": {
-    "auc": 0.3333333333333333,
-    "ci95_low": 0.1171875,
-    "ci95_high": 0.5777777777777777
+    "auc": 0.2986111111111111,
+    "ci95_low": 0.08148148148148149,
+    "ci95_high": 0.5428571428571428
   },
-  "auc_improvement": -0.16666666666666669,
+  "auc_improvement": -0.25000000000000006,
   "reason": "The energetic-span descriptor missed every preregistered acceptance threshold and performed worse than the current raw barrier on the external benchmark.",
-  "conclusion": "The molten-alloy surface-composition defect is fixed and all benchmark conditions are scoreable, but neither tested descriptor reliably separates externally labelled active and poor catalysts. No pyrolysis campaign is authorized by this result."
+  "conclusion": "Five-replica configurational averaging removes arbitrary molten-surface topology from the point estimate and all benchmark conditions are scoreable, but neither tested descriptor reliably separates externally labelled active and poor catalysts. No pyrolysis campaign is authorized by this result."
 }
