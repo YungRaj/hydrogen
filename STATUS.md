@@ -12,6 +12,13 @@
   all 12 eligible material classes, 20 guided finalists, 12 class champions,
   and 18 controls. It measures GNN-to-DFT error, rank retention, and whether
   guided enrichment survives higher-fidelity calculation.
+- **ORR quality diagnostic:** across all 4,200 confirmatory rows, 16.0% were
+  invalid and 32.27% of valid rows were capped at 3.0 V. OOH non-convergence is
+  the largest invalidity family. This is descriptive evidence for a future
+  protocol revision; the locked v4 policy and verdict remain unchanged.
+- **Pyrolysis redesign:** descriptor scoring is paused until a cited external
+  active-versus-poor dataset and versioned parameter table are committed and
+  locked under `docs/evidence/pyrolysis_descriptor_benchmark_plan.md`.
 - **Geometry smoke:** `smoke-relax-v4-20261009` completed with SAC/DAC validity
   of 4/4 and 3/4 for pyrolysis and 4/4 and 4/4 for ORR. There were no
   `atomic_overlap` failures; the sole DAC rejection was an out-of-bounds
@@ -22,3 +29,5 @@
   experimental validation.
 - **Readiness:** the six-point campaign status remains fail-closed until its
   required calibrated and held-out evidence is present.
+- **Preservation:** tag `orr-confirmatory-v1` identifies the confirmed ORR
+  result and its checksum-locked DFT slate.

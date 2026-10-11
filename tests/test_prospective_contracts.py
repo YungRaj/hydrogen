@@ -14,12 +14,23 @@ sys.path.insert(0, str(REPO_ROOT))
 
 import run_divide_conquer_pilot as campaign
 from pipeline.evidence.orr_dft_slate import verify_slate
+from pipeline.evidence.orr_quality_diagnostic import verify_diagnostic
 from pipeline.search.discovery import candidate_id
 from pipeline.screening.small_data_ranker import screening_metric_eligibility
 from pipeline.screening.small_data_ranker import training_metric_eligibility
 
 
 class ProspectiveContracts(unittest.TestCase):
+    def test_orr_quality_diagnostic_is_checksum_locked(self) -> None:
+        source = REPO_ROOT / 'results/prospective_search/orr_quality_diagnostic.json'
+        self.assertTrue(verify_diagnostic(source))
+        with tempfile.TemporaryDirectory() as directory:
+            altered = Path(directory) / 'diagnostic.json'
+            document = json.loads(source.read_text())
+            document['totals']['invalid'] += 1
+            altered.write_text(json.dumps(document))
+            self.assertFalse(verify_diagnostic(altered))
+
     def test_confirmatory_orr_dft_slate_is_checksum_locked(self) -> None:
         source = REPO_ROOT / 'results/dft/orr_confirmatory_slate.json'
         self.assertTrue(verify_slate(source))

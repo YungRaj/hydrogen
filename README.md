@@ -172,6 +172,14 @@ establish DFT accuracy or experimental catalyst performance. The next evidence
 step is the checksum-locked 50-candidate slate at
 `results/dft/orr_confirmatory_slate.json`.
 
+Post-confirmatory quality analysis is descriptive and does not revise that
+verdict. It reports a 16.0% invalid rate and a 32.27% capped fraction among
+valid ORR rows. Pyrolysis descriptor work is gated by the external benchmark
+contract in
+[`docs/evidence/pyrolysis_descriptor_benchmark_plan.md`](docs/evidence/pyrolysis_descriptor_benchmark_plan.md);
+no replacement descriptor may steer a campaign before that benchmark is
+curated, locked, and passed.
+
 ## Current Reactor-Mode Readiness
 
 The repository distinguishes executable software from scientifically validated

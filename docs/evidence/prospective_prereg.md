@@ -58,4 +58,5 @@ Catalyst guidance found 289 pooled hits, uncertainty ranking found 149,
 validity ranking found 153, and policy-matched random selection averaged
 120.2459. The one-sided random p-value was 0.0000199996 at alpha 0.05, so the
 preregistered ORR endpoint passed. The immutable machine-readable result is
-`results/prospective_search/confirmatory_analysis.json`.
+`results/prospective_search/confirmatory_analysis.json`. Git tag
+`orr-confirmatory-v1` preserves the completed verdict and its locked DFT slate.

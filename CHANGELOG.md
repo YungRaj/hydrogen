@@ -4,6 +4,11 @@
 
 ### Added
 
+- A checksum-bound descriptive ORR quality diagnostic over all 4,200
+  confirmatory rows, plus a preregistration plan that prevents the proposed
+  pyrolysis descriptor from being scored before its externally labelled,
+  citation-backed benchmark and parameter table are locked.
+
 - A checksum-locked 50-candidate ORR DFT handoff built from the completed
   confirmatory campaign. It preserves all 12 eligible material classes and
   separates class champions, guided finalists, uncertainty/validity controls,
