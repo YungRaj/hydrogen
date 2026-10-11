@@ -76,7 +76,7 @@ def _safe(elements: list) -> list:
 
 MOLTEN_HOSTS = _safe([
     # Classic low-melting hosts
-    'Sn', 'Bi', 'In', 'Ga', 'Pb', 'Sb', 'Te',
+    'Sn', 'Bi', 'In', 'Ga', 'Pb', 'Sb', 'Te', 'Mg',
     # Extended hosts (higher melting but viable at elevated T)
     'Zn', 'Al', 'Ag', 'Au', 'Cd', 'Tl',
 ])
@@ -1285,6 +1285,10 @@ def generate_hierarchical_htvs_pool(pool_size: int, scorer=None,
     for host in MOLTEN_HOSTS:
         for promoter in stride2(MOLTEN_PROMOTERS, 0):
             for at_pct in stride2(MOLTEN_PROMOTER_AT_PCT, 1):
+                if (promoter == 'None') != (at_pct == 0.0):
+                    continue
+                if promoter == host:
+                    continue
                 for temp in stride2(MOLTEN_TEMPERATURES_K, 2):
                     cores.append(('MoltenMetal', host, promoter, at_pct, temp))
 

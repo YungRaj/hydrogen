@@ -1,6 +1,6 @@
 # Pyrolysis descriptor benchmark plan
 
-Status: **source audit expanded; blocked at 7 active and 8 poor exact
+Status: **source audit expanded; active threshold met at 12 sources; blocked at 9 poor exact
 conditions; not locked; no descriptor scoring allowed**.
 
 The machine-readable curation file is

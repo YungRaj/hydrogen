@@ -197,6 +197,84 @@
       "source_url": "https://doi.org/10.1016/j.cej.2026.177345",
       "exact_encoding": true,
       "genome": "('MoltenMetal', 'Bi', 'Ga', 11.0, 1073.15)"
+    },
+    {
+      "condition_id": "rahimi-2019-ni27bi73-1273k",
+      "catalyst_identity": "molten Ni0.27Bi0.73",
+      "temperature_K": 1273.15,
+      "reactor_context": "single-phase molten-metal bubble-column control for the metal-salt carbon-recovery experiment",
+      "source_id": "doi:10.1016/j.carbon.2019.05.041",
+      "source_family": "10.1016/j.carbon.2019.05.041:ni_bi_alloy",
+      "label": "active",
+      "label_basis": "the primary experiment identifies the single-phase Ni-Bi melt as the methane-pyrolysis catalyst and directly recovers its carbon product",
+      "source_url": "https://doi.org/10.1016/j.carbon.2019.05.041",
+      "exact_encoding": true,
+      "genome": "('MoltenMetal', 'Bi', 'Ni', 27.0, 1273.15)"
+    },
+    {
+      "condition_id": "son-2025-ni27bi73-1273k",
+      "catalyst_identity": "molten Ni0.27Bi0.73",
+      "temperature_K": 1273.15,
+      "reactor_context": "molten-alloy methane-pyrolysis baseline matched to Se-promoted alloys",
+      "source_id": "doi:10.1016/j.apcatb.2024.125009",
+      "source_family": "10.1016/j.apcatb.2024.125009:ni_bi_alloy",
+      "label": "active",
+      "label_basis": "the primary study measures active methane conversion over the binary Ni27Bi73 baseline before a further 36.3% increase from 1 at% Se",
+      "source_url": "https://doi.org/10.1016/j.apcatb.2024.125009",
+      "exact_encoding": true,
+      "genome": "('MoltenMetal', 'Bi', 'Ni', 27.0, 1273.15)"
+    },
+    {
+      "condition_id": "chen-2025-ni27bi73-1123k",
+      "catalyst_identity": "molten Ni0.27Bi0.73",
+      "temperature_K": 1123.15,
+      "reactor_context": "liquid-alloy methane decomposition with 10 mL/min methane and 15 mL/min nitrogen",
+      "source_id": "doi:10.1021/acscatal.5c02867",
+      "source_family": "10.1021/acscatal.5c02867:ni_bi_alloy",
+      "label": "active",
+      "label_basis": "the primary experiment independently measures 8.2% methane conversion and 4.02 mmol g-1 h-1 hydrogen generation at 850 C",
+      "source_url": "https://doi.org/10.1021/acscatal.5c02867",
+      "exact_encoding": true,
+      "genome": "('MoltenMetal', 'Bi', 'Ni', 27.0, 1123.15)"
+    },
+    {
+      "condition_id": "liu-2026-ni27bi73-1273k",
+      "catalyst_identity": "molten Ni0.27Bi0.73",
+      "temperature_K": 1273.15,
+      "reactor_context": "molten bubble-CVD baseline matched to ternary and quaternary alloys over a 6 h experiment",
+      "source_id": "doi:10.1039/d6sc05383a",
+      "source_family": "10.1039/d6sc05383a:ni_bi_alloy",
+      "label": "active",
+      "label_basis": "the primary experiment independently measures 33.3% methane conversion at 1000 C over the exact binary baseline",
+      "source_url": "https://doi.org/10.1039/d6sc05383a",
+      "exact_encoding": true,
+      "genome": "('MoltenMetal', 'Bi', 'Ni', 27.0, 1273.15)"
+    },
+    {
+      "condition_id": "wang-2008-mg-973k",
+      "catalyst_identity": "pure molten Mg",
+      "temperature_K": 973.15,
+      "reactor_context": "stainless-steel molten-metal reactor for direct methane decomposition",
+      "source_id": "doi:10.1016/j.molcata.2007.12.018",
+      "source_family": "10.1016/j.molcata.2007.12.018:pure_mg",
+      "label": "active",
+      "label_basis": "the primary experiment reports approximately 20% methane conversion at 700 C and identifies molten Mg as an efficient decomposition catalyst",
+      "source_url": "https://doi.org/10.1016/j.molcata.2007.12.018",
+      "exact_encoding": true,
+      "genome": "('MoltenMetal', 'Mg', 'None', 0.0, 973.15)"
+    },
+    {
+      "condition_id": "serban-2003-pb-1023k",
+      "catalyst_identity": "pure molten Pb",
+      "temperature_K": 1023.15,
+      "reactor_context": "direct-contact natural-gas pyrolysis through 4 and 8 inch molten-Pb beds",
+      "source_id": "doi:10.1021/ef020271q",
+      "source_family": "10.1021/ef020271q:pure_pb",
+      "label": "poor_or_poisoning",
+      "label_basis": "the primary experiment reports only approximately 4-10% methane conversion at 750 C, with conversion controlled by flow rate and bed height",
+      "source_url": "https://doi.org/10.1021/ef020271q",
+      "exact_encoding": true,
+      "genome": "('MoltenMetal', 'Pb', 'None', 0.0, 1023.15)"
     }
   ],
   "candidate_sources": [
@@ -251,6 +329,30 @@
     {
       "family": "molten_ga_bi",
       "source_url": "https://doi.org/10.1016/j.cej.2026.177345"
+    },
+    {
+      "family": "ni_bi_carbon_recovery_control",
+      "source_url": "https://doi.org/10.1016/j.carbon.2019.05.041"
+    },
+    {
+      "family": "se_promoted_ni_bi_control",
+      "source_url": "https://doi.org/10.1016/j.apcatb.2024.125009"
+    },
+    {
+      "family": "mn_promoted_ni_bi_control",
+      "source_url": "https://doi.org/10.1021/acscatal.5c02867"
+    },
+    {
+      "family": "closed_loop_ni_bi_control",
+      "source_url": "https://doi.org/10.1039/d6sc05383a"
+    },
+    {
+      "family": "molten_magnesium",
+      "source_url": "https://doi.org/10.1016/j.molcata.2007.12.018"
+    },
+    {
+      "family": "molten_lead_direct_contact",
+      "source_url": "https://doi.org/10.1021/ef020271q"
     }
   ],
   "dataset_sha256": null
