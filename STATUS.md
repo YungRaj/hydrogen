@@ -47,6 +47,11 @@
   adsorption energy caught by the physical validity guard.
 - **Phase 2:** B5 remains closed pending B6. Solids conversion has no authority
   to rank catalysts, choose DFT work, or choose the experimental handoff slate.
+- **Ni(111) NEB workflow check:** the corrected 11-image staged path was tested
+  against Bengaard's 1.05 eV reference. Both endpoints and plain NEB converged,
+  but climbing exhausted 1,000 steps at 0.557 eV/A with a discontinuous path.
+  This is a workflow failure, not a GNN accuracy result; molten re-testing and
+  the held-out set remain blocked.
 - **Claim boundary:** screening outcomes are eSen GNN estimates, not DFT or
   experimental validation.
 - **Readiness:** the six-point campaign status remains fail-closed until its

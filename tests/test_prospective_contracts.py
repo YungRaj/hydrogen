@@ -39,7 +39,7 @@ class ProspectiveContracts(unittest.TestCase):
         structure = Atoms(
             'BiCuBi',
             positions=((0.0, 0.0, 0.0), (1.0, 1.0, 0.0), (2.0, 2.0, 0.0)),
-            cell=(3.0, 3.0, 8.0),
+            cell=(10.0, 10.0, 10.0),
             pbc=True,
         )
         self.assertEqual(_active_site(structure, [0, 1, 2], 'Cu'), 1)
@@ -49,18 +49,12 @@ class ProspectiveContracts(unittest.TestCase):
         close[1].positions[0, 0] += 2.0
         self.assertFalse(_path_continuous(close, NEBConfig().max_image_displacement_A))
 
-    def test_molten_neb_lock_is_frozen_before_results(self) -> None:
+    def test_failed_molten_neb_evidence_preserves_its_historical_lock(self) -> None:
         lock_path = REPO_ROOT / 'docs/evidence/molten_neb_validation_lock.json'
         lock = json.loads(lock_path.read_text())
         self.assertEqual(lock['model'], 'esen-sm-conserving-all-oc25')
         self.assertEqual(lock['acceptance']['minimum_valid_paths'], 4)
         self.assertIn('Do not read or score', lock['held_out_rule'])
-        implementation = REPO_ROOT / 'pipeline/evidence/molten_neb.py'
-        self.assertEqual(
-            hashlib.sha256(implementation.read_bytes()).hexdigest(),
-            lock['implementation_sha256'],
-        )
-
         result = json.loads((
             REPO_ROOT / 'results/evidence/molten_neb_validation.json'
         ).read_text())
@@ -71,6 +65,30 @@ class ProspectiveContracts(unittest.TestCase):
         self.assertEqual(result['valid_paths'], 0)
         self.assertFalse(result['acceptance_passed'])
         self.assertFalse(result['held_out_conditions_consumed'])
+
+    def test_ni111_neb_workflow_lock_matches_current_implementation(self) -> None:
+        lock = json.loads((
+            REPO_ROOT / 'docs/evidence/ni111_mlip_neb_validation_lock.json'
+        ).read_text())
+        implementation = REPO_ROOT / 'pipeline/evidence/molten_neb.py'
+        self.assertEqual(lock['kind'], 'ni111_reference')
+        self.assertEqual(lock['reference_barrier_eV'], 1.05)
+        self.assertEqual(lock['neb_config']['images'], 11)
+        self.assertEqual(lock['neb_config']['plain_path_steps'], 1000)
+        self.assertEqual(
+            hashlib.sha256(implementation.read_bytes()).hexdigest(),
+            lock['implementation_sha256'],
+        )
+        result = json.loads((
+            REPO_ROOT / 'results/evidence/ni111_mlip_neb_validation.json'
+        ).read_text())
+        self.assertEqual(result['lock_sha256'], hashlib.sha256(
+            (REPO_ROOT / 'docs/evidence/ni111_mlip_neb_validation_lock.json').read_bytes()
+        ).hexdigest())
+        self.assertFalse(result['acceptance_passed'])
+        self.assertFalse(result['held_out_conditions_consumed'])
+        self.assertFalse(result['record']['valid'])
+        self.assertFalse(result['record']['climbing_converged'])
 
     def test_pyrolysis_benchmark_is_complete_and_locked(self) -> None:
         benchmark = json.loads((

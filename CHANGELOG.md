@@ -10,6 +10,12 @@
   2.53--2.60 eV barriers, so the experimental holdout remains unconsumed and
   the method has no production authority.
 
+- Added an independent Ni(111) staged-NEB workflow check with matched methane
+  geometry, relaxed endpoints, local surface constraints, 11 images, and plain
+  then climbing stages. Both endpoints and plain NEB converged, but climbing
+  exhausted its 1,000-step budget at 0.557 eV/A and the path was discontinuous;
+  the result is recorded as a workflow failure, not a barrier-accuracy claim.
+
 - A locked 24-condition external pyrolysis benchmark, a parameter-free
   activation/H-release/C-release energetic-span implementation, grouped
   bootstrap AUC analysis, and byte-level analysis-lock enforcement. The first

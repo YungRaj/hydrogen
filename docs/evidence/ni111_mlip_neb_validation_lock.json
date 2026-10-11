@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "locked_at": "2026-10-11",
+  "kind": "ni111_reference",
+  "model": "esen-sm-conserving-all-oc25",
+  "implementation_sha256": "ad434de2c74e1ac84f047b856ca91da7bd582cc1dbf7f710a59846acec5f558a",
+  "reaction": "CH4(g) + 2* -> CH3* + H* on Ni(111)",
+  "reference_barrier_eV": 1.05,
+  "reference_source": "https://doi.org/10.1006/jcat.2002.3579",
+  "neb_config": {
+    "images": 11,
+    "endpoint_fmax_eV_A": 0.08,
+    "endpoint_steps": 400,
+    "path_fmax_eV_A": 0.08,
+    "plain_path_steps": 1000,
+    "climbing_path_steps": 1000,
+    "climbing_maxstep": 0.01,
+    "spring_eV_A2": 0.1,
+    "max_image_displacement_A": 1.5,
+    "local_radius_A": 4.5,
+    "reactant_height_A": 3.5,
+    "product_CH_restraint_A": 2.25,
+    "maximum_product_CH_A": 2.5
+  },
+  "acceptance": {
+    "requires_relaxed_endpoints": true,
+    "requires_plain_neb_convergence": true,
+    "requires_climbing_neb_convergence": true,
+    "requires_continuous_path": true,
+    "maximum_absolute_error_eV": 0.15
+  },
+  "authority": "Workflow validation only. Passing does not validate molten barriers or authorize held-out scoring."
+}
