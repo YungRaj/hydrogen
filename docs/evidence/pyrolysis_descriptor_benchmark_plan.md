@@ -1,12 +1,14 @@
 # Pyrolysis descriptor benchmark plan
 
-Status: **dataset curation in progress (3 active, 3 poor exact conditions); not
-locked; no descriptor scoring allowed**.
+Status: **source audit complete; blocked at 3 active and 4 poor exact
+conditions; not locked; no descriptor scoring allowed**.
 
 The machine-readable curation file is
 `docs/evidence/pyrolysis_benchmark_dataset.json`. The loader in
 `pipeline/evidence/pyrolysis_benchmark.py` refuses to score it until every
 provenance, independence, exact-encoding, sample-size, and digest gate passes.
+Admitted and rejected primary sources, including the exact reason for every
+rejection, are recorded in `docs/evidence/pyrolysis_source_audit.md`.
 
 ## Purpose
 
@@ -19,8 +21,8 @@ than the current objective.
 
 ## Dataset contract
 
-- Include at least 12 independently sourced active conditions and 12
-  independently sourced poor, deactivating, or poisoning conditions.
+- Include at least 12 active conditions and 12 poor, deactivating, or
+  poisoning conditions from 12 distinct primary publications per label.
 - Treat conditions from one paper and catalyst family as one resampling group;
   compositional variants from the same series are not independent replicates.
 - Each row requires catalyst identity, temperature, reactor context, activity

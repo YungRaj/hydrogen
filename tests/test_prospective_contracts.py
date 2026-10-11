@@ -31,8 +31,8 @@ class ProspectiveContracts(unittest.TestCase):
         ).read_text())
         errors = validate_benchmark(draft)
         self.assertIn('dataset is not locked', errors)
-        self.assertTrue(any('independent source families' in error for error in errors))
-        self.assertEqual(len(draft['records']), 6)
+        self.assertTrue(any('independent primary sources' in error for error in errors))
+        self.assertEqual(len(draft['records']), 7)
         self.assertTrue(all(row['exact_encoding'] for row in draft['records']))
 
     def test_complete_pyrolysis_benchmark_contract_can_lock(self) -> None:
@@ -48,6 +48,7 @@ class ProspectiveContracts(unittest.TestCase):
                 'catalyst_identity': f'synthetic catalyst {index}',
                 'temperature_K': 900.0,
                 'reactor_context': 'synthetic contract fixture',
+                'source_id': f'doi:10.0000/fixture-{index}',
                 'source_family': f'source-{index}',
                 'label': label,
                 'label_basis': 'synthetic contract fixture only',
@@ -82,6 +83,14 @@ class ProspectiveContracts(unittest.TestCase):
         self.assertTrue(any(
             'outside the design space' in error
             for error in validate_benchmark(unsupported)
+        ))
+
+        mismatched_source = {**document, 'records': [dict(row) for row in records]}
+        mismatched_source['records'][0]['source_url'] = 'https://doi.org/10.0000/wrong'
+        mismatched_source['dataset_sha256'] = dataset_digest(mismatched_source)
+        self.assertTrue(any(
+            'source_id and source_url disagree' in error
+            for error in validate_benchmark(mismatched_source)
         ))
 
     def test_orr_quality_diagnostic_is_checksum_locked(self) -> None:

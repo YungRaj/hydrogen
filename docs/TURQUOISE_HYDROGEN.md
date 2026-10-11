@@ -151,13 +151,13 @@ The following reference database outlines the state-of-the-art publications on m
 * **Reactor Configuration:** Molten metal bubble column reactor (MMBCR).
 * **Key Findings:** Landmark study proving that active nickel dissolved in inert bismuth provides high catalytic activity for methane splitting at $1000 - 1065^\circ\text{C}$ with a 95% conversion efficiency. The carbon floats to the top, eliminating coking.
 
-#### 5. Hydrogen production from methane using molten metal catalysts
+#### 5. Methane pyrolysis with a molten Cu–Bi alloy catalyst
 * **Authors:** C. M. Palmer, et al.
 * **Journal / Year:** *ACS Catalysis* (2019)
-* **DOI / Reference Link:** [10.1021/acscatal.9b02783](https://doi.org/10.1021/acscatal.9b02783)
-* **Catalyst System:** Various molten alloy formulations ($Ni\text{-}Bi$, $Cu\text{-}Bi$, $Ni\text{-}In$).
-* **Reactor Configuration:** Comparative bubble column screening.
-* **Key Findings:** Showed how the electronic structures of dissolved active transition metals are modified by the host molten solvent, altering activation barriers and carbon separation rates.
+* **DOI / Reference Link:** [10.1021/acscatal.9b01833](https://doi.org/10.1021/acscatal.9b01833)
+* **Catalyst System:** Molten $Cu\text{-}Bi$ alloys, including $Cu_{0.45}Bi_{0.55}$.
+* **Reactor Configuration:** Molten-alloy methane-pyrolysis activity measurements.
+* **Key Findings:** Cu–Bi mixtures are active although the pure components are not; surface Bi enrichment and charge transfer correlate with activity.
 
 #### 6. Methane pyrolysis in a molten metal bubble column reactor: Bubble dynamics and carbon morphology
 * **Authors:** D. C. Serban, et al.

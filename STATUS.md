@@ -18,9 +18,13 @@
 - **Pyrolysis redesign:** descriptor scoring is paused until a cited external
   active-versus-poor dataset and versioned parameter table are committed and
   locked under `docs/evidence/pyrolysis_descriptor_benchmark_plan.md`. The
-  machine-readable draft contains three active and three poor exact molten-
-  catalyst conditions from primary sources. It remains deliberately unlocked
-  and unscoreable until each label has 12 independent source families.
+  machine-readable draft contains three active and four poor exact molten-
+  catalyst conditions from primary sources. The completed source audit found
+  that the remaining studies depend on unencoded morphology, particle size,
+  ternary composition, phase state, or reactor geometry. The dataset remains
+  deliberately unlocked and unscoreable until each label has 12 distinct
+  primary publications or those physical variables are separately added and
+  validated.
 - **Pyrolysis selection:** reactor handoffs and headline barriers use only
   finite, valid, uncensored, phase-viable screening rows. Unresolved or
   censored rows remain eligible for higher-fidelity rescue, never reactor

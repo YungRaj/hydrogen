@@ -46,14 +46,14 @@ def validate_benchmark(document: dict[str, Any], require_locked: bool = True) ->
     if not isinstance(records, list):
         return errors + ['records must be a list']
     condition_ids: set[str] = set()
-    groups: dict[str, set[str]] = {'active': set(), 'poor_or_poisoning': set()}
+    sources: dict[str, set[str]] = {'active': set(), 'poor_or_poisoning': set()}
     for index, row in enumerate(records):
         prefix = f'record {index}'
         if not isinstance(row, dict):
             errors.append(f'{prefix} must be an object')
             continue
         label = str(row.get('label', ''))
-        if label not in groups:
+        if label not in sources:
             errors.append(f'{prefix} has invalid label')
         if row.get('exact_encoding') is not True:
             errors.append(f'{prefix} is not an exact encoding')
@@ -61,6 +61,7 @@ def validate_benchmark(document: dict[str, Any], require_locked: bool = True) ->
             'condition_id',
             'catalyst_identity',
             'reactor_context',
+            'source_id',
             'source_family',
             'label_basis',
             'source_url',
@@ -80,6 +81,11 @@ def validate_benchmark(document: dict[str, Any], require_locked: bool = True) ->
             errors.append(f'{prefix} temperature_K must be finite and >= 700 K')
         if not str(row.get('source_url', '')).startswith(('https://doi.org/', 'https://')):
             errors.append(f'{prefix} source_url is not stable HTTPS provenance')
+        source_id = str(row.get('source_id', ''))
+        if source_id.startswith('doi:'):
+            expected_url = 'https://doi.org/' + source_id.removeprefix('doi:')
+            if row.get('source_url') != expected_url:
+                errors.append(f'{prefix} source_id and source_url disagree')
         try:
             genome = ast.literal_eval(str(row['genome']))
             candidate_id(genome)
@@ -91,12 +97,12 @@ def validate_benchmark(document: dict[str, Any], require_locked: bool = True) ->
 
             if not validate_molten_metal(genome):
                 errors.append(f'{prefix} molten genome is outside the design space')
-        if label in groups and isinstance(row.get('source_family'), str):
-            groups[label].add(row['source_family'])
-    for label, source_groups in groups.items():
-        if len(source_groups) < MIN_PER_LABEL:
+        if label in sources and isinstance(row.get('source_id'), str):
+            sources[label].add(row['source_id'])
+    for label, independent_sources in sources.items():
+        if len(independent_sources) < MIN_PER_LABEL:
             errors.append(
-                f'{label} has {len(source_groups)} independent source families; '
+                f'{label} has {len(independent_sources)} independent primary sources; '
                 f'{MIN_PER_LABEL} required'
             )
     if require_locked:
