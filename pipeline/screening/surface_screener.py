@@ -508,8 +508,9 @@ def generate_structure(genome: tuple) -> Tuple[Atoms, list, str]:
         n_sub = max(1, int(at_pct / 100.0 * 36))
         dopants = (promoter,) if promoter != 'None' else ()
         thermal_strain = (float(temp) - 1000.0) * 1.0e-5
+        facet = 'hcp0001' if host in {'Mg', 'Zn', 'Cd'} else 'fcc111'
         slab, top_idx = generate_alloy_slab(
-            host, 'fcc111', thermal_strain, dopants, n_sub, 0, seed_key=genome
+            host, facet, thermal_strain, dopants, n_sub, 0, seed_key=genome
         )
         return slab, top_idx, mat_class
 
@@ -1067,7 +1068,11 @@ def evaluate_candidate(genome: tuple, calc, refs: dict) -> dict:
         result['dE_split'] = dE_split
 
         # 6. Activation barrier (BEP correlation)
+        E_act_raw = bep_activation_energy(
+            dE_split, material_class=mat_class, clamp=False
+        )
         E_act = bep_activation_energy(dE_split, material_class=mat_class)
+        result['E_act_raw'] = E_act_raw
         result['E_act'] = E_act
 
         # 7. Coking resistance index (slab descriptor — out of scope for melts)

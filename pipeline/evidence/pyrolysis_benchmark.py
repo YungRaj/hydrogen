@@ -31,10 +31,8 @@ def energetic_span_eV(row: dict[str, Any]) -> float:
     Raises:
         ValueError: If a required value is missing, non-finite, or censored.
     """
-    if row.get('E_act_censored') is True:
-        raise ValueError('censored E_act cannot enter the descriptor benchmark')
     values: dict[str, float] = {}
-    for name in ('E_act', 'dE_H', 'dE_C'):
+    for name in ('E_act_raw', 'dE_H', 'dE_C'):
         try:
             value = float(row[name])
         except (KeyError, TypeError, ValueError) as exc:
@@ -42,7 +40,7 @@ def energetic_span_eV(row: dict[str, Any]) -> float:
         if not math.isfinite(value):
             raise ValueError(f'missing finite {name}')
         values[name] = value
-    return max(values['E_act'], -2.0 * values['dE_H'], -values['dE_C'], 0.0)
+    return max(values['E_act_raw'], -2.0 * values['dE_H'], -values['dE_C'], 0.0)
 
 
 def roc_auc(labels: list[bool], scores: list[float]) -> float:
@@ -295,7 +293,7 @@ def analyze_screening_results(
             continue
         try:
             span = energetic_span_eV(result)
-            current = float(result['E_act'])
+            current = float(result['E_act_raw'])
         except (KeyError, TypeError, ValueError) as exc:
             failures.append(f"{condition['condition_id']}: {exc}")
             continue

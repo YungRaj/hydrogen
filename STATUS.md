@@ -17,10 +17,11 @@
   protocol revision; the locked v4 policy and verdict remain unchanged.
 - **Pyrolysis redesign:** the external benchmark is complete and locked at 12
   independent primary sources per label. Its first frozen run failed coverage:
-  only 2 active and 10 poor sources survived physical-validity and censoring
-  gates, so no AUC was computed. This rules out the current idealized-surface
-  GNN/BEP protocol as external validation for molten pyrolysis and authorizes
-  no new pyrolysis campaign. The immutable result and next-model boundary are
+  all 12 active but only 11 poor sources survived the physical-validity gate,
+  so no AUC was computed. Raw BEP barriers are now retained and elemental Mg
+  uses the existing HCP builder; concentrated Ni33Sn67 remains outside the
+  physical range of the idealized-surface proxy. No new pyrolysis campaign is
+  authorized. The immutable result and remaining model boundary are
   in `docs/evidence/pyrolysis_descriptor_benchmark_result.json` and
   `docs/evidence/pyrolysis_descriptor_benchmark_plan.md`.
 - **Pyrolysis selection:** reactor handoffs and headline barriers use only

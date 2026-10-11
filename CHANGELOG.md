@@ -11,6 +11,12 @@
   sources eligible), so it reports no AUC and authorizes no campaign rather
   than silently retuning or dropping difficult literature conditions.
 
+- The canonical pyrolysis implementation now retains its raw BEP barrier before
+  applying the existing operational clamp and routes elemental Mg through the
+  existing HCP slab builder. This recovers all 12 active benchmark sources
+  without adding a parallel protocol; concentrated Ni33Sn67 remains invalid,
+  leaving the 12-source poor-label gate one source short.
+
 - A checksum-bound descriptive ORR quality diagnostic over all 4,200
   confirmatory rows, plus a preregistration plan that prevents the proposed
   pyrolysis descriptor from being scored before its externally labelled,

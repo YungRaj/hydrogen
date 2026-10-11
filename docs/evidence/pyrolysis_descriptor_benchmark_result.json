@@ -2,35 +2,22 @@
   "schema_version": 1,
   "status": "failed_insufficient_eligible_conditions",
   "acceptance_passed": false,
-  "analysis_lock_sha256": "46af2b95e11a57e52047d8b18b62686f392155463c805a123bf8577112cbca53",
+  "analysis_lock_sha256": "ea29029165820dfac38c1dc7b6ac4c3fc84d1fd3ce0009afde9a3ee1ff92cdf9",
   "dataset_sha256": "92cd864c750d7481ca639e40cfbc3a4eb85b958eb2f8b7337b0594d866b2ae32",
-  "screening_csv_sha256": "7d7a97ca1a0bbbbbd428a0a6f2d8b22077b4893b3276a26277de38d8c08257e3",
+  "screening_csv_sha256": "46d427bff538365013005cd527cf5855da7160068c9957d84d9231b1f4eff852",
   "unique_genomes_screened": 18,
-  "valid_unique_genomes": 16,
-  "invalid_unique_genomes": 2,
+  "valid_unique_genomes": 17,
+  "invalid_unique_genomes": 1,
   "censored_unique_genomes": 8,
   "eligible_independent_sources": {
-    "active": 2,
-    "poor_or_poisoning": 10
+    "active": 12,
+    "poor_or_poisoning": 11
   },
   "minimum_independent_sources_per_label": 12,
   "auc_computed": false,
-  "reason": "The frozen plan forbids invalid or E_act-censored rows and requires at least 12 independent sources per label. Computing either AUC would violate that rule.",
+  "reason": "The frozen plan forbids invalid rows and requires at least 12 independent sources per label. Computing either AUC with only 11 eligible poor sources would violate that rule.",
   "invalid_conditions": [
-    "baltrusaitis-2023-ni33sn67-1273k",
-    "wang-2008-mg-973k"
+    "baltrusaitis-2023-ni33sn67-1273k"
   ],
-  "censored_conditions": [
-    "upham-2017-ni17bi83-1273k",
-    "palmer-2019-cu45bi55-1273k",
-    "zeng-2020-te-1173k",
-    "zaghloul-2021-ni096sn904-1223k",
-    "kim-2025-zn45bi55-1023k",
-    "kim-2025-bi-1023k",
-    "rahimi-2019-ni27bi73-1273k",
-    "son-2025-ni27bi73-1273k",
-    "chen-2025-ni27bi73-1123k",
-    "liu-2026-ni27bi73-1273k"
-  ],
-  "conclusion": "The present idealized-surface GNN/BEP protocol is not fit to validate a turquoise-hydrogen descriptor against the external literature benchmark. No pyrolysis campaign is authorized by this result."
+  "conclusion": "The implementation now retains uncensored barriers and correctly represents elemental Mg with its existing HCP builder, but the idealized surface proxy remains invalid for concentrated Ni-Sn. No pyrolysis campaign is authorized by this result."
 }

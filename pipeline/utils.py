@@ -565,6 +565,7 @@ def bep_activation_energy(
     alpha: float = 0.87,
     beta: float = 0.75,
     material_class: str = None,
+    clamp: bool = True,
 ) -> float:
     """
         Brønsted-Evans-Polanyi (BEP) correlation for activation energy:
@@ -585,6 +586,7 @@ def bep_activation_energy(
         alpha: Alpha used by this operation.
         beta: Beta used by this operation.
         material_class: Canonical catalyst material-class name.
+        clamp: Whether to restrict the returned value to the screening range.
 
     Returns:
         Computed `float` value in the units documented above.
@@ -614,7 +616,7 @@ def bep_activation_energy(
         alpha, beta = BEP_PARAMS[material_class]
 
     E_act = alpha + beta * delta_E_rxn
-    return float(np.clip(E_act, 0.01, 5.0))
+    return float(np.clip(E_act, 0.01, 5.0) if clamp else E_act)
 
 
 # ─── Electrochemistry ───────────────────────────────────────────────────────────

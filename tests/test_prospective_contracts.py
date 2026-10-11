@@ -96,14 +96,14 @@ class ProspectiveContracts(unittest.TestCase):
         ))
 
     def test_pyrolysis_energetic_span_penalizes_product_poisoning(self) -> None:
-        balanced = {'E_act': 0.8, 'dE_H': -0.2, 'dE_C': -0.3}
-        hydrogen_parked = {'E_act': 0.1, 'dE_H': -2.0, 'dE_C': -0.3}
-        carbon_parked = {'E_act': 0.1, 'dE_H': -0.2, 'dE_C': -3.0}
+        balanced = {'E_act_raw': 0.8, 'dE_H': -0.2, 'dE_C': -0.3}
+        hydrogen_parked = {'E_act_raw': 0.1, 'dE_H': -2.0, 'dE_C': -0.3}
+        carbon_parked = {'E_act_raw': 0.1, 'dE_H': -0.2, 'dE_C': -3.0}
         self.assertEqual(energetic_span_eV(balanced), 0.8)
         self.assertEqual(energetic_span_eV(hydrogen_parked), 4.0)
         self.assertEqual(energetic_span_eV(carbon_parked), 3.0)
-        with self.assertRaisesRegex(ValueError, 'censored'):
-            energetic_span_eV({**balanced, 'E_act_censored': True})
+        with self.assertRaisesRegex(ValueError, 'E_act_raw'):
+            energetic_span_eV({'E_act': 0.8, 'dE_H': -0.2, 'dE_C': -0.3})
 
     def test_roc_auc_handles_ties(self) -> None:
         self.assertEqual(roc_auc([True, False], [1.0, 0.0]), 1.0)

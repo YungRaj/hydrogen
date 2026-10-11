@@ -1382,6 +1382,8 @@ def test_bep_is_linear_inside_bounds_and_explicitly_censored_outside():
         )
     assert bep_activation_energy(-100.0) == 0.01
     assert bep_activation_energy(100.0) == 5.0
+    assert bep_activation_energy(-100.0, clamp=False) < 0.01
+    assert bep_activation_energy(100.0, clamp=False) > 5.0
 
 
 def _independent_orr(dg_oh, dg_o, dg_ooh):

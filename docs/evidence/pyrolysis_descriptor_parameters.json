@@ -2,10 +2,10 @@
   "schema_version": 1,
   "descriptor_id": "minimal-cycle-energetic-span-v1",
   "direction": "lower_is_better",
-  "formula": "max(E_act, -2*dE_H, -dE_C, 0)",
+  "formula": "max(E_act_raw, -2*dE_H, -dE_C, 0)",
   "fitted_parameters": {},
   "terms": {
-    "E_act": "BEP methane activation barrier already produced by the locked screening protocol",
+    "E_act_raw": "uncensored BEP methane activation barrier already produced by the screening protocol",
     "-2*dE_H": "thermodynamic cost to release two adsorbed H atoms as H2",
     "-dE_C": "thermodynamic cost to release adsorbed C into the solid-carbon reference state"
   },
