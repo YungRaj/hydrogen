@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -44,7 +45,7 @@ def validate_benchmark(document: dict[str, Any], require_locked: bool = True) ->
     records = document.get('records')
     if not isinstance(records, list):
         return errors + ['records must be a list']
-    identities: set[str] = set()
+    condition_ids: set[str] = set()
     groups: dict[str, set[str]] = {'active': set(), 'poor_or_poisoning': set()}
     for index, row in enumerate(records):
         prefix = f'record {index}'
@@ -56,20 +57,35 @@ def validate_benchmark(document: dict[str, Any], require_locked: bool = True) ->
             errors.append(f'{prefix} has invalid label')
         if row.get('exact_encoding') is not True:
             errors.append(f'{prefix} is not an exact encoding')
-        for field in ('condition_id', 'source_family', 'label_basis', 'source_url'):
+        for field in (
+            'condition_id',
+            'catalyst_identity',
+            'reactor_context',
+            'source_family',
+            'label_basis',
+            'source_url',
+        ):
             if not isinstance(row.get(field), str) or not row[field].strip():
                 errors.append(f'{prefix} missing {field}')
+        condition_id = row.get('condition_id')
+        if isinstance(condition_id, str) and condition_id.strip():
+            if condition_id in condition_ids:
+                errors.append(f'{prefix} duplicates condition_id')
+            condition_ids.add(condition_id)
+        try:
+            temperature_K = float(row['temperature_K'])
+            if not math.isfinite(temperature_K) or temperature_K < 700.0:
+                raise ValueError
+        except (KeyError, TypeError, ValueError):
+            errors.append(f'{prefix} temperature_K must be finite and >= 700 K')
         if not str(row.get('source_url', '')).startswith(('https://doi.org/', 'https://')):
             errors.append(f'{prefix} source_url is not stable HTTPS provenance')
         try:
             genome = ast.literal_eval(str(row['genome']))
-            identity = candidate_id(genome)
+            candidate_id(genome)
         except (KeyError, SyntaxError, ValueError, TypeError):
             errors.append(f'{prefix} has invalid genome')
             continue
-        if identity in identities:
-            errors.append(f'{prefix} duplicates candidate identity')
-        identities.add(identity)
         if label in groups and isinstance(row.get('source_family'), str):
             groups[label].add(row['source_family'])
     for label, source_groups in groups.items():

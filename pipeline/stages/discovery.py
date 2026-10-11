@@ -50,7 +50,7 @@ def default_discovery_services() -> DiscoveryServices:
     )
     from pipeline.screening.stage_selection import (
         annotate_evidence,
-        select_for_reactor,
+        select_for_pyrolysis_reactor,
         select_for_validation,
     )
 
@@ -59,7 +59,7 @@ def default_discovery_services() -> DiscoveryServices:
         BranchDiscoveryConfig,
         run_branch_discovery,
         annotate_evidence,
-        select_for_reactor,
+        select_for_pyrolysis_reactor,
         select_for_validation,
         select_admissible=scope_pyrolysis_pool,
     )
@@ -96,7 +96,18 @@ def run_discovery_stage(
         expected_space_size=sizes['TOTAL'],
     )
     pareto, database = services.run_search(config)
-    valid = database[database['valid'] == True].copy()
+    from pipeline.screening.small_data_ranker import screening_metric_eligibility
+
+    eligibility_columns = {'valid', 'E_act', 'E_act_censored', 'pyrolysis_viable'}
+    if eligibility_columns.issubset(database.columns):
+        eligible_metric = screening_metric_eligibility(
+            database, 'turquoise_hydrogen'
+        )
+        valid = database.loc[eligible_metric].copy()
+    else:
+        # Injectable unit-stage tables predate the screening contract. The
+        # production selector still fails closed when these gates are absent.
+        valid = database[database['valid'] == True].copy()
     evidence = services.annotate_evidence(database, 'E_act')
     # Admissibility first (ADR 0001), then both slates from the same pool.
     # Validity is applied per route by the selectors (the validation route
@@ -120,9 +131,12 @@ def run_discovery_stage(
         .value_counts()
         .to_dict(),
     }
-    if len(valid) > 0 and 'E_act' in valid.columns:
+    if len(valid) > 0:
         state['best_E_act'] = float(valid['E_act'].min())
-        state['best_coking'] = float(valid['coking_index'].max())
+        if 'coking_index' in valid.columns:
+            coking = valid['coking_index'].dropna()
+            if len(coking) > 0:
+                state['best_coking'] = float(coking.max())
     products: DiscoveryProducts = {
         'design_space_sizes': sizes,
         'pareto_genomes': pareto,

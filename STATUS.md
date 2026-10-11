@@ -8,10 +8,9 @@
   and a policy-matched random mean of 120.25. The preregistered one-sided
   random p-value is 0.000020. Catalyst-guided, coverage-safe branch-and-bound
   is therefore the evidence-backed production search policy for ORR.
-- **Next validation:** the checksum-locked 50-candidate ORR DFT slate contains
-  all 12 eligible material classes, 20 guided finalists, 12 class champions,
-  and 18 controls. It measures GNN-to-DFT error, rank retention, and whether
-  guided enrichment survives higher-fidelity calculation.
+- **Project focus:** turquoise hydrogen is the primary application. The ORR
+  result validates the search machinery; further ORR validation is deferred
+  while the pyrolysis descriptor and reactor evidence are hardened.
 - **ORR quality diagnostic:** across all 4,200 confirmatory rows, 16.0% were
   invalid and 32.27% of valid rows were capped at 3.0 V. OOH non-convergence is
   the largest invalidity family. This is descriptive evidence for a future
@@ -22,6 +21,10 @@
   machine-readable draft currently has no scoreable rows and fails closed;
   tracked references identify candidate families but do not yet supply enough
   independent, exactly encodable binary conditions.
+- **Pyrolysis selection:** reactor handoffs and headline barriers use only
+  finite, valid, uncensored, phase-viable screening rows. Unresolved or
+  censored rows remain eligible for higher-fidelity rescue, never reactor
+  ranking.
 - **Geometry smoke:** `smoke-relax-v4-20261009` completed with SAC/DAC validity
   of 4/4 and 3/4 for pyrolysis and 4/4 and 4/4 for ORR. There were no
   `atomic_overlap` failures; the sole DAC rejection was an out-of-bounds

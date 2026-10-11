@@ -45,7 +45,7 @@ def load_selected_candidates(
     import pandas as pd
     from pipeline.search.scope import scope_pyrolysis_pool
     from pipeline.screening.stage_selection import (
-        select_for_reactor,
+        select_for_pyrolysis_reactor,
         select_for_validation,
     )
 
@@ -60,7 +60,7 @@ def load_selected_candidates(
     selected: SelectedCandidates = {
         'screening_database': database,
         'admissibility': admissibility,
-        'top_catalysts': select_for_reactor(
+        'top_catalysts': select_for_pyrolysis_reactor(
             pool, top_k_reactor, 'E_act', min_per_class=1
         ),
         'dft_candidates': select_for_validation(

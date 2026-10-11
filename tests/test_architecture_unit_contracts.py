@@ -53,6 +53,7 @@ def test_candidate_file_adapter_preserves_distinct_reactor_and_validation_routes
                 'valid': True,
                 'E_act': 0.5,
                 'E_act_censored': False,
+                'pyrolysis_viable': True,
             },
             {
                 'candidate_id': 'unresolved',
@@ -60,12 +61,15 @@ def test_candidate_file_adapter_preserves_distinct_reactor_and_validation_routes
                 'valid': False,
                 'E_act': float('nan'),
                 'E_act_censored': False,
+                'pyrolysis_viable': True,
             },
             {
                 'candidate_id': 'hazard',
                 'material_class': 'HEA',
                 'valid': False,
                 'E_act': float('nan'),
+                'E_act_censored': False,
+                'pyrolysis_viable': True,
                 'error': 'toxic/radioactive element',
             },
         ]

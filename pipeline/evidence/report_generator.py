@@ -155,7 +155,7 @@ def generate_full_report(pipeline_state: Dict = None) -> Path:
         else "| Valid candidates | N/A |"
     )
     r(f"| Pareto front size | {p1.get('pareto_size', 'N/A')} |")
-    r(f"| Best activation barrier | {p1.get('best_E_act', 'N/A')} eV |")
+    r(f"| Best eligible screening barrier | {p1.get('best_E_act', 'N/A')} eV |")
     r(f"| Best coking resistance | {p1.get('best_coking', 'N/A')} |")
     r(f"| Reactor simulations | {p2.get('catalysts_simulated', 'N/A')} |")
     solids_x = p2.get('best_conversion')

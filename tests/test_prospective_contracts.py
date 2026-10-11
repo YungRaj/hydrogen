@@ -43,6 +43,9 @@ class ProspectiveContracts(unittest.TestCase):
             )
             records.append({
                 'condition_id': f'condition-{index}',
+                'catalyst_identity': f'synthetic catalyst {index}',
+                'temperature_K': 900.0,
+                'reactor_context': 'synthetic contract fixture',
                 'source_family': f'source-{index}',
                 'label': label,
                 'label_basis': 'synthetic contract fixture only',
@@ -53,6 +56,21 @@ class ProspectiveContracts(unittest.TestCase):
         document = {'schema_version': 1, 'locked': True, 'records': records}
         document['dataset_sha256'] = dataset_digest(document)
         self.assertEqual(validate_benchmark(document), [])
+
+        duplicate = {**document, 'records': [dict(row) for row in records]}
+        duplicate['records'][1]['condition_id'] = duplicate['records'][0]['condition_id']
+        duplicate['dataset_sha256'] = dataset_digest(duplicate)
+        self.assertTrue(any(
+            'duplicates condition_id' in error
+            for error in validate_benchmark(duplicate)
+        ))
+
+        incomplete = {**document, 'records': [dict(row) for row in records]}
+        del incomplete['records'][0]['temperature_K']
+        incomplete['dataset_sha256'] = dataset_digest(incomplete)
+        self.assertTrue(any(
+            'temperature_K' in error for error in validate_benchmark(incomplete)
+        ))
 
     def test_orr_quality_diagnostic_is_checksum_locked(self) -> None:
         source = REPO_ROOT / 'results/prospective_search/orr_quality_diagnostic.json'
@@ -106,6 +124,28 @@ class ProspectiveContracts(unittest.TestCase):
             training_metric_eligibility(frame, 'turquoise_hydrogen').tolist(),
             [True, False, True, False],
         )
+
+    def test_pyrolysis_reactor_handoff_fails_closed_but_validation_rescues(self) -> None:
+        from pipeline.screening.stage_selection import (
+            select_for_pyrolysis_reactor,
+            select_for_validation,
+        )
+
+        frame = pd.DataFrame({
+            'material_class': ['SAC', 'DAC', 'SolidCatalyst'],
+            'valid': [True, True, True],
+            'E_act': [0.01, 0.20, 0.60],
+            'E_act_censored': [True, False, False],
+            'pyrolysis_viable': [True, False, True],
+            'needs_dft_validation': [True, False, False],
+        })
+        reactor = select_for_pyrolysis_reactor(frame, 3)
+        validation = select_for_validation(frame, 3, 'E_act')
+        self.assertEqual(reactor['material_class'].tolist(), ['SolidCatalyst'])
+        self.assertEqual(set(validation['material_class']), {'SAC', 'DAC', 'SolidCatalyst'})
+
+        missing_gates = frame.drop(columns=['E_act_censored', 'pyrolysis_viable'])
+        self.assertTrue(select_for_pyrolysis_reactor(missing_gates, 3).empty)
 
     def test_tied_hit_class_is_bounded_by_top_k(self) -> None:
         genomes = [

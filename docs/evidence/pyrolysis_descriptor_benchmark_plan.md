@@ -26,6 +26,9 @@ than the current objective.
   label, label basis, DOI or stable source URL, and one exact representable
   genome. Approximate encodings must state the mismatch and cannot enter the
   primary analysis.
+- Experimental condition IDs must be unique. The same catalyst may appear in
+  independently sourced conditions; candidate identity is not mistaken for
+  experimental-condition identity.
 - Supported-Ni/Fe/Co, molten Ni-Bi/Cu-Bi/Ni-In, carbon catalysts, and explicit
   non-catalytic or deactivating controls should be represented where comparable
   evidence exists. Phase-inadmissible encodings remain excluded under ADR 0001.

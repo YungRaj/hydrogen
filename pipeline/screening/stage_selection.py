@@ -144,6 +144,36 @@ def select_for_reactor(
     )
 
 
+def select_for_pyrolysis_reactor(
+    frame: pd.DataFrame,
+    n_select: int,
+    primary: str = 'E_act',
+    min_per_class: int = 1,
+) -> pd.DataFrame:
+    """Select only scientifically eligible turquoise-hydrogen screening rows.
+
+    The generic reactor selector knows whether a numerical calculation
+    completed.  Pyrolysis additionally requires an admissible encoded phase
+    and an uncensored barrier.  Keep that application rule in one wrapper so
+    live discovery and restart paths cannot drift apart.
+
+    Args:
+        frame: Pyrolysis screening records.
+        n_select: Maximum number of candidates to select.
+        primary: Pyrolysis ranking metric; retained for the shared selector.
+        min_per_class: Minimum class-preserving allocation.
+
+    Returns:
+        Eligible candidates ordered for reactor evaluation.
+    """
+    from pipeline.screening.small_data_ranker import screening_metric_eligibility
+
+    eligible = screening_metric_eligibility(frame, 'turquoise_hydrogen')
+    return select_for_reactor(
+        frame.loc[eligible], n_select, primary, min_per_class=min_per_class
+    )
+
+
 def select_for_validation(
     frame: pd.DataFrame, n_select: int, primary: str, min_per_class: int = 1
 ) -> pd.DataFrame:
