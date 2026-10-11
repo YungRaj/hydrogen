@@ -32,6 +32,8 @@ class ProspectiveContracts(unittest.TestCase):
         errors = validate_benchmark(draft)
         self.assertIn('dataset is not locked', errors)
         self.assertTrue(any('independent source families' in error for error in errors))
+        self.assertEqual(len(draft['records']), 6)
+        self.assertTrue(all(row['exact_encoding'] for row in draft['records']))
 
     def test_complete_pyrolysis_benchmark_contract_can_lock(self) -> None:
         records = []
@@ -70,6 +72,16 @@ class ProspectiveContracts(unittest.TestCase):
         incomplete['dataset_sha256'] = dataset_digest(incomplete)
         self.assertTrue(any(
             'temperature_K' in error for error in validate_benchmark(incomplete)
+        ))
+
+        unsupported = {**document, 'records': [dict(row) for row in records]}
+        unsupported['records'][0]['genome'] = repr(
+            ('MoltenMetal', 'Mg', 'None', 0.0, 973.15)
+        )
+        unsupported['dataset_sha256'] = dataset_digest(unsupported)
+        self.assertTrue(any(
+            'outside the design space' in error
+            for error in validate_benchmark(unsupported)
         ))
 
     def test_orr_quality_diagnostic_is_checksum_locked(self) -> None:

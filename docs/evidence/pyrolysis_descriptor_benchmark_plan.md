@@ -1,6 +1,7 @@
 # Pyrolysis descriptor benchmark plan
 
-Status: **dataset curation required; not locked; no descriptor scoring allowed**.
+Status: **dataset curation in progress (3 active, 3 poor exact conditions); not
+locked; no descriptor scoring allowed**.
 
 The machine-readable curation file is
 `docs/evidence/pyrolysis_benchmark_dataset.json`. The loader in
@@ -38,7 +39,7 @@ than the current objective.
 Tracked starting references include Upham et al. 2017
 ([DOI 10.1126/science.aao5023](https://doi.org/10.1126/science.aao5023)),
 Palmer et al. 2019
-([DOI 10.1021/acscatal.9b02783](https://doi.org/10.1021/acscatal.9b02783)),
+([DOI 10.1021/acscatal.9b01833](https://doi.org/10.1021/acscatal.9b01833)),
 Xu et al. 2021
 ([DOI 10.1016/j.apcata.2020.117967](https://doi.org/10.1016/j.apcata.2020.117967)),
 and the mechanistic carbon-transport sources in ADR 0001 and backlog B6. These

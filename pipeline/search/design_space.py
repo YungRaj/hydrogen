@@ -133,18 +133,31 @@ def validate_molten_metal(genome: tuple) -> bool:
     Returns:
         True when the documented condition holds; otherwise False.
     """
+    if len(genome) != 5:
+        return False
     _, host, promoter, at_pct, temp = genome
-    if not is_molten_at_temperature(host, temp):
+    if host not in MOLTEN_HOSTS or promoter not in MOLTEN_PROMOTERS:
         return False
-    if promoter != 'None' and at_pct <= 0:
+    try:
+        at_pct_value = float(at_pct)
+        temperature_K = float(temp)
+    except (TypeError, ValueError):
         return False
-    if promoter == 'None' and at_pct > 0:
+    if not np.isfinite(at_pct_value) or not np.isfinite(temperature_K):
         return False
-    if at_pct > 30.0:
+    if not 0.0 <= at_pct_value <= 100.0:
+        return False
+    if not is_molten_at_temperature(host, temperature_K):
+        return False
+    if promoter != 'None' and at_pct_value <= 0:
+        return False
+    if promoter == 'None' and at_pct_value > 0:
+        return False
+    if at_pct_value > max(MOLTEN_PROMOTER_AT_PCT):
         return False
     # Promoter must not form immiscible phase at concentration
     # (simplified check — real phase diagrams are more complex)
-    if promoter in ['W', 'Mo', 'Nb', 'Zr', 'Ti'] and at_pct > 10.0:
+    if promoter in ['W', 'Mo', 'Nb', 'Zr', 'Ti'] and at_pct_value > 10.0:
         return False  # refractory metals have limited solubility
     return True
 

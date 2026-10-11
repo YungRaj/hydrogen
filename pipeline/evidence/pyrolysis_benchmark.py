@@ -86,6 +86,11 @@ def validate_benchmark(document: dict[str, Any], require_locked: bool = True) ->
         except (KeyError, SyntaxError, ValueError, TypeError):
             errors.append(f'{prefix} has invalid genome')
             continue
+        if genome[0] == 'MoltenMetal':
+            from pipeline.search.design_space import validate_molten_metal
+
+            if not validate_molten_metal(genome):
+                errors.append(f'{prefix} molten genome is outside the design space')
         if label in groups and isinstance(row.get('source_family'), str):
             groups[label].add(row['source_family'])
     for label, source_groups in groups.items():

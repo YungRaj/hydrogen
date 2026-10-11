@@ -2,7 +2,80 @@
   "schema_version": 1,
   "locked": false,
   "status": "curation_required",
-  "records": [],
+  "records": [
+    {
+      "condition_id": "upham-2017-ni17bi83-1273k",
+      "catalyst_identity": "molten Ni0.17Bi0.83",
+      "temperature_K": 1273.15,
+      "reactor_context": "differential molten-metal reactor, methane flowed over 38.5 mm2 melt surface",
+      "source_family": "10.1126/science.aao5023:ni_bi_alloy",
+      "label": "active",
+      "label_basis": "the primary paper reports Ni0.17Bi0.83 as the highest hydrogen-production-rate composition in its 1000 C differential-reactor comparison",
+      "source_url": "https://doi.org/10.1126/science.aao5023",
+      "exact_encoding": true,
+      "genome": "('MoltenMetal', 'Bi', 'Ni', 17.0, 1273.15)"
+    },
+    {
+      "condition_id": "upham-2017-bi-1273k",
+      "catalyst_identity": "pure molten Bi",
+      "temperature_K": 1273.15,
+      "reactor_context": "differential molten-metal reactor, methane flowed over 38.5 mm2 melt surface",
+      "source_family": "10.1126/science.aao5023:pure_bi",
+      "label": "poor_or_poisoning",
+      "label_basis": "the primary paper reports low activity for the pure low-melting host and increased activity after addition of Ni",
+      "source_url": "https://doi.org/10.1126/science.aao5023",
+      "exact_encoding": true,
+      "genome": "('MoltenMetal', 'Bi', 'None', 0.0, 1273.15)"
+    },
+    {
+      "condition_id": "palmer-2019-cu45bi55-1273k",
+      "catalyst_identity": "molten Cu0.45Bi0.55",
+      "temperature_K": 1273.15,
+      "reactor_context": "molten-alloy methane-pyrolysis activity measurement at 1 atm",
+      "source_family": "10.1021/acscatal.9b01833:cu_bi_alloy",
+      "label": "active",
+      "label_basis": "the primary paper reports molten Cu-Bi alloys as active and identifies Cu0.45Bi0.55 as the modeled active surface composition",
+      "source_url": "https://doi.org/10.1021/acscatal.9b01833",
+      "exact_encoding": true,
+      "genome": "('MoltenMetal', 'Bi', 'Cu', 45.0, 1273.15)"
+    },
+    {
+      "condition_id": "palmer-2019-bi-1273k",
+      "catalyst_identity": "pure molten Bi",
+      "temperature_K": 1273.15,
+      "reactor_context": "molten-metal methane-pyrolysis activity measurement at 1 atm",
+      "source_family": "10.1021/acscatal.9b01833:pure_bi",
+      "label": "poor_or_poisoning",
+      "label_basis": "the primary paper explicitly reports pure molten Bi as inactive while Cu-Bi mixtures are active",
+      "source_url": "https://doi.org/10.1021/acscatal.9b01833",
+      "exact_encoding": true,
+      "genome": "('MoltenMetal', 'Bi', 'None', 0.0, 1273.15)"
+    },
+    {
+      "condition_id": "zeng-2020-te-1173k",
+      "catalyst_identity": "pure molten Te",
+      "temperature_K": 1173.0,
+      "reactor_context": "7 cm molten-metal bubble column, 0.7 atm methane partial pressure, approximately 5 mm bubbles and 0.5 s residence time",
+      "source_family": "10.1021/acscatal.0c00805:pure_te",
+      "label": "active",
+      "label_basis": "the primary paper reports detectable methane conversion for liquid Te at 1173 K while its catalyst-free control had no detectable conversion",
+      "source_url": "https://doi.org/10.1021/acscatal.0c00805",
+      "exact_encoding": true,
+      "genome": "('MoltenMetal', 'Te', 'None', 0.0, 1173.0)"
+    },
+    {
+      "condition_id": "msheik-2022-sn-1273k",
+      "catalyst_identity": "pure molten Sn",
+      "temperature_K": 1273.15,
+      "reactor_context": "solar tubular bubbling reactor, 0.5-1.0 NL/min feed and 0.1-0.5 methane mole fraction",
+      "source_family": "10.1016/j.energy.2022.124943:pure_sn",
+      "label": "poor_or_poisoning",
+      "label_basis": "the primary experiment reports negligible catalytic activity and approximately zero conversion at 1000 C, below its matched gas-phase reactor",
+      "source_url": "https://doi.org/10.1016/j.energy.2022.124943",
+      "exact_encoding": true,
+      "genome": "('MoltenMetal', 'Sn', 'None', 0.0, 1273.15)"
+    }
+  ],
   "candidate_sources": [
     {
       "family": "molten_ni_bi",
@@ -10,7 +83,7 @@
     },
     {
       "family": "molten_alloy_series",
-      "source_url": "https://doi.org/10.1021/acscatal.9b02783"
+      "source_url": "https://doi.org/10.1021/acscatal.9b01833"
     },
     {
       "family": "supported_ni_particle_size",
@@ -19,6 +92,18 @@
     {
       "family": "ni_filament_kinetics",
       "source_url": "https://doi.org/10.1006/jcat.1997.1635"
+    },
+    {
+      "family": "molten_tellurium",
+      "source_url": "https://doi.org/10.1021/acscatal.0c00805"
+    },
+    {
+      "family": "molten_magnesium",
+      "source_url": "https://doi.org/10.1016/j.molcata.2007.12.018"
+    },
+    {
+      "family": "molten_tin_solar",
+      "source_url": "https://doi.org/10.1016/j.energy.2022.124943"
     }
   ],
   "dataset_sha256": null
