@@ -9,6 +9,7 @@ import unittest
 from unittest.mock import patch
 
 import pandas as pd
+from ase import Atoms
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
@@ -27,12 +28,50 @@ from pipeline.evidence.pyrolysis_benchmark import (
     validate_benchmark,
     verify_analysis_lock,
 )
+from pipeline.evidence.molten_neb import NEBConfig, _active_site, _path_continuous
 from pipeline.search.discovery import candidate_id
 from pipeline.screening.small_data_ranker import screening_metric_eligibility
 from pipeline.screening.small_data_ranker import training_metric_eligibility
 
 
 class ProspectiveContracts(unittest.TestCase):
+    def test_molten_neb_selects_promoter_and_rejects_path_jumps(self) -> None:
+        structure = Atoms(
+            'BiCuBi',
+            positions=((0.0, 0.0, 0.0), (1.0, 1.0, 0.0), (2.0, 2.0, 0.0)),
+            cell=(3.0, 3.0, 8.0),
+            pbc=True,
+        )
+        self.assertEqual(_active_site(structure, [0, 1, 2], 'Cu'), 1)
+        close = [structure.copy(), structure.copy()]
+        close[1].positions += 0.1
+        self.assertTrue(_path_continuous(close, NEBConfig().max_image_displacement_A))
+        close[1].positions[0, 0] += 2.0
+        self.assertFalse(_path_continuous(close, NEBConfig().max_image_displacement_A))
+
+    def test_molten_neb_lock_is_frozen_before_results(self) -> None:
+        lock_path = REPO_ROOT / 'docs/evidence/molten_neb_validation_lock.json'
+        lock = json.loads(lock_path.read_text())
+        self.assertEqual(lock['model'], 'esen-sm-conserving-all-oc25')
+        self.assertEqual(lock['acceptance']['minimum_valid_paths'], 4)
+        self.assertIn('Do not read or score', lock['held_out_rule'])
+        implementation = REPO_ROOT / 'pipeline/evidence/molten_neb.py'
+        self.assertEqual(
+            hashlib.sha256(implementation.read_bytes()).hexdigest(),
+            lock['implementation_sha256'],
+        )
+
+        result = json.loads((
+            REPO_ROOT / 'results/evidence/molten_neb_validation.json'
+        ).read_text())
+        self.assertEqual(
+            result['lock_sha256'], hashlib.sha256(lock_path.read_bytes()).hexdigest()
+        )
+        self.assertEqual(result['attempted_paths'], 5)
+        self.assertEqual(result['valid_paths'], 0)
+        self.assertFalse(result['acceptance_passed'])
+        self.assertFalse(result['held_out_conditions_consumed'])
+
     def test_pyrolysis_benchmark_is_complete_and_locked(self) -> None:
         benchmark = json.loads((
             REPO_ROOT / 'docs/evidence/pyrolysis_benchmark_dataset.json'
@@ -165,6 +204,7 @@ class ProspectiveContracts(unittest.TestCase):
             self.assertEqual(result[key], actual)
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            lock = REPO_ROOT / 'docs/evidence/pyrolysis_descriptor_benchmark_lock.json'
             altered = json.loads(lock.read_text())
             relative = 'pipeline/evidence/pyrolysis_benchmark.py'
             target = root / relative

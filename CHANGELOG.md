@@ -4,6 +4,12 @@
 
 ### Added
 
+- A checksum-locked eSEN CI-NEB validation for molten methane activation with
+  explicit endpoint, force, path-continuity, and interior-maximum gates. All
+  five Cu45Bi55 paths failed validity before comparison with Palmer's published
+  2.53--2.60 eV barriers, so the experimental holdout remains unconsumed and
+  the method has no production authority.
+
 - A locked 24-condition external pyrolysis benchmark, a parameter-free
   activation/H-release/C-release energetic-span implementation, grouped
   bootstrap AUC analysis, and byte-level analysis-lock enforcement. The first

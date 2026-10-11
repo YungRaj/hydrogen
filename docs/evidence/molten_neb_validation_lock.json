@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "locked_at": "2026-10-11",
+  "model": "esen-sm-conserving-all-oc25",
+  "implementation_sha256": "ce8290c4235b975c88efe6a19b7c2dbc0594937fc249fb0be32ba4ee4688bbcb",
+  "reaction": "CH4 + * -> CH3* + H*",
+  "neb_config": {
+    "images": 7,
+    "endpoint_fmax_eV_A": 0.08,
+    "endpoint_steps": 200,
+    "path_fmax_eV_A": 0.08,
+    "path_steps": 400,
+    "spring_eV_A2": 0.1,
+    "max_image_displacement_A": 1.5
+  },
+  "external_cases": [
+    {
+      "case_id": "palmer-2019-cu45bi55",
+      "genome": ["MoltenMetal", "Bi", "Cu", 45.0, 1273.15],
+      "structure_seeds": [0, 1, 2, 3, 4],
+      "reference_barriers_eV": [2.53, 2.60],
+      "source": "https://doi.org/10.1021/acscatal.9b01833"
+    }
+  ],
+  "acceptance": {
+    "minimum_valid_paths": 4,
+    "maximum_median_absolute_error_eV": 0.5,
+    "ordering_is_secondary": true,
+    "constant_offset_is_reported_but_not_corrected": true
+  },
+  "held_out_rule": "Do not read or score the untouched experimental conditions unless this external barrier gate passes."
+}

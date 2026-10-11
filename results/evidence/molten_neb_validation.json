@@ -1,0 +1,360 @@
+{
+  "acceptance_passed": false,
+  "attempted_paths": 5,
+  "held_out_conditions_consumed": false,
+  "execution_lock_sha256": "f4692e04c75de1a97e1379289f41c983faa4a5822c7701c353289fa757b80acc",
+  "lock_sha256": "a620dae0b8e48b0336380fca038392abf53cdf6693a5b84b234febf42a4b099b",
+  "post_run_change": "Documentation-only API docstrings changed the implementation and lock byte digests; numerical code and frozen controls are unchanged.",
+  "median_absolute_error_eV": null,
+  "median_predicted_barrier_eV": null,
+  "median_reference_barrier_eV": 2.565,
+  "records": [
+    {
+      "active_element": "Cu",
+      "active_index": 34,
+      "barrier_eV": 1.4598236083984375,
+      "clean_geometry_sha256": "dcb24a36bbd4192ccca8ceea191bce63b5bec09e5c93c732553d5c19e590e28d",
+      "config": {
+        "endpoint_fmax_eV_A": 0.08,
+        "endpoint_steps": 200,
+        "images": 7,
+        "max_image_displacement_A": 1.5,
+        "path_fmax_eV_A": 0.08,
+        "path_steps": 400,
+        "spring_eV_A2": 0.1
+      },
+      "endpoint_relaxation": {
+        "clean": {
+          "relax_neb_clean_attempts_json": "[{\"ase_converged\": true, \"converged\": true, \"end_geometry_sha256\": \"dcb24a36bbd4192ccca8ceea191bce63b5bec09e5c93c732553d5c19e590e28d\", \"failure_class\": null, \"max_force_eV_A\": 0.07070634054232011, \"name\": \"bfgs_standard\", \"start_geometry_sha256\": \"8c76a0fb27937518db8d2bc2ab21211dcac61bea88def4ec6820a2b4c9a5eb4a\", \"steps\": 152}]",
+          "relax_neb_clean_converged": true,
+          "relax_neb_clean_failure_class": null,
+          "relax_neb_clean_fmax_eV_A": 0.08,
+          "relax_neb_clean_geometry_sha256": "dcb24a36bbd4192ccca8ceea191bce63b5bec09e5c93c732553d5c19e590e28d",
+          "relax_neb_clean_max_force_eV_A": 0.07070634054232011,
+          "relax_neb_clean_selected_attempt": "bfgs_standard",
+          "relax_neb_clean_step_limit": 200,
+          "relax_neb_clean_steps": 152,
+          "relax_neb_clean_termination": "converged"
+        },
+        "product": {
+          "relax_neb_product_attempts_json": "[{\"ase_converged\": true, \"converged\": true, \"end_geometry_sha256\": \"c306af02d2bb8d7eddca594dc8d26bbfcdaecc5b9ec800c53d51acebd34bf9ea\", \"failure_class\": null, \"max_force_eV_A\": 0.07380656473470065, \"name\": \"bfgs_standard\", \"start_geometry_sha256\": \"dac750b7bb3c47bc31d416e951e9fa0f561c5664dc4bb9b2a1bf814f925f852b\", \"steps\": 91}]",
+          "relax_neb_product_converged": true,
+          "relax_neb_product_failure_class": null,
+          "relax_neb_product_fmax_eV_A": 0.08,
+          "relax_neb_product_geometry_sha256": "c306af02d2bb8d7eddca594dc8d26bbfcdaecc5b9ec800c53d51acebd34bf9ea",
+          "relax_neb_product_max_force_eV_A": 0.07380656473470065,
+          "relax_neb_product_selected_attempt": "bfgs_standard",
+          "relax_neb_product_step_limit": 200,
+          "relax_neb_product_steps": 91,
+          "relax_neb_product_termination": "converged"
+        }
+      },
+      "energies_eV": [
+        -153.84332510550348,
+        -154.4119877489361,
+        -154.34268995840876,
+        -153.12375589926575,
+        -152.38350149710504,
+        -152.5446428926739,
+        -152.63308378775452
+      ],
+      "final_geometry_sha256": "c306af02d2bb8d7eddca594dc8d26bbfcdaecc5b9ec800c53d51acebd34bf9ea",
+      "genome": "('MoltenMetal', 'Bi', 'Cu', 45.0, 1273.15)",
+      "initial_geometry_sha256": "44699341e2bc3b3c872bd68dba4b1b515efb424d52e576dd26ecb9cf9128ef73",
+      "model": "esen-sm-conserving-all-oc25",
+      "path_continuous": false,
+      "path_max_force_eV_A": 0.0790852289211619,
+      "path_steps": 152,
+      "reaction_energy_eV": 1.2102413177489666,
+      "relative_energies_eV": [
+        0.0,
+        -0.5686626434326172,
+        -0.49936485290527344,
+        0.7195692062377361,
+        1.4598236083984375,
+        1.2986822128295898,
+        1.2102413177489666
+      ],
+      "structure_seed": 0,
+      "valid": false
+    },
+    {
+      "active_element": "Cu",
+      "active_index": 32,
+      "barrier_eV": 0.0,
+      "clean_geometry_sha256": "754f42e2364207db618857e68ef47817547201de70e6a8caf408fc69df432fdb",
+      "config": {
+        "endpoint_fmax_eV_A": 0.08,
+        "endpoint_steps": 200,
+        "images": 7,
+        "max_image_displacement_A": 1.5,
+        "path_fmax_eV_A": 0.08,
+        "path_steps": 400,
+        "spring_eV_A2": 0.1
+      },
+      "endpoint_relaxation": {
+        "clean": {
+          "relax_neb_clean_attempts_json": "[{\"ase_converged\": true, \"converged\": true, \"end_geometry_sha256\": \"754f42e2364207db618857e68ef47817547201de70e6a8caf408fc69df432fdb\", \"failure_class\": null, \"max_force_eV_A\": 0.0738904192405706, \"name\": \"bfgs_standard\", \"start_geometry_sha256\": \"6c132404f35ce7954b4e1ff6aea1dfa4b74b37466f8bfc7aa162bda598e45c85\", \"steps\": 151}]",
+          "relax_neb_clean_converged": true,
+          "relax_neb_clean_failure_class": null,
+          "relax_neb_clean_fmax_eV_A": 0.08,
+          "relax_neb_clean_geometry_sha256": "754f42e2364207db618857e68ef47817547201de70e6a8caf408fc69df432fdb",
+          "relax_neb_clean_max_force_eV_A": 0.0738904192405706,
+          "relax_neb_clean_selected_attempt": "bfgs_standard",
+          "relax_neb_clean_step_limit": 200,
+          "relax_neb_clean_steps": 151,
+          "relax_neb_clean_termination": "converged"
+        },
+        "product": {
+          "relax_neb_product_attempts_json": "[{\"ase_converged\": true, \"converged\": true, \"end_geometry_sha256\": \"12e5362f013c8fcf4634c726b247b69c84ede20db7097e31eaa83de3c9af96d8\", \"failure_class\": null, \"max_force_eV_A\": 0.05686548303164582, \"name\": \"bfgs_standard\", \"start_geometry_sha256\": \"eb4805cc32df5412b5e17ece004fa2b354e6af658dc3a5f07302f794ea82c006\", \"steps\": 76}]",
+          "relax_neb_product_converged": true,
+          "relax_neb_product_failure_class": null,
+          "relax_neb_product_fmax_eV_A": 0.08,
+          "relax_neb_product_geometry_sha256": "12e5362f013c8fcf4634c726b247b69c84ede20db7097e31eaa83de3c9af96d8",
+          "relax_neb_product_max_force_eV_A": 0.05686548303164582,
+          "relax_neb_product_selected_attempt": "bfgs_standard",
+          "relax_neb_product_step_limit": 200,
+          "relax_neb_product_steps": 76,
+          "relax_neb_product_termination": "converged"
+        }
+      },
+      "energies_eV": [
+        -154.0750183733258,
+        -154.0750183733258,
+        -154.35148283560608,
+        -154.39489695151184,
+        -154.4176983507428,
+        -154.4268297823224,
+        -154.41604086478088
+      ],
+      "final_geometry_sha256": "12e5362f013c8fcf4634c726b247b69c84ede20db7097e31eaa83de3c9af96d8",
+      "genome": "('MoltenMetal', 'Bi', 'Cu', 45.0, 1273.15)",
+      "initial_geometry_sha256": "3de66958191f92021dfd9e781eb570fc4547192ae8e5b8584b35712b3189078a",
+      "model": "esen-sm-conserving-all-oc25",
+      "path_continuous": true,
+      "path_max_force_eV_A": 0.4866860166961952,
+      "path_steps": 400,
+      "reaction_energy_eV": -0.3410224914550781,
+      "relative_energies_eV": [
+        0.0,
+        0.0,
+        -0.27646446228027344,
+        -0.31987857818603516,
+        -0.3426799774169922,
+        -0.35181140899658203,
+        -0.3410224914550781
+      ],
+      "structure_seed": 1,
+      "valid": false
+    },
+    {
+      "active_element": "Cu",
+      "active_index": 32,
+      "barrier_eV": 7.147400379180908,
+      "clean_geometry_sha256": "626ae2f9bed9d958cb201f4a1c0b56372731a8f5156bb1cb5c7afc1949da83c9",
+      "config": {
+        "endpoint_fmax_eV_A": 0.08,
+        "endpoint_steps": 200,
+        "images": 7,
+        "max_image_displacement_A": 1.5,
+        "path_fmax_eV_A": 0.08,
+        "path_steps": 400,
+        "spring_eV_A2": 0.1
+      },
+      "endpoint_relaxation": {
+        "clean": {
+          "relax_neb_clean_attempts_json": "[{\"ase_converged\": true, \"converged\": true, \"end_geometry_sha256\": \"626ae2f9bed9d958cb201f4a1c0b56372731a8f5156bb1cb5c7afc1949da83c9\", \"failure_class\": null, \"max_force_eV_A\": 0.07904228417720172, \"name\": \"bfgs_standard\", \"start_geometry_sha256\": \"9263c181a5039bbf08b1f8ca86625f5735725c9940eea611a72c693a10eb1b19\", \"steps\": 125}]",
+          "relax_neb_clean_converged": true,
+          "relax_neb_clean_failure_class": null,
+          "relax_neb_clean_fmax_eV_A": 0.08,
+          "relax_neb_clean_geometry_sha256": "626ae2f9bed9d958cb201f4a1c0b56372731a8f5156bb1cb5c7afc1949da83c9",
+          "relax_neb_clean_max_force_eV_A": 0.07904228417720172,
+          "relax_neb_clean_selected_attempt": "bfgs_standard",
+          "relax_neb_clean_step_limit": 200,
+          "relax_neb_clean_steps": 125,
+          "relax_neb_clean_termination": "converged"
+        },
+        "product": {
+          "relax_neb_product_attempts_json": "[{\"ase_converged\": true, \"converged\": true, \"end_geometry_sha256\": \"d32f51a78b2f0fbe49d28cff92c17a14701fafd56658fcdb1612f69d7cd0dd43\", \"failure_class\": null, \"max_force_eV_A\": 0.0645795288356861, \"name\": \"bfgs_standard\", \"start_geometry_sha256\": \"dcb897e16d277823d37bd9d3a2fc665cf9bed99015fda3fb00f220d9e9929ca2\", \"steps\": 66}]",
+          "relax_neb_product_converged": true,
+          "relax_neb_product_failure_class": null,
+          "relax_neb_product_fmax_eV_A": 0.08,
+          "relax_neb_product_geometry_sha256": "d32f51a78b2f0fbe49d28cff92c17a14701fafd56658fcdb1612f69d7cd0dd43",
+          "relax_neb_product_max_force_eV_A": 0.0645795288356861,
+          "relax_neb_product_selected_attempt": "bfgs_standard",
+          "relax_neb_product_step_limit": 200,
+          "relax_neb_product_steps": 66,
+          "relax_neb_product_termination": "converged"
+        }
+      },
+      "energies_eV": [
+        -153.81462332327698,
+        -146.66722294409607,
+        -153.91740652640198,
+        -154.41999956686828,
+        -154.46117922385065,
+        -154.4797682436261,
+        -154.47071978171203
+      ],
+      "final_geometry_sha256": "d32f51a78b2f0fbe49d28cff92c17a14701fafd56658fcdb1612f69d7cd0dd43",
+      "genome": "('MoltenMetal', 'Bi', 'Cu', 45.0, 1273.15)",
+      "initial_geometry_sha256": "9b60bec1653d61b2ce1460903be41539f463a1d2aac44f374a0d55668b823ef7",
+      "model": "esen-sm-conserving-all-oc25",
+      "path_continuous": false,
+      "path_max_force_eV_A": 1.3984813814476615,
+      "path_steps": 400,
+      "reaction_energy_eV": -0.6560964584350586,
+      "relative_energies_eV": [
+        0.0,
+        7.147400379180908,
+        -0.102783203125,
+        -0.6053762435913086,
+        -0.6465559005736736,
+        -0.6651449203491211,
+        -0.6560964584350586
+      ],
+      "structure_seed": 2,
+      "valid": false
+    },
+    {
+      "active_element": "Cu",
+      "active_index": 34,
+      "barrier_eV": 2.1304006576538086,
+      "clean_geometry_sha256": "792e12720d6c174e31a62eb16c8d6eb1ca32666c7c0fe79908a6978aa262aa6e",
+      "config": {
+        "endpoint_fmax_eV_A": 0.08,
+        "endpoint_steps": 200,
+        "images": 7,
+        "max_image_displacement_A": 1.5,
+        "path_fmax_eV_A": 0.08,
+        "path_steps": 400,
+        "spring_eV_A2": 0.1
+      },
+      "endpoint_relaxation": {
+        "clean": {
+          "relax_neb_clean_attempts_json": "[{\"ase_converged\": true, \"converged\": true, \"end_geometry_sha256\": \"792e12720d6c174e31a62eb16c8d6eb1ca32666c7c0fe79908a6978aa262aa6e\", \"failure_class\": null, \"max_force_eV_A\": 0.07029131757330599, \"name\": \"bfgs_standard\", \"start_geometry_sha256\": \"5287ae76f10e868cc4f3a5ee95c13621f9331493590825d28a352d8749c9f27b\", \"steps\": 155}]",
+          "relax_neb_clean_converged": true,
+          "relax_neb_clean_failure_class": null,
+          "relax_neb_clean_fmax_eV_A": 0.08,
+          "relax_neb_clean_geometry_sha256": "792e12720d6c174e31a62eb16c8d6eb1ca32666c7c0fe79908a6978aa262aa6e",
+          "relax_neb_clean_max_force_eV_A": 0.07029131757330599,
+          "relax_neb_clean_selected_attempt": "bfgs_standard",
+          "relax_neb_clean_step_limit": 200,
+          "relax_neb_clean_steps": 155,
+          "relax_neb_clean_termination": "converged"
+        },
+        "product": {
+          "relax_neb_product_attempts_json": "[{\"ase_converged\": true, \"converged\": true, \"end_geometry_sha256\": \"4d0cc2acf1187281a6aa6bb337682de8f2729cd0246a8d00aa05e6c3d4665eeb\", \"failure_class\": null, \"max_force_eV_A\": 0.05414088333339145, \"name\": \"bfgs_standard\", \"start_geometry_sha256\": \"584e0d26772f7a0c945e929c7f6d75e09b76898508a750c09991ed8999361a3a\", \"steps\": 67}]",
+          "relax_neb_product_converged": true,
+          "relax_neb_product_failure_class": null,
+          "relax_neb_product_fmax_eV_A": 0.08,
+          "relax_neb_product_geometry_sha256": "4d0cc2acf1187281a6aa6bb337682de8f2729cd0246a8d00aa05e6c3d4665eeb",
+          "relax_neb_product_max_force_eV_A": 0.05414088333339145,
+          "relax_neb_product_selected_attempt": "bfgs_standard",
+          "relax_neb_product_step_limit": 200,
+          "relax_neb_product_steps": 67,
+          "relax_neb_product_termination": "converged"
+        }
+      },
+      "energies_eV": [
+        -154.0992178591046,
+        -154.43475004752014,
+        -154.44279524405334,
+        -154.1959309252057,
+        -151.9688172014508,
+        -152.54041811545227,
+        -152.7640404375348
+      ],
+      "final_geometry_sha256": "4d0cc2acf1187281a6aa6bb337682de8f2729cd0246a8d00aa05e6c3d4665eeb",
+      "genome": "('MoltenMetal', 'Bi', 'Cu', 45.0, 1273.15)",
+      "initial_geometry_sha256": "92182e908a6ef75723140a31c878f8f2c624f41643bc85267fd84634a3f5d1f4",
+      "model": "esen-sm-conserving-all-oc25",
+      "path_continuous": false,
+      "path_max_force_eV_A": 1.5631351588198614,
+      "path_steps": 400,
+      "reaction_energy_eV": 1.3351774215698242,
+      "relative_energies_eV": [
+        0.0,
+        -0.33553218841552734,
+        -0.34357738494873047,
+        -0.09671306610107422,
+        2.1304006576538086,
+        1.5587997436523438,
+        1.3351774215698242
+      ],
+      "structure_seed": 3,
+      "valid": false
+    },
+    {
+      "active_element": "Cu",
+      "active_index": 34,
+      "barrier_eV": 1.7961034774780273,
+      "clean_geometry_sha256": "54e5399e8b1365f7258bea02af506180f07e8cfab866e3637021c8cca0fc3f6a",
+      "config": {
+        "endpoint_fmax_eV_A": 0.08,
+        "endpoint_steps": 200,
+        "images": 7,
+        "max_image_displacement_A": 1.5,
+        "path_fmax_eV_A": 0.08,
+        "path_steps": 400,
+        "spring_eV_A2": 0.1
+      },
+      "endpoint_relaxation": {
+        "clean": {
+          "relax_neb_clean_attempts_json": "[{\"ase_converged\": true, \"converged\": true, \"end_geometry_sha256\": \"54e5399e8b1365f7258bea02af506180f07e8cfab866e3637021c8cca0fc3f6a\", \"failure_class\": null, \"max_force_eV_A\": 0.07371414101670673, \"name\": \"bfgs_standard\", \"start_geometry_sha256\": \"90275dfa359e1eb74dedae4169c2edf65c118d1a5ae77f734d1f867fe70ce567\", \"steps\": 79}]",
+          "relax_neb_clean_converged": true,
+          "relax_neb_clean_failure_class": null,
+          "relax_neb_clean_fmax_eV_A": 0.08,
+          "relax_neb_clean_geometry_sha256": "54e5399e8b1365f7258bea02af506180f07e8cfab866e3637021c8cca0fc3f6a",
+          "relax_neb_clean_max_force_eV_A": 0.07371414101670673,
+          "relax_neb_clean_selected_attempt": "bfgs_standard",
+          "relax_neb_clean_step_limit": 200,
+          "relax_neb_clean_steps": 79,
+          "relax_neb_clean_termination": "converged"
+        },
+        "product": {
+          "relax_neb_product_attempts_json": "[{\"ase_converged\": true, \"converged\": true, \"end_geometry_sha256\": \"5b24e59653d0f1fab202141fb3db45098a78354833f79f5a8878cf4986a60ed0\", \"failure_class\": null, \"max_force_eV_A\": 0.0747394761353928, \"name\": \"bfgs_standard\", \"start_geometry_sha256\": \"69a00bb217e4ecb5293e63542172f7de672c79d47fd33a5e38826118b7612ecf\", \"steps\": 111}]",
+          "relax_neb_product_converged": true,
+          "relax_neb_product_failure_class": null,
+          "relax_neb_product_fmax_eV_A": 0.08,
+          "relax_neb_product_geometry_sha256": "5b24e59653d0f1fab202141fb3db45098a78354833f79f5a8878cf4986a60ed0",
+          "relax_neb_product_max_force_eV_A": 0.0747394761353928,
+          "relax_neb_product_selected_attempt": "bfgs_standard",
+          "relax_neb_product_step_limit": 200,
+          "relax_neb_product_steps": 111,
+          "relax_neb_product_termination": "converged"
+        }
+      },
+      "energies_eV": [
+        -152.7379355104718,
+        -152.9655127199444,
+        -152.95351168234674,
+        -151.05365034659235,
+        -150.94183203299377,
+        -152.07140490134088,
+        -151.9646467836651
+      ],
+      "final_geometry_sha256": "5b24e59653d0f1fab202141fb3db45098a78354833f79f5a8878cf4986a60ed0",
+      "genome": "('MoltenMetal', 'Bi', 'Cu', 45.0, 1273.15)",
+      "initial_geometry_sha256": "191af76967f8bb1e810001289723ee47b18b2aec8cfa1b186cb0713456069e90",
+      "model": "esen-sm-conserving-all-oc25",
+      "path_continuous": false,
+      "path_max_force_eV_A": 4.50535159249658,
+      "path_steps": 400,
+      "reaction_energy_eV": 0.7732887268066975,
+      "relative_energies_eV": [
+        0.0,
+        -0.2275772094725994,
+        -0.21557617187494316,
+        1.6842851638794514,
+        1.7961034774780273,
+        0.6665306091309162,
+        0.7732887268066975
+      ],
+      "structure_seed": 4,
+      "valid": false
+    }
+  ],
+  "schema_version": 1,
+  "valid_paths": 0
+}

@@ -129,3 +129,21 @@ descriptive AUC of 0.333, which has no confirmatory authority. The new held-out
 set remains unconsumed because tuning or selecting it after this failure would
 weaken the next test. The machine-readable result is
 `docs/evidence/pyrolysis_rate_descriptor_result.json`.
+
+## Direct MLIP-NEB follow-up (2026-10-11)
+
+The next frozen gate replaced the BEP line with seven-image climbing-image NEB
+using the same energy-conserving eSEN model. Numerical controls, five Cu45Bi55
+surface configurations, Palmer's two published barriers, and a 0.50 eV median
+error limit were locked before execution in
+`docs/evidence/molten_neb_validation_lock.json`. At least four paths also had
+to converge below 0.08 eV/A, remain continuous, and possess an interior maximum.
+
+The gate failed on path validity: zero of five paths qualified. Seed 0 reached
+0.079 eV/A after 152 steps but violated the continuity limit; seeds 1--4
+exhausted 400 steps, and all except seed 1 were also discontinuous. Raw apparent
+barriers ranged from 0.0 to 7.15 eV and are not scientific estimates because
+their paths are invalid. The atomic report is
+`results/evidence/molten_neb_validation.json`. No held-out experimental
+condition was scored, and the direct MLIP-NEB method must not replace the BEP
+model or authorize a campaign.
