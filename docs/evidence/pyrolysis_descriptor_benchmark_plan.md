@@ -2,6 +2,11 @@
 
 Status: **dataset curation required; not locked; no descriptor scoring allowed**.
 
+The machine-readable curation file is
+`docs/evidence/pyrolysis_benchmark_dataset.json`. The loader in
+`pipeline/evidence/pyrolysis_benchmark.py` refuses to score it until every
+provenance, independence, exact-encoding, sample-size, and digest gate passes.
+
 ## Purpose
 
 The current screening objective is a class-specific BEP transform of methane

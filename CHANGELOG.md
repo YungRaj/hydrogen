@@ -9,6 +9,11 @@
   pyrolysis descriptor from being scored before its externally labelled,
   citation-backed benchmark and parameter table are locked.
 
+- A fail-closed pyrolysis benchmark dataset contract requiring stable source
+  provenance, unique exact genome mappings, 12 independent source families per
+  label, and a matching content digest. The initial curation file is explicitly
+  incomplete and cannot be scored.
+
 - A checksum-locked 50-candidate ORR DFT handoff built from the completed
   confirmatory campaign. It preserves all 12 eligible material classes and
   separates class champions, guided finalists, uncertainty/validity controls,

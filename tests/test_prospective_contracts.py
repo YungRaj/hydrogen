@@ -15,12 +15,45 @@ sys.path.insert(0, str(REPO_ROOT))
 import run_divide_conquer_pilot as campaign
 from pipeline.evidence.orr_dft_slate import verify_slate
 from pipeline.evidence.orr_quality_diagnostic import verify_diagnostic
+from pipeline.evidence.pyrolysis_benchmark import (
+    dataset_digest,
+    validate_benchmark,
+)
 from pipeline.search.discovery import candidate_id
 from pipeline.screening.small_data_ranker import screening_metric_eligibility
 from pipeline.screening.small_data_ranker import training_metric_eligibility
 
 
 class ProspectiveContracts(unittest.TestCase):
+    def test_pyrolysis_benchmark_fails_closed_until_curation_is_complete(self) -> None:
+        draft = json.loads((
+            REPO_ROOT / 'docs/evidence/pyrolysis_benchmark_dataset.json'
+        ).read_text())
+        errors = validate_benchmark(draft)
+        self.assertIn('dataset is not locked', errors)
+        self.assertTrue(any('independent source families' in error for error in errors))
+
+    def test_complete_pyrolysis_benchmark_contract_can_lock(self) -> None:
+        records = []
+        for index in range(24):
+            label = 'active' if index < 12 else 'poor_or_poisoning'
+            genome = (
+                'SolidCatalyst', 'Ni', 'Al2O3', 'fcc111',
+                -0.10 + index * 0.008, ('B', 'N'), 1, 0,
+            )
+            records.append({
+                'condition_id': f'condition-{index}',
+                'source_family': f'source-{index}',
+                'label': label,
+                'label_basis': 'synthetic contract fixture only',
+                'source_url': f'https://doi.org/10.0000/fixture-{index}',
+                'exact_encoding': True,
+                'genome': repr(genome),
+            })
+        document = {'schema_version': 1, 'locked': True, 'records': records}
+        document['dataset_sha256'] = dataset_digest(document)
+        self.assertEqual(validate_benchmark(document), [])
+
     def test_orr_quality_diagnostic_is_checksum_locked(self) -> None:
         source = REPO_ROOT / 'results/prospective_search/orr_quality_diagnostic.json'
         self.assertTrue(verify_diagnostic(source))

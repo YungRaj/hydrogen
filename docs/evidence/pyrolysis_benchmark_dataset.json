@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "locked": false,
+  "status": "curation_required",
+  "records": [],
+  "candidate_sources": [
+    {
+      "family": "molten_ni_bi",
+      "source_url": "https://doi.org/10.1126/science.aao5023"
+    },
+    {
+      "family": "molten_alloy_series",
+      "source_url": "https://doi.org/10.1021/acscatal.9b02783"
+    },
+    {
+      "family": "supported_ni_particle_size",
+      "source_url": "https://doi.org/10.1016/j.apcata.2020.117967"
+    },
+    {
+      "family": "ni_filament_kinetics",
+      "source_url": "https://doi.org/10.1006/jcat.1997.1635"
+    }
+  ],
+  "dataset_sha256": null
+}

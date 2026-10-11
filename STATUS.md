@@ -18,7 +18,10 @@
   protocol revision; the locked v4 policy and verdict remain unchanged.
 - **Pyrolysis redesign:** descriptor scoring is paused until a cited external
   active-versus-poor dataset and versioned parameter table are committed and
-  locked under `docs/evidence/pyrolysis_descriptor_benchmark_plan.md`.
+  locked under `docs/evidence/pyrolysis_descriptor_benchmark_plan.md`. The
+  machine-readable draft currently has no scoreable rows and fails closed;
+  tracked references identify candidate families but do not yet supply enough
+  independent, exactly encodable binary conditions.
 - **Geometry smoke:** `smoke-relax-v4-20261009` completed with SAC/DAC validity
   of 4/4 and 3/4 for pyrolysis and 4/4 and 4/4 for ORR. There were no
   `atomic_overlap` failures; the sole DAC rejection was an out-of-bounds
