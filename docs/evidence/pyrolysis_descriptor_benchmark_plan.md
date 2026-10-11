@@ -1,25 +1,30 @@
 # Pyrolysis descriptor benchmark plan
 
-Status: **benchmark executed and failed its coverage gate; no AUC was computed and
-no pyrolysis campaign is authorized**.
+Status: **benchmark executed and failed its descriptor acceptance criteria; no
+pyrolysis campaign is authorized**.
 
 ## Result (2026-10-10)
 
 The locked run screened all 18 unique genomes represented by the 24 independent
-experimental conditions. After retaining the existing BEP calculation's raw
-value and routing elemental Mg through the existing HCP builder, 17 genomes
-completed. The concentrated Ni33Sn67 condition remains physically invalid
-(`dE_H = -12.39 eV`). All 12 active sources and 11 of 12 poor sources are now
-eligible. Therefore neither the current objective nor the energetic-span
-proposal received an AUC. Computing one from the survivors would change the
-analysis after seeing results.
+experimental conditions. A molten-alloy construction defect had scaled atomic
+percent against all 36 slab atoms while placing every substitution into the
+9-atom surface layer. Correcting that in the canonical implementation made the
+concentrated Ni33Sn67 condition physically scoreable and cleared the coverage
+gate: all 12 active and all 12 poor sources are eligible.
+
+The frozen analysis then rejected the proposed descriptor. The current raw
+barrier achieved AUC 0.500 (grouped-bootstrap 95% CI 0.244–0.748); the
+energetic-span score achieved AUC 0.333 (0.117–0.578), an improvement of
+−0.167. It therefore missed the required AUC, lower-confidence-bound, and
+improvement thresholds.
 
 The immutable summary is
 `docs/evidence/pyrolysis_descriptor_benchmark_result.json`; its raw input is
 `results/screening/pyrolysis_benchmark.csv`. This is a useful negative result: the
-idealized-surface GNN/BEP protocol still lacks complete external coverage for
-molten pyrolysis. The unresolved boundary is now narrow and explicit:
-concentrated Ni-Sn cannot be represented physically by the current surface proxy.
+current GNN/BEP descriptors do not reliably recover external activity labels.
+The result rules out deploying the tested energetic-span score as the
+pyrolysis discovery objective; it does not validate the raw barrier, whose AUC
+is indistinguishable from random ranking on this benchmark.
 
 The machine-readable curation file is
 `docs/evidence/pyrolysis_benchmark_dataset.json`. The loader in

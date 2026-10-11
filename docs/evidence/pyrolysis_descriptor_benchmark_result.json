@@ -1,23 +1,31 @@
 {
   "schema_version": 1,
-  "status": "failed_insufficient_eligible_conditions",
+  "status": "failed_acceptance_criteria",
   "acceptance_passed": false,
-  "analysis_lock_sha256": "388f6c33d500555c8dd0a2818e27d885865e61d51937c01a783f17e347db8b66",
+  "analysis_lock_sha256": "dc52e0abc07d91a38318e495b5cf5a80499de6b454e966330c6994767c5dc5d5",
   "dataset_sha256": "21b5ff63a600262c3d704f7ae655349b1622e02eb195eeb425fdd06fdd7c5af4",
-  "screening_csv_sha256": "46d427bff538365013005cd527cf5855da7160068c9957d84d9231b1f4eff852",
+  "screening_csv_sha256": "272063b9c55a5eb37731e14440ee32a62ce5cdc66069f4863c1f567f2dd0fab7",
   "unique_genomes_screened": 18,
-  "valid_unique_genomes": 17,
-  "invalid_unique_genomes": 1,
-  "censored_unique_genomes": 8,
+  "valid_unique_genomes": 18,
+  "invalid_unique_genomes": 0,
+  "conditions_scored": 24,
   "eligible_independent_sources": {
     "active": 12,
-    "poor_or_poisoning": 11
+    "poor_or_poisoning": 12
   },
   "minimum_independent_sources_per_label": 12,
-  "auc_computed": false,
-  "reason": "The frozen plan forbids invalid rows and requires at least 12 independent sources per label. Computing either AUC with only 11 eligible poor sources would violate that rule.",
-  "invalid_conditions": [
-    "baltrusaitis-2023-ni33sn67-1273k"
-  ],
-  "conclusion": "The implementation now retains uncensored barriers and correctly represents elemental Mg with its existing HCP builder, but the idealized surface proxy remains invalid for concentrated Ni-Sn. No pyrolysis campaign is authorized by this result."
+  "auc_computed": true,
+  "current_E_act": {
+    "auc": 0.5,
+    "ci95_low": 0.24369747899159663,
+    "ci95_high": 0.7482517482517482
+  },
+  "energetic_span": {
+    "auc": 0.3333333333333333,
+    "ci95_low": 0.1171875,
+    "ci95_high": 0.5777777777777777
+  },
+  "auc_improvement": -0.16666666666666669,
+  "reason": "The energetic-span descriptor missed every preregistered acceptance threshold and performed worse than the current raw barrier on the external benchmark.",
+  "conclusion": "The molten-alloy surface-composition defect is fixed and all benchmark conditions are scoreable, but neither tested descriptor reliably separates externally labelled active and poor catalysts. No pyrolysis campaign is authorized by this result."
 }

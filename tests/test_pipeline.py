@@ -852,6 +852,14 @@ def test_structure_generation_is_deterministic_and_genome_sensitive():
         assert fingerprint(left) != fingerprint(right)
 
 
+def test_molten_alloy_composition_is_scaled_to_surface_sites():
+    from pipeline.screening.surface_screener import generate_structure
+
+    genome = ('MoltenMetal', 'Sn', 'Ni', 33.0, 1273.15)
+    atoms, surface, _ = generate_structure(genome)
+    assert sum(atoms[index].symbol == 'Ni' for index in surface) == 3
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 7. PEMFC MODEL
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -3711,6 +3719,10 @@ if __name__ == '__main__':
     test(
         "Structures are deterministic and genome-sensitive",
         test_structure_generation_is_deterministic_and_genome_sensitive,
+    )
+    test(
+        "Molten alloy composition is scaled to surface sites",
+        test_molten_alloy_composition_is_scaled_to_surface_sites,
     )
 
     print("\n── PEMFC Model ──")

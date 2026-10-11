@@ -19,6 +19,12 @@
 
 ### Changed
 
+- Corrected molten-alloy composition scaling so encoded atomic percent maps to
+  the modeled 9-site surface instead of saturating it from a 36-atom count.
+  Ni33Sn67 is now physically scoreable, clearing external benchmark coverage;
+  the frozen analysis nevertheless rejects the energetic-span descriptor (AUC
+  0.333 versus 0.500 for the raw barrier), so no pyrolysis campaign is opened.
+
 - Simplified the external pyrolysis benchmark by removing its unused duplicate
   source catalog and consolidating repeated label, field, truth-value, and AUC
   handling. The validated records remain the single provenance source.

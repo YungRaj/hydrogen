@@ -505,7 +505,10 @@ def generate_structure(genome: tuple) -> Tuple[Atoms, list, str]:
 
     elif mat_class == 'MoltenMetal':
         _, host, promoter, at_pct, temp = genome
-        n_sub = max(1, int(at_pct / 100.0 * 36))
+        # Substitutions are confined to the 3 x 3 surface layer below. Scale
+        # against those nine sites, not all 36 slab atoms; the latter silently
+        # turns alloys above 25 at% into a fully promoted surface.
+        n_sub = max(1, round(at_pct / 100.0 * 9))
         dopants = (promoter,) if promoter != 'None' else ()
         thermal_strain = (float(temp) - 1000.0) * 1.0e-5
         facet = 'hcp0001' if host in {'Mg', 'Zn', 'Cd'} else 'fcc111'

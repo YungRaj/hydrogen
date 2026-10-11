@@ -575,7 +575,7 @@ checks, and converged DFT before a quantitative discovery claim.
 Both screening applications use immutable protocol identifiers from
 `pipeline/screening/protocols.py`. Current IDs are:
 
-- `esen-sm-conserving-all-oc25:relax-v4:pyrolysis-v3`
+- `esen-sm-conserving-all-oc25:relax-v4:pyrolysis-v4`
 - `esen-sm-conserving-all-oc25:relax-v4:orr-che-v3`
 
 Reference calculations use a target force of 0.05 eV/A with 200 steps. Clean
