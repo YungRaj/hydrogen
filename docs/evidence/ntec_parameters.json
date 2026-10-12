@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "status": "native_screening_model",
+  "parameters": {
+    "particle_diameter_m": {"value": 0.0001, "bounds": [0.00001, 0.001], "status": "design_lever", "citation": "case input"},
+    "effective_mass_kg": {"value": 1e-9, "bounds": [1e-12, 1e-6], "status": "class_default", "citation": "requires particle characterization"},
+    "adhesion_energy_J": {"value": 1e-19, "bounds": [1e-21, 1e-17], "status": "class_default", "citation": "requires MLIP/DFT adhesion calculation"}
+  }
+}
