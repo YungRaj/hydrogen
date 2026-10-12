@@ -73,5 +73,7 @@ def ntec_screening_point(parameters: dict[str, float]) -> dict[str, Any]:
         'status': 'diagnostic', 'reactor_evidence_tier': 'native_screening_model',
         'can_exclude_candidate': False, 'collision_events_per_volume_s': collisions,
         'impact_energy_J': impact,
-        'detachment_probability': detachment_probability(parameters['adhesion_energy_J'], impact),
+        'detachment_probability': detachment_probability(
+            parameters['adhesion_energy_J_m2'], impact, parameters['contact_area_m2']
+        ),
     }

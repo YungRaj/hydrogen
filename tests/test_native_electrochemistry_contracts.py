@@ -26,5 +26,5 @@ def test_ntec_mechanics_monotonicity() -> None:
     low = impact_energy_J(1e-9, 100.0, 1e-4)
     high = impact_energy_J(1e-9, 200.0, 1e-4)
     assert high > low
-    assert detachment_probability(1e-19, high) > detachment_probability(1e-19, low)
+    assert detachment_probability(1e-19, high, 1e-10) > detachment_probability(1e-19, low, 1e-10)
     assert collision_events_per_volume_s(100.0, 1e-4, 1e12) > 0.0

@@ -140,6 +140,8 @@ class ReactorConfig:
     ntec_number_density_m3: Optional[float] = None
     ntec_effective_mass_kg: Optional[float] = None
     ntec_adhesion_energy_J: Optional[float] = None
+    native_electrochemical_parameters: Optional[dict] = None
+    native_ntec_parameters: Optional[dict] = None
 
     mmbcr_carbon_removal_rate_1_s: Optional[float] = (
         MMBCR_FLOTATION_UNCONSTRAINED)

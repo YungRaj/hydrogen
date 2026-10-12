@@ -21,7 +21,7 @@ def test_native_ntec_point_is_non_pruning() -> None:
     result = ntec_screening_point({
         'shear_rate_s': 100.0, 'particle_diameter_m': 1e-4,
         'number_density_m3': 1e12, 'effective_mass_kg': 1e-9,
-        'adhesion_energy_J': 1e-19,
+        'adhesion_energy_J_m2': 1e-19, 'contact_area_m2': 1e-10,
     })
     assert result['detachment_probability'] > 0.0
     assert result['can_exclude_candidate'] is False

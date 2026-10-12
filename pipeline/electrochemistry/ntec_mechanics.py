@@ -23,8 +23,13 @@ def impact_energy_J(
     return 0.5 * effective_mass_kg * (shear_rate_s * particle_diameter_m) ** 2
 
 
-def detachment_probability(adhesion_energy_J: float, impact_energy_J_value: float) -> float:
-    """Return a bounded adhesion/impact detachment heuristic."""
-    if adhesion_energy_J < 0.0 or impact_energy_J_value <= 0.0:
-        raise ValueError('adhesion must be nonnegative and impact energy positive')
-    return math.exp(-adhesion_energy_J / impact_energy_J_value)
+def detachment_probability(
+    adhesion_energy_J_m2: float,
+    impact_energy_J_value: float,
+    contact_area_m2: float,
+) -> float:
+    """Return detachment from work of adhesion and impact energy density."""
+    if adhesion_energy_J_m2 < 0.0 or impact_energy_J_value <= 0.0 or contact_area_m2 <= 0.0:
+        raise ValueError('adhesion, impact energy, and contact area are invalid')
+    impact_energy_density = impact_energy_J_value / contact_area_m2
+    return math.exp(-adhesion_energy_J_m2 / impact_energy_density)

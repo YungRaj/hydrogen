@@ -25,6 +25,8 @@ class ElectrochemicalReactorConfig(Protocol):
     ntec_number_density_m3: float | None
     ntec_effective_mass_kg: float | None
     ntec_adhesion_energy_J: float | None
+    native_electrochemical_parameters: dict | None
+    native_ntec_parameters: dict | None
 
 
 def _pathway_result(
@@ -75,6 +77,15 @@ def simulate_ntec_pathway(config: ElectrochemicalReactorConfig) -> ReactorResult
             'ntec_assistance': assistance,
             'multiphysics_evidence': evidence,
             'reactor_evidence_tier': 'calibrated_multiphysics_screening',
+        }
+    if config.native_ntec_parameters:
+        from pipeline.electrochemistry.native_models import ntec_screening_point
+        diagnostic = ntec_screening_point(config.native_ntec_parameters)
+        diagnostic.update(status='validation_required', valid=False)
+        return {
+            **_pathway_result(config, 'NTEC', 'ntec', complete=False),
+            **diagnostic,
+            'limitations': ['native_ntec_diagnostic_not_kinetically_coupled'],
         }
     return {
         **_pathway_result(config, 'NTEC', 'ntec', complete=False),
@@ -129,6 +140,17 @@ def simulate_electrochemical_pathway(
             'electrochemical_evidence': evidence,
             'multiphysics_evidence': solver_evidence,
             'reactor_evidence_tier': 'mechanistic_multiphysics_screening',
+        }
+    if config.native_electrochemical_parameters:
+        from pipeline.electrochemistry.native_models import electrochemical_screening_point
+        diagnostic = electrochemical_screening_point(
+            config.native_electrochemical_parameters
+        )
+        diagnostic.update(status='validation_required', valid=False)
+        return {
+            **_pathway_result(config, 'Electrochemical', 'electrochemical', complete=False),
+            **diagnostic,
+            'limitations': ['native_electrochemical_diagnostic_not_feed_coupled'],
         }
     return {
         **_pathway_result(
