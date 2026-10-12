@@ -52,6 +52,10 @@
   but climbing exhausted 1,000 steps at 0.557 eV/A with a discontinuous path.
   This is a workflow failure, not a GNN accuracy result; molten re-testing and
   the held-out set remain blocked.
+- **Ni(111) interpolation follow-up:** replacing IDPP with linear interpolation
+  and adding a constrained reactant endpoint reduced the final path force to
+  0.449 eV/A, but plain NEB still exhausted 1,000 steps and the largest image
+  jump remained 3.85 A. The setup is therefore still not validated.
 - **Claim boundary:** screening outcomes are eSen GNN estimates, not DFT or
   experimental validation.
 - **Readiness:** the six-point campaign status remains fail-closed until its

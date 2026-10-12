@@ -16,6 +16,12 @@
   exhausted its 1,000-step budget at 0.557 eV/A and the path was discontinuous;
   the result is recorded as a workflow failure, not a barrier-accuracy claim.
 
+- Added constrained near-surface reactant relaxation, stiffer springs, FIRE
+  climbing, linear atom-matched interpolation, and per-image jump diagnostics
+  to the methane NEB workflow. The Ni(111) replay still failed plain-path
+  convergence (0.449 eV/A final force; 3.85 A maximum jump), so no barrier
+  accuracy or molten-campaign authority is claimed.
+
 - A locked 24-condition external pyrolysis benchmark, a parameter-free
   activation/H-release/C-release energetic-span implementation, grouped
   bootstrap AUC analysis, and byte-level analysis-lock enforcement. The first

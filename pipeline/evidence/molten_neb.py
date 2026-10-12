@@ -15,7 +15,7 @@ from ase.build import molecule
 from ase.constraints import FixAtoms, Hookean
 from ase.geometry import find_mic
 from ase.mep import NEB
-from ase.optimize import BFGS, FIRE
+from ase.optimize import FIRE
 
 from pipeline.screening.relaxation import geometry_digest, relax_with_record
 from pipeline.screening.surface_calculator import get_ocp_calculator
@@ -34,11 +34,11 @@ class NEBConfig:
     path_fmax_eV_A: float = 0.08
     plain_path_steps: int = 1000
     climbing_path_steps: int = 1000
-    climbing_maxstep: float = 0.01
-    spring_eV_A2: float = 0.10
+    climbing_maxstep: float = 0.02
+    spring_eV_A2: float = 0.70
     max_image_displacement_A: float = 1.5
     local_radius_A: float = 4.5
-    reactant_height_A: float = 3.5
+    reactant_height_A: float = 2.30
     product_CH_restraint_A: float = 2.25
     maximum_product_CH_A: float = 2.5
 
@@ -104,6 +104,26 @@ def _path_continuous(images: list[Atoms], maximum_A: float) -> bool:
     return True
 
 
+def _path_jumps(images: list[Atoms]) -> list[dict[str, float | int]]:
+    """Report the largest atom displacement for every adjacent image pair."""
+    jumps: list[dict[str, float | int]] = []
+    for image_index, (left, right) in enumerate(zip(images, images[1:])):
+        displacement, _ = find_mic(
+            right.positions - left.positions,
+            cell=left.cell,
+            pbc=left.pbc,
+        )
+        distances = np.linalg.norm(displacement, axis=1)
+        atom_index = int(np.argmax(distances))
+        jumps.append({
+            'left_image': image_index,
+            'right_image': image_index + 1,
+            'atom_index': atom_index,
+            'displacement_A': float(distances[atom_index]),
+        })
+    return jumps
+
+
 def _relaxed_methane_bond(
     calculator: Any, config: NEBConfig
 ) -> tuple[float, float, dict[str, Any]]:
@@ -126,14 +146,18 @@ def _relaxed_methane_bond(
 
 
 def _path_result(
-    images: list[Atoms], neb: NEB, plain: FIRE, climbing: BFGS | None,
+    images: list[Atoms], neb: NEB, plain: FIRE, climbing: FIRE | None,
     config: NEBConfig, converged: bool, reference_energy_eV: float,
 ) -> dict[str, Any]:
     energies = [float(image.get_potential_energy()) for image in images]
     relative = [value - reference_energy_eV for value in energies]
     forces = np.asarray(neb.get_forces(), dtype=float)
     max_force = float(np.linalg.norm(forces, axis=1).max())
-    continuous = _path_continuous(images, config.max_image_displacement_A)
+    jumps = _path_jumps(images)
+    continuous = all(
+        float(jump['displacement_A']) <= config.max_image_displacement_A
+        for jump in jumps
+    )
     interior_maximum = int(np.argmax(energies)) not in (0, len(energies) - 1)
     valid = bool(
         converged and math.isfinite(max_force)
@@ -155,6 +179,7 @@ def _path_result(
         'plain_converged': climbing is not None,
         'climbing_converged': bool(converged),
         'path_continuous': continuous,
+        'path_jumps': jumps,
         'interior_maximum': interior_maximum,
         'valid': valid,
     }
@@ -169,7 +194,10 @@ def _run_path(
         images, k=config.spring_eV_A2, climb=False,
         method='improvedtangent', allow_shared_calculator=True,
     )
-    neb.interpolate(method='idpp', apply_constraint=True)
+    # Direct interpolation preserves the deliberately matched C/H reaction
+    # coordinate. IDPP can move the carbon through a lower-energy surface site
+    # before NEB starts, creating a nonphysical jump unrelated to C-H breaking.
+    neb.interpolate(method='linear', apply_constraint=True)
     for image in images:
         image.calc = calculator
     plain = FIRE(neb, logfile=None, dt=0.03, dtmax=0.2, maxstep=0.05)
@@ -182,9 +210,8 @@ def _run_path(
     )
     plain_result['plain_converged'] = True
     neb.climb = True
-    climbing = BFGS(
-        neb,
-        logfile=None,
+    climbing = FIRE(
+        neb, logfile=None, dt=0.01, dtmax=0.05,
         maxstep=config.climbing_maxstep,
     )
     converged = bool(climbing.run(
@@ -241,6 +268,21 @@ def methane_endpoints(
         endpoint.calc = calculator
     initial.set_constraint(slab_constraint)
     carbon_index = len(structure)
+    initial.set_constraint([
+        slab_constraint,
+        Hookean(
+            carbon_index,
+            active_index,
+            k=5.0,
+            rt=config.reactant_height_A,
+        ),
+    ])
+    reactant = relax_with_record(
+        initial, 'neb_reactant', config.endpoint_fmax_eV_A, config.endpoint_steps
+    )
+    initial.set_constraint(slab_constraint)
+    if not reactant['relax_neb_reactant_converged']:
+        raise RuntimeError('MLIP-NEB reactant endpoint did not converge')
     final.set_constraint([
         slab_constraint,
         Hookean(
@@ -266,6 +308,7 @@ def methane_endpoints(
             'gas_ch4_bond_A': methane_bond_A,
             'gas_ch4_energy_eV': gas_energy_eV,
         },
+        'reactant': reactant,
         'product': product,
         'product_detached_CH_A': detached_ch_A,
     }
