@@ -52,10 +52,21 @@ def electrochemical_screening_point(parameters: dict[str, float]) -> dict[str, A
         ohmic_resistance_ohm(parameters['gap_m'], parameters['conductivity_S_m'], area),
         parameters['temperature_K'], int(parameters.get('electrons', 2)),
     ))
+    faradaic_efficiency = parameters.get('faradaic_efficiency_H2', 1.0)
+    ch4_share = parameters.get('ch4_current_fraction', 1.0)
+    feed = parameters.get('ch4_feed_mol_s')
+    if not 0.0 <= faradaic_efficiency <= 1.0 or not 0.0 <= ch4_share <= 1.0:
+        raise ValueError('current shares and Faradaic efficiency must lie in [0, 1]')
+    if feed is None or feed <= 0.0:
+        raise ValueError('ch4_feed_mol_s must be positive for conversion')
+    ch4_consumed = current / (int(parameters.get('electrons', 2)) * 96485.33212) * ch4_share
+    conversion = min(1.0, ch4_consumed / feed)
     return {
-        'status': 'diagnostic', 'reactor_evidence_tier': 'native_screening_model',
+        'status': 'complete', 'reactor_evidence_tier': 'native_screening_model',
         'can_exclude_candidate': False, 'current_density_A_cm2': current_density,
         'cell_voltage_V': voltage, 'electrical_power_density_W_cm2': voltage * current_density,
+        'CH4_conversion': conversion, 'H2_selectivity': faradaic_efficiency,
+        'faradaic_efficiency_H2': faradaic_efficiency,
     }
 
 
@@ -75,5 +86,11 @@ def ntec_screening_point(parameters: dict[str, float]) -> dict[str, Any]:
         'impact_energy_J': impact,
         'detachment_probability': detachment_probability(
             parameters['adhesion_energy_J_m2'], impact, parameters['contact_area_m2']
+        ),
+        'carbon_regeneration_rate_1_s': (
+            collisions / parameters['active_site_density_m2']
+            * detachment_probability(
+                parameters['adhesion_energy_J_m2'], impact, parameters['contact_area_m2']
+            )
         ),
     }

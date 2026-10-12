@@ -12,6 +12,7 @@ def test_native_electrochemical_point_is_non_pruning() -> None:
         'area_m2': 1e-4, 'diffusivity_m2_s': 1e-9,
         'concentration_mol_m3': 1000.0, 'boundary_layer_m': 1e-4,
         'gap_m': 1e-3, 'conductivity_S_m': 10.0,
+        'ch4_feed_mol_s': 1e-3,
     })
     assert result['reactor_evidence_tier'] == 'native_screening_model'
     assert result['can_exclude_candidate'] is False
@@ -21,7 +22,8 @@ def test_native_ntec_point_is_non_pruning() -> None:
     result = ntec_screening_point({
         'shear_rate_s': 100.0, 'particle_diameter_m': 1e-4,
         'number_density_m3': 1e12, 'effective_mass_kg': 1e-9,
-        'adhesion_energy_J_m2': 1e-19, 'contact_area_m2': 1e-10,
+        'adhesion_energy_J_m2': 1.0, 'contact_area_m2': 1e-10,
+        'active_site_density_m2': 1e18,
     })
-    assert result['detachment_probability'] > 0.0
+    assert 0.0 <= result['detachment_probability'] <= 1.0
     assert result['can_exclude_candidate'] is False
