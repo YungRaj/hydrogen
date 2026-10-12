@@ -27,6 +27,10 @@ from pipeline.utils import (
     orr_overpotential,
     abundance_cost_penalty,
 )
+from pipeline.screening.fc_screener import (
+    ORR_MAX_BINDING_ABS_EV, ORR_MAX_REPORTED_OVERPOTENTIAL_V,
+    _adsorbate_geometry_valid,
+)
 
 logger = setup_logger('fc_cathode', 'fuel_cell/cathode_screening.log')
 
@@ -204,6 +208,10 @@ def screen_orr_candidate(candidate: Dict, calc, e_h2o: float, e_h2: float) -> Di
         slab_oh.append(Atom('H', position=oh_pos + np.array([0.0, 0.0, 0.97])))
         slab_oh.calc = calc
         BFGS(slab_oh, logfile=None).run(fmax=0.08, steps=80)
+        valid_geometry, geometry_reason = _adsorbate_geometry_valid(slab_oh, len(structure), 'oh')
+        if not valid_geometry:
+            result.update({'error': geometry_reason, 'candidate_disposition': 'validation_required'})
+            return result
         e_oh = slab_oh.get_potential_energy()
 
         # Reference: E(H₂O) - 0.5*E(H₂)
@@ -231,11 +239,23 @@ def screen_orr_candidate(candidate: Dict, calc, e_h2o: float, e_h2: float) -> Di
         slab_ooh.append(Atom('H', position=h_pos))
         slab_ooh.calc = calc
         BFGS(slab_ooh, logfile=None).run(fmax=0.08, steps=80)
+        valid_geometry, geometry_reason = _adsorbate_geometry_valid(slab_ooh, len(structure), 'ooh')
+        if not valid_geometry:
+            result.update({'error': geometry_reason, 'candidate_disposition': 'validation_required'})
+            return result
         e_ooh = slab_ooh.get_potential_energy()
         dG_OOH = (e_ooh - e_clean) - (2 * e_h2o - 1.5 * e_h2) + 0.40 - 0.10
 
         # ── ORR Overpotential ───────────────────────────────────────────────
         eta, rds = orr_overpotential(dG_OH, dG_O, dG_OOH)
+        if eta > ORR_MAX_REPORTED_OVERPOTENTIAL_V:
+            result.update({'error': 'orr_overpotential_capped_at_3V',
+                           'candidate_disposition': 'validation_required'})
+            return result
+        if any(abs(value) > ORR_MAX_BINDING_ABS_EV for value in (dG_OH, dG_O, dG_OOH)):
+            result.update({'error': 'adsorption_descriptor_outside_4eV_domain',
+                           'candidate_disposition': 'validation_required'})
+            return result
 
         result.update(
             {
