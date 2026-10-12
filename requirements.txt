@@ -3,13 +3,13 @@ numpy>=1.24
 scipy>=1.10
 scikit-learn>=1.7,<2
 
-# ─── Phase 1: MACE Screening + Genetic Algorithm (deepmd-env) ──────────────────
+# ─── Phase 1: Fairchem/eSen Screening + Genetic Algorithm (fairchem-env) ───────
 torch>=2.0
-mace-torch>=0.3
+fairchem-core
 ase>=3.22
 pandas>=2.0
 
-# ─── Phase 2: Reactor Simulation (cp2k-env) ────────────────────────────────────
+# ─── Phase 2: Reactor Simulation (reactor-env) ─────────────────────────────────
 cantera>=3.0
 # Sweep specs: ruamel.yaml (pulled in by Cantera) or PyYAML
 
@@ -22,5 +22,5 @@ cantera>=3.0
 # NVIDIA CUDA-Q — see https://nvidia.github.io/cuda-quantum/latest/install.html
 # pip install cuda-quantum
 
-# ─── Phase 5: Fuel Cell Modeling (battery-env) ──────────────────────────────────
+# ─── Phase 5: Fuel Cell Modeling (core Python dependencies) ────────────────────
 # Uses core dependencies only (numpy, scipy)
