@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "lock_role": "post_confirmatory_exploratory",
+  "supersedes": "docs/evidence/prospective_policy_lock.json",
+  "policy_source_sha256": "9ebb016b8fad5cb82a8fac5db26bb47373f0c25b0a8c6fb5f28d150fd32b1b8e",
+  "confirmatory_applications": [],
+  "exploratory_applications": ["turquoise_hydrogen"],
+  "planned_batches": 0,
+  "candidates_per_class": 0,
+  "selection_budget": 0
+}
