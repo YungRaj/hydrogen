@@ -102,7 +102,11 @@ def get_ocp_calculator(
         # fairchem v2 does not infer the caller's requested device from the ASE
         # calculator. Forward it explicitly so CPU requests and CUDA worker
         # masks cannot silently fall back to another device.
-        unit = get_predict_unit(model_name, device=device)
+        # Recent Fairchem releases accept only ``cuda``/``cpu`` here. GPU
+        # worker affinity is established before this call, so normalizing
+        # ``cuda:N`` does not change which device the worker owns.
+        fairchem_device = 'cuda' if device.startswith('cuda') else device
+        unit = get_predict_unit(model_name, device=fairchem_device)
         calc = FAIRChemCalculator(predict_unit=unit)
         logger.info(f"Loaded {model_name} via fairchem v2")
         return calc
