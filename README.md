@@ -492,6 +492,12 @@ For deployments using a local Fairchem checkpoint, set
 `FAIRCHEM_CHECKPOINT_SHA256` to its 64-character SHA-256 digest. The loader
 rejects a mismatched checkpoint before screening begins.
 
+The optional atomistic validation tools are deliberately separate from the
+screening protocol. `pipeline.evidence.molten_md` collects seeded, decorrelated
+liquid snapshots with the Fairchem calculator; `saddle_refinement` refines an
+already validated NEB maximum with Sella; and `thermochemistry_crosscheck`
+records pMuTT comparisons without replacing the locked Cantera mechanism.
+
 ### Environment 2: `cp2k-env` — Cantera (Phase 2)
 
 ```bash
