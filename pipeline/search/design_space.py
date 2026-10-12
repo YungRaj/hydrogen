@@ -40,6 +40,8 @@ def extract_elements(genome: tuple) -> List[str]:
         elements = [genome[1], genome[2]]
     elif material_class == 'SolidCatalyst':
         elements = [genome[1], *genome[5]]
+    elif material_class == 'SupportedNanoparticle':
+        elements = [genome[1], *genome[6]]
     elif material_class == 'SAC':
         elements = [genome[1]]
     elif material_class in ('DAC', 'SAA'):
@@ -236,6 +238,25 @@ def generate_solid_catalyst_genome() -> tuple:
     num_sub = random.randint(1, min(4, max(1, num_dop)))
     num_vac = random.randint(0, 2)
     return ('SolidCatalyst', metal, support, facet, strain, dopants, num_sub, num_vac)
+
+
+def generate_supported_nanoparticle_genome() -> tuple:
+    """Generate an explicit supported-particle genome for B6 studies.
+
+    Layout: class, metal, support, facet, particle diameter (nm), loading
+    (wt%), dopants, substitution count, vacancy count.  This is opt-in so
+    historical 14-class population sizes and locks remain unchanged.
+    """
+    metal = random.choice(SOLID_ACTIVE_METALS)
+    support = random.choice(SOLID_SUPPORTS)
+    facet = random.choice(SOLID_FACETS)
+    diameter_nm = random.uniform(1.0, 20.0)
+    loading_wt_pct = random.uniform(1.0, 30.0)
+    dopants = tuple(random.choice(SOLID_DOPANTS) for _ in range(random.randint(0, 3)))
+    return (
+        'SupportedNanoparticle', metal, support, facet, diameter_nm,
+        loading_wt_pct, dopants, random.randint(1, 4), random.randint(0, 2),
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

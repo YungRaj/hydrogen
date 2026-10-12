@@ -409,7 +409,7 @@ def _nanoparticle_metals(
     if not genome:
         return frozenset()
     cls = material_class or genome[0]
-    if cls == 'SolidCatalyst' and len(genome) > 1:
+    if cls in ('SolidCatalyst', 'SupportedNanoparticle') and len(genome) > 1:
         return frozenset({genome[1]})
     if cls == 'SAA' and len(genome) > 2:
         return frozenset({genome[2]})

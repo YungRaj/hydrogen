@@ -488,6 +488,25 @@ def generate_structure(
     """
     mat_class = genome[0]
 
+    if mat_class == 'SupportedNanoparticle':
+        _, metal, support, facet, diameter_nm, loading_wt_pct, dopants, n_sub, n_vac = genome
+        facet_key = facet.split('_')[0] if '_' in facet else facet
+        if facet_key not in ('fcc111', 'fcc100', 'bcc110', 'hcp0001'):
+            facet_key = 'fcc111'
+        # The slab builder is the validated geometry path.  Particle size and
+        # loading remain explicit metadata while the support/active site are
+        # represented by the same supported-slab environment.
+        slab, top_idx = generate_alloy_slab(
+            metal, facet_key, 0.0, tuple(dopants), int(n_sub), int(n_vac),
+            seed_key=genome, environment_label=support,
+        )
+        slab.info.update({
+            'particle_diameter_nm': float(diameter_nm),
+            'loading_wt_pct': float(loading_wt_pct),
+            'support': str(support),
+        })
+        return slab, top_idx, mat_class
+
     if mat_class == 'SolidCatalyst':
         _, metal, support, facet, strain, dopants, n_sub, n_vac = genome
         # Map extended facets to available builders
