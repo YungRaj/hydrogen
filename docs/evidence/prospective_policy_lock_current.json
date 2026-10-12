@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "status": "future_campaign",
+  "policy_source_sha256": "ce1b3455955869a07022ad8c3350a3058783028b1c27b43553118b220bcda6f9",
+  "confirmatory_applications": ["fuel_cell_orr"],
+  "exploratory_applications": ["turquoise_hydrogen"],
+  "planned_batches": 35,
+  "candidates_per_class": 10,
+  "selection_budget": 20,
+  "random_one_sided_alpha": 0.05
+}

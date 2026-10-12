@@ -21,7 +21,7 @@ from pipeline.screening.protocols import ORR_PROTOCOL, PYROLYSIS_PROTOCOL
 REPO_ROOT = Path(__file__).resolve().parent
 ROOT = Path('results/prospective_search')
 HISTORY = Path('docs/evidence/legacy_pilot_rounds.jsonl')
-POLICY_LOCK = Path('docs/evidence/prospective_policy_lock.json')
+POLICY_LOCK = Path('docs/evidence/prospective_policy_lock_current.json')
 APPS = (('turquoise_hydrogen', 'E_act', 'pyrolysis'),
         ('fuel_cell_orr', 'orr_overpotential_V', 'orr'))
 PROTOCOLS = {
