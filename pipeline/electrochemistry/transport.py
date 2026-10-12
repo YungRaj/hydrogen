@@ -30,7 +30,14 @@ def concentration_overpotential_V(
     current_A: float, limiting_current_A_value: float, temperature_K: float,
     electrons: int = 2,
 ) -> float:
-    """Return the concentration overpotential before the limiting current."""
+    """Return concentration overpotential before the limiting current.
+
+    Args:
+        current_A: Operating current.
+        limiting_current_A_value: Limiting current.
+        temperature_K: Absolute temperature.
+        electrons: Number of transferred electrons.
+    """
     if limiting_current_A_value <= 0.0 or temperature_K <= 0.0 or electrons <= 0:
         raise ValueError('limiting current, temperature, and electrons are invalid')
     fraction = current_A / limiting_current_A_value

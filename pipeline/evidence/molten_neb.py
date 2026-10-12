@@ -35,6 +35,12 @@ def collect_molten_snapshots(
     This is deliberately separate from the locked static-replica workflow:
     callers must record the MD protocol and snapshots before using them for
     barrier statistics.
+
+    Args:
+        genome: Molten-metal catalyst encoding.
+        device: Calculator device.
+        protocol: Liquid MD sampling protocol.
+        model_name: Fairchem model identifier.
     """
     calculator = get_ocp_calculator(model_name, device=device)
     if calculator is None:
@@ -50,7 +56,13 @@ def collect_molten_snapshots(
 
 def refine_path_saddle(images: list[Atoms], *, fmax_eV_A: float = 0.05,
                        steps: int = 500) -> dict[str, Any]:
-    """Refine the highest-energy converged-path image with Sella."""
+    """Refine the highest-energy converged-path image with Sella.
+
+    Args:
+        images: Ordered NEB images with attached calculators.
+        fmax_eV_A: Force convergence threshold.
+        steps: Maximum Sella steps.
+    """
     if len(images) < 3:
         raise ValueError('saddle refinement requires at least three images')
     energies = [float(image.get_potential_energy()) for image in images[1:-1]]
@@ -401,6 +413,7 @@ def run_replica(
         structure_seed: Deterministic surface configuration index.
         device: Calculator device selected by the caller.
         config: Frozen endpoint and path controls.
+        model_name: Fairchem model identifier.
 
     Returns:
         Barrier, endpoint, convergence, continuity, and provenance evidence.

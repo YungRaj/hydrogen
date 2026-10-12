@@ -8,7 +8,12 @@ from typing import Any, Mapping
 def compare_regeneration(
     baseline: Mapping[str, float], regeneration: Mapping[str, float]
 ) -> dict[str, Any]:
-    """Return carbon-removal deltas without changing either result."""
+    """Return carbon-removal deltas without changing either result.
+
+    Args:
+        baseline: Reactor outputs without carbon regeneration.
+        regeneration: Reactor outputs with carbon regeneration.
+    """
     fields = (
         'CH4_conversion', 'H2_selectivity', 'solid_C_selectivity',
         'specific_energy_kWh_kg_H2',

@@ -36,7 +36,12 @@ def rank_descriptors(rows: Iterable[Mapping[str, object]]) -> list[dict[str, obj
 
 
 def write_catmap_input(rows: Iterable[Mapping[str, object]], path: str | Path) -> None:
-    """Write the minimal descriptor table accepted by a CatMAP preprocessor."""
+    """Write the minimal descriptor table accepted by a CatMAP preprocessor.
+
+    Args:
+        rows: Candidate mappings containing optional IDs and ``dG_OH_eV``.
+        path: Destination CSV path.
+    """
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open('w', newline='') as handle:

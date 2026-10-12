@@ -22,7 +22,11 @@ class CellOperatingPoint:
 
 
 def cell_voltage(point: CellOperatingPoint) -> float:
-    """Return cell voltage including ohmic and concentration losses."""
+    """Return cell voltage including ohmic and concentration losses.
+
+    Args:
+        point: Operating-point inputs and loss parameters.
+    """
     if point.current_A < 0.0 or point.resistance_ohm < 0.0:
         raise ValueError('current and resistance must be nonnegative')
     concentration = concentration_overpotential_V(

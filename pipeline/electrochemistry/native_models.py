@@ -78,7 +78,11 @@ def electrochemical_screening_point(parameters: dict[str, float]) -> dict[str, A
 
 
 def ntec_screening_point(parameters: dict[str, float]) -> dict[str, Any]:
-    """Evaluate explicit collision, impact, and detachment diagnostics."""
+    """Evaluate explicit collision, impact, and detachment diagnostics.
+
+    Args:
+        parameters: Dimensioned NTEC inputs keyed by the documented names.
+    """
     collisions = collision_events_per_volume_s(
         parameters['shear_rate_s'], parameters['particle_diameter_m'],
         parameters['number_density_m3'],
