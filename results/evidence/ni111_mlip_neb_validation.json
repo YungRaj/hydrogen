@@ -2,7 +2,7 @@
   "acceptance_passed": false,
   "held_out_conditions_consumed": false,
   "kind": "ni111_reference",
-  "lock_sha256": "6dedbd282604443e5de67648784478cb4bb0055cd1082e20b96190f90279f852",
+  "lock_sha256": "e9813d7f901701204a912aace0e30a5a340ffe4b82ef9548da68ce6bb65f75b5",
   "record": {
     "absolute_error_eV": 0.664474415779128,
     "apparent_barrier_eV": 0.385525584220872,

@@ -15,6 +15,6 @@
     "pipeline/screening/surface_screener.py": "933e24f209da3e098e20970f8a92b4b0fac48d0be9b91bc673c1c045c6bf7849",
     "pipeline/screening/protocols.py": "599d3cea5ef558f4fc2079ebc579cc97816476c9f523d351fdf7e3bbda3bc201",
     "pipeline/utils.py": "3917deea77c908b979ea036743de708be73bdcdca715d919145ce69cf4e4580a",
-    "pipeline/search/design_space.py": "001728116634b1f542390330b49bcf83fe5712d15717e60273942fdae01917f0"
+    "pipeline/search/design_space.py": "30be9358a760b788af27cc54d3fc1c14ea15a8732fa836ecd058514013af0422"
   }
 }
