@@ -35,6 +35,12 @@ def test(name, fn):
         FAIL += 1
 
 
+# This is the file's legacy test runner, not a pytest test function.  Mark it
+# explicitly so pytest does not try to inject fixtures named ``name`` and
+# ``fn`` when collecting the module.
+test.__test__ = False
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 1. DESIGN SPACE
 # ═══════════════════════════════════════════════════════════════════════════════
