@@ -1,18 +1,16 @@
 #!/usr/bin/env python3
 """Turquoise-hydrogen catalyst-guided branch discovery."""
 
-from dataclasses import dataclass
 import argparse
-from typing import Optional
-import ast
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 import pandas as pd
 
-from pipeline.search.design_space import (
-    extract_elements as _extract_elements_from_genome,
-)
+from pipeline.search.design_space import extract_elements as _extract_elements_from_genome
+
 from pipeline.search.adaptive_validation import AdvancementCriterion
 from pipeline.screening.branch_discovery import (
     BranchDiscoveryConfig as _BranchDiscoveryConfig,
