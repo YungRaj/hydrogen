@@ -1,5 +1,7 @@
 {
   "schema_version": 1,
+  "status": "completed_historical",
+  "produced_at_commit": "f307d28",
   "locked_at": "2026-10-10",
   "resamples": 10000,
   "bootstrap_seed": 20261010,
