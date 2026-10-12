@@ -20,6 +20,9 @@ def exchange_current_density(
         optimum_eV: Descriptor at the volcano maximum.
         reference_A_cm2: Reference exchange current density.
         temperature_K: Absolute temperature.
+
+    Returns:
+        Exchange current density in A/cm².
     """
     if reference_A_cm2 <= 0.0 or temperature_K <= 0.0:
         raise ValueError('reference current and temperature must be positive')
@@ -45,6 +48,9 @@ def butler_volmer_current_density(
         temperature_K: Absolute temperature.
         symmetry_factor: Charge-transfer symmetry factor.
         electrons: Number of transferred electrons.
+
+    Returns:
+        Signed current density in A/cm².
     """
     if exchange_current_A_cm2 < 0.0 or temperature_K <= 0.0 or electrons <= 0:
         raise ValueError('current, temperature, and electron count are invalid')

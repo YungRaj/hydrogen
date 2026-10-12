@@ -25,6 +25,12 @@ def electrochemical_screening_point(parameters: dict[str, float]) -> dict[str, A
 
     Required parameters are intentionally passed by name; there are no hidden
     electrolyte or catalyst defaults. The result is diagnostic and non-pruning.
+
+    Args:
+        parameters: Dimensioned electrochemical operating inputs.
+
+    Returns:
+        Diagnostic current, voltage, conversion, and selectivity values.
     """
     exchange = exchange_current_density(
         parameters['descriptor_eV'], parameters['optimum_descriptor_eV'],
@@ -82,6 +88,9 @@ def ntec_screening_point(parameters: dict[str, float]) -> dict[str, Any]:
 
     Args:
         parameters: Dimensioned NTEC inputs keyed by the documented names.
+
+    Returns:
+        Diagnostic collision, impact, and regeneration values.
     """
     collisions = collision_events_per_volume_s(
         parameters['shear_rate_s'], parameters['particle_diameter_m'],

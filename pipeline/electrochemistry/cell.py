@@ -26,6 +26,9 @@ def cell_voltage(point: CellOperatingPoint) -> float:
 
     Args:
         point: Operating-point inputs and loss parameters.
+
+    Returns:
+        Cell voltage in volts.
     """
     if point.current_A < 0.0 or point.resistance_ohm < 0.0:
         raise ValueError('current and resistance must be nonnegative')

@@ -19,6 +19,13 @@ def volcano_rate_log10(dG_OH_eV: float, *, temperature_K: float = 298.15) -> flo
     The optimum is 0.86 eV (the conventional ORR OH descriptor); deviations
     are penalized symmetrically as a descriptor sanity check, not as a fitted
     screening score.
+
+    Args:
+        dG_OH_eV: Hydroxyl adsorption free energy.
+        temperature_K: Absolute temperature.
+
+    Returns:
+        Base-10 logarithm of the relative volcano rate.
     """
     if temperature_K <= 0 or not math.isfinite(dG_OH_eV):
         raise ValueError('finite descriptor and positive temperature required')
@@ -27,7 +34,11 @@ def volcano_rate_log10(dG_OH_eV: float, *, temperature_K: float = 298.15) -> flo
 
 
 def rank_descriptors(rows: Iterable[Mapping[str, object]]) -> list[dict[str, object]]:
-    """Annotate and rank rows without changing their source values."""
+    """Annotate and rank rows without changing their source values.
+
+    Returns:
+        New rows ordered by descending volcano rate.
+    """
     ranked = []
     for row in rows:
         value = float(row['dG_OH_eV'])

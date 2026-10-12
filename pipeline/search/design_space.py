@@ -246,6 +246,9 @@ def generate_supported_nanoparticle_genome() -> tuple:
     Layout: class, metal, support, facet, particle diameter (nm), loading
     (wt%), dopants, substitution count, vacancy count.  This is opt-in so
     historical 14-class population sizes and locks remain unchanged.
+
+    Returns:
+        A supported-nanoparticle genome tuple.
     """
     metal = random.choice(SOLID_ACTIVE_METALS)
     support = random.choice(SOLID_SUPPORTS)

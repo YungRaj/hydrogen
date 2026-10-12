@@ -14,6 +14,9 @@ def collision_events_per_volume_s(
         shear_rate_s: Shear rate in inverse seconds.
         particle_diameter_m: Particle diameter in metres.
         number_density_m3: Particle number density per cubic metre.
+
+    Returns:
+        Collision events per cubic metre per second.
     """
     if min(shear_rate_s, particle_diameter_m, number_density_m3) <= 0.0:
         raise ValueError('shear rate, diameter, and number density must be positive')
@@ -29,6 +32,9 @@ def impact_energy_J(
         effective_mass_kg: Effective colliding mass.
         shear_rate_s: Shear rate in inverse seconds.
         particle_diameter_m: Particle diameter in metres.
+
+    Returns:
+        Impact energy in joules.
     """
     if min(effective_mass_kg, shear_rate_s, particle_diameter_m) <= 0.0:
         raise ValueError('mass, shear rate, and diameter must be positive')
@@ -46,6 +52,9 @@ def detachment_probability(
         adhesion_energy_J_m2: Work of adhesion per contact area.
         impact_energy_J_value: Impact energy.
         contact_area_m2: Effective contact area.
+
+    Returns:
+        Detachment probability between zero and one.
     """
     if adhesion_energy_J_m2 < 0.0 or impact_energy_J_value <= 0.0 or contact_area_m2 <= 0.0:
         raise ValueError('adhesion, impact energy, and contact area are invalid')

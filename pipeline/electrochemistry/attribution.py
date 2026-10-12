@@ -13,6 +13,9 @@ def compare_regeneration(
     Args:
         baseline: Reactor outputs without carbon regeneration.
         regeneration: Reactor outputs with carbon regeneration.
+
+    Returns:
+        A copy of both outputs and field-level regeneration deltas.
     """
     fields = (
         'CH4_conversion', 'H2_selectivity', 'solid_C_selectivity',

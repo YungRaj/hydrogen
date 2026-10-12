@@ -41,6 +41,9 @@ def collect_molten_snapshots(
         device: Calculator device.
         protocol: Liquid MD sampling protocol.
         model_name: Fairchem model identifier.
+
+    Returns:
+        Snapshots and auditable protocol metadata.
     """
     calculator = get_ocp_calculator(model_name, device=device)
     if calculator is None:
@@ -62,6 +65,9 @@ def refine_path_saddle(images: list[Atoms], *, fmax_eV_A: float = 0.05,
         images: Ordered NEB images with attached calculators.
         fmax_eV_A: Force convergence threshold.
         steps: Maximum Sella steps.
+
+    Returns:
+        Sella convergence and selected-image metadata.
     """
     if len(images) < 3:
         raise ValueError('saddle refinement requires at least three images')
@@ -465,6 +471,7 @@ def run_ni111_reference(
     Args:
         device: Calculator device selected by the caller.
         config: Frozen endpoint and path controls.
+        model_name: Fairchem model identifier.
 
     Returns:
         Complete convergence and barrier evidence for the solid reference.
