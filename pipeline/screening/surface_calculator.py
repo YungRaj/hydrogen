@@ -10,6 +10,7 @@ Multi-Fidelity Surface Catalysis Calculator.
 """
 
 import os
+import hashlib
 import shlex
 import sys
 from pathlib import Path
@@ -23,6 +24,29 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from pipeline.utils import setup_logger, BASE_DIR
 
 logger = setup_logger('surface_calculator', 'screening/surface_calculator.log')
+
+
+def _verify_checkpoint(path: Path) -> None:
+    """Verify an optional checkpoint digest before loading model weights.
+
+    The expected digest is intentionally supplied by the deployment environment
+    because gated Fairchem weights are not stored in this repository.
+    """
+    expected = os.environ.get('FAIRCHEM_CHECKPOINT_SHA256', '').strip().lower()
+    if not expected:
+        return
+    if len(expected) != 64 or any(char not in '0123456789abcdef' for char in expected):
+        raise RuntimeError('FAIRCHEM_CHECKPOINT_SHA256 must be a 64-character hex digest')
+    digest = hashlib.sha256()
+    with path.open('rb') as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+            digest.update(chunk)
+    actual = digest.hexdigest()
+    if actual != expected:
+        raise RuntimeError(
+            f'Fairchem checkpoint digest mismatch for {path}: '
+            f'expected {expected}, got {actual}'
+        )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -89,6 +113,7 @@ def get_ocp_calculator(
     local_ckpt = BASE_DIR / 'models' / 'eq2_31M_ec4_allmd.pt'
     if local_ckpt.exists():
         try:
+            _verify_checkpoint(local_ckpt)
             from fairchem.core import OCPCalculator
 
             calc = OCPCalculator(checkpoint_path=str(local_ckpt), cpu=(device == 'cpu'))
@@ -106,6 +131,8 @@ def get_ocp_calculator(
         if not local_ckpt.exists():
             logger.info("Downloading EquiformerV2-31M checkpoint...")
             torch.hub.download_url_to_file(url, str(local_ckpt))
+
+        _verify_checkpoint(local_ckpt)
 
         from fairchem.core import OCPCalculator
 

@@ -484,11 +484,13 @@ environments may be merged, but these names provide portable discovery.
 This environment is used for the high-throughput GNN screening and active learning loops.
 
 ```bash
-conda create -n fairchem-env python=3.10 -y
+conda env create -f environments/environment-fairchem.yml
 conda activate fairchem-env
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
-pip install fairchem-core ase pandas scipy numpy
 ```
+
+For deployments using a local Fairchem checkpoint, set
+`FAIRCHEM_CHECKPOINT_SHA256` to its 64-character SHA-256 digest. The loader
+rejects a mismatched checkpoint before screening begins.
 
 ### Environment 2: `cp2k-env` — Cantera (Phase 2)
 
