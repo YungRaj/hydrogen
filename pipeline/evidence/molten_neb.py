@@ -77,6 +77,45 @@ def refine_path_saddle(images: list[Atoms], *, fmax_eV_A: float = 0.05,
     return {'image_index': index, 'image_count': len(images), **result}
 
 
+def run_bond_stretch_scan(
+    state: Atoms, carbon_index: int, hydrogen_index: int, calculator: Any,
+    reference_energy_eV: float, *, start_A: float = 1.10,
+    stop_A: float = 2.30, step_A: float = 0.10,
+    fmax_eV_A: float = 0.08, steps: int = 300,
+) -> dict[str, Any]:
+    """Run an exploratory constrained C-H scan without a product minimum."""
+    if not (0 <= carbon_index < len(state) and 0 <= hydrogen_index < len(state)):
+        raise IndexError('bond scan atom index is outside the structure')
+    if carbon_index == hydrogen_index or step_A <= 0.0 or stop_A < start_A:
+        raise ValueError('invalid bond scan interval')
+    targets = np.arange(start_A, stop_A + 0.5 * step_A, step_A)
+    current = state.copy()
+    base_constraints = list(current.constraints)
+    records: list[dict[str, Any]] = []
+    for target in targets:
+        current.calc = calculator
+        current.set_constraint(base_constraints + [
+            Hookean(carbon_index, hydrogen_index, k=5.0, rt=float(target))
+        ])
+        label = f'neb_bond_scan_{float(target):.2f}'
+        relaxation = relax_with_record(current, label, fmax_eV_A, steps)
+        energy = float(current.get_potential_energy())
+        records.append({
+            'target_CH_A': float(target),
+            'actual_CH_A': float(current.get_distance(carbon_index, hydrogen_index, mic=True)),
+            'energy_eV': energy,
+            'relative_energy_eV': energy - reference_energy_eV,
+            'relaxation': relaxation,
+        })
+        if not relaxation.get(f'relax_{label}_converged', False):
+            break
+    peak = max(records, key=lambda row: row['relative_energy_eV']) if records else None
+    return {
+        'method': 'constrained_C-H_bond_scan', 'records': records,
+        'peak': peak, 'complete': bool(records) and len(records) == len(targets),
+    }
+
+
 @dataclass(frozen=True)
 class NEBConfig:
     """Frozen endpoint and staged-path numerical controls."""

@@ -33,6 +33,14 @@ def test_path_saddle_selects_highest_internal_image(monkeypatch) -> None:
     assert result['image_index'] == 3
 
 
+def test_bond_scan_rejects_invalid_indices() -> None:
+    with pytest.raises(IndexError):
+        molten_neb.run_bond_stretch_scan(
+            Atoms('CH', positions=((0, 0, 0), (1.1, 0, 0))),
+            0, 2, object(), 0.0,
+        )
+
+
 def test_thermochemistry_comparison_is_non_mutating() -> None:
     result = compare_gas_reference(
         current_free_energy_eV=-1.0,
