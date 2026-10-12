@@ -356,7 +356,8 @@ def methane_endpoints(
 
 
 def run_replica(
-    genome: tuple[Any, ...], structure_seed: int, device: str, config: NEBConfig
+    genome: tuple[Any, ...], structure_seed: int, device: str, config: NEBConfig,
+    model_name: str = MODEL_NAME,
 ) -> dict[str, Any]:
     """Run one staged molten path and return convergence evidence.
 
@@ -369,9 +370,9 @@ def run_replica(
     Returns:
         Barrier, endpoint, convergence, continuity, and provenance evidence.
     """
-    calculator = get_ocp_calculator(MODEL_NAME, device=device)
+    calculator = get_ocp_calculator(model_name, device=device)
     if calculator is None:
-        raise RuntimeError(f'could not load {MODEL_NAME}')
+        raise RuntimeError(f'could not load {model_name}')
     structure, active_indices, material_class = generate_structure(genome, structure_seed)
     if material_class != 'MoltenMetal':
         raise ValueError('MLIP-NEB validation accepts only MoltenMetal genomes')
@@ -526,6 +527,8 @@ def main() -> None:
     parser.add_argument('--lock', required=True)
     parser.add_argument('--output', required=True)
     parser.add_argument('--device', default='cuda')
+    parser.add_argument('--model', default=MODEL_NAME,
+                        help='Fairchem model identifier for exploratory cross-checks')
     args = parser.parse_args()
     lock_path = Path(args.lock)
     lock = json.loads(lock_path.read_text())
@@ -557,7 +560,7 @@ def main() -> None:
             }
     elif lock['kind'] == 'molten_external':
         records = [
-            run_replica(tuple(case['genome']), seed, args.device, config)
+            run_replica(tuple(case['genome']), seed, args.device, config, args.model)
             for case in lock['external_cases'] for seed in case['structure_seeds']
         ]
         valid = [record for record in records if record['valid']]
