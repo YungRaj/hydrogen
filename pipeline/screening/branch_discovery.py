@@ -41,6 +41,7 @@ Genome: TypeAlias = tuple
 Population: TypeAlias = Sequence[Genome]
 Screener: TypeAlias = Callable[..., pd.DataFrame]
 ObjectiveFunction: TypeAlias = Callable[[Population, TreeRanker], np.ndarray]
+FullSimulator: TypeAlias = Callable[[Population], pd.DataFrame]
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,6 +103,7 @@ class BranchDiscoveryWorkflow:
     advancement_criteria: tuple[AdvancementCriterion, ...]
     portfolio_path: Path
     logger: logging.Logger
+    full_simulator: FullSimulator | None = None
 
 
 def validate_pilot_budget(config: BranchDiscoveryConfig) -> None:
@@ -269,6 +271,18 @@ def run_guided_branch_discovery(
         db_filename=workflow.champions_db,
         workers_per_gpu=config.workers_per_gpu,
     )
+    if workflow.full_simulator is not None:
+        simulation = workflow.full_simulator(validation_genomes)
+        required = {'genome', 'full_simulation_score', 'full_simulation_status'}
+        missing = required.difference(simulation.columns)
+        if missing:
+            raise ValueError(
+                'full simulator output missing columns: '
+                + ', '.join(sorted(missing))
+            )
+        validated = validated.merge(
+            simulation[list(required)], on='genome', how='left', validate='one_to_one'
+        )
     validated = advancement_scorecard(validated, workflow.advancement_criteria)
     predicted_mean, _ = model.predict(validation_genomes)
     predictions = {

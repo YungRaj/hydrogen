@@ -6,6 +6,7 @@ import ast
 from dataclasses import dataclass
 
 import numpy as np
+import pandas as pd
 
 from pipeline.search.design_space import encode_population
 
@@ -511,8 +512,21 @@ def class_success_probability(
     }.get(application)
     if outcome is None:
         raise ValueError(f"unknown application {application}")
-    values = np.asarray(frame[outcome], dtype=float)
-    valid = screening_metric_eligibility(frame, application)
+    if (
+        application == "turquoise_hydrogen"
+        and {"full_simulation_score", "full_simulation_status"}.issubset(frame.columns)
+    ):
+        full_values = pd.to_numeric(frame["full_simulation_score"], errors="coerce")
+        full_valid = frame["full_simulation_status"].eq("complete") & full_values.notna()
+        if full_valid.any():
+            values = full_values.to_numpy(float)
+            valid = full_valid.to_numpy(bool)
+        else:
+            values = np.asarray(frame[outcome], dtype=float)
+            valid = screening_metric_eligibility(frame, application)
+    else:
+        values = np.asarray(frame[outcome], dtype=float)
+        valid = screening_metric_eligibility(frame, application)
     if not np.any(valid):
         raise ValueError("class success feedback requires valid outcomes")
     threshold = float(np.quantile(values[valid], 0.20))
