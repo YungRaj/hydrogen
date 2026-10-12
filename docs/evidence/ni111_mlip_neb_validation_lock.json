@@ -3,7 +3,7 @@
   "locked_at": "2026-10-11",
   "kind": "ni111_reference",
   "model": "esen-sm-conserving-all-oc25",
-  "implementation_sha256": "ec28bb51dbf26c0ec2c8a526a51450dd43a570ba604493d62b367fc73aa206f7",
+  "implementation_sha256": "4ebc32c2db2289e90157c2438dd8d803b4916cd8aae8b9fc67a50d036cff3d7e",
   "reaction": "CH4(g) + 2* -> CH3* + H* on Ni(111)",
   "reference_barrier_eV": 1.05,
   "reference_source": "https://doi.org/10.1006/jcat.2002.3579",

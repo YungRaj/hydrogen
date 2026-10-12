@@ -100,6 +100,8 @@ def relax_with_record(
     Returns:
         Dictionary containing the computed values, status, and supporting metadata.
     """
+    if atoms.calc is None:
+        raise RuntimeError(f'{label} relaxation requires an attached calculator')
     prefix = f'relax_{label}'
     geometry_error = _initial_geometry_error(atoms)
     if geometry_error:

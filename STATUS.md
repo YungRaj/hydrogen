@@ -59,8 +59,14 @@
 - **Ni(111) endpoint-alignment follow-up:** the reactant is now constructed from
   the relaxed product with only C and the breaking H changed, plus an explicit
   atom-matching gate. The product endpoint failed to reconverge under this
-  stricter construction, so the result is recorded as blocked and no NEB
-  barrier or molten campaign is authorized.
+  stricter construction; that intermediate blocked result was superseded by the
+  corrected replay below.
+- **Ni(111) corrected replay:** after attaching the missing product calculator,
+  rigidly lifting CH3, and rebuilding the reactant from the relaxed product,
+  endpoint matching passed, the path was continuous, and both NEB stages
+  converged at 0.0798 eV/A. eSEN predicted 0.386 eV versus Bengaard's 1.05 eV
+  (0.664 eV absolute error), so workflow validity passed but model accuracy
+  failed. Molten and held-out scoring remain blocked.
 - **Claim boundary:** screening outcomes are eSen GNN estimates, not DFT or
   experimental validation.
 - **Readiness:** the six-point campaign status remains fail-closed until its

@@ -411,6 +411,7 @@ def run_ni111_reference(device: str, config: NEBConfig) -> dict[str, Any]:
     methane_bond_A, gas_energy_eV, gas_relaxation = _relaxed_methane_bond(
         calculator, config
     )
+    final.calc = calculator
     final.set_constraint(fixed)
     final.set_constraint([
         final.constraints[0],
@@ -428,8 +429,8 @@ def run_ni111_reference(device: str, config: NEBConfig) -> dict[str, Any]:
     # Build the reactant from the relaxed product: retain the surface and the
     # three CH3 hydrogens exactly, changing only C and the breaking H.
     initial = final.copy()
-    initial.positions[carbon, 2] += 1.2
     breaking_h = len(initial) - 1
+    initial.positions[carbon:breaking_h, 2] += 0.7
     direction = final.positions[breaking_h] - final.positions[carbon]
     direction /= np.linalg.norm(direction)
     initial.positions[breaking_h] = (
@@ -442,7 +443,9 @@ def run_ni111_reference(device: str, config: NEBConfig) -> dict[str, Any]:
     )
     if not reactant['relax_ni111_reactant_converged']:
         raise RuntimeError('Ni(111) reactant endpoint did not converge')
-    endpoint_match = _endpoint_match(initial, final, {carbon, breaking_h})
+    endpoint_match = _endpoint_match(
+        initial, final, set(range(carbon, len(initial)))
+    )
     if not endpoint_match['passed']:
         raise RuntimeError('Ni(111) endpoints are not atom matched')
     reference_energy_eV = float(clean.get_potential_energy()) + gas_energy_eV

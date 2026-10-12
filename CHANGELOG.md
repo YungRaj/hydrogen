@@ -21,6 +21,12 @@
   product endpoint did not reconverge in the GPU replay; this is recorded as a
   blocked validation result with no barrier or holdout authority.
 
+- Fixed the missing product calculator and rebuilt the reactant with a rigid
+  CH3 lift plus a matched breaking-H placement. The Ni(111) path now passes
+  endpoint, continuity, and staged-NEB convergence gates, but eSEN predicts
+  0.386 eV versus the 1.05 eV reference; the independent accuracy gate fails
+  and no molten or held-out scoring is authorized.
+
 - Added constrained near-surface reactant relaxation, stiffer springs, FIRE
   climbing, linear atom-matched interpolation, and per-image jump diagnostics
   to the methane NEB workflow. The Ni(111) replay still failed plain-path
