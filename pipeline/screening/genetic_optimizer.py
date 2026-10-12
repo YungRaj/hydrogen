@@ -104,7 +104,6 @@ def _thermal_full_simulator(genomes, screening: pd.DataFrame) -> pd.DataFrame:
             try:
                 kinetics = CandidateKinetics.from_screening_row(
                     row, candidate_id=str(row.get('candidate_id', key)),
-                    validation={'screening_protocol': row.get('screening_protocol', 'unknown')},
                 )
                 mechanism = write_full_mechanism(
                     catalyst_name=str(row.get('candidate_id', 'candidate')),
