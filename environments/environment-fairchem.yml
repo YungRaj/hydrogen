@@ -15,4 +15,4 @@ dependencies:
   - pip:
       - fairchem-core
       - sella
-      - pymutt
+      - pmutt

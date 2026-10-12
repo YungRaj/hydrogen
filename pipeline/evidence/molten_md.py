@@ -25,6 +25,7 @@ class LiquidMDProtocol:
     seed: int = 0
 
     def validate(self) -> None:
+        """Reject physically or numerically invalid MD settings."""
         if self.temperature_K <= 0.0:
             raise ValueError('temperature_K must be positive')
         if self.timestep_fs <= 0.0 or self.friction_per_fs <= 0.0:
@@ -38,6 +39,13 @@ def collect_liquid_snapshots(
     protocol: LiquidMDProtocol,
 ) -> tuple[list[Atoms], dict[str, Any]]:
     """Equilibrate and collect independent liquid snapshots with one calculator.
+
+    Args:
+        atoms: Initial liquid structure with an attached calculator.
+        protocol: Temperature, integration, and sampling settings.
+
+    Returns:
+        Collected snapshots and the resolved protocol metadata.
 
     The input is copied and never mutated. Each returned snapshot retains the
     calculator so downstream relaxation/NEB code can consume it directly.

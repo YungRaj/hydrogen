@@ -11,7 +11,7 @@ pandas>=2.0
 # Optional atomistic validation tools. They are not used by screening unless
 # explicitly selected by a validation workflow.
 sella
-pymutt
+pmutt
 
 # ─── Phase 2: Reactor Simulation (reactor-env) ─────────────────────────────────
 cantera>=3.0

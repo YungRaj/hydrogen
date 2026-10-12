@@ -15,6 +15,14 @@ def refine_saddle(
 ) -> dict[str, Any]:
     """Refine one NEB maximum with Sella and return an auditable summary.
 
+    Args:
+        atoms: Transition-state candidate with an attached calculator.
+        fmax_eV_A: Maximum force convergence threshold in eV/Å.
+        steps: Maximum Sella optimization steps.
+
+    Returns:
+        Convergence, force, energy, and step metadata.
+
     Sella is deliberately optional: importing this function does not require
     the package, while invoking it fails with a clear installation error.
     """
