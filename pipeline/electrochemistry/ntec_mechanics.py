@@ -1,0 +1,30 @@
+"""Dimensioned, non-pruning NTEC mechanics estimates."""
+
+from __future__ import annotations
+
+import math
+
+
+def collision_events_per_volume_s(
+    shear_rate_s: float, particle_diameter_m: float, number_density_m3: float
+) -> float:
+    """Estimate homogeneous-suspension collision events per volume per second."""
+    if min(shear_rate_s, particle_diameter_m, number_density_m3) <= 0.0:
+        raise ValueError('shear rate, diameter, and number density must be positive')
+    return (4.0 / 3.0) * shear_rate_s * particle_diameter_m**3 * number_density_m3**2
+
+
+def impact_energy_J(
+    effective_mass_kg: float, shear_rate_s: float, particle_diameter_m: float
+) -> float:
+    """Estimate impact energy from the shear velocity scale ``u = G d``."""
+    if min(effective_mass_kg, shear_rate_s, particle_diameter_m) <= 0.0:
+        raise ValueError('mass, shear rate, and diameter must be positive')
+    return 0.5 * effective_mass_kg * (shear_rate_s * particle_diameter_m) ** 2
+
+
+def detachment_probability(adhesion_energy_J: float, impact_energy_J_value: float) -> float:
+    """Return a bounded adhesion/impact detachment heuristic."""
+    if adhesion_energy_J < 0.0 or impact_energy_J_value <= 0.0:
+        raise ValueError('adhesion must be nonnegative and impact energy positive')
+    return math.exp(-adhesion_energy_J / impact_energy_J_value)
