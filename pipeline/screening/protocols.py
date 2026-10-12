@@ -34,14 +34,14 @@ class ScreeningProtocol:
 
 
 PYROLYSIS_PROTOCOL = ScreeningProtocol(
-    protocol_id='esen-sm-conserving-all-oc25:relax-v4:pyrolysis-v6',
+    protocol_id='esen-sm-conserving-all-oc25:relax-v4:pyrolysis-v7',
     reference=RelaxationBudget(0.05, 200),
     clean=RelaxationBudget(0.08, 150),
     adsorbate=RelaxationBudget(0.08, 100),
 )
 
 ORR_PROTOCOL = ScreeningProtocol(
-    protocol_id='esen-sm-conserving-all-oc25:relax-v4:orr-che-v3',
+    protocol_id='esen-sm-conserving-all-oc25:relax-v4:orr-che-v4',
     reference=RelaxationBudget(0.05, 200),
     clean=RelaxationBudget(0.08, 150),
     adsorbate=RelaxationBudget(0.08, 100),

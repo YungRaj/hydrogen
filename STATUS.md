@@ -73,3 +73,7 @@
   required calibrated and held-out evidence is present.
 - **Preservation:** tag `orr-confirmatory-v1` identifies the confirmed ORR
   result and its checksum-locked DFT slate.
+- **Supported nanoparticles:** the opt-in genome is a partial schema. Diameter
+  and loading are recorded for B6 studies, but the current screener does not
+  yet change slab morphology with those values; do not treat them as validated
+  physical controls.

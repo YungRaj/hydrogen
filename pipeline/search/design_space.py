@@ -241,14 +241,19 @@ def generate_solid_catalyst_genome() -> tuple:
 
 
 def generate_supported_nanoparticle_genome() -> tuple:
-    """Generate an explicit supported-particle genome for B6 studies.
+    """Generate a partial supported-particle genome for B6 studies.
 
     Layout: class, metal, support, facet, particle diameter (nm), loading
     (wt%), dopants, substitution count, vacancy count.  This is opt-in so
     historical 14-class population sizes and locks remain unchanged.
 
+    The current screener records diameter and loading but still builds the
+    same slab geometry for every value.  Those fields are therefore metadata
+    placeholders, not validated morphology controls, until size/loading are
+    wired into particle construction.
+
     Returns:
-        A supported-nanoparticle genome tuple.
+        A supported-nanoparticle genome tuple marked partial by its contract.
     """
     metal = random.choice(SOLID_ACTIVE_METALS)
     support = random.choice(SOLID_SUPPORTS)

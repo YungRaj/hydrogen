@@ -2,7 +2,7 @@
   "schema_version": 1,
   "status": "failed_independent_dft_barrier_gate",
   "acceptance_passed": false,
-  "analysis_lock_sha256": "7dfd60cc7c9b31949e54689702edd781d331923828ab341d7820e417f4bc3b4c",
+  "analysis_lock_sha256": "aa43bd358cfe8b01d651930d055276ad95004392df5edf8a9067e4601739221b",
   "screening_csv_sha256": "f266032463f8ff18e85dbede92aea02fb5ea32397ff82efe9874b7482598f85c",
   "physics": {
     "rate_average": "-kB*T*ln(mean(exp(-span_i/(kB*T))))",
