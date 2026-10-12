@@ -613,7 +613,7 @@ def main() -> None:
     config = NEBConfig(**lock['neb_config'])
     if args.smoke:
         config = NEBConfig(
-            **{**asdict(config), 'images': 5, 'endpoint_steps': 20,
+            **{**asdict(config), 'images': 5, 'endpoint_steps': 300,
                'plain_path_steps': 40, 'climbing_path_steps': 40}
         )
     if lock['kind'] == 'ni111_reference':
