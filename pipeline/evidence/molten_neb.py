@@ -319,7 +319,30 @@ def methane_endpoints(
     detached_ch_A = float(final.get_distance(carbon_index, len(final) - 1, mic=True))
     if detached_ch_A > config.maximum_product_CH_A:
         raise RuntimeError('MLIP-NEB product H diffused outside the reaction site')
-    return initial, final, {
+    # Rebuild the reactant from the relaxed product, matching the validated
+    # Ni(111) construction. Only C and the breaking H are changed; the CH3
+    # fragment and surface remain atom-matched between endpoints.
+    corrected = final.copy()
+    corrected.positions[carbon_index:len(corrected) - 1, 2] += 0.7
+    direction = corrected.positions[-1] - corrected.positions[carbon_index]
+    direction /= np.linalg.norm(direction)
+    corrected.positions[-1] = (
+        corrected.positions[carbon_index] + methane_bond_A * direction
+    )
+    corrected.calc = calculator
+    corrected.set_constraint(slab_constraint)
+    reactant = relax_with_record(
+        corrected, 'neb_reactant_corrected', config.endpoint_fmax_eV_A,
+        config.endpoint_steps
+    )
+    if not reactant['relax_neb_reactant_corrected_converged']:
+        raise RuntimeError('MLIP-NEB corrected reactant endpoint did not converge')
+    endpoint_match = _endpoint_match(
+        corrected, final, set(range(len(structure), len(corrected)))
+    )
+    if not endpoint_match['passed']:
+        raise RuntimeError('molten NEB endpoints are not atom matched')
+    return corrected, final, {
         'reactant_components': {
             'clean_surface_pre_relaxed': True,
             'gas_ch4': gas_relaxation,
@@ -470,6 +493,7 @@ def run_ni111_reference(device: str, config: NEBConfig) -> dict[str, Any]:
             'product': product,
             'product_detached_CH_A': detached_ch_A,
             'reactant': reactant,
+            'endpoint_match': endpoint_match,
             'endpoint_match': endpoint_match,
         },
     }
