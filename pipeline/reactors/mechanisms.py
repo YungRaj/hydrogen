@@ -586,6 +586,7 @@ def write_full_mechanism(
     include_surface_sites: bool = True,
     kinetics: CandidateKinetics = None,
     off_site_carbon: Optional[bool] = None,
+    carbon_regeneration_rate_1_s: Optional[float] = None,
     output_dir: Optional[Path] = None,
 ) -> Path:
     """
@@ -607,6 +608,9 @@ def write_full_mechanism(
         kinetics: Typed candidate kinetics with provenance.
         off_site_carbon: ``None`` = class gate decides; ``True`` on a denied
             class raises; ``False`` suppresses Cγ / Cδ.
+        carbon_regeneration_rate_1_s: Optional mechanically estimated C_s
+            regeneration rate. Positive values add a diagnostic C_s -> C(gr)
+            + site reaction; omitted means no regeneration reaction.
         output_dir: Directory for the YAML and kinetics sidecar. Defaults to
             the shared mechanism directory; sweep jobs supply their own.
 
@@ -788,6 +792,14 @@ def write_full_mechanism(
   note: Encapsulating carbon (Cδ); occupies the site; no off-site return
 """
         off_site_rxns = ""
+        if carbon_regeneration_rate_1_s is not None and not include_off_site:
+            if carbon_regeneration_rate_1_s <= 0.0:
+                raise ValueError('carbon regeneration rate must be positive')
+            off_site_rxns += f"""\
+- equation: C_s => C(gr) + site
+  rate-constant: {{A: {float(carbon_regeneration_rate_1_s):.6g}, b: 0.0, Ea: 0.0}}
+  note: Diagnostic mechanically driven carbon regeneration; non-pruning native model
+"""
         if include_off_site:
             off_site_rxns = f"""\
 - equation: C_s => C(gr) + site
