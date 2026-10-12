@@ -41,6 +41,17 @@ def test_bond_scan_rejects_invalid_indices() -> None:
         )
 
 
+def test_bond_scan_tracks_requested_distances() -> None:
+    from ase.calculators.emt import EMT
+    state = Atoms('CH', positions=((0, 0, 0), (1.1, 0, 0)))
+    result = molten_neb.run_bond_stretch_scan(
+        state, 0, 1, EMT(), 0.0, start_A=1.1, stop_A=1.3,
+        step_A=0.1, steps=5,
+    )
+    actual = [row['actual_CH_A'] for row in result['records']]
+    assert actual == pytest.approx([1.1, 1.2, 1.3], abs=0.02)
+
+
 def test_thermochemistry_comparison_is_non_mutating() -> None:
     result = compare_gas_reference(
         current_free_energy_eV=-1.0,

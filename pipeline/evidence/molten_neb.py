@@ -12,7 +12,7 @@ from typing import Any
 import numpy as np
 from ase import Atom, Atoms
 from ase.build import molecule
-from ase.constraints import FixAtoms, Hookean
+from ase.constraints import FixAtoms, FixBondLength, Hookean
 from ase.geometry import find_mic
 from ase.mep import NEB
 from ase.optimize import FIRE
@@ -93,9 +93,16 @@ def run_bond_stretch_scan(
     base_constraints = list(current.constraints)
     records: list[dict[str, Any]] = []
     for target in targets:
+        vector = current.positions[hydrogen_index] - current.positions[carbon_index]
+        distance = float(np.linalg.norm(vector))
+        if distance == 0.0:
+            raise ValueError('bond scan requires distinct atom positions')
+        current.positions[hydrogen_index] = (
+            current.positions[carbon_index] + vector / distance * float(target)
+        )
         current.calc = calculator
         current.set_constraint(base_constraints + [
-            Hookean(carbon_index, hydrogen_index, k=5.0, rt=float(target))
+            FixBondLength(carbon_index, hydrogen_index)
         ])
         label = f'neb_bond_scan_{float(target):.2f}'
         relaxation = relax_with_record(current, label, fmax_eV_A, steps)
