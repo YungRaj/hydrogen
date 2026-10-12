@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "kind": "molten_external",
+  "lock_role": "exploratory_molten_ordering",
+  "locked_at": "2026-10-11",
+  "model": "esen-sm-conserving-all-oc25",
+  "implementation_sha256": "4ebc32c2db2289e90157c2438dd8d803b4916cd8aae8b9fc67a50d036cff3d7e",
+  "reaction": "CH4 + * -> CH3* + H*",
+  "external_cases": [
+    {
+      "case_id": "palmer-2019-cu45bi55",
+      "genome": ["MoltenMetal", "Bi", "Cu", 45.0, 1273.15],
+      "structure_seeds": [0, 1, 2, 3, 4],
+      "reference_barriers_eV": [2.53, 2.60],
+      "source": "https://doi.org/10.1021/acscatal.9b01833"
+    }
+  ],
+  "acceptance": {
+    "minimum_valid_paths": 4,
+    "maximum_median_absolute_error_eV": 999.0,
+    "ordering_is_secondary": true,
+    "constant_offset_is_reported_but_not_corrected": true,
+    "scientific_pass_required": false,
+    "can_exclude_candidate": false,
+    "ordering_claims_allowed": false,
+    "held_out_conditions_consumed": false
+  },
+  "supersedes": "docs/evidence/molten_neb_validation_lock.json"
+}
