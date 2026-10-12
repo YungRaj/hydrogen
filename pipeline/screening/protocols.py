@@ -32,17 +32,12 @@ class ScreeningProtocol:
     clean: RelaxationBudget
     adsorbate: RelaxationBudget
 
-    # The model identity is part of the protocol, not an ambient environment
-    # detail.  This prevents a campaign from silently mixing calculators.
-    model_name: str
-
 
 PYROLYSIS_PROTOCOL = ScreeningProtocol(
     protocol_id='esen-sm-conserving-all-oc25:relax-v4:pyrolysis-v6',
     reference=RelaxationBudget(0.05, 200),
     clean=RelaxationBudget(0.08, 150),
     adsorbate=RelaxationBudget(0.08, 100),
-    model_name='esen-sm-conserving-all-oc25',
 )
 
 ORR_PROTOCOL = ScreeningProtocol(
@@ -50,5 +45,4 @@ ORR_PROTOCOL = ScreeningProtocol(
     reference=RelaxationBudget(0.05, 200),
     clean=RelaxationBudget(0.08, 150),
     adsorbate=RelaxationBudget(0.08, 100),
-    model_name='esen-sm-conserving-all-oc25',
 )
