@@ -76,6 +76,33 @@ FENTON_RISK = {
     'Mo': 0,
 }
 
+ORR_MAX_BINDING_ABS_EV = 4.0
+ORR_MAX_REPORTED_OVERPOTENTIAL_V = 3.0
+
+
+def _adsorbate_geometry_valid(slab, surface_count: int, kind: str) -> tuple[bool, str]:
+    """Reject dissociated/embedded relaxed adsorbates before scoring."""
+    positions = slab.positions
+    ads = positions[surface_count:]
+    if len(ads) == 0 or not np.isfinite(ads).all():
+        return False, 'adsorbate_nonfinite'
+    from scipy.spatial.distance import pdist
+    if len(ads) > 1 and float(np.min(pdist(ads))) < 0.65:
+        return False, 'adsorbate_embedded_or_collapsed'
+    if kind == 'oh' and len(ads) == 2:
+        distances = float(np.linalg.norm(ads[1] - ads[0]))
+        if not 0.65 <= distances <= 1.25:
+            return False, 'oh_bond_broken'
+    if kind == 'ooh' and len(ads) == 3:
+        oo = float(np.linalg.norm(ads[1] - ads[0]))
+        oh = float(np.linalg.norm(ads[2] - ads[1]))
+        if not 0.95 <= oo <= 1.8 or not 0.65 <= oh <= 1.25:
+            return False, 'ooh_bond_broken'
+    # An adsorbate buried in the slab is not a meaningful surface state.
+    if float(np.min(np.linalg.norm(ads[:, None, :] - positions[:surface_count][None, :, :], axis=2))) < 0.65:
+        return False, 'adsorbate_embedded'
+    return True, ''
+
 
 def compute_water_ref(calc) -> float:
     """Compute H₂O reference energy.
@@ -179,6 +206,11 @@ def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> di
             result, slab_oh, 'oh', budget.fmax_eV_A, budget.steps
         ):
             return result
+        valid_geometry, geometry_reason = _adsorbate_geometry_valid(slab_oh, len(structure), 'oh')
+        if not valid_geometry:
+            result.update({'candidate_disposition': 'validation_required', 'error': geometry_reason,
+                           'needs_dft_validation': True})
+            return result
         e_oh = slab_oh.get_potential_energy()
         # ΔG_OH* = E(slab+OH) - E(slab) - (E(H2O) - 0.5*E(H2)) + ZPE + TS
         dG_OH = (
@@ -222,6 +254,11 @@ def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> di
         if not require_relaxation(
             result, slab_ooh, 'ooh', budget.fmax_eV_A, budget.steps
         ):
+            return result
+        valid_geometry, geometry_reason = _adsorbate_geometry_valid(slab_ooh, len(structure), 'ooh')
+        if not valid_geometry:
+            result.update({'candidate_disposition': 'validation_required', 'error': geometry_reason,
+                           'needs_dft_validation': True})
             return result
         e_ooh = slab_ooh.get_potential_energy()
         # ΔG_OOH* = E(slab+OOH) - E(slab) - (2*E(H2O) - 1.5*E(H2)) + ZPE + TS
@@ -271,10 +308,19 @@ def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> di
                 result['needs_dft_validation'] = True
                 return result
 
-        # Clamp overpotential to physical range [0, 3] V
-        result['orr_overpotential_V'] = max(
-            0.0, min(result.get('orr_overpotential_V', 3.0), 3.0)
-        )
+        # Never turn an out-of-domain prediction into a plausible-looking score.
+        eta = float(result['orr_overpotential_V'])
+        if eta > ORR_MAX_REPORTED_OVERPOTENTIAL_V:
+            result.update({'valid': False, 'candidate_disposition': 'validation_required',
+                           'error': 'orr_overpotential_capped_at_3V',
+                           'overpotential_capped': True, 'needs_dft_validation': True})
+            return result
+        result['overpotential_capped'] = False
+        for key in ('dG_OH_eV', 'dG_O_eV', 'dG_OOH_eV'):
+            if abs(float(result[key])) > ORR_MAX_BINDING_ABS_EV:
+                result.update({'valid': False, 'candidate_disposition': 'validation_required',
+                               'error': f'{key}_outside_4eV_domain', 'needs_dft_validation': True})
+                return result
 
         # 10. OOD confidence — how much we trust this prediction
         from pipeline.screening.ood import compute_model_confidence
