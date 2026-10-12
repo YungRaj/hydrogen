@@ -41,7 +41,7 @@ Genome: TypeAlias = tuple
 Population: TypeAlias = Sequence[Genome]
 Screener: TypeAlias = Callable[..., pd.DataFrame]
 ObjectiveFunction: TypeAlias = Callable[[Population, TreeRanker], np.ndarray]
-FullSimulator: TypeAlias = Callable[[Population], pd.DataFrame]
+FullSimulator: TypeAlias = Callable[[Population, pd.DataFrame], pd.DataFrame]
 
 
 @dataclass(frozen=True, slots=True)
@@ -272,7 +272,7 @@ def run_guided_branch_discovery(
         workers_per_gpu=config.workers_per_gpu,
     )
     if workflow.full_simulator is not None:
-        simulation = workflow.full_simulator(validation_genomes)
+        simulation = workflow.full_simulator(validation_genomes, validated)
         required = {'genome', 'full_simulation_score', 'full_simulation_status'}
         missing = required.difference(simulation.columns)
         if missing:

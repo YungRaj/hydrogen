@@ -4,6 +4,9 @@
 from dataclasses import dataclass
 import argparse
 from typing import Optional
+import ast
+import tempfile
+from pathlib import Path
 
 import pandas as pd
 
@@ -73,8 +76,56 @@ def run_branch_discovery(
         ),
         portfolio_path=SCREENING_DIR / 'advancement_portfolio.json',
         logger=logger,
+        full_simulator=_thermal_full_simulator,
     )
     return run_guided_branch_discovery(config, workflow, existing_db)
+
+
+def _thermal_full_simulator(genomes, screening: pd.DataFrame) -> pd.DataFrame:
+    """Run the existing PFR model for selected rows with screening kinetics.
+
+    This is deliberately a non-excluding screening-tier simulation: missing
+    Cantera or invalid candidate inputs produce ``validation_required`` rows.
+    """
+    from pipeline.reactors.mechanisms import CandidateKinetics, write_full_mechanism
+    from pipeline.reactors.models import simulate_reactor
+    from pipeline.reactors.reactor_core import ReactorConfig
+
+    rows = []
+    with tempfile.TemporaryDirectory(prefix='turquoise_reactor_') as directory:
+        for genome in genomes:
+            key = repr(tuple(genome))
+            matches = screening[screening['genome'].astype(str) == key]
+            if matches.empty:
+                rows.append({'genome': key, 'full_simulation_score': float('nan'),
+                             'full_simulation_status': 'validation_required'})
+                continue
+            row = matches.iloc[0]
+            try:
+                kinetics = CandidateKinetics.from_screening_row(
+                    row, candidate_id=str(row.get('candidate_id', key)),
+                    validation={'screening_protocol': row.get('screening_protocol', 'unknown')},
+                )
+                mechanism = write_full_mechanism(
+                    catalyst_name=str(row.get('candidate_id', 'candidate')),
+                    kinetics=kinetics, output_dir=Path(directory), off_site_carbon=False,
+                )
+                result = simulate_reactor(ReactorConfig(
+                    reactor_type='PFR', pathway_mode='thermocatalytic_pfr',
+                    mechanism_file=str(mechanism), catalyst_name=str(row.get('candidate_id', key)),
+                    candidate_id=str(row.get('candidate_id', key)), material_class=str(row['material_class']),
+                    T_inlet_K=float(row.get('temperature_K', 1000.0)),
+                    catalyst_E_act_eV=float(row['E_act_raw']),
+                    catalyst_dE_H_eV=float(row.get('dE_H', 0.0)),
+                ))
+                score = result.get('CH4_conversion')
+                rows.append({'genome': key, 'full_simulation_score':
+                             float(1.0 - score) if score is not None else float('nan'),
+                             'full_simulation_status': str(result.get('status', 'validation_required'))})
+            except (KeyError, TypeError, ValueError, RuntimeError, OSError):
+                rows.append({'genome': key, 'full_simulation_score': float('nan'),
+                             'full_simulation_status': 'validation_required'})
+    return pd.DataFrame(rows)
 
 
 def main() -> None:
