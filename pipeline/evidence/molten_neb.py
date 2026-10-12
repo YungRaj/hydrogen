@@ -439,7 +439,9 @@ def run_replica(
     }
 
 
-def run_ni111_reference(device: str, config: NEBConfig) -> dict[str, Any]:
+def run_ni111_reference(
+    device: str, config: NEBConfig, model_name: str = MODEL_NAME
+) -> dict[str, Any]:
     """Evaluate staged eSEN NEB on the independent Bengaard Ni(111) case.
 
     Args:
@@ -452,9 +454,9 @@ def run_ni111_reference(device: str, config: NEBConfig) -> dict[str, Any]:
     from pipeline.validation.ni111_methane_reference import (
         REFERENCE_BARRIER_EV, build_ni111_methane_endpoints,
     )
-    calculator = get_ocp_calculator(MODEL_NAME, device=device)
+    calculator = get_ocp_calculator(model_name, device=device)
     if calculator is None:
-        raise RuntimeError(f'could not load {MODEL_NAME}')
+        raise RuntimeError(f'could not load {model_name}')
     initial, final = build_ni111_methane_endpoints()
     carbon = len(initial) - 5
     fixed = initial.constraints[0]
@@ -574,7 +576,7 @@ def main() -> None:
     if lock['kind'] == 'ni111_reference':
         tolerance = float(lock['acceptance']['maximum_absolute_error_eV'])
         try:
-            record = run_ni111_reference(args.device, config)
+            record = run_ni111_reference(args.device, config, args.model)
             passed = bool(
                 record['valid'] and record['absolute_error_eV'] is not None
                 and record['absolute_error_eV'] <= tolerance
