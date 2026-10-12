@@ -107,9 +107,10 @@ def get_ocp_calculator(
         # ``cuda:N`` does not change which device the worker owns.
         fairchem_device = 'cuda' if device.startswith('cuda') else device
         unit = get_predict_unit(model_name, device=fairchem_device)
-        # Fairchem v2 requires the task explicitly even when the model name
-        # identifies a checkpoint trained for a known surface task.
-        calc = FAIRChemCalculator(predict_unit=unit, task_name='oc20')
+        # Fairchem v2 requires the task explicitly.  eSEN OC25 checkpoints
+        # expose ``oc25``; UMA surface checkpoints expose ``oc20``.
+        task_name = 'oc25' if 'oc25' in model_name else 'oc20'
+        calc = FAIRChemCalculator(predict_unit=unit, task_name=task_name)
         logger.info(f"Loaded {model_name} via fairchem v2")
         return calc
     except Exception as e:

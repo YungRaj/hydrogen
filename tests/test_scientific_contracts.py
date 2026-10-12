@@ -2783,7 +2783,7 @@ def test_fairchem_device_affinity_is_forwarded_not_merely_recorded():
         # Fairchem v2 accepts only the backend name; worker affinity is
         # established before calculator construction.
         assert get_unit.call_args.kwargs.get('device') == 'cuda'
-        assert calculator.call_args.kwargs['task_name'] == 'oc20'
+        assert calculator.call_args.kwargs['task_name'] == 'oc25'
 
 
 def test_ranker_throughput_and_uncertainty_do_not_change_mean():

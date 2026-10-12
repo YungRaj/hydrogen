@@ -1,0 +1,50 @@
+{
+  "acceptance_passed": false,
+  "attempted_paths": 5,
+  "exploratory_smoke": true,
+  "held_out_conditions_consumed": false,
+  "kind": "molten_external",
+  "lock_sha256": "f5c0e0fa8ffc016bd4dfae6024e524424529e73dc4a7d33a0fd78556f37d5130",
+  "median_absolute_error_eV": null,
+  "median_predicted_barrier_eV": null,
+  "median_reference_barrier_eV": 2.565,
+  "records": [
+    {
+      "blocked_error": "molten NEB endpoints are not atom matched: violations=[{'atom_index': 22, 'displacement_A': 0.7759276719390762}, {'atom_index': 23, 'displacement_A': 0.7995605387279744}, {'atom_index': 28, 'displacement_A': 0.9512509838671893}, {'atom_index': 32, 'displacement_A': 0.8233311615790855}, {'atom_index': 34, 'displacement_A': 1.1038693412341871}]",
+      "genome": "('MoltenMetal', 'Bi', 'Cu', 45.0, 1273.15)",
+      "model": "uma-s-1p1",
+      "structure_seed": 0,
+      "valid": false
+    },
+    {
+      "blocked_error": "molten NEB endpoints are not atom matched: violations=[{'atom_index': 18, 'displacement_A': 0.5905678880850758}, {'atom_index': 20, 'displacement_A': 1.2137803004115377}, {'atom_index': 29, 'displacement_A': 0.5281983284018783}, {'atom_index': 30, 'displacement_A': 0.5053839391384477}, {'atom_index': 32, 'displacement_A': 1.3795898748971078}]",
+      "genome": "('MoltenMetal', 'Bi', 'Cu', 45.0, 1273.15)",
+      "model": "uma-s-1p1",
+      "structure_seed": 1,
+      "valid": false
+    },
+    {
+      "blocked_error": "molten NEB endpoints are not atom matched: violations=[{'atom_index': 18, 'displacement_A': 2.2755483355140846}, {'atom_index': 21, 'displacement_A': 0.5269539148750751}, {'atom_index': 23, 'displacement_A': 0.8543440183188918}, {'atom_index': 32, 'displacement_A': 2.2146514207177783}]",
+      "genome": "('MoltenMetal', 'Bi', 'Cu', 45.0, 1273.15)",
+      "model": "uma-s-1p1",
+      "structure_seed": 2,
+      "valid": false
+    },
+    {
+      "blocked_error": "MLIP-NEB product_recombined: C-H=1.102 A < 1.600 A",
+      "genome": "('MoltenMetal', 'Bi', 'Cu', 45.0, 1273.15)",
+      "model": "uma-s-1p1",
+      "structure_seed": 3,
+      "valid": false
+    },
+    {
+      "blocked_error": "molten NEB endpoints are not atom matched: violations=[{'atom_index': 22, 'displacement_A': 0.6282920087485997}, {'atom_index': 23, 'displacement_A': 0.7238792777749015}, {'atom_index': 25, 'displacement_A': 0.6580059969603171}, {'atom_index': 31, 'displacement_A': 0.687472285119896}, {'atom_index': 32, 'displacement_A': 0.5605971917407022}, {'atom_index': 34, 'displacement_A': 1.2856237734027955}, {'atom_index': 35, 'displacement_A': 1.232172815371828}]",
+      "genome": "('MoltenMetal', 'Bi', 'Cu', 45.0, 1273.15)",
+      "model": "uma-s-1p1",
+      "structure_seed": 4,
+      "valid": false
+    }
+  ],
+  "schema_version": 1,
+  "valid_paths": 0
+}

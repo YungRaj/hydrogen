@@ -1,0 +1,50 @@
+{
+  "acceptance_passed": false,
+  "attempted_paths": 5,
+  "exploratory_smoke": true,
+  "held_out_conditions_consumed": false,
+  "kind": "molten_external",
+  "lock_sha256": "f5c0e0fa8ffc016bd4dfae6024e524424529e73dc4a7d33a0fd78556f37d5130",
+  "median_absolute_error_eV": null,
+  "median_predicted_barrier_eV": null,
+  "median_reference_barrier_eV": 2.565,
+  "records": [
+    {
+      "blocked_error": "molten NEB endpoints are not atom matched: violations=[{'atom_index': 22, 'displacement_A': 0.8374489603084408}, {'atom_index': 34, 'displacement_A': 1.0933746075043218}, {'atom_index': 35, 'displacement_A': 1.0005807904419701}]",
+      "genome": "('MoltenMetal', 'Bi', 'Cu', 45.0, 1273.15)",
+      "model": "esen-sm-conserving-all-oc25",
+      "structure_seed": 0,
+      "valid": false
+    },
+    {
+      "blocked_error": "MLIP-NEB product_recombined: C-H=1.098 A < 1.600 A",
+      "genome": "('MoltenMetal', 'Bi', 'Cu', 45.0, 1273.15)",
+      "model": "esen-sm-conserving-all-oc25",
+      "structure_seed": 1,
+      "valid": false
+    },
+    {
+      "blocked_error": "MLIP-NEB product_recombined: C-H=1.099 A < 1.600 A",
+      "genome": "('MoltenMetal', 'Bi', 'Cu', 45.0, 1273.15)",
+      "model": "esen-sm-conserving-all-oc25",
+      "structure_seed": 2,
+      "valid": false
+    },
+    {
+      "blocked_error": "molten NEB endpoints are not atom matched: violations=[{'atom_index': 32, 'displacement_A': 0.5419958941043139}, {'atom_index': 34, 'displacement_A': 1.153057707086562}]",
+      "genome": "('MoltenMetal', 'Bi', 'Cu', 45.0, 1273.15)",
+      "model": "esen-sm-conserving-all-oc25",
+      "structure_seed": 3,
+      "valid": false
+    },
+    {
+      "blocked_error": "molten NEB endpoints are not atom matched: violations=[{'atom_index': 31, 'displacement_A': 0.5635835865122317}, {'atom_index': 34, 'displacement_A': 0.7997350323374}, {'atom_index': 35, 'displacement_A': 0.516072082360637}]",
+      "genome": "('MoltenMetal', 'Bi', 'Cu', 45.0, 1273.15)",
+      "model": "esen-sm-conserving-all-oc25",
+      "structure_seed": 4,
+      "valid": false
+    }
+  ],
+  "schema_version": 1,
+  "valid_paths": 0
+}

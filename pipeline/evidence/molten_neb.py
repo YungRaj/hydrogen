@@ -94,6 +94,7 @@ class NEBConfig:
     reactant_height_A: float = 2.30
     product_CH_restraint_A: float = 2.25
     maximum_product_CH_A: float = 2.5
+    minimum_product_CH_A: float = 1.6
 
 
 def _active_site(structure: Atoms, indices: list[int], promoter: str) -> int:
@@ -383,6 +384,11 @@ def methane_endpoints(
     detached_ch_A = float(final.get_distance(carbon_index, len(final) - 1, mic=True))
     if detached_ch_A > config.maximum_product_CH_A:
         raise RuntimeError('MLIP-NEB product H diffused outside the reaction site')
+    if detached_ch_A < config.minimum_product_CH_A:
+        raise RuntimeError(
+            f'MLIP-NEB product_recombined: C-H={detached_ch_A:.3f} A '
+            f'< {config.minimum_product_CH_A:.3f} A'
+        )
     # Rebuild the reactant from the relaxed product, matching the validated
     # Ni(111) construction. Only C and the breaking H are changed; the CH3
     # fragment and surface remain atom-matched between endpoints.
@@ -405,7 +411,10 @@ def methane_endpoints(
         corrected, final, set(range(len(structure), len(corrected)))
     )
     if not endpoint_match['passed']:
-        raise RuntimeError('molten NEB endpoints are not atom matched')
+        raise RuntimeError(
+            'molten NEB endpoints are not atom matched: '
+            f"violations={endpoint_match['violations']}"
+        )
     return corrected, final, {
         'reactant_components': {
             'clean_surface_pre_relaxed': True,
@@ -464,7 +473,7 @@ def run_replica(
         initial, final, calculator, config, reference_energy_eV
     ) | {
         'genome': repr(genome), 'structure_seed': structure_seed,
-        'model': MODEL_NAME, 'config': asdict(config),
+        'model': model_name, 'config': asdict(config),
         'active_index': active_index,
         'active_element': structure[active_index].symbol,
         'clean_geometry_sha256': geometry_digest(structure),
