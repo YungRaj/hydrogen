@@ -4,7 +4,7 @@
   "lock_role": "exploratory_molten_ordering",
   "locked_at": "2026-10-11",
   "model": "esen-sm-conserving-all-oc25",
-  "implementation_sha256": "e29f60acf9d84af639d957ed752e457f5e5000b3a87c0c8e07a6a092a16a670d",
+  "implementation_sha256": "e4a25bfe4b1a583b7a66cb9de30ee1f2f1e7b307053c987ab3238cb3457aebe3",
   "reaction": "CH4 + * -> CH3* + H*",
   "neb_config": {
     "images": 11,

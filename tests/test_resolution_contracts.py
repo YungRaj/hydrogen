@@ -7,6 +7,7 @@ import tempfile
 from pathlib import Path
 import sys
 from unittest.mock import patch
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -54,6 +55,7 @@ def test_curated_prior_art_manifest():
 
 
 def test_candidate_hamiltonian_from_fcidump():
+    pytest.importorskip('pyscf.tools.fcidump')
     import numpy as np
     from pyscf.tools import fcidump
     from pipeline.validation.candidate_hamiltonian import build_candidate_hamiltonian

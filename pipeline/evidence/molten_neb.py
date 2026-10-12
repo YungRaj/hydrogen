@@ -236,6 +236,16 @@ def _path_result(
         and continuous and interior_maximum
     )
     apparent = max(relative)
+    failure_reason = None
+    if not converged:
+        failure_reason = (
+            f'path_not_converged:max_force={max_force:.6f} '
+            f'target={config.path_fmax_eV_A:.6f}'
+        )
+    elif not continuous:
+        failure_reason = 'path_discontinuous'
+    elif not interior_maximum:
+        failure_reason = 'no_interior_energy_maximum'
     return {
         'energies_eV': energies,
         'reference_energy_eV': reference_energy_eV,
@@ -252,6 +262,7 @@ def _path_result(
         'path_continuous': continuous,
         'path_jumps': jumps,
         'interior_maximum': interior_maximum,
+        'failure_reason': failure_reason,
         'valid': valid,
     }
 
@@ -602,8 +613,8 @@ def main() -> None:
     config = NEBConfig(**lock['neb_config'])
     if args.smoke:
         config = NEBConfig(
-            **{**asdict(config), 'images': 5, 'endpoint_steps': 20,
-               'plain_path_steps': 40, 'climbing_path_steps': 40}
+            **{**asdict(config), 'images': 9, 'endpoint_steps': 60,
+               'plain_path_steps': 180, 'climbing_path_steps': 180}
         )
     if lock['kind'] == 'ni111_reference':
         tolerance = float(lock['acceptance']['maximum_absolute_error_eV'])

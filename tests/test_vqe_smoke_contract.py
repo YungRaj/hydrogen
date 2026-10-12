@@ -2,6 +2,7 @@
 """Bounded CUDA-Q smoke contract without a production convergence claim."""
 
 import math
+import pytest
 from pathlib import Path
 import sys
 
@@ -11,6 +12,7 @@ from pipeline.validation.vqe_transition_state import run_vqe
 
 
 def test_cudaq_vqe_execution_is_bounded_and_variational():
+    pytest.importorskip('cudaq')
     # A one-qubit Hamiltonian validates target selection, kernel construction,
     # optimization, and result parsing without paying for chemical accuracy.
     terms = [(-1.0, "Z")]
