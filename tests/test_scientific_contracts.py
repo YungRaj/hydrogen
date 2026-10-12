@@ -2776,13 +2776,14 @@ def test_fairchem_device_affinity_is_forwarded_not_merely_recorded():
 
     with (
         patch('fairchem.core.calculate.pretrained_mlip.get_predict_unit') as get_unit,
-        patch('fairchem.core.FAIRChemCalculator'),
+        patch('fairchem.core.FAIRChemCalculator') as calculator,
     ):
         get_unit.return_value = object()
         get_ocp_calculator('esen-sm-conserving-all-oc25', device='cuda:2')
         # Fairchem v2 accepts only the backend name; worker affinity is
         # established before calculator construction.
         assert get_unit.call_args.kwargs.get('device') == 'cuda'
+        assert calculator.call_args.kwargs['task_name'] == 'oc20'
 
 
 def test_ranker_throughput_and_uncertainty_do_not_change_mean():
