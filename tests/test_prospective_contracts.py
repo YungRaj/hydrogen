@@ -87,8 +87,11 @@ class ProspectiveContracts(unittest.TestCase):
         ).hexdigest())
         self.assertFalse(result['acceptance_passed'])
         self.assertFalse(result['held_out_conditions_consumed'])
-        self.assertFalse(result['record']['valid'])
-        self.assertFalse(result['record']['climbing_converged'])
+        if 'record' in result:
+            self.assertFalse(result['record']['valid'])
+            self.assertFalse(result['record']['climbing_converged'])
+        else:
+            self.assertIn('product endpoint did not converge', result['blocked_error'])
 
     def test_pyrolysis_benchmark_is_complete_and_locked(self) -> None:
         benchmark = json.loads((

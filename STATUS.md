@@ -56,6 +56,11 @@
   and adding a constrained reactant endpoint reduced the final path force to
   0.449 eV/A, but plain NEB still exhausted 1,000 steps and the largest image
   jump remained 3.85 A. The setup is therefore still not validated.
+- **Ni(111) endpoint-alignment follow-up:** the reactant is now constructed from
+  the relaxed product with only C and the breaking H changed, plus an explicit
+  atom-matching gate. The product endpoint failed to reconverge under this
+  stricter construction, so the result is recorded as blocked and no NEB
+  barrier or molten campaign is authorized.
 - **Claim boundary:** screening outcomes are eSen GNN estimates, not DFT or
   experimental validation.
 - **Readiness:** the six-point campaign status remains fail-closed until its

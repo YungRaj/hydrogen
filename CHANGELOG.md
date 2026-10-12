@@ -16,6 +16,11 @@
   exhausted its 1,000-step budget at 0.557 eV/A and the path was discontinuous;
   the result is recorded as a workflow failure, not a barrier-accuracy claim.
 
+- Rebuilt the Ni(111) reactant from the relaxed product to preserve atom
+  correspondence and added a fail-closed endpoint-matching gate. The stricter
+  product endpoint did not reconverge in the GPU replay; this is recorded as a
+  blocked validation result with no barrier or holdout authority.
+
 - Added constrained near-surface reactant relaxation, stiffer springs, FIRE
   climbing, linear atom-matched interpolation, and per-image jump diagnostics
   to the methane NEB workflow. The Ni(111) replay still failed plain-path

@@ -124,6 +124,24 @@ def _path_jumps(images: list[Atoms]) -> list[dict[str, float | int]]:
     return jumps
 
 
+def _endpoint_match(
+    initial: Atoms, final: Atoms, excluded: set[int], maximum_A: float = 0.5
+) -> dict[str, Any]:
+    """Check atom-wise endpoint correspondence before interpolation."""
+    displacement = np.linalg.norm(final.positions - initial.positions, axis=1)
+    violations = [
+        {'atom_index': int(index), 'displacement_A': float(displacement[index])}
+        for index in range(len(initial))
+        if index not in excluded and displacement[index] > maximum_A
+    ]
+    return {
+        'maximum_allowed_A': maximum_A,
+        'excluded_indices': sorted(int(index) for index in excluded),
+        'violations': violations,
+        'passed': not violations,
+    }
+
+
 def _relaxed_methane_bond(
     calculator: Any, config: NEBConfig
 ) -> tuple[float, float, dict[str, Any]]:
@@ -389,23 +407,11 @@ def run_ni111_reference(device: str, config: NEBConfig) -> dict[str, Any]:
     )
     if not clean_relaxation['relax_ni111_clean_converged']:
         raise RuntimeError('Ni(111) clean surface did not converge')
-    initial.positions[:carbon] = clean.positions
     final.positions[:carbon] = clean.positions
     methane_bond_A, gas_energy_eV, gas_relaxation = _relaxed_methane_bond(
         calculator, config
     )
-    direction = initial.positions[-1] - initial.positions[carbon]
-    initial.positions[carbon:, 2] += (
-        float(clean.positions[:, 2].max()) + config.reactant_height_A
-        - float(initial.positions[carbon, 2])
-    )
-    initial.positions[carbon + 1:] = [
-        initial.positions[carbon] + vector
-        for vector in _tetrahedral_vectors(direction, methane_bond_A)
-    ]
-    initial.set_constraint(fixed)
-    for endpoint in (initial, final):
-        endpoint.calc = calculator
+    final.set_constraint(fixed)
     final.set_constraint([
         final.constraints[0],
         Hookean(carbon, len(final) - 1, k=5.0, rt=config.product_CH_restraint_A),
@@ -419,6 +425,26 @@ def run_ni111_reference(device: str, config: NEBConfig) -> dict[str, Any]:
     detached_ch_A = float(final.get_distance(carbon, len(final) - 1, mic=True))
     if detached_ch_A > config.maximum_product_CH_A:
         raise RuntimeError('Ni(111) product H diffused outside the reaction site')
+    # Build the reactant from the relaxed product: retain the surface and the
+    # three CH3 hydrogens exactly, changing only C and the breaking H.
+    initial = final.copy()
+    initial.positions[carbon, 2] += 1.2
+    breaking_h = len(initial) - 1
+    direction = final.positions[breaking_h] - final.positions[carbon]
+    direction /= np.linalg.norm(direction)
+    initial.positions[breaking_h] = (
+        initial.positions[carbon] + methane_bond_A * direction
+    )
+    initial.calc = calculator
+    initial.set_constraint(fixed)
+    reactant = relax_with_record(
+        initial, 'ni111_reactant', config.endpoint_fmax_eV_A, config.endpoint_steps
+    )
+    if not reactant['relax_ni111_reactant_converged']:
+        raise RuntimeError('Ni(111) reactant endpoint did not converge')
+    endpoint_match = _endpoint_match(initial, final, {carbon, breaking_h})
+    if not endpoint_match['passed']:
+        raise RuntimeError('Ni(111) endpoints are not atom matched')
     reference_energy_eV = float(clean.get_potential_energy()) + gas_energy_eV
     result = _run_path(
         initial, final, calculator, config, reference_energy_eV
@@ -440,6 +466,8 @@ def run_ni111_reference(device: str, config: NEBConfig) -> dict[str, Any]:
             },
             'product': product,
             'product_detached_CH_A': detached_ch_A,
+            'reactant': reactant,
+            'endpoint_match': endpoint_match,
         },
     }
 
@@ -479,18 +507,27 @@ def main() -> None:
         parser.error('NEB implementation does not match the preregistration lock')
     config = NEBConfig(**lock['neb_config'])
     if lock['kind'] == 'ni111_reference':
-        record = run_ni111_reference(args.device, config)
         tolerance = float(lock['acceptance']['maximum_absolute_error_eV'])
-        passed = bool(
-            record['valid'] and record['absolute_error_eV'] is not None
-            and record['absolute_error_eV'] <= tolerance
-        )
-        report = {
-            'schema_version': 1, 'kind': lock['kind'],
-            'lock_sha256': lock_digest(lock_path),
-            'acceptance_passed': passed,
-            'held_out_conditions_consumed': False, 'record': record,
-        }
+        try:
+            record = run_ni111_reference(args.device, config)
+            passed = bool(
+                record['valid'] and record['absolute_error_eV'] is not None
+                and record['absolute_error_eV'] <= tolerance
+            )
+            report = {
+                'schema_version': 1, 'kind': lock['kind'],
+                'lock_sha256': lock_digest(lock_path),
+                'acceptance_passed': passed,
+                'held_out_conditions_consumed': False, 'record': record,
+            }
+        except RuntimeError as exc:
+            report = {
+                'schema_version': 1, 'kind': lock['kind'],
+                'lock_sha256': lock_digest(lock_path),
+                'acceptance_passed': False,
+                'held_out_conditions_consumed': False,
+                'blocked_error': str(exc),
+            }
     elif lock['kind'] == 'molten_external':
         records = [
             run_replica(tuple(case['genome']), seed, args.device, config)
