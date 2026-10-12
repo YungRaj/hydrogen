@@ -417,7 +417,12 @@ def run_replica(
         structure, 'neb_clean', config.endpoint_fmax_eV_A, config.endpoint_steps
     )
     if not clean['relax_neb_clean_converged']:
-        raise RuntimeError('MLIP-NEB clean endpoint did not converge')
+        raise RuntimeError(
+            'MLIP-NEB clean endpoint did not converge: '
+            f"{clean.get('relax_neb_clean_failure_class', 'unknown')} "
+            f"(steps={clean.get('relax_neb_clean_steps')}, "
+            f"max_force={clean.get('relax_neb_clean_max_force_eV_A')})"
+        )
     active_index = _active_site(structure, active_indices, str(genome[2]))
     initial, final, endpoints = methane_endpoints(
         structure, active_index, calculator, config
