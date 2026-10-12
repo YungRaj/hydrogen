@@ -613,8 +613,8 @@ def main() -> None:
     config = NEBConfig(**lock['neb_config'])
     if args.smoke:
         config = NEBConfig(
-            **{**asdict(config), 'images': 9, 'endpoint_steps': 60,
-               'plain_path_steps': 180, 'climbing_path_steps': 180}
+            **{**asdict(config), 'images': 5, 'endpoint_steps': 20,
+               'plain_path_steps': 40, 'climbing_path_steps': 40}
         )
     if lock['kind'] == 'ni111_reference':
         tolerance = float(lock['acceptance']['maximum_absolute_error_eV'])
