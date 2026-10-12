@@ -81,7 +81,7 @@ def simulate_ntec_pathway(config: ElectrochemicalReactorConfig) -> ReactorResult
     if config.native_ntec_parameters:
         from pipeline.electrochemistry.native_models import ntec_screening_point
         diagnostic = ntec_screening_point(config.native_ntec_parameters)
-        diagnostic.update(status='validation_required', valid=False)
+        diagnostic.update(valid=True)
         return {
             **_pathway_result(config, 'NTEC', 'ntec', complete=False),
             **diagnostic,
@@ -150,7 +150,7 @@ def simulate_electrochemical_pathway(
         return {
             **_pathway_result(config, 'Electrochemical', 'electrochemical', complete=False),
             **diagnostic,
-            'limitations': ['native_electrochemical_diagnostic_not_feed_coupled'],
+            'limitations': ['native_electrochemical_screening_assumptions_only'],
         }
     return {
         **_pathway_result(

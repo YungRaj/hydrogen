@@ -60,13 +60,20 @@ def electrochemical_screening_point(parameters: dict[str, float]) -> dict[str, A
     if feed is None or feed <= 0.0:
         raise ValueError('ch4_feed_mol_s must be positive for conversion')
     ch4_consumed = current / (int(parameters.get('electrons', 2)) * 96485.33212) * ch4_share
-    conversion = min(1.0, ch4_consumed / feed)
+    conversion = ch4_consumed / feed
+    if conversion > 1.0:
+        return {
+            'status': 'invalid', 'reactor_evidence_tier': 'native_screening_model',
+            'can_exclude_candidate': False, 'reason': 'current_exceeds_feed_supply',
+            'current_density_A_cm2': current_density, 'cell_voltage_V': voltage,
+        }
     return {
         'status': 'complete', 'reactor_evidence_tier': 'native_screening_model',
         'can_exclude_candidate': False, 'current_density_A_cm2': current_density,
         'cell_voltage_V': voltage, 'electrical_power_density_W_cm2': voltage * current_density,
         'CH4_conversion': conversion, 'H2_selectivity': faradaic_efficiency,
         'faradaic_efficiency_H2': faradaic_efficiency,
+        'selectivity_assumption': 'H2 selectivity equals H2 Faradaic efficiency',
     }
 
 
@@ -88,7 +95,11 @@ def ntec_screening_point(parameters: dict[str, float]) -> dict[str, Any]:
             parameters['adhesion_energy_J_m2'], impact, parameters['contact_area_m2']
         ),
         'carbon_regeneration_rate_1_s': (
-            collisions / parameters['active_site_density_m2']
+            collisions / (
+                parameters['number_density_m3']
+                * 3.141592653589793 * parameters['particle_diameter_m'] ** 2
+            )
+            * parameters['contact_area_m2']
             * detachment_probability(
                 parameters['adhesion_energy_J_m2'], impact, parameters['contact_area_m2']
             )
