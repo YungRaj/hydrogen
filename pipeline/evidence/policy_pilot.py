@@ -5,12 +5,15 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import random
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 from pipeline.screening.genetic_optimizer import _thermal_full_simulator
+from pipeline.search.design_space import generate_random_genome
+from pipeline.screening.surface_screener import run_screening
 
 
 def compare_policies(source: Path, *, cohort_size: int = 10, draws: int = 1000) -> dict:
@@ -52,14 +55,40 @@ def compare_policies(source: Path, *, cohort_size: int = 10, draws: int = 1000) 
     }
 
 
+def create_fresh_pool(output: Path, count: int, *, seed: int = 20261012) -> Path:
+    """Screen a deterministic random pool into a separate pilot artifact."""
+    if count <= 0:
+        raise ValueError('fresh pool count must be positive')
+    pool = []
+    seen = set()
+    next_seed = int(seed)
+    while len(pool) < count:
+        random.seed(next_seed)
+        candidate = generate_random_genome()
+        next_seed += 1
+        key = repr(candidate)
+        if key not in seen:
+            seen.add(key)
+            pool.append(candidate)
+    frame = run_screening(pool, db_filename=str(output), workers_per_gpu=1)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    frame.to_csv(output, index=False)
+    return output
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--cohort-size', type=int, default=10)
     parser.add_argument('--draws', type=int, default=1000)
+    parser.add_argument('--fresh-count', type=int, default=0)
+    parser.add_argument('--pool-seed', type=int, default=20261012)
     args = parser.parse_args()
-    result = compare_policies(args.source, cohort_size=args.cohort_size, draws=args.draws)
+    source = args.source
+    if args.fresh_count:
+        source = create_fresh_pool(source, args.fresh_count, seed=args.pool_seed)
+    result = compare_policies(source, cohort_size=args.cohort_size, draws=args.draws)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps(result, indent=2))
