@@ -13,8 +13,9 @@
   while the pyrolysis descriptor and reactor evidence are hardened.
 - **ORR quality diagnostic:** across all 4,200 confirmatory rows, 16.0% were
   invalid and 32.27% of valid rows were capped at 3.0 V. OOH non-convergence is
-  the largest invalidity family. This is descriptive evidence for a future
-  protocol revision; the locked v4 policy and verdict remain unchanged.
+  the largest invalidity family. This motivated the current v4 protocol. The
+  completed confirmatory verdict remains the historical v3 campaign and is not
+  silently reclassified.
 - **Pyrolysis redesign:** the external benchmark is complete and locked at 12
   independent primary sources per label. Correct surface-layer composition
   scaling and five-replica configurational averaging made all 18 unique genomes
