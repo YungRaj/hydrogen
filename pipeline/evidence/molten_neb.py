@@ -566,6 +566,8 @@ def main() -> None:
     parser.add_argument('--device', default='cuda')
     parser.add_argument('--model', default=MODEL_NAME,
                         help='Fairchem model identifier for exploratory cross-checks')
+    parser.add_argument('--smoke', action='store_true',
+                        help='use bounded exploratory settings; never valid evidence')
     args = parser.parse_args()
     lock_path = Path(args.lock)
     lock = json.loads(lock_path.read_text())
@@ -573,6 +575,11 @@ def main() -> None:
     if actual != lock.get('implementation_sha256'):
         parser.error('NEB implementation does not match the preregistration lock')
     config = NEBConfig(**lock['neb_config'])
+    if args.smoke:
+        config = NEBConfig(
+            **{**asdict(config), 'images': 5, 'endpoint_steps': 20,
+               'plain_path_steps': 40, 'climbing_path_steps': 40}
+        )
     if lock['kind'] == 'ni111_reference':
         tolerance = float(lock['acceptance']['maximum_absolute_error_eV'])
         try:
@@ -587,6 +594,9 @@ def main() -> None:
                 'acceptance_passed': passed,
                 'held_out_conditions_consumed': False, 'record': record,
             }
+            if args.smoke:
+                report['exploratory_smoke'] = True
+                report['acceptance_passed'] = False
         except RuntimeError as exc:
             report = {
                 'schema_version': 1, 'kind': lock['kind'],
@@ -595,6 +605,8 @@ def main() -> None:
                 'held_out_conditions_consumed': False,
                 'blocked_error': str(exc),
             }
+            if args.smoke:
+                report['exploratory_smoke'] = True
     elif lock['kind'] == 'molten_external':
         records = [
             run_replica(tuple(case['genome']), seed, args.device, config, args.model)
