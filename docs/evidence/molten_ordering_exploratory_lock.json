@@ -6,6 +6,18 @@
   "model": "esen-sm-conserving-all-oc25",
   "implementation_sha256": "4ebc32c2db2289e90157c2438dd8d803b4916cd8aae8b9fc67a50d036cff3d7e",
   "reaction": "CH4 + * -> CH3* + H*",
+  "neb_config": {
+    "images": 7,
+    "endpoint_fmax_eV_A": 0.08,
+    "endpoint_steps": 200,
+    "path_fmax_eV_A": 0.08,
+    "plain_path_steps": 400,
+    "climbing_path_steps": 400,
+    "climbing_maxstep": 0.02,
+    "local_radius_A": 4.5,
+    "spring_eV_A2": 0.7,
+    "max_image_displacement_A": 1.5
+  },
   "external_cases": [
     {
       "case_id": "palmer-2019-cu45bi55",
