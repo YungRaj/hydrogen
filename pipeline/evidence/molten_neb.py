@@ -608,10 +608,19 @@ def main() -> None:
             if args.smoke:
                 report['exploratory_smoke'] = True
     elif lock['kind'] == 'molten_external':
-        records = [
-            run_replica(tuple(case['genome']), seed, args.device, config, args.model)
-            for case in lock['external_cases'] for seed in case['structure_seeds']
-        ]
+        records = []
+        for case in lock['external_cases']:
+            for seed in case['structure_seeds']:
+                try:
+                    records.append(run_replica(
+                        tuple(case['genome']), seed, args.device, config, args.model
+                    ))
+                except RuntimeError as exc:
+                    records.append({
+                        'genome': repr(tuple(case['genome'])),
+                        'structure_seed': seed, 'model': args.model,
+                        'valid': False, 'blocked_error': str(exc),
+                    })
         valid = [record for record in records if record['valid']]
         references = [
             float(value) for case in lock['external_cases']
@@ -638,6 +647,9 @@ def main() -> None:
             'median_absolute_error_eV': error, 'acceptance_passed': passed,
             'held_out_conditions_consumed': False, 'records': records,
         }
+        if args.smoke:
+            report['exploratory_smoke'] = True
+            report['acceptance_passed'] = False
     else:
         parser.error(f"unsupported validation kind: {lock['kind']}")
     _write_report(args.output, report)
