@@ -16,6 +16,15 @@ class ElectrochemicalReactorConfig(Protocol):
     catalyst_name: str
     candidate_id: str
     T_inlet_K: float
+    electrochemical_descriptor_eV: float | None
+    electrolyte_conductivity_S_m: float | None
+    electrochemical_gap_m: float | None
+    electrochemical_area_m2: float | None
+    ntec_shear_rate_s: float | None
+    ntec_particle_diameter_m: float | None
+    ntec_number_density_m3: float | None
+    ntec_effective_mass_kg: float | None
+    ntec_adhesion_energy_J: float | None
 
 
 def _pathway_result(

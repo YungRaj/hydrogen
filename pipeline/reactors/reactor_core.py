@@ -129,6 +129,18 @@ class ReactorConfig:
     catalyst_E_act_eV: float = 0.8
     catalyst_dE_H_eV: float = 0.0
 
+    # Optional native NTEC/electrochemical inputs.  None means the pathway
+    # remains validation_required rather than receiving invented defaults.
+    electrochemical_descriptor_eV: Optional[float] = None
+    electrolyte_conductivity_S_m: Optional[float] = None
+    electrochemical_gap_m: Optional[float] = None
+    electrochemical_area_m2: Optional[float] = None
+    ntec_shear_rate_s: Optional[float] = None
+    ntec_particle_diameter_m: Optional[float] = None
+    ntec_number_density_m3: Optional[float] = None
+    ntec_effective_mass_kg: Optional[float] = None
+    ntec_adhesion_energy_J: Optional[float] = None
+
     mmbcr_carbon_removal_rate_1_s: Optional[float] = (
         MMBCR_FLOTATION_UNCONSTRAINED)
     mmbcr_interfacial_k0_m_s: float = MMBCR_INTERFACIAL_K0_DEFAULT
