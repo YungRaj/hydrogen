@@ -55,6 +55,8 @@ def collect_liquid_snapshots(
         raise ValueError('liquid MD requires an attached calculator')
     if len(atoms) == 0:
         raise ValueError('liquid MD requires at least one atom')
+    if not bool(np.all(atoms.pbc)):
+        raise ValueError('liquid MD requires fully periodic atoms.pbc')
 
     system = atoms.copy()
     calculator = atoms.calc
