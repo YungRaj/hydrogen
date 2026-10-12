@@ -21,6 +21,7 @@ from pipeline.screening.relaxation import geometry_digest, relax_with_record
 from pipeline.screening.surface_calculator import get_ocp_calculator
 from pipeline.screening.surface_screener import generate_structure
 from pipeline.evidence.molten_md import LiquidMDProtocol, collect_liquid_snapshots
+from pipeline.evidence.saddle_refinement import refine_saddle
 
 MODEL_NAME = 'esen-sm-conserving-all-oc25'
 
@@ -45,6 +46,17 @@ def collect_molten_snapshots(
     structure.calc = calculator
     snapshots, metadata = collect_liquid_snapshots(structure, protocol)
     return snapshots, {**metadata, 'genome': repr(genome), 'model': model_name}
+
+
+def refine_path_saddle(images: list[Atoms], *, fmax_eV_A: float = 0.05,
+                       steps: int = 500) -> dict[str, Any]:
+    """Refine the highest-energy converged-path image with Sella."""
+    if len(images) < 3:
+        raise ValueError('saddle refinement requires at least three images')
+    energies = [float(image.get_potential_energy()) for image in images[1:-1]]
+    index = 1 + int(np.argmax(energies))
+    result = refine_saddle(images[index], fmax_eV_A=fmax_eV_A, steps=steps)
+    return {'image_index': index, 'image_count': len(images), **result}
 
 
 @dataclass(frozen=True)
