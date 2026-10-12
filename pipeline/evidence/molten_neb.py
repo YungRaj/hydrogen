@@ -20,8 +20,31 @@ from ase.optimize import FIRE
 from pipeline.screening.relaxation import geometry_digest, relax_with_record
 from pipeline.screening.surface_calculator import get_ocp_calculator
 from pipeline.screening.surface_screener import generate_structure
+from pipeline.evidence.molten_md import LiquidMDProtocol, collect_liquid_snapshots
 
 MODEL_NAME = 'esen-sm-conserving-all-oc25'
+
+
+def collect_molten_snapshots(
+    genome: tuple[Any, ...], device: str, protocol: LiquidMDProtocol,
+    model_name: str = MODEL_NAME,
+) -> tuple[list[Atoms], dict[str, Any]]:
+    """Build a molten genome and collect MD snapshots for exploratory NEB.
+
+    This is deliberately separate from the locked static-replica workflow:
+    callers must record the MD protocol and snapshots before using them for
+    barrier statistics.
+    """
+    calculator = get_ocp_calculator(model_name, device=device)
+    if calculator is None:
+        raise RuntimeError(f'could not load {model_name}')
+    structure, _, material_class = generate_structure(genome, structure_seed=0)
+    if material_class != 'MoltenMetal':
+        raise ValueError('liquid snapshots require a MoltenMetal genome')
+    structure.pbc = True
+    structure.calc = calculator
+    snapshots, metadata = collect_liquid_snapshots(structure, protocol)
+    return snapshots, {**metadata, 'genome': repr(genome), 'model': model_name}
 
 
 @dataclass(frozen=True)
