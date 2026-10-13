@@ -8,19 +8,19 @@ from typing import Any, Iterator
 from pipeline.screening import surface_screener
 
 SUPPORTED_NANOPARTICLE_PROTOCOL = 'supported-nanoparticle-v1'
-SUPPORTED_ADSORBATE_LIFT_A = 0.8
+SUPPORTED_ADSORBATE_LIFTS_A = (0.8, 1.2, 1.6)
 _SUPPORTED_CLASSES = frozenset({'SupportedNanoparticle'})
 
 
 @contextmanager
-def _lift_supported_adsorption_site() -> Iterator[None]:
+def _lift_supported_adsorption_site(lift_A: float) -> Iterator[None]:
     """Apply the supported-particle placement correction during evaluation."""
     original = surface_screener.screening_adsorption_site
 
     def corrected(structure: Any, active: list[int], material: str, distance: float):
         position, direction = original(structure, active, material, distance)
         if material in _SUPPORTED_CLASSES:
-            position = position + SUPPORTED_ADSORBATE_LIFT_A * direction
+            position = position + lift_A * direction
         return position, direction
 
     surface_screener.screening_adsorption_site = corrected
@@ -47,9 +47,13 @@ def evaluate_supported_nanoparticle(
     """
     if not genome or genome[0] not in _SUPPORTED_CLASSES:
         raise ValueError('supported-nanoparticle adapter received another class')
-    with _lift_supported_adsorption_site():
-        result = surface_screener.evaluate_candidate(
-            genome, calculator, references, structure_seed=structure_seed
-        )
+    result: dict[str, Any] = {}
+    for lift_A in SUPPORTED_ADSORBATE_LIFTS_A:
+        with _lift_supported_adsorption_site(lift_A):
+            result = surface_screener.evaluate_candidate(
+                genome, calculator, references, structure_seed=structure_seed
+            )
+        if result.get('valid') or result.get('error') != 'CH3 adsorbate lost molecular integrity':
+            break
     result['screening_protocol'] = SUPPORTED_NANOPARTICLE_PROTOCOL
     return result
