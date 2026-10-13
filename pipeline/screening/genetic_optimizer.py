@@ -105,7 +105,7 @@ def _thermal_full_simulator(genomes, screening: pd.DataFrame) -> pd.DataFrame:
                 )
                 mechanism = write_full_mechanism(
                     catalyst_name=str(row.get('candidate_id', 'candidate')),
-                    kinetics=kinetics, output_dir=Path(directory), off_site_carbon=False,
+                    kinetics=kinetics, output_dir=Path(directory), off_site_carbon=None,
                 )
                 result = simulate_reactor(ReactorConfig(
                     reactor_type='PFR', pathway_mode='thermocatalytic_pfr',
