@@ -38,6 +38,10 @@ def compare_policies(
     frame = pd.read_csv(source).drop_duplicates('genome')
     genomes = [ast.literal_eval(value) for value in frame['genome']]
     thermal = _thermal_full_simulator(genomes, frame)
+    frame = frame.drop(
+        columns=['full_simulation_score', 'full_simulation_status'],
+        errors='ignore',
+    )
     frame = frame.join(thermal.set_index('genome'), on='genome')
     frame = frame[frame['full_simulation_status'].eq('complete')].copy()
     size = min(int(cohort_size), len(frame))
