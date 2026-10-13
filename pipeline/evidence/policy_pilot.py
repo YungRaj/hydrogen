@@ -7,6 +7,7 @@ import ast
 import json
 import random
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -19,7 +20,9 @@ from pipeline.search.design_space import (
 from pipeline.screening.surface_screener import run_screening
 
 
-def compare_policies(source: Path, *, cohort_size: int = 10, draws: int = 1000) -> dict:
+def compare_policies(
+    source: Path, *, cohort_size: int = 10, draws: int = 1000
+) -> dict[str, Any]:
     """Compare policies on one stored pool.
 
     Args:
@@ -93,16 +96,20 @@ def create_fresh_pool(
     """
     if count <= 0:
         raise ValueError('fresh pool count must be positive')
-    pool = []
-    seen = set()
+    pool: list[tuple[Any, ...]] = []
+    seen: set[str] = set()
     next_seed = int(seed)
     while len(pool) < count:
+        random_state = random.getstate()
         random.seed(next_seed)
-        candidate = (
-            generate_supported_nanoparticle_genome()
-            if material_class == 'SupportedNanoparticle'
-            else generate_random_genome(material_class)
-        )
+        try:
+            candidate = (
+                generate_supported_nanoparticle_genome()
+                if material_class == 'SupportedNanoparticle'
+                else generate_random_genome(material_class)
+            )
+        finally:
+            random.setstate(random_state)
         if material_class == 'SupportedNanoparticle' and eligible_metals:
             candidate = (candidate[0], eligible_metals[len(pool) % len(eligible_metals)], *candidate[2:])
         next_seed += 1

@@ -79,7 +79,9 @@ def run_branch_discovery(
     return run_guided_branch_discovery(config, workflow, existing_db)
 
 
-def _thermal_full_simulator(genomes, screening: pd.DataFrame) -> pd.DataFrame:
+def _thermal_full_simulator(
+    genomes: list[tuple], screening: pd.DataFrame
+) -> pd.DataFrame:
     """Run the existing PFR model for selected rows with screening kinetics.
 
     This is deliberately a non-excluding screening-tier simulation: missing
