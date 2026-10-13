@@ -2,6 +2,7 @@
 """Turquoise-hydrogen catalyst-guided branch discovery."""
 
 import argparse
+import hashlib
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -103,7 +104,10 @@ def _thermal_full_simulator(
                 continue
             row = matches.iloc[0]
             try:
-                candidate_name = str(row.get('candidate_id') or key)
+                source_id = str(row.get('candidate_id') or '')
+                candidate_name = source_id or (
+                    'candidate_' + hashlib.sha256(key.encode()).hexdigest()[:12]
+                )
                 kinetics = CandidateKinetics.from_screening_row(
                     row, candidate_id=candidate_name,
                 )
