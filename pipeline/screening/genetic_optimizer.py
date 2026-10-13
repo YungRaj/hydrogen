@@ -103,8 +103,9 @@ def _thermal_full_simulator(
                 continue
             row = matches.iloc[0]
             try:
+                candidate_name = str(row.get('candidate_id') or key)
                 kinetics = CandidateKinetics.from_screening_row(
-                    row, candidate_id=str(row.get('candidate_id', key)),
+                    row, candidate_id=candidate_name,
                 )
                 parsed_genome = tuple(genome)
                 if parsed_genome and parsed_genome[0] == 'SupportedNanoparticle':
@@ -115,13 +116,13 @@ def _thermal_full_simulator(
                         genome=parsed_genome,
                     )
                 mechanism = write_full_mechanism(
-                    catalyst_name=str(row.get('candidate_id', 'candidate')),
+                    catalyst_name=candidate_name,
                     kinetics=kinetics, output_dir=Path(directory), off_site_carbon=None,
                 )
                 result = simulate_reactor(ReactorConfig(
                     reactor_type='PFR', pathway_mode='thermocatalytic_pfr',
-                    mechanism_file=str(mechanism), catalyst_name=str(row.get('candidate_id', key)),
-                    candidate_id=str(row.get('candidate_id', key)), material_class=str(row['material_class']),
+                    mechanism_file=str(mechanism), catalyst_name=candidate_name,
+                    candidate_id=candidate_name, material_class=str(row['material_class']),
                     T_inlet_K=float(row.get('temperature_K', 1000.0)),
                     catalyst_E_act_eV=float(row['E_act_raw']),
                     catalyst_dE_H_eV=float(row.get('dE_H', 0.0)),
@@ -130,9 +131,10 @@ def _thermal_full_simulator(
                 rows.append({'genome': key, 'full_simulation_score':
                              float(1.0 - score) if score is not None else float('nan'),
                              'full_simulation_status': str(result.get('status', 'validation_required'))})
-            except (KeyError, TypeError, ValueError, RuntimeError, OSError):
+            except (KeyError, TypeError, ValueError, RuntimeError, OSError) as exc:
                 rows.append({'genome': key, 'full_simulation_score': float('nan'),
-                             'full_simulation_status': 'validation_required'})
+                             'full_simulation_status': 'validation_required',
+                             'full_simulation_error': str(exc)[:200]})
     return pd.DataFrame(rows)
 
 
