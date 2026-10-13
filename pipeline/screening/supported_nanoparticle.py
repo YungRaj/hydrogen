@@ -8,6 +8,7 @@ from typing import Any, Iterator
 from pipeline.screening import surface_screener
 
 SUPPORTED_NANOPARTICLE_PROTOCOL = 'supported-nanoparticle-v1'
+SUPPORTED_ADSORBATE_LIFT_A = 0.8
 _SUPPORTED_CLASSES = frozenset({'SupportedNanoparticle'})
 
 
@@ -19,7 +20,7 @@ def _lift_supported_adsorption_site() -> Iterator[None]:
     def corrected(structure: Any, active: list[int], material: str, distance: float):
         position, direction = original(structure, active, material, distance)
         if material in _SUPPORTED_CLASSES:
-            position = position + 0.35 * direction
+            position = position + SUPPORTED_ADSORBATE_LIFT_A * direction
         return position, direction
 
     surface_screener.screening_adsorption_site = corrected
