@@ -4,6 +4,7 @@ from pipeline.search.design_space import (
 )
 from pipeline.screening.surface_screener import generate_structure
 from pipeline.reactors.mechanisms import off_site_carbon_allowed
+from pipeline.reactors.modes import reactor_applicability
 
 
 def test_supported_nanoparticle_genome_exposes_size_and_loading():
@@ -27,3 +28,9 @@ def test_supported_nanoparticle_enters_b6_gate_for_ni_fe_co():
     assert off_site_carbon_allowed(
         ('SupportedNanoparticle', 'Ni', 'SiO2', 'fcc111', 5.0, 10.0, (), 1, 0)
     )
+
+
+def test_supported_nanoparticle_is_applicable_to_pfr():
+    applicable, reason = reactor_applicability('PFR', 'SupportedNanoparticle')
+    assert applicable
+    assert reason is None

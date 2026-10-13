@@ -83,7 +83,23 @@ def run_bond_stretch_scan(
     stop_A: float = 2.30, step_A: float = 0.10,
     fmax_eV_A: float = 0.08, steps: int = 300,
 ) -> dict[str, Any]:
-    """Run an exploratory constrained C-H scan without a product minimum."""
+    """Run an exploratory constrained C-H scan without a product minimum.
+
+    Args:
+        state: Adsorbate/surface structure to scan in place on a copy.
+        carbon_index: Index of the methane carbon atom.
+        hydrogen_index: Index of the breaking hydrogen atom.
+        calculator: Calculator used for each constrained relaxation.
+        reference_energy_eV: Clean-surface plus gas-phase reference energy.
+        start_A: Initial C-H distance in angstroms.
+        stop_A: Final C-H distance in angstroms.
+        step_A: Scan spacing in angstroms.
+        fmax_eV_A: Relaxation force threshold.
+        steps: Maximum relaxation steps per scan point.
+
+    Returns:
+        Scan records, peak information and completion status.
+    """
     if not (0 <= carbon_index < len(state) and 0 <= hydrogen_index < len(state)):
         raise IndexError('bond scan atom index is outside the structure')
     if carbon_index == hydrogen_index or step_A <= 0.0 or stop_A < start_A:

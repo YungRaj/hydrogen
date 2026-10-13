@@ -75,6 +75,7 @@ _MODES = {
 
 _SOLID_CLASSES = frozenset(
     {
+        'SupportedNanoparticle',
         'SolidCatalyst',
         'SAC',
         'DAC',

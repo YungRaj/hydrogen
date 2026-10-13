@@ -20,7 +20,16 @@ from pipeline.screening.surface_screener import run_screening
 
 
 def compare_policies(source: Path, *, cohort_size: int = 10, draws: int = 1000) -> dict:
-    """Compare random, eSen, and thermal policies on one stored pool."""
+    """Compare policies on one stored pool.
+
+    Args:
+        source: Screening CSV containing candidate evidence.
+        cohort_size: Number of candidates selected by each policy.
+        draws: Number of random cohorts used for the baseline distribution.
+
+    Returns:
+        Aggregate policy means and random-baseline interval.
+    """
     frame = pd.read_csv(source).drop_duplicates('genome')
     genomes = [ast.literal_eval(value) for value in frame['genome']]
     thermal = _thermal_full_simulator(genomes, frame)
@@ -70,7 +79,18 @@ def create_fresh_pool(
     material_class: str | None = None,
     eligible_metals: tuple[str, ...] = (),
 ) -> Path:
-    """Screen a deterministic random pool into a separate pilot artifact."""
+    """Screen a deterministic random pool into a separate pilot artifact.
+
+    Args:
+        output: CSV path for the screened pool.
+        count: Number of unique candidates to generate.
+        seed: Initial deterministic generator seed.
+        material_class: Optional material class restriction.
+        eligible_metals: Optional supported-nanoparticle metal allowlist.
+
+    Returns:
+        The written output path.
+    """
     if count <= 0:
         raise ValueError('fresh pool count must be positive')
     pool = []
@@ -97,6 +117,7 @@ def create_fresh_pool(
 
 
 def main() -> None:
+    """Parse pilot arguments, run screening and write the comparison report."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
