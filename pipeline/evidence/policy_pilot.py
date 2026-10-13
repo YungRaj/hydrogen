@@ -110,6 +110,11 @@ def create_fresh_pool(
             )
         finally:
             random.setstate(random_state)
+        if material_class == 'SupportedNanoparticle':
+            candidate = (*candidate[:3], {
+                'fcc111': 'fcc111', 'fcc100': 'fcc100',
+                'bcc110': 'bcc110', 'hcp0001': 'hcp0001',
+            }.get(candidate[3], 'fcc111'), *candidate[4:])
         if material_class == 'SupportedNanoparticle' and eligible_metals:
             candidate = (candidate[0], eligible_metals[len(pool) % len(eligible_metals)], *candidate[2:])
         next_seed += 1
