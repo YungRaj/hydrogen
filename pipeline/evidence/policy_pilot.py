@@ -12,7 +12,10 @@ import numpy as np
 import pandas as pd
 
 from pipeline.screening.genetic_optimizer import _thermal_full_simulator
-from pipeline.search.design_space import generate_random_genome
+from pipeline.search.design_space import (
+    generate_random_genome,
+    generate_supported_nanoparticle_genome,
+)
 from pipeline.screening.surface_screener import run_screening
 
 
@@ -62,7 +65,11 @@ def compare_policies(source: Path, *, cohort_size: int = 10, draws: int = 1000) 
     }
 
 
-def create_fresh_pool(output: Path, count: int, *, seed: int = 20261012) -> Path:
+def create_fresh_pool(
+    output: Path, count: int, *, seed: int = 20261012,
+    material_class: str | None = None,
+    eligible_metals: tuple[str, ...] = (),
+) -> Path:
     """Screen a deterministic random pool into a separate pilot artifact."""
     if count <= 0:
         raise ValueError('fresh pool count must be positive')
@@ -71,7 +78,13 @@ def create_fresh_pool(output: Path, count: int, *, seed: int = 20261012) -> Path
     next_seed = int(seed)
     while len(pool) < count:
         random.seed(next_seed)
-        candidate = generate_random_genome()
+        candidate = (
+            generate_supported_nanoparticle_genome()
+            if material_class == 'SupportedNanoparticle'
+            else generate_random_genome(material_class)
+        )
+        if material_class == 'SupportedNanoparticle' and eligible_metals:
+            candidate = (candidate[0], eligible_metals[len(pool) % len(eligible_metals)], *candidate[2:])
         next_seed += 1
         key = repr(candidate)
         if key not in seen:
@@ -91,10 +104,16 @@ def main() -> None:
     parser.add_argument('--draws', type=int, default=1000)
     parser.add_argument('--fresh-count', type=int, default=0)
     parser.add_argument('--pool-seed', type=int, default=20261012)
+    parser.add_argument('--material-class', default=None)
+    parser.add_argument('--eligible-metals', nargs='*', default=())
     args = parser.parse_args()
     source = args.source
     if args.fresh_count:
-        source = create_fresh_pool(source, args.fresh_count, seed=args.pool_seed)
+        source = create_fresh_pool(
+            source, args.fresh_count, seed=args.pool_seed,
+            material_class=args.material_class,
+            eligible_metals=tuple(args.eligible_metals),
+        )
     result = compare_policies(source, cohort_size=args.cohort_size, draws=args.draws)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2) + '\n')
