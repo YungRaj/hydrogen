@@ -85,6 +85,7 @@ def _thermal_full_simulator(genomes, screening: pd.DataFrame) -> pd.DataFrame:
     This is deliberately a non-excluding screening-tier simulation: missing
     Cantera or invalid candidate inputs produce ``validation_required`` rows.
     """
+    from dataclasses import replace
     from pipeline.reactors.mechanisms import CandidateKinetics, write_full_mechanism
     from pipeline.reactors.models import simulate_reactor
     from pipeline.reactors.reactor_core import ReactorConfig
@@ -103,6 +104,14 @@ def _thermal_full_simulator(genomes, screening: pd.DataFrame) -> pd.DataFrame:
                 kinetics = CandidateKinetics.from_screening_row(
                     row, candidate_id=str(row.get('candidate_id', key)),
                 )
+                parsed_genome = tuple(genome)
+                if parsed_genome and parsed_genome[0] == 'SupportedNanoparticle':
+                    kinetics = replace(
+                        kinetics,
+                        carbon_transfer_particle_nm=float(parsed_genome[4]),
+                        material_class='SupportedNanoparticle',
+                        genome=parsed_genome,
+                    )
                 mechanism = write_full_mechanism(
                     catalyst_name=str(row.get('candidate_id', 'candidate')),
                     kinetics=kinetics, output_dir=Path(directory), off_site_carbon=None,
