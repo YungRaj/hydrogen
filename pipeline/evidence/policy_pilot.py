@@ -13,11 +13,13 @@ import numpy as np
 import pandas as pd
 
 from pipeline.screening.genetic_optimizer import _thermal_full_simulator
+from pipeline.screening.surface_calculator import get_ocp_calculator
+from pipeline.screening.surface_screener import compute_reference_energies, run_screening
+from pipeline.screening.supported_nanoparticle import evaluate_supported_nanoparticle
 from pipeline.search.design_space import (
     generate_random_genome,
     generate_supported_nanoparticle_genome,
 )
-from pipeline.screening.surface_screener import run_screening
 
 
 def compare_policies(
@@ -122,7 +124,17 @@ def create_fresh_pool(
         if key not in seen:
             seen.add(key)
             pool.append(candidate)
-    frame = run_screening(pool, db_filename=str(output), workers_per_gpu=1)
+    if material_class == 'SupportedNanoparticle':
+        calculator = get_ocp_calculator('esen-sm-conserving-all-oc25', device='cuda')
+        if calculator is None:
+            raise RuntimeError('supported-nanoparticle pilot requires the eSen calculator')
+        references = compute_reference_energies(calculator)
+        frame = pd.DataFrame([
+            evaluate_supported_nanoparticle(candidate, calculator, references)
+            for candidate in pool
+        ])
+    else:
+        frame = run_screening(pool, db_filename=str(output), workers_per_gpu=1)
     output.parent.mkdir(parents=True, exist_ok=True)
     frame.to_csv(output, index=False)
     return output
