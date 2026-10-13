@@ -5,7 +5,6 @@ from __future__ import annotations
 from contextlib import contextmanager
 from typing import Any, Iterator
 
-from ase.constraints import FixBondLength
 from pipeline.screening import surface_screener
 
 SUPPORTED_NANOPARTICLE_PROTOCOL = 'supported-nanoparticle-v1'
@@ -17,7 +16,6 @@ _SUPPORTED_CLASSES = frozenset({'SupportedNanoparticle'})
 def _lift_supported_adsorption_site(lift_A: float) -> Iterator[None]:
     """Apply the supported-particle placement correction during evaluation."""
     original = surface_screener.screening_adsorption_site
-    original_relax = surface_screener.require_relaxation
 
     def corrected(structure: Any, active: list[int], material: str, distance: float):
         position, direction = original(structure, active, material, distance)
@@ -26,22 +24,10 @@ def _lift_supported_adsorption_site(lift_A: float) -> Iterator[None]:
         return position, direction
 
     surface_screener.screening_adsorption_site = corrected
-    def constrained_relax(result: dict[str, Any], atoms: Any, label: str,
-                          fmax: float, steps: int) -> bool:
-        if label == 'ch3' and len(atoms) >= 4:
-            start = len(atoms) - 3
-            atoms.set_constraint(list(atoms.constraints) + [
-                FixBondLength(len(atoms) - 4, index)
-                for index in range(start, len(atoms))
-            ])
-        return original_relax(result, atoms, label, fmax, steps)
-
-    surface_screener.require_relaxation = constrained_relax
     try:
         yield
     finally:
         surface_screener.screening_adsorption_site = original
-        surface_screener.require_relaxation = original_relax
 
 
 def evaluate_supported_nanoparticle(
