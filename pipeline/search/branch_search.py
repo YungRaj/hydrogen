@@ -62,6 +62,7 @@ class BranchConfig:
     scan_batch_size: int = 65536
     hard_prune_limit: int = 4096
     max_leaves: Optional[int] = None
+    max_expansions: Optional[int] = None
     global_archive_size: int = 10000
     material_classes: Optional[tuple] = None
     expected_population: Optional[int] = None
@@ -210,13 +211,17 @@ def _select_pending_node(
             FROM branch_nodes WHERE application=? AND status='pending'
               AND material_class IN ({placeholders})
             ORDER BY priority ASC, start_index ASC LIMIT 1"""
+        query = query.replace(
+            "ORDER BY priority ASC, start_index ASC",
+            "ORDER BY (stop_index-start_index) ASC, priority ASC, start_index ASC",
+        )
         row = conn.execute(query, (config.application, *target_classes)).fetchone()
         if row is not None:
             return row, mode
     row = conn.execute(
         """SELECT node_id, material_class, start_index, stop_index, depth
         FROM branch_nodes WHERE application=? AND status='pending'
-        ORDER BY priority ASC, start_index ASC LIMIT 1""",
+        ORDER BY (stop_index-start_index) ASC, priority ASC, start_index ASC LIMIT 1""",
         (config.application,),
     ).fetchone()
     return row, 'priority'
@@ -308,6 +313,7 @@ def run_branch_and_bound(
         or config.exploration_interval < 0
         or config.refresh_pending_priorities < 0
         or config.scan_workers < 1
+        or (config.max_expansions is not None and config.max_expansions <= 0)
     ):
         raise ValueError("invalid branch configuration")
     conn = _open(config.database)
@@ -342,7 +348,10 @@ def run_branch_and_bound(
     deadline = (
         None if config.max_runtime_s is None else time.time() + config.max_runtime_s
     )
-    while config.max_leaves is None or leaves_scanned < config.max_leaves:
+    while (
+        (config.max_leaves is None or leaves_scanned < config.max_leaves)
+        and (config.max_expansions is None or expanded < config.max_expansions)
+    ):
         if deadline is not None and time.time() >= deadline:
             break
         row, scheduling_mode = _select_pending_node(

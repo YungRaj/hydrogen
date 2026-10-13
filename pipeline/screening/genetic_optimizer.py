@@ -147,14 +147,22 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--probe-seconds', type=float, default=1800.0)
     parser.add_argument('--calibration-candidates', type=int, default=500)
+    parser.add_argument(
+        '--branch-leaves',
+        type=int,
+        default=1,
+        help='maximum terminal leaves to scan during this bounded run',
+    )
     args = parser.parse_args()
     candidates = int(args.calibration_candidates)
+    if args.branch_leaves <= 0:
+        parser.error('--branch-leaves must be positive')
     budget = PilotBudget(
         calibration_candidates=candidates,
         validation_candidates=min(20, candidates),
         portfolio_candidates=10,
         archive_candidates=100,
-        branch_leaves=1,
+        branch_leaves=args.branch_leaves,
         runtime_s=args.probe_seconds,
         scan_workers=1,
         workers_per_gpu=1,
@@ -165,6 +173,7 @@ def main() -> None:
         experimental_slate_size=budget.portfolio_candidates,
         htvs_pool_size=budget.archive_candidates,
         branch_max_leaves=budget.branch_leaves,
+        branch_max_expansions=budget.branch_leaves * 4,
         max_runtime_s=budget.runtime_s,
         scan_workers=budget.scan_workers,
         workers_per_gpu=budget.workers_per_gpu,

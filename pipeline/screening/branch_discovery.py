@@ -71,6 +71,7 @@ class BranchDiscoveryConfig:
     branch_leaf_size: int = 1_000_000
     branch_probe_count: int = 9
     branch_max_leaves: Optional[int] = None
+    branch_max_expansions: Optional[int] = None
     expected_space_size: Optional[int] = None
     max_runtime_s: Optional[float] = None
     prior_art_db: Optional[str] = None
@@ -235,6 +236,7 @@ def run_guided_branch_discovery(
             probe_count=config.branch_probe_count,
             scan_batch_size=config.exhaustive_batch_size,
             max_leaves=config.branch_max_leaves,
+            max_expansions=config.branch_max_expansions,
             expected_population=config.expected_space_size,
             certificate_path=str(workflow.certificate_path),
             max_runtime_s=config.max_runtime_s,
