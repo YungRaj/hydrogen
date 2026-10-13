@@ -87,6 +87,7 @@ def create_fresh_pool(
     output: Path, count: int, *, seed: int = 20261012,
     material_class: str | None = None,
     eligible_metals: tuple[str, ...] = (),
+    novelty_ledger: Path | None = None,
 ) -> Path:
     """Screen a deterministic random pool into a separate pilot artifact.
 
@@ -96,6 +97,7 @@ def create_fresh_pool(
         seed: Initial deterministic generator seed.
         material_class: Optional material class restriction.
         eligible_metals: Optional supported-nanoparticle metal allowlist.
+        novelty_ledger: Optional local file containing previously used genomes.
 
     Returns:
         The written output path.
@@ -104,6 +106,8 @@ def create_fresh_pool(
         raise ValueError('fresh pool count must be positive')
     pool: list[tuple[Any, ...]] = []
     seen: set[str] = set()
+    if novelty_ledger is not None and novelty_ledger.exists():
+        seen.update(line.rstrip('\n') for line in novelty_ledger.read_text().splitlines())
     next_seed = int(seed)
     while len(pool) < count:
         random_state = random.getstate()
@@ -141,6 +145,9 @@ def create_fresh_pool(
         frame = run_screening(pool, db_filename=str(output), workers_per_gpu=1)
     output.parent.mkdir(parents=True, exist_ok=True)
     frame.to_csv(output, index=False)
+    if novelty_ledger is not None:
+        novelty_ledger.parent.mkdir(parents=True, exist_ok=True)
+        novelty_ledger.write_text('\n'.join(sorted(seen)) + '\n')
     return output
 
 
@@ -155,6 +162,7 @@ def main() -> None:
     parser.add_argument('--pool-seed', type=int, default=20261012)
     parser.add_argument('--material-class', default=None)
     parser.add_argument('--eligible-metals', nargs='*', default=())
+    parser.add_argument('--novelty-ledger', type=Path, default=None)
     args = parser.parse_args()
     source = args.source
     if args.fresh_count:
@@ -162,6 +170,7 @@ def main() -> None:
             source, args.fresh_count, seed=args.pool_seed,
             material_class=args.material_class,
             eligible_metals=tuple(args.eligible_metals),
+            novelty_ledger=args.novelty_ledger,
         )
     result = compare_policies(source, cohort_size=args.cohort_size, draws=args.draws)
     args.output.parent.mkdir(parents=True, exist_ok=True)

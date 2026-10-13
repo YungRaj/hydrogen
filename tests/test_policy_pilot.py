@@ -33,3 +33,17 @@ def test_policy_pilot_reports_all_policy_cohorts(tmp_path, monkeypatch):
         'random', 'eSen', 'thermal', 'uncertainty', 'validity'
     }
     assert result['cohort_size'] == 2
+
+
+def test_fresh_pool_novelty_ledger_excludes_previous_genomes(tmp_path, monkeypatch):
+    candidates = iter([('old',), ('new-a',), ('new-b',)])
+    monkeypatch.setattr(policy_pilot, 'generate_random_genome', lambda _: next(candidates))
+    monkeypatch.setattr(
+        policy_pilot,
+        'run_screening',
+        lambda pool, **_: pd.DataFrame({'genome': [repr(value) for value in pool]}),
+    )
+    ledger = tmp_path / 'seen.txt'
+    ledger.write_text("('old',)\n")
+    output = policy_pilot.create_fresh_pool(tmp_path / 'pool.csv', 2, novelty_ledger=ledger)
+    assert set(pd.read_csv(output)['genome']) == {"('new-a',)", "('new-b',)"}
