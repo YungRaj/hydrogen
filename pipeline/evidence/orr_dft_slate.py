@@ -14,14 +14,11 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from pipeline.search.discovery import candidate_id
+from pipeline.io.hashing import file_sha256
 
 ROOT = Path('results/prospective_search')
 OUTPUT = Path('results/dft/orr_confirmatory_slate.json')
 SLATE_SIZE = 50
-
-
-def _sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def _atomic_json(path: Path, payload: dict[str, Any]) -> None:
@@ -71,7 +68,7 @@ def build_slate(output: Path = OUTPUT) -> Path:
     if len(batch_ids) != int(final['planned_batches']):
         raise RuntimeError('confirmatory batch count does not match the locked plan')
 
-    source_hashes = {str(final_path): _sha256(final_path)}
+    source_hashes = {str(final_path): file_sha256(final_path)}
     rows: list[dict[str, Any]] = []
     for batch in batch_ids:
         folder = ROOT / 'batches' / batch
@@ -80,9 +77,9 @@ def build_slate(output: Path = OUTPUT) -> Path:
         outcome_path = Path('results/fuel_cell/prospective') / f'{batch}_orr.csv'
         manifest = json.loads(manifest_path.read_text())
         analysis = json.loads(analysis_path.read_text())
-        if analysis['manifest_sha256'] != _sha256(manifest_path):
+        if analysis['manifest_sha256'] != file_sha256(manifest_path):
             raise RuntimeError(f'manifest checksum mismatch: {batch}')
-        if analysis['outcome_sha256']['fuel_cell_orr'] != _sha256(outcome_path):
+        if analysis['outcome_sha256']['fuel_cell_orr'] != file_sha256(outcome_path):
             raise RuntimeError(f'outcome checksum mismatch: {batch}')
         records = [item for item in manifest['records'] if item['application'] == 'fuel_cell_orr']
         if len(records) != 1:
@@ -91,9 +88,9 @@ def build_slate(output: Path = OUTPUT) -> Path:
         memberships = {
             name: set(identities) for name, identities in record['policy_selected_ids'].items()
         }
-        source_hashes[str(manifest_path)] = _sha256(manifest_path)
-        source_hashes[str(analysis_path)] = _sha256(analysis_path)
-        source_hashes[str(outcome_path)] = _sha256(outcome_path)
+        source_hashes[str(manifest_path)] = file_sha256(manifest_path)
+        source_hashes[str(analysis_path)] = file_sha256(analysis_path)
+        source_hashes[str(outcome_path)] = file_sha256(outcome_path)
         with outcome_path.open(newline='') as stream:
             for raw in csv.DictReader(stream):
                 if raw['valid'].lower() != 'true':
@@ -176,7 +173,7 @@ def verify_slate(path: Path = OUTPUT) -> bool:
         json.dumps(document, sort_keys=True, separators=(',', ':')).encode()
     ).hexdigest()
     return digest == actual and all(
-        Path(source).is_file() and _sha256(Path(source)) == expected
+        Path(source).is_file() and file_sha256(Path(source)) == expected
         for source, expected in document['source_sha256'].items()
     )
 

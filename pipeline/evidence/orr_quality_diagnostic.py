@@ -12,13 +12,10 @@ import tempfile
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
+from pipeline.io.hashing import file_sha256
 
 ROOT = Path('results/prospective_search')
 OUTPUT = ROOT / 'orr_quality_diagnostic.json'
-
-
-def _sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def _failure_family(error: str) -> str:
@@ -76,7 +73,7 @@ def build_diagnostic(output: Path = OUTPUT) -> Path:
     final = json.loads(final_path.read_text())
     if final.get('status') != 'complete':
         raise RuntimeError('completed confirmatory evidence is required')
-    sources = {str(final_path): _sha256(final_path)}
+    sources = {str(final_path): file_sha256(final_path)}
     totals: Counter[str] = Counter()
     by_class: dict[str, Counter[str]] = defaultdict(Counter)
     failures: Counter[str] = Counter()
@@ -86,10 +83,10 @@ def build_diagnostic(output: Path = OUTPUT) -> Path:
         analysis_path = ROOT / 'batches' / str(batch) / 'analysis.json'
         analysis = json.loads(analysis_path.read_text())
         outcome_path = Path('results/fuel_cell/prospective') / f'{batch}_orr.csv'
-        if analysis['outcome_sha256']['fuel_cell_orr'] != _sha256(outcome_path):
+        if analysis['outcome_sha256']['fuel_cell_orr'] != file_sha256(outcome_path):
             raise RuntimeError(f'outcome checksum mismatch: {batch}')
-        sources[str(analysis_path)] = _sha256(analysis_path)
-        sources[str(outcome_path)] = _sha256(outcome_path)
+        sources[str(analysis_path)] = file_sha256(analysis_path)
+        sources[str(outcome_path)] = file_sha256(outcome_path)
         with outcome_path.open(newline='') as stream:
             for row in csv.DictReader(stream):
                 material_class = str(ast.literal_eval(row['genome'])[0])
@@ -165,7 +162,7 @@ def verify_diagnostic(path: Path = OUTPUT) -> bool:
         json.dumps(report, sort_keys=True, separators=(',', ':')).encode()
     ).hexdigest()
     return expected == actual and all(
-        Path(source).is_file() and _sha256(Path(source)) == digest
+        Path(source).is_file() and file_sha256(Path(source)) == digest
         for source, digest in report['source_sha256'].items()
     )
 
