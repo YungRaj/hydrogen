@@ -27,6 +27,7 @@ from pipeline.reactors.models import (
     run_reactor_sweep,
     simulate_reactor,
 )
+from pipeline.reactors.sweeps.runner import DEFAULT_POLICY
 from pipeline.reactors.sweeps.staged import (
     SweepSpec,
     cartesian_cells,
@@ -139,12 +140,7 @@ def _record(role: str, cat: str, r: dict, cell: dict = None) -> dict:
 
 
 def _evaluate_cells(cells, temperatures, probe, control, probe_mech, control_mech):
-    policy = {
-        'co2_permitted': False,
-        'fluidized_mode': 'circulating',
-        'max_regen_cycles': 3,
-        'regen_mechanism': 'mechanical',
-    }
+    policy = dict(DEFAULT_POLICY)
     records = []
     probe_class = _material_class(probe)
     control_class = _material_class(control)
