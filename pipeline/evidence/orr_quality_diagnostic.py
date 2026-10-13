@@ -7,12 +7,11 @@ import csv
 import hashlib
 import json
 import math
-import os
-import tempfile
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 from pipeline.io.hashing import file_sha256
+from pipeline.io.json import write_atomic_json
 
 ROOT = Path('results/prospective_search')
 OUTPUT = ROOT / 'orr_quality_diagnostic.json'
@@ -43,21 +42,6 @@ def _binding_bin(raw: str) -> str:
     if value <= 5.0:
         return 'abs_3_to_5_eV'
     return 'abs_gt_5_eV'
-
-
-def _atomic_json(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary = tempfile.mkstemp(prefix=f'.{path.name}.', dir=path.parent)
-    try:
-        with os.fdopen(descriptor, 'w') as stream:
-            json.dump(payload, stream, indent=2, sort_keys=True)
-            stream.write('\n')
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(temporary, path)
-    except BaseException:
-        Path(temporary).unlink(missing_ok=True)
-        raise
 
 
 def build_diagnostic(output: Path = OUTPUT) -> Path:
@@ -143,7 +127,7 @@ def build_diagnostic(output: Path = OUTPUT) -> Path:
     }
     body = json.dumps(report, sort_keys=True, separators=(',', ':')).encode()
     report['diagnostic_sha256'] = hashlib.sha256(body).hexdigest()
-    _atomic_json(output, report)
+    write_atomic_json(output, report)
     return output
 
 

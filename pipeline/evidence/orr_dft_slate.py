@@ -7,33 +7,17 @@ import csv
 import hashlib
 import json
 import math
-import os
-import tempfile
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Iterable
 
 from pipeline.search.discovery import candidate_id
 from pipeline.io.hashing import file_sha256
+from pipeline.io.json import write_atomic_json
 
 ROOT = Path('results/prospective_search')
 OUTPUT = Path('results/dft/orr_confirmatory_slate.json')
 SLATE_SIZE = 50
-
-
-def _atomic_json(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary = tempfile.mkstemp(prefix=f'.{path.name}.', dir=path.parent)
-    try:
-        with os.fdopen(descriptor, 'w') as stream:
-            json.dump(payload, stream, indent=2, sort_keys=True)
-            stream.write('\n')
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(temporary, path)
-    except BaseException:
-        Path(temporary).unlink(missing_ok=True)
-        raise
 
 
 def _rank(rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -153,7 +137,7 @@ def build_slate(output: Path = OUTPUT) -> Path:
     digest = hashlib.sha256(
         json.dumps(body, sort_keys=True, separators=(',', ':')).encode()
     ).hexdigest()
-    _atomic_json(output, {'schema_version': 1, **body, 'slate_sha256': digest})
+    write_atomic_json(output, {'schema_version': 1, **body, 'slate_sha256': digest})
     return output
 
 
