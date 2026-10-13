@@ -39,6 +39,13 @@ def compare_policies(source: Path, *, cohort_size: int = 10, draws: int = 1000) 
         'thermal': float(
             frame.nsmallest(size, 'full_simulation_score')['full_simulation_score'].mean()
         ),
+        'uncertainty': float(
+            frame.nsmallest(size, 'model_confidence')['full_simulation_score'].mean()
+        ),
+        'validity': float(
+            frame.sort_values(['valid', 'pyrolysis_viable'], ascending=False)
+            .head(size)['full_simulation_score'].mean()
+        ),
     }
     return {
         'status': 'retrospective_pilot',
