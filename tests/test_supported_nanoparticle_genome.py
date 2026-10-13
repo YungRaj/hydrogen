@@ -5,6 +5,7 @@ from pipeline.search.design_space import (
 from pipeline.screening.surface_screener import generate_structure
 from pipeline.reactors.mechanisms import off_site_carbon_allowed
 from pipeline.reactors.modes import reactor_applicability
+from pipeline.screening.supported_nanoparticle import SUPPORTED_NANOPARTICLE_PROTOCOL
 
 
 def test_supported_nanoparticle_genome_exposes_size_and_loading():
@@ -34,3 +35,7 @@ def test_supported_nanoparticle_is_applicable_to_pfr():
     applicable, reason = reactor_applicability('PFR', 'SupportedNanoparticle')
     assert applicable
     assert reason is None
+
+
+def test_supported_nanoparticle_protocol_is_versioned():
+    assert SUPPORTED_NANOPARTICLE_PROTOCOL == 'supported-nanoparticle-v1'
