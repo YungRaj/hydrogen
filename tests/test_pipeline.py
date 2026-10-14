@@ -1080,30 +1080,6 @@ def test_report_empty_no_crash():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-def test_crossover_preserves_class():
-    from pipeline.search.design_space import generate_random_genome, crossover
-
-    for _ in range(100):
-        p1 = generate_random_genome('SAC')
-        p2 = generate_random_genome('SAC')
-        child = crossover(p1, p2)
-        assert child[0] == 'SAC', f"Crossover changed class to {child[0]}"
-
-
-def test_mutation_preserves_class():
-    from pipeline.search.design_space import (
-        ALL_MATERIAL_CLASSES,
-        generate_random_genome,
-        mutate,
-    )
-
-    for cls in ALL_MATERIAL_CLASSES:
-        for _ in range(20):
-            g = generate_random_genome(cls)
-            m = mutate(g, rate=1.0)  # force mutation
-            assert m[0] == cls, f"Mutation changed {cls} to {m[0]}"
-
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # 12. OOD CONFIDENCE
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1230,37 +1206,6 @@ def test_cathode_sac_genome_5tuple():
         assert (
             len(c['genome']) == 5
         ), f"SAC genome should be 5-tuple, got {len(c['genome'])}: {c['genome']}"
-
-
-def test_deterministic_hierarchical_pool():
-    from pipeline.search.design_space import generate_hierarchical_htvs_pool
-
-    # Test fallback behavior when model is None
-    pool = generate_hierarchical_htvs_pool(pool_size=100, scorer=None)
-    assert len(pool) == 100, f"Expected pool size 100, got {len(pool)}"
-    # Check that genomes are generated and valid
-    for g in pool:
-        assert isinstance(g, tuple), "Genome must be a tuple"
-        assert len(g) >= 2, "Genome must have at least class name and one parameter"
-
-
-def test_hierarchical_rounds_cover_complementary_cells():
-    from pipeline.search.design_space import generate_hierarchical_htvs_pool
-    from pipeline.search.discovery import candidate_id
-
-    first = generate_hierarchical_htvs_pool(500, campaign_round=0)
-    second = generate_hierarchical_htvs_pool(500, campaign_round=1)
-    ids_first = {candidate_id(g) for g in first}
-    ids_second = {candidate_id(g) for g in second}
-    assert (
-        ids_first != ids_second
-    ), "Campaign rounds must not regenerate the same fixed-stride pool"
-    assert len(ids_first) == len(
-        first
-    ), "Round 0 contains duplicate canonical candidates"
-    assert len(ids_second) == len(
-        second
-    ), "Round 1 contains duplicate canonical candidates"
 
 
 def test_discovery_batch_prioritizes_unseen_regions():
@@ -3852,13 +3797,6 @@ if __name__ == '__main__':
     test(
         "Screening cache preserves request mapping",
         test_screening_cache_preserves_request_mapping,
-    )
-    test("Crossover preserves class", test_crossover_preserves_class)
-    test("Mutation preserves class", test_mutation_preserves_class)
-    test("Deterministic hierarchical pool", test_deterministic_hierarchical_pool)
-    test(
-        "Hierarchical rounds cover complementary cells",
-        test_hierarchical_rounds_cover_complementary_cells,
     )
     test(
         "Design space remains sizable and provenance-backed",

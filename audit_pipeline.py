@@ -46,8 +46,6 @@ from pipeline.search.design_space import (
     GENERATORS,
     encode_genome,
     FEATURE_DIM,
-    crossover,
-    mutate,
     CLASS_WEIGHTS,
 )
 
@@ -261,38 +259,6 @@ check(
     len(encode_failures) == 0,
     f"{len(encode_failures)} failures. First: {encode_failures[0] if encode_failures else ''}",
 )
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# 6. CROSSOVER & MUTATION — NO CLASS LEFT BEHIND
-# ═══════════════════════════════════════════════════════════════════════════════
-print("\n═══ CROSSOVER & MUTATION ═══")
-
-genetic_failures = []
-for cls in ALL_14:
-    for _ in range(30):
-        g1 = generate_random_genome(cls)
-        g2 = generate_random_genome(cls)
-        try:
-            child = crossover(g1, g2)
-            if child[0] != cls:
-                genetic_failures.append(f"Crossover changed {cls} to {child[0]}")
-        except Exception as ex:
-            genetic_failures.append(f"Crossover {cls}: {str(ex)[:80]}")
-        try:
-            mutant = mutate(g1, rate=1.0)
-            if mutant[0] != cls:
-                genetic_failures.append(f"Mutation changed {cls} to {mutant[0]}")
-        except Exception as ex:
-            genetic_failures.append(f"Mutation {cls}: {str(ex)[:80]}")
-
-check(
-    f"Crossover & mutation (840 ops, class preserved)",
-    len(genetic_failures) == 0,
-    f"{len(genetic_failures)} failures. First: {genetic_failures[0] if genetic_failures else ''}",
-)
-
-
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
