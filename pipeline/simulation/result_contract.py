@@ -248,6 +248,167 @@ def artifact_path(
     )
 
 
+_HEX_DIGITS = frozenset('0123456789abcdef')
+_BOUNDED_FRACTIONS = ('CH4_conversion', 'H2_selectivity', 'solid_C_selectivity',
+                      'faradaic_efficiency_H2')
+_COUPLING_DIGESTS = ('mechanism_sha256', 'cantera_log_sha256', 'rate_exchange_sha256',
+                     'coupling_history_sha256')
+
+
+def _is_hex_sha256(value) -> bool:
+    return isinstance(value, str) and len(value) == 64 and set(value.lower()) <= _HEX_DIGITS
+
+
+def _is_64_char_str(value) -> bool:
+    return isinstance(value, str) and len(value) == 64
+
+
+def _identity_checks(value: dict, candidate_id: str, pathway_mode: str,
+                     reactor_type: str, temperature_K: float) -> dict:
+    try:
+        temperature_matches = (
+            abs(float(value.get('temperature_K', -1)) - float(temperature_K)) < 1e-6)
+    except (TypeError, ValueError):
+        temperature_matches = False
+    return {
+        'schema_version': value.get('schema_version') == SCHEMA_VERSION,
+        'candidate_id': str(value.get('candidate_id')) == candidate_id,
+        'pathway_mode': value.get('pathway_mode') == pathway_mode,
+        'reactor_type': value.get('reactor_type') == reactor_type,
+        'temperature_K': temperature_matches,
+        'complete': value.get('complete') is True,
+        'converged': value.get('convergence', {}).get('converged') is True,
+    }
+
+
+def _solver_checks(value: dict, reactor_type: str, required: set) -> dict:
+    solvers = value.get('backend_solvers', {})
+    outputs = value.get('outputs', {})
+    numerical = verify_numerics(value.get('convergence', {}), reactor_type)
+    return {
+        'required_solvers': required.issubset(set(solvers)),
+        'outputs': isinstance(value.get('outputs'), dict),
+        'required_outputs': REQUIRED_OUTPUTS[reactor_type].issubset(outputs),
+        'mesh_independent': numerical['mesh_independent'],
+        'conservation_residuals': numerical['conservation_satisfied'],
+        'backend_versions': all(
+            isinstance(solvers.get(name), str) and bool(solvers[name].strip())
+            for name in required),
+    }
+
+
+def _provenance_checks(provenance: dict, required: set) -> dict:
+    checks = {
+        'input_digest': _is_hex_sha256(provenance.get('input_sha256', '')),
+        'model_source': bool(provenance.get('model_source')),
+    }
+    if 'moose' in required:
+        checks['moose_input_digest'] = _is_hex_sha256(provenance.get('moose_input_sha256', ''))
+    return checks
+
+
+def _physical_case_ok(physical_case: dict) -> bool:
+    try:
+        calibration_count = int(physical_case.get('calibration_count', 0))
+        holdout_count = int(physical_case.get('holdout_validation_count', 0))
+    except (TypeError, ValueError):
+        calibration_count = holdout_count = 0
+    return (
+        physical_case.get('schema_version') == 1
+        and physical_case.get('disjoint_holdout') is True
+        and calibration_count > 0
+        and holdout_count > 0
+        and bool(physical_case.get('kinetics_source'))
+        and bool(physical_case.get('feed_source'))
+        and bool(physical_case.get('calibration_source'))
+    )
+
+
+def _holdout_ok(validation: dict) -> bool:
+    try:
+        holdout_error = float(validation.get('holdout_error'))
+        acceptance_threshold = float(validation.get('acceptance_threshold'))
+    except (TypeError, ValueError):
+        holdout_error = acceptance_threshold = math.nan
+    return (
+        validation.get('metric') in {'rmse', 'mae', 'relative_rmse'}
+        and math.isfinite(holdout_error)
+        and holdout_error >= 0
+        and math.isfinite(acceptance_threshold)
+        and acceptance_threshold >= 0
+        and holdout_error <= acceptance_threshold
+        and validation.get('passed') is True
+        and bool(validation.get('record_source'))
+    )
+
+
+def _ntec_checks(value: dict, provenance: dict) -> dict:
+    calibration = value.get('calibration', {})
+    handoff = provenance.get('hydrodynamic_handoff', {})
+    return {
+        'paired_control_calibration': (
+            calibration.get('paired_control') is True
+            and bool(calibration.get('paired_control_source'))),
+        'hydrodynamic_handoff': (
+            _is_64_char_str(handoff.get('sha256'))
+            and bool(handoff.get('mesh_id'))
+            and _is_64_char_str(handoff.get('field_sha256'))),
+    }
+
+
+def _electrochemical_checks(value: dict) -> dict:
+    mechanism = value.get('mechanism', {})
+    return {
+        'electrochemical_mechanism': (
+            mechanism.get('complete') is True and bool(mechanism.get('source'))),
+        'electrolyte_phase': value.get('electrolyte_phase') in {'aqueous', 'molten'},
+    }
+
+
+def _coupling_checks(value: dict, provenance: dict) -> dict:
+    """Declared two-way coupling must converge and match what the runner observed."""
+    coupling = value.get('solver_coupling', {})
+    try:
+        iterations = int(coupling.get('iterations', 0))
+        coupling_residual = float(coupling.get('residual_relative', math.inf))
+        coupling_tolerance = float(coupling.get('tolerance_relative', -1))
+    except (TypeError, ValueError):
+        iterations = 0
+        coupling_residual, coupling_tolerance = math.inf, -1
+    declared_ok = (
+        coupling.get('method') == 'iterative_two_way'
+        and coupling.get('converged') is True
+        and iterations >= 2
+        and coupling_residual <= coupling_tolerance
+        and all(_is_64_char_str(coupling.get(name)) for name in _COUPLING_DIGESTS)
+    )
+    observed = provenance.get('observed_coupling_iterations', [])
+    try:
+        observed_ok = (
+            isinstance(observed, list)
+            and len(observed) == iterations
+            and iterations >= 2
+            and observed[-1].get('converged') is True
+            and int(observed[-1].get('iteration', 0)) == iterations
+            and math.isclose(
+                float(observed[-1].get('residual_relative', math.inf)),
+                coupling_residual, rel_tol=1e-9, abs_tol=1e-12)
+        )
+    except (AttributeError, TypeError, ValueError):
+        observed_ok = False
+    return {'iterative_solver_coupling': declared_ok,
+            'runner_observed_coupling': observed_ok}
+
+
+def _fractions_bounded(outputs: dict) -> bool:
+    return all(
+        isinstance(number, (int, float))
+        and math.isfinite(float(number))
+        and 0 <= float(number) <= 1
+        for number in (outputs[name] for name in _BOUNDED_FRACTIONS if name in outputs)
+    )
+
+
 def load_validated_artifact(
     root: str | Path | None,
     candidate_id: str,
@@ -271,196 +432,39 @@ def load_validated_artifact(
         return {'valid': False, 'reason': 'multiphysics_results_dir_not_configured'}
     path = artifact_path(root, candidate_id, pathway_mode, reactor_type, temperature_K)
     if not path.is_file():
-        return {
-            'valid': False,
-            'reason': 'multiphysics_artifact_missing',
-            'path': str(path),
-        }
+        return {'valid': False, 'reason': 'multiphysics_artifact_missing', 'path': str(path)}
     try:
         value = json.loads(path.read_text())
     except (OSError, json.JSONDecodeError) as exc:
-        return {
-            'valid': False,
-            'reason': 'multiphysics_artifact_unreadable',
-            'error': str(exc),
-            'path': str(path),
-        }
-    try:
-        temperature_matches = (
-            abs(float(value.get('temperature_K', -1)) - float(temperature_K)) < 1e-6
-        )
-    except (TypeError, ValueError):
-        temperature_matches = False
-    checks = {
-        'schema_version': value.get('schema_version') == SCHEMA_VERSION,
-        'candidate_id': str(value.get('candidate_id')) == candidate_id,
-        'pathway_mode': value.get('pathway_mode') == pathway_mode,
-        'reactor_type': value.get('reactor_type') == reactor_type,
-        'temperature_K': temperature_matches,
-        'complete': value.get('complete') is True,
-        'converged': value.get('convergence', {}).get('converged') is True,
-    }
-    declared = set(value.get('backend_solvers', {}))
+        return {'valid': False, 'reason': 'multiphysics_artifact_unreadable',
+                'error': str(exc), 'path': str(path)}
+
+    def invalid(failed_checks: list) -> ArtifactValidationResult:
+        return {'valid': False, 'reason': 'multiphysics_artifact_invalid',
+                'failed_checks': failed_checks, 'path': str(path)}
+
     required = EXTERNAL_SOLVERS.get(reactor_type, set())
-    checks['required_solvers'] = required.issubset(declared)
-    checks['outputs'] = isinstance(value.get('outputs'), dict)
-    outputs = value.get('outputs', {})
-    checks['required_outputs'] = REQUIRED_OUTPUTS[reactor_type].issubset(outputs)
-    convergence = value.get('convergence', {})
-    numerical = verify_numerics(convergence, reactor_type)
-    checks['mesh_independent'] = numerical['mesh_independent']
-    checks['conservation_residuals'] = numerical['conservation_satisfied']
-    checks['backend_versions'] = all(
-        isinstance(value.get('backend_solvers', {}).get(name), str)
-        and bool(value['backend_solvers'][name].strip())
-        for name in required
-    )
     provenance = value.get('provenance', {})
-    digest = provenance.get('input_sha256', '')
-    checks['input_digest'] = (
-        isinstance(digest, str)
-        and len(digest) == 64
-        and all(char in '0123456789abcdef' for char in digest.lower())
-    )
-    checks['model_source'] = bool(provenance.get('model_source'))
-    if 'moose' in required:
-        input_file_digest = provenance.get('moose_input_sha256', '')
-        checks['moose_input_digest'] = (
-            isinstance(input_file_digest, str)
-            and len(input_file_digest) == 64
-            and all(char in '0123456789abcdef' for char in input_file_digest.lower())
-        )
-    physical_case = value.get('physical_case', {})
-    try:
-        calibration_count = int(physical_case.get('calibration_count', 0))
-        holdout_count = int(physical_case.get('holdout_validation_count', 0))
-    except (TypeError, ValueError):
-        calibration_count = holdout_count = 0
-    checks['physical_case'] = (
-        physical_case.get('schema_version') == 1
-        and physical_case.get('disjoint_holdout') is True
-        and calibration_count > 0
-        and holdout_count > 0
-        and bool(physical_case.get('kinetics_source'))
-        and bool(physical_case.get('feed_source'))
-        and bool(physical_case.get('calibration_source'))
-    )
-    validation = value.get('model_validation', {})
-    try:
-        holdout_error = float(validation.get('holdout_error'))
-        acceptance_threshold = float(validation.get('acceptance_threshold'))
-    except (TypeError, ValueError):
-        holdout_error = acceptance_threshold = math.nan
-    checks['holdout_validation'] = (
-        validation.get('metric') in {'rmse', 'mae', 'relative_rmse'}
-        and math.isfinite(holdout_error)
-        and holdout_error >= 0
-        and math.isfinite(acceptance_threshold)
-        and acceptance_threshold >= 0
-        and holdout_error <= acceptance_threshold
-        and validation.get('passed') is True
-        and bool(validation.get('record_source'))
-    )
+    checks = {
+        **_identity_checks(value, candidate_id, pathway_mode, reactor_type, temperature_K),
+        **_solver_checks(value, reactor_type, required),
+        **_provenance_checks(provenance, required),
+        'physical_case': _physical_case_ok(value.get('physical_case', {})),
+        'holdout_validation': _holdout_ok(value.get('model_validation', {})),
+    }
     if reactor_type == 'NTEC':
-        calibration = value.get('calibration', {})
-        checks['paired_control_calibration'] = calibration.get(
-            'paired_control'
-        ) is True and bool(calibration.get('paired_control_source'))
-        handoff = provenance.get('hydrodynamic_handoff', {})
-        checks['hydrodynamic_handoff'] = (
-            isinstance(handoff.get('sha256'), str)
-            and len(handoff['sha256']) == 64
-            and bool(handoff.get('mesh_id'))
-            and isinstance(handoff.get('field_sha256'), str)
-            and len(handoff['field_sha256']) == 64
-        )
+        checks.update(_ntec_checks(value, provenance))
     if reactor_type == 'Electrochemical':
-        mechanism = value.get('mechanism', {})
-        checks['electrochemical_mechanism'] = mechanism.get(
-            'complete'
-        ) is True and bool(mechanism.get('source'))
-        checks['electrolyte_phase'] = value.get('electrolyte_phase') in {
-            'aqueous',
-            'molten',
-        }
+        checks.update(_electrochemical_checks(value))
     if reactor_type in {'NTEC', 'Electrochemical'}:
-        coupling = value.get('solver_coupling', {})
-        try:
-            iterations = int(coupling.get('iterations', 0))
-            coupling_residual = float(coupling.get('residual_relative', math.inf))
-            coupling_tolerance = float(coupling.get('tolerance_relative', -1))
-        except (TypeError, ValueError):
-            iterations = 0
-            coupling_residual, coupling_tolerance = math.inf, -1
-        checks['iterative_solver_coupling'] = (
-            coupling.get('method') == 'iterative_two_way'
-            and coupling.get('converged') is True
-            and iterations >= 2
-            and coupling_residual <= coupling_tolerance
-            and all(
-                isinstance(coupling.get(name), str) and len(coupling[name]) == 64
-                for name in (
-                    'mechanism_sha256',
-                    'cantera_log_sha256',
-                    'rate_exchange_sha256',
-                    'coupling_history_sha256',
-                )
-            )
-        )
-        observed = provenance.get('observed_coupling_iterations', [])
-        try:
-            observed_ok = (
-                isinstance(observed, list)
-                and len(observed) == iterations
-                and iterations >= 2
-                and observed[-1].get('converged') is True
-                and int(observed[-1].get('iteration', 0)) == iterations
-                and math.isclose(
-                    float(observed[-1].get('residual_relative', math.inf)),
-                    coupling_residual,
-                    rel_tol=1e-9,
-                    abs_tol=1e-12,
-                )
-            )
-        except (AttributeError, TypeError, ValueError):
-            observed_ok = False
-        checks['runner_observed_coupling'] = observed_ok
+        checks.update(_coupling_checks(value, provenance))
     failed = [name for name, passed in checks.items() if not passed]
     if failed:
-        return {
-            'valid': False,
-            'reason': 'multiphysics_artifact_invalid',
-            'failed_checks': failed,
-            'path': str(path),
-        }
-    bounds = {
-        name: outputs.get(name)
-        for name in (
-            'CH4_conversion',
-            'H2_selectivity',
-            'solid_C_selectivity',
-            'faradaic_efficiency_H2',
-        )
-        if name in outputs
-    }
-    if any(
-        not isinstance(number, (int, float))
-        or not math.isfinite(float(number))
-        or not 0 <= float(number) <= 1
-        for number in bounds.values()
-    ):
-        return {
-            'valid': False,
-            'reason': 'multiphysics_artifact_invalid',
-            'failed_checks': ['bounded_outputs'],
-            'path': str(path),
-        }
+        return invalid(failed)
+    outputs = value.get('outputs', {})
+    if not _fractions_bounded(outputs):
+        return invalid(['bounded_outputs'])
     physical_failures = verify_physical_outputs(reactor_type, outputs)
     if physical_failures:
-        return {
-            'valid': False,
-            'reason': 'multiphysics_artifact_invalid',
-            'failed_checks': physical_failures,
-            'path': str(path),
-        }
+        return invalid(physical_failures)
     return {'valid': True, 'artifact': value, 'path': str(path)}
