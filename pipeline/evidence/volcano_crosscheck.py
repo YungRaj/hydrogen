@@ -7,9 +7,7 @@ be consumed by CatMAP when that optional dependency is available.
 
 from __future__ import annotations
 
-import csv
 import math
-from pathlib import Path
 from typing import Iterable, Mapping
 
 
@@ -46,20 +44,3 @@ def rank_descriptors(rows: Iterable[Mapping[str, object]]) -> list[dict[str, obj
     return sorted(ranked, key=lambda row: float(row['volcano_log10_rate']), reverse=True)
 
 
-def write_catmap_input(rows: Iterable[Mapping[str, object]], path: str | Path) -> None:
-    """Write the minimal descriptor table accepted by a CatMAP preprocessor.
-
-    Args:
-        rows: Candidate mappings containing optional IDs and ``dG_OH_eV``.
-        path: Destination CSV path.
-    """
-    target = Path(path)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    with target.open('w', newline='') as handle:
-        writer = csv.DictWriter(handle, fieldnames=('candidate_id', 'dG_OH_eV'))
-        writer.writeheader()
-        for row in rows:
-            writer.writerow({
-                'candidate_id': str(row.get('candidate_id', 'unknown')),
-                'dG_OH_eV': float(row['dG_OH_eV']),
-            })

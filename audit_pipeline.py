@@ -94,7 +94,6 @@ check(
 from pipeline.utils import bep_activation_energy
 
 # Test that each class produces a DIFFERENT result than default
-default_e = bep_activation_energy(0.5)
 bep_missing = []
 for cls in ALL_14:
     e = bep_activation_energy(0.5, material_class=cls)
@@ -436,7 +435,6 @@ print("\n═══ STATIC CODE ANALYSIS ═══")
 import glob
 
 pipeline_files = glob.glob("pipeline/**/*.py", recursive=True)
-class_names_in_code = set()
 string_pattern = re.compile(
     r"'(MoltenMetal|SolidCatalyst|SAC|DAC|MOF|COF|Perovskite|MetalHydride|MAXPhase|HEA|Spinel|MXene|SAA|MetalFreeCarbon)'"
 )

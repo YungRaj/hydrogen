@@ -5,23 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 
-def pmutt_status() -> dict[str, Any]:
-    """Return availability metadata without changing the production mechanism.
-
-    Returns:
-        Package availability and installed version metadata.
-    """
-    try:
-        import pmutt
-    except ImportError:
-        return {'available': False, 'package': 'pmutt', 'version': None}
-    return {
-        'available': True,
-        'package': 'pmutt',
-        'version': str(getattr(pmutt, '__version__', 'unknown')),
-    }
-
-
 def compare_gas_reference(
     *,
     current_free_energy_eV: float,

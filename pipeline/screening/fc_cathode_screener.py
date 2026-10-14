@@ -175,7 +175,7 @@ def screen_orr_candidate(candidate: Dict, calc, e_h2o: float, e_h2: float) -> Di
     Returns:
         Dictionary containing the computed values, status, and supporting metadata.
     """
-    from ase import Atoms, Atom
+    from ase import Atom
     from ase.optimize import BFGS
     from pipeline.screening.surface_screener import generate_structure
 

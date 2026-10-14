@@ -1,9 +1,0 @@
-{
-  "schema_version": 1,
-  "status": "native_screening_model",
-  "parameters": {
-    "symmetry_factor": {"value": 0.5, "bounds": [0.3, 0.7], "status": "class_default", "citation": "Butler-Volmer convention"},
-    "electrons": {"value": 2, "bounds": [2, 2], "status": "cited", "citation": "CH4 -> C + 2H2 stoichiometry"},
-    "reference_current_A_cm2": {"value": 1.0, "bounds": [0.1, 10.0], "status": "design_lever", "citation": "requires electrolyte-specific calibration"}
-  }
-}

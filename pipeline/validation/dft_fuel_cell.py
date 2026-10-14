@@ -98,8 +98,6 @@ def validate_orr_catalyst(
     Returns:
         Dictionary containing the computed values, status, and supporting metadata.
     """
-    from pipeline.validation.dft_validator import validate_catalyst
-
     logger.info(f"ORR DFT validation: {catalyst_name}")
     calc_dir = DFT_DIR / f"fc_{catalyst_name}"
     calc_dir.mkdir(parents=True, exist_ok=True)

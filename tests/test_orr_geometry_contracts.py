@@ -1,4 +1,3 @@
-import numpy as np
 from ase import Atoms
 
 from pipeline.screening.fc_screener import _adsorbate_geometry_valid

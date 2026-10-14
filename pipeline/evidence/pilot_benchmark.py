@@ -69,32 +69,3 @@ def load_legacy_outcomes(spec: PilotSpec) -> pd.DataFrame:
     return pd.DataFrame(grouped).reset_index(drop=True)
 
 
-def default_specs() -> tuple[PilotSpec, PilotSpec]:
-    """Return the legacy input tables required by prospective campaign training.
-
-    Returns:
-        Turquoise-hydrogen and fuel-cell legacy outcome specifications.
-    """
-    return (
-        PilotSpec(
-            "turquoise_hydrogen",
-            (
-                "results/screening/ga_initial_screening.csv",
-                "results/screening/ga_fairchem_gen1.csv",
-                "results/screening/ga_fairchem_gen2.csv",
-                "results/screening/ga_mace_gen1.csv",
-                "results/screening/ga_mace_gen2.csv",
-            ),
-            "E_act",
-        ),
-        PilotSpec(
-            "fuel_cell_orr",
-            (
-                "results/fuel_cell/cathode_screening.csv",
-                "results/fuel_cell/fc_initial_screening.csv",
-                "results/fuel_cell/fc_fairchem_gen1.csv",
-                "results/fuel_cell/fc_mace_gen1.csv",
-            ),
-            "orr_overpotential_V",
-        ),
-    )

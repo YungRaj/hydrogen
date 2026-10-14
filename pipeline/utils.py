@@ -24,7 +24,6 @@ from typing import List, Tuple, Optional
 # ─── Project Paths ──────────────────────────────────────────────────────────────
 
 BASE_DIR = Path(__file__).resolve().parents[1]
-PIPELINE_DIR = BASE_DIR / "pipeline"
 MECHANISMS_DIR = (
     Path(os.environ.get("HYDROGEN_MECHANISMS_DIR", str(BASE_DIR / "mechanisms")))
     .expanduser()
@@ -42,7 +41,6 @@ DFT_DIR = RESULTS_DIR / "dft"
 VQE_DIR = RESULTS_DIR / "vqe"
 FUEL_CELL_DIR = RESULTS_DIR / "fuel_cell"
 REPORTS_DIR = RESULTS_DIR / "reports"
-QE_PSEUDO_DIR = BASE_DIR / "quantum_espresso" / "pseudo"
 
 
 def repo_relative(path) -> str:
@@ -62,96 +60,21 @@ def repo_relative(path) -> str:
         return p.as_posix()
 
 
-# ─── Conda Environments ─────────────────────────────────────────────────────────
-
-ENV_BATTERY = "battery-env"  # ASE, Pymatgen, Pandas
-ENV_CANTERA = "cp2k-env"  # Cantera 3.2
-ENV_QUANTUM = "quantum-env"  # CUDA-Q
-
 # ─── Physical Constants ─────────────────────────────────────────────────────────
 
 # Fundamental
 k_B_eV = 8.617333262145e-5  # Boltzmann constant (eV/K)
-k_B_J = 1.380649e-23  # Boltzmann constant (J/K)
 h_eV = 4.135667696e-15  # Planck constant (eV·s)
-h_J = 6.62607015e-34  # Planck constant (J·s)
 R_gas = 8.314462618  # Universal gas constant (J/(mol·K))
 F_const = 96485.33212  # Faraday constant (C/mol)
 eV_to_J = 1.602176634e-19  # eV to Joules
 Ry_to_eV = 13.605693122994  # Rydberg to eV
 Ha_to_eV = 27.211386245988  # Hartree to eV
-amu_to_kg = 1.66053906660e-27  # Atomic mass unit to kg
-
-# Thermodynamic reference values
-E_H2O_G = -2.4583  # Free energy correction for H₂O(l) at 298 K (eV)
-ZPE_H2 = 0.27  # Zero-point energy of H₂ (eV)
-TS_H2 = 0.40  # T·S for H₂ at 298 K, 1 bar (eV)
-G_H2_correction = ZPE_H2 - TS_H2  # Free energy correction for H₂
 
 # Standard electrode potentials
-E_SHE = 0.0  # Standard hydrogen electrode (V)
 E_ORR_eq = 1.229  # Equilibrium potential for ORR at 298 K (V)
 
 # ─── Atomic Data ─────────────────────────────────────────────────────────────────
-
-ATOMIC_MASSES = {
-    'H': 1.008,
-    'He': 4.003,
-    'Li': 6.941,
-    'Be': 9.012,
-    'B': 10.81,
-    'C': 12.011,
-    'N': 14.007,
-    'O': 15.999,
-    'F': 18.998,
-    'Na': 22.990,
-    'Mg': 24.305,
-    'Al': 26.982,
-    'Si': 28.086,
-    'P': 30.974,
-    'S': 32.06,
-    'Cl': 35.45,
-    'K': 39.098,
-    'Ca': 40.078,
-    'Sc': 44.956,
-    'Ti': 47.867,
-    'V': 50.942,
-    'Cr': 51.996,
-    'Mn': 54.938,
-    'Fe': 55.845,
-    'Co': 58.933,
-    'Ni': 58.693,
-    'Cu': 63.546,
-    'Zn': 65.38,
-    'Ga': 69.723,
-    'Ge': 72.63,
-    'As': 74.922,
-    'Se': 78.971,
-    'Br': 79.904,
-    'Y': 88.906,
-    'Zr': 91.224,
-    'Nb': 92.906,
-    'Mo': 95.95,
-    'Ru': 101.07,
-    'Rh': 102.906,
-    'Pd': 106.42,
-    'Ag': 107.868,
-    'Cd': 112.414,
-    'In': 114.818,
-    'Sn': 118.710,
-    'Sb': 121.760,
-    'Te': 127.60,
-    'La': 138.905,
-    'Ce': 140.116,
-    'W': 183.84,
-    'Re': 186.207,
-    'Os': 190.23,
-    'Ir': 192.217,
-    'Pt': 195.084,
-    'Au': 196.967,
-    'Pb': 207.2,
-    'Bi': 208.980,
-}
 
 # USGS crustal abundance (ppm by mass) — used for cost/availability scoring
 CRUSTAL_ABUNDANCE_PPM = {

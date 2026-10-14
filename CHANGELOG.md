@@ -4,6 +4,15 @@
 
 ### Added
 
+- MOOSE replaces FEniCSx as the NTEC/electrochemical backend. NTEC and
+  electrochemical cases now require `{moose, cantera}`; MOOSE also replaces
+  OpenFOAM for NTEC hydrodynamics. The runner iterates MOOSE with the
+  repository Cantera interface step (`pipeline.electrochemistry.cantera_coupling`)
+  and records `moose_input_sha256` instead of `fenics_model_sha256`. The
+  electrochemical template (`moose/inputs/electrochemical_cell.i`, Ohm's law,
+  CH4 diffusion, concentration-dependent Butler-Volmer) reproduces the analytic
+  limiting current and ohmic drop. The NTEC template is not yet implemented.
+
 - A checksum-locked eSEN CI-NEB validation for molten methane activation with
   explicit endpoint, force, path-continuity, and interior-maximum gates. All
   five Cu45Bi55 paths failed validity before comparison with Palmer's published
@@ -45,6 +54,20 @@
   existing HCP slab builder. This recovers all 12 active benchmark sources
   without adding a parallel protocol; concentrated Ni33Sn67 remains invalid,
   leaving the 12-source poor-label gate one source short.
+
+### Removed
+
+- Unused code: `default_specs` (referenced nonexistent legacy tables),
+  `collect_molten_snapshots`, `pmutt_status`, `write_catmap_input`,
+  `PSEUDO_MAP` (superseded by the SSSP manifest), unused `pipeline.utils`
+  constants, and unused imports. Behavior is unchanged: the CPU suite result
+  is identical before and after (11 passed; the 3 SSSP-dependent suites fail
+  without pseudopotential files, as before).
+- Outdated artifacts: `environments/environment.yml` (MACE-era),
+  `environments/environment-fenicsx.yml`, the unreferenced native parameter
+  registries `docs/evidence/{electrochem,ntec}_parameters.json`, the
+  `docs/PHASE2_CHANGE_LOG.md` pointer stub, and the v1 molten Cu-Bi smoke
+  diagnostics superseded by the `_v2` files recorded after `b9941b3`.
 
 ### Changed
 

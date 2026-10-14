@@ -74,7 +74,7 @@ def test_no_toxic_elements():
 
 
 def test_sac_has_axial_ligand():
-    from pipeline.search.design_space import generate_random_genome, SAC_AXIAL_LIGANDS
+    from pipeline.search.design_space import generate_random_genome
 
     sacs = [generate_random_genome('SAC') for _ in range(100)]
     assert all(len(g) == 5 for g in sacs), "SAC genome should have 5 fields"

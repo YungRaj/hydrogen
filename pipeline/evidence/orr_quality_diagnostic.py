@@ -9,7 +9,6 @@ import json
 import math
 from collections import Counter, defaultdict
 from pathlib import Path
-from typing import Any
 from pipeline.io.hashing import file_sha256
 from pipeline.io.json import write_atomic_json
 
