@@ -576,6 +576,267 @@ reactions:
     return filepath
 
 
+def _surface_rate_parameters(values: dict, site_density: float) -> dict:
+    """Validate kinetic inputs and convert barriers to J/mol and prefactors.
+
+    Adsorption energies alter surface enthalpies but are not used as
+    activation barriers.
+    """
+    theta_star = float(values['encapsulation_crossover_coverage'])
+    if not 0.0 < theta_star <= 1.0:
+        raise ValueError(
+            f'encapsulation_crossover_coverage={theta_star} must be in (0, 1]'
+        )
+    A_Cgamma = float(values['carbon_transfer_prefactor_1_s'])
+    if A_Cgamma <= 0:
+        raise ValueError('carbon_transfer_prefactor_1_s must be positive')
+    s0_ch4 = float(values['ch4_sticking_coefficient'])
+    if not 0.0 < s0_ch4 <= 1.0:
+        raise ValueError(f'ch4_sticking_coefficient={s0_ch4} must be in (0, 1]')
+    return {
+        'Ea_CH4': values['methane_activation_eV'] * EV_TO_J_MOL,
+        'Ea_CH3': values['ch3_dehydrogenation_eV'] * EV_TO_J_MOL,
+        'Ea_CH2': values['ch2_dehydrogenation_eV'] * EV_TO_J_MOL,
+        'Ea_CH': values['ch_dehydrogenation_eV'] * EV_TO_J_MOL,
+        'Ea_H2': values['h2_desorption_eV'] * EV_TO_J_MOL,
+        'Ea_Cgamma': values['carbon_transfer_eV'] * EV_TO_J_MOL,
+        'Ea_Cdelta': values['carbon_encapsulation_eV'] * EV_TO_J_MOL,
+        'theta_star': theta_star,
+        'A_Cgamma': A_Cgamma,
+        'A_Cdelta': A_Cgamma / theta_star,
+        's0_ch4': s0_ch4,
+        'A_bimol': bimolecular_surface_prefactor_cm2_mol_s(
+            SURFACE_TST_PREFACTOR_1_S, site_density),
+        'A_h2_des': bimolecular_surface_prefactor_cm2_mol_s(
+            H2_DESORPTION_PREFACTOR_1_S, site_density),
+    }
+
+
+def _surface_enthalpies(values: dict) -> dict:
+    """Absolute surface enthalpies (J/mol) on the SURFACE_THERMO_REFERENCE scale.
+
+    Template h0 values apply when the screener gave no adsorption energy; they
+    are diagnostic, not candidate data. CH2_s / CH_s have no screening
+    descriptor and interpolate the dehydrogenation ladder between CH3_s and C_s.
+    """
+    def adsorbed(key: str, offset: float | None, template: float) -> float:
+        if values[key] is None:
+            return template
+        energy = values[key] * EV_TO_J_MOL
+        return energy if offset is None else energy + offset
+
+    h0_h = adsorbed('h_adsorption_eV', None, -25000.0)
+    h0_ch3 = adsorbed('ch3_adsorption_eV', H_F_CH3_RADICAL_J_MOL, -20000.0)
+    h0_c = adsorbed('c_adsorption_eV', H_F_CH4_J_MOL, -40000.0)
+    return {
+        'H_s': h0_h,
+        'CH3_s': h0_ch3,
+        'CH2_s': h0_ch3 + (h0_c - h0_ch3) / 3.0,
+        'CH_s': h0_ch3 + 2.0 * (h0_c - h0_ch3) / 3.0,
+        'C_s': h0_c,
+    }
+
+
+def _gas_graphite_phases_yaml(T_ref: float) -> str:
+    return f"""\
+- name: gas
+  thermo: ideal-gas
+  elements: [C, H, Ar]
+  species: [CH4, H2, C2H2, C2H4, C2H6, Ar]
+  kinetics: gas
+  state: {{T: {T_ref:.1f}, P: 1 atm}}
+
+- name: graphite
+  thermo: fixed-stoichiometry
+  elements: [C]
+  species: [C(gr)]
+  state: {{T: {T_ref:.1f}, P: 1 atm}}
+"""
+
+
+def _surface_phase_yaml(catalyst_name: str, site_density: float,
+                        include_off_site: bool) -> str:
+    surf_species = (
+        '[site, CH3_s, CH2_s, CH_s, H_s, C_s, C_encap_s]'
+        if include_off_site
+        else '[site, CH3_s, CH2_s, CH_s, H_s, C_s]'
+    )
+    adjacent = '[gas, graphite]' if include_off_site else '[gas]'
+    return f"""\
+- name: {catalyst_name}_surface
+  thermo: ideal-surface
+  elements: [C, H]
+  species: {surf_species}
+  kinetics: surface
+  reactions: [{catalyst_name}_surface-reactions]
+  site-density: {site_density:.3e} mol/cm^2
+  adjacent-phases: {adjacent}
+"""
+
+
+def _surface_species_yaml(h0: dict, include_off_site: bool) -> str:
+    species = f"""\
+- name: site
+  composition: {{}}
+  thermo:
+    model: constant-cp
+    h0: 0.0 J/mol
+    s0: 0.0 J/mol/K
+  sites: 1
+- name: CH3_s
+  composition: {{C: 1, H: 3}}
+  thermo:
+    model: constant-cp
+    h0: {h0['CH3_s']:.8g} J/mol
+    s0: 50.0 J/mol/K
+  sites: 1
+- name: CH2_s
+  composition: {{C: 1, H: 2}}
+  thermo:
+    model: constant-cp
+    h0: {h0['CH2_s']:.8g} J/mol
+    s0: 40.0 J/mol/K
+  sites: 1
+  note: template enthalpy, CH3_s + (C_s - CH3_s)/3
+- name: CH_s
+  composition: {{C: 1, H: 1}}
+  thermo:
+    model: constant-cp
+    h0: {h0['CH_s']:.8g} J/mol
+    s0: 30.0 J/mol/K
+  sites: 1
+  note: template enthalpy, CH3_s + 2 (C_s - CH3_s)/3
+- name: H_s
+  composition: {{H: 1}}
+  thermo:
+    model: constant-cp
+    h0: {h0['H_s']:.8g} J/mol
+    s0: 20.0 J/mol/K
+  sites: 1
+- name: C_s
+  composition: {{C: 1}}
+  thermo:
+    model: constant-cp
+    h0: {h0['C_s']:.8g} J/mol
+    s0: 10.0 J/mol/K
+  sites: 1
+  note: Surface carbon (Cα); occupies catalytic sites until removed by policy or off-site Cγ
+"""
+    if include_off_site:
+        species += f"""\
+- name: C_encap_s
+  composition: {{C: 1}}
+  thermo:
+    model: constant-cp
+    h0: {h0['C_s']:.8g} J/mol
+    s0: 10.0 J/mol/K
+  sites: 1
+  note: Encapsulating carbon (Cδ); occupies the site; no off-site return
+"""
+    return species
+
+
+def _carbon_removal_reactions_yaml(rates: dict, include_off_site: bool,
+                                   regeneration_rate_1_s: Optional[float]) -> str:
+    """Off-site Cγ/Cδ channels, or the optional diagnostic regeneration step."""
+    if include_off_site:
+        return f"""\
+- equation: C_s => C(gr) + site
+  rate-constant: {{A: {rates['A_Cgamma']:.6g}, b: 0.0, Ea: {rates['Ea_Cgamma']:.1f}}}
+  note: Cα → Cγ transport-to-edge lump (Baker / Abild-Pedersen); not nucleation
+- equation: C_s => C_encap_s
+  rate-constant: {{A: {rates['A_Cdelta']:.6g}, b: 0.0, Ea: {rates['Ea_Cdelta']:.1f}}}
+  coverage-dependencies:
+    C_s: {{a: 0.0, m: 1.0, E: 0.0}}
+  note: Cα → Cδ encapsulating, rate ∝ θ_C² (Cantera k·10^(a θ)·θ^m with m=1 times [C_s]); A = A_γ/θ*, θ* = {rates['theta_star']:g}; site stays blocked
+"""
+    if regeneration_rate_1_s is not None:
+        return f"""\
+- equation: C_s => C(gr) + site
+  rate-constant: {{A: {float(regeneration_rate_1_s):.6g}, b: 0.0, Ea: 0.0}}
+  note: Diagnostic mechanically driven carbon regeneration; non-pruning native model
+"""
+    return ""
+
+
+def _surface_reactions_yaml(catalyst_name: str, rates: dict, carbon_removal: str) -> str:
+    return f"""\
+{catalyst_name}_surface-reactions:
+- equation: CH4 + 2 site <=> CH3_s + H_s
+  sticking-coefficient: {{A: {rates['s0_ch4']:.6g}, b: 0.0, Ea: {rates['Ea_CH4']:.1f}}}
+  note: s0 sets the carbon arrival rate; provenance in the .kinetics.json sidecar
+- equation: CH3_s + site <=> CH2_s + H_s
+  rate-constant: {{A: {rates['A_bimol']:.6g}, b: 0.0, Ea: {rates['Ea_CH3']:.1f}}}
+  note: A = 1e13/s / Γ in cm^2/mol/s (bimolecular surface TST)
+- equation: CH2_s + site <=> CH_s + H_s
+  rate-constant: {{A: {rates['A_bimol']:.6g}, b: 0.0, Ea: {rates['Ea_CH2']:.1f}}}
+- equation: CH_s + site <=> C_s + H_s
+  rate-constant: {{A: {rates['A_bimol']:.6g}, b: 0.0, Ea: {rates['Ea_CH']:.1f}}}
+- equation: 2 H_s <=> H2 + 2 site
+  rate-constant: {{A: {rates['A_h2_des']:.6g}, b: 0.0, Ea: {rates['Ea_H2']:.1f}}}
+{carbon_removal}"""
+
+
+def _write_kinetics_sidecar(filepath: Path, catalyst_name: str, values: dict, rates: dict,
+                            h0: dict, include_surface_sites: bool,
+                            include_off_site: bool) -> None:
+    """Write the provenance sidecar recording every kinetic input and prefactor."""
+    provenance = values['provenance']
+    record = {
+        'schema_version': 1,
+        'catalyst_name': catalyst_name,
+        'mechanism_file': repo_relative(filepath),
+        'inputs': values,
+        'carbon_phase_model': (
+            'condensed_graphite_plus_surface_C_s_off_site_Cgamma_Cdelta'
+            if include_off_site
+            else 'condensed_graphite_plus_surface_C_s'
+        ),
+        'surface_thermo_reference': SURFACE_THERMO_REFERENCE,
+        'surface_prefactors': {
+            'bimolecular_cm2_mol_s': rates['A_bimol'],
+            'h2_desorption_cm2_mol_s': rates['A_h2_des'],
+            'basis': 'k_TST(1/s) / site_density(mol/cm^2)',
+            'ch4_sticking_coefficient': rates['s0_ch4'],
+            'ch4_sticking_source': provenance.get(
+                'ch4_sticking_coefficient', CH4_STICKING_PROVENANCE),
+        } if include_surface_sites else {},
+        'surface_enthalpies_J_mol': dict(h0) if include_surface_sites else {},
+        'off_site_carbon': include_off_site,
+        'coking_index_mapped_to_off_site': False,
+        'off_site_channels': {
+            'C_gamma': {
+                'equation': 'C_s => C(gr) + site',
+                'barrier_eV': float(values['carbon_transfer_eV']),
+                'preexponential_1_s': rates['A_Cgamma'],
+                'preexponential_source': provenance.get(
+                    'carbon_transfer_prefactor_1_s', C_GAMMA_PREFACTOR_PROVENANCE),
+                'particle_nm': values.get('carbon_transfer_particle_nm'),
+                'form': 'first_order_theta_C',
+                'kind': 'transport_to_edge',
+                'source': C_GAMMA_PROVENANCE,
+            },
+            'C_delta': {
+                'equation': 'C_s => C_encap_s',
+                'barrier_eV': float(values['carbon_encapsulation_eV']),
+                'preexponential_1_s': rates['A_Cdelta'],
+                'form': C_DELTA_FORM,
+                'crossover_coverage_theta_star': rates['theta_star'],
+                'crossover_coverage_source': provenance.get(
+                    'encapsulation_crossover_coverage', THETA_STAR_PROVENANCE),
+                'effective_crossover_note': (
+                    'theta_x(T) = theta_star * exp((Ea_delta - Ea_gamma) / kT); '
+                    'C_gamma wins below theta_x, C_delta above'
+                ),
+                'kind': 'encapsulating',
+                'source': C_DELTA_PROVENANCE,
+            },
+        } if include_off_site else {},
+    }
+    filepath.with_suffix('.kinetics.json').write_text(
+        json.dumps(_jsonable(record), indent=2, sort_keys=True) + '\n', encoding='utf-8')
+
+
 def write_full_mechanism(
     catalyst_name: str,
     E_act_CH4: float = None,
@@ -652,195 +913,23 @@ def write_full_mechanism(
             '(raise particle S/V, loading, or dispersion instead)'
         )
 
-    # Convert eV → J/mol. Adsorption energies alter surface enthalpies
-    # but are not used as activation barriers.
-    Ea_CH4 = values['methane_activation_eV'] * EV_TO_J_MOL
-    Ea_CH3 = values['ch3_dehydrogenation_eV'] * EV_TO_J_MOL
-    Ea_CH2 = values['ch2_dehydrogenation_eV'] * EV_TO_J_MOL
-    Ea_CH = values['ch_dehydrogenation_eV'] * EV_TO_J_MOL
-    Ea_H2 = values['h2_desorption_eV'] * EV_TO_J_MOL
-    Ea_Cgamma = values['carbon_transfer_eV'] * EV_TO_J_MOL
-    Ea_Cdelta = values['carbon_encapsulation_eV'] * EV_TO_J_MOL
-    theta_star = float(values['encapsulation_crossover_coverage'])
-    if not 0.0 < theta_star <= 1.0:
-        raise ValueError(
-            f'encapsulation_crossover_coverage={theta_star} must be in (0, 1]'
-        )
-    A_Cgamma = float(values['carbon_transfer_prefactor_1_s'])
-    if A_Cgamma <= 0:
-        raise ValueError('carbon_transfer_prefactor_1_s must be positive')
-    A_Cdelta = A_Cgamma / theta_star
-    s0_ch4 = float(values['ch4_sticking_coefficient'])
-    if not 0.0 < s0_ch4 <= 1.0:
-        raise ValueError(f'ch4_sticking_coefficient={s0_ch4} must be in (0, 1]')
-    A_bimol = bimolecular_surface_prefactor_cm2_mol_s(
-        SURFACE_TST_PREFACTOR_1_S, site_density
-    )
-    A_h2_des = bimolecular_surface_prefactor_cm2_mol_s(
-        H2_DESORPTION_PREFACTOR_1_S, site_density
-    )
-    # Adsorption energies → absolute surface enthalpies (see
-    # SURFACE_THERMO_REFERENCE). Template h0 values apply when the screener
-    # gave no adsorption energy; they are diagnostic, not candidate data.
-    h0_h = (
-        values['h_adsorption_eV'] * EV_TO_J_MOL
-        if values['h_adsorption_eV'] is not None
-        else -25000.0
-    )
-    h0_ch3 = (
-        values['ch3_adsorption_eV'] * EV_TO_J_MOL + H_F_CH3_RADICAL_J_MOL
-        if values['ch3_adsorption_eV'] is not None
-        else -20000.0
-    )
-    h0_c = (
-        values['c_adsorption_eV'] * EV_TO_J_MOL + H_F_CH4_J_MOL
-        if values['c_adsorption_eV'] is not None
-        else -40000.0
-    )
-    # CH2_s / CH_s have no screening descriptor: interpolate the
-    # dehydrogenation ladder between CH3_s and C_s on the same scale.
-    h0_ch2 = h0_ch3 + (h0_c - h0_ch3) / 3.0
-    h0_ch = h0_ch3 + 2.0 * (h0_c - h0_ch3) / 3.0
+    rates = _surface_rate_parameters(values, site_density)
+    h0 = _surface_enthalpies(values)
     E_act_CH4 = float(values['methane_activation_eV'])
 
     if include_surface_sites:
-        surf_species = (
-            '[site, CH3_s, CH2_s, CH_s, H_s, C_s, C_encap_s]'
-            if include_off_site
-            else '[site, CH3_s, CH2_s, CH_s, H_s, C_s]'
-        )
-        adjacent = '[gas, graphite]' if include_off_site else '[gas]'
-        phases_and_surface = f"""\
-- name: gas
-  thermo: ideal-gas
-  elements: [C, H, Ar]
-  species: [CH4, H2, C2H2, C2H4, C2H6, Ar]
-  kinetics: gas
-  state: {{T: {T_ref:.1f}, P: 1 atm}}
-
-- name: graphite
-  thermo: fixed-stoichiometry
-  elements: [C]
-  species: [C(gr)]
-  state: {{T: {T_ref:.1f}, P: 1 atm}}
-
-- name: {catalyst_name}_surface
-  thermo: ideal-surface
-  elements: [C, H]
-  species: {surf_species}
-  kinetics: surface
-  reactions: [{catalyst_name}_surface-reactions]
-  site-density: {site_density:.3e} mol/cm^2
-  adjacent-phases: {adjacent}
-"""
-        surface_species = f"""\
-- name: site
-  composition: {{}}
-  thermo:
-    model: constant-cp
-    h0: 0.0 J/mol
-    s0: 0.0 J/mol/K
-  sites: 1
-- name: CH3_s
-  composition: {{C: 1, H: 3}}
-  thermo:
-    model: constant-cp
-    h0: {h0_ch3:.8g} J/mol
-    s0: 50.0 J/mol/K
-  sites: 1
-- name: CH2_s
-  composition: {{C: 1, H: 2}}
-  thermo:
-    model: constant-cp
-    h0: {h0_ch2:.8g} J/mol
-    s0: 40.0 J/mol/K
-  sites: 1
-  note: template enthalpy, CH3_s + (C_s - CH3_s)/3
-- name: CH_s
-  composition: {{C: 1, H: 1}}
-  thermo:
-    model: constant-cp
-    h0: {h0_ch:.8g} J/mol
-    s0: 30.0 J/mol/K
-  sites: 1
-  note: template enthalpy, CH3_s + 2 (C_s - CH3_s)/3
-- name: H_s
-  composition: {{H: 1}}
-  thermo:
-    model: constant-cp
-    h0: {h0_h:.8g} J/mol
-    s0: 20.0 J/mol/K
-  sites: 1
-- name: C_s
-  composition: {{C: 1}}
-  thermo:
-    model: constant-cp
-    h0: {h0_c:.8g} J/mol
-    s0: 10.0 J/mol/K
-  sites: 1
-  note: Surface carbon (Cα); occupies catalytic sites until removed by policy or off-site Cγ
-"""
-        if include_off_site:
-            surface_species += f"""\
-- name: C_encap_s
-  composition: {{C: 1}}
-  thermo:
-    model: constant-cp
-    h0: {h0_c:.8g} J/mol
-    s0: 10.0 J/mol/K
-  sites: 1
-  note: Encapsulating carbon (Cδ); occupies the site; no off-site return
-"""
-        off_site_rxns = ""
-        if carbon_regeneration_rate_1_s is not None and not include_off_site:
-            if carbon_regeneration_rate_1_s <= 0.0:
-                raise ValueError('carbon regeneration rate must be positive')
-            off_site_rxns += f"""\
-- equation: C_s => C(gr) + site
-  rate-constant: {{A: {float(carbon_regeneration_rate_1_s):.6g}, b: 0.0, Ea: 0.0}}
-  note: Diagnostic mechanically driven carbon regeneration; non-pruning native model
-"""
-        if include_off_site:
-            off_site_rxns = f"""\
-- equation: C_s => C(gr) + site
-  rate-constant: {{A: {A_Cgamma:.6g}, b: 0.0, Ea: {Ea_Cgamma:.1f}}}
-  note: Cα → Cγ transport-to-edge lump (Baker / Abild-Pedersen); not nucleation
-- equation: C_s => C_encap_s
-  rate-constant: {{A: {A_Cdelta:.6g}, b: 0.0, Ea: {Ea_Cdelta:.1f}}}
-  coverage-dependencies:
-    C_s: {{a: 0.0, m: 1.0, E: 0.0}}
-  note: Cα → Cδ encapsulating, rate ∝ θ_C² (Cantera k·10^(a θ)·θ^m with m=1 times [C_s]); A = A_γ/θ*, θ* = {theta_star:g}; site stays blocked
-"""
-        surface_rxns = f"""\
-{catalyst_name}_surface-reactions:
-- equation: CH4 + 2 site <=> CH3_s + H_s
-  sticking-coefficient: {{A: {s0_ch4:.6g}, b: 0.0, Ea: {Ea_CH4:.1f}}}
-  note: s0 sets the carbon arrival rate; provenance in the .kinetics.json sidecar
-- equation: CH3_s + site <=> CH2_s + H_s
-  rate-constant: {{A: {A_bimol:.6g}, b: 0.0, Ea: {Ea_CH3:.1f}}}
-  note: A = 1e13/s / Γ in cm^2/mol/s (bimolecular surface TST)
-- equation: CH2_s + site <=> CH_s + H_s
-  rate-constant: {{A: {A_bimol:.6g}, b: 0.0, Ea: {Ea_CH2:.1f}}}
-- equation: CH_s + site <=> C_s + H_s
-  rate-constant: {{A: {A_bimol:.6g}, b: 0.0, Ea: {Ea_CH:.1f}}}
-- equation: 2 H_s <=> H2 + 2 site
-  rate-constant: {{A: {A_h2_des:.6g}, b: 0.0, Ea: {Ea_H2:.1f}}}
-{off_site_rxns}"""
+        if carbon_regeneration_rate_1_s is not None and not include_off_site \
+                and carbon_regeneration_rate_1_s <= 0.0:
+            raise ValueError('carbon regeneration rate must be positive')
+        phases = _gas_graphite_phases_yaml(T_ref) + '\n' + _surface_phase_yaml(
+            catalyst_name, site_density, include_off_site)
+        surface_species = _surface_species_yaml(h0, include_off_site)
+        surface_rxns = _surface_reactions_yaml(
+            catalyst_name, rates,
+            _carbon_removal_reactions_yaml(rates, include_off_site,
+                                           carbon_regeneration_rate_1_s))
     else:
-        phases_and_surface = f"""\
-- name: gas
-  thermo: ideal-gas
-  elements: [C, H, Ar]
-  species: [CH4, H2, C2H2, C2H4, C2H6, Ar]
-  kinetics: gas
-  state: {{T: {T_ref:.1f}, P: 1 atm}}
-
-- name: graphite
-  thermo: fixed-stoichiometry
-  elements: [C]
-  species: [C(gr)]
-  state: {{T: {T_ref:.1f}, P: 1 atm}}
-"""
+        phases = _gas_graphite_phases_yaml(T_ref)
         surface_species = ""
         surface_rxns = ""
 
@@ -848,7 +937,7 @@ def write_full_mechanism(
 units: {{length: cm, time: s, quantity: mol, activation-energy: J/mol}}
 
 phases:
-{phases_and_surface}
+{phases}
 species:
 {_GAS_SPECIES_YAML}
 {_GRAPHITE_SPECIES_YAML}
@@ -867,94 +956,8 @@ reactions:
     filepath = output_dir / f"mechanism_{catalyst_name}.yaml"
     with open(filepath, 'w', encoding='utf-8') as f:
         f.write(yaml_content)
-    sidecar = filepath.with_suffix('.kinetics.json')
-    carbon_model = (
-        'condensed_graphite_plus_surface_C_s_off_site_Cgamma_Cdelta'
-        if include_off_site
-        else 'condensed_graphite_plus_surface_C_s'
-    )
-    sidecar.write_text(
-        json.dumps(
-            _jsonable(
-                {
-                    'schema_version': 1,
-                    'catalyst_name': catalyst_name,
-                    'mechanism_file': repo_relative(filepath),
-                    'inputs': values,
-                    'carbon_phase_model': carbon_model,
-                    'surface_thermo_reference': SURFACE_THERMO_REFERENCE,
-                    'surface_prefactors': (
-                        {
-                            'bimolecular_cm2_mol_s': A_bimol,
-                            'h2_desorption_cm2_mol_s': A_h2_des,
-                            'basis': 'k_TST(1/s) / site_density(mol/cm^2)',
-                            'ch4_sticking_coefficient': s0_ch4,
-                            'ch4_sticking_source': values['provenance'].get(
-                                'ch4_sticking_coefficient', CH4_STICKING_PROVENANCE
-                            ),
-                        }
-                        if include_surface_sites
-                        else {}
-                    ),
-                    'surface_enthalpies_J_mol': (
-                        {
-                            'H_s': h0_h,
-                            'CH3_s': h0_ch3,
-                            'CH2_s': h0_ch2,
-                            'CH_s': h0_ch,
-                            'C_s': h0_c,
-                        }
-                        if include_surface_sites
-                        else {}
-                    ),
-                    'off_site_carbon': include_off_site,
-                    'coking_index_mapped_to_off_site': False,
-                    'off_site_channels': (
-                        {
-                            'C_gamma': {
-                                'equation': 'C_s => C(gr) + site',
-                                'barrier_eV': float(values['carbon_transfer_eV']),
-                                'preexponential_1_s': A_Cgamma,
-                                'preexponential_source': values['provenance'].get(
-                                    'carbon_transfer_prefactor_1_s',
-                                    C_GAMMA_PREFACTOR_PROVENANCE,
-                                ),
-                                'particle_nm': values.get(
-                                    'carbon_transfer_particle_nm'
-                                ),
-                                'form': 'first_order_theta_C',
-                                'kind': 'transport_to_edge',
-                                'source': C_GAMMA_PROVENANCE,
-                            },
-                            'C_delta': {
-                                'equation': 'C_s => C_encap_s',
-                                'barrier_eV': float(values['carbon_encapsulation_eV']),
-                                'preexponential_1_s': A_Cdelta,
-                                'form': C_DELTA_FORM,
-                                'crossover_coverage_theta_star': theta_star,
-                                'crossover_coverage_source': values['provenance'].get(
-                                    'encapsulation_crossover_coverage',
-                                    THETA_STAR_PROVENANCE,
-                                ),
-                                'effective_crossover_note': (
-                                    'theta_x(T) = theta_star * exp((Ea_delta - Ea_gamma) / kT); '
-                                    'C_gamma wins below theta_x, C_delta above'
-                                ),
-                                'kind': 'encapsulating',
-                                'source': C_DELTA_PROVENANCE,
-                            },
-                        }
-                        if include_off_site
-                        else {}
-                    ),
-                }
-            ),
-            indent=2,
-            sort_keys=True,
-        )
-        + '\n',
-        encoding='utf-8',
-    )
+    _write_kinetics_sidecar(filepath, catalyst_name, values, rates, h0,
+                            include_surface_sites, include_off_site)
 
     logger.info(
         f"Wrote mechanism: {repo_relative(filepath)} "
