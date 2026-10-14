@@ -86,6 +86,19 @@ def _ensure_hf_token():
 _DEFAULT_MODEL_NAME = 'esen-sm-conserving-all-oc25'
 
 
+def screening_model_name() -> str:
+    """Return the fairchem model used for production screening.
+
+    ``HYDROGEN_SCREENING_MODEL`` selects an alternative checkpoint (e.g.
+    ``uma-m-1p1``) for model-comparison studies; results record the model and
+    the result cache keys on it, so outputs from different models never mix.
+
+    Returns:
+        Fairchem model identifier.
+    """
+    return os.environ.get('HYDROGEN_SCREENING_MODEL', _DEFAULT_MODEL_NAME)
+
+
 def get_ocp_calculator(
     model_name: Optional[str] = None, device: str = 'cuda:0'
 ) -> Optional[Calculator]:
@@ -128,7 +141,12 @@ def get_ocp_calculator(
         # worker affinity is established before this call, so normalizing
         # ``cuda:N`` does not change which device the worker owns.
         fairchem_device = 'cuda' if device.startswith('cuda') else device
-        unit = get_predict_unit(model_name, device=fairchem_device)
+        # 'default' keeps the validated screening numerics; 'batch' is
+        # fairchem's mode for heterogeneous batched evaluation and can be
+        # benchmarked via HYDROGEN_FAIRCHEM_INFERENCE without code changes.
+        inference = os.environ.get('HYDROGEN_FAIRCHEM_INFERENCE', 'default')
+        unit = get_predict_unit(
+            model_name, inference_settings=inference, device=fairchem_device)
         # Fairchem v2 requires the task explicitly.  eSEN OC25 checkpoints
         # expose ``oc25``; UMA surface checkpoints expose ``oc20``.
         task_name = 'oc25' if 'oc25' in model_name else 'oc20'

@@ -453,9 +453,13 @@ def main() -> None:
     parser.add_argument(
         '--lock', default='docs/evidence/pyrolysis_descriptor_benchmark_lock.json'
     )
+    parser.add_argument(
+        '--exploratory', action='store_true',
+        help='allow code that differs from the lock (e.g. another screening '
+             'model); the report is labelled exploratory and cannot pass')
     args = parser.parse_args()
     lock_errors = verify_analysis_lock(args.lock)
-    if lock_errors:
+    if lock_errors and not args.exploratory:
         parser.error(
             '; '.join(lock_errors) + ' -- this analysis is frozen; re-run it from '
             'the commit recorded in docs/evidence/lock_provenance.json'
@@ -474,6 +478,13 @@ def main() -> None:
 
     rows = pd.read_csv(args.screening_csv).to_dict(orient='records')
     report = analyze_screening_results(benchmark, rows)
+    report['screening_models'] = sorted(
+        {str(row['screening_model']) for row in rows if row.get('screening_model')})
+    if lock_errors:
+        # Not the preregistered analysis: record why and never claim a pass.
+        report['exploratory_modified_implementation'] = True
+        report['lock_errors'] = lock_errors
+        report['acceptance_passed'] = False
     target = Path(args.report)
     target.parent.mkdir(parents=True, exist_ok=True)
     temporary = target.with_suffix(target.suffix + '.tmp')

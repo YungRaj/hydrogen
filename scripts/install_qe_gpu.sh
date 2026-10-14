@@ -91,5 +91,11 @@ export NEB_X="$QE_PREFIX/bin/neb.x"
 export MPIEXEC="$MPIROOT/bin/mpirun"
 EOF
 
+# The SDK installer tree (~18 GB) and sources are only needed during the build.
+rm -rf "$CACHE_ROOT/$NVHPC_DIR" "$SOURCE"
+if [ -z "${HYDROGEN_KEEP_DOWNLOADS:-}" ]; then
+    rm -f "$CACHE_ROOT/$NVHPC_ARCHIVE" "$CACHE_ROOT/$QE_ARCHIVE"
+fi
+
 printf 'GPU QE installed. Before running the pipeline:\n  source %s\n' "$QE_PREFIX/activate.sh"
 printf 'Runtime output must contain: GPU acceleration is ACTIVE.\n'

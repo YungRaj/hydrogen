@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import importlib.metadata
 import inspect
+import os
 import sqlite3
 import sys
 import time
@@ -62,6 +63,9 @@ def implementation_digest(worker_target: Callable) -> str:
         digest.update(path.relative_to(REPO_ROOT).as_posix().encode())
         digest.update(path.read_bytes())
     digest.update(sys.version.encode())
+    # Inference numerics differ between fairchem settings; never mix them.
+    digest.update(os.environ.get('HYDROGEN_FAIRCHEM_INFERENCE', 'default').encode())
+    digest.update(os.environ.get('HYDROGEN_SCREENING_MODEL', '').encode())
     for distribution in ('ase', 'fairchem-core', 'torch'):
         try:
             version = importlib.metadata.version(distribution)

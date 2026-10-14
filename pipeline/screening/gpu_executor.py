@@ -61,6 +61,9 @@ def _attach_identity(
     row['genome'] = identity.encoded_genome
     row['material_class'] = identity.material_class
     row['cache_hit'] = cache_hit
+    from pipeline.screening.surface_calculator import screening_model_name
+
+    row['screening_model'] = screening_model_name()
 
 
 # Candidate threads per batched model process before the GIL saturates.
@@ -224,15 +227,13 @@ def run_gpu_worker(
         torch.set_num_threads(1)
         torch.set_num_interop_threads(1)
 
-        from pipeline.screening.surface_calculator import get_ocp_calculator
+        from pipeline.screening.surface_calculator import (
+            get_ocp_calculator, screening_model_name)
 
-        calculator = get_ocp_calculator(
-            model_name='esen-sm-conserving-all-oc25', device='cuda'
-        )
+        model_name = screening_model_name()
+        calculator = get_ocp_calculator(model_name=model_name, device='cuda')
         if calculator is None:
-            raise RuntimeError(
-                'esen-sm-conserving-all-oc25 calculator could not be loaded'
-            )
+            raise RuntimeError(f'{model_name} calculator could not be loaded')
         batch_service = None
         evaluator_calculator = calculator
         if batched:
