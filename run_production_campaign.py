@@ -23,20 +23,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from pipeline.reactors.modes import (
-    DEFAULT_MODE, MODE_CHOICES, reactor_temperatures_for_mode,
-    reactor_types_for_mode)
+    DEFAULT_MODE, MODE_CHOICES, THERMAL_REACTOR_TEMPERATURES_K,
+    reactor_temperatures_for_mode, reactor_types_for_mode)
 
 REPO_DIR = Path(__file__).parent
-# Same grid as PipelineConfig.reactor_temperatures: broad screening points
-# plus the 923-973 K Ni judge band used by the solids scorecard headline.
-REACTOR_TEMPERATURES_K = [773.15, 900.0, 923.15, 973.15, 1100.0, 1300.0]
+REACTOR_TEMPERATURES_K = list(THERMAL_REACTOR_TEMPERATURES_K)
 
 
 def _reactor_temperatures(mode: str) -> list[float]:
-    """Thermal grid for thermal modes; NTEC/electrochemical use their own."""
-    if mode in ('ntec', 'electrochemical'):
-        return list(reactor_temperatures_for_mode(mode))
-    return list(REACTOR_TEMPERATURES_K)
+    """Return the shared mode temperature grid from pipeline.reactors.modes."""
+    return list(reactor_temperatures_for_mode(mode))
 MAX_REACTOR_CANDIDATES = 20
 MAX_VQE_CANDIDATES = 5
 PEMFC_CANDIDATES = 30
@@ -336,14 +332,14 @@ def _run_phase1_discovery(args, pipeline_state: dict, t_deadline: float):
 
     from pipeline.search.scope import scope_pyrolysis_pool
     from pipeline.screening.stage_selection import (
-        annotate_evidence, select_for_reactor, select_for_validation)
+        annotate_evidence, select_for_pyrolysis_reactor, select_for_validation)
     valid_db = screening_db[screening_db['valid'] == True].copy()
     evidence_db = annotate_evidence(screening_db, 'E_act')
     # Same split as run_discovery_stage: admissibility on the full table,
     # then each slate applies its own validity rule. Filtering valid==True
     # here drops unresolved rows the DFT rescue path is supposed to keep.
     pool, _ = scope_pyrolysis_pool(screening_db)
-    top_catalysts = select_for_reactor(
+    top_catalysts = select_for_pyrolysis_reactor(
         pool, args.top_k, 'E_act',
         min_per_class=args.min_validation_per_class)
     dft_candidates = select_for_validation(
@@ -817,6 +813,12 @@ def _run_phase5_fuel_cell(args, pipeline_state: dict, t_deadline: float,
     if time.time() < t_deadline and len(top_fc) > 0:
         _model_pemfc_stack(pipeline_state, top_fc)
 
+    pipeline_state['phase5'] = {
+        **pipeline_state.get('phase5_branch', {}),
+        **pipeline_state.get('phase5_stack', {}),
+        'n_cathodes_screened': len(fc_screening_db),
+        'n_valid': len(fc_valid),
+    }
     save_json(pipeline_state, "pipeline_state.json")
     print(f"\n  Phase 5: {time.time()-t5:.0f}s | FC catalysts evaluated: {len(fc_screening_db):,}")
 
@@ -824,16 +826,21 @@ def _run_phase5_fuel_cell(args, pipeline_state: dict, t_deadline: float,
 def _run_phase6_report(pipeline_state: dict, t_start: float) -> dict:
     """Write the full report and print the dual-campaign summary."""
     from pipeline.utils import print_banner, save_json, load_json
+    from pipeline.stages.report import run_report_stage
 
     print_banner("PHASE 6: REPORT")
-    from pipeline.evidence.report_generator import generate_full_report
+    t6 = time.time()
     pipeline_state = load_json("pipeline_state.json") or pipeline_state
-    generate_full_report(pipeline_state)
+    outcome = run_report_stage(pipeline_state)
+    pipeline_state['phase6'] = {**outcome.state, 'elapsed_s': time.time() - t6}
+    pipeline_state['total_elapsed_s'] = time.time() - t_start
     save_json(pipeline_state, "pipeline_state.json")
 
-    total = time.time() - t_start
+    total = pipeline_state['total_elapsed_s']
     h2_eval = pipeline_state.get('phase1', {}).get('total_evaluated', 0)
-    fc_eval = pipeline_state.get('phase5_branch', {}).get('total_evaluated', 0)
+    fc_eval = pipeline_state.get('phase5', {}).get(
+        'total_evaluated',
+        pipeline_state.get('phase5_branch', {}).get('total_evaluated', 0))
     print("\n" + "=" * 80)
     print(f"  DUAL-CAMPAIGN COMPLETE: {total:.0f}s ({total/3600:.2f} hours)")
     print(f"  H₂ Production catalysts evaluated: {h2_eval:,}")

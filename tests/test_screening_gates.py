@@ -178,3 +178,25 @@ def test_campaign_reactor_judge_reference_is_scorecard_only():
     # Idempotent: an existing judge sweep is not simulated twice.
     campaign._simulate_judge_reference(args, fake_simulate, records)
     assert calls == ['ni_np_lit']
+
+
+def test_campaign_and_orchestrator_share_temperatures_judge_and_selectors():
+    from pathlib import Path
+    import run_production_campaign as campaign
+    from pipeline.orchestrator import PipelineConfig
+    from pipeline.reactors.modes import MODE_CHOICES
+    from pipeline.reactors.scorecard import (
+        NI_JUDGE_CATALYST,
+        NI_JUDGE_HEADLINE_T_MAX,
+        NI_JUDGE_HEADLINE_T_MIN,
+    )
+
+    for mode in MODE_CHOICES:
+        cfg = PipelineConfig(pyrolysis_mode=mode)
+        assert tuple(campaign._reactor_temperatures(mode)) == cfg.reactor_temperatures
+        assert cfg.solids_judge_catalyst == NI_JUDGE_CATALYST
+        assert cfg.solids_headline_t_min == NI_JUDGE_HEADLINE_T_MIN
+        assert cfg.solids_headline_t_max == NI_JUDGE_HEADLINE_T_MAX
+    assert 'select_for_pyrolysis_reactor' in Path(campaign.__file__).read_text()
+    assert 'run_report_stage' in Path(campaign.__file__).read_text()
+

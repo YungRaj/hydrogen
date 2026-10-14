@@ -29,6 +29,8 @@ from pipeline.reactors.modes import (
     DEFAULT_MODE, MODE_CHOICES, PathwayModeName, ReactorTypeName,
     reactor_temperatures_for_mode, reactor_types_for_mode, resolve_pathway_mode,
     validate_mode_reactors)
+from pipeline.reactors.scorecard import (
+    NI_JUDGE_CATALYST, NI_JUDGE_HEADLINE_T_MAX, NI_JUDGE_HEADLINE_T_MIN)
 from pipeline.stages.orchestration import (
     PipelineComponents, PipelineRuntime, default_pipeline_components,
     default_pipeline_runtime)
@@ -62,11 +64,11 @@ class PipelineConfig:
     multiphysics_results_dir: Optional[str] = None
     # Named solids judge. B6-7: literature Ni cell (ni_np_lit), not cat_9.
     # None = best non-H-parked solids at the headline T band.
-    solids_judge_catalyst: Optional[str] = 'ni_np_lit'
+    solids_judge_catalyst: Optional[str] = NI_JUDGE_CATALYST
     # Ni judge headline is the 650–700 °C filament ROI. 1300 K is the ADR
     # ceiling, not this headline (X>X_eq at the hot end is a flag).
-    solids_headline_t_min: float = 923.15
-    solids_headline_t_max: Optional[float] = 973.15
+    solids_headline_t_min: float = NI_JUDGE_HEADLINE_T_MIN
+    solids_headline_t_max: Optional[float] = NI_JUDGE_HEADLINE_T_MAX
 
     # Phase 5: Fuel Cell
     fc_top_k_pemfc: int = 20            # Top cathode catalysts → PEMFC model
