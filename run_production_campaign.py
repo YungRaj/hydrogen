@@ -59,6 +59,7 @@ def _branch_config_kwargs(
         'branch_exploration_interval': args.branch_exploration_interval,
         'refresh_pending_priorities': args.branch_priority_refresh,
         'scan_workers': args.scan_workers,
+        'workers_per_gpu': args.workers_per_gpu,
     }
 
 
@@ -90,6 +91,9 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument('--electrochemical-conditions-json', default='',
                         help=('JSON measured electrochemical operating point; '
                               'electrolyte_phase is aqueous or molten'))
+    parser.add_argument('--workers-per-gpu', type=int, default=32,
+                        help='Candidate threads sharing each GPU in the batched '
+                             'eSEN engine (relaxation CPU work overlaps inference)')
     parser.add_argument('--scan-batch-size', type=int, default=65536)
     parser.add_argument('--scan-workers', type=int, default=8,
                         help='Independent deterministic scanner shards per resolved leaf')
@@ -158,7 +162,7 @@ def _resolve_paths(args: argparse.Namespace) -> Path:
 
 def _validate_resources(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
     """Reject budgets the branch search or the QE allocation cannot honour."""
-    if args.scan_workers < 1 or args.qe_mpi_ranks < 1 or \
+    if args.scan_workers < 1 or args.workers_per_gpu < 1 or args.qe_mpi_ranks < 1 or \
             args.qe_omp_threads < 1 or args.qe_max_concurrent < 1:
         parser.error('scanner and QE resource dimensions must be positive')
     if args.calibration_probes < 20:

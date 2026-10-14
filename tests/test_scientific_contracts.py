@@ -1299,6 +1299,10 @@ def test_refactored_protocol_executor_and_reactor_stage_contracts():
 
     assert execution_layout(3, 2, 'batched') == (3, 2)
     assert execution_layout(3, 2, 'legacy') == (6, 1)
+    # Large batched requests split into GIL-sized processes per GPU.
+    assert execution_layout(1, 8, 'batched') == (1, 8)
+    assert execution_layout(1, 32, 'batched') == (4, 8)
+    assert execution_layout(2, 12, 'batched') == (4, 6)
     assert PYROLYSIS_PROTOCOL.clean.fmax_eV_A == 0.08
     assert PYROLYSIS_PROTOCOL.adsorbate.steps == 100
     assert ORR_PROTOCOL.reference.steps == 200

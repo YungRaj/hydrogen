@@ -63,6 +63,10 @@ def _attach_identity(
     row['cache_hit'] = cache_hit
 
 
+# Candidate threads per batched model process before the GIL saturates.
+BATCHED_THREADS_PER_PROCESS = 8
+
+
 def execution_layout(
     device_count: int, workers_per_gpu: int, engine: str
 ) -> tuple[int, int]:
@@ -82,8 +86,13 @@ def execution_layout(
         raise ValueError('workers_per_gpu must be positive')
     if engine not in ('batched', 'legacy'):
         raise ValueError("engine must be 'batched' or 'legacy'")
-    processes_per_gpu = 1 if engine == 'batched' else workers_per_gpu
-    candidate_threads = workers_per_gpu if engine == 'batched' else 1
+    if engine == 'legacy':
+        return device_count * workers_per_gpu, 1
+    # Threads in one process share the GIL: measured throughput plateaus at
+    # ~8 candidate threads per process with the GPU still mostly idle, so
+    # larger requests are split across several batched model processes.
+    processes_per_gpu = -(-workers_per_gpu // BATCHED_THREADS_PER_PROCESS)
+    candidate_threads = -(-workers_per_gpu // processes_per_gpu)
     return device_count * processes_per_gpu, candidate_threads
 
 

@@ -194,12 +194,21 @@ def main() -> None:
         default=max(1, min(8, os.cpu_count() or 1)),
         help='CPU processes used to score branch leaves in parallel',
     )
+    parser.add_argument(
+        '--workers-per-gpu',
+        type=int,
+        default=32,
+        help='candidate threads sharing each GPU in the batched engine; one '
+             'thread leaves the GPU idle while relaxations run on the CPU',
+    )
     args = parser.parse_args()
     candidates = int(args.calibration_candidates)
     if args.branch_leaves <= 0:
         parser.error('--branch-leaves must be positive')
     if args.scan_workers <= 0:
         parser.error('--scan-workers must be positive')
+    if args.workers_per_gpu <= 0:
+        parser.error('--workers-per-gpu must be positive')
     budget = PilotBudget(
         calibration_candidates=candidates,
         validation_candidates=min(20, candidates),
@@ -208,7 +217,7 @@ def main() -> None:
         branch_leaves=args.branch_leaves,
         runtime_s=args.probe_seconds,
         scan_workers=args.scan_workers,
-        workers_per_gpu=1,
+        workers_per_gpu=args.workers_per_gpu,
     )
     config = BranchDiscoveryConfig(
         initial_fairchem_samples=candidates,
