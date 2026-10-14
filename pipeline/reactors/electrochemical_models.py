@@ -146,9 +146,12 @@ def simulate_electrochemical_pathway(
         diagnostic = electrochemical_screening_point(
             config.native_electrochemical_parameters
         )
-        diagnostic['valid'] = diagnostic.get('status') == 'complete'
+        native_complete = diagnostic.get('status') == 'complete'
+        diagnostic['valid'] = native_complete
         return {
-            **_pathway_result(config, 'Electrochemical', 'electrochemical', complete=False),
+            **_pathway_result(
+                config, 'Electrochemical', 'electrochemical', complete=native_complete
+            ),
             **diagnostic,
             'limitations': ['native_electrochemical_screening_assumptions_only'],
         }
