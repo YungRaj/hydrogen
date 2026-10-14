@@ -61,8 +61,13 @@ def _declared(value) -> bool:
 
 def load_physical_case(path: str | Path, *, candidate_id: str, mode: str,
                        reactor_type: str,
-                       temperature_K: float) -> PhysicalCaseDocument:
+                       temperature_K: float,
+                       require_calibration: bool = True) -> PhysicalCaseDocument:
     """Load a physical case and fail on missing physics or provenance.
+
+    Identity, every required physical field and its ``parameter_sources``
+    entry, the feed, ``kinetics.source``, the electrolyte identity/phase and
+    the aqueous sub-critical temperature bound are always enforced.
 
     Args:
         path: Filesystem path to the input or output artifact.
@@ -70,6 +75,12 @@ def load_physical_case(path: str | Path, *, candidate_id: str, mode: str,
         mode: Configured methane-conversion pathway.
         reactor_type: Physical reactor implementation identifier.
         temperature_K: Absolute temperature in kelvin.
+        require_calibration: When True (production artifacts), also require
+            disjoint training/validation ids, ``calibration.source``, a metric
+            and acceptance threshold, and the NTEC paired control. False is
+            used only by the uncalibrated screening tier
+            (``external_runner.run_screening_case``), whose results are never
+            labelled calibrated and can never exclude a candidate.
 
     Returns:
         Dictionary containing the computed values, status, and supporting metadata.
@@ -127,23 +138,24 @@ def load_physical_case(path: str | Path, *, candidate_id: str, mode: str,
     kinetics = case.get('kinetics', {})
     if not isinstance(kinetics, dict) or not _declared(kinetics.get('source')):
         failures.append('kinetics.source')
-    calibration = case.get('calibration', {})
-    training = calibration.get('training_ids', []) if isinstance(calibration, dict) else []
-    validation = calibration.get('validation_ids', []) if isinstance(calibration, dict) else []
-    if (not training or not validation or set(training).intersection(validation)
-            or any(not _declared(value) for value in training + validation)):
-        failures.append('calibration.disjoint_training_and_validation_ids')
-    if not isinstance(calibration, dict) or not _declared(calibration.get('source')):
-        failures.append('calibration.source')
-    try:
-        threshold = float(calibration.get('acceptance_threshold'))
-        if (calibration.get('metric') not in {'rmse', 'mae', 'relative_rmse'} or
-                not math.isfinite(threshold) or threshold < 0):
+    if require_calibration:
+        calibration = case.get('calibration', {})
+        training = calibration.get('training_ids', []) if isinstance(calibration, dict) else []
+        validation = calibration.get('validation_ids', []) if isinstance(calibration, dict) else []
+        if (not training or not validation or set(training).intersection(validation)
+                or any(not _declared(value) for value in training + validation)):
+            failures.append('calibration.disjoint_training_and_validation_ids')
+        if not isinstance(calibration, dict) or not _declared(calibration.get('source')):
+            failures.append('calibration.source')
+        try:
+            threshold = float(calibration.get('acceptance_threshold'))
+            if (calibration.get('metric') not in {'rmse', 'mae', 'relative_rmse'} or
+                    not math.isfinite(threshold) or threshold < 0):
+                failures.append('calibration.metric_and_acceptance_threshold')
+        except (TypeError, ValueError):
             failures.append('calibration.metric_and_acceptance_threshold')
-    except (TypeError, ValueError):
-        failures.append('calibration.metric_and_acceptance_threshold')
-    if reactor_type == 'NTEC' and calibration.get('paired_control') is not True:
-        failures.append('calibration.paired_control')
+        if reactor_type == 'NTEC' and calibration.get('paired_control') is not True:
+            failures.append('calibration.paired_control')
     if reactor_type == 'Electrochemical' and case.get(
             'electrolyte_phase') not in {'aqueous', 'molten'}:
         failures.append('electrolyte_phase')
@@ -169,7 +181,7 @@ def load_physical_case(path: str | Path, *, candidate_id: str, mode: str,
     if failures:
         raise ValueError('physical case failed: ' + ', '.join(sorted(set(failures))))
     # The cast occurs only after every required identity, physical field,
-    # provenance source, and calibration split above has been validated.
+    # provenance source, and (when required) calibration split above has been validated.
     return cast(PhysicalCaseDocument, case)
 
 

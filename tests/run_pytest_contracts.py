@@ -4,8 +4,6 @@
 from pathlib import Path
 import sys
 
-import pytest
-
 TESTS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(TESTS_DIR.parent))
 
@@ -22,6 +20,7 @@ PYTEST_CONTRACTS = (
     "test_qe_gpu_setup_contract.py",
     "test_review_fixes.py",
     "test_screening_gates.py",
+    "test_screening_multiphysics.py",
     "test_sensitivity_contracts.py",
     "test_supported_nanoparticle_genome.py",
     "test_volcano_crosscheck.py",
@@ -29,6 +28,8 @@ PYTEST_CONTRACTS = (
 
 
 if __name__ == "__main__":
+    import pytest
+
     sys.exit(pytest.main([
         "-q", "-p", "no:cacheprovider", "--rootdir", str(TESTS_DIR.parent),
         *(str(TESTS_DIR / name) for name in PYTEST_CONTRACTS),

@@ -10,6 +10,7 @@ from pathlib import Path
 
 GENERATED_FILES = {
     'hydrogen_outputs.json',
+    'hydrogen_screening_result.json',
     'hydrogen_convergence.json',
     'hydrogen_metadata.json',
     'hydrogen_hydrodynamics.json',

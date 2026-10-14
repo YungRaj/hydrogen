@@ -285,7 +285,12 @@ def test_specialized_pathways_fail_closed_without_validated_models():
             assert result['can_exclude_candidate'] is False
             assert 'CH4_conversion' not in result
 
-    with patch('pipeline.reactors.mechanisms.write_full_mechanism') as write:
+    # NTEC/electrochemical now receive the candidate mechanism too (for the
+    # MOOSE <-> Cantera interface case). A mechanism path that does not exist
+    # leaves the uncalibrated screening tier unavailable.
+    missing_mechanism = Path(tempfile.gettempdir()) / 'missing_specialized.yaml'
+    with patch('pipeline.reactors.mechanisms.write_full_mechanism',
+               return_value=missing_mechanism) as write:
         from pipeline.stages.reactor import simulate_candidate
 
         stage = simulate_candidate(
@@ -299,8 +304,8 @@ def test_specialized_pathways_fail_closed_without_validated_models():
             pathway_mode='ntec',
             reactor_types=['NTEC'],
         )
-    write.assert_not_called()
-    assert stage['mechanism_file'] is None
+    write.assert_called_once()
+    assert stage['mechanism_file'] == missing_mechanism.as_posix()
     assert stage['sweep_status'] == 'validation_required'
     assert stage['pending_conditions'] == 1
     assert stage['failed_conditions'] == 0
@@ -549,6 +554,7 @@ def test_validated_specialized_artifact_completes_without_thermal_yaml():
         tempfile.TemporaryDirectory() as tmp,
         patch('pipeline.reactors.mechanisms.write_full_mechanism') as write,
     ):
+        write.return_value = Path(tmp) / 'mechanism_ntec-candidate.yaml'
         path = artifact_path(tmp, 'ntec-candidate', 'ntec', 'NTEC', 300.0)
         path.parent.mkdir(parents=True)
         path.write_text(json.dumps(base))
@@ -564,9 +570,11 @@ def test_validated_specialized_artifact_completes_without_thermal_yaml():
             pathway_mode='ntec',
             multiphysics_results_dir=tmp,
         )
-    write.assert_not_called()
+    write.assert_called_once()
     assert result['sweep_status'] == 'complete'
-    assert result['mechanism_file'] is None
+    assert result['mechanism_file'].endswith('mechanism_ntec-candidate.yaml')
+    assert result['best_condition']['reactor_evidence_tier'] == (
+        'calibrated_multiphysics_screening')
     assert result['best_condition']['CH4_conversion'] == 0.2
     assert result['can_exclude_candidate'] is False
 

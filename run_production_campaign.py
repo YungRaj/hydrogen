@@ -23,12 +23,20 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from pipeline.reactors.modes import (
-    DEFAULT_MODE, MODE_CHOICES, reactor_types_for_mode)
+    DEFAULT_MODE, MODE_CHOICES, reactor_temperatures_for_mode,
+    reactor_types_for_mode)
 
 REPO_DIR = Path(__file__).parent
 # Same grid as PipelineConfig.reactor_temperatures: broad screening points
 # plus the 923-973 K Ni judge band used by the solids scorecard headline.
 REACTOR_TEMPERATURES_K = [773.15, 900.0, 923.15, 973.15, 1100.0, 1300.0]
+
+
+def _reactor_temperatures(mode: str) -> list[float]:
+    """Thermal grid for thermal modes; NTEC/electrochemical use their own."""
+    if mode in ('ntec', 'electrochemical'):
+        return list(reactor_temperatures_for_mode(mode))
+    return list(REACTOR_TEMPERATURES_K)
 MAX_REACTOR_CANDIDATES = 20
 MAX_VQE_CANDIDATES = 5
 PEMFC_CANDIDATES = 30
@@ -390,7 +398,7 @@ def _simulate_reactor_candidate(args, row, candidate_key: str, simulate_candidat
     """Run one candidate's reactor sweep and summarise its best condition."""
     e_act = row.get('E_act', 1.0)
     stage_result = simulate_candidate(
-        row, candidate_key, REACTOR_TEMPERATURES_K,
+        row, candidate_key, _reactor_temperatures(args.mode),
         reactor_types=reactor_types_for_mode(args.mode),
         forbid_mock=True,
         kinetics_validation=_load_kinetics_validation(args, candidate_key),
@@ -455,7 +463,7 @@ def _simulate_judge_reference(args, simulate_candidate, sweep_records: list) -> 
         return
     try:
         result = simulate_candidate(
-            reference, NI_JUDGE_CATALYST, REACTOR_TEMPERATURES_K,
+            reference, NI_JUDGE_CATALYST, _reactor_temperatures(args.mode),
             reactor_types=reactor_types, forbid_mock=True,
             pathway_mode=args.mode,
             multiphysics_results_dir=args.multiphysics_results_dir)

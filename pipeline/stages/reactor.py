@@ -101,7 +101,7 @@ def simulate_candidate(
     multiphysics_results_dir: str | None = None,
     services: ReactorStageServices | None = None,
 ) -> CandidateReactorResult:
-    """Build only the mechanism appropriate to the selected pathway and run it.
+    """Build the candidate mechanism and run the selected pathway's reactors.
 
     Args:
         row: Mapping supplying row.
@@ -118,14 +118,15 @@ def simulate_candidate(
         Dictionary containing the computed values, status, and supporting metadata.
     """
     services = services or default_reactor_services()
-    mode = services.resolve_mode(pathway_mode)
+    services.resolve_mode(pathway_mode)
     candidate_id = str(row.get('candidate_id', catalyst_name))
-    mechanism = None
-    if not mode.requires_specialized_validation:
-        kinetics = services.build_kinetics(
-            row, candidate_id=candidate_id, validation=kinetics_validation
-        )
-        mechanism = services.write_mechanism(catalyst_name, kinetics=kinetics)
+    # Every mode gets the candidate's Cantera mechanism: thermal reactors run
+    # it directly, and NTEC/electrochemical copy it into their (calibrated
+    # artifact or uncalibrated screening) MOOSE <-> Cantera interface case.
+    kinetics = services.build_kinetics(
+        row, candidate_id=candidate_id, validation=kinetics_validation
+    )
+    mechanism = services.write_mechanism(catalyst_name, kinetics=kinetics)
     barrier = float(row.get('E_act'))
     try:
         dE_H = float(row.get('dE_H'))

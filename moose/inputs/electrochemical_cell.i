@@ -230,12 +230,12 @@ c_bulk = ${fparse methane_henry_mol_m3_Pa * pressure_Pa}
 [Executioner]
   type = Steady
   solve_type = NEWTON
-  petsc_options_iname = '-pc_type -pc_factor_mat_solver_type'
-  petsc_options_value = 'lu mumps'
+  petsc_options_iname = '-pc_type -pc_factor_mat_solver_type -snes_force_iteration'
+  petsc_options_value = 'lu mumps 1'
   line_search = bt
   automatic_scaling = true
   nl_rel_tol = 1e-12
-  nl_abs_tol = 1e-14
+  nl_abs_tol = 1e-13
   nl_max_its = 100
 []
 

@@ -1,0 +1,61 @@
+{
+ "schema_version": 1,
+ "reactor_type": "Electrochemical",
+ "electrolyte_phase": "molten",
+ "status": "assumed_representative_uncalibrated",
+ "description": "Assumed molten-electrolyte methane-oxidation cell screening conditions; not measurements.",
+ "geometry": {
+  "electrode_area_m2": 0.01,
+  "electrolyte_thickness_m": 0.0005
+ },
+ "operating": {
+  "pressure_Pa": 101325.0,
+  "methane_mass_flow_kg_s": 1e-07,
+  "applied_potential_V": 0.9
+ },
+ "properties": {
+  "ionic_conductivity_S_m": 150.0,
+  "electronic_conductivity_S_m": 100000.0,
+  "methane_diffusivity_m2_s": 5e-09
+ },
+ "model_parameters": {
+  "methane_henry_mol_m3_Pa": 3e-06,
+  "anode_equilibrium_potential_V": 0.17,
+  "cathode_equilibrium_potential_V": 0.0,
+  "anode_transfer_coefficient": 0.5,
+  "cathode_transfer_coefficient": 0.5,
+  "cathode_exchange_current_A_m2": 10.0,
+  "anode_exchange_current_guess_A_m2": 0.001,
+  "ch4_current_fraction": 1.0,
+  "cathode_h2_faradaic_efficiency": 1.0,
+  "electrons_per_ch4": 4,
+  "mesh_elements": 100,
+  "coupling_relaxation": 0.67,
+  "coupling_tolerance_relative": 1e-06,
+  "mesh_tolerance_relative": 0.01
+ },
+ "models": {
+  "charge_transfer_model": "Butler-Volmer",
+  "species_transport_model": "supporting-electrolyte Fickian + Ohm"
+ },
+ "feed": {
+  "composition": {
+   "CH4": 1.0
+  },
+  "source": "pure methane feed; representative operating point (assumed, uncalibrated); see moose/operating_points/README.md"
+ },
+ "electrolyte": {
+  "identity": "NaOH-KOH eutectic",
+  "source": "assumed representative electrolyte (uncalibrated); see moose/operating_points/README.md"
+ },
+ "parameter_sources": {
+  "geometry.electrode_area_m2": "representative operating point (assumed, uncalibrated); see moose/operating_points/README.md",
+  "geometry.electrolyte_thickness_m": "representative operating point (assumed, uncalibrated); see moose/operating_points/README.md",
+  "operating.pressure_Pa": "representative operating point (assumed, uncalibrated); see moose/operating_points/README.md",
+  "operating.methane_mass_flow_kg_s": "representative operating point (assumed, uncalibrated); see moose/operating_points/README.md",
+  "operating.applied_potential_V": "representative operating point (assumed, uncalibrated); see moose/operating_points/README.md",
+  "properties.ionic_conductivity_S_m": "representative operating point (assumed, uncalibrated); see moose/operating_points/README.md",
+  "properties.electronic_conductivity_S_m": "representative operating point (assumed, uncalibrated); see moose/operating_points/README.md",
+  "properties.methane_diffusivity_m2_s": "representative operating point (assumed, uncalibrated); see moose/operating_points/README.md"
+ }
+}

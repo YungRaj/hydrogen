@@ -27,7 +27,8 @@ from pipeline.utils import (
 )
 from pipeline.reactors.modes import (
     DEFAULT_MODE, MODE_CHOICES, PathwayModeName, ReactorTypeName,
-    reactor_types_for_mode, resolve_pathway_mode, validate_mode_reactors)
+    reactor_temperatures_for_mode, reactor_types_for_mode, resolve_pathway_mode,
+    validate_mode_reactors)
 from pipeline.stages.orchestration import (
     PipelineComponents, PipelineRuntime, default_pipeline_components,
     default_pipeline_runtime)
@@ -52,9 +53,11 @@ class PipelineConfig:
     top_k_vqe: int = 3                   # Top K → VQE
 
     # Phase 2: Reactor
-    # Preserve the broad screening points and include the Ni reference band.
-    reactor_temperatures: tuple[float, ...] = (
-        773.15, 900.0, 923.15, 973.15, 1100.0, 1300.0)
+    # None resolves to the mode default (reactor_temperatures_for_mode): the
+    # broad thermal screening points plus the Ni reference band for thermal
+    # modes, low-temperature points for NTEC and an aqueous + molten point for
+    # electrochemistry. Explicit temperatures are always kept as given.
+    reactor_temperatures: tuple[float, ...] | None = None
     reactor_types: tuple[ReactorTypeName, ...] | None = None
     multiphysics_results_dir: Optional[str] = None
     # Named solids judge. B6-7: literature Ni cell (ni_np_lit), not cat_9.
@@ -99,6 +102,10 @@ class PipelineConfig:
                 (not isinstance(self.branch_max_leaves, int) or  # pyright: ignore[reportUnnecessaryIsInstance]
                  self.branch_max_leaves <= 0)):
             raise ValueError('branch_max_leaves must be positive or None')
+        if self.reactor_temperatures is None:
+            # Frozen/slotted dataclass: resolve the mode default exactly once.
+            object.__setattr__(self, 'reactor_temperatures',
+                               reactor_temperatures_for_mode(self.pyrolysis_mode))
         if (not self.reactor_temperatures or
                 any(not isinstance(value, (int, float)) or value <= 0  # pyright: ignore[reportUnnecessaryIsInstance]
                     for value in self.reactor_temperatures)):

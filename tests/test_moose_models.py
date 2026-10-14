@@ -2,8 +2,10 @@
 
 Opt-in suite (``python tests/run_tests.py --include-moose``): it runs the real
 ``moose-opt`` on the repository input templates and compares the solutions
-with closed-form results. A missing MOOSE installation is a failure, not a
-skip, because this suite exists to verify that installation.
+with closed-form results. It also runs the uncalibrated MOOSE <-> Cantera
+screening tier end to end (NTEC, aqueous and molten electrochemistry). A
+missing MOOSE installation is a failure, not a skip, because this suite exists
+to verify that installation.
 """
 
 from __future__ import annotations
@@ -138,6 +140,53 @@ def test_ntec_solution_is_mesh_independent():
     fine = _solve('NTEC', NTEC, refine=1)
     for name in ('ch4_consumption_mol_m2_s', 'wall_shear_rate_s_inv', 'interface_field_V_m'):
         _close(fine[name], coarse[name], 1e-6, f'mesh refinement: {name}')
+
+
+def _screening_end_to_end(reactor_type: str, mode: str, temperature: float,
+                          phase: str | None = None) -> dict:
+    """Run the uncalibrated MOOSE <-> Cantera screening tier for real."""
+    import os
+
+    from pipeline.reactors.mechanisms import write_full_mechanism
+    from pipeline.simulation.external_runner import SCREENING_TIER, run_screening_case
+    from pipeline.simulation.screening_cases import build_screening_case
+
+    previous = os.environ.pop('ELECTROCHEMICAL_CONDITIONS_JSON', None)
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            mechanism = write_full_mechanism('cand', E_act_CH4=0.9,
+                                             output_dir=root / 'mechanism')
+            target = build_screening_case(
+                root / 'case', candidate_id='cand', mode=mode,
+                reactor_type=reactor_type, temperature_K=temperature,
+                mechanism_path=mechanism)
+            result = run_screening_case(
+                mode=mode, reactor_type=reactor_type, candidate_id='cand',
+                temperature_K=temperature, case_dir=target.parent, timeout_s=600)
+    finally:
+        if previous is not None:
+            os.environ['ELECTROCHEMICAL_CONDITIONS_JSON'] = previous
+    assert result['valid'] is True and result['tier'] == SCREENING_TIER
+    assert result['candidate_exclusion_authorized'] is False
+    assert {'moose', 'cantera'} <= set(result['backend_solvers'])
+    conversion = float(result['outputs']['CH4_conversion'])
+    assert math.isfinite(conversion) and 0.0 <= conversion <= 1.0, conversion
+    if phase is not None:
+        assert result['electrolyte_phase'] == phase
+    return result
+
+
+def test_ntec_uncalibrated_screening_end_to_end():
+    _screening_end_to_end('NTEC', 'ntec', 473.15)
+
+
+def test_electrochemical_aqueous_uncalibrated_screening_end_to_end():
+    _screening_end_to_end('Electrochemical', 'electrochemical', 353.15, 'aqueous')
+
+
+def test_electrochemical_molten_uncalibrated_screening_end_to_end():
+    _screening_end_to_end('Electrochemical', 'electrochemical', 823.15, 'molten')
 
 
 def main() -> None:

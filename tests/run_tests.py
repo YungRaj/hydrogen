@@ -127,6 +127,9 @@ SUITES = (
         "gpu-affinity", "tests/test_gpu_affinity_contract.py", FAIRCHEM_ENV, 900, "gpu"
     ),
     Suite("moose-models", "tests/test_moose_models.py", FAIRCHEM_ENV, 900, "moose"),
+    Suite(
+        "pathway-modes-e2e", "tests/test_pathway_modes_e2e.py", FAIRCHEM_ENV, 1800, "moose"
+    ),
 )
 
 

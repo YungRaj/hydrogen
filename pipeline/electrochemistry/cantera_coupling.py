@@ -125,14 +125,31 @@ def interface_ch4_destruction_mol_m2_s(case_dir: Path, case: dict,
     if not mechanism.is_file() or not mechanism.resolve().is_relative_to(case_dir.resolve()):
         raise RuntimeError('kinetics.mechanism must name a Cantera YAML file in the case')
     gas = ct.Solution(str(mechanism), str(kinetics['gas_phase']))
-    surface = ct.Interface(str(mechanism), str(kinetics['interface_phase']), [gas])
+    interface_name = str(kinetics['interface_phase'])
+    graphite = None
+    try:
+        surface = ct.Interface(str(mechanism), interface_name, [gas])
+    except Exception:
+        graphite = ct.Solution(str(mechanism), 'graphite')
+        surface = ct.Interface(str(mechanism), interface_name, [gas, graphite])
     balance = str(kinetics.get('balance_species', 'Ar'))
     x_ch4 = min(max(x_ch4, 0.0), 1.0)
     temperature = _parameter(case, 'temperature_K')
     pressure = _parameter(case, 'pressure_Pa')
     gas.TPX = temperature, pressure, {'CH4': max(x_ch4, 1e-30), balance: max(1.0 - x_ch4, 1e-30)}
+    if graphite is not None:
+        graphite.TP = temperature, pressure
     surface.TP = temperature, pressure
-    surface.advance_coverages(float(kinetics.get('coverage_relaxation_s', 1.0e2)))
+    relax_s = float(kinetics.get('coverage_relaxation_s', 1.0e2))
+    try:
+        surface.advance_coverages(relax_s, 1e-9, 1e-22, 1.0, 200000, 50)
+    except ct.CanteraError:
+        try:
+            surface.coverages = 'site:1.0'
+            surface.advance_coverages(relax_s, 1e-7, 1e-16, 1.0, 200000, 50)
+        except ct.CanteraError:
+            surface.coverages = 'site:1.0'
+            surface.advance_coverages(relax_s, 1e-5, 1e-8, 1.0, 200000, 50)
     index = surface.kinetics_species_index('CH4')
     rate = float(surface.destruction_rates[index]) * 1.0e3
     if not math.isfinite(rate) or rate < 0:
@@ -287,8 +304,14 @@ def run_coupling_step(case_dir: Path, reactor_type: str, timeout_s: int = 3600) 
     if not 0 < relaxation <= 1:
         raise RuntimeError('coupling_relaxation must lie in (0, 1]')
     converged = residual <= tolerance
-    next_values = {name: used[name] + relaxation * (computed[name] - used[name])
-                   for name in computed}
+    next_values = {
+        name: (
+            computed[name]
+            if iteration == 1
+            else (1.0 - relaxation) * used[name] + relaxation * computed[name]
+        )
+        for name in computed
+    }
     feedback = case_dir / FEEDBACK
     _write_json(feedback, {'schema_version': 1, 'iteration': iteration,
                            'computed': computed, 'moose_values_used': used,

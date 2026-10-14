@@ -83,12 +83,28 @@ def test_missing_environment_is_skipped_not_failed():
     assert result.reason and "required" in result.reason
 
 
+def test_every_test_file_is_run_by_some_suite():
+    """A test file nobody runs hides failures (13 such files once existed)."""
+    sys.path.insert(0, str(REPO_ROOT / "tests"))
+    import run_pytest_contracts
+
+    registered = {Path(suite.path).name for suite in run_tests.SUITES}
+    registered |= set(run_pytest_contracts.PYTEST_CONTRACTS)
+    on_disk = {path.name for path in (REPO_ROOT / "tests").glob("test_*.py")}
+    orphaned = sorted(on_disk - registered)
+    assert not orphaned, f"test files not run by run_tests.py: {orphaned}"
+    missing = sorted(name for name in registered
+                     if name.startswith("test_") and name not in on_disk)
+    assert not missing, f"suites reference missing files: {missing}"
+
+
 TESTS = (
     test_default_selection_is_portable_only,
     test_opt_ins_and_explicit_selection_are_deterministic,
     test_environment_resolution_is_portable_and_fail_closed,
     test_json_report_is_atomic_and_complete,
     test_missing_environment_is_skipped_not_failed,
+    test_every_test_file_is_run_by_some_suite,
 )
 
 

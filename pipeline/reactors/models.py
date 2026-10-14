@@ -15,6 +15,9 @@ Three Cantera-backed reactor archetypes with distinct carbon-handling physics:
 NTEC and electrochemical pathways consume validated external multiphysics
 artifacts. Cantera supplies chemistry within those coupled calculations, but
 does not itself solve their mechanical/electrical/charge-transport physics.
+Without such an artifact they fall back, when MOOSE is installed, to a
+candidate-specific but explicitly uncalibrated MOOSE+Cantera screening case
+at an assumed representative operating point (never candidate-excluding).
 
 Solid carbon is never a gas-phase species. Surface C_s blocks sites on solid
 paths until removed by a named policy or a gated off-site channel (B6).
@@ -42,6 +45,7 @@ except ImportError:
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from pipeline.utils import (
     REACTOR_DIR,
+    RESULTS_DIR,
     setup_logger,
     print_banner,
     save_json,
@@ -86,6 +90,10 @@ from pipeline.reactors.reactor_core import (
 )
 
 logger = setup_logger('reactor_models', 'reactor/reactor_simulation.log')
+
+# Reactors with an uncalibrated MOOSE+Cantera screening fallback
+# (pipeline.simulation.screening_cases) when no calibrated artifact exists.
+SCREENING_REACTORS = frozenset({'NTEC', 'Electrochemical'})
 
 
 def simulate_mmbcr(config: ReactorConfig) -> ReactorResult:
@@ -319,14 +327,53 @@ def simulate_reactor(config: ReactorConfig, coupling_services=None) -> ReactorRe
                 # (Mendelson u_b / derived eps_g; clipped (u0-umf)/u0) so the
                 # screening run can proceed with its provenance labelled.
                 # It can never exclude a candidate. NTEC / Electrochemical
-                # have no such closure and stay validation_required.
+                # have no such closure; they use the uncalibrated screening
+                # tier below when MOOSE is available, else validation_required.
                 config.reactor_closure_evidence = {
                     'source': ANALYTICAL_CLOSURE_SOURCE,
                     'candidate_exclusion_authorized': False,
                     'basis': ANALYTICAL_CLOSURE_BASIS[config.reactor_type],
                     'multiphysics_evidence': loaded,
                 }
-            if not loaded['valid'] and not config.reactor_closure_evidence:
+            if (
+                not loaded['valid']
+                and not config.reactor_closure_evidence
+                and config.reactor_type in SCREENING_REACTORS
+            ):
+                # No calibrated artifact: run (or reuse) the candidate-specific
+                # but UNCALIBRATED MOOSE+Cantera screening case at an assumed
+                # representative operating point. It is labelled as such and
+                # can never exclude a candidate.
+                from pipeline.simulation.screening_cases import (
+                    run_or_reuse_screening_case,
+                    screening_available,
+                )
+
+                if screening_available(config.reactor_type):
+                    root = (
+                        Path(config.multiphysics_results_dir)
+                        if config.multiphysics_results_dir
+                        else RESULTS_DIR / 'multiphysics'
+                    )
+                    try:
+                        config.screening_multiphysics = run_or_reuse_screening_case(
+                            root,
+                            candidate_id=config.candidate_id,
+                            mode=config.pathway_mode,
+                            reactor_type=config.reactor_type,
+                            temperature_K=config.T_inlet_K,
+                            mechanism_path=config.mechanism_file,
+                        )
+                    except Exception as exc:
+                        loaded = {
+                            **loaded,
+                            'screening_error': f'{type(exc).__name__}: {exc}',
+                        }
+            if (
+                not loaded['valid']
+                and not config.reactor_closure_evidence
+                and not config.screening_multiphysics
+            ):
                 result = {
                     'status': 'validation_required',
                     'valid': False,
@@ -335,6 +382,8 @@ def simulate_reactor(config: ReactorConfig, coupling_services=None) -> ReactorRe
                     'can_exclude_candidate': False,
                     'reactor_evidence_tier': 'required_solver_evidence_missing',
                 }
+                if 'screening_error' in loaded:
+                    result['screening_error'] = loaded['screening_error']
                 _save_reactor_result(config, result)
                 return result
             if loaded['valid']:

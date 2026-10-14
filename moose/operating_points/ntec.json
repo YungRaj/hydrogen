@@ -1,0 +1,64 @@
+{
+ "schema_version": 1,
+ "reactor_type": "NTEC",
+ "status": "assumed_representative_uncalibrated",
+ "description": "Assumed NTEC liquid-metal shear-layer screening conditions; not measurements.",
+ "geometry": {
+  "reactor_volume_m3": 0.0001,
+  "interface_area_m2": 0.1
+ },
+ "operating": {
+  "pressure_Pa": 101325.0,
+  "methane_mass_flow_kg_s": 1e-07,
+  "shear_rate_s_inv": 200.0,
+  "mechanical_power_W_kg": 20.0
+ },
+ "properties": {
+  "liquid_viscosity_Pa_s": 0.002,
+  "permittivity_F_m": 7e-11,
+  "ionic_conductivity_S_m": 1.0
+ },
+ "model_parameters": {
+  "liquid_density_kg_m3": 6100.0,
+  "film_thickness_m": 0.001,
+  "dielectric_thickness_m": 1e-05,
+  "methane_diffusivity_m2_s": 2e-09,
+  "methane_henry_mol_m3_Pa": 1e-05,
+  "contact_charge_saturation_C_m2": 0.0001,
+  "contact_shear_scale_s_inv": 100.0,
+  "field_barrier_coefficient_eV_m_V": 1e-07,
+  "field_barrier_cap_eV": 0.25,
+  "interface_charge_guess_C_m2": 0.0,
+  "interface_rate_constant_guess_m_s": 1e-09,
+  "adhesion_energy_J_m2": 1.0,
+  "effective_mass_kg": 1e-09,
+  "particle_diameter_m": 0.0001,
+  "contact_area_m2": 1e-10,
+  "mesh_elements_x": 4,
+  "mesh_elements_film": 20,
+  "mesh_elements_dielectric": 5,
+  "coupling_tolerance_relative": 1e-06,
+  "mesh_tolerance_relative": 0.01
+ },
+ "models": {
+  "contact_electrification_model": "saturating shear law (calibration required)",
+  "species_transport_model": "Fickian, fully developed layer"
+ },
+ "feed": {
+  "composition": {
+   "CH4": 1.0
+  },
+  "source": "pure methane feed; representative operating point (assumed, uncalibrated); see moose/operating_points/README.md"
+ },
+ "parameter_sources": {
+  "geometry.reactor_volume_m3": "representative operating point (assumed, uncalibrated); see moose/operating_points/README.md",
+  "geometry.interface_area_m2": "representative operating point (assumed, uncalibrated); see moose/operating_points/README.md",
+  "operating.pressure_Pa": "representative operating point (assumed, uncalibrated); see moose/operating_points/README.md",
+  "operating.methane_mass_flow_kg_s": "representative operating point (assumed, uncalibrated); see moose/operating_points/README.md",
+  "operating.shear_rate_s_inv": "representative operating point (assumed, uncalibrated); see moose/operating_points/README.md",
+  "operating.mechanical_power_W_kg": "representative operating point (assumed, uncalibrated); see moose/operating_points/README.md",
+  "properties.liquid_viscosity_Pa_s": "representative operating point (assumed, uncalibrated); see moose/operating_points/README.md",
+  "properties.permittivity_F_m": "representative operating point (assumed, uncalibrated); see moose/operating_points/README.md",
+  "properties.ionic_conductivity_S_m": "representative operating point (assumed, uncalibrated); see moose/operating_points/README.md"
+ }
+}

@@ -17,8 +17,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pipeline.simulation.result_contract as _result_contract
 from pipeline.simulation.result_contract import (
-    EXTERNAL_SOLVERS, SCHEMA_VERSION, artifact_path, load_validated_artifact,
+    EXTERNAL_SOLVERS, REQUIRED_OUTPUTS, SCHEMA_VERSION, artifact_path,
     mode_preflight, verify_numerics, verify_physical_outputs)
 from pipeline.reactors.modes import MODE_CHOICES, reactor_types_for_mode
 from pipeline.simulation.physical_case import (
@@ -131,38 +132,24 @@ def default_solver_execution_services() -> SolverExecutionServices:
         cantera_version=_cantera_version)
 
 
-def run_backend(*, mode: str, reactor_type: str, candidate_id: str,
-                temperature_K: float, case_dir: str | Path,
-                results_dir: str | Path, model_source: str,
-                moose_input: str | Path | None = None,
-                timeout_s: int = 86400,
-                max_coupling_iterations: int = 20,
-                execution: SolverExecutionServices | None = None) -> Path:
-    """Execute the external case backends and emit one validated artifact.
+SCREENING_TIER = 'uncalibrated_multiphysics_screening'
+SCREENING_RESULT = 'hydrogen_screening_result.json'
+SCREENING_REACTORS = frozenset({'NTEC', 'Electrochemical'})
 
-        Thermal Fluidized/MMBCR artifacts supply OpenFOAM hydrodynamics which the
-        reactor layer subsequently couples to Cantera kinetics. NTEC and
-        electrochemical cases run MOOSE for the spatial fields and the
-        repository's Cantera interface step for kinetics, iterated two-way
-        under this runner's control.
 
-    Args:
-        mode: Configured methane-conversion pathway.
-        reactor_type: Physical reactor implementation identifier.
-        candidate_id: Stable candidate identifier.
-        temperature_K: Absolute temperature in kelvin.
-        case_dir: Filesystem location used for case dir.
-        results_dir: Directory containing or receiving calculation results.
-        model_source: Model source used by this operation.
-        moose_input: MOOSE input file; defaults to the repository template.
-        timeout_s: Maximum allowed wall time in seconds.
-        max_coupling_iterations: Bound controlling max coupling iterations.
-        execution: Execution used by this operation.
+def _execute_coupled_case(*, mode: str, reactor_type: str, candidate_id: str,
+                          temperature_K: float, case_dir: str | Path,
+                          moose_input: str | Path | None, timeout_s: int,
+                          max_coupling_iterations: int,
+                          execution: SolverExecutionServices,
+                          require_calibration: bool) -> dict:
+    """Run the solver loop shared by production artifacts and screening.
 
-    Returns:
-        Filesystem path produced or resolved by the operation.
+    Performs routing/preflight checks, loads the case, hashes the pristine
+    inputs, runs the (MOOSE <-> Cantera iterative or OpenFOAM) backends and
+    applies the numeric and physical output checks. Holdout scoring, coupling
+    proof validation and persistence stay with the callers.
     """
-    execution = execution or default_solver_execution_services()
     if reactor_type not in reactor_types_for_mode(mode):
         raise ValueError(f'{reactor_type} is not assigned to mode {mode}')
     required = EXTERNAL_SOLVERS.get(reactor_type, set())
@@ -179,7 +166,8 @@ def run_backend(*, mode: str, reactor_type: str, candidate_id: str,
     require_pristine_case(case)
     physical_case = load_physical_case(
         case / 'hydrogen_case.json', candidate_id=candidate_id, mode=mode,
-        reactor_type=reactor_type, temperature_K=temperature_K)
+        reactor_type=reactor_type, temperature_K=temperature_K,
+        require_calibration=require_calibration)
     # Hash the pristine model/case, including hydrogen_input.json, before a
     # backend creates time directories, logs, or result JSON.
     input_file = None
@@ -252,31 +240,92 @@ def run_backend(*, mode: str, reactor_type: str, candidate_id: str,
             ', '.join(physical_failures))
     metadata = _read_json(case / 'hydrogen_metadata.json') \
         if (case / 'hydrogen_metadata.json').is_file() else {}
+    return {
+        'case': case, 'physical_case': physical_case, 'required': required,
+        'input_file': input_file, 'input_digest': input_digest,
+        'versions': versions, 'handoff': handoff,
+        'observed_coupling': observed_coupling, 'outputs': outputs,
+        'convergence': convergence, 'metadata': metadata,
+    }
+
+
+def _validate_cantera_coupling(run: dict, *, candidate_id: str,
+                               temperature_K: float, reactor_type: str,
+                               execution: SolverExecutionServices) -> None:
+    """Check the declared coupling proof against runner-observed iterations."""
+    case, metadata = run['case'], run['metadata']
+    observed_coupling = run['observed_coupling']
+    try:
+        coupling = validate_solver_coupling(
+            case, metadata.get('solver_coupling', {}),
+            candidate_id=candidate_id, temperature_K=temperature_K,
+            reactor_type=reactor_type)
+    except ValueError as exc:
+        raise RuntimeError(str(exc)) from exc
+    if coupling['method'] != 'iterative_two_way' or not coupling['converged']:
+        raise RuntimeError(
+            'NTEC/electrochemical production artifacts require converged '
+            'iterative two-way Cantera coupling')
+    if (coupling['iterations'] != len(observed_coupling) or
+            not math.isclose(coupling['residual_relative'],
+                             observed_coupling[-1]['residual_relative'],
+                             rel_tol=1e-9, abs_tol=1e-12) or
+            not math.isclose(coupling['tolerance_relative'],
+                             observed_coupling[-1]['tolerance_relative'],
+                             rel_tol=1e-9, abs_tol=1e-12)):
+        raise RuntimeError('coupling proof does not match runner-observed iterations')
+    metadata['solver_coupling'] = coupling
+    run['versions']['cantera'] = execution.cantera_version()
+
+
+def run_backend(*, mode: str, reactor_type: str, candidate_id: str,
+                temperature_K: float, case_dir: str | Path,
+                results_dir: str | Path, model_source: str,
+                moose_input: str | Path | None = None,
+                timeout_s: int = 86400,
+                max_coupling_iterations: int = 20,
+                execution: SolverExecutionServices | None = None) -> Path:
+    """Execute the external case backends and emit one validated artifact.
+
+        Thermal Fluidized/MMBCR artifacts supply OpenFOAM hydrodynamics which the
+        reactor layer subsequently couples to Cantera kinetics. NTEC and
+        electrochemical cases run MOOSE for the spatial fields and the
+        repository's Cantera interface step for kinetics, iterated two-way
+        under this runner's control.
+
+    Args:
+        mode: Configured methane-conversion pathway.
+        reactor_type: Physical reactor implementation identifier.
+        candidate_id: Stable candidate identifier.
+        temperature_K: Absolute temperature in kelvin.
+        case_dir: Filesystem location used for case dir.
+        results_dir: Directory containing or receiving calculation results.
+        model_source: Model source used by this operation.
+        moose_input: MOOSE input file; defaults to the repository template.
+        timeout_s: Maximum allowed wall time in seconds.
+        max_coupling_iterations: Bound controlling max coupling iterations.
+        execution: Execution used by this operation.
+
+    Returns:
+        Filesystem path produced or resolved by the operation.
+    """
+    execution = execution or default_solver_execution_services()
+    run = _execute_coupled_case(
+        mode=mode, reactor_type=reactor_type, candidate_id=candidate_id,
+        temperature_K=temperature_K, case_dir=case_dir,
+        moose_input=moose_input, timeout_s=timeout_s,
+        max_coupling_iterations=max_coupling_iterations,
+        execution=execution, require_calibration=True)
+    case, physical_case = run['case'], run['physical_case']
+    metadata, versions = run['metadata'], run['versions']
+    input_file = run['input_file']
     metadata['model_validation'] = score_holdout(
         case / 'hydrogen_validation_records.json',
         physical_case['calibration'])
-    if 'cantera' in required:
-        try:
-            coupling = validate_solver_coupling(
-                case, metadata.get('solver_coupling', {}),
-                candidate_id=candidate_id, temperature_K=temperature_K,
-                reactor_type=reactor_type)
-        except ValueError as exc:
-            raise RuntimeError(str(exc)) from exc
-        if coupling['method'] != 'iterative_two_way' or not coupling['converged']:
-            raise RuntimeError(
-                'NTEC/electrochemical production artifacts require converged '
-                'iterative two-way Cantera coupling')
-        if (coupling['iterations'] != len(observed_coupling) or
-                not math.isclose(coupling['residual_relative'],
-                                 observed_coupling[-1]['residual_relative'],
-                                 rel_tol=1e-9, abs_tol=1e-12) or
-                not math.isclose(coupling['tolerance_relative'],
-                                 observed_coupling[-1]['tolerance_relative'],
-                                 rel_tol=1e-9, abs_tol=1e-12)):
-            raise RuntimeError('coupling proof does not match runner-observed iterations')
-        metadata['solver_coupling'] = coupling
-        versions['cantera'] = execution.cantera_version()
+    if 'cantera' in run['required']:
+        _validate_cantera_coupling(
+            run, candidate_id=candidate_id, temperature_K=temperature_K,
+            reactor_type=reactor_type, execution=execution)
     artifact: ExternalSolverArtifact = {
         'schema_version': SCHEMA_VERSION,
         'candidate_id': candidate_id,
@@ -285,14 +334,14 @@ def run_backend(*, mode: str, reactor_type: str, candidate_id: str,
         'temperature_K': float(temperature_K),
         'complete': True,
         'backend_solvers': versions,
-        'convergence': convergence,
-        'outputs': outputs,
+        'convergence': run['convergence'],
+        'outputs': run['outputs'],
         'provenance': {
-            'input_sha256': input_digest,
+            'input_sha256': run['input_digest'],
             'model_source': model_source,
             'moose_input_sha256': sha256(input_file) if input_file else None,
-            'hydrodynamic_handoff': handoff,
-            'observed_coupling_iterations': observed_coupling,
+            'hydrodynamic_handoff': run['handoff'],
+            'observed_coupling_iterations': run['observed_coupling'],
         },
         'physical_case': case_summary(physical_case),
         # A compact numeric snapshot permits independently trained transport
@@ -306,7 +355,126 @@ def run_backend(*, mode: str, reactor_type: str, candidate_id: str,
     return persist_validated_artifact(
         artifact, results_dir=results_dir, candidate_id=candidate_id,
         mode=mode, reactor_type=reactor_type, temperature_K=temperature_K,
-        path_builder=artifact_path, validator=load_validated_artifact)
+        path_builder=artifact_path,
+        validator=_result_contract.load_validated_artifact)
+
+
+def screening_case_digest(case_dir: str | Path, reactor_type: str) -> str:
+    """Return the input digest ``run_screening_case`` records for a pristine case.
+
+    Args:
+        case_dir: Pristine screening case directory (inputs only).
+        reactor_type: ``NTEC`` or ``Electrochemical``; selects the MOOSE input.
+
+    Returns:
+        Hex SHA-256 over the case tree and the repository MOOSE input template.
+    """
+    case = Path(case_dir).expanduser().resolve()
+    return _tree_digest(case, (default_moose_input(reactor_type),))
+
+
+def run_screening_case(*, mode: str, reactor_type: str, candidate_id: str,
+                       temperature_K: float, case_dir: str | Path,
+                       timeout_s: int = 3600,
+                       max_coupling_iterations: int = 20,
+                       execution: SolverExecutionServices | None = None) -> dict:
+    """Run an UNCALIBRATED MOOSE <-> Cantera screening case for one candidate.
+
+    Uses the same iterative two-way coupling, numeric (mesh/conservation)
+    checks, physical output checks and coupling-proof validation as
+    ``run_backend``, but the case carries assumed representative operating
+    conditions and no calibration block. Therefore no holdout score is
+    computed, no production artifact is persisted under the results tree, and
+    the result is labelled ``uncalibrated_multiphysics_screening`` and never
+    authorizes candidate exclusion. The result is written to
+    ``hydrogen_screening_result.json`` in ``case_dir``.
+
+    Args:
+        mode: Pathway mode; must route ``reactor_type``.
+        reactor_type: ``NTEC`` or ``Electrochemical`` only.
+        candidate_id: Stable candidate identifier recorded in the case.
+        temperature_K: Absolute operating temperature in kelvin.
+        case_dir: Pristine case directory built by
+            ``pipeline.simulation.screening_cases.build_screening_case``.
+        timeout_s: Wall-time bound for each solver process in seconds.
+        max_coupling_iterations: Maximum MOOSE <-> Cantera iterations (>= 2).
+        execution: Injectable solver process boundary; defaults to production.
+
+    Returns:
+        Screening record with ``valid`` True, ``tier``, ``outputs``,
+        ``convergence``, ``backend_solvers``, ``solver_coupling``,
+        ``case_dir``, ``input_sha256`` and ``candidate_exclusion_authorized``
+        False.
+
+    Raises:
+        ValueError: For a non-screening reactor type or invalid case.
+        RuntimeError: On solver, convergence, numeric or physical failure.
+    """
+    if reactor_type not in SCREENING_REACTORS:
+        raise ValueError(f'{reactor_type} has no uncalibrated screening tier')
+    execution = execution or default_solver_execution_services()
+    run = _execute_coupled_case(
+        mode=mode, reactor_type=reactor_type, candidate_id=candidate_id,
+        temperature_K=temperature_K, case_dir=case_dir, moose_input=None,
+        timeout_s=timeout_s, max_coupling_iterations=max_coupling_iterations,
+        execution=execution, require_calibration=False)
+    convergence, outputs = run['convergence'], run['outputs']
+    numeric_failures = [
+        name for name, passed in (
+            ('converged', convergence.get('converged') is True),
+            ('mesh_independent', convergence.get('mesh_independent') is True),
+            ('conservation_residuals',
+             convergence.get('conservation_satisfied') is True),
+            ('required_outputs', REQUIRED_OUTPUTS[reactor_type].issubset(outputs)),
+        ) if not passed]
+    if not numeric_failures:
+        for name in ('CH4_conversion', 'H2_selectivity', 'solid_C_selectivity',
+                     'faradaic_efficiency_H2'):
+            if name not in outputs:
+                continue
+            value = outputs[name]
+            if (isinstance(value, bool) or not isinstance(value, (int, float)) or
+                    not math.isfinite(float(value)) or not 0 <= float(value) <= 1):
+                numeric_failures.append(f'bounded_{name}')
+    if numeric_failures:
+        raise RuntimeError('screening solver checks failed: ' +
+                           ', '.join(numeric_failures))
+    _validate_cantera_coupling(
+        run, candidate_id=candidate_id, temperature_K=temperature_K,
+        reactor_type=reactor_type, execution=execution)
+    case, metadata, input_file = run['case'], run['metadata'], run['input_file']
+    physical_case = run['physical_case']
+    result = {
+        'schema_version': 1,
+        'valid': True,
+        'tier': SCREENING_TIER,
+        'calibrated': False,
+        'candidate_exclusion_authorized': False,
+        'candidate_id': candidate_id,
+        'pathway_mode': mode,
+        'reactor_type': reactor_type,
+        'temperature_K': float(temperature_K),
+        'outputs': outputs,
+        'convergence': convergence,
+        'backend_solvers': run['versions'],
+        'solver_coupling': metadata['solver_coupling'],
+        'mechanism': metadata.get('mechanism'),
+        'case_dir': str(case),
+        'input_sha256': run['input_digest'],
+        'moose_input_sha256': sha256(input_file) if input_file else None,
+        'hydrodynamic_handoff': run['handoff'],
+        'observed_coupling_iterations': run['observed_coupling'],
+        'kinetics_source': physical_case['kinetics']['source'],
+        'feed_source': physical_case['feed']['source'],
+        'limitations': ['uncalibrated_representative_operating_point',
+                        'no_holdout_validation'],
+    }
+    if reactor_type == 'Electrochemical':
+        result['electrolyte_phase'] = metadata.get(
+            'electrolyte_phase', physical_case.get('electrolyte_phase'))
+    (case / SCREENING_RESULT).write_text(
+        json.dumps(result, indent=1, sort_keys=True) + '\n')
+    return result
 
 
 def main() -> None:

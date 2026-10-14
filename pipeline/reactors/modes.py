@@ -135,6 +135,30 @@ REACTOR_MODELS = {
     ),
 }
 
+# Default reactor temperature grids [K]. Thermal pathways keep the broad
+# pyrolysis screening points plus the 923-973 K Ni judge band. NTEC is a
+# low-temperature liquid-metal process, and the electrochemical grid gives one
+# aqueous (< 600 K, sub-critical water) and one molten-electrolyte point.
+THERMAL_REACTOR_TEMPERATURES_K: tuple[float, ...] = (
+    773.15, 900.0, 923.15, 973.15, 1100.0, 1300.0)
+MODE_REACTOR_TEMPERATURES_K: dict[str, tuple[float, ...]] = {
+    'ntec': (423.15, 473.15),
+    'electrochemical': (353.15, 823.15),
+}
+
+
+def reactor_temperatures_for_mode(mode: str | None) -> tuple[float, ...]:
+    """Return the default reactor temperature grid for a pathway mode.
+
+    Args:
+        mode: Configured methane-conversion pathway.
+
+    Returns:
+        Ordered absolute temperatures in kelvin.
+    """
+    name = resolve_pathway_mode(mode).name
+    return MODE_REACTOR_TEMPERATURES_K.get(name, THERMAL_REACTOR_TEMPERATURES_K)
+
 
 def resolve_pathway_mode(mode: str | None) -> PathwayMode:
     """Return a validated mode definition; absent mode means thermocatalytic.

@@ -2,7 +2,14 @@
 
 These modes consume validated multiphysics outputs.  They deliberately return
 non-excluding validation requirements when those outputs are unavailable.
+When only an uncalibrated MOOSE+Cantera screening record exists
+(``config.screening_multiphysics``) they report it as a complete but
+explicitly ``uncalibrated_multiphysics_screening`` result that can never
+exclude a candidate; a validated artifact always takes precedence.
 """
+
+SCREENING_TIER = 'uncalibrated_multiphysics_screening'
+SCREENING_LIMITATIONS = ['uncalibrated_representative_operating_point']
 
 from typing import Protocol
 
@@ -13,6 +20,7 @@ class ElectrochemicalReactorConfig(Protocol):
     """Configuration fields required by electrochemical pathway adapters."""
 
     multiphysics_artifact: dict | None
+    screening_multiphysics: dict | None
     catalyst_name: str
     candidate_id: str
     T_inlet_K: float
@@ -78,6 +86,20 @@ def simulate_ntec_pathway(config: ElectrochemicalReactorConfig) -> ReactorResult
             'multiphysics_evidence': evidence,
             'reactor_evidence_tier': 'calibrated_multiphysics_screening',
         }
+    if getattr(config, 'screening_multiphysics', None):
+        screening = config.screening_multiphysics
+        outputs = screening['outputs']
+        return {
+            **_pathway_result(config, 'NTEC', 'ntec', complete=True),
+            **{name: float(outputs[name]) for name in (
+                'CH4_conversion', 'H2_selectivity', 'solid_C_selectivity',
+                'specific_energy_kWh_kg_H2')},
+            'ntec_assistance': assistance,
+            'multiphysics_screening': screening,
+            'reactor_evidence_tier': SCREENING_TIER,
+            'can_exclude_candidate': False,
+            'limitations': list(SCREENING_LIMITATIONS),
+        }
     if config.native_ntec_parameters:
         from pipeline.electrochemistry.native_models import ntec_screening_point
         diagnostic = ntec_screening_point(config.native_ntec_parameters)
@@ -140,6 +162,31 @@ def simulate_electrochemical_pathway(
             'electrochemical_evidence': evidence,
             'multiphysics_evidence': solver_evidence,
             'reactor_evidence_tier': 'mechanistic_multiphysics_screening',
+        }
+    if getattr(config, 'screening_multiphysics', None):
+        screening = config.screening_multiphysics
+        outputs = screening['outputs']
+        return {
+            **_pathway_result(
+                config, 'Electrochemical', 'electrochemical', complete=True
+            ),
+            'electrolyte_phase': screening.get('electrolyte_phase', phase),
+            **{
+                name: float(outputs[name])
+                for name in (
+                    'CH4_conversion',
+                    'H2_selectivity',
+                    'faradaic_efficiency_H2',
+                    'current_density_A_cm2',
+                    'cell_voltage_V',
+                    'electrical_power_density_W_cm2',
+                )
+            },
+            'electrochemical_evidence': evidence,
+            'multiphysics_screening': screening,
+            'reactor_evidence_tier': SCREENING_TIER,
+            'can_exclude_candidate': False,
+            'limitations': list(SCREENING_LIMITATIONS),
         }
     if config.native_electrochemical_parameters:
         from pipeline.electrochemistry.native_models import electrochemical_screening_point

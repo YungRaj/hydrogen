@@ -122,6 +122,9 @@ class ReactorConfig:
     multiphysics_artifact: Optional[dict] = None
     closure_features: Optional[dict] = None
     reactor_closure_evidence: Optional[dict] = None
+    # Uncalibrated NTEC/electrochemical MOOSE+Cantera screening record
+    # (pipeline.simulation.screening_cases); never authorizes exclusion.
+    screening_multiphysics: Optional[dict] = None
     max_residence_time_s: float = 60.0
     catalyst_E_act_eV: float = 0.8
     catalyst_dE_H_eV: float = 0.0
