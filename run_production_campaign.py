@@ -107,7 +107,7 @@ def _build_parser() -> argparse.ArgumentParser:
                         help='After class floors, reserve every Nth leaf for the least-covered class')
     parser.add_argument('--branch-priority-refresh', type=int, default=10000,
                         help='Re-score up to this many pending nodes when resuming')
-    parser.add_argument('--expected-space-size', type=int, default=21_092_645_031,
+    parser.add_argument('--expected-space-size', type=int, default=21_092_657_271,
                         help='Fail if the indexed population denominator differs')
     parser.add_argument('--results-dir', default='results',
                         help='Isolated output root for this campaign (default: results)')
@@ -224,24 +224,25 @@ def _configure_environment(args: argparse.Namespace):
 
 
 def _load_hf_token() -> None:
-    """Load the HuggingFace token (env, saved file, or prompt) for OC20 models."""
-    hf_token = os.environ.get('HF_TOKEN', '')
-    token_file = REPO_DIR / '.hf_token'
-    if not hf_token and token_file.exists():
-        hf_token = token_file.read_text().strip()
-    if not hf_token and sys.stdin.isatty():
-        print("\n  ⚡ HuggingFace token needed for OC20 surface models (eSen/UMA)")
+    """Load the HuggingFace token needed for the gated eSEN surface model.
+
+    Uses the environment, ``$HF_HOME/token`` or the repo ``.hf_token``; prompts
+    only on an interactive terminal; and fails fast otherwise, because
+    screening has no non-gated fallback model.
+    """
+    from pipeline.screening.surface_calculator import _ensure_hf_token
+
+    if not _ensure_hf_token() and sys.stdin.isatty():
+        print("\n  HuggingFace token needed for the eSEN OC25 surface model")
         print("    Get one at: https://huggingface.co/settings/tokens")
-        hf_token = input("  Enter HF token (or press Enter to skip): ").strip()
-    if hf_token:
-        os.environ['HF_TOKEN'] = hf_token
-        # Save for future runs
-        if not token_file.exists():
-            token_file.write_text(hf_token)
-            token_file.chmod(0o600)
-        print(f"  ✓ HuggingFace token loaded (surface models enabled)")
-    else:
-        print(f"  ⚠ No HF token — using MACE-MP-0 (bulk model) only")
+        token = input("  Enter HF token: ").strip()
+        if token:
+            os.environ['HF_TOKEN'] = token
+    if not os.environ.get('HF_TOKEN'):
+        raise SystemExit(
+            'No HuggingFace token: set HF_TOKEN or run `huggingface-cli login` '
+            '(writes $HF_HOME/token); eSEN screening cannot run without it')
+    print("  ✓ HuggingFace token loaded (eSEN surface model enabled)")
 
 
 def _check_design_space(args: argparse.Namespace) -> None:

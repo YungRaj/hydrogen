@@ -1792,7 +1792,7 @@ def test_readme_matches_branch_only_contract():
     from pathlib import Path
 
     readme = (REPO_ROOT / 'README.md').read_text()
-    assert '21,092,645,031' in readme
+    assert '21,092,657,271' in readme
     assert 'Deterministic Branch-and-Bound Discovery' in readme
     assert '--calibration-probes' in readme
     assert '--branch-leaf-size' in readme

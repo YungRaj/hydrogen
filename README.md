@@ -321,10 +321,10 @@ scientific acceptance rules.
 
 ## Design Space
 
-**21,092,645,031** (21.1 billion) raw encoded Cartesian configurations across
+**21,092,657,271** (21.1 billion) raw encoded Cartesian configurations across
 14 material classes. Explicit representational equivalences—such as swapped
 solid-catalyst dopant pairs, zero-loading promoter identities, and zero-fraction
-perovskite dopants—collapse this to **10,815,793,768 canonical identities**
+perovskite dopants—collapse this to **10,815,804,808 canonical identities**
 before physical-admissibility checks.
 
 The raw count remains the exact addressable denominator used by the indexed
@@ -340,7 +340,7 @@ redundant Cartesian combinations as rejected rather than silently removing them.
 | **MetalHydride** | 796,068 | 767,637 | Hydride families, secondary metals, additives, and temperatures |
 | **Perovskite** | 449,280 | 395,200 | ABO₃ choices with dopant fractions and defect types |
 | **DAC** | 155,952 | 155,952 | Dual-atom metal pairs, coordination environments, and substrates |
-| **MoltenMetal** | 134,640 | 121,440 | Low-melting hosts, promoters, concentrations, and temperatures |
+| **MoltenMetal** | 146,880 | 132,480 | Low-melting hosts, promoters, concentrations, and temperatures |
 | **MOF** | 112,047 | 112,047 | Metal nodes, organic linkers, cavities, and pore sizes |
 | **COF** | 81,120 | 81,120 | Metals, covalent linkages, cavities, and pore sizes |
 | **SAC** | 55,404 | 55,404 | Single atoms, coordinations, substrates, and axial ligands |
@@ -1554,8 +1554,8 @@ The certificate verifies that terminal intervals form a gap-free, non-overlappin
 partition of all 14 indexed class ranges; every `scanned` leaf has a completed
 resume cursor; and every `pruned` leaf has a rechecked all-members-fail hard-rule
 proof. `complete` becomes true only when the terminal population equals exactly
-**21,092,645,031** and no unresolved leaf remains. The production command defaults
-to `--expected-space-size 21092645031` and stops on any denominator mismatch. In
+**21,092,657,271** and no unresolved leaf remains. The production command defaults
+to `--expected-space-size 21092657271` and stops on any denominator mismatch. In
 particular, labeling the present repository population as 25.3B now produces an
 error rather than a false exhaustive-coverage claim.
 

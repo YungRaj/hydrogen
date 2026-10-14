@@ -313,10 +313,10 @@ never weakens a scientific gate.
 ### 5.1 What the number means
 
 `pipeline/search/design_space.py::estimate_design_space_size` computes the
-raw Cartesian population. The current declared total is **21,092,645,031 raw
+raw Cartesian population. The current declared total is **21,092,657,271 raw
 encoded configurations** across 14 classes. Some encodings represent the same
 canonical chemistry—for example, ordering a dopant pair in two ways—so the
-design-space audit also reports **10,815,793,768 canonical identities**.
+design-space audit also reports **10,815,804,808 canonical identities**.
 
 The raw total is the coverage denominator. Invalid or redundant Cartesian
 entries are recorded with explicit rejection reasons; they do not disappear

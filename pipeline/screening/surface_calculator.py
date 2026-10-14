@@ -58,16 +58,28 @@ def _verify_checkpoint(path: Path) -> None:
 # CALCULATOR CONSTRUCTION
 # ═══════════════════════════════════════════════════════════════════════════════
 
+def _token_files() -> list[Path]:
+    """Token locations in priority order: HF cache standard, then repo file."""
+    hf_home = Path(os.environ.get('HF_HOME', Path.home() / '.cache' / 'huggingface'))
+    return [hf_home / 'token', BASE_DIR / '.hf_token']
+
+
 def _ensure_hf_token():
-    """Load HuggingFace token from .hf_token file or env var."""
-    if os.environ.get('HF_TOKEN'):
-        return True
-    token_file = BASE_DIR / '.hf_token'
-    if token_file.exists():
-        token = token_file.read_text().strip()
-        if token:
-            os.environ['HF_TOKEN'] = token
+    """Load the HuggingFace token from the environment or a token file.
+
+    Checks ``HF_TOKEN``/``HUGGING_FACE_HUB_TOKEN``, then ``$HF_HOME/token``
+    (where ``huggingface-cli login`` writes it), then the repo ``.hf_token``.
+    """
+    for name in ('HF_TOKEN', 'HUGGING_FACE_HUB_TOKEN'):
+        if os.environ.get(name):
+            os.environ['HF_TOKEN'] = os.environ[name]
             return True
+    for token_file in _token_files():
+        if token_file.is_file():
+            token = token_file.read_text().strip()
+            if token:
+                os.environ['HF_TOKEN'] = token
+                return True
     return False
 
 
