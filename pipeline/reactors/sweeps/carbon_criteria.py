@@ -279,32 +279,23 @@ def _row_brief(record: Optional[dict]) -> Optional[dict]:
     }
 
 
-def evaluate_criteria(payloads: dict) -> dict:
-    """Score the five B6-6 gates on already-loaded run payloads.
+_PRODUCTION_PFR_923 = dict(cell='production', reactor='PFR', T_K=923.15, regen=0)
 
-    Returns:
-        Validated dict output for this operation.
-    """
-    records = _all_records(payloads)
-    flagged_overshoot = [
-        _row_brief(rec)
-        for rec in records
-        if is_complete(rec) and exceeds_equilibrium(rec)
-    ]
 
-    # Flat: |d ln X / d E_act| at production / PFR / 923 K / regen 0 / E=1.0.
-    eact_rows = select_records(
-        records, cell='production', reactor='PFR', T_K=923.15, regen=0
-    )
+def _kinetics_without(key: str) -> dict:
+    return {k: v for k, v in BASE_KINETICS.items() if k != key}
+
+
+def _flat_gate(records: list) -> dict:
+    """Flat: |d ln X / d E_act| at production / PFR / 923 K / regen 0 / E=1.0."""
     x_by_e = {}
-    for rec in eact_rows:
+    off_eact = _kinetics_without('E_act')
+    for rec in select_records(records, **_PRODUCTION_PFR_923):
         e_act = _finite(sweep_value(rec, 'E_act'))
         x = _finite(rec.get('CH4_conversion'))
         if e_act is None or x is None:
             continue
-        if match_kinetics(
-            rec, {k: v for k, v in BASE_KINETICS.items() if k != 'E_act'}
-        ):
+        if match_kinetics(rec, off_eact):
             x_by_e[round(e_act, 6)] = rec
     lo = x_by_e.get(FLAT_E_LO)
     hi = x_by_e.get(FLAT_E_HI)
@@ -312,7 +303,7 @@ def evaluate_criteria(payloads: dict) -> dict:
     slope = None
     if lo is not None and hi is not None:
         slope = d_lnX_d_Eact(float(lo['CH4_conversion']), float(hi['CH4_conversion']))
-    flat = {
+    return {
         'name': 'flat',
         'description': (
             '|d ln X / d E_act| at production PFR 923 K regen 0, '
@@ -327,29 +318,21 @@ def evaluate_criteria(payloads: dict) -> dict:
         'X_1.1': None if hi is None else hi.get('CH4_conversion'),
     }
 
-    # Linearity: turnovers on the two cells at identical base kinetics.
-    prod = select_records(
-        records,
-        cell='production',
-        reactor='PFR',
-        T_K=923.15,
-        regen=0,
-        kinetics=BASE_KINETICS,
-    )
-    large = select_records(
-        records,
-        cell='large_particle_ni',
-        reactor='PFR',
-        T_K=923.15,
-        regen=0,
-        kinetics=BASE_KINETICS,
-    )
-    t_prod = _finite(prod[0].get('carbon_turnovers_per_site')) if prod else None
-    t_large = _finite(large[0].get('carbon_turnovers_per_site')) if large else None
+
+def _linearity_gate(records: list) -> dict:
+    """Linearity: turnovers on the two cells at identical base kinetics."""
+    def turnovers(cell: str) -> Optional[float]:
+        rows = select_records(
+            records, **{**_PRODUCTION_PFR_923, 'cell': cell}, kinetics=BASE_KINETICS
+        )
+        return _finite(rows[0].get('carbon_turnovers_per_site')) if rows else None
+
+    t_prod = turnovers('production')
+    t_large = turnovers('large_particle_ni')
     rel = None
     if t_prod is not None and t_large is not None:
         rel = linearity_relative_diff(t_prod, t_large)
-    linearity = {
+    return {
         'name': 'linearity',
         'description': (
             '|turnovers_production - turnovers_large| / mean at identical '
@@ -362,51 +345,42 @@ def evaluate_criteria(payloads: dict) -> dict:
         'pass': bool(rel is not None and rel > LINEARITY_THRESHOLD),
     }
 
-    # Encapsulation onset: first scorable T (base kinetics) and first A_gamma
-    # (923 K, other knobs at base) where exit theta_encap >= 0.1; same for
-    # C_gamma/C_delta < 10.
-    def _onset_pred_theta(rec):
+
+def _onset_gate(records: list) -> dict:
+    """Encapsulation onset along the T axis and the A_gamma axis.
+
+    First scorable T (base kinetics) and first A_gamma (923 K, other knobs at
+    base) where exit theta_encap >= 0.1; same for C_gamma/C_delta < 10.
+    """
+    def theta_onset(rec):
         th = _finite(rec.get('exit_theta_C_encap'))
         return th is not None and th >= ENCAP_ONSET_THETA
 
-    def _onset_pred_ratio(rec):
+    def ratio_onset(rec):
         ratio = _finite(rec.get('c_gamma_to_c_delta_ratio'))
         return ratio is not None and ratio < ENCAP_ONSET_RATIO
 
     t_axis = select_records(
-        records,
-        cell='production',
-        reactor='PFR',
-        regen=0,
-        kinetics=BASE_KINETICS,
-        scorable_only=True,
+        records, cell='production', reactor='PFR', regen=0,
+        kinetics=BASE_KINETICS, scorable_only=True,
     )
     a_axis = select_records(
-        records,
-        cell='production',
-        reactor='PFR',
-        T_K=923.15,
-        regen=0,
-        kinetics={
-            k: v
-            for k, v in BASE_KINETICS.items()
-            if k != 'carbon_transfer_prefactor_1_s'
-        },
+        records, **_PRODUCTION_PFR_923,
+        kinetics=_kinetics_without('carbon_transfer_prefactor_1_s'),
         scorable_only=True,
     )
-    first_T = first_where(t_axis, _onset_pred_theta, lambda r: float(r['T_K']))
-    first_A = first_where(
-        a_axis,
-        _onset_pred_theta,
-        lambda r: float(sweep_value(r, 'carbon_transfer_prefactor_1_s')),
-    )
-    first_T_ratio = first_where(t_axis, _onset_pred_ratio, lambda r: float(r['T_K']))
-    first_A_ratio = first_where(
-        a_axis,
-        _onset_pred_ratio,
-        lambda r: float(sweep_value(r, 'carbon_transfer_prefactor_1_s')),
-    )
-    onset = {
+
+    def by_T(r):
+        return float(r['T_K'])
+
+    def by_A(r):
+        return float(sweep_value(r, 'carbon_transfer_prefactor_1_s'))
+
+    first_T = first_where(t_axis, theta_onset, by_T)
+    first_A = first_where(a_axis, theta_onset, by_A)
+    first_T_ratio = first_where(t_axis, ratio_onset, by_T)
+    first_A_ratio = first_where(a_axis, ratio_onset, by_A)
+    return {
         'name': 'encapsulation_onset',
         'description': (
             f'first T or A_gamma where exit theta_encap >= {ENCAP_ONSET_THETA}; '
@@ -420,18 +394,24 @@ def evaluate_criteria(payloads: dict) -> dict:
         'pass': bool(first_T is not None or first_A is not None),
     }
 
-    # Lifetime and yield: any scorable row in the literature band.
+
+def _band_gate(scorable: list, field: str, band: tuple) -> dict:
+    """Shared body of the lifetime/yield gates: any scorable row in ``band``."""
+    hits = [rec for rec in scorable if in_band(rec.get(field), *band)]
+    return {
+        'n_hits': len(hits),
+        'example': _row_brief(hits[0]) if hits else None,
+        'pass': bool(hits),
+    }
+
+
+def _lifetime_and_yield_gates(records: list) -> tuple[dict, dict]:
+    """Lifetime and yield: any scorable row in the literature band."""
     scorable = [rec for rec in records if is_scorable(rec)]
-    life_hits = [
-        rec
-        for rec in scorable
-        if in_band(rec.get('encapsulation_lifetime_h'), *NI_TOS_LIFETIME_BAND_H)
-    ]
-    yield_hits = [
-        rec
-        for rec in scorable
-        if in_band(rec.get('filament_yield_gC_per_gMetal_h'), *NI_FILAMENT_YIELD_BAND)
-    ]
+    life = _band_gate(scorable, 'encapsulation_lifetime_h', NI_TOS_LIFETIME_BAND_H)
+    yld = _band_gate(
+        scorable, 'filament_yield_gC_per_gMetal_h', NI_FILAMENT_YIELD_BAND
+    )
     lifetime = {
         'name': 'lifetime',
         'description': (
@@ -439,9 +419,7 @@ def evaluate_criteria(payloads: dict) -> dict:
             f'{NI_TOS_LIFETIME_BAND_H[0]:g}–{NI_TOS_LIFETIME_BAND_H[1]:g} h'
         ),
         'band_h': list(NI_TOS_LIFETIME_BAND_H),
-        'n_hits': len(life_hits),
-        'example': _row_brief(life_hits[0]) if life_hits else None,
-        'pass': bool(life_hits),
+        **life,
     }
     yield_crit = {
         'name': 'yield',
@@ -451,30 +429,46 @@ def evaluate_criteria(payloads: dict) -> dict:
             'gC/(gNi·h)'
         ),
         'band_gC_per_gNi_h': list(NI_FILAMENT_YIELD_BAND),
-        'n_hits': len(yield_hits),
-        'example': _row_brief(yield_hits[0]) if yield_hits else None,
-        'pass': bool(yield_hits),
+        **yld,
     }
+    return lifetime, yield_crit
 
-    criteria = [flat, linearity, onset, lifetime, yield_crit]
+
+def _sweep_counts(payloads: dict) -> dict:
+    counts = {}
+    for name in SWEEP_NAMES:
+        rows = (payloads.get(name) or {}).get('records') or []
+        counts[name] = {
+            'n_records': len(rows),
+            'n_complete': sum(1 for r in rows if is_complete(r)),
+            'n_overshoot': sum(
+                1 for r in rows if is_complete(r) and exceeds_equilibrium(r)
+            ),
+        }
+    return counts
+
+
+def evaluate_criteria(payloads: dict) -> dict:
+    """Score the five B6-6 gates on already-loaded run payloads.
+
+    Returns:
+        Validated dict output for this operation.
+    """
+    records = _all_records(payloads)
+    flagged_overshoot = [
+        _row_brief(rec)
+        for rec in records
+        if is_complete(rec) and exceeds_equilibrium(rec)
+    ]
+    criteria = [
+        _flat_gate(records),
+        _linearity_gate(records),
+        _onset_gate(records),
+        *_lifetime_and_yield_gates(records),
+    ]
     return {
         'schema_version': 1,
-        'sweeps': {
-            name: {
-                'n_records': len((payloads.get(name) or {}).get('records') or []),
-                'n_complete': sum(
-                    1
-                    for r in (payloads.get(name) or {}).get('records') or []
-                    if is_complete(r)
-                ),
-                'n_overshoot': sum(
-                    1
-                    for r in (payloads.get(name) or {}).get('records') or []
-                    if is_complete(r) and exceeds_equilibrium(r)
-                ),
-            }
-            for name in SWEEP_NAMES
-        },
+        'sweeps': _sweep_counts(payloads),
         'n_flagged_X_gt_Xeq': len(flagged_overshoot),
         'flagged_X_gt_Xeq_note': (
             'X > X_eq rows (typically 1300 K with fast C_gamma) are flagged '
