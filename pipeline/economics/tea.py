@@ -28,14 +28,21 @@ class TEAAssumptions:
 
 SCENARIOS = {
     'optimistic': TEAAssumptions(
-        2.50, 0.035, 7.0, 0.30, 1.00, 'screening-tea-v2:optimistic'
+        2.50, 0.035, 7.0, 0.30, 1.00, 'screening-tea-v3:optimistic'
     ),
-    'base': TEAAssumptions(3.50, 0.060, 8.5, 0.50, 0.80, 'screening-tea-v2:base'),
+    'base': TEAAssumptions(3.50, 0.060, 8.5, 0.50, 0.80, 'screening-tea-v3:base'),
     'conservative': TEAAssumptions(
-        6.00, 0.120, 12.0, 1.20, 0.20, 'screening-tea-v2:conservative'
+        6.00, 0.120, 12.0, 1.20, 0.20, 'screening-tea-v3:conservative'
     ),
 }
 
+
+# CH4 -> C + 2 H2: 16.04 g CH4 per 4.032 g H2, i.e. 3.98 kg CH4 per kg H2.
+# Priced on the HHV basis used for natural-gas $/MMBtu quotes
+# (55.5 MJ/kg CH4; 1 MMBtu = 1055.06 MJ): ~0.209 MMBtu per kg H2 at X = 1.
+# (v2 used 0.05 MMBtu/kg, about 4x too little feedstock.)
+KG_CH4_PER_KG_H2 = 16.043 / (2 * 2.016)
+MMBTU_CH4_PER_KG_H2 = KG_CH4_PER_KG_H2 * 55.5 / 1055.06
 
 def estimate_hydrogen_cost(conversion: float, scenario: str = 'base') -> dict:
     """Return an assumption-labelled screening estimate, never a measurement.
@@ -55,7 +62,7 @@ def estimate_hydrogen_cost(conversion: float, scenario: str = 'base') -> dict:
     conversion = float(conversion)
     energy = assumptions.base_energy_kwh_kg_h2 / conversion
     cost = (
-        assumptions.natural_gas_usd_mmbtu * 0.05 / conversion
+        assumptions.natural_gas_usd_mmbtu * MMBTU_CH4_PER_KG_H2 / conversion
         + energy * assumptions.electricity_usd_kwh
         + assumptions.capex_usd_kg_h2
         - assumptions.carbon_value_usd_kg_h2

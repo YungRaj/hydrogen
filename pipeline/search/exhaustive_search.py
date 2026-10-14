@@ -7,6 +7,7 @@ import json
 import multiprocessing as mp
 import sqlite3
 import time
+from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, List, Optional
@@ -514,6 +515,14 @@ def run_streaming_scan(
     if config.batch_size <= 0:
         raise ValueError("batch_size must be positive")
     conn = _connect(config.database)
+    try:
+        return _scan_range(conn, config, scorer)
+    finally:
+        conn.close()
+
+
+def _scan_range(conn, config: ScanConfig, scorer) -> dict:
+    """Body of :func:`run_streaming_scan` on an open, caller-owned connection."""
     _verify_policy(conn)
     next_index = _resume_index(conn, config)
     batches = processed_total = accepted_total = rejected_total = 0
@@ -585,7 +594,6 @@ def run_streaming_scan(
     global_count = conn.execute(
         "SELECT COUNT(*) FROM global_archive WHERE application=?", (config.application,)
     ).fetchone()[0]
-    conn.close()
     return {
         "application": config.application,
         "processed_this_run": processed_total,
@@ -614,7 +622,17 @@ def _merge_shard_archives(
 ) -> None:
     """Merge complete independent shard archives into the campaign database."""
     destination = _connect(config.database)
-    _verify_policy(destination)
+    try:
+        _verify_policy(destination)
+        _merge_shards_into(destination, config, shard_databases, aggregate_state_id)
+    finally:
+        destination.close()
+
+
+def _merge_shards_into(
+    destination: sqlite3.Connection, config: ScanConfig,
+    shard_databases: list[Path], aggregate_state_id: str,
+) -> None:
     table_specs = {
         'region_champions': (
             7,
@@ -662,7 +680,7 @@ def _merge_shard_archives(
     processed = accepted = rejected = 0
     digest = hashlib.sha256()
     for shard_path in sorted(shard_databases, key=str):
-        with _connect(str(shard_path)) as source:
+        with closing(_connect(str(shard_path))) as source:
             _verify_policy(source)
             progress = source.execute(
                 "SELECT processed, accepted, rejected FROM scan_progress "
@@ -670,7 +688,6 @@ def _merge_shard_archives(
                 (config.application,),
             ).fetchone()
             if progress is None:
-                destination.close()
                 raise RuntimeError(f'shard lacks progress: {shard_path}')
             processed += int(progress[0])
             accepted += int(progress[1])
@@ -686,13 +703,11 @@ def _merge_shard_archives(
                     f"SELECT * FROM {table} WHERE application=?", (config.application,)
                 ).fetchall()
                 if any(len(row) != width for row in rows):
-                    destination.close()
-                    raise RuntimeError(f'invalid {table} row width in {shard_path}')
+                        raise RuntimeError(f'invalid {table} row width in {shard_path}')
                 destination.executemany(statement, rows)
 
     expected = config.stop - config.start
     if processed != expected or accepted + rejected != processed:
-        destination.close()
         raise RuntimeError(
             f'shard coverage mismatch: processed={processed}, expected={expected}, '
             f'accepted={accepted}, rejected={rejected}'
@@ -766,7 +781,6 @@ def _merge_shard_archives(
         ),
     )
     destination.commit()
-    destination.close()
 
 
 def run_sharded_scan(
@@ -846,6 +860,67 @@ def run_sharded_scan(
     }
 
 
+def _archive_streams(conn, application: str, per_stream: int) -> list[list[str]]:
+    """Return genome streams ranked within one objective each.
+
+    Objective scores live on different scales (and some turquoise objectives
+    are constant), so they are never sorted against each other. Stream 0 is
+    the primary objective (global/region champions plus objective 0); each
+    further stream ranks one secondary objective. Constant objectives carry
+    no ranking information and are dropped.
+    """
+    primary = [row[0] for row in conn.execute(
+        """
+        SELECT genome, primary_score AS score FROM global_archive WHERE application=?
+        UNION ALL
+        SELECT genome, primary_score FROM region_champions WHERE application=?
+        UNION ALL
+        SELECT genome, objective_score FROM objective_archive
+          WHERE application=? AND objective_index=0
+        UNION ALL
+        SELECT genome, objective_score FROM regional_objective_champions
+          WHERE application=? AND objective_index=0
+        ORDER BY score ASC LIMIT ?
+    """,
+        (application, application, application, application, per_stream),
+    )]
+    streams = [primary]
+    objective_indices = [row[0] for row in conn.execute(
+        """
+        SELECT objective_index FROM objective_archive
+          WHERE application=? AND objective_index>0
+        UNION
+        SELECT objective_index FROM regional_objective_champions
+          WHERE application=? AND objective_index>0
+        ORDER BY objective_index
+    """,
+        (application, application),
+    )]
+    for objective_index in objective_indices:
+        rows = conn.execute(
+            """
+            SELECT genome, objective_score AS score FROM objective_archive
+              WHERE application=? AND objective_index=?
+            UNION ALL
+            SELECT genome, objective_score FROM regional_objective_champions
+              WHERE application=? AND objective_index=?
+            ORDER BY score ASC LIMIT ?
+        """,
+            (application, objective_index, application, objective_index, per_stream),
+        ).fetchall()
+        if rows and rows[0][1] != rows[-1][1]:
+            streams.append([row[0] for row in rows])
+    return streams
+
+
+def _round_robin(streams: list[list[str]]):
+    """Interleave ranked streams so each objective keeps an equal share."""
+    for position in range(max((len(stream) for stream in streams), default=0)):
+        for stream in streams:
+            if position < len(stream):
+                yield stream[position]
+
+
 def load_archive_genomes(
     database: str, application: str, limit: int = 10000
 ) -> List[tuple]:
@@ -859,23 +934,10 @@ def load_archive_genomes(
     Returns:
         List of computed or validated records.
     """
-    conn = _connect(database)
-    rows = conn.execute(
-        """
-        SELECT genome, primary_score FROM global_archive WHERE application=?
-        UNION ALL
-        SELECT genome, primary_score FROM region_champions WHERE application=?
-        UNION ALL
-        SELECT genome, objective_score FROM objective_archive WHERE application=?
-        UNION ALL
-        SELECT genome, objective_score FROM regional_objective_champions WHERE application=?
-        ORDER BY primary_score ASC LIMIT ?
-    """,
-        (application, application, application, application, limit * 8),
-    ).fetchall()
-    conn.close()
+    with closing(_connect(database)) as conn:
+        streams = _archive_streams(conn, application, limit * 8)
     result, seen = [], set()
-    for raw, _ in rows:
+    for raw in _round_robin(streams):
         genome = tuple(json.loads(raw))
         # Restore nested tuple fields used by encoders.
         if genome[0] in ("SolidCatalyst", "HEA"):
