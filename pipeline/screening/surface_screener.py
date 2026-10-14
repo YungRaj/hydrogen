@@ -475,6 +475,247 @@ def screening_adsorption_site(
     return base + distance * direction, direction
 
 
+_SLAB_FACETS = ('fcc111', 'fcc100', 'bcc110', 'hcp0001')
+_MILLER_FACETS = {'111': 'fcc111', '100': 'fcc100', '110': 'bcc110', '211': 'fcc111'}
+_MAX_FACETS = {'basal_0001': 'hcp0001', 'edge_1010': 'bcc110', 'edge_1120': 'fcc100'}
+_SPINEL_MORPHOLOGY_DEFECTS = {
+    'mesoporous': 'O_vacancy',
+    'hollow_sphere': 'A_vacancy',
+    'nanorod': 'B_vacancy',
+}
+_MXENE_TERMINATIONS = {
+    'OH': ['O', 'H'],
+    'O': ['O'],
+    'F': ['F'],
+    'Cl': ['Cl'],
+    'S': ['S'],
+    'mixed_OH_O': ['O', 'H', 'O'],
+    'mixed_OH_F': ['O', 'H', 'F'],
+    'bare': [],
+}
+_CARBON_N_CAVITIES = {
+    'pyridinic': 'N3C',
+    'pyrrolic': 'N4_pyrrole',
+    'graphitic': 'N4',
+    'oxidized': 'N3O',
+    'mixed_pyridinic_graphitic': 'N4C2',
+}
+
+
+def _slab_facet_key(facet: str) -> str:
+    """Map an extended facet label to an available slab builder facet."""
+    facet_key = facet.split('_')[0] if '_' in facet else facet
+    return facet_key if facet_key in _SLAB_FACETS else 'fcc111'
+
+
+def _top_layer_indices(slab: Atoms) -> list:
+    """Return indices of atoms within 3 angstrom of the slab top."""
+    z = slab.positions[:, 2]
+    return list(np.where(z > z.max() - 3.0)[0])
+
+
+def _build_supported_nanoparticle(genome, structure_seed):
+    _, metal, support, facet, diameter_nm, loading_wt_pct, dopants, n_sub, n_vac = genome
+    # The slab builder is the validated geometry path.  Particle size and
+    # loading remain explicit metadata while the support/active site are
+    # represented by the same supported-slab environment.
+    slab, top_idx = generate_alloy_slab(
+        metal, _slab_facet_key(facet), 0.0, tuple(dopants), int(n_sub), int(n_vac),
+        seed_key=genome, environment_label=support,
+    )
+    slab.info.update({
+        'particle_diameter_nm': float(diameter_nm),
+        'loading_wt_pct': float(loading_wt_pct),
+        'support': str(support),
+    })
+    return slab, top_idx
+
+
+def _build_solid_catalyst(genome, structure_seed):
+    _, metal, support, facet, strain, dopants, n_sub, n_vac = genome
+    return generate_alloy_slab(
+        metal, _slab_facet_key(facet), strain, dopants, n_sub, n_vac,
+        seed_key=genome, environment_label=support,
+    )
+
+
+def _build_molten_metal(genome, structure_seed):
+    _, host, promoter, at_pct, temp = genome
+    # Substitutions are confined to the 3 x 3 surface layer below. Scale
+    # against those nine sites, not all 36 slab atoms; the latter silently
+    # turns alloys above 25 at% into a fully promoted surface.
+    n_sub = max(1, round(at_pct / 100.0 * 9))
+    dopants = (promoter,) if promoter != 'None' else ()
+    thermal_strain = (float(temp) - 1000.0) * 1.0e-5
+    facet = 'hcp0001' if host in {'Mg', 'Zn', 'Cd'} else 'fcc111'
+    return generate_alloy_slab(
+        host, facet, thermal_strain, dopants, n_sub, 0,
+        seed_key=('MoltenMetal', host, promoter, float(at_pct), structure_seed),
+    )
+
+
+def _build_sac(genome, structure_seed):
+    cluster = generate_porphyrin_cluster(
+        genome[1], genome[2], substrate=genome[3], axial_ligand=genome[4]
+    )
+    return cluster, [0]
+
+
+def _build_dac(genome, structure_seed):
+    _, m1, m2, coord, substrate = genome
+    cluster = generate_porphyrin_cluster(m1, coord, substrate=substrate)
+    separation = 2.5
+    cluster[0].position[0] -= separation / 2.0
+    second = cluster[0].position.copy()
+    second[0] += separation
+    midpoint_x = 0.5 * (cluster[0].position[0] + second[0])
+    coordination_count = 8 if coord in ('N8', 'N4N4') else 6
+    # Push ligands that would collide with either metal out past the pair.
+    for index in range(1, 1 + coordination_count):
+        atom = cluster[index]
+        if min(
+            np.linalg.norm(atom.position - cluster[0].position),
+            np.linalg.norm(atom.position - second),
+        ) < 1.2:
+            atom.position[0] = (
+                second[0] + 2.0
+                if atom.position[0] >= midpoint_x
+                else cluster[0].position[0] - 2.0
+            )
+    cluster.append(Atom(m2, position=second))
+    return cluster, [0, len(cluster) - 1]
+
+
+def _build_framework(genome, structure_seed):
+    _, metal, linker, cavity, pore = genome
+    cluster = generate_porphyrin_cluster(
+        metal, cavity, substrate='framework', linker=linker, pore_size=pore
+    )
+    return cluster, [0]
+
+
+def _build_perovskite(genome, structure_seed):
+    # ABO₃ perovskite — simple cubic unit cell replicated as slab
+    _, A, B, dopant, frac, defect = genome
+    slab = _generate_perovskite_slab(A, B, dopant, frac, defect, seed_key=genome)
+    return slab, _top_layer_indices(slab)
+
+
+def _build_metal_hydride(genome, structure_seed):
+    # Metal hydride — metal + H in bulk-like slab
+    _, metal, h_type, second, additive, temp = genome
+    slab = _generate_hydride_slab(
+        metal, second, h_type=h_type, additive=additive,
+        temperature_K=temp, seed_key=genome,
+    )
+    return slab, _top_layer_indices(slab)
+
+
+def _build_max_phase(genome, structure_seed):
+    # M_{n+1}AX_n layered structure — model as M-slab with A/X interstitials
+    _, M, A, X, n_val, dopant, facet = genome
+    dopants = tuple(x for x in (A, dopant) if x != 'None')
+    slab, top_idx = generate_alloy_slab(
+        M, _MAX_FACETS.get(facet, 'hcp0001'), 0.0, dopants, min(len(dopants), 2), 0,
+        size=(3, 3, n_val + 1), seed_key=genome,
+    )
+    _add_surface_markers(slab, [X] * n_val)
+    return slab, top_idx
+
+
+def _build_hea(genome, structure_seed):
+    # High-entropy alloy — random substitution slab
+    _, components, structure, facet_str, temp = genome
+    host = components[0]
+    dopants = components[1:]
+    facet_key = {'bcc': 'bcc110', 'hcp': 'hcp0001'}.get(
+        structure, _MILLER_FACETS.get(facet_str, 'fcc111')
+    )
+    thermal_strain = (float(temp) - 1000.0) * 5.0e-6
+    if structure == 'amorphous':
+        thermal_strain += 0.003
+    elif structure == 'fcc_bcc_dual':
+        thermal_strain -= 0.003
+    return generate_alloy_slab(
+        host, facet_key, thermal_strain, dopants, min(len(dopants), 6), 0,
+        seed_key=genome,
+    )
+
+
+def _build_spinel(genome, structure_seed):
+    # AB₂O₄ spinel — model as B-metal oxide slab
+    _, A, B, dopant, morph, support = genome
+    slab = _generate_spinel_slab(
+        A, B, dopant, _SPINEL_MORPHOLOGY_DEFECTS.get(morph, 'none'), support,
+        seed_key=genome,
+    )
+    morphology_scale = 0.98 + 0.04 * _label_fraction(morph)
+    slab.set_cell(slab.cell * [morphology_scale, 1.0, 1.0], scale_atoms=True)
+    return slab, _top_layer_indices(slab)
+
+
+def _build_mxene(genome, structure_seed):
+    # 2D MXene — model as M-carbide/nitride slab
+    _, M, X_elem, n_val, term, sac_metal = genome
+    slab, top_idx = generate_alloy_slab(
+        M, 'hcp0001', 0.0, (sac_metal,) if sac_metal != 'None' else (), 1, 0,
+        size=(3, 3, n_val + 1), seed_key=genome,
+    )
+    x_symbols = list(('C', 'N') if X_elem == 'CN' else (X_elem,))
+    _add_surface_markers(slab, x_symbols * n_val + _MXENE_TERMINATIONS.get(term, []))
+    return slab, top_idx
+
+
+def _build_saa(genome, structure_seed):
+    # Single-atom alloy — host metal slab with trace substitution
+    _, trace, host, facet_str, loading = genome
+    # Loading controls the explicit surface-cell size: more dilute SAAs use
+    # a larger host cell around the single trace atom.
+    lateral = 4 if loading <= 100 else (3 if loading <= 1000 else 2)
+    slab, top_idx = generate_alloy_slab(
+        host, _MILLER_FACETS.get(facet_str, 'fcc111'), 0.0, (trace,), 1, 0,
+        size=(lateral, lateral, 4), seed_key=genome,
+    )
+    loading_scale = 1.0 + min(float(loading), 10000.0) * 1.0e-7
+    slab.set_cell(slab.cell * [loading_scale, loading_scale, 1.0], scale_atoms=True)
+    return slab, top_idx
+
+
+def _build_metal_free_carbon(genome, structure_seed):
+    # Metal-free N-doped carbon — model as N-graphene cluster
+    _, n_type, n_frac, defect, substrate, co_dop = genome
+    cluster = generate_porphyrin_cluster(
+        'N',
+        _CARBON_N_CAVITIES.get(n_type, 'N4'),
+        d_metal_n=1.8 + float(n_frac),
+        substrate=substrate,
+        linker=defect,
+        pore_size=8.0 + 20.0 * float(n_frac),
+    )
+    if co_dop.lower() != 'none':
+        _append_marker(cluster, co_dop, (2.5, 0.0, 0.5))
+    return cluster, [0]
+
+
+_STRUCTURE_BUILDERS = {
+    'SupportedNanoparticle': _build_supported_nanoparticle,
+    'SolidCatalyst': _build_solid_catalyst,
+    'MoltenMetal': _build_molten_metal,
+    'SAC': _build_sac,
+    'DAC': _build_dac,
+    'MOF': _build_framework,
+    'COF': _build_framework,
+    'Perovskite': _build_perovskite,
+    'MetalHydride': _build_metal_hydride,
+    'MAXPhase': _build_max_phase,
+    'HEA': _build_hea,
+    'Spinel': _build_spinel,
+    'MXene': _build_mxene,
+    'SAA': _build_saa,
+    'MetalFreeCarbon': _build_metal_free_carbon,
+}
+
+
 def generate_structure(
     genome: tuple, structure_seed: int = 0
 ) -> Tuple[Atoms, list, str]:
@@ -487,261 +728,11 @@ def generate_structure(
         structure_seed: Deterministic structural replica index.
     """
     mat_class = genome[0]
-
-    if mat_class == 'SupportedNanoparticle':
-        _, metal, support, facet, diameter_nm, loading_wt_pct, dopants, n_sub, n_vac = genome
-        facet_key = facet.split('_')[0] if '_' in facet else facet
-        if facet_key not in ('fcc111', 'fcc100', 'bcc110', 'hcp0001'):
-            facet_key = 'fcc111'
-        # The slab builder is the validated geometry path.  Particle size and
-        # loading remain explicit metadata while the support/active site are
-        # represented by the same supported-slab environment.
-        slab, top_idx = generate_alloy_slab(
-            metal, facet_key, 0.0, tuple(dopants), int(n_sub), int(n_vac),
-            seed_key=genome, environment_label=support,
-        )
-        slab.info.update({
-            'particle_diameter_nm': float(diameter_nm),
-            'loading_wt_pct': float(loading_wt_pct),
-            'support': str(support),
-        })
-        return slab, top_idx, mat_class
-
-    if mat_class == 'SolidCatalyst':
-        _, metal, support, facet, strain, dopants, n_sub, n_vac = genome
-        # Map extended facets to available builders
-        facet_key = facet.split('_')[0] if '_' in facet else facet
-        if facet_key not in ('fcc111', 'fcc100', 'bcc110', 'hcp0001'):
-            facet_key = 'fcc111'  # default fallback
-        slab, top_idx = generate_alloy_slab(
-            metal,
-            facet_key,
-            strain,
-            dopants,
-            n_sub,
-            n_vac,
-            seed_key=genome,
-            environment_label=support,
-        )
-        return slab, top_idx, mat_class
-
-    elif mat_class == 'MoltenMetal':
-        _, host, promoter, at_pct, temp = genome
-        # Substitutions are confined to the 3 x 3 surface layer below. Scale
-        # against those nine sites, not all 36 slab atoms; the latter silently
-        # turns alloys above 25 at% into a fully promoted surface.
-        n_sub = max(1, round(at_pct / 100.0 * 9))
-        dopants = (promoter,) if promoter != 'None' else ()
-        thermal_strain = (float(temp) - 1000.0) * 1.0e-5
-        facet = 'hcp0001' if host in {'Mg', 'Zn', 'Cd'} else 'fcc111'
-        slab, top_idx = generate_alloy_slab(
-            host,
-            facet,
-            thermal_strain,
-            dopants,
-            n_sub,
-            0,
-            seed_key=('MoltenMetal', host, promoter, float(at_pct), structure_seed),
-        )
-        return slab, top_idx, mat_class
-
-    elif mat_class in ('SAC', 'DAC'):
-        if mat_class == 'SAC':
-            metal = genome[1]
-            coord = genome[2]
-            substrate = genome[3]
-            axial = genome[4]
-            cluster = generate_porphyrin_cluster(
-                metal, coord, substrate=substrate, axial_ligand=axial
-            )
-        else:
-            _, m1, m2, coord, substrate = genome
-            cluster = generate_porphyrin_cluster(m1, coord, substrate=substrate)
-            separation = 2.5
-            cluster[0].position[0] -= separation / 2.0
-            second = cluster[0].position.copy()
-            second[0] += separation
-            midpoint_x = 0.5 * (cluster[0].position[0] + second[0])
-            coordination_count = 8 if coord in ('N8', 'N4N4') else 6
-            for index in range(1, 1 + coordination_count):
-                atom = cluster[index]
-                if min(
-                    np.linalg.norm(atom.position - cluster[0].position),
-                    np.linalg.norm(atom.position - second),
-                ) < 1.2:
-                    atom.position[0] = (
-                        second[0] + 2.0
-                        if atom.position[0] >= midpoint_x
-                        else cluster[0].position[0] - 2.0
-                    )
-            cluster.append(Atom(m2, position=second))
-            return cluster, [0, len(cluster) - 1], mat_class
-        return cluster, [0], mat_class
-
-    elif mat_class in ('MOF', 'COF'):
-        _, metal, linker, cavity, pore = genome
-        cluster = generate_porphyrin_cluster(
-            metal, cavity, substrate='framework', linker=linker, pore_size=pore
-        )
-        return cluster, [0], mat_class
-
-    elif mat_class == 'Perovskite':
-        # ABO₃ perovskite — simple cubic unit cell replicated as slab
-        _, A, B, dopant, frac, defect = genome
-        slab = _generate_perovskite_slab(A, B, dopant, frac, defect, seed_key=genome)
-        z = slab.positions[:, 2]
-        top_idx = list(np.where(z > z.max() - 3.0)[0])
-        return slab, top_idx, mat_class
-
-    elif mat_class == 'MetalHydride':
-        # Metal hydride — metal + H in bulk-like slab
-        _, metal, h_type, second, additive, temp = genome
-        slab = _generate_hydride_slab(
-            metal,
-            second,
-            h_type=h_type,
-            additive=additive,
-            temperature_K=temp,
-            seed_key=genome,
-        )
-        z = slab.positions[:, 2]
-        top_idx = list(np.where(z > z.max() - 3.0)[0])
-        return slab, top_idx, mat_class
-
-    elif mat_class == 'MAXPhase':
-        # M_{n+1}AX_n layered structure — model as M-slab with A/X interstitials
-        _, M, A, X, n_val, dopant, facet = genome
-        facet_map = {
-            'basal_0001': 'hcp0001',
-            'edge_1010': 'bcc110',
-            'edge_1120': 'fcc100',
-        }
-        dopants = tuple(x for x in (A, dopant) if x != 'None')
-        slab, top_idx = generate_alloy_slab(
-            M,
-            facet_map.get(facet, 'hcp0001'),
-            0.0,
-            dopants,
-            min(len(dopants), 2),
-            0,
-            size=(3, 3, n_val + 1),
-            seed_key=genome,
-        )
-        _add_surface_markers(slab, [X] * n_val)
-        return slab, top_idx, mat_class
-
-    elif mat_class == 'HEA':
-        # High-entropy alloy — random substitution FCC slab
-        _, components, structure, facet_str, temp = genome
-        host = components[0]
-        dopants = components[1:]
-        facet_map = {'111': 'fcc111', '100': 'fcc100', '110': 'bcc110', '211': 'fcc111'}
-        facet_key = facet_map.get(facet_str, 'fcc111')
-        if structure == 'bcc':
-            facet_key = 'bcc110'
-        elif structure == 'hcp':
-            facet_key = 'hcp0001'
-        n_sub = min(len(dopants), 6)
-        thermal_strain = (float(temp) - 1000.0) * 5.0e-6
-        if structure == 'amorphous':
-            thermal_strain += 0.003
-        elif structure == 'fcc_bcc_dual':
-            thermal_strain -= 0.003
-        slab, top_idx = generate_alloy_slab(
-            host, facet_key, thermal_strain, dopants, n_sub, 0, seed_key=genome
-        )
-        return slab, top_idx, mat_class
-
-    elif mat_class == 'Spinel':
-        # AB₂O₄ spinel — model as B-metal oxide slab
-        _, A, B, dopant, morph, support = genome
-        morphology_defect = {
-            'mesoporous': 'O_vacancy',
-            'hollow_sphere': 'A_vacancy',
-            'nanorod': 'B_vacancy',
-        }.get(morph, 'none')
-        slab = _generate_spinel_slab(
-            A, B, dopant, morphology_defect, support, seed_key=genome
-        )
-        morphology_scale = 0.98 + 0.04 * _label_fraction(morph)
-        slab.set_cell(slab.cell * [morphology_scale, 1.0, 1.0], scale_atoms=True)
-        z = slab.positions[:, 2]
-        top_idx = list(np.where(z > z.max() - 3.0)[0])
-        return slab, top_idx, mat_class
-
-    elif mat_class == 'MXene':
-        # 2D MXene — model as M-carbide/nitride slab
-        _, M, X_elem, n_val, term, sac_metal = genome
-        slab, top_idx = generate_alloy_slab(
-            M,
-            'hcp0001',
-            0.0,
-            (sac_metal,) if sac_metal != 'None' else (),
-            1,
-            0,
-            size=(3, 3, n_val + 1),
-            seed_key=genome,
-        )
-        x_symbols = list(('C', 'N') if X_elem == 'CN' else (X_elem,))
-        term_symbols = {
-            'OH': ['O', 'H'],
-            'O': ['O'],
-            'F': ['F'],
-            'Cl': ['Cl'],
-            'S': ['S'],
-            'mixed_OH_O': ['O', 'H', 'O'],
-            'mixed_OH_F': ['O', 'H', 'F'],
-            'bare': [],
-        }.get(term, [])
-        _add_surface_markers(slab, x_symbols * n_val + term_symbols)
-        return slab, top_idx, mat_class
-
-    elif mat_class == 'SAA':
-        # Single-atom alloy — host metal slab with trace substitution
-        _, trace, host, facet_str, loading = genome
-        facet_map = {'111': 'fcc111', '100': 'fcc100', '110': 'bcc110', '211': 'fcc111'}
-        facet_key = facet_map.get(facet_str, 'fcc111')
-        # Loading controls the explicit surface-cell size: more dilute SAAs use
-        # a larger host cell around the single trace atom.
-        lateral = 4 if loading <= 100 else (3 if loading <= 1000 else 2)
-        slab, top_idx = generate_alloy_slab(
-            host,
-            facet_key,
-            0.0,
-            (trace,),
-            1,
-            0,
-            size=(lateral, lateral, 4),
-            seed_key=genome,
-        )
-        loading_scale = 1.0 + min(float(loading), 10000.0) * 1.0e-7
-        slab.set_cell(slab.cell * [loading_scale, loading_scale, 1.0], scale_atoms=True)
-        return slab, top_idx, mat_class
-
-    elif mat_class == 'MetalFreeCarbon':
-        # Metal-free N-doped carbon — model as N-graphene cluster
-        _, n_type, n_frac, defect, substrate, co_dop = genome
-        cavity = {
-            'pyridinic': 'N3C',
-            'pyrrolic': 'N4_pyrrole',
-            'graphitic': 'N4',
-            'oxidized': 'N3O',
-            'mixed_pyridinic_graphitic': 'N4C2',
-        }.get(n_type, 'N4')
-        cluster = generate_porphyrin_cluster(
-            'N',
-            cavity,
-            d_metal_n=1.8 + float(n_frac),
-            substrate=substrate,
-            linker=defect,
-            pore_size=8.0 + 20.0 * float(n_frac),
-        )
-        if co_dop.lower() != 'none':
-            _append_marker(cluster, co_dop, (2.5, 0.0, 0.5))
-        return cluster, [0], mat_class
-
-    else:
+    builder = _STRUCTURE_BUILDERS.get(mat_class) if isinstance(mat_class, str) else None
+    if builder is None:
         raise ValueError(f"Unknown material class: {mat_class}")
+    atoms, active_indices = builder(genome, structure_seed)
+    return atoms, active_indices, mat_class
 
 
 def _generate_perovskite_slab(
