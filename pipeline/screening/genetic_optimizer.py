@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
+import numpy as np
 import pandas as pd
 
 from pipeline.search.design_space import extract_elements as _extract_elements_from_genome
@@ -81,6 +82,40 @@ def run_branch_discovery(
     return run_guided_branch_discovery(config, workflow, existing_db)
 
 
+def _required_finite(row, field: str) -> float:
+    """Return a finite numeric screening field or raise ``ValueError``."""
+    value = row.get(field)
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f'screening row lacks numeric {field}') from None
+    if not np.isfinite(number):
+        raise ValueError(f'screening row lacks finite {field}')
+    return number
+
+
+def _full_simulation_outcome(result: dict) -> dict:
+    """Score a PFR result, demoting physically inconsistent rows.
+
+    A conversion above equilibrium or a failed carbon balance is never a
+    complete (rankable) result; the flags are kept as diagnostic columns.
+    """
+    from pipeline.reactors.eligibility import is_usable_result
+
+    score = result.get('CH4_conversion')
+    status = str(result.get('status', 'validation_required'))
+    if status == 'complete' and not is_usable_result(result):
+        status = 'validation_required'
+    usable = status == 'complete' and score is not None
+    return {
+        'full_simulation_score': float(1.0 - score) if usable else float('nan'),
+        'full_simulation_status': status,
+        'full_simulation_exceeds_equilibrium': bool(result.get('exceeds_equilibrium')),
+        'full_simulation_carbon_balance_ok': result.get('carbon_balance_ok'),
+        'full_simulation_off_site_carbon_active': result.get('off_site_carbon_active'),
+    }
+
+
 def _thermal_full_simulator(
     genomes: list[tuple], screening: pd.DataFrame
 ) -> pd.DataFrame:
@@ -128,14 +163,13 @@ def _thermal_full_simulator(
                     reactor_type='PFR', pathway_mode='thermocatalytic_pfr',
                     mechanism_file=str(mechanism), catalyst_name=candidate_name,
                     candidate_id=candidate_name, material_class=str(row['material_class']),
-                    T_inlet_K=float(row.get('temperature_K', 1000.0)),
-                    catalyst_E_act_eV=float(row['E_act_raw']),
-                    catalyst_dE_H_eV=float(row.get('dE_H', 0.0)),
+                    # No silent defaults: a missing screening temperature or
+                    # H binding energy makes the row validation_required.
+                    T_inlet_K=_required_finite(row, 'temperature_K'),
+                    catalyst_E_act_eV=_required_finite(row, 'E_act_raw'),
+                    catalyst_dE_H_eV=_required_finite(row, 'dE_H'),
                 ))
-                score = result.get('CH4_conversion')
-                rows.append({'genome': key, 'full_simulation_score':
-                             float(1.0 - score) if score is not None else float('nan'),
-                             'full_simulation_status': str(result.get('status', 'validation_required'))})
+                rows.append({'genome': key, **_full_simulation_outcome(result)})
             except (KeyError, TypeError, ValueError, RuntimeError, OSError) as exc:
                 rows.append({'genome': key, 'full_simulation_score': float('nan'),
                              'full_simulation_status': 'validation_required',

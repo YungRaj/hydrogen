@@ -151,6 +151,27 @@ def validate_pilot_budget(config: BranchDiscoveryConfig) -> None:
             raise ValueError(f'pilot {name}={value} exceeds budget {limit}')
 
 
+# Columns that class_success_probability reads to steer selection.
+THERMAL_STEERING_COLUMNS = ('full_simulation_score', 'full_simulation_status')
+
+
+def _gate_thermal_steering(simulation: pd.DataFrame) -> pd.DataFrame:
+    """Keep thermal PFR scores diagnostic-only until B5 closure is accepted.
+
+    Before ``B5_ACCEPTED`` the score/status columns are renamed so they are
+    recorded with the evidence but cannot steer class feedback (which then
+    falls back to screening ``E_act``).
+    """
+    from pipeline.reactors.scorecard import B5_ACCEPTED
+
+    if B5_ACCEPTED:
+        return simulation
+    return simulation.rename(columns={
+        column: column.replace('full_simulation_', 'thermal_diagnostic_')
+        for column in THERMAL_STEERING_COLUMNS
+    })
+
+
 def run_guided_branch_discovery(
     config: BranchDiscoveryConfig,
     workflow: BranchDiscoveryWorkflow,
@@ -283,7 +304,8 @@ def run_guided_branch_discovery(
                 + ', '.join(sorted(missing))
             )
         validated = validated.merge(
-            simulation[list(required)], on='genome', how='left', validate='one_to_one'
+            _gate_thermal_steering(simulation), on='genome', how='left',
+            validate='one_to_one',
         )
     validated = advancement_scorecard(validated, workflow.advancement_criteria)
     predicted_mean, _ = model.predict(validation_genomes)

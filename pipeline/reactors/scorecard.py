@@ -21,6 +21,10 @@ DEFAULT_HEADLINE_T_MIN = 1200.0
 NI_JUDGE_HEADLINE_T_MIN = 923.15
 NI_JUDGE_HEADLINE_T_MAX = 973.15
 NI_JUDGE_CATALYST = 'ni_np_lit'
+# B5 closure: solids conversion has no authority to rank catalysts until the
+# supported-Ni reference passes at 650–700 °C with off-site carbon on and the
+# B6-6 A_gamma / theta* sweeps are accepted. Flip only with that evidence.
+B5_ACCEPTED = False
 
 
 def is_h_parked(record: dict) -> bool:
@@ -260,7 +264,7 @@ def build_solids_scorecard(
         ),
         'headline': headline,
         'headline_solids_conversion': judge_x,
-        'ranking_authority': False,
+        'ranking_authority': B5_ACCEPTED,
         'solids_max_excluding_h_parked': None,
         'h_parked_excluded': h_parked,
         'mmbcr_max_conversion': mmbcr_max,

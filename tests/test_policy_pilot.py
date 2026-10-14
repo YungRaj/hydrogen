@@ -28,9 +28,10 @@ def test_policy_pilot_reports_all_policy_cohorts(tmp_path, monkeypatch):
     result = policy_pilot.compare_policies(source, cohort_size=2, draws=10)
     assert result['status'] == 'retrospective_pilot'
     assert set(result['mean_score_lower_is_better']) == {
-        'random', 'eSen', 'thermal', 'uncertainty', 'validity'
+        'random', 'eSen', 'thermal_oracle_ceiling', 'uncertainty', 'validity'
     }
     assert result['cohort_size'] == 2
+    assert 'thermal_lift_vs_random' not in result
 
 
 def test_fresh_pool_novelty_ledger_excludes_previous_genomes(tmp_path, monkeypatch):

@@ -57,7 +57,10 @@ def compare_policies(
     cohorts = {
         'random': float(random_scores.mean()),
         'eSen': float(frame.nsmallest(size, 'E_act')['full_simulation_score'].mean()),
-        'thermal': float(
+        # Selected by the very score it is evaluated on: an upper bound for any
+        # thermal-guided policy, not a policy result. A fair thermal policy
+        # must be trained on earlier pools and scored on a fresh one.
+        'thermal_oracle_ceiling': float(
             frame.nsmallest(size, 'full_simulation_score')['full_simulation_score'].mean()
         ),
         'uncertainty': float(
@@ -78,7 +81,9 @@ def compare_policies(
             float(np.quantile(random_scores, 0.975)),
         ],
         'mean_score_lower_is_better': cohorts,
-        'thermal_lift_vs_random': cohorts['random'] - cohorts['thermal'],
+        'thermal_oracle_ceiling_lift_vs_random': (
+            cohorts['random'] - cohorts['thermal_oracle_ceiling']
+        ),
         'esen_lift_vs_random': cohorts['random'] - cohorts['eSen'],
     }
 
