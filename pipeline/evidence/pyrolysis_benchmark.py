@@ -363,13 +363,16 @@ def verify_analysis_lock(path: str | Path, root: str | Path = '.') -> list[str]:
 
 
 def analyze_screening_results(
-    benchmark: dict[str, Any], screening_rows: list[dict[str, Any]]
+    benchmark: dict[str, Any], screening_rows: list[dict[str, Any]],
+    allow_incomplete: bool = False,
 ) -> dict[str, Any]:
     """Join locked conditions to screening results and run the frozen analysis.
 
     Args:
         benchmark: Checksum-verified benchmark document.
         screening_rows: Screening results keyed by their serialized genome.
+        allow_incomplete: Exploratory only: score the resolvable conditions
+            and list the rest instead of raising. Such a report never passes.
 
     Returns:
         Complete benchmark report including the preregistered pass verdict.
@@ -413,7 +416,7 @@ def analyze_screening_results(
                 key=lambda item: item[1],
             )[0],
         })
-    if failures:
+    if failures and not allow_incomplete:
         raise ValueError('benchmark screening is incomplete: ' + '; '.join(failures))
     current_stats = grouped_bootstrap_auc(scored, 'E_act_eV')
     span_stats = grouped_bootstrap_auc(scored, 'energetic_span_eV')
@@ -430,7 +433,8 @@ def analyze_screening_results(
         'current_E_act': current_stats,
         'energetic_span': span_stats,
         'auc_improvement': improvement,
-        'acceptance_passed': passed,
+        'acceptance_passed': passed and not failures,
+        'unscored_conditions': failures,
         'records': scored,
     }
 
@@ -477,7 +481,8 @@ def main() -> None:
     import pandas as pd
 
     rows = pd.read_csv(args.screening_csv).to_dict(orient='records')
-    report = analyze_screening_results(benchmark, rows)
+    report = analyze_screening_results(
+        benchmark, rows, allow_incomplete=args.exploratory)
     report['screening_models'] = sorted(
         {str(row['screening_model']) for row in rows if row.get('screening_model')})
     if lock_errors:
