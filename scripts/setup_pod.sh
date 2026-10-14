@@ -85,7 +85,10 @@ EOF
 
 if [ -z "${SKIP_QE:-}" ]; then
     log "GPU Quantum ESPRESSO (NVHPC build for the visible GPU)"
-    HYDROGEN_GPU_QE_ROOT=$QE_ROOT bash scripts/install_qe_gpu.sh
+    # The NVHPC archive is extracted with permissions/ownership, which network
+    # volumes (geesefs) reject, so the QE build cache stays on the local disk.
+    XDG_CACHE_HOME=${HYDROGEN_LOCAL_CACHE:-$HOME/.cache} \
+        HYDROGEN_GPU_QE_ROOT=$QE_ROOT bash scripts/install_qe_gpu.sh
 fi
 
 log "Smoke checks"
