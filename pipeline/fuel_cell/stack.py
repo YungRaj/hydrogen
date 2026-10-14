@@ -19,6 +19,7 @@ from pipeline.utils import (
     F_const,
 )
 from pipeline.data_models.fuel_cells import StackResult
+from pipeline.fuel_cell.pemfc import H2_LHV_J_MOL, LHV_VOLTAGE_V
 
 logger = setup_logger('fc_stack', 'fuel_cell/stack_model.log')
 
@@ -127,9 +128,11 @@ def model_stack(config: StackConfig) -> StackResult:
 
     # System efficiency
     H2_consumed_mol_s = cell_current_A * config.n_cells / (2 * F_const)
-    H2_energy_input_W = H2_consumed_mol_s * 241800.0  # LHV of H₂ = 241.8 kJ/mol
+    H2_energy_input_W = H2_consumed_mol_s * H2_LHV_J_MOL  # LHV of H₂ = 241.8 kJ/mol
     system_efficiency = net_power_W / H2_energy_input_W if H2_energy_input_W > 0 else 0
-    stack_efficiency = config.cell_voltage_V / E_thermo
+    # Gross stack efficiency on the same LHV basis (V / 1.253 V). Using the
+    # HHV thermoneutral 1.48 V here made net system efficiency exceed gross.
+    stack_efficiency = config.cell_voltage_V / LHV_VOLTAGE_V
 
     # ── Weight & Volume ─────────────────────────────────────────────────────
     mea_total_kg = config.mea_mass_g * config.n_cells / 1000.0

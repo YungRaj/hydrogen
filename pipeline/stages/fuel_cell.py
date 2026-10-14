@@ -85,6 +85,16 @@ def default_fuel_cell_services() -> FuelCellServices:
     )
 
 
+def _has_mock_rows(cathodes) -> bool:
+    """Return whether any screening row is flagged as mock evidence."""
+    columns = getattr(cathodes, 'columns', None)
+    if columns is not None:
+        if 'mock' not in columns:
+            return False
+        return bool(cathodes['mock'].fillna(False).astype(bool).any())
+    return any(bool(row.get('mock')) for row in cathodes or [])
+
+
 def fuel_cell_composite_score(result: PEMFCResult) -> float:
     """Preserve the established efficiency/power/overpotential priority.
 
@@ -101,7 +111,11 @@ def fuel_cell_composite_score(result: PEMFCResult) -> float:
 
 
 def run_fuel_cell_stage(
-    *, top_k_pemfc: int, stack_cells: int, services: FuelCellServices | None = None
+    *,
+    top_k_pemfc: int,
+    stack_cells: int,
+    services: FuelCellServices | None = None,
+    allow_mock_inputs: bool = False,
 ) -> StageOutcome[FuelCellState, FuelCellProducts]:
     """Run the complete fuel-cell phase through independently replaceable tools.
 
@@ -109,14 +123,25 @@ def run_fuel_cell_stage(
         top_k_pemfc: Bound controlling top k pemfc.
         stack_cells: Stack cells used by this operation.
         services: Services used by this operation.
+        allow_mock_inputs: Explicit test-only permission to consume cathode
+            screening rows flagged ``mock`` (e.g. the random fallback used when
+            the atomistic calculator is unavailable).
 
     Returns:
         Computed `StageOutcome` result.
+
+    Raises:
+        RuntimeError: If the screening table contains mock rows and
+            ``allow_mock_inputs`` is False.
     """
     if top_k_pemfc < 0 or stack_cells <= 0:
         raise ValueError('fuel-cell limits must be physically positive')
     services = services or default_fuel_cell_services()
     cathodes = services.screen_cathodes()
+    if not allow_mock_inputs and _has_mock_rows(cathodes):
+        raise RuntimeError(
+            'cathode screening returned mock rows; refusing to model PEMFC/stack '
+            'performance from them (mock fallback is disabled)')
     from pipeline.search.scope import scope_pemfc_pool
 
     cathode_pool, _ = scope_pemfc_pool(cathodes)

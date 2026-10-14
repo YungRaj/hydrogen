@@ -358,6 +358,11 @@ def test_orchestrator_stage_graph_is_replaceable():
             state={'n_vqe_runs': 1}, products={'vqe_results': [{'ok': True}]}
         )
 
+    restored = {
+        'screening_database': [],
+        'top_catalysts': ['candidate-slate'],
+        'dft_candidates': [],
+    }
     components = PipelineComponents(
         discovery=forbidden,
         reactor_batch=forbidden,
@@ -365,7 +370,8 @@ def test_orchestrator_stage_graph_is_replaceable():
         vqe=vqe,
         fuel_cell=forbidden,
         report=forbidden,
-        load_candidates=forbidden,
+        # Phase 4 needs the candidate slate to locate candidate Hamiltonians.
+        load_candidates=lambda *args, **kwargs: restored,
     )
     ticks = iter((0.0, 1.0, 3.0, 3.0, 4.0))
     runtime = PipelineRuntime(
@@ -382,7 +388,9 @@ def test_orchestrator_stage_graph_is_replaceable():
         runtime=runtime,
         components=components,
     )
-    assert calls == [{'top_k': 1, 'execute_quantum': False}]
+    assert calls == [
+        {'candidates': ['candidate-slate'], 'top_k': 1, 'execute_quantum': False}
+    ]
     assert state['phase4'] == {'n_vqe_runs': 1, 'elapsed_s': 2.0}
     assert len(saved) == 2
 
@@ -478,24 +486,36 @@ def test_vqe_stage_is_independent_and_target_is_explicit():
 
     calls = []
 
-    def validator(candidate, reaction, *, target):
-        calls.append((candidate, reaction, target))
+    def validator(candidate, reaction, *, target, candidate_hamiltonian):
+        calls.append((candidate, reaction, target, candidate_hamiltonian))
         return {'candidate': candidate, 'converged': True}
 
-    outcome = run_vqe_stage(top_k=5, execute_quantum=True, validator=validator)
-    assert outcome.state == {'n_vqe_runs': 3}
-    assert len(outcome.products['vqe_results']) == 3
-    assert calls == [
-        ('champion_0', 'CH_split', 'nvidia'),
-        ('champion_1', 'CH_split', 'nvidia'),
-        ('champion_2', 'CH_split', 'nvidia'),
-    ]
-    assert (
-        run_vqe_stage(top_k=0, execute_quantum=False, validator=validator).products[
-            'vqe_results'
+    candidates = [{'candidate_id': f'cand_{index}'} for index in range(5)]
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        for key in ('cand_0', 'cand_2', 'cand_4'):
+            (root / key).mkdir()
+            (root / key / 'FCIDUMP').write_text('')
+        outcome = run_vqe_stage(
+            candidates, top_k=3, execute_quantum=True, validator=validator,
+            hamiltonian_root=root)
+        # Only candidates with a candidate-specific Hamiltonian run; never a
+        # placeholder champion_<i> on the toy model.
+        assert outcome.state == {
+            'n_vqe_runs': 2, 'candidates': ['cand_0', 'cand_2'],
+            'n_missing_hamiltonians': 1}
+        assert calls == [
+            ('cand_0', 'CH_split', 'nvidia', str(root / 'cand_0' / 'FCIDUMP')),
+            ('cand_2', 'CH_split', 'nvidia', str(root / 'cand_2' / 'FCIDUMP')),
         ]
-        == []
-    )
+        assert outcome.products['missing_hamiltonians'] == [
+            str(root / 'cand_1' / 'FCIDUMP')]
+        assert run_vqe_stage(
+            candidates, top_k=0, execute_quantum=False, validator=validator,
+            hamiltonian_root=root).products['vqe_results'] == []
+        assert run_vqe_stage(
+            None, top_k=3, execute_quantum=False, validator=validator,
+            hamiltonian_root=root).state['n_vqe_runs'] == 0
 
 
 def test_report_stage_is_independent_and_does_not_mutate_state():
@@ -528,10 +548,16 @@ def test_dft_stage_parses_genomes_and_isolates_candidate_failures():
         execute_dft=False,
         validator=validator,
     )
+    from pipeline.search.discovery import candidate_id
+
     assert outcome.state == {'n_validated': 2, 'n_converged': 1, 'n_failed': 1}
     assert len(outcome.products['failures']) == 1
-    assert calls[0] == ('dft_cat_0', ('good', 1), False)
-    assert calls[-1] == ('dft_cat_2', ('other', 3), False)
+    # Jobs are keyed by content-addressed identity, not row position, so a
+    # re-ranked rerun cannot reuse another candidate's calculation directory.
+    assert calls[0] == (f"dft_cat_{candidate_id(('good', 1))}", ('good', 1), False)
+    assert calls[-1] == (f"dft_cat_{candidate_id(('other', 3))}", ('other', 3), False)
+    assert outcome.products['failures'][0]['candidate'] == (
+        f"dft_cat_{candidate_id(('bad', 2))}")
 
 
 def test_dft_stage_reads_genome_from_dataframe_rows():

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 from pipeline.search.discovery import candidate_id
@@ -29,8 +30,42 @@ class ValidationTaskQueue:
             conn.execute("CREATE INDEX IF NOT EXISTS validation_task_status_idx "
                          "ON validation_tasks(application, task_type, status)")
 
+    @contextmanager
     def _connect(self):
-        return sqlite3.connect(self.database, timeout=60)
+        # ``with sqlite3.connect()`` commits/rolls back but never closes the
+        # connection; close it explicitly so long campaigns do not leak handles.
+        conn = sqlite3.connect(self.database, timeout=60)
+        try:
+            with conn:
+                yield conn
+        finally:
+            conn.close()
+
+    def task(self, application: str, candidate: str, task_type: str,
+             protocol_id: str) -> dict | None:
+        """Return the stored state of one validation task without leasing it.
+
+        Args:
+            application: Scientific application or objective family.
+            candidate: Candidate identifier of the task.
+            task_type: Validation calculation category.
+            protocol_id: Scientific protocol identifier.
+
+        Returns:
+            A mapping with ``status``, ``attempts``, ``result_path`` and
+            ``error``, or ``None`` when the task was never enqueued.
+        """
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT status, attempts, result_path, error FROM validation_tasks "
+                "WHERE application=? AND candidate_id=? AND task_type=? "
+                "AND protocol_id=?",
+                (application, candidate, task_type, protocol_id)).fetchone()
+        if row is None:
+            return None
+        status, attempts, result_path, error = row
+        return {'status': status, 'attempts': int(attempts),
+                'result_path': result_path, 'error': error}
 
     def enqueue(self, application: str, genome: tuple, task_type: str,
                 protocol_id: str) -> str:

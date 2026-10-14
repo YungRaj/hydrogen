@@ -765,11 +765,8 @@ def _h2_atom_balance_metric(ch4_initial: float, final_conv: float, x_h2: float) 
 
 
 def _tabulated_x_eq(T_K: float) -> float:
-    from pipeline.reactors.equilibrium import TABULATED_X_CH4_1BAR
-    if T_K in TABULATED_X_CH4_1BAR:
-        return float(TABULATED_X_CH4_1BAR[T_K])
-    nearest = min(TABULATED_X_CH4_1BAR, key=lambda t: abs(t - T_K))
-    return float(TABULATED_X_CH4_1BAR[nearest])
+    from pipeline.reactors.equilibrium import interpolate_x_eq
+    return interpolate_x_eq(T_K)
 
 
 def _mmbcr_interfacial_k_m_s(E_act_eV: float, T_K: float, k0_m_s: float) -> float:

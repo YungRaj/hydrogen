@@ -42,6 +42,7 @@ class _DFTResultOptional(TypedDict, total=False):
     returncode: int
     execution: SolverExecution
     resumed_existing_output: bool
+    discarded_stale_output: str
     error: str
 
 

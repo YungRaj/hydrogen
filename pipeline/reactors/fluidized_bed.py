@@ -94,7 +94,13 @@ def simulate_fluidized_bed(
     )
     if not 0 <= delta < 1:
         raise ValueError('fluidized-bed bubble fraction must lie in [0, 1)')
-    tau_emulsion = config.bed_height_m * (1 - delta) / umf
+    # Interstitial gas residence in the emulsion: the emulsion occupies
+    # H·(1−δ) of the bed, its gas fraction is ε_mf and the gas moves through it
+    # at superficial u_mf, i.e. interstitial u_mf/ε_mf. This matches the PFR
+    # convention (L·ε/u) and the ε_mf gas volume integrated per m³ emulsion.
+    tau_emulsion = (
+        config.bed_height_m * (1 - delta) * FLUIDIZED_EMULSION_VOIDAGE / umf
+    )
 
     sv_ratio = active_sv(geometric_sv_fluidized(config), config)
     circulating = config.fluidized_mode == FLUIDIZED_CIRCULATING

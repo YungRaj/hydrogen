@@ -20,6 +20,42 @@ TABULATED_X_CH4_1BAR = {
     1300.00: 0.985,
     1400.00: 0.993,
 }
+_X_EQ_RANGE_TOL_K = 1e-6
+
+
+def interpolate_x_eq(T_K: float) -> float:
+    """Interpolate the tabulated 1-bar CH4 equilibrium conversion at ``T_K``.
+
+    The table is monotone in temperature, so piecewise-linear interpolation
+    between neighbouring points is used. Snapping to the nearest point would
+    move the 923.15 K value onto 900 K and the 973.15 K value onto 1000 K.
+    Temperatures outside the tabulated range are rejected rather than clamped.
+
+    Args:
+        T_K: Absolute temperature in kelvin.
+
+    Returns:
+        Equilibrium CH4 conversion fraction at 1 bar.
+
+    Raises:
+        ValueError: If ``T_K`` is not finite or lies outside the table range.
+    """
+    temperature = float(T_K)
+    points = sorted(TABULATED_X_CH4_1BAR.items())
+    t_low, t_high = points[0][0], points[-1][0]
+    if not (
+        t_low - _X_EQ_RANGE_TOL_K <= temperature <= t_high + _X_EQ_RANGE_TOL_K
+    ):
+        raise ValueError(
+            f'T={temperature} K is outside the tabulated X_eq range '
+            f'[{t_low}, {t_high}] K; extend TABULATED_X_CH4_1BAR rather than '
+            'extrapolating'
+        )
+    temperature = min(max(temperature, t_low), t_high)
+    for (t0, x0), (t1, x1) in zip(points, points[1:]):
+        if temperature <= t1:
+            return float(x0 + (x1 - x0) * (temperature - t0) / (t1 - t0))
+    return float(points[-1][1])
 
 
 def ch4_conversion_from_mole_fractions(x_ch4: float, x_h2: float) -> float:

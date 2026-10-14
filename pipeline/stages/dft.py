@@ -34,6 +34,18 @@ def _genome_from_row(row):
     raise KeyError('candidate row has no genome')
 
 
+def _job_identity(genome) -> str:
+    """Return a stable, path-safe job identity for one candidate.
+
+    Positional names (``dft_cat_0``) collide across reruns with a different
+    ranking; the content-addressed candidate ID (the same hash recorded by
+    ``validate_catalyst`` as ``candidate_id``) does not.
+    """
+    from pipeline.search.discovery import candidate_id
+
+    return candidate_id(genome)
+
+
 def run_dft_stage(
     candidates,
     *,
@@ -69,17 +81,19 @@ def run_dft_stage(
     )
     results, failures = [], []
     for index, row in _indexed_rows(selected):
+        name = f'{name_prefix}_{index}'
         try:
             genome = _genome_from_row(row)
             if isinstance(genome, str):
                 genome = ast.literal_eval(genome)
-            result = validator(f'{name_prefix}_{index}', genome, run_dft=execute_dft)
+            name = f'{name_prefix}_{_job_identity(genome)}'
+            result = validator(name, genome, run_dft=execute_dft)
             results.append(result)
         except Exception as exc:
-            message = f'DFT failed for {name_prefix}_{index}: {exc}'
+            message = f'DFT failed for {name}: {exc}'
             failures.append(
                 {
-                    'candidate': f'{name_prefix}_{index}',
+                    'candidate': name,
                     'error_type': type(exc).__name__,
                     'error': str(exc),
                 }

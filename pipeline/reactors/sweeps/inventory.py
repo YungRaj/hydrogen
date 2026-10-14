@@ -80,7 +80,16 @@ def inventory_spec() -> SweepSpec:
 
 
 def _row_for_index(idx: int):
+    # PROBE_INDEX / CONTROL_INDEX are row positions in the retired genetic
+    # search table. Branch discovery writes branch_ranker_evidence.csv, whose
+    # row order is unrelated, so the indices must not be reapplied to it.
     path = SCREENING_DIR / 'ga_full_database.csv'
+    if not path.is_file():
+        raise FileNotFoundError(
+            f'{path} is the retired genetic-search table and is no longer '
+            'written; inventory probe/control rows are pinned by row index into '
+            'it. Restore that legacy artifact or re-pin PROBE_INDEX/'
+            'CONTROL_INDEX by candidate_id against branch_ranker_evidence.csv.')
     df = pd.read_csv(path)
     if idx not in df.index:
         raise KeyError(f'screening row {idx} missing from {path}')

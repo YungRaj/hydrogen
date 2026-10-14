@@ -110,6 +110,39 @@ class PEMFCConfig:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# EFFICIENCY BASIS AND RATED POINT
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Lower heating value of H₂ (J/mol) and its equivalent cell voltage
+# ΔH_LHV / (2F) ≈ 1.253 V. Cell and stack efficiencies both use this basis.
+H2_LHV_J_MOL = 241800.0
+LHV_VOLTAGE_V = H2_LHV_J_MOL / (2.0 * F_const)
+RATED_VOLTAGE_V = 0.6
+
+
+def _rated_point(j_array, V_array, voltage: float):
+    """Interpolate the current at ``voltage`` on a falling polarization curve.
+
+    Returns ``(current, power, efficiency)``, or ``(None, None, None)`` when the
+    swept curve never crosses ``voltage`` (it stays above it up to i_max, or is
+    already below it at the first point). Picking the nearest point in that
+    case reports a "rated" current at which the cell is not at ``voltage``.
+    """
+    below = np.nonzero(np.asarray(V_array) <= voltage)[0]
+    if len(below) == 0 or (below[0] == 0 and V_array[0] < voltage):
+        return None, None, None
+    index = int(below[0])
+    if index == 0:
+        current = float(j_array[0])
+    else:
+        v_hi, v_lo = float(V_array[index - 1]), float(V_array[index])
+        j_lo, j_hi = float(j_array[index - 1]), float(j_array[index])
+        fraction = (v_hi - voltage) / (v_hi - v_lo) if v_hi != v_lo else 0.0
+        current = j_lo + fraction * (j_hi - j_lo)
+    return current, current * voltage, voltage / LHV_VOLTAGE_V
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # PEMFC ELECTROCHEMICAL MODEL
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -204,10 +237,38 @@ def mass_transport_loss(j: float, j_L: float) -> float:
     return -c * np.log(max(1.0 - j / j_L, 0.01))
 
 
+def oxygen_transport_resistance_s_m(config: PEMFCConfig) -> float:
+    """Return the series O₂ transport resistance from channel to catalyst site.
+
+        R_O2 = δ_GDL / D_eff(T, P) + R_CL
+
+        D_O2 in air is 2.1e-5 m²/s at 293.15 K and 1 atm, scaled as T^1.75/P
+        (binary gas diffusivity is inversely proportional to pressure), then
+        reduced by porosity/tortuosity. ``catalyst_layer_oxygen_resistance_s_m``
+        is already a transport resistance (s/m) and adds in series.
+
+    Args:
+        config: Configuration controlling this operation.
+
+    Returns:
+        Total oxygen transport resistance in s/m.
+    """
+    D_O2_bulk = (
+        2.1e-5
+        * (config.T_K / 293.15) ** 1.75
+        * (101325.0 / config.P_cathode_Pa)
+    )  # m²/s
+    D_O2_eff = D_O2_bulk * config.gdl_porosity / config.gdl_tortuosity
+    return (
+        config.gdl_thickness_m / D_O2_eff
+        + config.catalyst_layer_oxygen_resistance_s_m
+    )
+
+
 def compute_limiting_current(config: PEMFCConfig) -> float:
     """
         Compute the mass-transport limiting current density.
-        j_L = 4F * D_eff * c_O2 / δ_GDL
+        j_L = 4F * c_O2 / R_O2,   R_O2 = δ_GDL / D_eff(T, P) + R_CL
 
     Args:
         config: Configuration controlling this operation.
@@ -215,16 +276,12 @@ def compute_limiting_current(config: PEMFCConfig) -> float:
     Returns:
         Computed `float` value in the units documented above.
     """
-    # O₂ diffusivity in air (corrected for GDL porosity & tortuosity)
-    D_O2_bulk = 2.1e-5 * (config.T_K / 293.15) ** 1.75  # m²/s
-    D_O2_eff = D_O2_bulk * config.gdl_porosity / config.gdl_tortuosity
-
     # O₂ concentration at cathode inlet
     x_O2 = 0.21  # mole fraction in air
     c_O2 = x_O2 * config.P_cathode_Pa / (R_gas * config.T_K)  # mol/m³
 
     # Limiting current (A/m² → A/cm²)
-    j_L = 4 * F_const * D_O2_eff * c_O2 / config.gdl_thickness_m
+    j_L = 4 * F_const * c_O2 / oxygen_transport_resistance_s_m(config)
     j_L_cm2 = j_L * 1e-4  # convert m² to cm²
     return j_L_cm2
 
@@ -286,20 +343,17 @@ def simulate_pemfc(config: PEMFCConfig) -> PEMFCResult:
     R_electronic = 0.005  # Ω·cm² (bipolar plates, GDL)
     R_contact = 0.01  # Ω·cm² (contact resistance)
     R_total = R_membrane + R_electronic + R_contact
-    # Catalyst-layer oxygen resistance converted to an area-specific term.
-    R_cl = (
-        config.catalyst_layer_oxygen_resistance_s_m
-        * config.catalyst_layer_thickness_m
-        * 1e-2
-        / max(config.ionomer_fraction * (1 - config.ionomer_fraction), 1e-3)
-    )
-    R_total += R_cl
+    # The catalyst-layer O₂ resistance (s/m) is a transport resistance; it is
+    # applied in series with the GDL inside compute_limiting_current, not as an
+    # area-specific ohmic term.
+    R_O2 = oxygen_transport_resistance_s_m(config)
 
     # Limiting current
     j_L = compute_limiting_current(config)
 
     # Current density sweep
-    j_array = np.linspace(0.001, min(config.i_max_A_cm2, j_L * 0.98), config.n_points)
+    j_upper = min(config.i_max_A_cm2, j_L * 0.98)
+    j_array = np.linspace(0.001, j_upper, config.n_points)
     V_array = np.zeros_like(j_array)
     P_array = np.zeros_like(j_array)
 
@@ -315,21 +369,31 @@ def simulate_pemfc(config: PEMFCConfig) -> PEMFCResult:
         P_array[i] = j * V
 
     # Find peak power
-    peak_idx = np.argmax(P_array)
+    peak_idx = int(np.argmax(P_array))
     peak_power = P_array[peak_idx]
     peak_current = j_array[peak_idx]
     peak_voltage = V_array[peak_idx]
+    # When the maximum sits on the last sweep point and the sweep was cut by
+    # i_max (not by j_L), the reported "peak" is only a lower bound set by the
+    # sweep range, not a true maximum of the polarization curve.
+    peak_limited_by_sweep = bool(
+        peak_idx == len(P_array) - 1 and config.i_max_A_cm2 < j_L * 0.98
+    )
+    if peak_limited_by_sweep:
+        logger.warning(
+            f"  Peak power for {config.cathode_catalyst} lies at the sweep limit "
+            f"i_max={config.i_max_A_cm2} A/cm² (j_L={j_L:.2f} A/cm²); "
+            'it is a lower bound, not a curve maximum'
+        )
 
-    # Efficiency at peak power
-    # η = V_cell / E_thermo (thermoneutral voltage ≈ 1.48 V at 80°C)
-    E_thermo = 1.48
-    efficiency_peak = peak_voltage / E_thermo
+    # Voltage efficiency on the H₂ LHV basis: E_LHV = ΔH_LHV / (2F) ≈ 1.253 V.
+    # The stack's system efficiency uses the same LHV, so cell and system
+    # efficiencies are directly comparable.
+    efficiency_peak = peak_voltage / LHV_VOLTAGE_V
 
-    # Rated power (at 0.6 V)
-    idx_06 = np.argmin(np.abs(V_array - 0.6))
-    rated_current = j_array[idx_06]
-    rated_power = rated_current * 0.6
-    efficiency_rated = 0.6 / E_thermo
+    # Rated point at 0.6 V, only when the curve actually crosses 0.6 V.
+    rated_current, rated_power, efficiency_rated = _rated_point(
+        j_array, V_array, RATED_VOLTAGE_V)
 
     result: PEMFCResult = {
         'cathode_catalyst': config.cathode_catalyst,
@@ -339,15 +403,17 @@ def simulate_pemfc(config: PEMFCConfig) -> PEMFCResult:
         'peak_power_W_cm2': float(peak_power),
         'peak_current_A_cm2': float(peak_current),
         'peak_voltage_V': float(peak_voltage),
+        'peak_power_limited_by_sweep': peak_limited_by_sweep,
         'efficiency_at_peak': float(efficiency_peak),
+        'efficiency_basis': 'LHV',
         'hydrogen_impurity_factor': float(impurity_factor),
-        'catalyst_layer_resistance_ohm_cm2': float(R_cl),
+        'oxygen_transport_resistance_s_m': float(R_O2),
         'voltage_degradation_uV_h': config.voltage_degradation_uV_h,
         'evidence_level': 'modeled',
         'requires_mea_validation': True,
-        'rated_power_W_cm2': float(rated_power),
-        'rated_current_A_cm2': float(rated_current),
-        'efficiency_at_rated': float(efficiency_rated),
+        'rated_power_W_cm2': rated_power,
+        'rated_current_A_cm2': rated_current,
+        'efficiency_at_rated': efficiency_rated,
         'limiting_current_A_cm2': float(j_L),
         'R_ohmic_ohm_cm2': float(R_total),
         'orr_overpotential_V': config.orr_overpotential_V,

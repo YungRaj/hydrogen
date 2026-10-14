@@ -21,15 +21,17 @@ class PEMFCResult(_PEMFCResultOptional):
     peak_power_W_cm2: float
     peak_current_A_cm2: float
     peak_voltage_V: float
+    peak_power_limited_by_sweep: bool
     efficiency_at_peak: float
+    efficiency_basis: Literal['LHV']
     hydrogen_impurity_factor: float
-    catalyst_layer_resistance_ohm_cm2: float
+    oxygen_transport_resistance_s_m: float
     voltage_degradation_uV_h: float | None
     evidence_level: Literal['modeled']
     requires_mea_validation: Literal[True]
-    rated_power_W_cm2: float
-    rated_current_A_cm2: float
-    efficiency_at_rated: float
+    rated_power_W_cm2: float | None
+    rated_current_A_cm2: float | None
+    efficiency_at_rated: float | None
     limiting_current_A_cm2: float
     R_ohmic_ohm_cm2: float
     orr_overpotential_V: float

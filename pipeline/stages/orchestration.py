@@ -106,11 +106,14 @@ class DFTStage(Protocol):
 class VQEStage(Protocol):
     """Callable contract for a replaceable VQE implementation."""
 
-    def __call__(self, *, top_k: int, execute_quantum: bool
+    def __call__(self, *, candidates: TableLike | None, top_k: int,
+                 execute_quantum: bool
                  ) -> StageOutcome[VQEState, VQEProducts]:
         """Run transition-state validation and return typed VQE evidence.
 
         Args:
+            candidates: Ranked candidate table carrying ``candidate_id``, or
+                ``None`` when no candidates are available.
             top_k: Maximum number of candidates to process.
             execute_quantum: Whether to use the configured quantum backend.
 
@@ -123,13 +126,16 @@ class VQEStage(Protocol):
 class FuelCellStage(Protocol):
     """Callable contract for a replaceable fuel-cell implementation."""
 
-    def __call__(self, *, top_k_pemfc: int, stack_cells: int
+    def __call__(self, *, top_k_pemfc: int, stack_cells: int,
+                 allow_mock_inputs: bool = False
                  ) -> StageOutcome[FuelCellState, FuelCellProducts]:
         """Run fuel-cell evaluation and return typed products.
 
         Args:
             top_k_pemfc: Maximum cathode candidates entering PEMFC modeling.
             stack_cells: Number of cells in the modeled stack.
+            allow_mock_inputs: Explicit test-only permission to consume mock
+                cathode screening rows.
 
         Returns:
             Typed fuel-cell state and detailed products.

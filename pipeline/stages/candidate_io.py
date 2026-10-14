@@ -6,6 +6,11 @@ from pathlib import Path
 
 from pipeline.data_models.stages import SelectedCandidates
 
+# Screening evidence persisted by the branch discovery workflow
+# (BranchDiscoveryWorkflow.evidence_db for turquoise hydrogen). The retired
+# genetic search wrote ``ga_full_database.csv``; nothing writes that any more.
+SCREENING_EVIDENCE_DB = 'branch_ranker_evidence.csv'
+
 
 def load_reactor_reference(candidate_id: str):
     """Load a tracked literature reference for the reactor batch only.
@@ -43,6 +48,7 @@ def load_selected_candidates(
         Computed result described above.
     """
     import pandas as pd
+    from pipeline.search.discovery import add_discovery_metadata
     from pipeline.search.scope import scope_pyrolysis_pool
     from pipeline.screening.stage_selection import (
         select_for_pyrolysis_reactor,
@@ -52,7 +58,12 @@ def load_selected_candidates(
     source = Path(path)
     if not source.is_file():
         return None
+    # The persisted evidence table is written before discovery adds the
+    # content-addressed candidate_id; restore it so restarted reactor/DFT/VQE
+    # stages key artifacts exactly as the live run does.
     database = pd.read_csv(source)
+    if 'candidate_id' not in database.columns:
+        database = add_discovery_metadata(database)
     # Same admissibility pool as the live discovery stage (ADR 0001), so a
     # phase-2-only restart draws its slates from the same rows. Both routes
     # stay distinct: the validation route may still rescue invalid rows.

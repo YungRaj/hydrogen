@@ -113,13 +113,22 @@ class DFTProducts(TypedDict):
     failures: list[dict[str, str]]
 
 
-class VQEState(TypedDict):
+class _VQEStateOptional(TypedDict, total=False):
+    candidates: list[str]
+    n_missing_hamiltonians: int
+
+
+class VQEState(_VQEStateOptional):
     """Persistable VQE execution counts."""
 
     n_vqe_runs: int
 
 
-class VQEProducts(TypedDict):
+class _VQEProductsOptional(TypedDict, total=False):
+    missing_hamiltonians: list[str]
+
+
+class VQEProducts(_VQEProductsOptional):
     """Candidate-specific VQE results."""
 
     vqe_results: list[VQEResult]

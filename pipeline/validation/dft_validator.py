@@ -505,11 +505,25 @@ def validate_catalyst(
         except Exception as e:
             logger.warning(f"Structure generation failed for {mat_class}: {e}")
             result['error'] = str(e)[:200]
+            result['converged'] = False
+            save_json(result, f"{catalyst_name}_dft.json", subdir="dft")
             return result
 
     # Write input file
     input_file = calc_dir / f"{catalyst_name}.in"
     output_file = calc_dir / f"{catalyst_name}.out"
+    # Names can be reused for a different structure (positional stage names,
+    # changed generators). An output is only evidence for the exact input that
+    # produced it; otherwise move it aside so it is neither parsed nor resumed.
+    same_input = input_file.is_file() and input_file.read_text() == input_text
+    if output_file.exists() and not same_input:
+        stale_output = output_file.with_name(output_file.name + '.stale')
+        output_file.replace(stale_output)
+        result['discarded_stale_output'] = str(stale_output)
+        logger.warning(
+            f"  Existing output for {catalyst_name} came from a different input; "
+            f"moved to {stale_output}"
+        )
     if output_file.is_file() and output_file.stat().st_size:
         require_ionic = "calculation = 'relax'" in input_text
         existing_converged = parse_convergence(
@@ -581,66 +595,71 @@ def validate_catalyst(
     return result
 
 
+# fcc-equivalent conventional lattice constants (Bohr), a = (4 V_atom)^(1/3)
+# from room-temperature atomic volumes. Native fcc metals keep their measured
+# a; bcc/hcp/complex metals (Fe, Mo, W, V, Cr, Ti, Zr, Y, Zn, La, alpha-Mn,
+# beta-Sn, In, Ga, Sb, Bi) use the volume-matched fcc value so that the
+# 4-site conventional cube below is not compressed or expanded artificially.
+_FCC_EQUIVALENT_LATTICE_BOHR = {
+    'Ni': 6.66,
+    'Fe': 6.82,
+    'Co': 6.69,
+    'Cu': 6.83,
+    'Al': 7.65,
+    'Sn': 9.00,
+    'Bi': 9.85,
+    'In': 8.90,
+    'Ga': 8.09,
+    'Pb': 9.35,
+    'Sb': 9.34,
+    'Mo': 7.49,
+    'W': 7.54,
+    'Mn': 6.91,
+    'Pt': 7.42,
+    'Pd': 7.35,
+    'Ag': 7.72,
+    'Au': 7.71,
+    'Ti': 7.81,
+    'V': 7.21,
+    'Cr': 6.87,
+    'Zn': 7.43,
+    'Zr': 8.57,
+    'Y': 9.62,
+    'La': 10.03,
+}
+# Fractional coordinates of the four fcc sites in the simple-cubic
+# conventional cell (ibrav=1). These are NOT valid in the ibrav=2 primitive
+# cell, where they would place atoms 0.354 a apart.
+_FCC_CONVENTIONAL_SITES = (
+    (0.0, 0.0, 0.0),
+    (0.5, 0.5, 0.0),
+    (0.5, 0.0, 0.5),
+    (0.0, 0.5, 0.5),
+)
+
+
 def _generate_alloy_input(genome: tuple, name: str) -> str:
-    """Generate QE input for an alloy bulk structure."""
+    """Generate QE input for an alloy bulk structure (4-site fcc cube)."""
     mat_class = genome[0]
+    host = genome[1]
+    elements = [host] * len(_FCC_CONVENTIONAL_SITES)
     if mat_class == 'MoltenMetal':
-        host = genome[1]
         promoter = genome[2]
-        elements = [host, host, host]
+        # L1_2-type ordering: one promoter site out of four.
         if promoter != 'None':
             elements[0] = promoter
-        # Simple L1₂ structure
-        positions = [(0.0, 0.0, 0.0), (0.5, 0.5, 0.0), (0.5, 0.0, 0.5)]
-    else:
-        metal = genome[1]
-        elements = [metal, metal, metal, metal]
-        positions = [
-            (0.0, 0.0, 0.0),
-            (0.5, 0.5, 0.0),
-            (0.5, 0.0, 0.5),
-            (0.0, 0.5, 0.5),
-        ]
+    elif genome[5]:
         # Apply dopant substitution
-        if genome[5]:
-            elements[0] = genome[5][0]
+        elements[0] = genome[5][0]
 
-    # Estimate lattice parameter (Bohr) from element
-    lattice_params_bohr = {
-        'Ni': 6.65,
-        'Fe': 5.42,
-        'Co': 6.68,
-        'Cu': 6.82,
-        'Al': 7.65,
-        'Sn': 12.30,
-        'Bi': 9.54,
-        'In': 8.73,
-        'Ga': 5.72,
-        'Pb': 9.35,
-        'Sb': 8.63,
-        'Mo': 5.95,
-        'W': 5.98,
-        'Mn': 16.85,
-        'Pt': 7.42,
-        'Pd': 7.35,
-        'Ag': 7.73,
-        'Au': 7.71,
-        'Ti': 5.58,
-        'V': 5.72,
-        'Cr': 5.45,
-        'Zn': 5.03,
-        'Zr': 6.10,
-        'Y': 6.89,
-        'La': 7.10,
-    }
-    primary = elements[0] if elements[0] in lattice_params_bohr else genome[1]
-    celldm = lattice_params_bohr.get(primary, 7.0)
+    # The host metal sets the cell; a substituted minority site does not.
+    celldm = _FCC_EQUIVALENT_LATTICE_BOHR.get(host, 7.0)
 
     return generate_bulk_scf_input(
         elements,
-        positions,
+        list(_FCC_CONVENTIONAL_SITES),
         celldm,
-        ibrav=2,
+        ibrav=1,
         calc_name=name,
         ecutwfc=50.0,
         kpoints=(6, 6, 6),

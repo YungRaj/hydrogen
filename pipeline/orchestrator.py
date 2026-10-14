@@ -32,6 +32,7 @@ from pipeline.stages.orchestration import (
     PipelineComponents, PipelineRuntime, default_pipeline_components,
     default_pipeline_runtime)
 from pipeline.stages.contracts import require_stage_outcome
+from pipeline.stages.candidate_io import SCREENING_EVIDENCE_DB
 from pipeline.data_models.campaigns import (
     PipelineStateDocument, validate_pipeline_state)
 from pipeline.data_models.stages import CandidateSelection, PipelineRunContext
@@ -172,7 +173,7 @@ def run_pipeline(config: PipelineConfig | None = None,
         if context.candidates is not None:
             return context.candidates
         restored = components.load_candidates(
-            SCREENING_DIR / "ga_full_database.csv",
+            SCREENING_DIR / SCREENING_EVIDENCE_DB,
             top_k_reactor=config.top_k_reactor,
             top_k_dft=config.top_k_dft)
         if restored is not None:
@@ -285,7 +286,10 @@ def run_pipeline(config: PipelineConfig | None = None,
         runtime.banner("PHASE 4: CUDA-Q VQE TRANSITION STATE")
         t4 = runtime.clock()
 
+        selection = require_candidates(purpose='VQE transition-state validation')
         outcome = require_stage_outcome(components.vqe(
+            candidates=(selection.top_catalysts
+                        if selection is not None else None),
             top_k=config.top_k_vqe, execute_quantum=config.run_vqe),
             stage='vqe', required_products=('vqe_results',))
         pipeline_state['phase4'] = {
@@ -302,7 +306,8 @@ def run_pipeline(config: PipelineConfig | None = None,
 
         outcome = require_stage_outcome(components.fuel_cell(
             top_k_pemfc=config.fc_top_k_pemfc,
-            stack_cells=config.fc_stack_cells), stage='fuel_cell',
+            stack_cells=config.fc_stack_cells,
+            allow_mock_inputs=config.allow_mock_inputs), stage='fuel_cell',
             required_products=('cathode_database', 'valid_cathodes',
                                'pemfc_results', 'stack_result'))
         pipeline_state['phase5'] = {

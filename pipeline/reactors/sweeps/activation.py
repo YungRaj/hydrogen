@@ -24,7 +24,7 @@ from pipeline.reactors.models import (
     ReactorConfig,
     simulate_reactor,
 )
-from pipeline.reactors.equilibrium import TABULATED_X_CH4_1BAR
+from pipeline.reactors.equilibrium import interpolate_x_eq
 
 logger = setup_logger('eact_sensitivity', 'reactor/eact_sensitivity.log')
 
@@ -93,10 +93,7 @@ def run_eact_sweep(
                     **extra,
                 )
                 result = simulate_reactor(cfg)
-                x_eq = TABULATED_X_CH4_1BAR.get(float(T))
-                if x_eq is None:
-                    nearest = min(TABULATED_X_CH4_1BAR, key=lambda t: abs(t - T))
-                    x_eq = TABULATED_X_CH4_1BAR[nearest]
+                x_eq = interpolate_x_eq(float(T))
                 row = {
                     'E_act_eV': float(E),
                     'T_K': float(T),

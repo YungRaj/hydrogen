@@ -46,6 +46,13 @@ def _metadata(path: str | Path) -> tuple[Path, dict]:
     return source, data
 
 
+def _chemist_to_openfermion_order(eri):
+    """Reorder a full (pq|rs) tensor to OpenFermion's h[p,q,r,s] = (ps|qr)."""
+    import numpy as np
+
+    return np.ascontiguousarray(np.asarray(eri).transpose(0, 2, 3, 1))
+
+
 def build_candidate_hamiltonian(path: str | Path) -> dict:
     """Convert sourced spatial-orbital integrals into Pauli terms.
 
@@ -81,7 +88,12 @@ def build_candidate_hamiltonian(path: str | Path) -> dict:
     if not 0 < nelec <= 2 * norb:
         raise ValueError('active electron count is outside the spin-orbital space')
 
-    spatial_two_body = ao2mo.restore(1, values['H2'], norb)
+    # PySCF/FCIDUMP integrals are chemist-ordered (pq|rs). OpenFermion's
+    # spinorb_from_spatial + InteractionOperator(..., 0.5 * h2) expect h2[p,q,r,s]
+    # as the coefficient of a+_p a+_q a_r a_s, i.e. (ps|qr). This is the same
+    # transpose(0, 2, 3, 1) applied by openfermionpyscf.compute_integrals.
+    spatial_two_body = _chemist_to_openfermion_order(
+        ao2mo.restore(1, values['H2'], norb))
     one_body, two_body = spinorb_from_spatial(values['H1'], spatial_two_body)
     interaction = InteractionOperator(
         float(values.get('ECORE', 0.0)), one_body, 0.5 * two_body)

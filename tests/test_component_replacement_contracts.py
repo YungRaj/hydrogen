@@ -133,7 +133,9 @@ def test_each_pipeline_phase_runs_with_only_its_replacement_and_contract_inputs(
         1: {'discovery': discovery},
         2: {'reactor_batch': reactor, 'load_candidates': loader},
         3: {'dft': dft, 'load_candidates': loader},
-        4: {'vqe': vqe},
+        # Phase 4 consumes the candidate slate (VQE runs only candidates with
+        # a candidate-specific Hamiltonian), so a restart needs the loader.
+        4: {'vqe': vqe, 'load_candidates': loader},
         5: {'fuel_cell': fuel},
         6: {'report': report},
     }
@@ -225,7 +227,16 @@ def test_replacement_contract_rejects_wrong_type_and_missing_products_early():
 
 def test_bad_stage_replacement_fails_at_named_boundary_before_persistence():
     store, calls = MemoryStateStore(), []
-    components = replace(_base_components(), vqe=lambda **kwargs: {'bad': True})
+    loader = lambda *args, **kwargs: {
+        'screening_database': pd.DataFrame(),
+        'top_catalysts': pd.DataFrame(),
+        'dft_candidates': pd.DataFrame(),
+    }
+    components = replace(
+        _base_components(),
+        vqe=lambda **kwargs: {'bad': True},
+        load_candidates=loader,
+    )
     with _raises('vqe stage must return StageOutcome', TypeError):
         run_pipeline(
             PipelineConfig(run_vqe=False),
@@ -258,7 +269,7 @@ def test_every_stage_boundary_rejects_invalid_replacement_output():
         1: ('discovery', {}),
         2: ('reactor_batch', {'load_candidates': loader}),
         3: ('dft', {'load_candidates': loader}),
-        4: ('vqe', {}),
+        4: ('vqe', {'load_candidates': loader}),
         5: ('fuel_cell', {}),
         6: ('report', {}),
     }
@@ -295,8 +306,8 @@ def test_default_component_graph_conforms_to_orchestrator_call_signatures():
             'allow_mock_inputs',
         },
         'dft': {'candidates', 'top_k', 'execute_dft'},
-        'vqe': {'top_k', 'execute_quantum'},
-        'fuel_cell': {'top_k_pemfc', 'stack_cells'},
+        'vqe': {'candidates', 'top_k', 'execute_quantum'},
+        'fuel_cell': {'top_k_pemfc', 'stack_cells', 'allow_mock_inputs'},
         'report': {'pipeline_state'},
         'load_candidates': {'path', 'top_k_reactor', 'top_k_dft'},
     }
