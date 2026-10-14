@@ -376,7 +376,7 @@ Each genome encodes into a **353-dimensional** feature vector for the surrogate 
 | Software | Version | Role | Phase |
 |----------|---------|------|-------|
 | **Meta eSen-SM** | OC25 | Equivariant GNN potential — screening slab relaxation, energies and forces; BEP converts descriptors to provisional barriers | 1, 5 |
-| **PyTorch** | 2.11.0 | Multi-GPU fairchem/eSen inference | 1, 5 |
+| **PyTorch** | 2.13.0 | Multi-GPU fairchem/eSen inference | 1, 5 |
 | **CUDA-Q** | 0.12.0 | Variational Quantum Eigensolver on GPU quantum simulator | 4 |
 | **cuQuantum** | 26.6.0 | Accelerated statevector simulation backend for CUDA-Q | 4 |
 | **Cantera** | 3.2.0 | Chemical kinetics — reactor ODEs with custom YAML mechanisms | 2 |
@@ -476,7 +476,7 @@ environments may be merged, but these names provide portable discovery.
 ### Prerequisites
 
 - **OS**: Linux (Ubuntu 22.04+ recommended)
-- **GPU**: NVIDIA GPU with CUDA 12+ (≥16 GB VRAM)
+- **GPU**: NVIDIA GPU with a CUDA 12.8+ driver (≥16 GB VRAM)
 - **Conda**: Miniconda or Anaconda
 
 ### Environment 1: `fairchem-env` — Meta GNN + PyTorch (Phases 1, 5)
@@ -487,6 +487,12 @@ This environment is used for the high-throughput GNN screening and active learni
 conda env create -f environments/environment-fairchem.yml
 conda activate fairchem-env
 ```
+
+The environment pins Python 3.12, `torch==2.13.0` (CUDA 12.9 wheels from the
+official PyTorch index) and `fairchem-core==2.23.0`, which requires that torch
+series. PyTorch is installed only by pip; do not add the retired `pytorch`
+conda channel. Record `torch.__version__` and `fairchem.core.__version__` in
+campaign manifests when changing either pin.
 
 For deployments using a local Fairchem checkpoint, set
 `FAIRCHEM_CHECKPOINT_SHA256` to its 64-character SHA-256 digest. The loader

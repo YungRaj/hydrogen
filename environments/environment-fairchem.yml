@@ -1,18 +1,22 @@
 name: fairchem-env
+# PyTorch is installed from the official pip wheel index, not the retired
+# `pytorch` conda channel, so conda and pip never install competing torch builds.
+# fairchem-core 2.23.0 requires torch~=2.13.0, Python >=3.11, ase>=3.26 and
+# numpy>=2.0,<2.5. The cu129 wheels include Ada (sm_89, L40S) and Blackwell
+# (sm_120, RTX PRO) kernels and run on CUDA 12.8+ drivers.
 channels:
-  - pytorch
-  - nvidia
   - conda-forge
 dependencies:
-  - python=3.10
-  - pytorch=2.5
-  - pytorch-cuda=12.4
-  - ase=3.23
-  - numpy>=1.24
-  - scipy>=1.10
-  - pandas>=2.0
+  - python=3.12
   - pip
   - pip:
-      - fairchem-core
-      - sella
-      - pmutt
+      - --extra-index-url https://download.pytorch.org/whl/cu129
+      - torch==2.13.0
+      - fairchem-core==2.23.0
+      - ase>=3.26
+      - numpy>=2.0,<2.5
+      - scipy>=1.10
+      - pandas>=2.0
+      - scikit-learn>=1.7,<2
+      - sella==2.6.0
+      - pmutt==1.4.17

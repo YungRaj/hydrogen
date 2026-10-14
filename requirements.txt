@@ -4,9 +4,9 @@ scipy>=1.10
 scikit-learn>=1.7,<2
 
 # ─── Phase 1: Fairchem/eSen Screening + Genetic Algorithm (fairchem-env) ───────
-torch>=2.0
-fairchem-core
-ase>=3.22
+torch==2.13.0  # CUDA wheels: --extra-index-url https://download.pytorch.org/whl/cu129
+fairchem-core==2.23.0
+ase>=3.26
 pandas>=2.0
 # Optional atomistic validation tools. They are not used by screening unless
 # explicitly selected by a validation workflow.
