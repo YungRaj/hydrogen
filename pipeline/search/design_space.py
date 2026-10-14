@@ -700,23 +700,6 @@ def generate_random_genome(material_class: Optional[str] = None) -> tuple:
     return GENERATORS[material_class]()
 
 
-def generate_population(pop_size: int, material_class: Optional[str] = None) -> List[tuple]:
-    """Generate a diverse initial population of catalyst genomes.
-
-    Args:
-        pop_size: Number of pop size to use.
-        material_class: Canonical catalyst material-class name.
-
-    Returns:
-        List of computed or validated records.
-    """
-    population = []
-    for _ in range(pop_size):
-        genome = generate_random_genome(material_class)
-        population.append(genome)
-    return population
-
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # FEATURE ENCODING FOR SURROGATE MODEL
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -763,6 +746,177 @@ N_CONTINUOUS = 4  # strain, at_pct/pore_size, num_sub, num_vac/temperature
 FEATURE_DIM = N_CLASSES + 2 * N_METALS + N_SUPPORTS + N_FACETS + N_COORDS + N_DOPANTS + N_CONTINUOUS
 
 
+_DEFECT_LEVELS = {'none': 0.0, 'A_vacancy': 0.2, 'B_vacancy': 0.4,
+                  'O_vacancy': 0.6, 'A_excess': 0.8}
+_HYDRIDE_TYPES = [
+    'simple', 'complex_alanate', 'complex_borohydride', 'complex_amide',
+    'intermetallic_AB5', 'intermetallic_AB2', 'intermetallic_AB',
+    'intermetallic_A2B', 'perovskite_hydride',
+]
+_MAX_FACET_LEVELS = {'basal_0001': 0.0, 'edge_1010': 0.5, 'edge_1120': 1.0}
+_HEA_STRUCTURES = ['fcc', 'bcc', 'hcp', 'fcc_bcc_dual', 'amorphous']
+_MILLER_FACET_LEVELS = {'111': 0.0, '100': 0.33, '110': 0.67, '211': 1.0}
+_CODOPANT_LEVELS = {'B': 0.2, 'S': 0.4, 'P': 0.6, 'F': 0.8, 'none': 0.0}
+
+
+class _Features:
+    """Feature blocks of one genome; ``hot`` sets a slot only for known values."""
+
+    def __init__(self):
+        self.metal1 = np.zeros(N_METALS)  # primary metal
+        self.metal2 = np.zeros(N_METALS)  # promoter / second metal
+        self.support = np.zeros(N_SUPPORTS)
+        self.facet = np.zeros(N_FACETS)  # facet / linker
+        self.coord = np.zeros(N_COORDS)  # coordination / cavity / termination
+        self.dopant = np.zeros(N_DOPANTS)
+        self.cont = np.zeros(N_CONTINUOUS)
+
+    @staticmethod
+    def hot(block: np.ndarray, index: dict, value, weight: float = 1.0) -> None:
+        if value in index:
+            block[index[value]] = weight
+
+
+def _normalized_index(value, options: list) -> float:
+    return options.index(value) / len(options) if value in options else 0.0
+
+
+def _encode_molten(f: _Features, genome: tuple) -> None:
+    _, host, promoter, at_pct, temp = genome
+    f.hot(f.metal1, _METAL_IDX, host)
+    f.hot(f.metal2, _METAL_IDX, promoter)
+    f.cont[1] = at_pct / 30.0
+    f.cont[3] = (temp - 700.0) / 500.0
+
+
+def _encode_solid(f: _Features, genome: tuple) -> None:
+    _, metal, support, facet, strain, dopants, n_sub, n_vac = genome
+    f.hot(f.metal1, _METAL_IDX, metal)
+    f.hot(f.support, _SUPPORT_IDX, support)
+    f.hot(f.facet, _FACET_LINKER_IDX, facet)
+    for dopant in dopants:
+        f.hot(f.dopant, _DOPANT_IDX, dopant)
+    f.cont[0] = strain / 0.08
+    f.cont[2] = n_sub / 4.0
+    f.cont[3] = n_vac / 2.0
+
+
+def _encode_sac(f: _Features, genome: tuple) -> None:
+    metal, coord, substrate = genome[1], genome[2], genome[3]
+    axial = genome[4] if len(genome) > 4 else 'none'
+    f.hot(f.metal1, _METAL_IDX, metal)
+    f.hot(f.coord, _COORD_IDX, coord)
+    f.hot(f.support, _SUPPORT_IDX, substrate)
+    # Axial ligand: half weight distinguishes it from in-plane coordination.
+    f.hot(f.coord, _COORD_IDX, axial, 0.5)
+
+
+def _encode_dac(f: _Features, genome: tuple) -> None:
+    _, m1, m2, coord, substrate = genome
+    f.hot(f.metal1, _METAL_IDX, m1)
+    f.hot(f.metal2, _METAL_IDX, m2)
+    f.hot(f.coord, _COORD_IDX, coord)
+    f.hot(f.support, _SUPPORT_IDX, substrate)
+
+
+def _encode_framework(f: _Features, genome: tuple) -> None:
+    _, metal, linker, cavity, pore = genome
+    f.hot(f.metal1, _METAL_IDX, metal)
+    f.hot(f.facet, _FACET_LINKER_IDX, linker)
+    f.hot(f.coord, _COORD_IDX, cavity)
+    f.cont[1] = pore / 25.0
+
+
+def _encode_perovskite(f: _Features, genome: tuple) -> None:
+    _, A, B, dopant, frac, defect = genome
+    f.hot(f.metal1, _METAL_IDX, A)
+    f.hot(f.metal2, _METAL_IDX, B)
+    f.hot(f.dopant, _DOPANT_IDX, dopant)
+    f.cont[0] = frac / 0.50
+    f.cont[1] = _DEFECT_LEVELS.get(defect, 0.0)
+
+
+def _encode_hydride(f: _Features, genome: tuple) -> None:
+    _, metal, h_type, second, additive, temp = genome
+    f.hot(f.metal1, _METAL_IDX, metal)
+    f.hot(f.metal2, _METAL_IDX, second)
+    f.cont[0] = _normalized_index(h_type, _HYDRIDE_TYPES)
+    f.cont[3] = (temp - 400.0) / 400.0
+
+
+def _encode_max_phase(f: _Features, genome: tuple) -> None:
+    _, M, A, X, n, dopant, facet = genome
+    f.hot(f.metal1, _METAL_IDX, M)
+    f.hot(f.metal2, _METAL_IDX, A)
+    f.hot(f.dopant, _DOPANT_IDX, dopant)
+    f.cont[0] = 1.0 if X == 'N' else 0.0  # carbide vs nitride
+    f.cont[1] = n / 3.0
+    f.cont[2] = _MAX_FACET_LEVELS.get(facet, 0.0)
+
+
+def _encode_hea(f: _Features, genome: tuple) -> None:
+    _, components, structure, facet, temp = genome
+    for component in components:  # multi-hot over all components
+        f.hot(f.metal1, _METAL_IDX, component)
+    f.cont[0] = _normalized_index(structure, _HEA_STRUCTURES)
+    f.cont[1] = _MILLER_FACET_LEVELS.get(facet, 0.0)
+    f.cont[3] = (temp - 900.0) / 400.0
+
+
+def _encode_spinel(f: _Features, genome: tuple) -> None:
+    _, A, B, dopant, morph, support = genome
+    f.hot(f.metal1, _METAL_IDX, A)
+    f.hot(f.metal2, _METAL_IDX, B)
+    f.hot(f.dopant, _DOPANT_IDX, dopant)
+    f.hot(f.coord, _COORD_IDX, morph)
+    f.hot(f.support, _SUPPORT_IDX, support)
+
+
+def _encode_mxene(f: _Features, genome: tuple) -> None:
+    _, M, X, n, term, sac_metal = genome
+    f.hot(f.metal1, _METAL_IDX, M)
+    f.hot(f.metal2, _METAL_IDX, sac_metal)
+    f.hot(f.coord, _COORD_IDX, term)
+    f.cont[0] = 1.0 if X == 'N' else (0.5 if X == 'CN' else 0.0)
+    f.cont[1] = n / 3.0
+
+
+def _encode_saa(f: _Features, genome: tuple) -> None:
+    _, trace, host, facet, loading = genome
+    f.hot(f.metal1, _METAL_IDX, trace)
+    f.hot(f.metal2, _METAL_IDX, host)
+    f.cont[0] = _MILLER_FACET_LEVELS.get(facet, 0.0)
+    f.cont[1] = loading / 10000.0
+
+
+def _encode_metal_free_carbon(f: _Features, genome: tuple) -> None:
+    _, n_type, n_frac, defect, substrate, co_dop = genome
+    # No metal encoding: that is the point of this class.
+    f.hot(f.coord, _COORD_IDX, n_type)
+    f.hot(f.coord, _COORD_IDX, defect, 0.5)
+    f.hot(f.support, _SUPPORT_IDX, substrate)
+    f.cont[0] = n_frac / 0.20
+    f.cont[1] = _CODOPANT_LEVELS.get(co_dop, 0.0)
+
+
+_CLASS_ENCODERS = {
+    'MoltenMetal': _encode_molten,
+    'SolidCatalyst': _encode_solid,
+    'SAC': _encode_sac,
+    'DAC': _encode_dac,
+    'MOF': _encode_framework,
+    'COF': _encode_framework,
+    'Perovskite': _encode_perovskite,
+    'MetalHydride': _encode_hydride,
+    'MAXPhase': _encode_max_phase,
+    'HEA': _encode_hea,
+    'Spinel': _encode_spinel,
+    'MXene': _encode_mxene,
+    'SAA': _encode_saa,
+    'MetalFreeCarbon': _encode_metal_free_carbon,
+}
+
+
 def encode_genome(genome: tuple) -> np.ndarray:
     """
         Encode a catalyst genome into a fixed-length feature vector
@@ -774,197 +928,15 @@ def encode_genome(genome: tuple) -> np.ndarray:
         genome: Encoded catalyst composition and structural configuration.
     """
     mat_class = genome[0]
-
-    # One-hot: material class
     cls_vec = np.zeros(N_CLASSES)
-    cls_idx = ALL_MATERIAL_CLASSES.index(mat_class) if mat_class in ALL_MATERIAL_CLASSES else 0
-    cls_vec[cls_idx] = 1.0
-
-    # One-hot: primary metal
-    metal1_vec = np.zeros(N_METALS)
-    # One-hot: secondary metal (promoter / second DAC metal)
-    metal2_vec = np.zeros(N_METALS)
-    # One-hot: support / substrate
-    support_vec = np.zeros(N_SUPPORTS)
-    # One-hot: facet / linker
-    facet_vec = np.zeros(N_FACETS)
-    # One-hot: coordination / cavity
-    coord_vec = np.zeros(N_COORDS)
-    # Multi-hot: dopants
-    dop_vec = np.zeros(N_DOPANTS)
-    # Continuous features
-    cont = np.zeros(N_CONTINUOUS)
-
-    if mat_class == 'MoltenMetal':
-        _, host, promoter, at_pct, temp = genome
-        if host in _METAL_IDX:
-            metal1_vec[_METAL_IDX[host]] = 1.0
-        if promoter in _METAL_IDX:
-            metal2_vec[_METAL_IDX[promoter]] = 1.0
-        cont[0] = 0.0  # no strain concept
-        cont[1] = at_pct / 30.0  # normalized
-        cont[2] = 0.0
-        cont[3] = (temp - 700.0) / 500.0  # normalized temperature
-
-    elif mat_class == 'SolidCatalyst':
-        _, metal, support, facet, strain, dopants, n_sub, n_vac = genome
-        if metal in _METAL_IDX:
-            metal1_vec[_METAL_IDX[metal]] = 1.0
-        if support in _SUPPORT_IDX:
-            support_vec[_SUPPORT_IDX[support]] = 1.0
-        if facet in _FACET_LINKER_IDX:
-            facet_vec[_FACET_LINKER_IDX[facet]] = 1.0
-        for d in dopants:
-            if d in _DOPANT_IDX:
-                dop_vec[_DOPANT_IDX[d]] = 1.0
-        cont[0] = strain / 0.08  # normalized
-        cont[1] = 0.0
-        cont[2] = n_sub / 4.0
-        cont[3] = n_vac / 2.0
-
-    elif mat_class == 'SAC':
-        metal = genome[1]
-        coord = genome[2]
-        substrate = genome[3]
-        axial = genome[4] if len(genome) > 4 else 'none'
-        if metal in _METAL_IDX:
-            metal1_vec[_METAL_IDX[metal]] = 1.0
-        if coord in _COORD_IDX:
-            coord_vec[_COORD_IDX[coord]] = 1.0
-        if substrate in _SUPPORT_IDX:
-            support_vec[_SUPPORT_IDX[substrate]] = 1.0
-        # Encode axial ligand as a second coordination feature
-        if axial in _COORD_IDX:
-            coord_vec[_COORD_IDX[axial]] = 0.5  # half weight to distinguish from in-plane
-
-    elif mat_class == 'DAC':
-        _, m1, m2, coord, substrate = genome
-        if m1 in _METAL_IDX:
-            metal1_vec[_METAL_IDX[m1]] = 1.0
-        if m2 in _METAL_IDX:
-            metal2_vec[_METAL_IDX[m2]] = 1.0
-        if coord in _COORD_IDX:
-            coord_vec[_COORD_IDX[coord]] = 1.0
-        if substrate in _SUPPORT_IDX:
-            support_vec[_SUPPORT_IDX[substrate]] = 1.0
-
-    elif mat_class in ('MOF', 'COF'):
-        _, metal, linker, cavity, pore = genome
-        if metal in _METAL_IDX:
-            metal1_vec[_METAL_IDX[metal]] = 1.0
-        if linker in _FACET_LINKER_IDX:
-            facet_vec[_FACET_LINKER_IDX[linker]] = 1.0
-        if cavity in _COORD_IDX:
-            coord_vec[_COORD_IDX[cavity]] = 1.0
-        cont[1] = pore / 25.0  # normalized pore size
-
-    elif mat_class == 'Perovskite':
-        _, A, B, dopant, frac, defect = genome
-        if A in _METAL_IDX:
-            metal1_vec[_METAL_IDX[A]] = 1.0
-        if B in _METAL_IDX:
-            metal2_vec[_METAL_IDX[B]] = 1.0
-        if dopant in _DOPANT_IDX:
-            dop_vec[_DOPANT_IDX[dopant]] = 1.0
-        cont[0] = frac / 0.50  # normalized dopant fraction
-        # Encode defect type as continuous
-        _defect_map = {'none': 0.0, 'A_vacancy': 0.2, 'B_vacancy': 0.4,
-                       'O_vacancy': 0.6, 'A_excess': 0.8}
-        cont[1] = _defect_map.get(defect, 0.0)
-
-    elif mat_class == 'MetalHydride':
-        _, metal, h_type, second, additive, temp = genome
-        if metal in _METAL_IDX:
-            metal1_vec[_METAL_IDX[metal]] = 1.0
-        if second in _METAL_IDX:
-            metal2_vec[_METAL_IDX[second]] = 1.0
-        # Encode hydride type as normalized index
-        _hydride_types = [
-            'simple', 'complex_alanate', 'complex_borohydride', 'complex_amide',
-            'intermetallic_AB5', 'intermetallic_AB2', 'intermetallic_AB',
-            'intermetallic_A2B', 'perovskite_hydride',
-        ]
-        cont[0] = _hydride_types.index(h_type) / len(_hydride_types) if h_type in _hydride_types else 0.0
-        cont[3] = (temp - 400.0) / 400.0  # normalized temperature
-
-    elif mat_class == 'MAXPhase':
-        _, M, A, X, n, dopant, facet = genome
-        if M in _METAL_IDX:
-            metal1_vec[_METAL_IDX[M]] = 1.0
-        if A in _METAL_IDX:
-            metal2_vec[_METAL_IDX[A]] = 1.0
-        if dopant in _DOPANT_IDX:
-            dop_vec[_DOPANT_IDX[dopant]] = 1.0
-        cont[0] = 1.0 if X == 'N' else 0.0  # carbide vs nitride
-        cont[1] = n / 3.0  # normalized phase order
-        # Encode facet
-        _max_facet_map = {'basal_0001': 0.0, 'edge_1010': 0.5, 'edge_1120': 1.0}
-        cont[2] = _max_facet_map.get(facet, 0.0)
-
-    elif mat_class == 'HEA':
-        _, components, structure, facet, temp = genome
-        # Multi-hot encode all component elements
-        for comp in components:
-            if comp in _METAL_IDX:
-                metal1_vec[_METAL_IDX[comp]] = 1.0
-        # Encode structure as normalized index
-        _hea_structs = ['fcc', 'bcc', 'hcp', 'fcc_bcc_dual', 'amorphous']
-        cont[0] = _hea_structs.index(structure) / len(_hea_structs) if structure in _hea_structs else 0.0
-        # Encode facet
-        _hea_facet_map = {'111': 0.0, '100': 0.33, '110': 0.67, '211': 1.0}
-        cont[1] = _hea_facet_map.get(facet, 0.0)
-        cont[3] = (temp - 900.0) / 400.0  # normalized temperature
-
-    elif mat_class == 'Spinel':
-        _, A, B, dopant, morph, support = genome
-        if A in _METAL_IDX:
-            metal1_vec[_METAL_IDX[A]] = 1.0
-        if B in _METAL_IDX:
-            metal2_vec[_METAL_IDX[B]] = 1.0
-        if dopant in _DOPANT_IDX:
-            dop_vec[_DOPANT_IDX[dopant]] = 1.0
-        if morph in _COORD_IDX:
-            coord_vec[_COORD_IDX[morph]] = 1.0
-        if support in _SUPPORT_IDX:
-            support_vec[_SUPPORT_IDX[support]] = 1.0
-
-    elif mat_class == 'MXene':
-        _, M, X, n, term, sac_metal = genome
-        if M in _METAL_IDX:
-            metal1_vec[_METAL_IDX[M]] = 1.0
-        if sac_metal in _METAL_IDX:
-            metal2_vec[_METAL_IDX[sac_metal]] = 1.0
-        if term in _COORD_IDX:
-            coord_vec[_COORD_IDX[term]] = 1.0
-        cont[0] = 1.0 if X == 'N' else (0.5 if X == 'CN' else 0.0)
-        cont[1] = n / 3.0
-
-    elif mat_class == 'SAA':
-        _, trace, host, facet, loading = genome
-        if trace in _METAL_IDX:
-            metal1_vec[_METAL_IDX[trace]] = 1.0
-        if host in _METAL_IDX:
-            metal2_vec[_METAL_IDX[host]] = 1.0
-        _saa_facet_map = {'111': 0.0, '100': 0.33, '110': 0.67, '211': 1.0}
-        cont[0] = _saa_facet_map.get(facet, 0.0)
-        cont[1] = loading / 10000.0  # normalized loading
-
-    elif mat_class == 'MetalFreeCarbon':
-        _, n_type, n_frac, defect, substrate, co_dop = genome
-        # No metal encoding — this is the point
-        if n_type in _COORD_IDX:
-            coord_vec[_COORD_IDX[n_type]] = 1.0
-        if defect in _COORD_IDX:
-            coord_vec[_COORD_IDX[defect]] = 0.5
-        if substrate in _SUPPORT_IDX:
-            support_vec[_SUPPORT_IDX[substrate]] = 1.0
-        cont[0] = n_frac / 0.20  # normalized N fraction
-        _codop_map = {'B': 0.2, 'S': 0.4, 'P': 0.6, 'F': 0.8, 'none': 0.0}
-        cont[1] = _codop_map.get(co_dop, 0.0)
-
+    cls_vec[ALL_MATERIAL_CLASSES.index(mat_class) if mat_class in ALL_MATERIAL_CLASSES else 0] = 1.0
+    features = _Features()
+    encoder = _CLASS_ENCODERS.get(mat_class)
+    if encoder is not None:
+        encoder(features, genome)
     return np.concatenate([
-        cls_vec, metal1_vec, metal2_vec, support_vec,
-        facet_vec, coord_vec, dop_vec, cont
+        cls_vec, features.metal1, features.metal2, features.support,
+        features.facet, features.coord, features.dopant, features.cont,
     ])
 
 
