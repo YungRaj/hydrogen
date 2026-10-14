@@ -2,6 +2,7 @@
 """Turquoise-hydrogen catalyst-guided branch discovery."""
 
 import argparse
+import os
 import hashlib
 import tempfile
 from dataclasses import dataclass
@@ -153,10 +154,18 @@ def main() -> None:
         default=1,
         help='maximum terminal leaves to scan during this bounded run',
     )
+    parser.add_argument(
+        '--scan-workers',
+        type=int,
+        default=max(1, min(8, os.cpu_count() or 1)),
+        help='CPU processes used to score branch leaves in parallel',
+    )
     args = parser.parse_args()
     candidates = int(args.calibration_candidates)
     if args.branch_leaves <= 0:
         parser.error('--branch-leaves must be positive')
+    if args.scan_workers <= 0:
+        parser.error('--scan-workers must be positive')
     budget = PilotBudget(
         calibration_candidates=candidates,
         validation_candidates=min(20, candidates),
@@ -164,7 +173,7 @@ def main() -> None:
         archive_candidates=100,
         branch_leaves=args.branch_leaves,
         runtime_s=args.probe_seconds,
-        scan_workers=1,
+        scan_workers=args.scan_workers,
         workers_per_gpu=1,
     )
     config = BranchDiscoveryConfig(

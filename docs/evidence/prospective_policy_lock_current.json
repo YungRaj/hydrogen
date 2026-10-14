@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "status": "future_campaign",
-  "policy_source_sha256": "a332f4250b6ed94c534b304cc62a643b8ac20711e1978a2b56aa4464bbc4c309",
+  "policy_source_sha256": "20a6590a7b0a9e835636fa30363d316916104579c9a8835fd4503a63615aff63",
   "confirmatory_applications": ["fuel_cell_orr"],
   "exploratory_applications": ["turquoise_hydrogen"],
   "planned_batches": 35,

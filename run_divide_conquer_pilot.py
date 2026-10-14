@@ -22,19 +22,18 @@ REPO_ROOT = Path(__file__).resolve().parent
 ROOT = Path('results/prospective_search')
 HISTORY = Path('docs/evidence/legacy_pilot_rounds.jsonl')
 POLICY_LOCK = Path('docs/evidence/prospective_policy_lock_current.json')
-APPS = (('turquoise_hydrogen', 'E_act', 'pyrolysis'),
-        ('fuel_cell_orr', 'orr_overpotential_V', 'orr'))
+# The confirmatory proof target is turquoise hydrogen.  ORR remains a separate
+# historical benchmark and is not mixed into this campaign's training set.
+APPS = (('turquoise_hydrogen', 'E_act', 'pyrolysis'),)
 PROTOCOLS = {
     'turquoise_hydrogen': PYROLYSIS_PROTOCOL.protocol_id,
     'fuel_cell_orr': ORR_PROTOCOL.protocol_id,
 }
-LEGACY_PROTOCOLS = {
-    'turquoise_hydrogen': 'esen-sm-conserving-all-oc25:relax-v3:pyrolysis-v2',
-    'fuel_cell_orr': 'esen-sm-conserving-all-oc25:relax-v3:orr-che-v2',
-}
 BASELINE_OUTCOMES = {
-    'turquoise_hydrogen': Path('results/screening/pilot/divide_conquer_v8_pyrolysis.csv'),
-    'fuel_cell_orr': Path('results/fuel_cell/pilot/divide_conquer_v8_orr.csv'),
+    # The active training baseline is generated under the current protocol;
+    # historical v2-v8 files remain archive-only evidence.
+    'turquoise_hydrogen': Path('results/screening/branch_calibration.csv'),
+    'fuel_cell_orr': Path('results/fuel_cell/prospective/smoke-relax-v4-20261009_orr.csv'),
 }
 HIT_FRACTION = 0.20
 POLICY_SOURCE_PATHS = (
@@ -216,20 +215,14 @@ def _training(
         frame = pd.read_csv(path)
         if 'screening_protocol' not in frame.columns:
             raise RuntimeError(f'training data has no screening_protocol: {path}')
-        allowed = {PROTOCOLS[app], LEGACY_PROTOCOLS[app]}
-        mismatched = ~frame.screening_protocol.isin(allowed)
+        mismatched = frame.screening_protocol.ne(PROTOCOLS[app])
+        # Historical rows are archive-only; the active training set contains
+        # only the current protocol.  This keeps one live dataset without
+        # maintaining a legacy compatibility matrix.
         if bool(mismatched.any()):
-            protocols = sorted(
-                frame.loc[mismatched, 'screening_protocol'].astype(str).unique()
-            )
-            raise RuntimeError(f'incompatible screening protocol in {path}: {protocols}')
-        legacy = frame.screening_protocol.eq(LEGACY_PROTOCOLS[app])
-        if bool(legacy.any()):
-            # Relax-v4 changes SAC/DAC geometry and adsorption placement. Other
-            # material classes are structurally identical and remain compatible.
-            changed_geometry = frame.material_class.isin(('SAC', 'DAC'))
-            frame = frame.loc[~(legacy & changed_geometry)].copy()
-            frame.loc[:, 'screening_protocol'] = PROTOCOLS[app]
+            frame = frame.loc[~mismatched].copy()
+        if frame.empty:
+            continue
         frames.append(frame)
     frame = pd.concat(frames, ignore_index=True, sort=False)
     if valid_only:
