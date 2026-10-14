@@ -23,6 +23,12 @@ mkdir -p "$HF_HOME" "$XDG_CACHE_HOME" "$ENV_ROOT"
 
 log() { printf '\n==> %s\n' "$*"; }
 
+log "System tools (nvtop for live GPU monitoring)"
+if ! command -v nvtop >/dev/null 2>&1 && command -v apt-get >/dev/null 2>&1; then
+    apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nvtop tmux ||
+        echo "nvtop install skipped (no apt access)"
+fi
+
 log "Miniforge"
 if [ ! -x "$CONDA_ROOT/bin/conda" ]; then
     curl -fsSL -o /tmp/miniforge.sh \
