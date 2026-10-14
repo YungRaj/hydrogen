@@ -456,7 +456,10 @@ def main() -> None:
     args = parser.parse_args()
     lock_errors = verify_analysis_lock(args.lock)
     if lock_errors:
-        parser.error('; '.join(lock_errors))
+        parser.error(
+            '; '.join(lock_errors) + ' -- this analysis is frozen; re-run it from '
+            'the commit recorded in docs/evidence/lock_provenance.json'
+        )
     benchmark = load_scoreable_benchmark(args.dataset)
     if args.action == 'screen':
         from pipeline.screening.surface_screener import run_screening

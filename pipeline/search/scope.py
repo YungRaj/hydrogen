@@ -34,23 +34,7 @@ OUT_OF_SCOPE_PEMFC_CATHODE_CLASSES = frozenset({'MetalHydride', 'MoltenMetal'})
 
 # Slab coking index ΔE_C − 2ΔE_H is defined on a solid surface slab.
 # MoltenMetal has no slab; the descriptor must not rank that class.
-SLAB_COKING_INDEX_CLASSES = frozenset(
-    {
-        'SolidCatalyst',
-        'HEA',
-        'SAC',
-        'DAC',
-        'SAA',
-        'Perovskite',
-        'Spinel',
-        'MOF',
-        'COF',
-        'MetalFreeCarbon',
-        'MAXPhase',
-        'MXene',
-        'MetalHydride',
-    }
-)
+SLAB_COKING_INDEX_CLASSES = DIRECT_PEMFC_CATHODE_CLASSES | {'MetalHydride'}
 OUT_OF_SCOPE_SLAB_COKING_CLASSES = frozenset({'MoltenMetal'})
 
 APPLICATION_PYROLYSIS = 'turquoise_pyrolysis'
@@ -329,11 +313,14 @@ def scope_pemfc_pool(
 def is_validation_quota_class(material_class: str, application: str = None) -> bool:
     """Reserved eSen/DFT slots: dead classes stay enumerated, they do not get a quota.
 
-    MetalHydride is exempt on every application. Pyrolysis additionally
-    exempts every class whose encoded phase is out of scope (ADR 0001).
+    MetalHydride is exempt on every application. Pyrolysis and the PEMFC
+    cathode (ORR) workflows additionally exempt every class that is out of
+    their scope (ADR 0001), so no reserved slot goes to a class the
+    application's objectives can never accept.
 
     Args:
         material_class: Input controlling material class.
+        application: Workflow application name, or None for no scope filter.
 
     Returns:
         Validated bool output for this operation.
@@ -342,6 +329,8 @@ def is_validation_quota_class(material_class: str, application: str = None) -> b
         return False
     if application in (APPLICATION_PYROLYSIS, 'pyrolysis', 'turquoise_hydrogen'):
         return material_class not in OUT_OF_SCOPE_TURQUOISE_PYROLYSIS_CLASSES
+    if application in (APPLICATION_PEMFC, 'fuel_cell_orr', 'fuel_cell'):
+        return material_class not in OUT_OF_SCOPE_PEMFC_CATHODE_CLASSES
     return True
 
 

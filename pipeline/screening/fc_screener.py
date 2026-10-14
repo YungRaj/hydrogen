@@ -17,7 +17,6 @@ pyrolysis screener, but evaluates ORR-specific descriptors.
 Parallelized across all available GPUs with 2 workers per device.
 """
 
-import os
 import numpy as np
 import multiprocessing as mp
 from typing import List

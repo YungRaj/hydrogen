@@ -20,41 +20,9 @@ from ase.optimize import FIRE
 from pipeline.screening.relaxation import geometry_digest, relax_with_record
 from pipeline.screening.surface_calculator import get_ocp_calculator
 from pipeline.screening.surface_screener import generate_structure
-from pipeline.evidence.molten_md import LiquidMDProtocol, collect_liquid_snapshots
 from pipeline.evidence.saddle_refinement import refine_saddle
 
 MODEL_NAME = 'esen-sm-conserving-all-oc25'
-
-
-def collect_molten_snapshots(
-    genome: tuple[Any, ...], device: str, protocol: LiquidMDProtocol,
-    model_name: str = MODEL_NAME,
-) -> tuple[list[Atoms], dict[str, Any]]:
-    """Build a molten genome and collect MD snapshots for exploratory NEB.
-
-    This is deliberately separate from the locked static-replica workflow:
-    callers must record the MD protocol and snapshots before using them for
-    barrier statistics.
-
-    Args:
-        genome: Molten-metal catalyst encoding.
-        device: Calculator device.
-        protocol: Liquid MD sampling protocol.
-        model_name: Fairchem model identifier.
-
-    Returns:
-        Snapshots and auditable protocol metadata.
-    """
-    calculator = get_ocp_calculator(model_name, device=device)
-    if calculator is None:
-        raise RuntimeError(f'could not load {model_name}')
-    structure, _, material_class = generate_structure(genome, structure_seed=0)
-    if material_class != 'MoltenMetal':
-        raise ValueError('liquid snapshots require a MoltenMetal genome')
-    structure.pbc = True
-    structure.calc = calculator
-    snapshots, metadata = collect_liquid_snapshots(structure, protocol)
-    return snapshots, {**metadata, 'genome': repr(genome), 'model': model_name}
 
 
 def refine_path_saddle(images: list[Atoms], *, fmax_eV_A: float = 0.05,
@@ -675,12 +643,20 @@ def main() -> None:
                         help='Fairchem model identifier for exploratory cross-checks')
     parser.add_argument('--smoke', action='store_true',
                         help='use bounded exploratory settings; never valid evidence')
+    parser.add_argument('--exploratory', action='store_true',
+                        help='allow an implementation that differs from the lock; '
+                             'the run is labelled exploratory and cannot pass')
     args = parser.parse_args()
     lock_path = Path(args.lock)
     lock = json.loads(lock_path.read_text())
     actual = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
-    if actual != lock.get('implementation_sha256'):
-        parser.error('NEB implementation does not match the preregistration lock')
+    implementation_matches_lock = actual == lock.get('implementation_sha256')
+    if not implementation_matches_lock and not args.exploratory:
+        parser.error(
+            'NEB implementation differs from the preregistration lock: check out '
+            'the commit recorded in docs/evidence/lock_provenance.json for a '
+            'preregistered run, or pass --exploratory'
+        )
     config = NEBConfig(**lock['neb_config'])
     if args.smoke:
         config = NEBConfig(
@@ -759,6 +735,11 @@ def main() -> None:
             report['acceptance_passed'] = False
     else:
         parser.error(f"unsupported validation kind: {lock['kind']}")
+    report['implementation_matches_lock'] = implementation_matches_lock
+    if not implementation_matches_lock:
+        # A modified implementation is never preregistered evidence.
+        report['exploratory_modified_implementation'] = True
+        report['acceptance_passed'] = False
     _write_report(args.output, report)
     print(json.dumps({
         key: value for key, value in report.items()

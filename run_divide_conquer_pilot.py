@@ -36,14 +36,10 @@ BASELINE_OUTCOMES = {
     'fuel_cell_orr': Path('results/fuel_cell/prospective/smoke-relax-v4-20261009_orr.csv'),
 }
 HIT_FRACTION = 0.20
-POLICY_SOURCE_PATHS = (
-    Path('run_divide_conquer_pilot.py'),
-    Path('pipeline/screening/small_data_ranker.py'),
-    Path('pipeline/search/scope.py'),
-    Path('pipeline/screening/protocols.py'),
-    Path('pipeline/screening/surface_screener.py'),
-    Path('pipeline/screening/fc_screener.py'),
-)
+# The policy identity is the full import closure of this runner, locked at
+# campaign launch (``lock-policy``), so no imported module can drift
+# unnoticed mid-campaign and nothing is frozen between campaigns.
+POLICY_ENTRY_POINTS = ('run_divide_conquer_pilot.py',)
 
 
 def _coverage_select(
@@ -79,16 +75,10 @@ def _hash(path: Path) -> str:
 
 
 def _policy_source_hash() -> str:
-    """Return a checkout-independent digest of every frozen source file."""
-    digest = hashlib.sha256()
-    for relative_path in POLICY_SOURCE_PATHS:
-        normalized_path = relative_path.as_posix()
-        content = (REPO_ROOT / relative_path).read_bytes().replace(b'\r\n', b'\n')
-        digest.update(normalized_path.encode())
-        digest.update(b'\0')
-        digest.update(content)
-        digest.update(b'\0')
-    return digest.hexdigest()
+    """Return a checkout-independent digest of the runner's import closure."""
+    from pipeline.evidence.provenance import closure_digest
+
+    return closure_digest(list(POLICY_ENTRY_POINTS), REPO_ROOT)
 
 
 def _require_locked_policy() -> str:
@@ -96,13 +86,58 @@ def _require_locked_policy() -> str:
     if not POLICY_LOCK.is_file():
         raise RuntimeError(f'missing prospective policy lock: {POLICY_LOCK}')
     lock = json.loads(POLICY_LOCK.read_text())
-    expected = str(lock.get('policy_source_sha256', ''))
+    expected = str(lock.get('policy_source_sha256') or '')
     actual = _policy_source_hash()
-    if not expected or actual != expected:
+    if not expected:
+        raise RuntimeError(
+            f'{POLICY_LOCK} is not locked yet; run '
+            '`python run_divide_conquer_pilot.py lock-policy` when the campaign launches'
+        )
+    if actual != expected:
         raise RuntimeError(
             f'prospective policy hash mismatch: expected {expected}, got {actual}'
         )
     return actual
+
+
+def lock_policy(force: bool = False) -> Path:
+    """Lock the current policy closure into the campaign lock at launch.
+
+    Refuses to re-lock once confirmatory batches are registered under a
+    different digest, because that would silently split a running campaign.
+
+    Args:
+        force: Re-lock even though confirmatory batches already exist.
+
+    Returns:
+        Path of the updated policy lock.
+    """
+    from pipeline.evidence.provenance import git_commit
+
+    lock = json.loads(POLICY_LOCK.read_text())
+    digest = _policy_source_hash()
+    previous = lock.get('policy_source_sha256')
+    if previous and previous != digest and not force:
+        registered = [
+            batch for batch, _ in _ordered_finalized_batches()
+            if json.loads((_root(batch) / 'manifest.json').read_text()).get(
+                'policy_source_sha256') == previous
+            and batch.startswith('prereg-')
+        ]
+        if registered:
+            raise RuntimeError(
+                f'{len(registered)} confirmatory batches use the current lock; '
+                'refusing to re-lock a running campaign (use --force to override)'
+            )
+    lock.update({
+        'policy_source_sha256': digest,
+        'policy_digest_kind': 'import_closure_v1',
+        'policy_entry_points': list(POLICY_ENTRY_POINTS),
+        'locked_at_commit': git_commit(REPO_ROOT),
+        'locked_utc': datetime.now(timezone.utc).isoformat(),
+    })
+    _atomic_json(POLICY_LOCK, lock)
+    return POLICY_LOCK
 
 
 def _atomic_json(path: Path, payload: dict) -> None:
@@ -969,7 +1004,8 @@ def archive_history() -> Path:
 
 def main() -> None:
     """Dispatch the prospective campaign command-line interface."""
-    parser=argparse.ArgumentParser(); parser.add_argument('action',choices=('prepare','evaluate-pyrolysis','evaluate-orr','analyze','rescore','replay-power','confirmatory-analysis','archive-history')); parser.add_argument('--batch'); parser.add_argument('--per-class',type=int,default=10); parser.add_argument('--budget',type=int,default=20); parser.add_argument('--evidence-role',choices=('confirmatory','smoke'),default='confirmatory'); args=parser.parse_args()
+    parser=argparse.ArgumentParser(); parser.add_argument('action',choices=('lock-policy','prepare','evaluate-pyrolysis','evaluate-orr','analyze','rescore','replay-power','confirmatory-analysis','archive-history')); parser.add_argument('--batch'); parser.add_argument('--per-class',type=int,default=10); parser.add_argument('--budget',type=int,default=20); parser.add_argument('--evidence-role',choices=('confirmatory','smoke'),default='confirmatory'); parser.add_argument('--force',action='store_true'); args=parser.parse_args()
+    if args.action=='lock-policy': print(lock_policy(args.force)); return
     if args.action=='archive-history': print(archive_history()); return
     if args.action=='rescore': print(rescore_campaign()); return
     if args.action=='replay-power': print(replay_and_power()); return

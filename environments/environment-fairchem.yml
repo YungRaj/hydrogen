@@ -8,6 +8,7 @@ channels:
   - conda-forge
 dependencies:
   - python=3.12
+  - git>=2.45  # commit-anchored evidence-lock verification
   - pip
   - pip:
       - --extra-index-url https://download.pytorch.org/whl/cu129

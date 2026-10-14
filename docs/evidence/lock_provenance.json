@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "description": "Commit at which each completed lock's source hashes verify. Locks are checked against these commits, never against the working tree.",
+  "locks": {
+    "docs/evidence/molten_neb_validation_lock.json": "9799de5d3b85f12f46d2c2a57e4987c87436c47a",
+    "docs/evidence/molten_ordering_exploratory_lock.json": "a8a991a283b138a31858589193bef80484778d95",
+    "docs/evidence/ni111_mlip_neb_validation_lock.json": "7b10cdbbd9b1beb68b491801165aeb0870a10a03",
+    "docs/evidence/post_confirmatory_policy_lock.json": "ce650ed3cb05d8585ded434cb8095fdbfe087105",
+    "docs/evidence/prospective_policy_lock.json": "orr-confirmatory-v1",
+    "docs/evidence/pyrolysis_descriptor_benchmark_lock.json": "7b10cdbbd9b1beb68b491801165aeb0870a10a03",
+    "docs/evidence/pyrolysis_energetic_span_lock.json": "03262ea9c85f67d293dee58eb8f465cc9a7db0a8"
+  }
+}

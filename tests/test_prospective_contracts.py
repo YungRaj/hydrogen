@@ -66,19 +66,16 @@ class ProspectiveContracts(unittest.TestCase):
         self.assertFalse(result['acceptance_passed'])
         self.assertFalse(result['held_out_conditions_consumed'])
 
-    def test_ni111_neb_workflow_lock_matches_current_implementation(self) -> None:
+    def test_ni111_neb_workflow_lock_and_result_agree(self) -> None:
+        # The implementation hash is verified at its recorded commit by
+        # test_historical_locks_verify_at_their_recorded_commits, not here.
         lock = json.loads((
             REPO_ROOT / 'docs/evidence/ni111_mlip_neb_validation_lock.json'
         ).read_text())
-        implementation = REPO_ROOT / 'pipeline/evidence/molten_neb.py'
         self.assertEqual(lock['kind'], 'ni111_reference')
         self.assertEqual(lock['reference_barrier_eV'], 1.05)
         self.assertEqual(lock['neb_config']['images'], 11)
         self.assertEqual(lock['neb_config']['plain_path_steps'], 1000)
-        self.assertEqual(
-            hashlib.sha256(implementation.read_bytes()).hexdigest(),
-            lock['implementation_sha256'],
-        )
         result = json.loads((
             REPO_ROOT / 'results/evidence/ni111_mlip_neb_validation.json'
         ).read_text())
@@ -206,9 +203,31 @@ class ProspectiveContracts(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'missing screening result'):
             analyze_screening_results(benchmark, [])
 
-    def test_pyrolysis_analysis_lock_matches_sources(self) -> None:
-        lock = REPO_ROOT / 'docs/evidence/pyrolysis_descriptor_benchmark_lock.json'
-        self.assertEqual(verify_analysis_lock(lock, REPO_ROOT), [])
+    def test_historical_locks_verify_at_their_recorded_commits(self) -> None:
+        from pipeline.evidence.provenance import (
+            LOCK_PROVENANCE, git_commit, verify_lock_at_commit,
+        )
+
+        registry = json.loads(LOCK_PROVENANCE.read_text())['locks']
+        source_locks = {
+            path.relative_to(REPO_ROOT).as_posix()
+            for path in (REPO_ROOT / 'docs/evidence').glob('*lock*.json')
+            if path.name != 'lock_provenance.json'
+            and (lambda d: d.get('sha256') or d.get('implementation_sha256')
+                 or d.get('policy_source_sha256'))(json.loads(path.read_text()))
+        }
+        # Every lock that records source hashes is anchored to a commit, except
+        # a launched-but-running campaign lock, which is checked by its runner.
+        unanchored = {
+            lock for lock in source_locks - set(registry)
+            if json.loads((REPO_ROOT / lock).read_text()).get('policy_digest_kind')
+            != 'import_closure_v1'
+        }
+        self.assertEqual(unanchored, set())
+        if git_commit(REPO_ROOT) is None:
+            self.skipTest('not a git checkout; commit-anchored verification skipped')
+        for lock, commit in registry.items():
+            self.assertEqual(verify_lock_at_commit(REPO_ROOT / lock, commit), [], lock)
 
     def test_rate_descriptor_result_preserves_lock_and_screening_input(self) -> None:
         result = json.loads((
@@ -403,7 +422,55 @@ class ProspectiveContracts(unittest.TestCase):
                 self.assertEqual(campaign._policy_source_hash(), expected)
             finally:
                 __import__('os').chdir(previous)
-        self.assertEqual(campaign._require_locked_policy(), expected)
+
+    def test_policy_lock_is_created_at_launch_not_pre_baked(self) -> None:
+        original_root, original_lock = campaign.ROOT, campaign.POLICY_LOCK
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            campaign.ROOT = root / 'campaign'
+            campaign.POLICY_LOCK = root / 'lock.json'
+            try:
+                campaign.POLICY_LOCK.write_text(json.dumps({
+                    'policy_source_sha256': None, 'planned_batches': 35,
+                }))
+                with self.assertRaisesRegex(RuntimeError, 'not locked yet'):
+                    campaign._require_locked_policy()
+                campaign.lock_policy()
+                lock = json.loads(campaign.POLICY_LOCK.read_text())
+                self.assertEqual(lock['planned_batches'], 35)
+                self.assertEqual(lock['policy_digest_kind'], 'import_closure_v1')
+                self.assertEqual(
+                    campaign._require_locked_policy(), lock['policy_source_sha256']
+                )
+            finally:
+                campaign.ROOT, campaign.POLICY_LOCK = original_root, original_lock
+
+    def test_policy_closure_covers_deep_and_lazy_imports(self) -> None:
+        from pipeline.evidence.provenance import closure_digest, source_closure
+
+        closure = {
+            path.relative_to(REPO_ROOT).as_posix()
+            for path in source_closure(['run_divide_conquer_pilot.py'])
+        }
+        # Previously only six hand-picked files were hashed.
+        self.assertIn('pipeline/screening/small_data_ranker.py', closure)
+        self.assertIn('pipeline/search/design_space.py', closure)
+        self.assertIn('pipeline/utils.py', closure)
+        self.assertGreater(len(closure), 6)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'pipeline' / 'deep').mkdir(parents=True)
+            (root / 'pipeline' / '__init__.py').write_text('')
+            (root / 'pipeline' / 'deep' / '__init__.py').write_text('')
+            leaf = root / 'pipeline' / 'deep' / 'leaf.py'
+            leaf.write_text('VALUE = 1\n')
+            (root / 'pipeline' / 'mid.py').write_text(
+                'def f():\n    from pipeline.deep.leaf import VALUE\n    return VALUE\n'
+            )
+            (root / 'entry.py').write_text('import pipeline.mid\n')
+            before = closure_digest(['entry.py'], root)
+            leaf.write_text('VALUE = 2\n')
+            self.assertNotEqual(closure_digest(['entry.py'], root), before)
 
     def test_confirmatory_progress_excludes_smoke_and_mismatched_hash(self) -> None:
         original_root, original_lock = campaign.ROOT, campaign.POLICY_LOCK

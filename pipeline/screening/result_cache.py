@@ -45,15 +45,22 @@ def implementation_digest(worker_target: Callable) -> str:
     """
     import importlib
 
+    from pipeline.evidence.provenance import REPO_ROOT, source_closure
+
     digest = hashlib.sha256()
     modules = tuple(dict.fromkeys((worker_target.__module__, *_SCIENTIFIC_MODULES)))
+    roots = []
     for name in modules:
         module = importlib.import_module(name)
         path = inspect.getsourcefile(module)
         if path is None:
             raise RuntimeError(f'cannot fingerprint scientific module {name}')
-        digest.update(name.encode())
-        digest.update(Path(path).read_bytes())
+        roots.append(Path(path))
+    # Hash the full import closure, not just the named roots, so an edit to
+    # any imported helper invalidates cached rows instead of reusing them.
+    for path in source_closure(roots, REPO_ROOT):
+        digest.update(path.relative_to(REPO_ROOT).as_posix().encode())
+        digest.update(path.read_bytes())
     digest.update(sys.version.encode())
     for distribution in ('ase', 'fairchem-core', 'torch'):
         try:

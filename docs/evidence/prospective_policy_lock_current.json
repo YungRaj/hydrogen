@@ -1,11 +1,16 @@
 {
   "schema_version": 1,
-  "status": "future_campaign",
-  "policy_source_sha256": "20a6590a7b0a9e835636fa30363d316916104579c9a8835fd4503a63615aff63",
-  "confirmatory_applications": ["fuel_cell_orr"],
-  "exploratory_applications": ["turquoise_hydrogen"],
+  "status": "future_campaign_unlocked",
+  "policy_source_sha256": null,
+  "confirmatory_applications": [
+    "fuel_cell_orr"
+  ],
+  "exploratory_applications": [
+    "turquoise_hydrogen"
+  ],
   "planned_batches": 35,
   "candidates_per_class": 10,
   "selection_budget": 20,
-  "random_one_sided_alpha": 0.05
+  "random_one_sided_alpha": 0.05,
+  "note": "Lock at launch: run `python run_divide_conquer_pilot.py lock-policy` immediately before the first prereg batch."
 }
