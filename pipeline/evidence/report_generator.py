@@ -113,7 +113,7 @@ def _executive_summary(p1: dict, p2: dict, p5: dict) -> list:
              _metric_row('Catalysts evaluated (Fairchem)', p1.get('total_evaluated')),
              _metric_row('Valid candidates', p1.get('valid_count')),
              f"| Pareto front size | {p1.get('pareto_size', 'N/A')} |",
-             f"| Best eligible screening barrier | {p1.get('best_E_act', 'N/A')} eV |",
+             _metric_row('Best eligible screening barrier', p1.get('best_E_act'), '.3f', ' eV'),
              f"| Best coking resistance | {p1.get('best_coking', 'N/A')} |",
              f"| Reactor simulations | {p2.get('catalysts_simulated', 'N/A')} |"]
     solids_x = _scorecard_value(p2, 'best_conversion', 'headline_solids_conversion')
@@ -131,9 +131,9 @@ def _executive_summary(p1: dict, p2: dict, p5: dict) -> list:
     lines += [
         _metric_row('FC catalysts evaluated',
                     p5.get('total_evaluated', p5.get('n_cathodes_screened'))),
-        _metric_row('Best PEMFC power density', p5.get('best_power_W_cm2'), '', ' W/cm²'),
+        _metric_row('Best PEMFC power density', p5.get('best_power_W_cm2'), '.3f', ' W/cm²'),
         _metric_row('Best PEMFC efficiency', p5.get('best_efficiency'), '.1%'),
-        _metric_row('Min ORR overpotential', p5.get('min_overpotential_V'), '', ' V'),
+        _metric_row('Min ORR overpotential', p5.get('min_overpotential_V'), '.3f', ' V'),
         "",
     ]
     return lines
@@ -373,8 +373,9 @@ def generate_full_report(pipeline_state: Dict = None) -> Path:
     ps = data.get('pipeline_state', {})
     p1 = ps.get('phase1', {})
     p2 = ps.get('phase2', {})
-    # FC results may come from orchestrator ('phase5') or campaign ('phase5_ga'/'phase5_stack')
-    p5 = {**ps.get('phase5', {}), **ps.get('phase5_ga', {}), **ps.get('phase5_stack', {})}
+    # FC results come from the orchestrator ('phase5') or the campaign
+    # ('phase5_branch' search summary + 'phase5_stack' PEMFC/stack results).
+    p5 = {**ps.get('phase5', {}), **ps.get('phase5_branch', {}), **ps.get('phase5_stack', {})}
 
     report_lines = (
         _header()

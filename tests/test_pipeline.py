@@ -1033,7 +1033,7 @@ def test_report_campaign_path():
 
     path = generate_full_report(
         {
-            'phase5_ga': {'total_evaluated': 1000},
+            'phase5_branch': {'total_evaluated': 1000},
             'phase5_stack': {
                 'best_power_W_cm2': 1.35,
                 'best_efficiency': 0.31,
