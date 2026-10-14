@@ -31,6 +31,7 @@ from pipeline.simulation.solver_execution import SolverExecutionServices
 from pipeline.simulation.artifact_store import persist_validated_artifact
 from pipeline.simulation.moose_backend import (
     build_moose_command, default_moose_input, moose_case_parameters,
+    moose_environment,
     moose_version, resolve_moose_executable)
 from pipeline.data_models.artifacts import ExternalSolverArtifact
 
@@ -62,8 +63,13 @@ def _read_json(path: Path) -> dict:
 
 def _run(command: list[str], cwd: Path, timeout_s: int,
          backend: str = 'solver') -> None:
+    environment = (
+        moose_environment(resolve_moose_executable(required=False))
+        if backend.startswith('moose') else None
+    )
     completed = subprocess.run(
-        command, cwd=cwd, capture_output=True, text=True, timeout=timeout_s)
+        command, cwd=cwd, capture_output=True, text=True, timeout=timeout_s,
+        env=environment)
     (cwd / f'hydrogen_{backend}.stdout.log').write_text(completed.stdout)
     (cwd / f'hydrogen_{backend}.stderr.log').write_text(completed.stderr)
     if completed.returncode:

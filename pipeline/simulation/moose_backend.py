@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import subprocess
 from pathlib import Path
 from typing import Mapping
@@ -54,6 +55,29 @@ def resolve_moose_executable(required: bool = True) -> str | None:
             'MOOSE is required for NTEC/electrochemical modes; set '
             'MOOSE_EXECUTABLE or install environments/environment-moose.yml')
     return None
+
+
+def moose_environment(executable: str | None) -> dict[str, str]:
+    """Return a subprocess environment that runs MOOSE with its own toolchain.
+
+    MOOSE JIT-compiles parsed expressions (``ADParsedMaterial``) with the first
+    ``mpicxx`` on ``PATH``. When another MPI stack is active, e.g. the NVIDIA
+    HPC SDK sourced for GPU Quantum ESPRESSO, that compiler produces objects
+    MOOSE cannot load, so the executable's own ``bin`` directory goes first.
+
+    Args:
+        executable: Resolved MOOSE executable, or None to leave PATH unchanged.
+
+    Returns:
+        A copy of ``os.environ`` with the MOOSE toolchain first on ``PATH``.
+    """
+    environment = os.environ.copy()
+    if executable:
+        toolchain = str(Path(executable).resolve().parent)
+        environment['PATH'] = os.pathsep.join(
+            [toolchain, *[p for p in environment.get('PATH', '').split(os.pathsep)
+                          if p and p != toolchain]])
+    return environment
 
 
 def moose_version(executable: str) -> str:

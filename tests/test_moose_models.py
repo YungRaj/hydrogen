@@ -22,7 +22,8 @@ from pipeline.electrochemistry.kinetics import butler_volmer_current_density  # 
 from pipeline.electrochemistry.transport import (  # noqa: E402
     limiting_current_A, ohmic_resistance_ohm)
 from pipeline.simulation.moose_backend import (  # noqa: E402
-    build_moose_command, default_moose_input, resolve_moose_executable)
+    build_moose_command, default_moose_input, moose_environment,
+    resolve_moose_executable)
 
 FARADAY = 96485.33212
 GAS_CONSTANT = 8.314462618
@@ -37,7 +38,8 @@ def _solve(reactor_type: str, parameters: dict, refine: int = 0) -> dict[str, fl
         if refine:
             command.append(f'Mesh/uniform_refine={refine}')
         completed = subprocess.run(command, cwd=case, capture_output=True,
-                                   text=True, timeout=600)
+                                   text=True, timeout=600,
+                                   env=moose_environment(executable))
         assert completed.returncode == 0, completed.stdout[-3000:] + completed.stderr[-3000:]
         return _last_row(case / 'hydrogen_moose.csv')
 
