@@ -9,15 +9,16 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 
-def test_qe_gpu_installer_is_blackwell_pinned_and_fail_closed():
+def test_qe_gpu_installer_is_pinned_arch_detecting_and_fail_closed():
     script = (ROOT / "scripts" / "install_qe_gpu.sh").read_text()
     for required in (
         "NVHPC_VERSION=25.5",
         "CUDA_VERSION=12.9",
-        "CUDA_ARCH=120",
+        "CUDA_ARCH=${capabilities[0]//./}",
+        "mixed GPU architectures are not supported",
+        "is below 7.0",
         "QE_VERSION=7.5",
         "--with-cuda-cc=\"$CUDA_ARCH\"",
-        "expected Blackwell compute capability 12.0",
         "sha256sum --check --status",
         "-D__CUDA",
         "GPU acceleration is ACTIVE",
