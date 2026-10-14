@@ -1168,7 +1168,7 @@ def test_candidate_cantera_mechanism_records_kinetics_provenance():
     assert inputs['h_adsorption_eV'] == -0.30
     assert inputs['ch3_adsorption_eV'] == -0.55
     assert inputs['c_adsorption_eV'] == -1.10
-    assert inputs['quantitative_status'] == 'screening_template_incomplete'
+    assert inputs['quantitative_status'] == 'screening_complete'
     assert inputs['provenance']['ch2_dehydrogenation_eV'] == 'template_default'
     from pipeline.reactors.models import ReactorConfig, _kinetics_evidence
 

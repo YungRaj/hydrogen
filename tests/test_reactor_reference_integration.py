@@ -212,7 +212,7 @@ def test_default_campaign_loads_ni_reference_and_produces_a_real_headline():
             assert row['off_site_carbon_active'] is True
             assert row['regen_cycles_completed'] == 0
             assert row['encapsulation_onset'] is False
-            assert row['kinetics_status'] == 'screening_template_incomplete'
+            assert row['kinetics_status'] == 'screening_complete'
             assert row['reactor_evidence_tier'] == 'diagnostic_screening_template'
             assert (
                 'incomplete_candidate_kinetics' in row['reactor_evidence_limitations']

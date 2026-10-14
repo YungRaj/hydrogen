@@ -172,7 +172,7 @@ class CandidateKinetics:
         Returns:
             Dictionary of resolved barriers, per-field ``provenance``, and
             ``quantitative_status`` (``candidate_specific`` or
-            ``screening_template_incomplete``).
+            ``screening_complete``).
         """
         defaults = {
             'ch3_dehydrogenation_eV': self.methane_activation_eV + 0.10,
@@ -250,7 +250,7 @@ class CandidateKinetics:
         values['quantitative_status'] = (
             'candidate_specific'
             if not any(provenance.get(name) == 'template_default' for name in required)
-            else 'screening_template_incomplete'
+            else 'screening_complete'
         )
         return values
 

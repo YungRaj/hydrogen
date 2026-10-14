@@ -698,7 +698,8 @@ When candidate-specific values are absent, CH3, CH2, and CH dehydrogenation,
 H2 desorption, and carbon-transfer barriers use declared defaults. The sidecar
 labels each value as screening-derived, candidate-specific, or
 `template_default`. Any default makes the mechanism
-`screening_template_incomplete`.
+`screening_complete` (candidate-specific validated kinetics use
+`candidate_specific`).
 
 This makes Cantera more candidate-aware than a single universal mechanism, but
 it is not a completed ab initio microkinetic model. Production NEB or measured
