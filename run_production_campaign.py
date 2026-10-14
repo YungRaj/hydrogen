@@ -346,8 +346,14 @@ def _run_phase1_discovery(args, pipeline_state: dict, t_deadline: float):
         'elapsed_s': time.time() - t1,
         'search_strategy': 'deterministic_branch_and_bound',
     }
-    if len(valid_db) > 0 and 'E_act' in valid_db.columns:
-        pipeline_state['phase1']['best_E_act'] = float(valid_db['E_act'].min())
+    # Censored barriers sit at the clip floor; only metric-eligible rows
+    # (the same rule run_discovery_stage uses) may report a best barrier.
+    from pipeline.screening.small_data_ranker import screening_metric_eligibility
+    eligible_db = screening_db.loc[
+        screening_metric_eligibility(screening_db, 'turquoise_hydrogen')]
+    pipeline_state['phase1']['metric_eligible_count'] = len(eligible_db)
+    if len(eligible_db) > 0:
+        pipeline_state['phase1']['best_E_act'] = float(eligible_db['E_act'].min())
     save_json(pipeline_state, "pipeline_state.json")
     print(f"\n  Phase 1: {time.time()-t1:.0f}s | Evaluated: {len(screening_db):,}")
     return top_catalysts, dft_candidates
@@ -572,16 +578,23 @@ def _run_phase3_dft(args, pipeline_state: dict, dft_candidates, results_dir: Pat
     save_json(pipeline_state, "pipeline_state.json")
 
 
-def _run_vqe(name: str, results_dir: Path) -> dict:
+def _candidate_hamiltonian_path(results_dir: Path, candidate_key: str) -> Path:
+    """Conventional location of a candidate's provenance-bound FCIDUMP."""
+    return results_dir / 'vqe' / 'hamiltonians' / candidate_key / 'FCIDUMP'
+
+
+def _run_vqe(name: str, results_dir: Path, hamiltonian: Path) -> dict:
     """Run real CUDA-Q in quantum-env and accept only benchmarked evidence.
 
     CUDA-Q lives in quantum-env and is intentionally not imported from
-    fairchem-env. The module's mock fallback is never campaign validation.
+    fairchem-env. The module's toy/mock paths are never campaign validation,
+    so a candidate-specific FCIDUMP (with its JSON sidecar) is required.
     """
     code = (
         "import json; from pipeline.validation.vqe_transition_state import "
         "validate_transition_state; r=validate_transition_state("
-        f"{name!r}, 'CH_split', target='nvidia'); print(json.dumps(r))"
+        f"{name!r}, 'CH_split', target='nvidia', "
+        f"candidate_hamiltonian={str(hamiltonian)!r}); print(json.dumps(r))"
     )
     proc = subprocess.run(
         ['conda', 'run', '-n', 'quantum-env', 'python', '-c', code],
@@ -601,18 +614,38 @@ def _run_vqe(name: str, results_dir: Path) -> dict:
 
 
 def _run_phase4_vqe(pipeline_state: dict, top_catalysts, results_dir: Path) -> None:
-    """VQE transition-state refinement of the leading champions."""
+    """VQE transition-state refinement of the leading champions.
+
+    Only champions with a candidate-specific Hamiltonian are run; the rest
+    are listed as missing inputs instead of burning CUDA-Q time on a toy
+    model that the evidence gate would reject anyway.
+    """
     from pipeline.utils import print_banner, save_json
 
     print_banner("PHASE 4: VQE TRANSITION STATES (CUDA-Q)")
     t4 = time.time()
     try:
         n_vqe = min(MAX_VQE_CANDIDATES, len(top_catalysts))
-        vqe_results = [_run_vqe(f"champion_{i}", results_dir) for i in range(n_vqe)]
-        pipeline_state['phase4'] = {
-            'catalysts_refined': len(vqe_results),
-            'elapsed_s': time.time() - t4,
-        }
+        ready, missing = [], []
+        for i, (_, row) in enumerate(top_catalysts.head(n_vqe).iterrows()):
+            candidate_key = _reactor_candidate_key(row, i)
+            hamiltonian = _candidate_hamiltonian_path(results_dir, candidate_key)
+            (ready if hamiltonian.is_file() else missing).append(
+                (candidate_key, hamiltonian))
+        if not ready:
+            pipeline_state['phase4'] = {
+                'skipped': True,
+                'reason': 'no candidate-specific Hamiltonians (FCIDUMP + sidecar)',
+                'missing_hamiltonians': [str(path) for _, path in missing],
+            }
+        else:
+            vqe_results = [_run_vqe(key, results_dir, path) for key, path in ready]
+            pipeline_state['phase4'] = {
+                'catalysts_refined': len(vqe_results),
+                'candidates': [key for key, _ in ready],
+                'missing_hamiltonians': [str(path) for _, path in missing],
+                'elapsed_s': time.time() - t4,
+            }
     except (ImportError, Exception) as e:
         print(f"  Phase 4 skipped: {e}")
         pipeline_state['phase4'] = {'skipped': True, 'reason': str(e)[:200]}

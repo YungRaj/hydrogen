@@ -118,3 +118,37 @@ def test_archive_pool_never_ranks_objectives_against_each_other(tmp_path):
         tuple(v) if isinstance(v, list) else v for v in json.loads(best)
     )
     assert len(pool) == 6
+
+
+def test_campaign_vqe_requires_candidate_hamiltonians(tmp_path, monkeypatch):
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    import pipeline.utils
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    import run_production_campaign as campaign
+
+    calls = []
+    monkeypatch.setattr(pipeline.utils, 'save_json', lambda *a, **k: None)
+    monkeypatch.setattr(subprocess, 'run', lambda *a, **k: calls.append(a))
+    champions = pd.DataFrame({'candidate_id': ['cand_a', 'cand_b']})
+
+    state = {}
+    campaign._run_phase4_vqe(state, champions, tmp_path)
+    assert state['phase4']['skipped'] is True
+    assert len(state['phase4']['missing_hamiltonians']) == 2
+    assert calls == []  # never runs CUDA-Q on a placeholder/toy model
+
+    fcidump = campaign._candidate_hamiltonian_path(tmp_path, 'cand_b')
+    fcidump.parent.mkdir(parents=True)
+    fcidump.write_text('')
+    seen = []
+    monkeypatch.setattr(
+        campaign, '_run_vqe', lambda name, root, path: seen.append((name, path)) or {}
+    )
+    state = {}
+    campaign._run_phase4_vqe(state, champions, tmp_path)
+    assert seen == [('cand_b', fcidump)]
+    assert state['phase4']['candidates'] == ['cand_b']
