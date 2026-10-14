@@ -34,23 +34,7 @@ OUT_OF_SCOPE_PEMFC_CATHODE_CLASSES = frozenset({'MetalHydride', 'MoltenMetal'})
 
 # Slab coking index ΔE_C − 2ΔE_H is defined on a solid surface slab.
 # MoltenMetal has no slab; the descriptor must not rank that class.
-SLAB_COKING_INDEX_CLASSES = frozenset(
-    {
-        'SolidCatalyst',
-        'HEA',
-        'SAC',
-        'DAC',
-        'SAA',
-        'Perovskite',
-        'Spinel',
-        'MOF',
-        'COF',
-        'MetalFreeCarbon',
-        'MAXPhase',
-        'MXene',
-        'MetalHydride',
-    }
-)
+SLAB_COKING_INDEX_CLASSES = DIRECT_PEMFC_CATHODE_CLASSES | {'MetalHydride'}
 OUT_OF_SCOPE_SLAB_COKING_CLASSES = frozenset({'MoltenMetal'})
 
 APPLICATION_PYROLYSIS = 'turquoise_pyrolysis'

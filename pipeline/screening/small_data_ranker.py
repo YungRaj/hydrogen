@@ -22,6 +22,38 @@ CLASS_SUCCESS_PRIOR_ROWS = 5
 CENSORED_E_ACT_PENALTY_EV = 5.0
 
 
+APPLICATION_OUTCOMES = {
+    "turquoise_hydrogen": "E_act",
+    "fuel_cell_orr": "orr_overpotential_V",
+}
+
+
+def _application_outcome(application: str) -> str:
+    """Return the minimized outcome column for an application."""
+    outcome = APPLICATION_OUTCOMES.get(application)
+    if outcome is None:
+        raise ValueError(f"unknown application {application}")
+    return outcome
+
+
+def _metric_eligibility(frame, application: str, pyrolysis_gates: dict) -> np.ndarray:
+    """Valid, finite outcome rows that also pass the pyrolysis gate columns.
+
+    Missing outcome, validity or gate columns fail closed (all False).
+    """
+    outcome = _application_outcome(application)
+    if outcome not in frame.columns or "valid" not in frame.columns:
+        return np.zeros(len(frame), dtype=bool)
+    values = pd.to_numeric(frame[outcome], errors="coerce").to_numpy(dtype=float)
+    eligible = frame["valid"].eq(True).to_numpy() & np.isfinite(values)
+    if application == "turquoise_hydrogen":
+        if not set(pyrolysis_gates).issubset(frame.columns):
+            return np.zeros(len(frame), dtype=bool)
+        for column, required in pyrolysis_gates.items():
+            eligible &= frame[column].eq(required).to_numpy()
+    return eligible
+
+
 def screening_metric_eligibility(frame, application: str) -> np.ndarray:
     """Return rows whose metric may guide discovery or count as a hit.
 
@@ -36,27 +68,8 @@ def screening_metric_eligibility(frame, application: str) -> np.ndarray:
     Returns:
         Boolean eligibility mask aligned with ``frame``.
     """
-    outcome = {
-        "turquoise_hydrogen": "E_act",
-        "fuel_cell_orr": "orr_overpotential_V",
-    }.get(application)
-    if outcome is None:
-        raise ValueError(f"unknown application {application}")
-    if outcome not in frame.columns or "valid" not in frame.columns:
-        return np.zeros(len(frame), dtype=bool)
-    import pandas as pd
-
-    values = pd.to_numeric(frame[outcome], errors="coerce").to_numpy(dtype=float)
-    eligible = frame["valid"].eq(True).to_numpy() & np.isfinite(values)
-    if application == "turquoise_hydrogen":
-        if (
-            "E_act_censored" not in frame.columns
-            or "pyrolysis_viable" not in frame.columns
-        ):
-            return np.zeros(len(frame), dtype=bool)
-        eligible &= frame["E_act_censored"].eq(False).to_numpy()
-        eligible &= frame["pyrolysis_viable"].eq(True).to_numpy()
-    return eligible
+    return _metric_eligibility(
+        frame, application, {"E_act_censored": False, "pyrolysis_viable": True})
 
 
 def training_metric_eligibility(frame, application: str) -> np.ndarray:
@@ -73,23 +86,7 @@ def training_metric_eligibility(frame, application: str) -> np.ndarray:
     Returns:
         Boolean training mask aligned with ``frame``.
     """
-    outcome = {
-        "turquoise_hydrogen": "E_act",
-        "fuel_cell_orr": "orr_overpotential_V",
-    }.get(application)
-    if outcome is None:
-        raise ValueError(f"unknown application {application}")
-    if outcome not in frame.columns or "valid" not in frame.columns:
-        return np.zeros(len(frame), dtype=bool)
-    import pandas as pd
-
-    values = pd.to_numeric(frame[outcome], errors="coerce").to_numpy(dtype=float)
-    eligible = frame["valid"].eq(True).to_numpy() & np.isfinite(values)
-    if application == "turquoise_hydrogen":
-        if "pyrolysis_viable" not in frame.columns:
-            return np.zeros(len(frame), dtype=bool)
-        eligible &= frame["pyrolysis_viable"].eq(True).to_numpy()
-    return eligible
+    return _metric_eligibility(frame, application, {"pyrolysis_viable": True})
 
 
 @dataclass(frozen=True)
@@ -506,12 +503,7 @@ def class_success_probability(
     Returns:
         One probability per candidate, estimated only from completed outcomes.
     """
-    outcome = {
-        "turquoise_hydrogen": "E_act",
-        "fuel_cell_orr": "orr_overpotential_V",
-    }.get(application)
-    if outcome is None:
-        raise ValueError(f"unknown application {application}")
+    outcome = _application_outcome(application)
     if (
         application == "turquoise_hydrogen"
         and {"full_simulation_score", "full_simulation_status"}.issubset(frame.columns)
