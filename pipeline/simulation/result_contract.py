@@ -19,14 +19,14 @@ MODE_SOLVERS = {
     'thermocatalytic_pfr': {'cantera'},
     'thermocatalytic_fluidized': {'cantera', 'openfoam'},
     'mmbcr': {'cantera', 'openfoam'},
-    'ntec': {'cantera', 'openfoam', 'fenicsx'},
-    'electrochemical': {'cantera', 'fenicsx'},
+    'ntec': {'cantera', 'moose'},
+    'electrochemical': {'cantera', 'moose'},
 }
 EXTERNAL_SOLVERS = {
     'Fluidized': {'openfoam'},
     'MMBCR': {'openfoam'},
-    'NTEC': {'openfoam', 'fenicsx', 'cantera'},
-    'Electrochemical': {'fenicsx', 'cantera'},
+    'NTEC': {'moose', 'cantera'},
+    'Electrochemical': {'moose', 'cantera'},
 }
 
 REQUIRED_OUTPUTS = {
@@ -179,15 +179,14 @@ def solver_preflight() -> dict:
         Dictionary containing the computed values, status, and supporting metadata.
     """
     from pipeline.simulation.executables import resolve_executable
+    from pipeline.simulation.moose_backend import resolve_moose_executable
 
     cantera = (
         importlib.util.find_spec('cantera') is not None
         or _conda_module_available('cp2k-env', 'cantera')
-        or _conda_module_available('fenicsx-env', 'cantera')
+        or _conda_module_available('moose-env', 'cantera')
     )
-    fenicsx = importlib.util.find_spec(
-        'dolfinx'
-    ) is not None or _conda_module_available('fenicsx-env', 'dolfinx')
+    moose = resolve_moose_executable(required=False)
     openfoam = resolve_executable(
         'multiphaseEulerFoam',
         env_var='OPENFOAM_SOLVER',
@@ -197,7 +196,7 @@ def solver_preflight() -> dict:
     return {
         'cantera': {'available': cantera},
         'openfoam': {'available': openfoam is not None, 'executable': openfoam},
-        'fenicsx': {'available': fenicsx},
+        'moose': {'available': moose is not None, 'executable': moose},
     }
 
 
@@ -324,12 +323,12 @@ def load_validated_artifact(
         and all(char in '0123456789abcdef' for char in digest.lower())
     )
     checks['model_source'] = bool(provenance.get('model_source'))
-    if 'fenicsx' in required:
-        script_digest = provenance.get('fenics_model_sha256', '')
-        checks['fenics_model_digest'] = (
-            isinstance(script_digest, str)
-            and len(script_digest) == 64
-            and all(char in '0123456789abcdef' for char in script_digest.lower())
+    if 'moose' in required:
+        input_file_digest = provenance.get('moose_input_sha256', '')
+        checks['moose_input_digest'] = (
+            isinstance(input_file_digest, str)
+            and len(input_file_digest) == 64
+            and all(char in '0123456789abcdef' for char in input_file_digest.lower())
         )
     physical_case = value.get('physical_case', {})
     try:

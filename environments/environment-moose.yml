@@ -1,0 +1,13 @@
+name: moose-env
+# MOOSE (combined physics modules: navier_stokes, heat_transfer, ...) for the
+# NTEC and electrochemical pathways. The prebuilt INL package provides
+# moose-opt; cxx-compiler is required because MOOSE JIT-compiles the
+# Butler-Volmer and contact-electrification expressions in the input files.
+# On the network volume used for pods, install to a local disk prefix
+# (conda env create -p /opt/envs/moose-env ...): geesefs cannot hold binaries.
+channels:
+  - https://conda.software.inl.gov/public
+  - conda-forge
+dependencies:
+  - moose
+  - cxx-compiler

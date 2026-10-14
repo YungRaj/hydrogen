@@ -13,5 +13,6 @@ class SolverExecutionServices:
     preflight: Callable[[str], dict]
     execute: Callable
     openfoam_version: Callable[[str], str]
-    fenics_command: Callable
+    moose_command: Callable
+    coupling_command: Callable
     cantera_version: Callable[[], str]

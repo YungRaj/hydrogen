@@ -107,7 +107,7 @@ def main():
               'complete matching campaigns replace Cantera template barriers'))
     parser.add_argument(
         '--multiphysics-results-dir', default=None,
-        help=('Required OpenFOAM/FEniCSx artifacts (default: '
+        help=('Required OpenFOAM/MOOSE artifacts (default: '
               '<results-dir>/multiphysics)'))
     parser.add_argument('--qe-mpi-ranks', type=int, default=4)
     parser.add_argument('--qe-omp-threads', type=int, default=1)

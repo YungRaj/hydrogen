@@ -89,7 +89,7 @@ def default_campaign_services(
             case_dir=plan['case_dir'],
             results_dir=results_dir,
             model_source=plan['model_source'],
-            fenics_model=plan.get('fenics_model'),
+            moose_input=plan.get('moose_input'),
             timeout_s=int(plan.get('timeout_s', 86400)),
             max_coupling_iterations=int(plan.get('max_coupling_iterations', 20)),
         )

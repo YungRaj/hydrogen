@@ -27,7 +27,7 @@ def _run_external_fixture(
     case, results = root / f"case-{reactor_type}", root / "artifacts"
     case.mkdir()
     write_case(case, reactor_type, candidate, temperature_K)
-    model = case / "fixture-model.py"
+    model = case / "fixture-model.i"
     model.write_text("# deterministic test fixture; not a physical solver\n")
     target = run_backend(
         mode=mode,
@@ -37,7 +37,7 @@ def _run_external_fixture(
         case_dir=case,
         results_dir=results,
         model_source="test-fixture:representative-reactor-v1",
-        fenics_model=model if reactor_type in {"NTEC", "Electrochemical"} else None,
+        moose_input=model if reactor_type in {"NTEC", "Electrochemical"} else None,
         execution=FixtureSolver(reactor_type, candidate, temperature_K).services(),
     )
     artifact = json.loads(target.read_text())

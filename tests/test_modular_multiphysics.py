@@ -769,7 +769,8 @@ def test_multiphysics_solver_discovery_is_injectable_before_case_access():
             AssertionError('solver must not execute')
         ),
         openfoam_version=lambda value: 'unused',
-        fenics_command=lambda value: ([], 'unused'),
+        moose_command=lambda *args: ([], 'unused'),
+        coupling_command=lambda *args: [],
         cantera_version=lambda: 'unused',
     )
     with _raises('required solver(s) unavailable', RuntimeError):

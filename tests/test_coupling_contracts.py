@@ -188,17 +188,17 @@ def test_pristine_case_rejects_outputs_and_openfoam_time_directories():
         _reject(lambda: require_pristine_case(case), '0.1')
 
 
-def test_external_fenics_script_changes_input_digest():
+def test_external_moose_input_changes_input_digest():
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         case = root / 'case'
         case.mkdir()
         (case / 'input').write_text('case input\n')
-        script = root / 'model.py'
-        script.write_text('value = 1\n')
-        first = _tree_digest(case, (script,))
-        script.write_text('value = 2\n')
-        assert _tree_digest(case, (script,)) != first
+        model = root / 'model.i'
+        model.write_text('value = 1\n')
+        first = _tree_digest(case, (model,))
+        model.write_text('value = 2\n')
+        assert _tree_digest(case, (model,)) != first
 
 
 def main():

@@ -83,7 +83,7 @@ class SolverProvenanceDocument(TypedDict):
 
     input_sha256: str
     model_source: str
-    fenics_model_sha256: str | None
+    moose_input_sha256: str | None
     hydrodynamic_handoff: dict[str, Any] | None
     observed_coupling_iterations: list[dict[str, Any]]
 
@@ -97,7 +97,7 @@ class _ExternalSolverArtifactOptional(TypedDict, total=False):
 
 
 class ExternalSolverArtifact(_ExternalSolverArtifactOptional):
-    """Validated output common to OpenFOAM/FEniCSx reactor modes."""
+    """Validated output common to OpenFOAM/MOOSE reactor modes."""
 
     schema_version: int
     candidate_id: str

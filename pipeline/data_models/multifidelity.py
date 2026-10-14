@@ -26,7 +26,7 @@ class _DesignedCaseOptional(TypedDict, total=False):
     temperature_K: float
     case_dir: str
     model_source: str
-    fenics_model: str
+    moose_input: str
     timeout_s: int
     max_coupling_iterations: int
 

@@ -1,6 +1,6 @@
 """Representative reactor fixtures that exercise real pipeline contracts.
 
-External OpenFOAM and FEniCSx processes are replaced by deterministic writers.
+External OpenFOAM, MOOSE and Cantera-step processes are replaced by deterministic writers.
 Everything around that boundary remains real. These are test fixtures, never
 scientific or production evidence.
 """
@@ -244,7 +244,7 @@ class FixtureSolver:
             "missing": [],
             "solvers": {
                 "openfoam": {"executable": "fixture-openfoam"},
-                "fenicsx": {"available": True},
+                "moose": {"available": True, "executable": "fixture-moose"},
                 "cantera": {"available": True},
             },
         }
@@ -257,7 +257,7 @@ class FixtureSolver:
         iteration = (
             int(json.loads(request.read_text())["iteration"]) if request.exists() else 1
         )
-        if backend.startswith("openfoam") and self.reactor_type == "NTEC":
+        if backend.startswith("cantera") and self.reactor_type == "NTEC":
             field = case / "fixture-hydrodynamics.xdmf"
             field.write_text("<Xdmf><!-- deterministic test fixture --></Xdmf>\n")
             _write_json(
@@ -299,6 +299,7 @@ class FixtureSolver:
             residual = 0.01 if iteration == 1 else 1e-5
             feedback = case / "hydrogen_feedback.json"
             _write_json(feedback, {"iteration": iteration, "source": "test-fixture"})
+            _write_json(case / "hydrogen_interface_rates.json", {"moose_parameters": {}})
             _write_json(
                 case / "hydrogen_coupling_state.json",
                 {
@@ -357,9 +358,12 @@ class FixtureSolver:
             preflight=self.preflight,
             execute=self.execute,
             openfoam_version=lambda _path: "test-fixture-openfoam",
-            fenics_command=lambda script: (
-                ["fixture-fenicsx", str(script)],
-                "test-fixture-fenicsx",
+            moose_command=lambda input_file, _case, _parameters: (
+                ["fixture-moose", str(input_file)],
+                "test-fixture-moose",
             ),
+            coupling_command=lambda case, reactor_type: [
+                "fixture-cantera-step", str(case), reactor_type,
+            ],
             cantera_version=lambda: "test-fixture-cantera",
         )

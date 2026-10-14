@@ -552,18 +552,19 @@ pip install numpy scipy pandas
 
 ### Environment 6: `openfoam-env` — Multiphase hydrodynamics
 
-Used by fluidized-bed, MMBCR, and NTEC cases:
+Used by fluidized-bed and MMBCR cases:
 
 ```bash
 conda env create -f environments/environment-openfoam.yml
 ```
 
-### Environment 7: `fenicsx-env` — Coupled continuum transport
+### Environment 7: `moose-env` — NTEC and electrochemical multiphysics
 
-Used by NTEC and aqueous/molten electrochemical cases:
+Used by NTEC and aqueous/molten electrochemical cases (MOOSE `moose-opt`,
+with a C++ compiler for MOOSE's expression JIT):
 
 ```bash
-conda env create -f environments/environment-fenicsx.yml
+conda env create -f environments/environment-moose.yml
 ```
 
 ### Verify Installation
@@ -576,7 +577,7 @@ bash -c 'test -x "$PW_X" && test -x "$NEB_X" && echo "GPU QE paths OK"'
 conda run -n quantum-env python -c "import cudaq; print('quantum-env OK')"
 conda run -n battery-env python -c "import numpy, scipy; print('battery-env OK')"
 conda run -n openfoam-env multiphaseEulerFoam -help
-conda run -n fenicsx-env python -c "import dolfinx, cantera; print(f'FEniCSx {dolfinx.__version__}; Cantera {cantera.__version__}')"
+conda run -n moose-env moose-opt --version
 ```
 
 ---
@@ -872,7 +873,7 @@ Create the external solver environments portably with:
 
 ```bash
 conda env create -f environments/environment-openfoam.yml
-conda env create -f environments/environment-fenicsx.yml
+conda env create -f environments/environment-moose.yml
 ```
 
 #### External-mode execution lifecycle
@@ -964,10 +965,10 @@ hydrogen/
 ├── LICENSE                        # MIT license
 ├── requirements.txt               # Python dependencies
 ├── environments/                  # Reproducible Conda specifications
-│   ├── environment.yml            # Core screening environment
+│   ├── environment-fairchem.yml   # GNN screening (torch, fairchem, Cantera)
 │   ├── environment-quantum.yml    # CUDA-Q and quantum chemistry
 │   ├── environment-openfoam.yml   # Multiphase solver environment
-│   └── environment-fenicsx.yml    # Continuum transport environment
+│   └── environment-moose.yml      # NTEC/electrochemical multiphysics
 ├── run_production_campaign.py     # Production launcher (GPU-saturated)
 ├── .hf_token                      # HuggingFace token (chmod 600, gitignored)
 │

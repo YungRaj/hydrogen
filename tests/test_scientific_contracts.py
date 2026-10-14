@@ -489,8 +489,7 @@ def test_validated_specialized_artifact_completes_without_thermal_yaml():
         'temperature_K': 300.0,
         'complete': True,
         'backend_solvers': {
-            'openfoam': 'contract',
-            'fenicsx': 'contract',
+            'moose': 'contract',
             'cantera': 'contract',
         },
         'convergence': _contract_convergence(),
@@ -503,7 +502,7 @@ def test_validated_specialized_artifact_completes_without_thermal_yaml():
         'provenance': {
             'input_sha256': 'b' * 64,
             'model_source': 'contract',
-            'fenics_model_sha256': 'c' * 64,
+            'moose_input_sha256': 'c' * 64,
             'hydrodynamic_handoff': {
                 'sha256': 'd' * 64,
                 'field_sha256': 'e' * 64,
@@ -878,11 +877,13 @@ def test_multiphysics_runner_executes_and_revalidates_electrochemical_output():
     import json
     from pipeline.simulation.external_runner import run_backend
 
-    calls = {'fenicsx': 0}
-
-    def completed_model(_command, cwd, _timeout, _backend='solver'):
-        calls['fenicsx'] += 1
-        iteration = calls['fenicsx']
+    def completed_model(_command, cwd, _timeout, backend='solver'):
+        request = json.loads((cwd / 'hydrogen_coupling_request.json').read_text())
+        iteration = int(request['iteration'])
+        if backend.startswith('cantera'):
+            (cwd / 'hydrogen_interface_rates.json').write_text(
+                json.dumps({'moose_parameters': {}})
+            )
         feedback = cwd / 'hydrogen_feedback.json'
         feedback.write_text(json.dumps({'iteration': iteration}))
         residual = 0.01 if iteration == 1 else 1e-5
@@ -941,8 +942,8 @@ def test_multiphysics_runner_executes_and_revalidates_electrochemical_output():
             },
         ),
         patch(
-            'pipeline.simulation.external_runner._fenics_command',
-            return_value=(['fenics-model'], 'contract-fenicsx'),
+            'pipeline.simulation.external_runner._moose_command',
+            return_value=(['moose-opt'], 'contract-moose'),
         ),
         patch('pipeline.simulation.external_runner._run', completed_model),
     ):
@@ -955,7 +956,7 @@ def test_multiphysics_runner_executes_and_revalidates_electrochemical_output():
             'electro-candidate',
             300.0,
         )
-        model = case / 'model.py'
+        model = case / 'model.i'
         model.write_text('# contract model\n')
         target = run_backend(
             mode='electrochemical',
@@ -965,11 +966,11 @@ def test_multiphysics_runner_executes_and_revalidates_electrochemical_output():
             case_dir=case,
             results_dir=Path(tmp) / 'results',
             model_source='contract model',
-            fenics_model=model,
+            moose_input=model,
         )
         artifact = json.loads(target.read_text())
     assert artifact['complete'] is True
-    assert artifact['backend_solvers']['fenicsx'] == 'contract-fenicsx'
+    assert artifact['backend_solvers']['moose'] == 'contract-moose'
     assert artifact['outputs']['electrical_power_density_W_cm2'] == 0.28
 
 
@@ -1039,10 +1040,10 @@ def test_multiphysics_runner_rejects_nonconservative_solver_output():
             raise AssertionError('nonconservative backend output was accepted')
 
 
-def test_ntec_runner_requires_explicit_openfoam_hydrodynamic_handoff():
+def test_ntec_runner_requires_explicit_moose_hydrodynamic_handoff():
     from pipeline.simulation.external_runner import run_backend
 
-    def openfoam_without_handoff(_command, _cwd, _timeout, _backend='solver'):
+    def moose_without_handoff(_command, _cwd, _timeout, _backend='solver'):
         return None
 
     with (
@@ -1051,13 +1052,13 @@ def test_ntec_runner_requires_explicit_openfoam_hydrodynamic_handoff():
             'pipeline.simulation.external_runner.mode_preflight',
             return_value={
                 'missing': [],
-                'solvers': {'openfoam': {'executable': '/contract/openfoam'}},
+                'solvers': {'moose': {'executable': '/contract/moose-opt'}},
             },
         ),
-        patch('pipeline.simulation.external_runner._run', openfoam_without_handoff),
+        patch('pipeline.simulation.external_runner._run', moose_without_handoff),
         patch(
-            'pipeline.simulation.external_runner._openfoam_version',
-            return_value='contract-openfoam',
+            'pipeline.simulation.external_runner._moose_command',
+            return_value=(['moose-opt'], 'contract-moose'),
         ),
     ):
         case = Path(tmp) / 'case'
@@ -1065,7 +1066,7 @@ def test_ntec_runner_requires_explicit_openfoam_hydrodynamic_handoff():
         _write_contract_physical_case(
             case / 'hydrogen_case.json', 'NTEC', 'ntec', 'ntec-candidate', 300.0
         )
-        model = case / 'model.py'
+        model = case / 'model.i'
         model.write_text('# contract model\n')
         try:
             run_backend(
@@ -1076,7 +1077,7 @@ def test_ntec_runner_requires_explicit_openfoam_hydrodynamic_handoff():
                 case_dir=case,
                 results_dir=Path(tmp) / 'results',
                 model_source='contract model',
-                fenics_model=model,
+                moose_input=model,
             )
         except RuntimeError as exc:
             assert 'hydrogen_hydrodynamics.json' in str(exc)

@@ -1,4 +1,4 @@
-"""Verifiable file contracts between OpenFOAM, FEniCSx, and Cantera."""
+"""Verifiable file contracts between OpenFOAM, MOOSE, and Cantera."""
 
 from __future__ import annotations
 
@@ -18,8 +18,12 @@ GENERATED_FILES = {
     'hydrogen_coupling_request.json',
     'hydrogen_openfoam.stdout.log',
     'hydrogen_openfoam.stderr.log',
-    'hydrogen_fenicsx.stdout.log',
-    'hydrogen_fenicsx.stderr.log',
+    'hydrogen_moose.stdout.log',
+    'hydrogen_moose.stderr.log',
+    'hydrogen_cantera.stdout.log',
+    'hydrogen_cantera.stderr.log',
+    'hydrogen_moose_parameters.json',
+    'hydrogen_interface_rates.json',
 }
 
 
@@ -69,7 +73,8 @@ def require_pristine_case(case: str | Path) -> None:
     stale = sorted(name for name in GENERATED_FILES if (root / name).exists())
     stale.extend(
         path.name
-        for pattern in ('hydrogen_*.stdout.log', 'hydrogen_*.stderr.log')
+        for pattern in ('hydrogen_*.stdout.log', 'hydrogen_*.stderr.log',
+                        'hydrogen_moose*.csv', 'hydrogen_moose*.e')
         for path in root.glob(pattern)
     )
     numeric_times = []
@@ -96,7 +101,7 @@ def validate_hydrodynamic_handoff(
     temperature_K: float,
     iteration: int | None = None,
 ) -> dict:
-    """Validate the identity, units, fields, and hashes of an OpenFOAM handoff.
+    """Validate the identity, units, fields, and hashes of an NTEC MOOSE handoff.
 
     Args:
         case: Root directory of the external-solver case.
@@ -149,7 +154,7 @@ def validate_hydrodynamic_handoff(
     artifact = value.get('field_artifact', {})
     try:
         field_path = case_file(root, artifact['path'], 'hydrodynamic field artifact')
-        checks['field_format'] = artifact.get('format') in {'XDMF', 'HDF5', 'VTU'}
+        checks['field_format'] = artifact.get('format') in {'XDMF', 'HDF5', 'VTU', 'EXODUS'}
         checks['field_sha256'] = sha256(field_path) == str(artifact['sha256']).lower()
         checks['mesh_id'] = bool(artifact.get('mesh_id'))
         checks['coordinate_system'] = bool(artifact.get('coordinate_system'))
