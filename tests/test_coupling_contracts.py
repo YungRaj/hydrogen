@@ -247,6 +247,20 @@ def test_moose_case_parameters_reject_ambiguous_or_missing_exchange():
     _reject(lambda: moose_overrides({'x': float('nan')}), 'finite')
 
 
+def test_malformed_multiphysics_artifact_is_rejected_not_raised():
+    from pipeline.simulation.result_contract import artifact_path, load_validated_artifact
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = artifact_path(tmp, 'c', 'ntec', 'NTEC', 300.0)
+        path.parent.mkdir(parents=True)
+        for document in ([], 'text', {'provenance': 'not-an-object'},
+                         {'convergence': [], 'provenance': {}}, {'backend_solvers': 3}):
+            path.write_text(json.dumps(document))
+            result = load_validated_artifact(tmp, 'c', 'ntec', 'NTEC', 300.0)
+            assert result['valid'] is False, document
+            assert result['reason'] == 'multiphysics_artifact_invalid', result
+
+
 def main():
     tests = [
         value

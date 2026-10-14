@@ -443,21 +443,27 @@ def load_validated_artifact(
         return {'valid': False, 'reason': 'multiphysics_artifact_invalid',
                 'failed_checks': failed_checks, 'path': str(path)}
 
+    if not isinstance(value, dict):
+        return invalid(['artifact_schema'])
     required = EXTERNAL_SOLVERS.get(reactor_type, set())
-    provenance = value.get('provenance', {})
-    checks = {
-        **_identity_checks(value, candidate_id, pathway_mode, reactor_type, temperature_K),
-        **_solver_checks(value, reactor_type, required),
-        **_provenance_checks(provenance, required),
-        'physical_case': _physical_case_ok(value.get('physical_case', {})),
-        'holdout_validation': _holdout_ok(value.get('model_validation', {})),
-    }
-    if reactor_type == 'NTEC':
-        checks.update(_ntec_checks(value, provenance))
-    if reactor_type == 'Electrochemical':
-        checks.update(_electrochemical_checks(value))
-    if reactor_type in {'NTEC', 'Electrochemical'}:
-        checks.update(_coupling_checks(value, provenance))
+    try:
+        provenance = value.get('provenance', {})
+        checks = {
+            **_identity_checks(value, candidate_id, pathway_mode, reactor_type, temperature_K),
+            **_solver_checks(value, reactor_type, required),
+            **_provenance_checks(provenance, required),
+            'physical_case': _physical_case_ok(value.get('physical_case', {})),
+            'holdout_validation': _holdout_ok(value.get('model_validation', {})),
+        }
+        if reactor_type == 'NTEC':
+            checks.update(_ntec_checks(value, provenance))
+        if reactor_type == 'Electrochemical':
+            checks.update(_electrochemical_checks(value))
+        if reactor_type in {'NTEC', 'Electrochemical'}:
+            checks.update(_coupling_checks(value, provenance))
+    except (AttributeError, KeyError, TypeError, ValueError):
+        # A section of the wrong JSON type is a malformed artifact: fail closed.
+        return invalid(['artifact_schema'])
     failed = [name for name, passed in checks.items() if not passed]
     if failed:
         return invalid(failed)
