@@ -547,9 +547,12 @@ def verify_branch_coverage(
         errors.append(
             f"terminal interval sum {covered} != declared population {declared}"
         )
+    from pipeline.screening.objectives import objective_spec_metadata
+
     certificate = {
         'application': application,
         'material_classes': list(classes),
+        'objective_specs': objective_spec_metadata(application),
         'declared_encoded_population': declared,
         'terminal_interval_population': covered,
         'terminal_nodes': terminal_count,

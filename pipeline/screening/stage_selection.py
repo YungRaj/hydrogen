@@ -62,12 +62,27 @@ def annotate_evidence(frame: pd.DataFrame, primary: str) -> pd.DataFrame:
     return result
 
 
+def _frame_pareto_ranks(frame: pd.DataFrame, columns: list[str]) -> np.ndarray:
+    """Compute Pareto front ranks across minimization columns on a DataFrame."""
+    from pipeline.screening.objectives import pareto_ranks
+
+    cols = []
+    for spec in columns:
+        negate = spec.startswith('-')
+        col_name = spec[1:] if negate else spec
+        series = pd.to_numeric(frame.get(col_name), errors='coerce')
+        values = (-series if negate else series).fillna(1e9).to_numpy(dtype=float)
+        cols.append(values)
+    return pareto_ranks(np.column_stack(cols))
+
+
 def _class_preserving(
     frame: pd.DataFrame,
     n_select: int,
     primary: str,
     min_per_class: int,
     validation: bool,
+    objectives: list[str] | tuple[str, ...] | None = None,
 ) -> pd.DataFrame:
     if n_select <= 0 or frame.empty:
         return frame.iloc[0:0].copy()
@@ -75,6 +90,11 @@ def _class_preserving(
     work['_selection_index'] = np.arange(len(work))
     values = pd.to_numeric(work.get(primary), errors='coerce')
     work['_primary'] = values.fillna(np.inf)
+    work['_pareto_rank'] = (
+        _frame_pareto_ranks(work, list(objectives))
+        if objectives
+        else np.zeros(len(work), dtype=int)
+    )
     needs_dft = (
         work['needs_dft_validation'].map(
             lambda value: False if pd.isna(value) else bool(value)
@@ -88,11 +108,11 @@ def _class_preserving(
     # Validation gives unresolved evidence first access; quantitative consumers
     # can only use complete screening rows. Stable index makes ties reproducible.
     if validation:
-        order = ['_needs_resolution', '_primary', '_selection_index']
-        ascending = [False, True, True]
+        order = ['_needs_resolution', '_pareto_rank', '_primary', '_selection_index']
+        ascending = [False, True, True, True]
     else:
-        order = ['_primary', '_selection_index']
-        ascending = [True, True]
+        order = ['_pareto_rank', '_primary', '_selection_index']
+        ascending = [True, True, True]
     ranked = work.sort_values(order, ascending=ascending, kind='mergesort')
     chosen = []
     if 'material_class' in ranked and min_per_class > 0:
@@ -120,11 +140,17 @@ def _class_preserving(
     remaining = ranked[~ranked['_selection_index'].isin(chosen)]
     chosen.extend(remaining.head(n_select - len(chosen))['_selection_index'].tolist())
     selected = work.set_index('_selection_index').loc[chosen].reset_index(drop=True)
-    return selected.drop(columns=['_primary', '_needs_resolution'], errors='ignore')
+    return selected.drop(
+        columns=['_primary', '_pareto_rank', '_needs_resolution'], errors='ignore'
+    )
 
 
 def select_for_reactor(
-    frame: pd.DataFrame, n_select: int, primary: str, min_per_class: int = 1
+    frame: pd.DataFrame,
+    n_select: int,
+    primary: str,
+    min_per_class: int = 1,
+    objectives: list[str] | tuple[str, ...] | None = None,
 ) -> pd.DataFrame:
     """Select only complete numerical evidence, retaining class champions.
 
@@ -133,6 +159,7 @@ def select_for_reactor(
         n_select: Number of select to use.
         primary: Primary used by this operation.
         min_per_class: Bound controlling min per class.
+        objectives: Optional minimization column names for Pareto sorting.
 
     Returns:
         Computed `pd.DataFrame` result.
@@ -140,7 +167,12 @@ def select_for_reactor(
     annotated = annotate_evidence(frame, primary)
     eligible = annotated[annotated['candidate_disposition'].eq(QUANTITATIVE_SCREENING)]
     return _class_preserving(
-        eligible, n_select, primary, min_per_class, validation=False
+        eligible,
+        n_select,
+        primary,
+        min_per_class,
+        validation=False,
+        objectives=objectives,
     )
 
 
@@ -149,6 +181,7 @@ def select_for_pyrolysis_reactor(
     n_select: int,
     primary: str = 'E_act',
     min_per_class: int = 1,
+    objectives: list[str] | tuple[str, ...] | None = None,
 ) -> pd.DataFrame:
     """Select only scientifically eligible turquoise-hydrogen screening rows.
 
@@ -162,6 +195,7 @@ def select_for_pyrolysis_reactor(
         n_select: Maximum number of candidates to select.
         primary: Pyrolysis ranking metric; retained for the shared selector.
         min_per_class: Minimum class-preserving allocation.
+        objectives: Optional minimization column names for Pareto sorting.
 
     Returns:
         Eligible candidates ordered for reactor evaluation.
@@ -170,12 +204,20 @@ def select_for_pyrolysis_reactor(
 
     eligible = screening_metric_eligibility(frame, 'turquoise_hydrogen')
     return select_for_reactor(
-        frame.loc[eligible], n_select, primary, min_per_class=min_per_class
+        frame.loc[eligible],
+        n_select,
+        primary,
+        min_per_class=min_per_class,
+        objectives=objectives,
     )
 
 
 def select_for_validation(
-    frame: pd.DataFrame, n_select: int, primary: str, min_per_class: int = 1
+    frame: pd.DataFrame,
+    n_select: int,
+    primary: str,
+    min_per_class: int = 1,
+    objectives: list[str] | tuple[str, ...] | None = None,
 ) -> pd.DataFrame:
     """Select a diverse rescue/confirmation slate, excluding only hard hazards.
 
@@ -184,6 +226,7 @@ def select_for_validation(
         n_select: Number of select to use.
         primary: Primary used by this operation.
         min_per_class: Bound controlling min per class.
+        objectives: Optional minimization column names for Pareto sorting.
 
     Returns:
         Computed `pd.DataFrame` result.
@@ -191,5 +234,10 @@ def select_for_validation(
     annotated = annotate_evidence(frame, primary)
     eligible = annotated[~annotated['candidate_disposition'].eq(HARD_EXCLUSION)]
     return _class_preserving(
-        eligible, n_select, primary, min_per_class, validation=True
+        eligible,
+        n_select,
+        primary,
+        min_per_class,
+        validation=True,
+        objectives=objectives,
     )

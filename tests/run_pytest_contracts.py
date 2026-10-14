@@ -13,6 +13,7 @@ PYTEST_CONTRACTS = (
     "test_electrochemical_adapter_status.py",
     "test_native_electrochemistry_contracts.py",
     "test_native_model_contracts.py",
+    "test_objectives.py",
     "test_orr_geometry_contracts.py",
     "test_physics_fixes.py",
     "test_policy_pilot.py",

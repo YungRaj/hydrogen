@@ -143,11 +143,18 @@ def add_discovery_metadata(frame):
     return frame
 
 
-def _quality_score(objectives: np.ndarray) -> np.ndarray:
+def _quality_score(
+    objectives: np.ndarray,
+    active_indices: Optional[Sequence[int]] = None,
+) -> np.ndarray:
     """Robustly scale minimization objectives and combine without units."""
     obj = np.asarray(objectives, dtype=float)
     if obj.ndim != 2 or len(obj) == 0:
         return np.zeros(len(obj), dtype=float)
+    if active_indices is not None:
+        cols = [int(i) for i in active_indices if 0 <= int(i) < obj.shape[1]]
+        if cols:
+            obj = obj[:, cols]
     finite = np.where(np.isfinite(obj), obj, np.nan)
     lo = np.nanpercentile(finite, 5, axis=0)
     hi = np.nanpercentile(finite, 95, axis=0)

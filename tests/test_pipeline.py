@@ -345,7 +345,7 @@ def test_unvalidated_ranker_uses_catalyst_quality_without_secondary_claims():
         ranking_validated=False,
     )
     assert diagnostics.acquisition_mode == 'catalyst_quality'
-    candidates = deterministic_tree_probes(8)
+    candidates = deterministic_tree_probes(16)
     quality = np.linspace(0.8, 0.1, len(candidates))
     ranker = SimpleNamespace(
         diagnostics=diagnostics,
@@ -358,9 +358,25 @@ def test_unvalidated_ranker_uses_catalyst_quality_without_secondary_claims():
             ),
         ),
     )
+    from pipeline.screening.objectives import (
+        active_objective_indices,
+        pareto_ranks,
+        resolve_objective_specs,
+    )
+
     pyrolysis = turquoise_tree_objectives(candidates, ranker)
     assert np.allclose(pyrolysis[:, 0], quality)
-    assert np.all(pyrolysis[:, 1:3] == 0.0)
+    assert np.all(np.std(pyrolysis, axis=0) > 0.0)
+    pyro_specs = resolve_objective_specs('turquoise_hydrogen', ranker)
+    assert [s.active for s in pyro_specs] == [True, False, False, False]
+    assert active_objective_indices('turquoise_hydrogen', ranker) == (0,)
+    assert np.array_equal(
+        pareto_ranks(
+            pyrolysis,
+            active_indices=active_objective_indices('turquoise_hydrogen', ranker),
+        ),
+        np.argsort(np.argsort(quality)),
+    )
 
     orr_ranker = ranker
     objectives = orr_tree_objectives(candidates, orr_ranker)
@@ -371,7 +387,10 @@ def test_unvalidated_ranker_uses_catalyst_quality_without_secondary_claims():
         for row, genome in zip(objectives, candidates)
         if pemfc_cathode_scope(genome)['status'] == 'candidate'
     ]
-    assert np.allclose(np.asarray(in_scope)[:, 1:], 0.0)
+    assert np.all(np.std(np.asarray(in_scope), axis=0) > 0.0)
+    orr_specs = resolve_objective_specs('fuel_cell_orr', orr_ranker)
+    assert [s.active for s in orr_specs] == [True, False, False, False]
+    assert active_objective_indices('fuel_cell_orr', orr_ranker) == (0,)
 
 
 def test_ranker_cannot_validate_without_held_out_material_classes():

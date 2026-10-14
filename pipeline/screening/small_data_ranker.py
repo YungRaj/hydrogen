@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import ast
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
@@ -172,6 +172,11 @@ class TreeRanker:
         application: Configured application value.
         model: Configured model value.
         target_columns: Configured target columns value.
+        diagnostics: Out-of-fold validation diagnostics for the primary target.
+        class_bias: Within-class residual calibration offsets.
+        secondary_models: Optional ensemble regressors keyed by objective name.
+        secondary_class_bias: Optional per-class bias maps for secondary models.
+        secondary_diagnostics: Optional validation diagnostics for secondary models.
     """
 
     application: str
@@ -179,6 +184,9 @@ class TreeRanker:
     target_columns: tuple[str, ...]
     diagnostics: RankerDiagnostics
     class_bias: dict[str, float]
+    secondary_models: dict[str, object] = field(default_factory=dict)
+    secondary_class_bias: dict[str, dict[str, float]] = field(default_factory=dict)
+    secondary_diagnostics: dict[str, RankerDiagnostics] = field(default_factory=dict)
 
     def _primary(self, raw) -> np.ndarray:
         return _primary_target(raw, self.application)
@@ -221,6 +229,160 @@ class TreeRanker:
         # allocation in every shard.
         return mean, uncertainty_values
 
+    def predict_objectives(
+        self, genomes, *, uncertainty: bool = True, kappa: float = 0.0
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Predict full multi-objective matrix and per-objective uncertainty.
+
+        Args:
+            genomes: Encoded catalyst candidates to score.
+            uncertainty: Whether ensemble standard deviations should be computed.
+            kappa: Non-negative lower-confidence-bound penalty multiplier.
+
+        Returns:
+            Tuple ``(scores, stds)`` of ``(N, M)`` arrays.
+        """
+        from pipeline.screening.objectives import (
+            build_orr_objectives,
+            build_turquoise_objectives,
+            robust_objective_matrix,
+        )
+
+        need_std = uncertainty or kappa > 0.0
+        if self.application in ("turquoise_hydrogen", "turquoise_pyrolysis"):
+            means, stds = build_turquoise_objectives(
+                genomes, self, uncertainty=need_std
+            )
+        elif self.application in ("fuel_cell_orr", "pemfc_cathode"):
+            means, stds = build_orr_objectives(
+                genomes, self, uncertainty=need_std
+            )
+        else:
+            raise ValueError(f"unknown application {self.application}")
+        scores = robust_objective_matrix(means, stds, kappa=kappa)
+        return scores, (stds if uncertainty else np.zeros_like(stds))
+
+
+def _extract_secondary_targets(
+    row, application: str
+) -> dict[str, float]:
+    """Extract finite secondary objective targets from a training row when present."""
+    targets: dict[str, float] = {}
+    if application == "turquoise_hydrogen":
+        coking_val = np.nan
+        for col in ("coking_index", "coking_index_raw_slab"):
+            if col in row:
+                try:
+                    candidate_val = float(row[col])
+                except (TypeError, ValueError):
+                    candidate_val = np.nan
+                if np.isfinite(candidate_val):
+                    coking_val = -candidate_val
+                    break
+        try:
+            de_h = float(row["dE_H"]) if "dE_H" in row else np.nan
+            de_c = float(row["dE_C"]) if "dE_C" in row else np.nan
+        except (TypeError, ValueError):
+            de_h, de_c = np.nan, np.nan
+        if not np.isfinite(coking_val) and np.isfinite(de_h) and np.isfinite(de_c):
+            coking_val = float(2.0 * de_h - de_c)
+        if np.isfinite(coking_val):
+            targets["coking_susceptibility_eV"] = float(coking_val)
+        if np.isfinite(de_h) and np.isfinite(de_c):
+            targets["desorption_overbinding_penalty_eV"] = float(
+                max(-2.0 * de_h, -de_c, 0.0)
+            )
+    elif application == "fuel_cell_orr":
+        binding = np.nan
+        if "binding_strength" in row:
+            try:
+                binding = float(row["binding_strength"])
+            except (TypeError, ValueError):
+                binding = np.nan
+        if not np.isfinite(binding) and "dG_OH_eV" in row and "dG_O_eV" in row:
+            try:
+                dg_oh = float(row["dG_OH_eV"])
+                dg_o = float(row["dG_O_eV"])
+                if np.isfinite(dg_oh) and np.isfinite(dg_o):
+                    binding = float(abs(dg_oh) + abs(dg_o))
+            except (TypeError, ValueError):
+                binding = np.nan
+        if np.isfinite(binding):
+            targets["oxide_overbinding_penalty_eV"] = float(binding)
+    return targets
+
+
+def _fit_secondary_objectives(
+    raw_rows: list,
+    encoded: np.ndarray,
+    groups: np.ndarray,
+    application: str,
+    random_state: int,
+) -> tuple[dict[str, object], dict[str, dict[str, float]], dict[str, RankerDiagnostics]]:
+    """Fit auxiliary tree ensembles for secondary physical objectives when present."""
+    from scipy.stats import spearmanr
+    from sklearn.ensemble import ExtraTreesRegressor
+
+    by_name: dict[str, list[tuple[int, float]]] = {}
+    for idx, row in enumerate(raw_rows):
+        for name, val in _extract_secondary_targets(row, application).items():
+            by_name.setdefault(name, []).append((idx, val))
+
+    models: dict[str, object] = {}
+    biases: dict[str, dict[str, float]] = {}
+    diagnostics_map: dict[str, RankerDiagnostics] = {}
+
+    for offset, (name, pairs) in enumerate(sorted(by_name.items()), start=1):
+        if len(pairs) < MIN_TRAINING_ROWS:
+            continue
+        indices = np.asarray([p[0] for p in pairs], dtype=int)
+        y_sec = np.asarray([p[1] for p in pairs], dtype=float)
+        if np.ptp(y_sec) <= 1e-12:
+            continue
+        x_sec = encoded[indices]
+        g_sec = groups[indices]
+        unique_groups = np.unique(g_sec)
+        sec_group_count = len(unique_groups)
+        sec_model = ExtraTreesRegressor(
+            n_estimators=64,
+            min_samples_leaf=1,
+            max_features=1.0,
+            random_state=random_state + offset,
+            n_jobs=-1,
+        )
+        sec_model.fit(x_sec, y_sec)
+        in_sample = sec_model.predict(x_sec)
+        residual = y_sec - in_sample
+        global_bias = float(np.mean(residual))
+        sec_bias = {}
+        for material_class in unique_groups:
+            mask = g_sec == material_class
+            sec_bias[str(material_class)] = float(
+                (residual[mask].sum() + CLASS_BIAS_PRIOR_ROWS * global_bias)
+                / (mask.sum() + CLASS_BIAS_PRIOR_ROWS)
+            )
+        corr = float(spearmanr(y_sec, in_sample).statistic)
+        if not np.isfinite(corr):
+            corr = 0.0
+        mae = float(np.mean(np.abs(y_sec - in_sample)))
+        base_mae = float(np.mean(np.abs(y_sec - np.median(y_sec))))
+        models[name] = sec_model
+        biases[name] = sec_bias
+        diagnostics_map[name] = RankerDiagnostics(
+            sample_count=len(y_sec),
+            held_out_group_count=sec_group_count,
+            validation_strategy="held_out_material_class_cv",
+            spearman_correlation=corr,
+            model_mae=mae,
+            baseline_mae=base_mae,
+            ranking_validated=bool(
+                sec_group_count >= 2
+                and corr >= MIN_RANK_CORRELATION
+                and mae <= base_mae
+            ),
+        )
+    return models, biases, diagnostics_map
+
 
 def fit_tree_ranker(
     frame, application: str, random_state: int = 20260721
@@ -245,7 +407,7 @@ def fit_tree_ranker(
         columns = ("orr_overpotential_V",)
     else:
         raise ValueError(f"unknown application {application}")
-    rows, genomes = [], []
+    rows, genomes, raw_rows = [], [], []
     eligible = training_metric_eligibility(frame, application)
     for position, (_, row) in enumerate(frame.iterrows()):
         if not eligible[position]:
@@ -264,6 +426,7 @@ def fit_tree_ranker(
             )
             rows.append(values)
             genomes.append(genome)
+            raw_rows.append(row)
         except (ValueError, TypeError, SyntaxError, KeyError):
             continue
     if len(rows) < MIN_TRAINING_ROWS:
@@ -353,7 +516,19 @@ def fit_tree_ranker(
         n_jobs=-1,
     )
     model.fit(encoded, y)
-    return TreeRanker(application, model, columns, diagnostics, class_bias)
+    sec_models, sec_biases, sec_diagnostics = _fit_secondary_objectives(
+        raw_rows, encoded, groups, application, random_state
+    )
+    return TreeRanker(
+        application,
+        model,
+        columns,
+        diagnostics,
+        class_bias,
+        secondary_models=sec_models,
+        secondary_class_bias=sec_biases,
+        secondary_diagnostics=sec_diagnostics,
+    )
 
 
 def _primary_target(raw, application: str) -> np.ndarray:
@@ -366,70 +541,70 @@ def _primary_target(raw, application: str) -> np.ndarray:
     return 1.23 + np.maximum.reduce([d_ooh - 4.92, d_o - d_ooh, d_oh - d_o, -d_oh])
 
 
-def turquoise_tree_objectives(genomes, ranker: TreeRanker) -> np.ndarray:
+def turquoise_tree_objectives(
+    genomes,
+    ranker: TreeRanker,
+    *,
+    kappa: float = 0.0,
+    return_uncertainty: bool = False,
+) -> np.ndarray | tuple[np.ndarray, np.ndarray]:
     """Extract turquoise-hydrogen ranking targets from a screening frame.
 
     Args:
         genomes: Encoded catalyst candidates to score.
         ranker: Fitted tree ranker used for objective prediction.
+        kappa: Non-negative lower-confidence-bound uncertainty multiplier.
+        return_uncertainty: Whether to return ``(objectives, stds)``.
 
     Returns:
-        A `np.ndarray` containing the turquoise tree objectives result.
+        ``(N, 4)`` objective array, or ``(objectives, stds)`` when requested.
     """
-    from pipeline.utils import abundance_cost_penalty
-    from pipeline.screening.genetic_optimizer import _extract_elements_from_genome
-
-    primary, _ = ranker.predict(genomes, uncertainty=False)
-    costs = (
-        [
-            -abundance_cost_penalty(_extract_elements_from_genome(genome))
-            for genome in genomes
-        ]
-        if ranker.diagnostics.ranking_validated
-        else np.zeros(len(genomes))
-    )
-    return np.column_stack(
-        [primary, np.zeros(len(genomes)), np.zeros(len(genomes)), costs]
+    from pipeline.screening.objectives import (
+        build_turquoise_objectives,
+        robust_objective_matrix,
     )
 
+    need_std = return_uncertainty or kappa > 0.0
+    means, stds = build_turquoise_objectives(
+        genomes, ranker, uncertainty=need_std
+    )
+    scores = robust_objective_matrix(means, stds, kappa=kappa)
+    if return_uncertainty:
+        return scores, stds
+    return scores
 
-def orr_tree_objectives(genomes, ranker: TreeRanker) -> np.ndarray:
+
+def orr_tree_objectives(
+    genomes,
+    ranker: TreeRanker,
+    *,
+    kappa: float = 0.0,
+    return_uncertainty: bool = False,
+) -> np.ndarray | tuple[np.ndarray, np.ndarray]:
     """Extract ORR ranking targets from a screening frame.
 
     Args:
         genomes: Encoded catalyst candidates to score.
         ranker: Fitted tree ranker used for objective prediction.
+        kappa: Non-negative lower-confidence-bound uncertainty multiplier.
+        return_uncertainty: Whether to return ``(objectives, stds)``.
 
     Returns:
-        A `np.ndarray` containing the orr tree objectives result.
+        ``(N, 4)`` objective array, or ``(objectives, stds)`` when requested.
     """
-    from pipeline.screening.fc_genetic_optimizer import (
-        _cost_from_genome,
-        _fenton_from_genome,
+    from pipeline.screening.objectives import (
+        build_orr_objectives,
+        robust_objective_matrix,
     )
-    from pipeline.search.scope import pemfc_cathode_scope
 
-    primary, _ = ranker.predict(genomes, uncertainty=False)
-    objectives = np.column_stack(
-        [
-            primary,
-            (
-                [-_fenton_from_genome(g) for g in genomes]
-                if ranker.diagnostics.ranking_validated
-                else np.zeros(len(genomes))
-            ),
-            (
-                [_cost_from_genome(g) for g in genomes]
-                if ranker.diagnostics.ranking_validated
-                else np.zeros(len(genomes))
-            ),
-            np.zeros(len(genomes)),
-        ]
+    need_std = return_uncertainty or kappa > 0.0
+    means, stds = build_orr_objectives(
+        genomes, ranker, uncertainty=need_std
     )
-    for i, genome in enumerate(genomes):
-        if pemfc_cathode_scope(genome)["status"] != "candidate":
-            objectives[i] = [5.0, 0.0, 100.0, 0.0]
-    return objectives
+    scores = robust_objective_matrix(means, stds, kappa=kappa)
+    if return_uncertainty:
+        return scores, stds
+    return scores
 
 
 def orr_catalyst_acquisition(

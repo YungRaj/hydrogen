@@ -168,6 +168,8 @@ def write_portfolio_artifact(
         }
         for criterion in criteria
     ]
+    from pipeline.screening.objectives import objective_spec_metadata
+
     digest_body = {
         'application': application,
         'protocol_id': protocol_id,
@@ -181,6 +183,7 @@ def write_portfolio_artifact(
     document = {
         'schema_version': 1,
         'generated_utc': datetime.now(timezone.utc).isoformat(),
+        'objective_specs': objective_spec_metadata(application),
         **digest_body,
         'portfolio_sha256': hashlib.sha256(digest_payload).hexdigest(),
     }
@@ -397,6 +400,10 @@ def allocate_validation_batch(
     application: str,
     min_per_class: int = 1,
     uncertainties=None,
+    *,
+    multi_objective: bool = False,
+    kappa: float = 0.0,
+    active_objectives: Sequence[int] | None = None,
 ) -> list[int]:
     """Guarantee class quotas, then allocate by improvement/error/uncertainty.
 
@@ -408,6 +415,9 @@ def allocate_validation_batch(
         application: Scientific objective, such as pyrolysis or ORR.
         min_per_class: Bound controlling min per class.
         uncertainties: Uncertainties used by this operation.
+        multi_objective: Whether to rank by Pareto dominance over active columns.
+        kappa: Non-negative lower-confidence-bound uncertainty penalty multiplier.
+        active_objectives: Optional explicit indices of active objective columns.
 
     Returns:
         List of computed or validated records.
@@ -416,14 +426,26 @@ def allocate_validation_batch(
         return []
     n_select = min(n_select, len(candidates))
     objectives = np.asarray(objectives, float)
-    quality = _quality_score(objectives)
-    uncertainty = (
-        np.zeros(len(candidates))
+    from pipeline.screening.objectives import pareto_ranks, robust_objective_matrix
+
+    raw_uncertainty = (
+        np.zeros(len(candidates), dtype=float)
         if uncertainties is None
-        else np.asarray(uncertainties, float)
+        else np.asarray(uncertainties, dtype=float)
     )
-    if len(uncertainty) != len(candidates):
+    if len(raw_uncertainty) != len(candidates):
         raise ValueError('uncertainties must match candidates')
+    robust_obj = robust_objective_matrix(
+        objectives,
+        raw_uncertainty if uncertainties is not None else None,
+        kappa=kappa,
+    )
+    quality = _quality_score(robust_obj, active_indices=active_objectives)
+    uncertainty = (
+        raw_uncertainty[:, 0].copy()
+        if raw_uncertainty.ndim == 2
+        else raw_uncertainty.copy()
+    )
     if np.ptp(uncertainty) > 0:
         uncertainty = (uncertainty - uncertainty.min()) / np.ptp(uncertainty)
     stats = regional_calibration(database, application)
@@ -433,7 +455,7 @@ def allocate_validation_batch(
     if np.ptp(error) > 0:
         error = (error - error.min()) / np.ptp(error)
     productivity = np.array([item.get('productivity', 0.5) for item in candidate_stats])
-    primary = objectives[:, 0]
+    primary = robust_obj[:, 0]
     improvement = np.array(
         [
             max(candidate_stats[i].get('best_observed', primary[i]) - primary[i], 0.0)
@@ -451,7 +473,15 @@ def allocate_validation_batch(
         + 0.15 * error
         + 0.10 * productivity
     )
+    front_ranks = (
+        pareto_ranks(robust_obj, active_indices=active_objectives)
+        if multi_objective
+        else np.zeros(len(candidates), dtype=int)
+    )
     ids = [candidate_id(g) for g in candidates]
+
+    def _order_key(i: int) -> tuple:
+        return (int(front_ranks[i]), -float(score[i]), ids[i])
 
     from pipeline.search.scope import is_validation_quota_class
 
@@ -466,13 +496,13 @@ def allocate_validation_batch(
         )
     selected = []
     for material_class in sorted(quota_classes):
-        ranked = sorted(by_class[material_class], key=lambda i: (-score[i], ids[i]))
+        ranked = sorted(by_class[material_class], key=_order_key)
         selected.extend(ranked[: min(min_per_class, len(ranked))])
-    selected = sorted(set(selected), key=lambda i: (-score[i], ids[i]))
+    selected = sorted(set(selected), key=_order_key)
     chosen = set(selected)
     remainder = sorted(
         (i for i in range(len(candidates)) if i not in chosen),
-        key=lambda i: (-score[i], ids[i]),
+        key=_order_key,
     )
     selected.extend(remainder[: n_select - len(selected)])
     return selected
@@ -483,6 +513,11 @@ def experimental_slate(
     objectives: np.ndarray,
     n_select: int,
     advancement_priority: Sequence[float] | None = None,
+    *,
+    uncertainties=None,
+    kappa: float = 0.0,
+    multi_objective: bool = False,
+    active_objectives: Sequence[int] | None = None,
 ) -> list[int]:
     """Preserve chemistry diversity: one regional champion before repeats.
 
@@ -491,11 +526,25 @@ def experimental_slate(
         objectives: Objectives used by this operation.
         n_select: Number of select to use.
         advancement_priority: Optional validated gate priority; higher ranks first.
+        uncertainties: Optional ``(N, M)`` or ``(N,)`` uncertainty array.
+        kappa: Non-negative lower-confidence-bound uncertainty penalty multiplier.
+        multi_objective: Whether to rank by Pareto dominance over active columns.
+        active_objectives: Optional explicit indices of active objective columns.
 
     Returns:
         List of computed or validated records.
     """
-    quality = _quality_score(np.asarray(objectives, float))
+    from pipeline.screening.objectives import pareto_ranks, robust_objective_matrix
+
+    robust_obj = robust_objective_matrix(
+        np.asarray(objectives, float), uncertainties, kappa=kappa
+    )
+    quality = _quality_score(robust_obj, active_indices=active_objectives)
+    front_ranks = (
+        pareto_ranks(robust_obj, active_indices=active_objectives)
+        if multi_objective
+        else np.zeros(len(candidates), dtype=int)
+    )
     priority = (
         np.zeros(len(candidates), dtype=float)
         if advancement_priority is None
@@ -509,17 +558,21 @@ def experimental_slate(
     by_region = defaultdict(list)
     for i in eligible:
         by_region[discovery_region(candidates[i])].append(i)
+
+    def _order_key(i: int) -> tuple:
+        return (-float(priority[i]), int(front_ranks[i]), -float(quality[i]), ids[i])
+
     # Same total order as the ranking sort below: ties go to the smallest ID.
     champions = [
-        min(indices, key=lambda i: (-priority[i], -quality[i], ids[i]))
+        min(indices, key=_order_key)
         for _, indices in sorted(by_region.items())
     ]
-    champions.sort(key=lambda i: (-priority[i], -quality[i], ids[i]))
+    champions.sort(key=_order_key)
     selected = champions[: min(n_select, len(champions))]
     chosen = set(selected)
     remainder = sorted(
         (i for i in eligible if i not in chosen),
-        key=lambda i: (-priority[i], -quality[i], ids[i]),
+        key=_order_key,
     )
     selected.extend(remainder[: max(0, n_select - len(selected))])
     return selected
