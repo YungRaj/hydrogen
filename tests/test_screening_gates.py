@@ -152,3 +152,29 @@ def test_campaign_vqe_requires_candidate_hamiltonians(tmp_path, monkeypatch):
     campaign._run_phase4_vqe(state, champions, tmp_path)
     assert seen == [('cand_b', fcidump)]
     assert state['phase4']['candidates'] == ['cand_b']
+
+
+def test_campaign_reactor_judge_reference_is_scorecard_only():
+    import sys
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    import run_production_campaign as campaign
+
+    assert 923.15 in campaign.REACTOR_TEMPERATURES_K
+    assert 973.15 in campaign.REACTOR_TEMPERATURES_K
+    calls = []
+
+    def fake_simulate(row, name, temperatures, **kwargs):
+        calls.append(name)
+        return {'sweep': [{'catalyst_name': name, 'T_K': 923.15}]}
+
+    args = SimpleNamespace(mode='thermocatalytic_pfr', multiphysics_results_dir=None)
+    records = []
+    campaign._simulate_judge_reference(args, fake_simulate, records)
+    assert calls == ['ni_np_lit']
+    assert records == [{'catalyst_name': 'ni_np_lit', 'T_K': 923.15}]
+    # Idempotent: an existing judge sweep is not simulated twice.
+    campaign._simulate_judge_reference(args, fake_simulate, records)
+    assert calls == ['ni_np_lit']

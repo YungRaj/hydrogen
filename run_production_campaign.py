@@ -26,7 +26,9 @@ from pipeline.reactors.modes import (
     DEFAULT_MODE, MODE_CHOICES, reactor_types_for_mode)
 
 REPO_DIR = Path(__file__).parent
-REACTOR_TEMPERATURES_K = [773.15, 900.0, 1100.0, 1300.0]
+# Same grid as PipelineConfig.reactor_temperatures: broad screening points
+# plus the 923-973 K Ni judge band used by the solids scorecard headline.
+REACTOR_TEMPERATURES_K = [773.15, 900.0, 923.15, 973.15, 1100.0, 1300.0]
 MAX_REACTOR_CANDIDATES = 20
 MAX_VQE_CANDIDATES = 5
 PEMFC_CANDIDATES = 30
@@ -401,8 +403,11 @@ def _simulate_reactor_candidate(args, row, candidate_key: str, simulate_candidat
         'completed_conditions': stage_result['completed_conditions'],
         'failed_conditions': stage_result['failed_conditions'],
         'sweep_status': stage_result['sweep_status'],
+        # Completed reactor records carry T_K; temperature_K is only set on
+        # failed-condition records.
+        'temperature_K': best_condition.get('T_K', best_condition.get('temperature_K')),
         **{k: best_condition.get(k) for k in (
-            'temperature_K', 'H2_selectivity', 'CH4_conversion',
+            'H2_selectivity', 'CH4_conversion',
             'deactivation_fraction_per_h', 'coke_fraction',
             'kinetics_status', 'reactor_evidence_tier',
             'can_exclude_candidate')},
@@ -426,6 +431,34 @@ def _tea_estimates(reactor_results: list) -> list:
     return tea_results
 
 
+def _simulate_judge_reference(args, simulate_candidate, sweep_records: list) -> None:
+    """Add the literature Ni judge's sweep to the scorecard records only.
+
+    The reference is never a candidate: it is excluded from reactor_results,
+    TEA and viability, exactly like the orchestrator reactor batch.
+    """
+    from pipeline.reactors.scorecard import NI_JUDGE_CATALYST
+    from pipeline.stages.candidate_io import load_reactor_reference
+
+    reactor_types = reactor_types_for_mode(args.mode)
+    if not {'PFR', 'Fluidized'}.intersection(reactor_types):
+        return
+    if any(r.get('catalyst_name') == NI_JUDGE_CATALYST for r in sweep_records):
+        return
+    reference = load_reactor_reference(NI_JUDGE_CATALYST)
+    if reference is None:
+        return
+    try:
+        result = simulate_candidate(
+            reference, NI_JUDGE_CATALYST, REACTOR_TEMPERATURES_K,
+            reactor_types=reactor_types, forbid_mock=True,
+            pathway_mode=args.mode,
+            multiphysics_results_dir=args.multiphysics_results_dir)
+        sweep_records.extend(result['sweep'])
+    except Exception as e:
+        print(f"    Judge reference error: {e}")
+
+
 class _PrintLogger:
     def info(self, msg):
         print(f"  {msg}")
@@ -441,6 +474,7 @@ def _run_phase2_reactors(args, pipeline_state: dict, top_catalysts) -> None:
         from pipeline.stages.reactor import simulate_candidate
         from pipeline.reactors.equilibrium import run_equilibrium_sweep
         from pipeline.reactors.scorecard import (
+            NI_JUDGE_CATALYST, NI_JUDGE_HEADLINE_T_MAX, NI_JUDGE_HEADLINE_T_MIN,
             build_solids_scorecard, log_solids_scorecard)
 
         eq_result = run_equilibrium_sweep()
@@ -460,7 +494,11 @@ def _run_phase2_reactors(args, pipeline_state: dict, top_catalysts) -> None:
                 print(f"    Reactor error: {e}")
 
         tea_results = _tea_estimates(reactor_results)
-        scorecard = build_solids_scorecard(reactor_sweep_records)
+        _simulate_judge_reference(args, simulate_candidate, reactor_sweep_records)
+        scorecard = build_solids_scorecard(
+            reactor_sweep_records, judge_catalyst=NI_JUDGE_CATALYST,
+            headline_t_min=NI_JUDGE_HEADLINE_T_MIN,
+            headline_t_max=NI_JUDGE_HEADLINE_T_MAX)
         save_json(scorecard, 'phase2_solids_scorecard.json', subdir='reactor')
         log_solids_scorecard(scorecard, _PrintLogger())
         pipeline_state['phase2'] = {
@@ -486,13 +524,20 @@ def _run_phase2_reactors(args, pipeline_state: dict, top_catalysts) -> None:
             'fail': sum(v['status'] == 'fail' for v in viability),
             'unknown': sum(v['status'] == 'unknown' for v in viability),
         }
-        if reactor_results:
-            pipeline_state['phase2']['best_conversion'] = max(
-                r.get('best_conversion', 0) for r in reactor_results)
+        # Same meaning as the orchestrator: the judge's single-pass solids X in
+        # the headline band. A raw max across catalysts has no ranking
+        # authority before B5 closure.
+        pipeline_state['phase2']['best_conversion'] = scorecard.get(
+            'headline_solids_conversion')
+        pipeline_state['phase2']['best_conversion_scope'] = (
+            'solids_single_pass_judge_'
+            + str(scorecard.get('judge_catalyst') or 'unavailable'))
         if tea_results:
             best_tea = min(tea_results, key=lambda x: x['h2_cost_usd_kg'])
             pipeline_state['phase2']['best_h2_cost_usd_kg'] = best_tea['h2_cost_usd_kg']
-    except ImportError as e:
+    except (ImportError, RuntimeError) as e:
+        # Imports are Cantera-guarded; a missing Cantera surfaces as a
+        # RuntimeError from the equilibrium check, not an ImportError.
         print(f"  Phase 2 skipped (Cantera not available): {e}")
         pipeline_state['phase2'] = {'skipped': True, 'reason': str(e)}
     save_json(pipeline_state, "pipeline_state.json")
