@@ -363,6 +363,30 @@ def _calibration_for(genome: tuple, regional: dict, by_class: dict) -> dict:
     return regional.get('|'.join(discovery_region(genome)), by_class.get(genome[0], {}))
 
 
+# Workflow application names that denote the direct PEMFC cathode scope.
+_PEMFC_APPLICATION_ALIASES = frozenset({'fuel_cell_orr', 'fuel_cell', 'pemfc_cathode'})
+
+
+def _reserves_validation_quota(material_class: str, application: str) -> bool:
+    """Return whether a class consumes a reserved validation slot.
+
+    ``is_validation_quota_class`` exempts out-of-scope classes only for the
+    pyrolysis aliases; the ORR workflow (``fuel_cell_orr``) must likewise not
+    reserve slots for classes with no PEMFC cathode realization.
+    """
+    from pipeline.search.scope import (
+        APPLICATION_PEMFC,
+        OUT_OF_SCOPE_PEMFC_CATHODE_CLASSES,
+        is_validation_quota_class,
+    )
+
+    if application in _PEMFC_APPLICATION_ALIASES:
+        if material_class in OUT_OF_SCOPE_PEMFC_CATHODE_CLASSES:
+            return False
+        return is_validation_quota_class(material_class, APPLICATION_PEMFC)
+    return is_validation_quota_class(material_class, application)
+
+
 def priority_adjustment(
     database: str, application: str, genomes: Sequence[tuple]
 ) -> float:
@@ -453,12 +477,10 @@ def allocate_validation_batch(
     )
     ids = [candidate_id(g) for g in candidates]
 
-    from pipeline.search.scope import is_validation_quota_class
-
     by_class = defaultdict(list)
     for i, genome in enumerate(candidates):
         by_class[genome[0]].append(i)
-    quota_classes = [c for c in by_class if is_validation_quota_class(c, application)]
+    quota_classes = [c for c in by_class if _reserves_validation_quota(c, application)]
     quota_required = min_per_class * len(quota_classes)
     if quota_required > n_select:
         raise ValueError(
@@ -509,8 +531,9 @@ def experimental_slate(
     by_region = defaultdict(list)
     for i in eligible:
         by_region[discovery_region(candidates[i])].append(i)
+    # Same total order as the ranking sort below: ties go to the smallest ID.
     champions = [
-        max(indices, key=lambda i: (priority[i], quality[i], ids[i]))
+        min(indices, key=lambda i: (-priority[i], -quality[i], ids[i]))
         for _, indices in sorted(by_region.items())
     ]
     champions.sort(key=lambda i: (-priority[i], -quality[i], ids[i]))

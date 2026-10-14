@@ -212,9 +212,10 @@ def select_discovery_batch(
     for i in eligible:
         by_region.setdefault(regions[i], []).append(i)
 
-    # Region champions: quality remains important, with deterministic ID ties.
+    # Region champions: quality remains important, with deterministic ID ties
+    # resolved by the same total order as the ranking sort below.
     champions = [
-        max(indices, key=lambda i: (quality[i], uncertainty[i], ids[i]))
+        min(indices, key=lambda i: (-quality[i], -uncertainty[i], ids[i]))
         for region, indices in sorted(by_region.items())
         if region not in seen_regions
     ]

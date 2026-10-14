@@ -28,9 +28,12 @@ from pipeline.utils import (
     abundance_cost_penalty,
 )
 from pipeline.screening.fc_screener import (
+    FENTON_RISK,
     ORR_MAX_BINDING_ABS_EV, ORR_MAX_REPORTED_OVERPOTENTIAL_V,
     _adsorbate_geometry_valid,
 )
+from pipeline.screening.protocols import ORR_PROTOCOL
+from pipeline.screening.relaxation import require_relaxation
 
 logger = setup_logger('fc_cathode', 'fuel_cell/cathode_screening.log')
 
@@ -176,23 +179,29 @@ def screen_orr_candidate(candidate: Dict, calc, e_h2o: float, e_h2: float) -> Di
         Dictionary containing the computed values, status, and supporting metadata.
     """
     from ase import Atom
-    from ase.optimize import BFGS
     from pipeline.screening.surface_screener import generate_structure
 
+    genome = candidate['genome']
     result = {
         'name': candidate['name'],
         'type': candidate['type'],
+        # Downstream PEMFC scope and class-specific Tafel slopes read these.
+        'genome': str(genome),
+        'material_class': genome[0],
         'valid': False,
     }
 
     try:
-        genome = candidate['genome']
         structure, active_idx, mat_class = generate_structure(genome)
         structure.pbc = True  # eSen requires PBC set to True in all dimensions
 
         # Relax clean structure
         structure.calc = calc
-        BFGS(structure, logfile=None).run(fmax=0.08, steps=100)
+        clean, adsorbate = ORR_PROTOCOL.clean, ORR_PROTOCOL.adsorbate
+        if not require_relaxation(
+            result, structure, 'clean', clean.fmax_eV_A, clean.steps
+        ):
+            return result
         e_clean = structure.get_potential_energy()
 
         # Active site position
@@ -207,7 +216,10 @@ def screen_orr_candidate(candidate: Dict, calc, e_h2o: float, e_h2: float) -> Di
         slab_oh.append(Atom('O', position=oh_pos))
         slab_oh.append(Atom('H', position=oh_pos + np.array([0.0, 0.0, 0.97])))
         slab_oh.calc = calc
-        BFGS(slab_oh, logfile=None).run(fmax=0.08, steps=80)
+        if not require_relaxation(
+            result, slab_oh, 'oh', adsorbate.fmax_eV_A, adsorbate.steps
+        ):
+            return result
         valid_geometry, geometry_reason = _adsorbate_geometry_valid(slab_oh, len(structure), 'oh')
         if not valid_geometry:
             result.update({'error': geometry_reason, 'candidate_disposition': 'validation_required'})
@@ -225,7 +237,14 @@ def screen_orr_candidate(candidate: Dict, calc, e_h2o: float, e_h2: float) -> Di
         o_pos = ads_base + np.array([0.0, 0.0, 1.7])
         slab_o.append(Atom('O', position=o_pos))
         slab_o.calc = calc
-        BFGS(slab_o, logfile=None).run(fmax=0.08, steps=80)
+        if not require_relaxation(
+            result, slab_o, 'o', adsorbate.fmax_eV_A, adsorbate.steps
+        ):
+            return result
+        valid_geometry, geometry_reason = _adsorbate_geometry_valid(slab_o, len(structure), 'o')
+        if not valid_geometry:
+            result.update({'error': geometry_reason, 'candidate_disposition': 'validation_required'})
+            return result
         e_o = slab_o.get_potential_energy()
         dG_O = (e_o - e_clean) - (e_h2o - e_h2) + 0.05 - 0.00
 
@@ -238,7 +257,10 @@ def screen_orr_candidate(candidate: Dict, calc, e_h2o: float, e_h2: float) -> Di
         slab_ooh.append(Atom('O', position=o2_pos))
         slab_ooh.append(Atom('H', position=h_pos))
         slab_ooh.calc = calc
-        BFGS(slab_ooh, logfile=None).run(fmax=0.08, steps=80)
+        if not require_relaxation(
+            result, slab_ooh, 'ooh', adsorbate.fmax_eV_A, adsorbate.steps
+        ):
+            return result
         valid_geometry, geometry_reason = _adsorbate_geometry_valid(slab_ooh, len(structure), 'ooh')
         if not valid_geometry:
             result.update({'error': geometry_reason, 'candidate_disposition': 'validation_required'})
@@ -265,29 +287,24 @@ def screen_orr_candidate(candidate: Dict, calc, e_h2o: float, e_h2: float) -> Di
                 'orr_overpotential_V': float(eta),
                 'rate_determining_step': rds,
                 'binding_strength': float(abs(dG_OH) + abs(dG_O)),
-                'valid': True,
             }
         )
 
         # ── Fenton Susceptibility Index ─────────────────────────────────────
-        # High-spin Fe in acidic media generates •OH radicals via Fenton
+        # Same radical-risk table as the production ORR screener and the
+        # fenton_stability advancement gate.
         elements = candidate['elements']
-        fenton_risk = 0
-        for e in elements:
-            if e == 'Fe':
-                fenton_risk += 3
-            elif e in ('Cu', 'Co'):
-                fenton_risk += 1
-            elif e in ('Mn', 'Ni', 'Cr'):
-                fenton_risk += 0  # relatively low Fenton activity
+        fenton_risk = sum(FENTON_RISK.get(e, 0) for e in elements)
         fenton_stability = max(0, 10 - fenton_risk)
         result['fenton_stability'] = fenton_stability
 
         # Cost
         result['cost_penalty'] = abundance_cost_penalty(elements)
         result['pgm_loading_mg_cm2'] = candidate.get('pgm_loading_mg_cm2', 0.0)
+        result['valid'] = True
 
     except Exception as e:
+        result['valid'] = False
         result['error'] = str(e)[:200]
 
     return result
@@ -331,7 +348,10 @@ def run_cathode_screening(workers_per_gpu: int = 2) -> 'pd.DataFrame':
             f"Pre-computed gas-phase references: E(H₂O)={e_h2o:.3f} eV, E(H₂)={e_h2:.3f} eV"
         )
     except Exception as e:
-        logger.warning(f"Meta model not available ({e}). Generating mock results.")
+        logger.warning(
+            f"Meta model not available ({e}). Writing invalid mock "
+            "placeholders; no cathode is eligible for PEMFC modeling."
+        )
         results = [_mock_orr_result(c) for c in candidates]
         df = pd.DataFrame(results)
         save_screening_db(df, "cathode_screening.csv", subdir="fuel_cell")
@@ -366,13 +386,19 @@ def run_cathode_screening(workers_per_gpu: int = 2) -> 'pd.DataFrame':
 
 
 def _mock_orr_result(candidate: Dict) -> Dict:
-    """Mock ORR result for testing without Meta eSen-SM."""
+    """Mock ORR placeholder used when Meta eSen-SM is unavailable.
+
+    The values are random placeholders, never evidence: rows are marked
+    invalid so no downstream stage can rank or model them as catalysts.
+    """
     eta = np.random.uniform(0.25, 0.80)
     dG_OH = np.random.uniform(-1.0, 1.0)
     dG_O = np.random.uniform(-2.0, 2.0)
     return {
         'name': candidate['name'],
         'type': candidate['type'],
+        'genome': str(candidate['genome']),
+        'material_class': candidate['genome'][0],
         'dG_OH_eV': dG_OH,
         'dG_O_eV': dG_O,
         'dG_OOH_eV': np.random.uniform(3.0, 4.5),
@@ -382,7 +408,9 @@ def _mock_orr_result(candidate: Dict) -> Dict:
         'cost_penalty': abundance_cost_penalty(candidate['elements']),
         'pgm_loading_mg_cm2': candidate.get('pgm_loading_mg_cm2', 0.0),
         'binding_strength': float(abs(dG_OH) + abs(dG_O)),
-        'valid': True,
+        'valid': False,
+        'candidate_disposition': 'validation_required',
+        'error': 'mock_result_model_unavailable',
         'mock': True,
     }
 

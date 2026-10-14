@@ -248,11 +248,23 @@ def require_relaxation(
             f"{record[f'relax_{label}_failure_class']}"
         )
     else:
-        result['error'] = (
-            f"Unconverged {label} relaxation: max_force="
-            f"{record[f'relax_{label}_max_force_eV_A']:.6g} eV/A after "
-            f"{record[f'relax_{label}_steps']} cumulative recovery steps"
-        )
+        max_force = record[f'relax_{label}_max_force_eV_A']
+        if max_force is None:
+            attempts = json.loads(record[f'relax_{label}_attempts_json'])
+            detail = next(
+                (a['error'] for a in reversed(attempts) if a.get('error')),
+                record[f'relax_{label}_failure_class'],
+            )
+            result['error'] = (
+                f"Unconverged {label} relaxation: {detail} after "
+                f"{record[f'relax_{label}_steps']} cumulative recovery steps"
+            )
+        else:
+            result['error'] = (
+                f"Unconverged {label} relaxation: max_force="
+                f"{max_force:.6g} eV/A after "
+                f"{record[f'relax_{label}_steps']} cumulative recovery steps"
+            )
     result['needs_dft_validation'] = True
     result['candidate_disposition'] = 'validation_required'
     return False

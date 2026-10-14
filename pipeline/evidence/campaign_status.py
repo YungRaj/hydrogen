@@ -48,7 +48,7 @@ def assess_campaign(
     if pyrolysis_mode == 'ntec':
         criteria['calibrated_ntec'] = evidence.get('ntec_control_pair', 0) > 0
     return {
-        'ready': all(criteria.values()),
+        'ready': bool(verification['valid']) and all(criteria.values()),
         'criteria': criteria,
         'missing': [k for k, passed in criteria.items() if not passed],
         'evidence_manifest_valid': verification['valid'],

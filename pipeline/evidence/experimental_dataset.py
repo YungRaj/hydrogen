@@ -204,7 +204,8 @@ def validate_experimental_dataset(path: str | Path) -> dict:
             raise ValueError('run log split is invalid')
         if row['status'] not in ('completed', 'failed', 'excluded'):
             raise ValueError('run log status is invalid')
-        if row['status'] != 'completed' and not row['failure_reason'].strip():
+        # csv.DictReader fills fields missing from a short row with None.
+        if row['status'] != 'completed' and not (row['failure_reason'] or '').strip():
             raise ValueError('failed/excluded run log entries require a reason')
     plan = payload['analysis_plan']
     required_plan = ('plan_id', 'locked_at_utc', 'source_path', 'source_sha256',
@@ -341,10 +342,19 @@ def experimental_evidence_records(path: str | Path) -> dict:
         'hydrogen_impurity': ('hydrogen_impurity_test',),
     }
     records = defaultdict(list)
+    # pyrolysis_reactor and ntec_pair both yield measured_reactor and
+    # measured_deactivation. The manifest identity is (candidate_id,
+    # source_path, protocol_id), so emitting both would be rejected there as a
+    # duplicate; keep the first (sorted) group per evidence type and candidate.
+    emitted: set[tuple[str, str]] = set()
     for group in report['groups']:
         if not group['split_complete']:
             continue
         for evidence_type in mapping[group['measurement_type']]:
+            key = (evidence_type, str(group['candidate_id']))
+            if key in emitted:
+                continue
+            emitted.add(key)
             records[evidence_type].append({
                 'candidate_id': group['candidate_id'],
                 'source_path': str(Path(path).expanduser().resolve()),

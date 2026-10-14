@@ -21,6 +21,13 @@ _SCIENTIFIC_MODULES = (
     'pipeline.screening.relaxation',
     'pipeline.screening.surface_calculator',
     'pipeline.screening.batched_calculator',
+    # Descriptor math and gates whose outputs are persisted in cached rows:
+    # BEP/ORR/cost/safety (utils), model_confidence (ood), pyrolysis and
+    # coking scope (scope), and element extraction (design_space).
+    'pipeline.utils',
+    'pipeline.screening.ood',
+    'pipeline.search.scope',
+    'pipeline.search.design_space',
 )
 _FIELD_TYPES = frozenset({'none', 'bool', 'int', 'float', 'str'})
 ScalarValue: TypeAlias = None | bool | int | float | str

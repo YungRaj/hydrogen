@@ -99,6 +99,16 @@ def write_health_manifest(
     temporary.replace(target)
 
 
+def _fatal_details(payload) -> tuple[str, int | None]:
+    """Return (reason, origin pid) from a legacy string or dict fatal payload."""
+    if isinstance(payload, dict):
+        pid = payload.get('pid')
+        return str(payload.get('error', payload)), (
+            int(pid) if pid is not None else None
+        )
+    return str(payload), None
+
+
 def collect_results(
     status_queue,
     task_queue,
@@ -200,7 +210,23 @@ def collect_results(
                         if progress:
                             progress(len(results), list(results.values()))
                 elif kind == 'fatal':
-                    recover(worker_id, str(payload))
+                    reason, origin_pid = _fatal_details(payload)
+                    current_pid = getattr(workers.get(worker_id), 'pid', None)
+                    if (
+                        origin_pid is not None
+                        and current_pid is not None
+                        and origin_pid != current_pid
+                    ):
+                        # The emitting process was already detected dead and
+                        # replaced; its late message must not kill the
+                        # healthy replacement or consume another restart.
+                        record(
+                            'stale_fatal_ignored',
+                            worker_id,
+                            {'pid': origin_pid, 'reason': reason},
+                        )
+                    else:
+                        recover(worker_id, reason)
             except queue.Empty:
                 pass
 

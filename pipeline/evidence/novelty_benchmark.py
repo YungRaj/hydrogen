@@ -63,14 +63,18 @@ def time_split_recovery(
     top = list(ranked_candidates[:k])
     top_ids = {candidate_id(g) for g in top}
     top_regions = {discovery_region(g) for g in top}
-    exact = sum(
-        candidate_id(tuple(x['genome'])) in top_ids for x in held_out_discoveries
-    )
-    regional = sum(
-        discovery_region(tuple(x['genome'])) in top_regions
+    # A discovery may carry several citations; recall is per unique held-out
+    # candidate, never weighted by citation count.
+    unique_held_out = {
+        candidate_id(tuple(x['genome'])): tuple(x['genome'])
         for x in held_out_discoveries
+    }
+    exact = len(held_out_ids & top_ids)
+    regional = sum(
+        discovery_region(genome) in top_regions
+        for genome in unique_held_out.values()
     )
-    n = len(held_out_discoveries)
+    n = len(unique_held_out)
     return {
         'valid': n > 0,
         'n_held_out': n,

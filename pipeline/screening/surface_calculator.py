@@ -71,8 +71,11 @@ def _ensure_hf_token():
     return False
 
 
+_DEFAULT_MODEL_NAME = 'esen-sm-conserving-all-oc25'
+
+
 def get_ocp_calculator(
-    model_name: str = 'esen-sm-conserving-all-oc25', device: str = 'cuda:0'
+    model_name: Optional[str] = None, device: str = 'cuda:0'
 ) -> Optional[Calculator]:
     """
         Load an OC20/OC25-trained surface catalysis GNN calculator.
@@ -83,15 +86,22 @@ def get_ocp_calculator(
           - uma-s-1p1                    (Universal Model for Atoms)
           - uma-m-1p1                    (larger UMA)
 
-        Falls back to local EquiformerV2-31M checkpoint if available.
+        When no model is named, the default eSEN model is tried first and the
+        local EquiformerV2-31M checkpoint is used as a fallback.  When a model
+        is named explicitly, no other model is ever substituted: results are
+        labelled with that model's protocol, so a failed load returns None.
 
     Args:
-        model_name: Model name used by this operation.
+        model_name: Explicit model to load, or None for the default eSEN model
+            with the legacy EquiformerV2 fallback.
         device: CPU or GPU device requested for execution.
 
     Returns:
-        Computed `Optional[Calculator]` result.
+        The requested calculator, or None when it cannot be loaded.
     """
+    allow_fallback = model_name is None
+    if model_name is None:
+        model_name = _DEFAULT_MODEL_NAME
     _ensure_hf_token()
 
     # Try 1: fairchem v2 API (eSen/UMA — gated, needs HF_TOKEN)
@@ -114,6 +124,12 @@ def get_ocp_calculator(
         logger.info(f"Loaded {model_name} via fairchem v2")
         return calc
     except Exception as e:
+        if not allow_fallback:
+            logger.warning(
+                f"Requested model {model_name} failed to load ({e}); "
+                "not substituting another model"
+            )
+            return None
         logger.debug(f"fairchem v2 load failed: {e}")
 
     # Try 2: Local OC20 checkpoint (EquiformerV2-31M)

@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import ast
-import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
+from pipeline.search.discovery import candidate_id
 
 
 @dataclass(frozen=True)
@@ -28,7 +29,9 @@ def _genome(value: object) -> tuple:
 
 
 def _identity(genome: tuple) -> str:
-    return hashlib.sha256(repr(genome).encode()).hexdigest()
+    # Canonical repository identity: representational equivalences (e.g.
+    # SolidCatalyst dopant order) collapse to one candidate.
+    return candidate_id(genome)
 
 
 def load_legacy_outcomes(spec: PilotSpec) -> pd.DataFrame:
@@ -39,6 +42,11 @@ def load_legacy_outcomes(spec: PilotSpec) -> pd.DataFrame:
 
     Returns:
         Valid rows collapsed to one median outcome per catalyst genome.
+
+    Raises:
+        FileNotFoundError: If none of the input tables exist.
+        ValueError: If required columns are missing or no valid, finite,
+            parseable outcome rows remain.
     """
     frames = [pd.read_csv(path) for path in spec.paths if Path(path).is_file()]
     if not frames:
@@ -54,11 +62,16 @@ def load_legacy_outcomes(spec: PilotSpec) -> pd.DataFrame:
     for _, row in frame.iterrows():
         try:
             genome = _genome(row.genome)
-        except (ValueError, SyntaxError):
+            identity = _identity(genome)
+        except (ValueError, SyntaxError, TypeError, IndexError):
             continue
         record = row.to_dict()
-        record.update(parsed_genome=genome, candidate_id=_identity(genome))
+        record.update(parsed_genome=genome, candidate_id=identity)
         parsed_rows.append(record)
+    if not parsed_rows:
+        raise ValueError(
+            f"no valid, finite, parseable {spec.outcome} rows for {spec.application}"
+        )
     parsed = pd.DataFrame(parsed_rows)
     grouped = []
     for _, rows in parsed.groupby("candidate_id", sort=True):

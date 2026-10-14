@@ -10,6 +10,7 @@ import sqlite3
 import subprocess
 import tempfile
 from collections.abc import Callable, Mapping
+from contextlib import closing
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -312,7 +313,7 @@ def _search_resume_check() -> QualificationCheck:
         )
 
         def archive(path: Path) -> list[tuple[str, float]]:
-            with sqlite3.connect(path) as connection:
+            with closing(sqlite3.connect(path)) as connection:
                 return connection.execute(
                     "SELECT candidate_id, primary_score FROM global_archive "
                     "WHERE application='qualification' ORDER BY candidate_id"

@@ -109,52 +109,79 @@ class BatchedInferenceService:
 
     def _run_batch(self, requests):
         try:
-            from fairchem.core.datasets.atomic_data import atomicdata_list_to_batch
-
-            data = []
+            prepared = []
             for request in requests:
-                atoms = request.atoms
-                if len(atoms) == 0:
-                    raise ValueError('Atoms object has no atoms inside.')
-                self.calculator._check_atoms_pbc(atoms)
-                self.calculator.predictor.validate_atoms_data(
-                    atoms, self.calculator.task_name
-                )
-                data.append(self.calculator.a2g(atoms))
-
-            predictions = self.calculator.predictor.predict(
-                atomicdata_list_to_batch(data)
-            )
-            n_systems = len(requests)
-            atom_offset = 0
-            for index, request in enumerate(requests):
-                n_atoms = len(request.atoms)
-                result = {}
-                for key in self.calculator.implemented_properties:
-                    if key == 'free_energy':
-                        continue
-                    pred = predictions.get(key)
-                    if pred is None:
-                        continue
-                    array = pred.detach().cpu().numpy()
-                    if key == 'energy':
-                        energy = float(array[index])
-                        result['energy'] = result['free_energy'] = energy
-                    elif key == 'forces':
-                        result['forces'] = array[atom_offset : atom_offset + n_atoms]
-                    elif key == 'stress':
-                        stress = array[index] if array.shape[0] == n_systems else array
-                        result['stress'] = full_3x3_to_voigt_6_stress(
-                            np.asarray(stress).reshape(3, 3)
-                        )
-                atom_offset += n_atoms
-                request.result = result
-        except BaseException as exc:
-            for request in requests:
-                request.error = exc
+                try:
+                    prepared.append((request, self._prepare(request.atoms)))
+                except BaseException as exc:
+                    request.error = exc
+            if len(prepared) > 1:
+                try:
+                    self._predict_into(prepared)
+                except BaseException:
+                    # One bad system must not fail unrelated candidates
+                    # that merely shared its batch; isolate by retrying.
+                    for item in prepared:
+                        self._predict_isolated(item)
+            elif prepared:
+                self._predict_isolated(prepared[0])
         finally:
             for request in requests:
                 request.event.set()
+
+    def _prepare(self, atoms):
+        if len(atoms) == 0:
+            raise ValueError('Atoms object has no atoms inside.')
+        self.calculator._check_atoms_pbc(atoms)
+        self.calculator.predictor.validate_atoms_data(
+            atoms, self.calculator.task_name
+        )
+        return self.calculator.a2g(atoms)
+
+    def _predict_isolated(self, item):
+        request = item[0]
+        try:
+            self._predict_into([item])
+        except BaseException as exc:
+            request.result = None
+            request.error = exc
+
+    def _predict_into(self, prepared):
+        from fairchem.core.datasets.atomic_data import atomicdata_list_to_batch
+
+        requests = [request for request, _ in prepared]
+        predictions = self.calculator.predictor.predict(
+            atomicdata_list_to_batch([data for _, data in prepared])
+        )
+        n_systems = len(requests)
+        results = []
+        atom_offset = 0
+        for index, request in enumerate(requests):
+            n_atoms = len(request.atoms)
+            result = {}
+            for key in self.calculator.implemented_properties:
+                if key == 'free_energy':
+                    continue
+                pred = predictions.get(key)
+                if pred is None:
+                    continue
+                array = pred.detach().cpu().numpy()
+                if key == 'energy':
+                    energy = float(array[index])
+                    result['energy'] = result['free_energy'] = energy
+                elif key == 'forces':
+                    result['forces'] = array[atom_offset : atom_offset + n_atoms]
+                elif key == 'stress':
+                    stress = array[index] if array.shape[0] == n_systems else array
+                    result['stress'] = full_3x3_to_voigt_6_stress(
+                        np.asarray(stress).reshape(3, 3)
+                    )
+            atom_offset += n_atoms
+            results.append(result)
+        # Publish only after every split succeeded so a retry starts clean.
+        for request, result in zip(requests, results):
+            request.result = result
+            request.error = None
 
 
 class BatchedFAIRChemCalculator(Calculator):

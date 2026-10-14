@@ -220,6 +220,10 @@ def run_gpu_worker(
         calculator = get_ocp_calculator(
             model_name='esen-sm-conserving-all-oc25', device='cuda'
         )
+        if calculator is None:
+            raise RuntimeError(
+                'esen-sm-conserving-all-oc25 calculator could not be loaded'
+            )
         batch_service = None
         evaluator_calculator = calculator
         if batched:
@@ -258,7 +262,12 @@ def run_gpu_worker(
     except Exception as exc:
         logger.error('%s %s failed to initialize: %s', label, worker_id, exc)
         try:
-            emit(result_queue, 'fatal', worker_id, str(exc)[:500])
+            emit(
+                result_queue,
+                'fatal',
+                worker_id,
+                {'pid': os.getpid(), 'error': str(exc)[:500]},
+            )
         except Exception:
             pass
 

@@ -19,6 +19,7 @@ PYTEST_CONTRACTS = (
     "test_policy_pilot.py",
     "test_prospective_contracts.py",
     "test_qe_gpu_setup_contract.py",
+    "test_review_fixes.py",
     "test_screening_gates.py",
     "test_sensitivity_contracts.py",
     "test_supported_nanoparticle_genome.py",

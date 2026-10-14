@@ -139,6 +139,9 @@ def _executive_summary(p1: dict, p2: dict, p5: dict) -> list:
     return lines
 
 
+_ELIGIBILITY_COLUMNS = frozenset({'valid', 'E_act', 'E_act_censored', 'pyrolysis_viable'})
+
+
 def _screening_section(screening: dict) -> list:
     lines = ["## Phase 1: Catalyst Screening & Genetic Optimization\n"]
     if not screening:
@@ -159,11 +162,18 @@ def _screening_section(screening: dict) -> list:
                        if 'material_class' in valid.columns else 0)
             lines.append(f"| {cls} | {n_total} | {n_valid} |")
         lines.append("")
-    if 'E_act' in valid.columns and len(valid) > 0:
+    ranked = valid
+    if _ELIGIBILITY_COLUMNS.issubset(df.columns):
+        # Match stages.discovery: censored (floor-clipped) and non-viable
+        # barriers are not evidence of a low barrier and must not be ranked.
+        from pipeline.screening.small_data_ranker import screening_metric_eligibility
+
+        ranked = df.loc[screening_metric_eligibility(df, 'turquoise_hydrogen')]
+    if 'E_act' in ranked.columns and len(ranked) > 0:
         lines += [f"\n**Top 10 Catalysts by Activation Barrier:**\n",
                   "| Rank | Genome | E_act (eV) | Coking Index | dE_H (eV) |",
                   "|------|--------|------------|-------------|-----------|"]
-        for rank, (_, row) in enumerate(valid.nsmallest(10, 'E_act').iterrows(), 1):
+        for rank, (_, row) in enumerate(ranked.nsmallest(10, 'E_act').iterrows(), 1):
             genome_str = str(row.get('genome', ''))[:50]
             lines.append(
                 f"| {rank} | {genome_str} | {row['E_act']:.4f} | "
