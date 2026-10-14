@@ -270,6 +270,229 @@ def _upsert_objective(
         )
 
 
+def _load_global_archive(conn, config: ScanConfig) -> tuple[dict, dict]:
+    """Rebuild the in-memory global top-K state from the persisted archive."""
+    global_best = {}
+    global_candidate_ids = {}
+    for row in conn.execute(
+        "SELECT candidate_id, global_index, primary_score, objectives, genome "
+        "FROM global_archive WHERE application=?",
+        (config.application,),
+    ):
+        genome = json.loads(row[4])
+        if genome[0] == 'SolidCatalyst':
+            genome[5] = tuple(genome[5])
+        if genome[0] == 'HEA':
+            genome[1] = tuple(genome[1])
+        genome = tuple(genome)
+        key = canonicalize_genome(genome)
+        global_best[key] = (
+            key,
+            "",
+            row[1],
+            row[2],
+            np.asarray(json.loads(row[3])),
+            genome,
+        )
+        global_candidate_ids[key] = row[0]
+    return global_best, global_candidate_ids
+
+
+def _enumerate_chunk(indices: list) -> tuple[list, list, int, "hashlib._Hash"]:
+    """Decode indices, filter admissible genomes, and digest the chunk."""
+    genomes, accepted_indices, rejected = [], [], 0
+    digest = hashlib.sha256()
+    for index in indices:
+        genome = candidate_at(index)
+        # The index-to-genome mapping is deterministic and versioned in
+        # code; hashing compact indices avoids JSON+SHA work for billions
+        # of candidates while still detecting missing/reordered chunks.
+        digest.update(index.to_bytes(8, byteorder="little", signed=False))
+        admissible, _ = is_physically_admissible(genome)
+        if admissible:
+            genomes.append(genome)
+            accepted_indices.append(index)
+        else:
+            rejected += 1
+    return genomes, accepted_indices, rejected, digest
+
+
+def _score_chunk(scorer, genomes: list) -> np.ndarray:
+    """Call the scorer and enforce the finite ``(N, M)`` objective contract."""
+    objectives = np.asarray(scorer(genomes), dtype=float)
+    if objectives.ndim != 2 or len(objectives) != len(genomes):
+        raise ValueError("scorer must return (N, M) objectives")
+    if not np.all(np.isfinite(objectives)):
+        raise ValueError("scorer returned NaN or infinite objectives")
+    return objectives
+
+
+def _reduce_chunk(
+    accepted_indices, genomes, objectives, batch_candidate_ids,
+    global_best, global_candidate_ids,
+) -> tuple[dict, dict, set]:
+    """Find region, regional-objective and global winners for one chunk.
+
+    ``global_best``/``global_candidate_ids`` are updated in place.
+    """
+    region_best = {}
+    regional_objective_best = {}
+    changed_global = set()
+    for index, genome, obj, cid in zip(
+        accepted_indices, genomes, objectives, batch_candidate_ids
+    ):
+        record = _candidate_record(index, genome, obj)
+        key, region, _, primary, _, _ = record
+        previous_region = region_best.get(region)
+        if previous_region is None or primary < previous_region[3]:
+            region_best[region] = record
+        for objective_index, score in enumerate(obj):
+            key_region = (region, objective_index)
+            prior = regional_objective_best.get(key_region)
+            if prior is None or float(score) < float(prior[4][objective_index]):
+                regional_objective_best[key_region] = record
+        previous_global = global_best.get(key)
+        if previous_global is None or primary < previous_global[3]:
+            global_best[key] = record
+            global_candidate_ids[key] = cid
+            changed_global.add(key)
+    return region_best, regional_objective_best, changed_global
+
+
+def _trim_global_best(
+    global_best: dict, global_candidate_ids: dict, limit: int
+) -> tuple[dict, dict]:
+    """Keep the exact primary-objective top-K with candidate-ID tie breaks."""
+    if len(global_best) <= limit:
+        return global_best, global_candidate_ids
+    # Candidate ID is the stable total-order tie break used by the SQLite
+    # archive as well; results must not depend on batch size or whether
+    # indices were processed serially or by shards.
+    keep = sorted(
+        global_best.values(),
+        key=lambda record: (record[3], global_candidate_ids[record[0]]),
+    )[:limit]
+    global_best = {r[0]: r for r in keep}
+    return global_best, {key: global_candidate_ids[key] for key in global_best}
+
+
+def _delete_worst(conn, table: str, score_column: str, where: str, params: tuple,
+                  limit: int) -> None:
+    """Delete rows beyond ``limit`` from a bounded archive, worst first."""
+    excess = conn.execute(
+        f"SELECT COUNT(*)-? FROM {table} WHERE {where}", (limit, *params)
+    ).fetchone()[0]
+    if excess > 0:
+        conn.execute(
+            f"""DELETE FROM {table} WHERE rowid IN (
+            SELECT rowid FROM {table} WHERE {where}
+            ORDER BY {score_column} DESC, candidate_id DESC LIMIT ?)
+        """,
+            (*params, excess),
+        )
+
+
+def _update_objective_archive(
+    conn, config: ScanConfig, accepted_indices, genomes, objectives,
+    batch_candidate_ids,
+) -> None:
+    """Merge one chunk into the bounded per-objective archives."""
+    # Preserve strong candidates for every objective, not only objective
+    # zero. Batch reduction keeps database traffic bounded.
+    per_objective_limit = max(1, config.global_archive_size // objectives.shape[1])
+    for objective_index in range(objectives.shape[1]):
+        # Reduce every batch with the same total ordering used by the
+        # database. This makes tied objectives invariant to batches and
+        # worker shards while keeping writes bounded by archive size.
+        best_local = sorted(
+            range(len(genomes)),
+            key=lambda i: (
+                float(objectives[i, objective_index]),
+                batch_candidate_ids[i],
+            ),
+        )[:per_objective_limit]
+        archive_count = conn.execute(
+            "SELECT COUNT(*) FROM objective_archive "
+            "WHERE application=? AND objective_index=?",
+            (config.application, objective_index),
+        ).fetchone()[0]
+        if archive_count >= per_objective_limit:
+            worst = conn.execute(
+                "SELECT objective_score, candidate_id FROM objective_archive "
+                "WHERE application=? AND objective_index=? "
+                "ORDER BY objective_score DESC, candidate_id DESC LIMIT 1",
+                (config.application, objective_index),
+            ).fetchone()
+            best_local = [
+                i
+                for i in best_local
+                if (float(objectives[i, objective_index]), batch_candidate_ids[i])
+                < tuple(worst)
+            ]
+        for local_index in best_local:
+            record = _candidate_record(
+                accepted_indices[local_index],
+                genomes[local_index],
+                objectives[local_index],
+            )
+            _upsert_objective(conn, config, record, objective_index, regional=False)
+        _delete_worst(
+            conn, "objective_archive", "objective_score",
+            "application=? AND objective_index=?",
+            (config.application, objective_index), per_objective_limit,
+        )
+
+
+def _record_chunk(
+    conn, config: ScanConfig, indices: list, accepted: int, rejected: int,
+    digest, elapsed_s: float, following: int,
+) -> None:
+    """Persist the chunk digest and advance the resumable progress cursor."""
+    processed = len(indices)
+    state_id = config.state_id or f"worker:{config.worker_id}/{config.num_workers}"
+    conn.execute(
+        "INSERT OR REPLACE INTO scan_chunks VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            config.application,
+            state_id,
+            indices[0],
+            indices[-1],
+            processed,
+            accepted,
+            rejected,
+            digest.hexdigest(),
+            elapsed_s,
+        ),
+    )
+    conn.execute(
+        """INSERT INTO scan_progress VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(application, state_id) DO UPDATE SET
+          next_index=excluded.next_index, stop_index=excluded.stop_index,
+          processed=scan_progress.processed+excluded.processed,
+          accepted=scan_progress.accepted+excluded.accepted,
+          rejected=scan_progress.rejected+excluded.rejected,
+          updated_at=excluded.updated_at
+    """,
+        (
+            config.application,
+            state_id,
+            following,
+            config.stop,
+            processed,
+            accepted,
+            rejected,
+            time.time(),
+        ),
+    )
+
+
+def _scan_stopped_early(config: ScanConfig, batches: int) -> bool:
+    """Return whether the wall-clock deadline or batch budget is exhausted."""
+    if config.deadline_epoch_s is not None and time.time() >= config.deadline_epoch_s:
+        return True
+    return config.max_batches is not None and batches >= config.max_batches
+
+
 def run_streaming_scan(
     config: ScanConfig, scorer: Callable[[List[tuple]], np.ndarray]
 ) -> dict:
@@ -296,38 +519,9 @@ def run_streaming_scan(
     batches = processed_total = accepted_total = rejected_total = 0
     started = time.time()
     # Exact bounded top-K state lives in memory; only entrants are written.
-    global_best = {}
-    global_candidate_ids = {}
-    for row in conn.execute(
-        "SELECT candidate_id, global_index, primary_score, objectives, genome "
-        "FROM global_archive WHERE application=?",
-        (config.application,),
-    ):
-        genome = json.loads(row[4])
-        if genome[0] == 'SolidCatalyst':
-            genome[5] = tuple(genome[5])
-        if genome[0] == 'HEA':
-            genome[1] = tuple(genome[1])
-        genome = tuple(genome)
-        key = canonicalize_genome(genome)
-        global_best[key] = (
-            key,
-            "",
-            row[1],
-            row[2],
-            np.asarray(json.loads(row[3])),
-            genome,
-        )
-        global_candidate_ids[key] = row[0]
+    global_best, global_candidate_ids = _load_global_archive(conn, config)
 
-    while next_index < config.stop:
-        if (
-            config.deadline_epoch_s is not None
-            and time.time() >= config.deadline_epoch_s
-        ):
-            break
-        if config.max_batches is not None and batches >= config.max_batches:
-            break
+    while next_index < config.stop and not _scan_stopped_early(config, batches):
         indices = list(
             range(
                 next_index,
@@ -335,191 +529,52 @@ def run_streaming_scan(
                 config.num_workers,
             )
         )
-        genomes, accepted_indices, rejected = [], [], 0
-        digest = hashlib.sha256()
-        for index in indices:
-            genome = candidate_at(index)
-            # The index-to-genome mapping is deterministic and versioned in
-            # code; hashing compact indices avoids JSON+SHA work for billions
-            # of candidates while still detecting missing/reordered chunks.
-            digest.update(index.to_bytes(8, byteorder="little", signed=False))
-            admissible, _ = is_physically_admissible(genome)
-            if admissible:
-                genomes.append(genome)
-                accepted_indices.append(index)
-            else:
-                rejected += 1
+        genomes, accepted_indices, rejected, digest = _enumerate_chunk(indices)
 
         t_batch = time.time()
         if genomes:
-            objectives = np.asarray(scorer(genomes), dtype=float)
-            if objectives.ndim != 2 or len(objectives) != len(genomes):
-                raise ValueError("scorer must return (N, M) objectives")
-            if not np.all(np.isfinite(objectives)):
-                raise ValueError("scorer returned NaN or infinite objectives")
-            region_best = {}
-            regional_objective_best = {}
-            changed_global = set()
+            objectives = _score_chunk(scorer, genomes)
             # Candidate identities are content hashes and therefore relatively
             # expensive.  Compute each once per batch and reuse it for every
-            # objective's deterministic tie break instead of serializing and
-            # hashing the same genome repeatedly.
+            # objective's deterministic tie break.
             batch_candidate_ids = [candidate_id(genome) for genome in genomes]
-            for index, genome, obj, cid in zip(
-                accepted_indices, genomes, objectives, batch_candidate_ids
-            ):
-                record = _candidate_record(index, genome, obj)
-                key, region, _, primary, _, _ = record
-                previous_region = region_best.get(region)
-                if previous_region is None or primary < previous_region[3]:
-                    region_best[region] = record
-                for objective_index, score in enumerate(obj):
-                    key_region = (region, objective_index)
-                    prior = regional_objective_best.get(key_region)
-                    if prior is None or float(score) < float(prior[4][objective_index]):
-                        regional_objective_best[key_region] = record
-                previous_global = global_best.get(key)
-                if previous_global is None or primary < previous_global[3]:
-                    global_best[key] = record
-                    global_candidate_ids[key] = cid
-                    changed_global.add(key)
-
+            region_best, regional_objective_best, changed_global = _reduce_chunk(
+                accepted_indices, genomes, objectives, batch_candidate_ids,
+                global_best, global_candidate_ids,
+            )
             # Reduce in memory before touching SQLite. This is exact for the
             # primary-objective top-K and turns billions of potential writes
             # into at most region winners plus actual archive entrants.
-            if len(global_best) > config.global_archive_size:
-                # Candidate ID is the stable total-order tie break used by the
-                # SQLite archive as well; results must not depend on batch size
-                # or whether indices were processed serially or by shards.
-                keep = sorted(
-                    global_best.values(),
-                    key=lambda record: (record[3], global_candidate_ids[record[0]]),
-                )[: config.global_archive_size]
-                global_best = {r[0]: r for r in keep}
-                global_candidate_ids = {
-                    key: global_candidate_ids[key] for key in global_best
-                }
+            global_best, global_candidate_ids = _trim_global_best(
+                global_best, global_candidate_ids, config.global_archive_size
+            )
             for record in region_best.values():
                 _upsert_region(conn, config, record)
             for (_, objective_index), record in regional_objective_best.items():
                 _upsert_objective(conn, config, record, objective_index, regional=True)
             for key in changed_global & global_best.keys():
                 _upsert_global(conn, config, global_best[key])
-            # Preserve strong candidates for every objective, not only objective
-            # zero. Batch reduction keeps database traffic bounded.
-            per_objective_limit = max(
-                1, config.global_archive_size // objectives.shape[1]
+            _update_objective_archive(
+                conn, config, accepted_indices, genomes, objectives,
+                batch_candidate_ids,
             )
-            for objective_index in range(objectives.shape[1]):
-                # Reduce every batch with the same total ordering used by the
-                # database. This makes tied objectives invariant to batches and
-                # worker shards while keeping writes bounded by archive size.
-                best_local = sorted(
-                    range(len(genomes)),
-                    key=lambda i: (
-                        float(objectives[i, objective_index]),
-                        batch_candidate_ids[i],
-                    ),
-                )[:per_objective_limit]
-                archive_count = conn.execute(
-                    "SELECT COUNT(*) FROM objective_archive "
-                    "WHERE application=? AND objective_index=?",
-                    (config.application, objective_index),
-                ).fetchone()[0]
-                if archive_count >= per_objective_limit:
-                    worst_score, worst_id = conn.execute(
-                        "SELECT objective_score, candidate_id FROM objective_archive "
-                        "WHERE application=? AND objective_index=? "
-                        "ORDER BY objective_score DESC, candidate_id DESC LIMIT 1",
-                        (config.application, objective_index),
-                    ).fetchone()
-                    best_local = [
-                        i
-                        for i in best_local
-                        if (
-                            float(objectives[i, objective_index]),
-                            candidate_id(genomes[i]),
-                        )
-                        < (worst_score, worst_id)
-                    ]
-                for local_index in best_local:
-                    record = _candidate_record(
-                        accepted_indices[local_index],
-                        genomes[local_index],
-                        objectives[local_index],
-                    )
-                    _upsert_objective(
-                        conn, config, record, objective_index, regional=False
-                    )
-                excess_obj = conn.execute(
-                    "SELECT COUNT(*)-? FROM objective_archive WHERE application=? AND objective_index=?",
-                    (per_objective_limit, config.application, objective_index),
-                ).fetchone()[0]
-                if excess_obj > 0:
-                    conn.execute(
-                        """DELETE FROM objective_archive WHERE rowid IN (
-                        SELECT rowid FROM objective_archive WHERE application=? AND objective_index=?
-                        ORDER BY objective_score DESC, candidate_id DESC LIMIT ?)
-                    """,
-                        (config.application, objective_index, excess_obj),
-                    )
 
         # Bound the global archive. Region champions remain independent, so
         # unfamiliar families are retained even when absent from global top-K.
-        excess = conn.execute(
-            "SELECT COUNT(*)-? FROM global_archive WHERE application=?",
-            (config.global_archive_size, config.application),
-        ).fetchone()[0]
-        if excess > 0:
-            conn.execute(
-                """DELETE FROM global_archive WHERE rowid IN (
-                SELECT rowid FROM global_archive WHERE application=?
-                ORDER BY primary_score DESC, candidate_id DESC LIMIT ?)
-            """,
-                (config.application, excess),
-            )
-
-        processed, accepted = len(indices), len(genomes)
-        following = indices[-1] + config.num_workers if indices else config.stop
-        state_id = config.state_id or f"worker:{config.worker_id}/{config.num_workers}"
-        conn.execute(
-            "INSERT OR REPLACE INTO scan_chunks VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (
-                config.application,
-                state_id,
-                indices[0],
-                indices[-1],
-                processed,
-                accepted,
-                rejected,
-                digest.hexdigest(),
-                time.time() - t_batch,
-            ),
+        _delete_worst(
+            conn, "global_archive", "primary_score", "application=?",
+            (config.application,), config.global_archive_size,
         )
-        conn.execute(
-            """INSERT INTO scan_progress VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(application, state_id) DO UPDATE SET
-              next_index=excluded.next_index, stop_index=excluded.stop_index,
-              processed=scan_progress.processed+excluded.processed,
-              accepted=scan_progress.accepted+excluded.accepted,
-              rejected=scan_progress.rejected+excluded.rejected,
-              updated_at=excluded.updated_at
-        """,
-            (
-                config.application,
-                state_id,
-                following,
-                config.stop,
-                processed,
-                accepted,
-                rejected,
-                time.time(),
-            ),
+
+        following = indices[-1] + config.num_workers if indices else config.stop
+        _record_chunk(
+            conn, config, indices, len(genomes), rejected, digest,
+            time.time() - t_batch, following,
         )
         conn.commit()
         next_index = following
-        processed_total += processed
-        accepted_total += accepted
+        processed_total += len(indices)
+        accepted_total += len(genomes)
         rejected_total += rejected
         batches += 1
 
