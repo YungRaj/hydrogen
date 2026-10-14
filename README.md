@@ -17,7 +17,7 @@ A GPU-accelerated computational pipeline for autonomous catalyst discovery targe
 
 * 🔬 **[Turquoise Hydrogen Reference Guide](docs/TURQUOISE_HYDROGEN.md)**: Exhaustive literature review of thermocatalytic and nanotribo-mechano-electrochemical (NTEC) methane splitting.
 * 🧪 **[Physical Multiphysics Cases](docs/PHYSICAL_CASES.md)**: Exact reactor-input, parameter-provenance, calibration/holdout, and solver-artifact contract.
-* 🔁 **[Modular Multi-Fidelity Workflow](docs/MODULAR_MULTIFIDELITY_WORKFLOW.md)**: How representative OpenFOAM/FEniCSx cases can train auditable transport closures for cheaper Cantera screening, with uncertain cases referred back to full physics.
+* 🔁 **[Modular Multi-Fidelity Workflow](docs/MODULAR_MULTIFIDELITY_WORKFLOW.md)**: How representative OpenFOAM/MOOSE cases can train auditable transport closures for cheaper Cantera screening, with uncertain cases referred back to full physics.
 * 📏 **[Experimental Data](docs/EXPERIMENTAL_DATA.md)**: Raw-data provenance, uncertainty, preregistration, independent-unit, NTEC/control, and blinded-holdout contract.
 * ⚡ **[Fuel Cell ORR & MEA Guide](docs/FUEL_CELL.md)**: Comprehensive description of state-of-the-art catalysts, MEA designs, and large-scale PEMFC stack configurations.
 * 📋 **[Phase 2 backlog](docs/backlog/README.md)** and **[ADR 0001](docs/adr/0001-pyrolysis-phase-admissibility.md)**: default solids surface path ends at `C_s`; nanoparticle Ni/Fe/Co get gated Cγ/Cδ ([B6](docs/backlog/B6-off-site-carbon-nucleation.md)). B6-1–7 are run. The named solids judge is the literature Ni cell `ni_np_lit` at the 650–700 °C filament ROI (not `cat_9` at 1300 K). Do not send Phase 2 X to DFT (B5): Ni at 923 K is 14.6 % / 16.9 %, not X_eq.
@@ -191,8 +191,8 @@ prediction. Current status is:
 | `thermocatalytic` | Operational dispatcher | PFR inputs plus a valid fluidized OpenFOAM artifact | PFR completes independently; missing fluidized evidence is `validation_required` |
 | `thermocatalytic_fluidized` | Solver integration complete | Sourced physical case, OpenFOAM hydrodynamics, calibration and held-out validation | Non-excluding until a valid artifact is present |
 | `mmbcr` | Solver integration complete | Sourced molten-metal case, OpenFOAM hydrodynamics, candidate interface kinetics, calibration and holdout | Non-excluding until a valid artifact is present; graphite correction remains separate work |
-| `ntec` | Solver integration complete | Coupled OpenFOAM/FEniCSx/Cantera case and real paired NTEC/control calibration | No speculative NTEC assistance or conversion |
-| `electrochemical` | Solver integration complete | FEniCSx/Cantera case, complete charge-transfer mechanism, aqueous/molten properties and holdout | No fabricated electrochemical performance |
+| `ntec` | Solver integration complete | Coupled MOOSE/Cantera case and real paired NTEC/control calibration | No speculative NTEC assistance or conversion |
+| `electrochemical` | Solver integration complete | MOOSE/Cantera case, complete charge-transfer mechanism, aqueous/molten properties and holdout | No fabricated electrochemical performance |
 
 For an immediately runnable reactor-screening campaign, explicitly select
 `--mode thermocatalytic_pfr`. The default `thermocatalytic` deliberately
@@ -211,7 +211,7 @@ Inside `pipeline/`, source is grouped by responsibility:
   reactor models, equilibrium/result interpretation, and focused `sweeps/`
   tooling for carbon-closure and sensitivity studies.
 - **`simulation/`:** physical cases, external solver execution, validated
-  artifacts, and OpenFOAM/FEniCSx/Cantera handoffs.
+  artifacts, and OpenFOAM/MOOSE/Cantera handoffs.
 - **`transport/`:** representative cases, learned closures, model registries,
   and transport-surrogate training.
 - **`electrochemistry/`:** NTEC and broader electrochemical pathway evidence.
@@ -264,7 +264,7 @@ Phase 1: SCREENING + OPTIMIZATION            Phase 2: REACTOR SIMULATION
 │  21.1B Design Space             │          │  Pathway-owned solvers   │
 │  │                              │          │  ├─ Cantera: kinetics    │
 │  ▼                              │          │  ├─ OpenFOAM: multiphase│
-│  eSen-SM (3 GPUs, batched)      │──Top-K──→│  ├─ FEniCSx: transport   │
+│  eSen-SM (3 GPUs, batched)      │──Top-K──→│  ├─ MOOSE: NTEC/electro  │
 │  │                              │          │  └─ strict case/artifact │
 │  ▼                              │          └──────────────────────────┘
 │  Surrogate NN (PyTorch)         │                    │
@@ -382,7 +382,7 @@ Each genome encodes into a **353-dimensional** feature vector for the surrogate 
 | **Cantera** | 3.2.0 | Chemical kinetics — reactor ODEs with custom YAML mechanisms | 2 |
 | **Quantum ESPRESSO** | 7.x | Plane-wave DFT (`pw.x`) and reaction paths (`neb.x`) — SCF, relaxation, adsorption and candidate barriers | 3 |
 | **OpenFOAM** | v2412+ | Multiphase hydrodynamics for fluidized, MMBCR, and NTEC physical cases | 2 |
-| **FEniCSx** | 0.9+ | Charge/species/electrical continuum transport for NTEC and electrochemical cases | 2 |
+| **MOOSE** | 2026.09 | NTEC shear-layer flow, electrostatics and CH4 transport; electrochemical cell charge and species transport | 2 |
 
 ### Scientific Libraries
 
@@ -447,7 +447,7 @@ ranking whenever an uncensored candidate is available.
 | Solid carbon | Condensed `C(gr)` plus site-blocking `C_s`. Ungated YAML **ends at `C_s`**. Nanoparticle Ni/Fe/Co also get `C_s => C(gr) + site` (Cγ) and `C_s => C_encap_s` (Cδ). Not SAC/`cat_9`. No gas-phase carbon tracer. |
 | Solids inventory | Geometric `a = 6(1−ε)/d_p` × loading × dispersion (both ≤ 1), applied per bed volume (`A = a · V_bed`). Γ locked at a monolayer (`2.5×10⁻⁹ mol/cm²`). Production defaults: `d_p = 0.13 mm`, loading `0.5`, dispersion `0.3`. |
 | Hydrodynamic closure | Fluidized / MMBCR take validated OpenFOAM artifacts or calibrated surrogates first; absent both they run on a labelled `analytical_hydrodynamic_closure` (Mendelson `u_b`, derived holdup ≤ 0.3; clipped `(u0−umf)/u0` bypass) that can never exclude a candidate. |
-| Reactor types | PFR (shared surface, time-on-stream, discrete regen); circulating / batch-regen fluidized bed with Ar-tracer bubble bypass; MMBCR melt ODE to `X_eq` with `τ = H / u_b` (MoltenMetal only); OpenFOAM+FEniCSx+Cantera NTEC; FEniCSx+Cantera electrochemical. NTEC / electrochemical fail closed on missing evidence. |
+| Reactor types | PFR (shared surface, time-on-stream, discrete regen); circulating / batch-regen fluidized bed with Ar-tracer bubble bypass; MMBCR melt ODE to `X_eq` with `τ = H / u_b` (MoltenMetal only); MOOSE+Cantera NTEC; MOOSE+Cantera electrochemical. NTEC / electrochemical fail closed on missing evidence. |
 
 ### Fuel Cell Models
 
@@ -634,7 +634,7 @@ only the storage floor with `--minimum-free-disk-gb` when qualifying a smaller
 bounded run.
 Analytical canaries verify Arrhenius temperature/barrier monotonicity, the ideal
 ORR computational-hydrogen-electrode identity, and exact inert-tracer methane
-conversion. It does not run eSEN, Cantera, QE, CUDA-Q, OpenFOAM, or FEniCSx
+conversion. It does not run eSEN, Cantera, QE, CUDA-Q, OpenFOAM, or MOOSE
 calculations. Exit code `0` means the bounded campaign is operationally
 qualified; exit code `2` identifies a blocking preflight failure. This is
 permission to begin a canary campaign, not evidence that any catalyst is
@@ -699,6 +699,7 @@ python tests/run_tests.py --include-vqe
 python tests/run_tests.py --include-production-vqe
 python tests/run_tests.py --include-quantum-reference-artifacts
 python tests/run_tests.py --include-gpu
+python tests/run_tests.py --include-moose
 python tests/run_tests.py --all
 ```
 
@@ -711,7 +712,7 @@ preserved behind `--include-production-vqe` with a 30-minute hard timeout.
 `test_reactor_fixtures.py` runs five small deterministic integration cases: a
 real Cantera PFR and representative Fluidized, MMBCR, NTEC, and electrochemical
 paths. The latter four substitute deterministic files only at the expensive
-OpenFOAM/FEniCSx process boundary, then exercise the production case, hash,
+OpenFOAM/MOOSE process boundary, then exercise the production case, hash,
 holdout, coupling, artifact, and reactor-consumption code. Their provenance is
 explicitly `test-fixture`; they verify wiring and contracts, not physical solver
 accuracy or production readiness.
@@ -785,7 +786,7 @@ runtimes. No machine-specific home directory is assumed.
 | `--mode` | `thermocatalytic` | Pathway mode: `thermocatalytic`, `thermocatalytic_pfr`, `thermocatalytic_fluidized`, `mmbcr`, `ntec`, or `electrochemical` |
 | `--ntec-conditions-json` | — | Measured NTEC operating inputs plus paired-control effect calibration; incomplete inputs receive no numerical assistance |
 | `--electrochemical-conditions-json` | — | Measured electrochemical operating point; `electrolyte_phase` selects `aqueous` or `molten` physics |
-| `--multiphysics-results-dir` | `<results-dir>/multiphysics` | Root containing identity- and convergence-gated OpenFOAM/FEniCSx artifacts |
+| `--multiphysics-results-dir` | `<results-dir>/multiphysics` | Root containing identity- and convergence-gated OpenFOAM/MOOSE artifacts |
 
 Calibration counts are requested probes, not assumed successful calculations.
 If failed-closed relaxations leave fewer than 20 valid rows, each application
@@ -806,7 +807,7 @@ thermal modes sweep **500°C (773.15 K) to 1300 K**
 
 `ntec` represents the mechanically stimulated liquid-solid interfacial
 pathway. It does not silently reuse MMBCR, PFR, or fluidized-bed hydrodynamics.
-An NTEC result is accepted only from a converged OpenFOAM + FEniCSx + Cantera
+An NTEC result is accepted only from a converged MOOSE + Cantera
 artifact with mesh independence, conservation checks, input provenance, and a
 paired NTEC/control calibration. Missing or invalid evidence remains visible
 and non-excluding.
@@ -814,7 +815,7 @@ and non-excluding.
 `electrochemical` covers both aqueous and molten electrolytes through the
 `electrolyte_phase` condition. They share orchestration but retain distinct
 transport, thermodynamic, and kinetic configuration. Results require a
-converged FEniCSx transport + Cantera charge-transfer artifact and a declared
+converged MOOSE transport + Cantera charge-transfer artifact and a declared
 complete mechanism. Missing inputs produce `validation_required` with no
 fabricated conversion and no authority to exclude a candidate.
 
@@ -833,8 +834,8 @@ candidate from discovery.
 | `thermocatalytic_pfr` | Fixed packed bed | Isothermal staged Lagrangian ideal-gas control volumes with candidate surface kinetics; catalyst area uses total bed volume and gas residence uses void volume |
 | `thermocatalytic_fluidized` | Gas-solid fluidized bed | OpenFOAM supplies converged hydrodynamics; Cantera applies candidate surface kinetics to the resulting emulsion/bubble screening model |
 | `mmbcr` | Methane bubbles in molten metal | OpenFOAM supplies gas velocity, holdup, and bubble size; Cantera applies candidate interface kinetics in a CSTR cascade; restricted to `MoltenMetal` candidates |
-| `ntec` | Mechanically agitated liquid-solid interface | OpenFOAM hydrodynamics + FEniCSx coupled transport + Cantera chemistry, accepted only with paired-control calibration |
-| `electrochemical` | Aqueous or molten electrode-electrolyte interface | FEniCSx electrolyte/electrode transport + Cantera charge-transfer kinetics, accepted only with a complete methane-specific mechanism |
+| `ntec` | Mechanically agitated liquid-solid interface | MOOSE flow, electrostatics and transport + Cantera chemistry, accepted only with paired-control calibration |
+| `electrochemical` | Aqueous or molten electrode-electrolyte interface | MOOSE electrolyte/electrode transport + Cantera charge-transfer kinetics, accepted only with a complete methane-specific mechanism |
 
 The generated Cantera YAML contains gas chemistry plus a candidate-named
 heterogeneous surface phase. Screening adsorption descriptors and activation
@@ -858,12 +859,12 @@ provenance-gated before ingestion.
 Invalid evidence is deleted by the runner and cannot become a performance
 claim or eliminate a candidate.
 
-For NTEC, OpenFOAM must emit a checksum-bound spatial hydrodynamic handoff that
-FEniCSx consumes; file existence is insufficient. NTEC and electrochemical
+For NTEC, the MOOSE run must yield a checksum-bound spatial hydrodynamic handoff
+(Exodus field file); file existence is insufficient. NTEC and electrochemical
 cases must also provide checksummed Cantera mechanism, execution log,
 candidate-specific rate exchange, and iteration history. Accepted production
 artifacts require converged iterative two-way coupling rather than a
-`cantera_used` assertion. External FEniCSx scripts are included in the input
+`cantera_used` assertion. The MOOSE input file is included in the input
 digest, and stale solver outputs or nonzero OpenFOAM time directories are
 rejected before execution.
 The runner owns the numbered outer iterations and accepts the final receipt only
@@ -884,7 +885,8 @@ For `thermocatalytic_fluidized`, `mmbcr`, `ntec`, or `electrochemical`:
 2. Add `hydrogen_case.json` with all mode-required physical values, units in
    field names, parameter sources, kinetics/feed sources, and disjoint
    calibration and holdout IDs.
-3. Configure the appropriate OpenFOAM case and/or FEniCSx model. This repository
+3. Configure the appropriate OpenFOAM case, or the MOOSE `model_parameters` read by
+   `moose/inputs/*.i` (NTEC and electrochemical). This repository
    does not manufacture apparatus geometry, kinetic constants, or measurements.
 4. Run the external backend adapter, for example:
 
@@ -895,7 +897,6 @@ python -m pipeline.simulation.external_runner \
   --candidate-id CANONICAL_ID \
   --temperature-K 300 \
   --case-dir cases/CANONICAL_ID/ntec \
-  --fenics-model cases/CANONICAL_ID/ntec/model.py \
   --results-dir results/multiphysics \
   --model-source "immutable case revision or DOI"
 ```
@@ -1603,8 +1604,8 @@ For each pyrolysis-admissible top-K catalyst from Phase 1
    (500°C to 1300 K / 773.15–1300 K). Fluidized/MMBCR hydrodynamics take
    validated OpenFOAM artifacts or calibrated surrogates first; without them
    they run on the labelled `analytical_hydrodynamic_closure`, which can never
-   exclude a candidate. NTEC requires OpenFOAM + FEniCSx + Cantera;
-   electrochemical requires FEniCSx + Cantera. Every external path requires a
+   exclude a candidate. NTEC requires MOOSE + Cantera;
+   electrochemical requires MOOSE + Cantera. Every external path requires a
    sourced `hydrogen_case.json`, disjoint calibration/holdout records, and a
    held-out error within its declared acceptance threshold.
 4. Report single-pass X from the Ar tracer already in the feed:
@@ -1753,7 +1754,7 @@ After a campaign completes, key outputs include:
 | `results/reports/pipeline_report.md` | Auto-generated comprehensive report |
 | `results/reports/pipeline_state.json` | Machine-readable pipeline state with timing and metrics |
 | `results/reactor/*.json` | PFR or pathway-specific reactor records, including incomplete evidence states |
-| `results/multiphysics/<candidate>/<mode>/*.json` | Accepted OpenFOAM/FEniCSx/Cantera artifacts |
+| `results/multiphysics/<candidate>/<mode>/*.json` | Accepted OpenFOAM/MOOSE/Cantera artifacts |
 | `results/dft/*/` | QE input/output files per catalyst |
 | `results/fuel_cell/` | Cathode screening + PEMFC polarization data |
 

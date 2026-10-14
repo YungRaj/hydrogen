@@ -175,12 +175,11 @@ flowchart TB
     subgraph REACTOR["Reactor physics · resolves chemistry and transport"]
         direction LR
         OPENFOAM["OpenFOAM<br/>flow, bubbles and multiphase mixing"]
-        FENICS["FEniCSx<br/>species, heat, ions, charge and potential"]
+        MOOSE["MOOSE<br/>NTEC flow, charge, potential and species"]
         CANTERA["Cantera<br/>kinetics, thermochemistry and reduced reactors"]
         OPENFOAM -->|hydrodynamic closure| CANTERA
-        OPENFOAM -->|NTEC handoff| FENICS
-        CANTERA -->|reaction source terms| FENICS
-        FENICS -->|updated transport state| CANTERA
+        CANTERA -->|interface rates| MOOSE
+        MOOSE -->|interface state| CANTERA
     end
 
     DEVICE["PEMFC and stack models<br/>predict power and efficiency"]
@@ -193,7 +192,7 @@ flowchart TB
     QE --> EVIDENCE
     CUDA --> EVIDENCE
     OPENFOAM --> EVIDENCE
-    FENICS --> EVIDENCE
+    MOOSE --> EVIDENCE
     CANTERA --> EVIDENCE
     DEVICE --> EVIDENCE
 
@@ -205,12 +204,13 @@ flowchart TB
     class INPUT input
     class META,SURROGATE screening
     class QE,HAMILTONIAN,CUDA atomistic
-    class OPENFOAM,FENICS,CANTERA reactor
+    class OPENFOAM,MOOSE,CANTERA reactor
     class DEVICE,EVIDENCE evidence
 ```
 
 Cantera owns chemistry and reduced reactor kinetics. OpenFOAM owns resolved
-flow and multiphase hydrodynamics. FEniCSx owns coupled continuum transport.
+flow and multiphase hydrodynamics for fluidized and MMBCR reactors. MOOSE owns the
+NTEC and electrochemical fields.
 Quantum ESPRESSO owns plane-wave DFT. CUDA-Q/cuQuantum execute the selected
 quantum workflow. None is a universal simulator.
 
@@ -240,8 +240,8 @@ flowchart TB
         NTEC_MODE["ntec"]
         ELECTRO_MODE["electrochemical"]
         MMB["Molten-metal bubble column<br/>OpenFOAM + Cantera"]
-        NTEC["NTEC interface<br/>OpenFOAM + FEniCSx + Cantera"]
-        ELECTRO["Electrode-electrolyte interface<br/>FEniCSx + Cantera"]
+        NTEC["NTEC interface<br/>MOOSE + Cantera"]
+        ELECTRO["Electrode-electrolyte interface<br/>MOOSE + Cantera"]
         MMB_MODE --> MMB
         NTEC_MODE --> NTEC
         ELECTRO_MODE --> ELECTRO

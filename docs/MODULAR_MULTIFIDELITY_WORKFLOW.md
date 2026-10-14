@@ -8,7 +8,7 @@ and provenance diagrams corresponding to this document.
 
 The pipeline has two different jobs that must not be conflated:
 
-1. OpenFOAM and FEniCSx resolve expensive spatial transport physics for a
+1. OpenFOAM and MOOSE resolve expensive spatial transport physics for a
    carefully designed set of reactor cases.
 2. Cantera evaluates chemical kinetics and reduced reactor models cheaply
    enough to screen many catalyst and operating-condition combinations.
@@ -158,7 +158,7 @@ Discovery and reactor evidence use the same boundary rule. The encoded-phase
 admissibility decision is an `AdmissibilitySummary`, equilibrium comparisons
 are `EquilibriumSummary` records, and the solid-catalyst ranking handoff is a
 `SolidsScorecard` composed of unit-bearing `SolidsMetricRow` values. External
-OpenFOAM/FEniCSx evidence is represented by `ExternalSolverArtifact`; loading
+OpenFOAM/MOOSE evidence is represented by `ExternalSolverArtifact`; loading
 it returns a discriminated `ValidArtifactResult | InvalidArtifactResult` union.
 Consumers must therefore observe `valid: true` before accessing an artifact,
 while rejected evidence always carries an explicit reason. These are static
@@ -199,7 +199,7 @@ selection and failure semantics.
 
 External solver process operations are represented by
 `SolverExecutionServices`: preflight discovery, execution, OpenFOAM versioning,
-FEniCSx command construction, and Cantera versioning can be supplied together.
+MOOSE command construction, and Cantera versioning can be supplied together.
 Artifact admission is a separate `persist_validated_artifact` operation with
 injectable path and validation functions. It writes by atomic replacement and
 removes rejected evidence.
@@ -293,7 +293,7 @@ current winners. For each mode:
 6. periodically recheck older regions so lower priority never means zero
    coverage.
 
-OpenFOAM/FEniCSx results are computational labels, not experimental ground
+OpenFOAM/MOOSE results are computational labels, not experimental ground
 truth. Experimental calibration and holdouts remain necessary for real reactor
 accuracy.
 
@@ -363,7 +363,7 @@ Still requiring campaign data or additional integration:
 - curated apparatus case directories and scientifically reviewed campaign
   configuration to supply to the implemented production case-plan adapter;
 - calibrated physical ranges, regime anchors, RMSE limits, and representative
-  OpenFOAM/FEniCSx case results;
+  OpenFOAM/MOOSE case results;
 - additional NTEC/electrochemical artifact fields before those modes can train
   transport closures; and
 - blind experimental calibration.

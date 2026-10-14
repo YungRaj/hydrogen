@@ -90,8 +90,10 @@ def _moose_command(input_file: Path, case: Path,
 
 def _coupling_command(case: Path, reactor_type: str) -> list[str]:
     """Run the repository-owned Cantera interface step for one iteration."""
-    return [sys.executable, '-m', 'pipeline.electrochemistry.cantera_coupling',
-            '--case-dir', str(case), '--reactor-type', reactor_type]
+    # Run by path: the working directory is the case, not the repository.
+    script = Path(__file__).resolve().parents[1] / 'electrochemistry' / 'cantera_coupling.py'
+    return [sys.executable, str(script), '--case-dir', str(case),
+            '--reactor-type', reactor_type]
 
 
 def _cantera_version() -> str:

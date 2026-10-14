@@ -14,10 +14,15 @@ where r_CH4 is Cantera's CH4 destruction rate on the candidate interface at
 the MOOSE anode-surface CH4 concentration (via Henry's law). The electrode
 potential enters MOOSE's Butler-Volmer law, not the Cantera mechanism.
 
-NTEC: the interfacial CH4 consumption flux
-    r_NTEC = r_CH4(T, x_CH4,surface) * exp(min(beta |E|, cap) / k_B T),
-where |E| is MOOSE's interfacial electric field from contact
-electrification and beta [eV m/V] and cap [eV] are calibrated case inputs.
+NTEC: two exchanged quantities.
+    sigma = sigma_sat (1 - exp(-gamma_wall / gamma_c))
+is the contact-electrification charge driven by MOOSE's wall shear rate, and
+    k_s = r_CH4(T, x_CH4,surface) exp(min(beta |E|, cap) / k_B T) / c_surface
+is the first-order surface rate constant MOOSE applies at the interface,
+where |E| is MOOSE's interfacial field from sigma. sigma_sat, gamma_c,
+beta [eV m/V] and cap [eV] are case inputs that require paired-control
+calibration. Carbon detachment uses the impact/adhesion estimate in
+``ntec_mechanics``.
 
 Both choices are documented modeling assumptions; neither is validated until
 the case's held-out calibration passes.
@@ -31,7 +36,12 @@ import hashlib
 import json
 import math
 import subprocess
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from pipeline.electrochemistry.ntec_mechanics import (  # noqa: E402
+    detachment_probability, impact_energy_J)
 
 FARADAY = 96485.33212
 K_B_EV = 8.617333262145e-5
@@ -45,9 +55,11 @@ HISTORY = 'hydrogen_coupling_history.json'
 RATE_EXCHANGE = 'hydrogen_rate_exchange.json'
 CANTERA_LOG = 'hydrogen_cantera.log'
 REFINEMENT_LEVELS = (1, 2)
+# Exchanged MOOSE variable -> case field holding its iteration-1 guess.
 EXCHANGED = {
-    'Electrochemical': ('anode_exchange_current_A_m2', 'anode_exchange_current_guess_A_m2'),
-    'NTEC': ('interface_ch4_flux_mol_m2_s', 'interface_ch4_flux_guess_mol_m2_s'),
+    'Electrochemical': {'anode_exchange_current_A_m2': 'anode_exchange_current_guess_A_m2'},
+    'NTEC': {'interface_charge_C_m2': 'interface_charge_guess_C_m2',
+             'interface_rate_constant_m_s': 'interface_rate_constant_guess_m_s'},
 }
 
 
@@ -81,13 +93,17 @@ def _parameter(case: dict, name: str, default: float | None = None) -> float:
     return float(default)
 
 
-def _used_value(record: dict, case: dict, reactor_type: str) -> float:
-    name, guess = EXCHANGED[reactor_type]
-    for token in record.get('overrides', []):
-        key, _, value = token.partition('=')
-        if key == name:
-            return float(value)
-    return _parameter(case, guess)
+def _fraction(name: str, value: float) -> float:
+    """Return a [0, 1] fraction, absorbing only floating-point round-off."""
+    if not -1e-9 <= value <= 1.0 + 1e-9:
+        raise RuntimeError(f'{name}={value} is outside [0, 1]')
+    return min(max(value, 0.0), 1.0)
+
+
+def _used_values(record: dict, case: dict, reactor_type: str) -> dict[str, float]:
+    overrides = dict(token.partition('=')[::2] for token in record.get('overrides', []))
+    return {name: float(overrides[name]) if name in overrides else _parameter(case, guess)
+            for name, guess in EXCHANGED[reactor_type].items()}
 
 
 def interface_ch4_destruction_mol_m2_s(case_dir: Path, case: dict,
@@ -126,7 +142,7 @@ def interface_ch4_destruction_mol_m2_s(case_dir: Path, case: dict,
     return rate, line
 
 
-def _electrochemical(case: dict, row: dict, rate: float) -> tuple[float, dict, dict, float]:
+def _electrochemical(case: dict, row: dict, rate: float) -> tuple[dict, dict, dict]:
     n = _parameter(case, 'electrons_per_ch4', 4)
     share = _parameter(case, 'ch4_current_fraction', 1.0)
     fe_h2 = _parameter(case, 'cathode_h2_faradaic_efficiency', 1.0)
@@ -149,8 +165,8 @@ def _electrochemical(case: dict, row: dict, rate: float) -> tuple[float, dict, d
         'cell_voltage_V': voltage,
         'electrical_power_density_W_cm2': voltage * i_anode / 1.0e4,
         'faradaic_efficiency_H2': fe_h2,
-        'CH4_conversion': conversion,
-        'H2_selectivity': h2 / (2.0 * consumed) if consumed > 0 else 0.0,
+        'CH4_conversion': _fraction('CH4_conversion', conversion),
+        'H2_selectivity': _fraction('H2_selectivity', h2 / (2.0 * consumed)) if consumed > 0 else 0.0,
         'anode_overpotential_V': row['anode_overpotential_V'],
         'cathode_overpotential_V': row['cathode_overpotential_V'],
         'ohmic_drop_V': row['ohmic_drop_V'],
@@ -165,34 +181,45 @@ def _electrochemical(case: dict, row: dict, rate: float) -> tuple[float, dict, d
                  'outlet': row['ch4_consumption_mol_m2_s'] * M_C
                  + h_released * 4.0 / n * M_H},
     }
-    exchanged = n * FARADAY * rate
-    return exchanged, outputs, budgets, outputs['current_density_A_cm2']
+    return {'anode_exchange_current_A_m2': n * FARADAY * rate}, outputs, budgets
 
 
-def _ntec(case: dict, row: dict, rate: float) -> tuple[float, dict, dict, float]:
+def _ntec(case: dict, row: dict, rate: float) -> tuple[dict, dict, dict]:
+    temperature = _parameter(case, 'temperature_K')
+    shear = abs(row['wall_shear_rate_s_inv'])
+    field = abs(row['interface_field_V_m'])
     beta = _parameter(case, 'field_barrier_coefficient_eV_m_V')
     cap = _parameter(case, 'field_barrier_cap_eV', 0.25)
-    temperature = _parameter(case, 'temperature_K')
-    field = abs(row['interface_field_V_m'])
     enhancement = math.exp(min(beta * field, cap) / (K_B_EV * temperature))
+    surface_c = row['interface_ch4_mol_m3']
+    if surface_c <= 0:
+        raise RuntimeError('interface CH4 concentration is not positive')
+    sigma = _parameter(case, 'contact_charge_saturation_C_m2') * (
+        1.0 - math.exp(-shear / _parameter(case, 'contact_shear_scale_s_inv')))
     area = _parameter(case, 'interface_area_m2')
     feed = _parameter(case, 'methane_mass_flow_kg_s') / M_CH4
     consumed = row['ch4_consumption_mol_m2_s'] * area
-    detached = row['carbon_detachment_mol_m2_s'] * area
     conversion = consumed / feed
     if conversion > 1.0:
         raise RuntimeError('CH4 consumption exceeds the declared feed')
-    h2 = 2.0 * consumed
+    detached = detachment_probability(
+        _parameter(case, 'adhesion_energy_J_m2'),
+        impact_energy_J(_parameter(case, 'effective_mass_kg'), shear,
+                        _parameter(case, 'particle_diameter_m')),
+        _parameter(case, 'contact_area_m2'))
+    h2_kg_s = 2.0 * consumed * 2.0 * M_H
     mechanical_w = row['wall_work_W_m2'] * area
-    specific = mechanical_w / (h2 * 2.0 * M_H) / 3.6e6 if h2 > 0 else math.inf
     outputs = {
-        'CH4_conversion': conversion,
+        'CH4_conversion': _fraction('CH4_conversion', conversion),
+        # The candidate interface mechanism has no gas-phase carbon product.
         'H2_selectivity': 1.0,
-        'solid_C_selectivity': min(detached / consumed, 1.0) if consumed > 0 else 0.0,
-        'specific_energy_kWh_kg_H2': specific,
+        'solid_C_selectivity': 1.0,
+        'specific_energy_kWh_kg_H2': mechanical_w / h2_kg_s / 3.6e6 if h2_kg_s > 0 else math.inf,
+        'carbon_detachment_probability': detached,
         'interface_field_V_m': field,
+        'interface_charge_C_m2': row['interface_charge_C_m2'],
         'field_rate_enhancement': enhancement,
-        'wall_shear_rate_s_inv': row['wall_shear_rate_s_inv'],
+        'wall_shear_rate_s_inv': shear,
     }
     supplied = -row['ch4_supply_mol_m2_s']
     budgets = {
@@ -202,7 +229,9 @@ def _ntec(case: dict, row: dict, rate: float) -> tuple[float, dict, dict, float]
         'charge': {'inlet': row['interface_charge_C_m2'], 'outlet': row['gauss_charge_C_m2']},
         'energy': {'inlet': row['wall_work_W_m2'], 'outlet': row['viscous_dissipation_W_m2']},
     }
-    return rate * enhancement, outputs, budgets, outputs['CH4_conversion']
+    exchanged = {'interface_charge_C_m2': sigma,
+                 'interface_rate_constant_m_s': rate * enhancement / surface_c}
+    return exchanged, outputs, budgets
 
 
 def _mesh_series(case_dir: Path, record: dict, base_row: dict, observable,
@@ -249,20 +278,21 @@ def run_coupling_step(case_dir: Path, reactor_type: str, timeout_s: int = 3600) 
     rate, log_line = interface_ch4_destruction_mol_m2_s(
         case_dir, case, surface_c / (henry * pressure))
     model = _electrochemical if reactor_type == 'Electrochemical' else _ntec
-    computed, outputs, budgets, observable_value = model(case, row, rate)
-    used = _used_value(record, case, reactor_type)
-    residual = abs(computed - used) / max(abs(computed), 1e-300)
+    computed, outputs, budgets = model(case, row, rate)
+    used = _used_values(record, case, reactor_type)
+    residual = max(abs(computed[name] - used[name]) / max(abs(computed[name]), 1e-300)
+                   for name in computed)
     tolerance = _parameter(case, 'coupling_tolerance_relative', 1e-6)
     relaxation = _parameter(case, 'coupling_relaxation', 1.0)
     if not 0 < relaxation <= 1:
         raise RuntimeError('coupling_relaxation must lie in (0, 1]')
     converged = residual <= tolerance
-    name = EXCHANGED[reactor_type][0]
-    next_value = used + relaxation * (computed - used)
+    next_values = {name: used[name] + relaxation * (computed[name] - used[name])
+                   for name in computed}
     feedback = case_dir / FEEDBACK
     _write_json(feedback, {'schema_version': 1, 'iteration': iteration,
-                           'cantera_value': computed, 'moose_value_used': used,
-                           'moose_parameters': {name: next_value}})
+                           'computed': computed, 'moose_values_used': used,
+                           'moose_parameters': next_values})
     log = case_dir / CANTERA_LOG
     with log.open('a') as handle:
         handle.write(f'iteration {iteration}: {log_line}\n')
@@ -271,11 +301,11 @@ def run_coupling_step(case_dir: Path, reactor_type: str, timeout_s: int = 3600) 
     history['iterations'] = [row_ for row_ in history['iterations']
                              if int(row_['iteration']) < iteration]
     history['iterations'].append({'iteration': iteration, 'residual_relative': residual,
-                                  'exchanged': {name: computed}})
+                                  'exchanged': computed})
     _write_json(history_path, history)
     temperature = _parameter(case, 'temperature_K')
     thickness = _parameter(case, 'electrolyte_thickness_m') if reactor_type == 'Electrochemical' \
-        else _parameter(case, 'reactor_volume_m3') / _parameter(case, 'interface_area_m2')
+        else _parameter(case, 'film_thickness_m')
     _write_json(case_dir / RATE_EXCHANGE, {
         'schema_version': 1, 'candidate_id': case['candidate_id'],
         'temperature_K': temperature,

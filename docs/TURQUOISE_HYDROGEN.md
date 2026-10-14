@@ -73,7 +73,7 @@ where $\alpha \approx 0.75$ and $\beta \approx 0.95\text{ eV}$ for FCC/BCC facet
 > itself provide this project's methane-specific aqueous/molten mechanism,
 > complete charge-transport reactor, or NTEC contact-electrification/mechanical
 > coupling. The repository routes these equations through mode-owned
-> OpenFOAM/FEniCSx cases and accepts their artifacts only after physical-input,
+> MOOSE models with Cantera kinetics and accepts their artifacts only after physical-input,
 > provenance, convergence, conservation, mesh-independence, and held-out
 > calibration checks. Candidate-specific mechanisms, apparatus parameters, and
 > real NTEC paired-control measurements must still be supplied; absent evidence

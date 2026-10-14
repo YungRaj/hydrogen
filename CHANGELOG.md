@@ -11,7 +11,22 @@
   and records `moose_input_sha256` instead of `fenics_model_sha256`. The
   electrochemical template (`moose/inputs/electrochemical_cell.i`, Ohm's law,
   CH4 diffusion, concentration-dependent Butler-Volmer) reproduces the analytic
-  limiting current and ohmic drop. The NTEC template is not yet implemented.
+  limiting current, Butler-Volmer current and ohmic drop.
+- NTEC MOOSE template (`moose/inputs/ntec_shear_layer.i`): 2-D incompressible
+  Navier-Stokes shear layer, Poisson in a contact-charged dielectric, and CH4
+  diffusion with a first-order surface sink. The Cantera step exchanges the
+  shear-driven contact charge and the field-enhanced surface rate constant;
+  MOOSE now produces the NTEC hydrodynamic handoff (Exodus). Its
+  contact-electrification and field-barrier closures are hypotheses that
+  require paired-control calibration.
+- Coupled MOOSE<->Cantera runs on an RTX 6000 Ada pod produce validated
+  artifacts for aqueous (353 K) and molten (823 K) electrochemical cells and
+  for NTEC (473 K), with mass/C/H/charge/energy balances closed to ~1e-12.
+- `tests/test_moose_models.py` (`run_tests.py --include-moose`): analytic
+  verification of both templates (limiting current, Butler-Volmer, ohmic drop,
+  Couette shear, Gauss's law, viscous dissipation, Robin surface
+  concentration, mesh refinement). Parameters in the smoke cases are
+  placeholders, not calibrated values.
 
 - A checksum-locked eSEN CI-NEB validation for molten methane activation with
   explicit endpoint, force, path-continuity, and interior-maximum gates. All

@@ -231,7 +231,7 @@ Fluidized and MMBCR fixtures pass OpenFOAM-shaped closures through the strict
 artifact loader into reduced Cantera models. NTEC and electrochemical fixtures
 exercise iterative coupling state, checksummed rate exchange, holdout scoring,
 artifact persistence, and final pathway consumption. Only the expensive
-OpenFOAM/FEniCSx process call is substituted through
+OpenFOAM/MOOSE process call is substituted through
 `tests/fixtures/reactor_cases.py`; every result is labeled `test-fixture`, so
 these tests establish wiring and contract behavior—not physical solver accuracy
 or production readiness.
@@ -277,7 +277,7 @@ The repository distinguishes internal state from external interchange:
 - Mutable internal persistence uses typed SQLite columns when the data is a
   cache, queue, index, or resumable execution state.
 - JSON is retained at genuine external boundaries: user configuration,
-  repository fixtures, OpenFOAM/FEniCSx/Cantera/QE handoffs, provenance
+  repository fixtures, OpenFOAM/MOOSE/Cantera/QE handoffs, provenance
   manifests, and exported scientific reports. Loaders validate identity,
   schema, units, checksums, completeness, and convergence as applicable before
   those documents influence selection.
@@ -748,9 +748,9 @@ geometry parameters. `simulate_reactor` dispatches to:
   cascade, bubble surface-to-volume ratio, and axial conversion profile;
 - `simulate_pfr`: a staged plug-flow representation;
 - `simulate_fluidized_bed`: a two-phase fluidized-bed proxy;
-- `simulate_ntec_pathway`: consumes a validated OpenFOAM + FEniCSx + Cantera
+- `simulate_ntec_pathway`: consumes a validated MOOSE + Cantera
   artifact for the liquid-solid NTEC pathway;
-- `simulate_electrochemical_pathway`: consumes a validated FEniCSx + Cantera
+- `simulate_electrochemical_pathway`: consumes a validated MOOSE + Cantera
   artifact whose configuration selects aqueous or molten electrolyte physics.
 
 `run_reactor_sweep` runs combinations of temperature and reactor type and writes
@@ -779,7 +779,7 @@ mechanism, ionic/electronic transport closure, potential/current boundary
 conditions, and reactor geometry must still be supplied and coupled. Cantera
 does not supply NTEC contact electrification/mechanical coupling or detailed
 multiphase hydrodynamics. Those equations belong to mode-specific
-OpenFOAM/FEniCSx cases. The repository executes those cases, validates their
+OpenFOAM cases and MOOSE models. The repository executes those cases, validates their
 artifacts, and never falls back to a thermal bed; the scientific case inputs
 must still be candidate-specific and calibrated.
 
@@ -803,7 +803,7 @@ External cases pass through three independently implemented gates:
    identifiers before solver launch. Its CLI creates deliberately non-runnable
    templates and validates completed cases.
 2. `multiphysics_runner.py` rejects stale outputs, hashes pristine inputs plus
-   any external FEniCSx script, writes backend-specific logs, captures solver
+   the MOOSE input file, writes backend-specific logs, captures solver
    versions, validates the OpenFOAM identity/unit/mesh/checksum-bound handoff,
    verifies checksummed Cantera mechanism/log/rate exchange and converged
    two-way coupling history, owns the numbered residual-based outer loop, and
@@ -1961,7 +1961,6 @@ python -m pipeline.simulation.external_runner \
   --candidate-id CANONICAL_ID \
   --temperature-K 300 \
   --case-dir cases/CANONICAL_ID/ntec \
-  --fenics-model cases/CANONICAL_ID/ntec/model.py \
   --results-dir results/multiphysics \
   --model-source "immutable case revision or DOI"
 ```

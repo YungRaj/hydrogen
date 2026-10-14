@@ -1,6 +1,6 @@
 # Physical Multiphysics Cases
 
-An OpenFOAM or FEniCSx process exit code is not sufficient evidence. Every
+An OpenFOAM or MOOSE process exit code is not sufficient evidence. Every
 external reactor calculation must contain `hydrogen_case.json` in its case
 directory. The runner validates this file before launching a solver and hashes
 the pristine directory so the numerical result is tied to the exact inputs.
@@ -40,6 +40,30 @@ fully identified. A case may and normally should contain additional parameters
 such as walls, thermal properties, diffusion coefficients, turbulence models,
 porosity, tortuosity, particle distributions, solubilities, and boundary
 conditions. Case-specific solver files remain authoritative for discretization.
+
+## MOOSE model inputs (NTEC and electrochemical)
+
+Both pathways run repository MOOSE templates (`moose/inputs/*.i`). Every
+finite number in `geometry`, `operating`, `properties` and `model_parameters`
+is passed to MOOSE under its own unit-bearing name, so these names are part of
+the contract. `kinetics` must also name the candidate Cantera interface
+mechanism in the case directory (`mechanism`, `gas_phase`, `interface_phase`).
+
+| Model | Physics | `model_parameters` |
+|---|---|---|
+| Electrochemical (`electrochemical_cell.i`, 1-D) | Ohm's law in the electrolyte (excess supporting electrolyte), CH4 diffusion, concentration-dependent Butler-Volmer at both electrodes; anode exchange current exchanged with Cantera | `methane_henry_mol_m3_Pa`, `anode_equilibrium_potential_V`, `cathode_equilibrium_potential_V`, `anode_transfer_coefficient`, `cathode_transfer_coefficient`, `cathode_exchange_current_A_m2`, `anode_exchange_current_guess_A_m2`, `ch4_current_fraction`, `cathode_h2_faradaic_efficiency`, `electrons_per_ch4`, `mesh_elements` |
+| NTEC (`ntec_shear_layer.i`, 2-D) | Incompressible Navier-Stokes shear layer, Poisson in the dielectric with contact charge sigma, CH4 diffusion with a first-order surface sink; sigma(wall shear) and the field-enhanced rate constant exchanged with Cantera | `liquid_density_kg_m3`, `film_thickness_m`, `dielectric_thickness_m`, `methane_diffusivity_m2_s`, `methane_henry_mol_m3_Pa`, `contact_charge_saturation_C_m2`, `contact_shear_scale_s_inv`, `field_barrier_coefficient_eV_m_V`, `field_barrier_cap_eV`, `interface_charge_guess_C_m2`, `interface_rate_constant_guess_m_s`, `adhesion_energy_J_m2`, `effective_mass_kg`, `particle_diameter_m`, `contact_area_m2`, `mesh_elements_x`, `mesh_elements_film`, `mesh_elements_dielectric` |
+
+Optional for both: `coupling_tolerance_relative` (default 1e-6),
+`coupling_relaxation` (default 1.0) and `mesh_tolerance_relative` (default
+0.01). The NTEC contact-electrification and field-barrier parameters are
+hypothesis closures: they must be fitted to paired-control data, and results
+remain non-excluding until the held-out check passes.
+
+`python tests/run_tests.py --include-moose` runs both templates with the real
+`moose-opt` and checks them against closed-form solutions (limiting current,
+Butler-Volmer, ohmic drop, Couette shear, Gauss's law, viscous dissipation,
+Robin surface concentration) and mesh refinement.
 
 ## Example skeleton
 
@@ -124,20 +148,22 @@ charge, and potential; NTEC additionally exchanges momentum.
 
 The runner owns this outer loop. Before each pass it writes
 `hydrogen_coupling_request.json` with the candidate, reactor, temperature, and
-iteration number; it then reruns OpenFOAM when required and FEniCSx, validates
+iteration number; it then reruns MOOSE and the repository Cantera interface
+step (`pipeline/electrochemistry/cantera_coupling.py`), validates
 `hydrogen_coupling_state.json` and its checksummed feedback artifact, and stops
 only after convergence or the configured maximum. The final coupling receipt
 must match the iteration count, residual, and tolerance observed by the runner.
 
-The case-owned solver scripts remain responsible for consuming each request and
-feedback artifact and applying the exchanged fields correctly. The repository
+The MOOSE templates in `moose/inputs` consume the exchanged values as
+command-line overrides; the model-specific physics and its analytic
+verification are documented in those files and `tests/test_moose_models.py`. The repository
 verifies their inputs, outputs, observed history, residual, and conservation
 evidence; it cannot infer correct boundary conditions or material laws from a
 log file.
 
 Before hashing or execution, the runner rejects old hydrogen outputs/logs and
 nonzero OpenFOAM time directories. OpenFOAM's `0` initial-condition directory
-remains valid input. A FEniCSx script outside the case directory is hashed as an
+remains valid input. The MOOSE input file outside the case directory is hashed as an
 explicit external input, and its digest is retained in the accepted artifact.
 
 This contract establishes reproducible computational machinery. Predictive

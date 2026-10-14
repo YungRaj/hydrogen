@@ -125,6 +125,7 @@ SUITES = (
     Suite(
         "gpu-affinity", "tests/test_gpu_affinity_contract.py", FAIRCHEM_ENV, 900, "gpu"
     ),
+    Suite("moose-models", "tests/test_moose_models.py", FAIRCHEM_ENV, 900, "moose"),
 )
 
 
@@ -168,9 +169,14 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="include the real multi-GPU affinity workload",
     )
     parser.add_argument(
+        "--include-moose",
+        action="store_true",
+        help="include analytic verification of the MOOSE NTEC/electrochemical models",
+    )
+    parser.add_argument(
         "--all",
         action="store_true",
-        help="include portable, resolution, VQE smoke, production VQE, and GPU suites",
+        help="include portable, resolution, VQE, GPU, and MOOSE suites",
     )
     parser.add_argument(
         "--timeout", type=int, help="override every selected suite timeout in seconds"
@@ -214,6 +220,8 @@ def select_suites(args: argparse.Namespace) -> list[Suite]:
         categories.add("quantum-reference-artifacts")
     if args.all or args.include_gpu:
         categories.add("gpu")
+    if args.all or args.include_moose:
+        categories.add("moose")
     selected.extend(
         suite
         for suite in SUITES

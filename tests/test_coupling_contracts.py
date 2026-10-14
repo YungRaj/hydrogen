@@ -201,6 +201,52 @@ def test_external_moose_input_changes_input_digest():
         assert _tree_digest(case, (model,)) != first
 
 
+def test_moose_command_passes_case_values_as_overrides_and_records_them():
+    from pipeline.simulation.moose_backend import build_moose_command, moose_case_parameters
+
+    with tempfile.TemporaryDirectory() as tmp:
+        case = Path(tmp)
+        physical = {
+            'geometry': {'electrode_area_m2': 0.01},
+            'operating': {'temperature_K': 353.15, 'pressure_Pa': 101325},
+            'properties': {'ionic_conductivity_S_m': 20.0},
+            'model_parameters': {'electrons_per_ch4': 4, 'label_only': 'ignored'},
+        }
+        parameters = moose_case_parameters(physical, case, 1)
+        assert parameters['coupling_iteration'] == 1 and 'label_only' not in parameters
+        command = build_moose_command('/bin/moose-opt', Path('/m/cell.i'), case, parameters)
+        assert command[:3] == ['/bin/moose-opt', '-i', '/m/cell.i']
+        assert '--allow-unused' in command
+        assert f'Outputs/file_base={case / "hydrogen_moose"}' in command
+        assert 'temperature_K=353.15' in command and 'electrons_per_ch4=4.0' in command
+        record = json.loads((case / 'hydrogen_moose_parameters.json').read_text())
+        assert record['command'] == command
+
+
+def test_moose_case_parameters_reject_ambiguous_or_missing_exchange():
+    from pipeline.simulation.moose_backend import moose_case_parameters, moose_overrides
+
+    with tempfile.TemporaryDirectory() as tmp:
+        case = Path(tmp)
+        physical = {'geometry': {'x_m': 1.0}, 'properties': {'x_m': 2.0}}
+        _reject(lambda: moose_case_parameters(physical, case, 1), 'declared twice')
+        single = {'geometry': {'x_m': 1.0}}
+        try:
+            moose_case_parameters(single, case, 2)
+        except RuntimeError as exc:
+            assert 'coupling feedback missing' in str(exc)
+        else:
+            raise AssertionError('iteration 2 ran without Cantera feedback')
+        (case / 'hydrogen_interface_rates.json').write_text(
+            json.dumps({'moose_parameters': {'x_m': 3.0}}))
+        _reject(lambda: moose_case_parameters(single, case, 2), 'overrides case field')
+        (case / 'hydrogen_interface_rates.json').write_text(
+            json.dumps({'moose_parameters': {'k_m_s': 3.0}}))
+        assert moose_case_parameters(single, case, 2)['k_m_s'] == 3.0
+    _reject(lambda: moose_overrides({'bad name': 1.0}), 'invalid MOOSE parameter name')
+    _reject(lambda: moose_overrides({'x': float('nan')}), 'finite')
+
+
 def main():
     tests = [
         value
