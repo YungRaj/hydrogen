@@ -565,7 +565,9 @@ def _run_phase3_dft(args, pipeline_state: dict, dft_candidates, results_dir: Pat
             f'omp={args.qe_omp_threads}')
         task_queue = ValidationTaskQueue(
             results_dir / 'dft' / 'validation_tasks.sqlite')
-        task_queue.recover_stale()
+        # The campaign is the only writer: any 'running' row at start is
+        # from a killed run and must be reclaimable immediately.
+        task_queue.recover_stale(stale_after_s=0)
         for idx, (_, row) in enumerate(dft_candidates.head(n_dft).iterrows()):
             try:
                 genome = ast.literal_eval(row['genome'])
@@ -584,11 +586,19 @@ def _run_phase3_dft(args, pipeline_state: dict, dft_candidates, results_dir: Pat
             if not task_queue.claim(
                     'turquoise_hydrogen', cid,
                     'screening_dft', protocol_id):
+                state = task_queue.task(
+                    'turquoise_hydrogen', cid, 'screening_dft', protocol_id)
+                if (state and state['status'] == 'converged'
+                        and state['result_path']
+                        and Path(state['result_path']).is_file()):
+                    # Already-converged work from an earlier run still counts.
+                    return json.loads(Path(state['result_path']).read_text())
                 return {'catalyst_name': name, 'candidate_id': cid,
                         'skipped': True, 'converged': False,
                         'reason': 'task_not_claimable'}
             try:
-                result = validate_catalyst(name, genome, run_dft=True)
+                result = validate_catalyst(
+                    name, genome, run_dft=True, restart_incomplete=True)
                 task_queue.finish(
                     'turquoise_hydrogen', cid, 'screening_dft',
                     protocol_id, bool(result.get('converged')),
