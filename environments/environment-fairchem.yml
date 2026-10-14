@@ -21,3 +21,4 @@ dependencies:
       - sella==2.6.0
       - pmutt==1.4.17
       - cantera==3.2.0
+      - pytest

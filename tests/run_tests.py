@@ -97,6 +97,7 @@ SUITES = (
         60,
     ),
     Suite("test-runner", "tests/test_test_runner.py", FAIRCHEM_ENV, 60),
+    Suite("pytest-contracts", "tests/run_pytest_contracts.py", FAIRCHEM_ENV, 300),
     Suite("repository-audit", "audit_pipeline.py", FAIRCHEM_ENV, 180),
     Suite(
         "resolution",
