@@ -39,12 +39,19 @@ Fuel-cell ORR (``ORR_OBJECTIVES``, M = 4):
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from functools import lru_cache
+import math
 from typing import Any, Literal, Sequence
 
 import numpy as np
 
 from pipeline.search.design_space import encode_population, extract_elements
 from pipeline.search.discovery import fast_non_dominated_sort
+from pipeline.search.scope import (
+    APPLICATION_PEMFC,
+    APPLICATION_PYROLYSIS,
+    phase_stable_at_application_T,
+)
 from pipeline.utils import abundance_cost_penalty
 
 # Hammer-Norskov d-band center (eV), Pauling electronegativity, covalent radius (A)
@@ -287,19 +294,41 @@ def objective_spec_metadata(
     ]
 
 
+@lru_cache(maxsize=16384)
+def _descriptor_and_hull_stats(
+    elements: tuple[str, ...],
+) -> tuple[float, float, float, float]:
+    """Compute cached (d_center, chi, radius, hull_eV_atom) for an element tuple."""
+    known = [el for el in elements if el in _ELEMENT_DESCRIPTORS]
+    n = len(known)
+    if n == 0:
+        return -2.0, 1.9, 1.35, 0.01
+    d_sum = chi_sum = r_sum = 0.0
+    for el in known:
+        d_val, chi_val, r_val = _ELEMENT_DESCRIPTORS[el]
+        d_sum += d_val
+        chi_sum += chi_val
+        r_sum += r_val
+    d_mean = d_sum / n
+    chi_mean = chi_sum / n
+    r_mean = r_sum / n
+    if n >= 2:
+        r_var = sum((_ELEMENT_DESCRIPTORS[el][2] - r_mean) ** 2 for el in known) / n
+        chi_var = sum((_ELEMENT_DESCRIPTORS[el][1] - chi_mean) ** 2 for el in known) / n
+        delta_r = math.sqrt(r_var) / max(r_mean, 1e-6)
+        delta_chi = math.sqrt(chi_var)
+        hull_eV_atom = max(0.0, 0.85 * max(0.0, delta_r - 0.08) + 0.04 * delta_chi)
+    else:
+        hull_eV_atom = 0.01
+    return d_mean, chi_mean, r_mean, hull_eV_atom
+
+
 def _element_descriptor_stats(genome: tuple) -> tuple[float, float, float]:
     """Compute mean d-band center, electronegativity, and covalent radius."""
-    elements = [el for el in extract_elements(genome) if el in _ELEMENT_DESCRIPTORS]
-    if not elements:
-        return -2.0, 1.9, 1.35
-    d_centers = [float(_ELEMENT_DESCRIPTORS[el][0]) for el in elements]
-    electronegativities = [float(_ELEMENT_DESCRIPTORS[el][1]) for el in elements]
-    radii = [float(_ELEMENT_DESCRIPTORS[el][2]) for el in elements]
-    return (
-        float(np.mean(d_centers)),
-        float(np.mean(electronegativities)),
-        float(np.mean(radii)),
+    d_mean, chi_mean, r_mean, _ = _descriptor_and_hull_stats(
+        tuple(extract_elements(genome))
     )
+    return d_mean, chi_mean, r_mean
 
 
 def _coking_susceptibility_proxy(genomes: Sequence[tuple]) -> np.ndarray:
@@ -353,25 +382,9 @@ def operating_stability_and_hull_gate(
     free-energy penalty ``grand_canonical_poisoning_eV`` at ``T_K`` (900-1200 K
     CH4/H2 for turquoise pyrolysis) or ``U_V_vs_RHE`` (0.8 V acidic PEMFC).
     """
-    from pipeline.search.scope import (
-        APPLICATION_PEMFC,
-        APPLICATION_PYROLYSIS,
-        phase_stable_at_application_T,
+    d_center, chi, _, hull_eV_atom = _descriptor_and_hull_stats(
+        tuple(extract_elements(genome))
     )
-
-    elements = [el for el in extract_elements(genome) if el in _ELEMENT_DESCRIPTORS]
-    if len(elements) >= 2:
-        radii = np.asarray([_ELEMENT_DESCRIPTORS[el][2] for el in elements], dtype=float)
-        chis = np.asarray([_ELEMENT_DESCRIPTORS[el][1] for el in elements], dtype=float)
-        r_mean = max(float(np.mean(radii)), 1e-6)
-        delta_r = float(np.std(radii) / r_mean)
-        delta_chi = float(np.std(chis))
-        # Hume-Rothery size mismatch (>15%) and electronegativity variance raise E_hull
-        hull_eV_atom = max(0.0, 0.85 * max(0.0, delta_r - 0.08) + 0.04 * delta_chi)
-    else:
-        hull_eV_atom = 0.01
-
-    d_center, chi, _ = _element_descriptor_stats(genome)
     is_orr = application in ('fuel_cell_orr', 'pemfc_cathode', 'orr')
     scope_app = APPLICATION_PEMFC if is_orr else APPLICATION_PYROLYSIS
     scope_info = phase_stable_at_application_T(genome, T_K=T_K, application=scope_app)

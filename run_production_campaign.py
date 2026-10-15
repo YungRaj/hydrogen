@@ -556,6 +556,46 @@ def _run_phase2_reactors(args, pipeline_state: dict, top_catalysts) -> None:
     save_json(pipeline_state, "pipeline_state.json")
 
 
+def _calibrate_ranker_from_dft(
+    results_dir: Path, dft_candidates, converged_dft: list[dict]
+) -> dict:
+    """Calibrate TreeRanker with converged Phase 3 DFT validation residuals."""
+    if not converged_dft:
+        return {'n_validation_samples': 0}
+    try:
+        import pandas as pd
+        from pipeline.screening.small_data_ranker import TreeRanker
+        from pipeline.utils import save_json
+
+        ev_path = results_dir / 'screening' / 'branch_ranker_evidence.csv'
+        if not ev_path.is_file():
+            return {'n_validation_samples': 0}
+        ranker = TreeRanker('E_act', application='turquoise_hydrogen')
+        ranker.fit(pd.read_csv(ev_path))
+        by_cid = (
+            {str(r['candidate_id']): r for _, r in dft_candidates.iterrows()}
+            if 'candidate_id' in dft_candidates.columns
+            else {}
+        )
+        val_rows = []
+        for r in converged_dft:
+            src = by_cid.get(str(r.get('candidate_id', '')), {})
+            force = float(r.get('max_force_Ry_bohr') or 0.0)
+            base_e = float(src.get('E_act', 1.0)) if src is not None else 1.0
+            dft_e_act = max(0.05, base_e + 0.10 * force)
+            val_rows.append({
+                'genome': r.get('genome'),
+                'material_class': r.get('material_class'),
+                'E_act': float(r.get('E_act_dft', dft_e_act)),
+                'converged': True,
+            })
+        calibration = ranker.apply_validation_calibration(pd.DataFrame(val_rows))
+        save_json(calibration, 'active_learning_calibration.json', subdir='dft')
+        return calibration
+    except Exception as exc:
+        return {'error': str(exc)[:200]}
+
+
 def _run_phase3_dft(args, pipeline_state: dict, dft_candidates, results_dir: Path) -> None:
     """Queue-backed, concurrency-bounded screening DFT on the validation slate."""
     from pipeline.utils import print_banner, save_json
@@ -636,46 +676,9 @@ def _run_phase3_dft(args, pipeline_state: dict, dft_candidates, results_dir: Pat
         ) as executor:
             dft_results = list(executor.map(_validate_task, dft_tasks))
         converged_dft = [r for r in dft_results if r.get('converged')]
-        al_calibration = {'n_validation_samples': 0}
-        if converged_dft:
-            try:
-                import pandas as pd
-                from pipeline.screening.small_data_ranker import TreeRanker
-
-                ev_path = results_dir / 'screening' / 'branch_ranker_evidence.csv'
-                if ev_path.is_file():
-                    ev_df = pd.read_csv(ev_path)
-                    ranker = TreeRanker('E_act', application='turquoise_hydrogen')
-                    ranker.fit(ev_df)
-                    by_cid = {}
-                    if 'candidate_id' in dft_candidates.columns:
-                        by_cid = {
-                            str(r['candidate_id']): r
-                            for _, r in dft_candidates.iterrows()
-                        }
-                    val_rows = []
-                    for r in converged_dft:
-                        cid = str(r.get('candidate_id', ''))
-                        src = by_cid.get(cid, {})
-                        force = r.get('max_force_Ry_bohr') or 0.0
-                        base_e = float(src.get('E_act', 1.0)) if src is not None else 1.0
-                        dft_e_act = max(0.05, base_e + 0.10 * float(force))
-                        val_rows.append({
-                            'genome': r.get('genome'),
-                            'material_class': r.get('material_class'),
-                            'E_act': float( r.get('E_act_dft', dft_e_act)),
-                            'converged': True,
-                        })
-                    al_calibration = ranker.apply_validation_calibration(
-                        pd.DataFrame(val_rows)
-                    )
-                    save_json(
-                        al_calibration,
-                        'active_learning_calibration.json',
-                        subdir='dft',
-                    )
-            except Exception as cal_exc:
-                al_calibration = {'error': str(cal_exc)[:200]}
+        al_calibration = _calibrate_ranker_from_dft(
+            results_dir, dft_candidates, converged_dft
+        )
         pipeline_state['phase3'] = {
             'catalysts_validated': len(dft_results),
             'converged': len(converged_dft),

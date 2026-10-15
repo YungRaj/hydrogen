@@ -907,37 +907,40 @@ def _advance_reactor_stage(
     gas_x = np.array(gas.X, dtype=float)
     surf_cov = np.array(surf.coverages, dtype=float) if surf is not None else None
 
-    reactor = ct.IdealGasReactor(gas)
-    reactor.volume = volume_m3
-    _disable_reactor_energy(reactor)
-    if surf is not None:
-        ct.ReactorSurface(surf, reactor, A=surface_area_m2)
-    net = ct.ReactorNet([reactor])
+    def _step_stage(step_dt: float, *, tight: bool = False) -> None:
+        try:
+            reactor = ct.IdealGasReactor(gas, clone=False)
+        except TypeError:
+            reactor = ct.IdealGasReactor(gas)
+        reactor.volume = volume_m3
+        _disable_reactor_energy(reactor)
+        if surf is not None:
+            try:
+                ct.ReactorSurface(surf, reactor, A=surface_area_m2, clone=False)
+            except TypeError:
+                ct.ReactorSurface(surf, reactor, A=surface_area_m2)
+        net = ct.ReactorNet([reactor])
+        if tight:
+            net.rtol = 1e-11
+            net.atol = 1e-18
+            net.max_time_step = max(step_dt / 10.0, 1e-7)
+        net.advance(step_dt)
+        phase = getattr(reactor, 'phase', None) or reactor.thermo
+        gas.TPX = phase.T, phase.P, phase.X
+
     try:
-        net.advance(dt)
-        gas.TPX = reactor.thermo.T, reactor.thermo.P, reactor.thermo.X
+        _step_stage(dt, tight=False)
         return
     except Exception:
         pass
 
-    # Restore state and retry with tighter tolerances and substepping for stiff coverages.
     gas.TPX = gas_t, gas_p, gas_x
     if surf is not None and surf_cov is not None:
         surf.coverages = surf_cov
     n_sub = 25
     sub_dt = dt / n_sub
     for _ in range(n_sub):
-        reactor = ct.IdealGasReactor(gas)
-        reactor.volume = volume_m3
-        _disable_reactor_energy(reactor)
-        if surf is not None:
-            ct.ReactorSurface(surf, reactor, A=surface_area_m2)
-        net = ct.ReactorNet([reactor])
-        net.rtol = 1e-11
-        net.atol = 1e-18
-        net.max_time_step = max(sub_dt / 10.0, 1e-7)
-        net.advance(sub_dt)
-        gas.TPX = reactor.thermo.T, reactor.thermo.P, reactor.thermo.X
+        _step_stage(sub_dt, tight=True)
 
 
 def _mole_fraction_drop(gas, x_ch4_feed: float) -> float:
