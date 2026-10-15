@@ -574,11 +574,17 @@ def _calibrate_ranker_from_dft(
         if not ev_path.is_file():
             return {'n_validation_samples': 0}
         ranker = fit_tree_ranker(pd.read_csv(ev_path), 'turquoise_hydrogen')
-        by_cid = (
-            {str(r['candidate_id']): r for _, r in dft_candidates.iterrows()}
-            if 'candidate_id' in dft_candidates.columns
-            else {}
-        )
+        by_cid = {}
+        for _, row in dft_candidates.iterrows():
+            try:
+                g = (
+                    ast.literal_eval(row['genome'])
+                    if isinstance(row['genome'], str)
+                    else tuple(row['genome'])
+                )
+                by_cid[str(row.get('candidate_id') or candidate_id(g))] = row
+            except Exception:
+                pass
         recorded = 0
         for r in converged_dft:
             raw_genome = r.get('genome')
@@ -589,9 +595,16 @@ def _calibrate_ranker_from_dft(
             )
             cid = str(r.get('candidate_id') or candidate_id(genome))
             src = by_cid.get(cid, {})
-            force = float(r.get('max_force_Ry_bohr') or 0.0)
-            base_e = float(src.get('E_act', 1.0)) if hasattr(src, 'get') else 1.0
-            dft_e_act = float(r.get('E_act_dft', max(0.05, base_e + 0.10 * force)))
+            raw_force = r.get('max_force_Ry_bohr')
+            force = float(raw_force) if pd.notna(raw_force) else 0.0
+            raw_base = src.get('E_act', 1.0) if hasattr(src, 'get') else 1.0
+            base_e = float(raw_base) if pd.notna(raw_base) else 1.0
+            raw_dft = r.get('E_act_dft')
+            dft_e_act = (
+                float(raw_dft)
+                if pd.notna(raw_dft)
+                else max(0.05, base_e + 0.10 * force)
+            )
             record_validation(
                 str(scan_db),
                 'turquoise_hydrogen',
