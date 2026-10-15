@@ -895,6 +895,51 @@ def _disable_reactor_energy(reactor) -> str:
         'Cantera reactor has no energy_enabled; cannot force isothermal solids')
 
 
+PFR_PILOT_TAU_BAND_S = (2.0, 12.0)
+CH4_PYROLYSIS_DELTA_H_KJ_MOL = 74.85
+
+
+def _advance_reactor_stage(
+    gas, surf, volume_m3: float, surface_area_m2: float, dt: float
+) -> None:
+    """Advance an isothermal gas+surface stage, falling back to substepped tight tolerances on stiff CVODES failure."""
+    gas_t, gas_p = float(gas.T), float(gas.P)
+    gas_x = np.array(gas.X, dtype=float)
+    surf_cov = np.array(surf.coverages, dtype=float) if surf is not None else None
+
+    reactor = ct.IdealGasReactor(gas)
+    reactor.volume = volume_m3
+    _disable_reactor_energy(reactor)
+    if surf is not None:
+        ct.ReactorSurface(surf, reactor, A=surface_area_m2)
+    net = ct.ReactorNet([reactor])
+    try:
+        net.advance(dt)
+        gas.TPX = reactor.thermo.T, reactor.thermo.P, reactor.thermo.X
+        return
+    except Exception:
+        pass
+
+    # Restore state and retry with tighter tolerances and substepping for stiff coverages.
+    gas.TPX = gas_t, gas_p, gas_x
+    if surf is not None and surf_cov is not None:
+        surf.coverages = surf_cov
+    n_sub = 25
+    sub_dt = dt / n_sub
+    for _ in range(n_sub):
+        reactor = ct.IdealGasReactor(gas)
+        reactor.volume = volume_m3
+        _disable_reactor_energy(reactor)
+        if surf is not None:
+            ct.ReactorSurface(surf, reactor, A=surface_area_m2)
+        net = ct.ReactorNet([reactor])
+        net.rtol = 1e-11
+        net.atol = 1e-18
+        net.max_time_step = max(sub_dt / 10.0, 1e-7)
+        net.advance(sub_dt)
+        gas.TPX = reactor.thermo.T, reactor.thermo.P, reactor.thermo.X
+
+
 def _mole_fraction_drop(gas, x_ch4_feed: float) -> float:
     if x_ch4_feed <= 0:
         return 0.0

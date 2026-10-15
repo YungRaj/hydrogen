@@ -78,14 +78,9 @@ def simulate_pfr(
             np.array(surf.coverages, dtype=float) if surf is not None else None
         )
         for _ in range(n_stages):
-            reactor = ct.IdealGasReactor(gas)
-            reactor.volume = stage_gas_volume
-            _disable_reactor_energy(reactor)
-            if surf is not None:
-                ct.ReactorSurface(surf, reactor, A=stage_surface_area)
-            net = ct.ReactorNet([reactor])
-            net.advance(tau_stage)
-            gas.TPX = reactor.thermo.T, reactor.thermo.P, reactor.thermo.X
+            _advance_reactor_stage(
+                gas, surf, stage_gas_volume, stage_surface_area, tau_stage
+            )
             produce_time_s += tau_stage
             conversion_profile.append(_ch4_extent(gas, ch4_initial, ar_initial))
             temperature_profile.append(float(gas.T))
@@ -148,11 +143,21 @@ def simulate_pfr(
         'bed_diameter_m': config.bed_diameter_m,
         'catalyst_particle_mm': config.catalyst_particle_mm,
         'residence_time_s': tau_total,
+        'residence_time_within_pilot_band': bool(
+            PFR_PILOT_TAU_BAND_S[0] <= tau_total <= PFR_PILOT_TAU_BAND_S[1]
+        ),
+        'pilot_residence_time_band_s': list(PFR_PILOT_TAU_BAND_S),
         'produce_time_s': produce_time_s,
         'WHSV_h-1': reciprocal_residence_h(tau_total),
         'CH4_conversion': float(final_conv),
         'single_pass_CH4_conversion': float(
             per_cycle_conversion[0] if per_cycle_conversion else final_conv
+        ),
+        'cycle_averaged_CH4_conversion': float(
+            np.mean(per_cycle_conversion) if per_cycle_conversion else final_conv
+        ),
+        'endothermic_heat_duty_kJ_per_mol_CH4_fed': float(
+            CH4_PYROLYSIS_DELTA_H_KJ_MOL * final_conv
         ),
         'CH4_mole_fraction_drop': _mole_fraction_drop(gas, ch4_initial),
         'conversion_basis': 'argon_tracer',

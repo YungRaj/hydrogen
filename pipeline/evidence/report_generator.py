@@ -147,7 +147,8 @@ def _screening_section(screening: dict) -> list:
     if not screening:
         return lines
     main_db_key = next(
-        (k for k in screening if 'full' in k or 'initial' in k), list(screening.keys())[0])
+        (k for k in screening if 'branch_ranker_evidence' in k or 'full' in k or 'initial' in k),
+        list(screening.keys())[0])
     df = screening[main_db_key]
     valid = df[df.get('valid', True) == True] if 'valid' in df.columns else df
     lines += [f"### Screening Database: `{main_db_key}`\n",

@@ -31,14 +31,9 @@ def _integrate_fluidized_pass(
     n = max(1, int(FLUIDIZED_REMOVAL_SUBSTEPS))
     dt = tau / n
     for _ in range(n):
-        reactor_em = ct.IdealGasReactor(gas)
-        reactor_em.volume = FLUIDIZED_EMULSION_VOIDAGE
-        _disable_reactor_energy(reactor_em)
-        if surf is not None:
-            ct.ReactorSurface(surf, reactor_em, A=sv_ratio)
-        net = ct.ReactorNet([reactor_em])
-        net.advance(dt)
-        gas.TPX = reactor_em.thermo.T, reactor_em.thermo.P, reactor_em.thermo.X
+        _advance_reactor_stage(
+            gas, surf, FLUIDIZED_EMULSION_VOIDAGE, sv_ratio, dt
+        )
         if removal_rate_1_s > 0 and surf is not None:
             carbon_removed += _apply_continuous_carbon_removal(
                 surf, removal_rate_1_s, dt
@@ -196,7 +191,12 @@ def simulate_fluidized_bed(
         'surface_area_basis': 'sv_per_emulsion_volume_times_emulsion_volume',
         'emulsion_CH4_conversion': float(emulsion_conv),
         'CH4_conversion': float(final_conv),
-        'single_pass_CH4_conversion': float(final_conv),
+        'single_pass_CH4_conversion': float(
+            (1.0 - delta) * per_cycle[0] if per_cycle else final_conv
+        ),
+        'cycle_averaged_CH4_conversion': float(
+            (1.0 - delta) * np.mean(per_cycle) if per_cycle else final_conv
+        ),
         'bypass_basis': 'ar_tracer_molar_mix',
         'CH4_mole_fraction_drop': _mole_fraction_drop(gas, ch4_initial),
         'conversion_basis': 'argon_tracer',

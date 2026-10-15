@@ -365,6 +365,8 @@ def _run_phase1_discovery(args, pipeline_state: dict, t_deadline: float):
     pipeline_state['phase1']['metric_eligible_count'] = len(eligible_db)
     if len(eligible_db) > 0:
         pipeline_state['phase1']['best_E_act'] = float(eligible_db['E_act'].min())
+        if 'coking_index' in eligible_db.columns and eligible_db['coking_index'].notna().any():
+            pipeline_state['phase1']['best_coking'] = f"{float(eligible_db['coking_index'].dropna().max()):.3f} eV"
     save_json(pipeline_state, "pipeline_state.json")
     print(f"\n  Phase 1: {time.time()-t1:.0f}s | Evaluated: {len(screening_db):,}")
     return top_catalysts, dft_candidates
@@ -831,6 +833,7 @@ def _run_phase6_report(pipeline_state: dict, t_start: float) -> dict:
     print_banner("PHASE 6: REPORT")
     t6 = time.time()
     pipeline_state = load_json("pipeline_state.json") or pipeline_state
+    pipeline_state['total_elapsed_s'] = time.time() - t_start
     outcome = run_report_stage(pipeline_state)
     pipeline_state['phase6'] = {**outcome.state, 'elapsed_s': time.time() - t6}
     pipeline_state['total_elapsed_s'] = time.time() - t_start

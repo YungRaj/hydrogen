@@ -522,3 +522,67 @@ def test_vqe_stage_never_uses_placeholder_names(tmp_path):
         run_vqe_stage([{'candidate_id': '../escape'}], top_k=1,
                       execute_quantum=False, hamiltonian_root=tmp_path,
                       validator=lambda *a, **k: {})
+
+
+def test_b2_b3_b4_reactor_contracts(tmp_path):
+    pytest.importorskip('cantera')
+    from pipeline.reactors.mechanisms import write_full_mechanism
+    from pipeline.reactors.models import (
+        ReactorConfig,
+        simulate_fluidized_bed,
+        simulate_mmbcr,
+        simulate_pfr,
+    )
+    from pipeline.reactors.reactor_core import _validate_carbon_policy
+
+    # B3: validator enforces 0 < k0 <= 1 m/s
+    with pytest.raises(ValueError, match='mmbcr_interfacial_k0_m_s'):
+        _validate_carbon_policy(ReactorConfig(mmbcr_interfacial_k0_m_s=0.0))
+    with pytest.raises(ValueError, match='mmbcr_interfacial_k0_m_s'):
+        _validate_carbon_policy(ReactorConfig(mmbcr_interfacial_k0_m_s=1.5))
+
+    path = write_full_mechanism('b2_b3_b4_cat', E_act_CH4=0.84, output_dir=tmp_path)
+
+    # B3: MMBCR is bounded by X_eq and kinetics-limited at Chen-scale E_a (~0.84 eV)
+    mmbcr_res = simulate_mmbcr(
+        ReactorConfig(
+            reactor_type='MMBCR',
+            mechanism_file=str(path),
+            catalyst_name='b2_b3_b4_cat',
+            T_inlet_K=1300.0,
+            catalyst_E_act_eV=0.84,
+        )
+    )
+    assert 0.0 < mmbcr_res['CH4_conversion'] < mmbcr_res['X_eq_table']
+    assert mmbcr_res['CH4_conversion'] < 0.5 * mmbcr_res['X_eq_table']
+
+    # B2 & B4: PFR reports both single-pass and cycle-averaged conversion,
+    # pilot residence-time band (2-12 s), and endothermic heat duty.
+    pfr_res = simulate_pfr(
+        ReactorConfig(
+            reactor_type='PFR',
+            mechanism_file=str(path),
+            catalyst_name='b2_b3_b4_cat',
+            T_inlet_K=973.15,
+            max_regen_cycles=2,
+            regen_coverage_threshold=0.0,
+        )
+    )
+    assert 'single_pass_CH4_conversion' in pfr_res
+    assert 'cycle_averaged_CH4_conversion' in pfr_res
+    assert pfr_res['residence_time_within_pilot_band'] is True
+    assert pfr_res['endothermic_heat_duty_kJ_per_mol_CH4_fed'] == pytest.approx(
+        74.85 * pfr_res['CH4_conversion']
+    )
+
+    fluid_res = simulate_fluidized_bed(
+        ReactorConfig(
+            reactor_type='Fluidized',
+            mechanism_file=str(path),
+            catalyst_name='b2_b3_b4_cat',
+            T_inlet_K=973.15,
+        )
+    )
+    assert 'single_pass_CH4_conversion' in fluid_res
+    assert 'cycle_averaged_CH4_conversion' in fluid_res
+

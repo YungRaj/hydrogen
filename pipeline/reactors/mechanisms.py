@@ -620,12 +620,18 @@ def _surface_rate_parameters(values: dict, site_density: float) -> dict:
     s0_ch4 = float(values['ch4_sticking_coefficient'])
     if not 0.0 < s0_ch4 <= 1.0:
         raise ValueError(f'ch4_sticking_coefficient={s0_ch4} must be in (0, 1]')
+    h0 = _surface_enthalpies(values)
+    dh_ch4 = max(0.0, h0['CH3_s'] + h0['H_s'] - H_F_CH4_J_MOL)
+    dh_ch3 = max(0.0, h0['CH2_s'] + h0['H_s'] - h0['CH3_s'])
+    dh_ch2 = max(0.0, h0['CH_s'] + h0['H_s'] - h0['CH2_s'])
+    dh_ch = max(0.0, h0['C_s'] + h0['H_s'] - h0['CH_s'])
+    dh_h2 = max(0.0, -2.0 * h0['H_s'])
     return {
-        'Ea_CH4': values['methane_activation_eV'] * EV_TO_J_MOL,
-        'Ea_CH3': values['ch3_dehydrogenation_eV'] * EV_TO_J_MOL,
-        'Ea_CH2': values['ch2_dehydrogenation_eV'] * EV_TO_J_MOL,
-        'Ea_CH': values['ch_dehydrogenation_eV'] * EV_TO_J_MOL,
-        'Ea_H2': values['h2_desorption_eV'] * EV_TO_J_MOL,
+        'Ea_CH4': max(values['methane_activation_eV'] * EV_TO_J_MOL, dh_ch4),
+        'Ea_CH3': max(values['ch3_dehydrogenation_eV'] * EV_TO_J_MOL, dh_ch3),
+        'Ea_CH2': max(values['ch2_dehydrogenation_eV'] * EV_TO_J_MOL, dh_ch2),
+        'Ea_CH': max(values['ch_dehydrogenation_eV'] * EV_TO_J_MOL, dh_ch),
+        'Ea_H2': max(values['h2_desorption_eV'] * EV_TO_J_MOL, dh_h2),
         'Ea_Cgamma': values['carbon_transfer_eV'] * EV_TO_J_MOL,
         'Ea_Cdelta': values['carbon_encapsulation_eV'] * EV_TO_J_MOL,
         'theta_star': theta_star,
