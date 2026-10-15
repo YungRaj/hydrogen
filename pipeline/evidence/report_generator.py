@@ -123,6 +123,19 @@ def _executive_summary(p1: dict, p2: dict, p5: dict) -> list:
         lines.append(f"| Solids judge CH₄ conversion ({judge} PFR) | {solids_x:.2%} |")
     else:
         lines.append("| Solids judge CH₄ conversion (PFR) | N/A |")
+    cand_solids_x = _scorecard_value(
+        p2, 'candidate_champion_conversion', 'candidate_champion_conversion'
+    )
+    if isinstance(cand_solids_x, (int, float)):
+        sc = p2.get('solids_scorecard') or {}
+        cand_cat = (
+            p2.get('candidate_champion_catalyst')
+            or sc.get('candidate_champion_catalyst')
+            or 'candidate'
+        )
+        lines.append(
+            f"| Top candidate solids CH₄ conversion ({cand_cat}) | {cand_solids_x:.2%} |"
+        )
     mmbcr_x = _scorecard_value(p2, 'mmbcr_max_conversion', 'mmbcr_max_conversion')
     if isinstance(mmbcr_x, (int, float)):
         lines.append(f"| MMBCR max CH₄ conversion | {mmbcr_x:.2%} (not a solids rank) |")
@@ -230,6 +243,13 @@ def _reactor_section(p2: dict, reactor: list) -> list:
             lines.append(f"| {rt} | {row.get('catalyst_name', '?')} | {row.get('T_K', '?')} | "
                          + _solids_columns(row, row.get('single_pass_CH4_conversion')))
         lines.append("")
+        if scorecard.get('candidate_champion_conversion') is not None:
+            lines.append(
+                f"Top candidate solids X = {_report_number(scorecard['candidate_champion_conversion'], '.2%')} "
+                f"on **{scorecard.get('candidate_champion_catalyst', '?')}** "
+                f"({scorecard.get('candidate_champion_reactor', '?')} @ "
+                f"{scorecard.get('candidate_champion_T_K', '?')} K)\n"
+            )
         if scorecard.get('mmbcr_max_conversion') is not None:
             lines.append(
                 f"MMBCR max X = {_report_number(scorecard['mmbcr_max_conversion'], '.1%')} "

@@ -133,6 +133,9 @@ def _build_parser() -> argparse.ArgumentParser:
                               '(default: <results-dir>/dft/active_learning_calibration.json)'))
     parser.add_argument('--final-campaign', action='store_true',
                         help='Fail closed unless coverage and prior-art readiness requirements pass')
+    parser.add_argument('--sota-campaign', action='store_true',
+                        help='Configure high-volume SOTA discovery preset (56+ sub-class leaves, '
+                             '4 leaves/class floor, 1000 calibration probes, 500 validation batch)')
     parser.add_argument('--evidence-manifest', default=None,
                         help='Measured/validated evidence counts required by --final-campaign')
     parser.add_argument(
@@ -151,8 +154,21 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _apply_sota_preset(args: argparse.Namespace) -> None:
+    """Apply high-volume SOTA branch-and-bound discovery defaults when requested."""
+    if not getattr(args, 'sota_campaign', False):
+        return
+    args.branch_class_floor = max(int(args.branch_class_floor), 4)
+    if int(args.branch_max_leaves) == 0:
+        args.branch_max_leaves = 56
+    args.calibration_probes = max(int(args.calibration_probes), 1000)
+    args.validation_batch = max(int(args.validation_batch), 500)
+    args.min_validation_per_class = max(int(args.min_validation_per_class), 4)
+
+
 def _resolve_paths(args: argparse.Namespace) -> Path:
     """Make every output path absolute and default it under the results root."""
+    _apply_sota_preset(args)
     results_dir = Path(args.results_dir).expanduser().resolve()
     args.results_dir = str(results_dir)
     mechanisms_dir = (Path(args.mechanisms_dir).expanduser().resolve()
@@ -362,7 +378,19 @@ def _run_phase1_discovery(args, pipeline_state: dict, t_deadline: float):
         pool, args.top_k, 'E_act',
         min_per_class=args.min_validation_per_class)
     from pipeline.screening.surface_screener import upgrade_candidates_with_mlip_neb
-    top_catalysts = upgrade_candidates_with_mlip_neb(top_catalysts)
+    neb_calc = None
+    try:
+        import torch
+        if torch.cuda.is_available():
+            from pipeline.screening.surface_calculator import load_surface_calculator
+            neb_calc = load_surface_calculator(0)
+    except Exception:
+        neb_calc = None
+    top_catalysts = upgrade_candidates_with_mlip_neb(
+        top_catalysts,
+        calc=neb_calc,
+        kinetics_validation_dir=getattr(args, 'kinetics_validation_dir', None),
+    )
     dft_candidates = select_for_validation(
         pool, min(args.validation_batch, max(len(pool), 1)), 'E_act',
         min_per_class=args.min_validation_per_class)
@@ -564,6 +592,10 @@ def _run_phase2_reactors(args, pipeline_state: dict, top_catalysts) -> None:
         pipeline_state['phase2']['best_conversion_scope'] = (
             'solids_single_pass_judge_'
             + str(scorecard.get('judge_catalyst') or 'unavailable'))
+        pipeline_state['phase2']['candidate_champion_conversion'] = scorecard.get(
+            'candidate_champion_conversion')
+        pipeline_state['phase2']['candidate_champion_catalyst'] = scorecard.get(
+            'candidate_champion_catalyst')
         if tea_results:
             best_tea = min(tea_results, key=lambda x: x['h2_cost_usd_kg'])
             pipeline_state['phase2']['best_h2_cost_usd_kg'] = best_tea['h2_cost_usd_kg']
@@ -914,6 +946,9 @@ def _run_phase5_fuel_cell(args, pipeline_state: dict, t_deadline: float,
     fc_pareto, fc_screening_db = run_fc_branch_discovery(fc_config)
 
     from pipeline.search.scope import scope_pemfc_pool
+    from pipeline.screening.fc_screener import (
+        upgrade_orr_candidates_with_solvation_pourbaix,
+    )
     fc_valid = fc_screening_db[fc_screening_db['valid'] == True].copy()
     fc_evidence = annotate_evidence(
         fc_screening_db, 'orr_overpotential_V')
@@ -921,9 +956,11 @@ def _run_phase5_fuel_cell(args, pipeline_state: dict, t_deadline: float,
     top_fc = select_for_reactor(
         fc_pool, PEMFC_CANDIDATES, 'orr_overpotential_V',
         min_per_class=1)
+    top_fc = upgrade_orr_candidates_with_solvation_pourbaix(top_fc)
     fc_validation = select_for_validation(
         fc_pool, min(args.validation_batch, len(fc_pool)),
         'orr_overpotential_V', min_per_class=args.min_validation_per_class)
+    fc_validation = upgrade_orr_candidates_with_solvation_pourbaix(fc_validation)
     fc_validation_path = results_dir / 'fuel_cell' / 'validation_slate.csv'
     fc_validation_path.parent.mkdir(parents=True, exist_ok=True)
     fc_validation.to_csv(fc_validation_path, index=False)
@@ -942,6 +979,9 @@ def _run_phase5_fuel_cell(args, pipeline_state: dict, t_deadline: float,
     }
     if len(fc_valid) > 0 and 'orr_overpotential_V' in fc_valid.columns:
         pipeline_state['phase5_branch']['best_overpotential_V'] = float(fc_valid['orr_overpotential_V'].min())
+    if len(top_fc) > 0 and 'orr_overpotential_gc_V' in top_fc.columns:
+        pipeline_state['phase5_branch']['best_overpotential_gc_V'] = float(top_fc['orr_overpotential_gc_V'].min())
+        pipeline_state['phase5_branch']['pourbaix_acid_stable_count'] = int(top_fc['pourbaix_acid_stable'].sum())
 
     if time.time() < t_deadline and len(top_fc) > 0:
         _model_pemfc_stack(pipeline_state, top_fc)

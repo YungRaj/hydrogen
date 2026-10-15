@@ -295,6 +295,10 @@ def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> di
 
         # 8. Stability estimate (binding strength of active metal)
         result['binding_strength'] = float(abs(dG_OH) + abs(dG_O))
+        gc_corr = compute_grand_canonical_orr_corrections(
+            dG_OH, dG_O, dG_OOH, genome=genome
+        )
+        result.update(gc_corr)
 
         # 9. Physical sanity filters
         SANE_LIMIT = 10.0  # eV
@@ -337,6 +341,160 @@ def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> di
         result['needs_dft_validation'] = True
 
     return result
+
+
+STANDARD_REDUCTION_POTENTIALS_V: dict[str, float] = {
+    'Au': 1.520, 'Pt': 1.188, 'Ir': 1.156, 'Pd': 0.915, 'Os': 0.840,
+    'Ag': 0.800, 'Rh': 0.758, 'Ru': 0.455, 'Cu': 0.340, 'Bi': 0.317,
+    'Re': 0.300, 'Sb': 0.212, 'Te': 0.530, 'W': -0.119, 'Pb': -0.126,
+    'Sn': -0.138, 'Mo': -0.200, 'Ni': -0.257, 'Co': -0.277, 'In': -0.338,
+    'Fe': -0.440, 'Ga': -0.529, 'Ta': -0.600, 'Cr': -0.740, 'Zn': -0.763,
+    'Nb': -1.100, 'V': -1.130, 'Mn': -1.185, 'Zr': -1.450, 'Hf': -1.550,
+    'Ti': -1.630, 'Al': -1.676, 'Sc': -2.077, 'Ce': -2.336, 'Y': -2.372,
+    'Mg': -2.372, 'La': -2.379, 'Ca': -2.868, 'Sr': -2.899,
+}
+
+# Surface dipole moments (e*A) and excess polarizabilities (e*A^2/V) for ORR intermediates
+_ADSORBATE_DIPOLE_E_A = {'OH*': -0.35, 'O*': 0.18, 'OOH*': -0.42}
+_ADSORBATE_ALPHA_E_A2_V = {'OH*': 0.12, 'O*': 0.06, 'OOH*': 0.18}
+# Implicit H-bond water stabilization (eV) on hydrophilic metallic/oxide vs carbon hosts
+_IMPLICIT_HBOND_EV = {'OH*': -0.30, 'O*': -0.05, 'OOH*': -0.25}
+
+
+def compute_pourbaix_stability_margin(
+    genome,
+    *,
+    U_V_vs_RHE: float = 0.80,
+    pH: float = 0.0,
+) -> dict:
+    """Estimate Pourbaix anodic dissolution onset and stability margin at (U, pH)."""
+    from pipeline.reactors.mechanisms import parse_catalyst_genome
+
+    parsed = parse_catalyst_genome(genome) if not isinstance(genome, tuple) else genome
+    if not parsed:
+        return {
+            'pourbaix_dissolution_onset_V': 0.80,
+            'pourbaix_dissolution_margin_V': 0.0,
+            'pourbaix_acid_stable': True,
+        }
+    mat_class = str(parsed[0])
+    elements = [el for el in _extract_elements(parsed) if el in STANDARD_REDUCTION_POTENTIALS_V]
+    if not elements:
+        # MetalFreeCarbon / covalent non-metal frameworks resist anodic metal dissolution
+        onset = 1.25
+    else:
+        # Active site is governed by the primary metal (first extracted metal)
+        e0_primary = STANDARD_REDUCTION_POTENTIALS_V[elements[0]]
+        e0_mean = float(np.mean([STANDARD_REDUCTION_POTENTIALS_V[el] for el in elements]))
+        base_e0 = 0.65 * e0_primary + 0.35 * e0_mean
+        if mat_class in ('SAC', 'DAC', 'COF', 'MOF'):
+            # N4/macrocycle chelation shifts metal demetallation onset by +1.05 V in acid
+            coord_shift = 1.05
+        elif mat_class in ('Perovskite', 'Spinel'):
+            # Crystalline oxide sublattice stabilization
+            coord_shift = 1.10
+        elif mat_class in ('MAXPhase', 'MXene'):
+            coord_shift = 0.95
+        elif mat_class == 'SAA':
+            # Host-metal alloying chemical potential stabilization
+            coord_shift = 0.55
+        else:
+            # Alloying / support stabilization on nanoparticles
+            coord_shift = 0.45 if len(elements) > 1 else 0.30
+        onset = base_e0 + coord_shift + 0.05916 * float(pH)
+    margin = float(onset - U_V_vs_RHE)
+    return {
+        'pourbaix_dissolution_onset_V': float(onset),
+        'pourbaix_dissolution_margin_V': margin,
+        'pourbaix_acid_stable': bool(margin >= -0.05),
+    }
+
+
+def compute_grand_canonical_orr_corrections(
+    dG_OH: float,
+    dG_O: float,
+    dG_OOH: float,
+    *,
+    genome=None,
+    U_V_vs_RHE: float = 0.80,
+    U_pzc_V: float = 0.30,
+    helmholtz_thickness_A: float = 3.0,
+    pH: float = 0.0,
+) -> dict:
+    """Compute constant-potential double-layer solvation + electric-field corrections."""
+    from pipeline.reactors.mechanisms import parse_catalyst_genome
+
+    parsed = parse_catalyst_genome(genome) if (genome is not None and not isinstance(genome, tuple)) else genome
+    mat_class = str(parsed[0]) if parsed else 'SolidCatalyst'
+    # Hydrophobic carbon/framework hosts attenuate water H-bond network by ~25%
+    hbond_scale = (
+        0.75
+        if mat_class in ('MetalFreeCarbon', 'SAC', 'DAC', 'COF', 'MOF')
+        else 1.0
+    )
+    e_field_V_A = (float(U_V_vs_RHE) - float(U_pzc_V)) / max(1.0, float(helmholtz_thickness_A))
+
+    def _shift(ads: str) -> float:
+        mu = _ADSORBATE_DIPOLE_E_A[ads]
+        alpha = _ADSORBATE_ALPHA_E_A2_V[ads]
+        solv = hbond_scale * _IMPLICIT_HBOND_EV[ads]
+        field_term = -mu * e_field_V_A - 0.5 * alpha * (e_field_V_A ** 2)
+        return float(solv + field_term)
+
+    dg_oh_gc = float(dG_OH) + _shift('OH*')
+    dg_o_gc = float(dG_O) + _shift('O*')
+    dg_ooh_gc = float(dG_OOH) + _shift('OOH*')
+    eta_gc, rds_gc = orr_overpotential(dg_oh_gc, dg_o_gc, dg_ooh_gc)
+    pourbaix = compute_pourbaix_stability_margin(
+        parsed, U_V_vs_RHE=U_V_vs_RHE, pH=pH
+    )
+    return {
+        'dG_OH_gc_eV': float(dg_oh_gc),
+        'dG_O_gc_eV': float(dg_o_gc),
+        'dG_OOH_gc_eV': float(dg_ooh_gc),
+        'orr_overpotential_gc_V': float(eta_gc),
+        'limiting_potential_gc_V': float(1.23 - eta_gc),
+        'rate_determining_step_gc': str(rds_gc),
+        **pourbaix,
+    }
+
+
+def upgrade_orr_candidates_with_solvation_pourbaix(
+    df,
+    *,
+    U_V_vs_RHE: float = 0.80,
+    pH: float = 0.0,
+):
+    """Populate grand-canonical solvation and Pourbaix stability columns on an ORR DataFrame."""
+    if df is None or len(df) == 0:
+        return df
+    out = df.copy()
+    records = []
+    for _, row in out.iterrows():
+        dg_oh = float(row.get('dG_OH_eV', 0.8))
+        dg_o = float(row.get('dG_O_eV', 1.8))
+        dg_ooh = float(row.get('dG_OOH_eV', 3.8))
+        records.append(
+            compute_grand_canonical_orr_corrections(
+                dg_oh, dg_o, dg_ooh,
+                genome=row.get('genome'),
+                U_V_vs_RHE=U_V_vs_RHE,
+                pH=pH,
+            )
+        )
+    for col in (
+        'dG_OH_gc_eV',
+        'dG_O_gc_eV',
+        'dG_OOH_gc_eV',
+        'orr_overpotential_gc_V',
+        'limiting_potential_gc_V',
+        'rate_determining_step_gc',
+        'pourbaix_dissolution_onset_V',
+        'pourbaix_dissolution_margin_V',
+        'pourbaix_acid_stable',
+    ):
+        out[col] = [r[col] for r in records]
+    return out
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

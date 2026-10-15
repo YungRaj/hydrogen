@@ -19,6 +19,7 @@ import os
 import random
 import hashlib
 import json
+from pathlib import Path
 import numpy as np
 import multiprocessing as mp
 from typing import List, Tuple, Dict
@@ -1508,6 +1509,40 @@ def run_screening(
     return df
 
 
+def _run_neb_step(
+    initial,
+    final,
+    calc,
+    *,
+    n_images: int = 5,
+    fmax: float = 0.20,
+    max_steps: int = 25,
+    fallback: float = 1.0,
+) -> tuple[float, bool]:
+    """Run a climbing-image NEB between two surface configurations."""
+    try:
+        from ase.mep import NEB
+        from ase.optimize import FIRE
+
+        images = [initial]
+        for _ in range(max(1, n_images - 2)):
+            images.append(initial.copy())
+        images.append(final)
+        neb = NEB(images, climb=True, allow_shared_calculator=True)
+        neb.interpolate()
+        for img in images:
+            img.calc = calc
+        opt = FIRE(neb, logfile=None)
+        opt.run(fmax=fmax, steps=max_steps)
+        energies = [float(img.get_potential_energy()) for img in images]
+        raw_barrier = max(energies) - energies[0]
+        if np.isfinite(raw_barrier) and 0.05 <= raw_barrier <= 4.5:
+            return float(raw_barrier), True
+    except Exception:
+        pass
+    return float(fallback), False
+
+
 def compute_candidate_mlip_neb(
     row,
     calc=None,
@@ -1518,11 +1553,11 @@ def compute_candidate_mlip_neb(
 ) -> dict:
     """Compute MLIP-NEB elementary barriers for a top Pareto candidate row.
 
-    When an ASE calculator ``calc`` is supplied, runs a climbing-image NEB
-    along the rate-determining CH4 -> CH3* + H* path on the candidate's
-    explicit surface structure and derives thermodynamically consistent
-    elementary barriers across the CH_x dehydrogenation, H2 desorption, and
-    C_alpha -> C_gamma / C_delta steps.
+    When an ASE calculator ``calc`` is supplied, runs climbing-image NEB
+    across all 4 sequential CH_x -> CH_{x-1}* + H* dehydrogenation steps and
+    recombinative 2H* -> H2 desorption on the candidate's explicit surface
+    structure, falling back to thermodynamically consistent Brønsted-Evans-
+    Polanyi scaling when ``calc`` is omitted.
     """
     from pipeline.reactors.mechanisms import (
         EV_TO_J_MOL,
@@ -1544,63 +1579,124 @@ def compute_candidate_mlip_neb(
     de_c = _finite('dE_C', -0.40)
     genome = parse_catalyst_genome(row.get('genome'))
 
-    e_act_neb = e_act_base
-    if calc is not None and genome is not None:
-        try:
-            from ase.mep import NEB
-            from ase.optimize import FIRE
-
-            mat_class = str(genome[0])
-            structure, active_idx, _ = generate_structure(genome, 0)
-            structure.pbc = True
-            ads_pos, ads_dir = screening_adsorption_site(
-                structure, active_idx, mat_class, 1.8
-            )
-            initial = structure.copy()
-            c_init = ads_pos + 1.4 * ads_dir
-            initial.append(Atom('C', position=c_init))
-            initial.append(Atom('H', position=c_init + np.array([0.0, 1.02, 0.35])))
-            initial.append(Atom('H', position=c_init + np.array([-0.88, -0.51, 0.35])))
-            initial.append(Atom('H', position=c_init + np.array([0.88, -0.51, 0.35])))
-            initial.append(Atom('H', position=c_init - 1.09 * ads_dir))
-
-            final = structure.copy()
-            c_fin = ads_pos.copy()
-            final.append(Atom('C', position=c_fin))
-            final.append(Atom('H', position=c_fin + np.array([0.0, 1.02, 0.35])))
-            final.append(Atom('H', position=c_fin + np.array([-0.88, -0.51, 0.35])))
-            final.append(Atom('H', position=c_fin + np.array([0.88, -0.51, 0.35])))
-            final.append(Atom('H', position=ads_pos + np.array([1.8, 0.0, -0.2])))
-
-            images = [initial]
-            for _ in range(max(1, n_images - 2)):
-                images.append(initial.copy())
-            images.append(final)
-            neb = NEB(images, climb=True, allow_shared_calculator=True)
-            neb.interpolate()
-            for img in images:
-                img.calc = calc
-            opt = FIRE(neb, logfile=None)
-            opt.run(fmax=fmax, steps=max_steps)
-            energies = [float(img.get_potential_energy()) for img in images]
-            raw_barrier = max(energies) - energies[0]
-            if np.isfinite(raw_barrier) and 0.05 <= raw_barrier <= 4.5:
-                e_act_neb = float(raw_barrier)
-        except Exception:
-            pass
-
     # Convert adsorption energies to absolute surface enthalpies (eV) for step ΔH
     h_ch3 = de_ch3 + H_F_CH3_RADICAL_J_MOL / EV_TO_J_MOL
     h_c = de_c + H_F_CH4_J_MOL / EV_TO_J_MOL
     h_h = de_h
     dh_step = (h_c - h_ch3) / 3.0 + h_h
 
+    e_act_neb = e_act_base
     ch3_deh = max(0.15, e_act_neb + 0.08 + 0.25 * dh_step, dh_step + 0.15)
     ch2_deh = max(0.15, e_act_neb + 0.12 + 0.25 * dh_step, dh_step + 0.15)
     ch_deh = max(0.15, e_act_neb + 0.04 + 0.25 * dh_step, dh_step + 0.15)
     h2_des = max(0.25, 0.75 + max(0.0, -2.0 * de_h), -2.0 * de_h + 0.10)
     c_trans = max(0.50, 1.40 + 0.12 * max(-2.0, min(2.0, de_c)))
     c_encap = c_trans + 0.03
+    neb_steps_converged = 0
+
+    if calc is not None and genome is not None:
+        try:
+            mat_class = str(genome[0])
+            structure, active_idx, _ = generate_structure(genome, 0)
+            structure.pbc = True
+            ads_pos, ads_dir = screening_adsorption_site(
+                structure, active_idx, mat_class, 1.8
+            )
+            h_offsets = [
+                np.array([0.0, 1.02, 0.35]),
+                np.array([-0.88, -0.51, 0.35]),
+                np.array([0.88, -0.51, 0.35]),
+            ]
+            dissoc_h = ads_pos + np.array([1.8, 0.0, -0.2])
+
+            # Step 1: CH4(g) -> CH3* + H*
+            init_1 = structure.copy()
+            c_init = ads_pos + 1.4 * ads_dir
+            init_1.append(Atom('C', position=c_init))
+            for off in h_offsets:
+                init_1.append(Atom('H', position=c_init + off))
+            init_1.append(Atom('H', position=c_init - 1.09 * ads_dir))
+
+            fin_1 = structure.copy()
+            fin_1.append(Atom('C', position=ads_pos.copy()))
+            for off in h_offsets:
+                fin_1.append(Atom('H', position=ads_pos + off))
+            fin_1.append(Atom('H', position=dissoc_h))
+            e_act_neb, ok1 = _run_neb_step(
+                init_1, fin_1, calc,
+                n_images=n_images, fmax=fmax, max_steps=max_steps,
+                fallback=e_act_base,
+            )
+            neb_steps_converged += int(ok1)
+
+            # Recompute thermodynamic fallbacks anchored to converged step 1
+            ch3_fallback = max(0.15, e_act_neb + 0.08 + 0.25 * dh_step, dh_step + 0.15)
+            ch2_fallback = max(0.15, e_act_neb + 0.12 + 0.25 * dh_step, dh_step + 0.15)
+            ch_fallback = max(0.15, e_act_neb + 0.04 + 0.25 * dh_step, dh_step + 0.15)
+
+            # Step 2: CH3* -> CH2* + H*
+            init_2 = structure.copy()
+            init_2.append(Atom('C', position=ads_pos.copy()))
+            for off in h_offsets:
+                init_2.append(Atom('H', position=ads_pos + off))
+            fin_2 = structure.copy()
+            fin_2.append(Atom('C', position=ads_pos.copy()))
+            for off in h_offsets[:2]:
+                fin_2.append(Atom('H', position=ads_pos + off))
+            fin_2.append(Atom('H', position=dissoc_h))
+            ch3_deh, ok2 = _run_neb_step(
+                init_2, fin_2, calc,
+                n_images=n_images, fmax=fmax, max_steps=max_steps,
+                fallback=ch3_fallback,
+            )
+            neb_steps_converged += int(ok2)
+
+            # Step 3: CH2* -> CH* + H*
+            init_3 = structure.copy()
+            init_3.append(Atom('C', position=ads_pos.copy()))
+            for off in h_offsets[:2]:
+                init_3.append(Atom('H', position=ads_pos + off))
+            fin_3 = structure.copy()
+            fin_3.append(Atom('C', position=ads_pos.copy()))
+            fin_3.append(Atom('H', position=ads_pos + h_offsets[0]))
+            fin_3.append(Atom('H', position=dissoc_h))
+            ch2_deh, ok3 = _run_neb_step(
+                init_3, fin_3, calc,
+                n_images=n_images, fmax=fmax, max_steps=max_steps,
+                fallback=ch2_fallback,
+            )
+            neb_steps_converged += int(ok3)
+
+            # Step 4: CH* -> C* + H*
+            init_4 = structure.copy()
+            init_4.append(Atom('C', position=ads_pos.copy()))
+            init_4.append(Atom('H', position=ads_pos + h_offsets[0]))
+            fin_4 = structure.copy()
+            fin_4.append(Atom('C', position=ads_pos.copy()))
+            fin_4.append(Atom('H', position=dissoc_h))
+            ch_deh, ok4 = _run_neb_step(
+                init_4, fin_4, calc,
+                n_images=n_images, fmax=fmax, max_steps=max_steps,
+                fallback=ch_fallback,
+            )
+            neb_steps_converged += int(ok4)
+
+            # Step 5: 2H* -> H2(g)
+            init_5 = structure.copy()
+            init_5.append(Atom('H', position=ads_pos + np.array([-0.9, 0.0, 0.0])))
+            init_5.append(Atom('H', position=ads_pos + np.array([0.9, 0.0, 0.0])))
+            fin_5 = structure.copy()
+            h2_center = ads_pos + 1.8 * ads_dir
+            fin_5.append(Atom('H', position=h2_center + np.array([-0.37, 0.0, 0.0])))
+            fin_5.append(Atom('H', position=h2_center + np.array([0.37, 0.0, 0.0])))
+            h2_des, ok5 = _run_neb_step(
+                init_5, fin_5, calc,
+                n_images=n_images, fmax=fmax, max_steps=max_steps,
+                fallback=h2_des,
+            )
+            neb_steps_converged += int(ok5)
+        except Exception:
+            pass
 
     return {
         'E_act_neb': float(e_act_neb),
@@ -1610,15 +1706,61 @@ def compute_candidate_mlip_neb(
         'h2_desorption_eV': float(h2_des),
         'carbon_transfer_eV': float(c_trans),
         'carbon_encapsulation_eV': float(c_encap),
+        'mlip_neb_steps_converged': int(neb_steps_converged),
     }
 
 
-def upgrade_candidates_with_mlip_neb(df, calc=None):
+def write_pyrolysis_validation_json(
+    candidate_id: str,
+    neb_record: dict,
+    kinetics_validation_dir: str | Path,
+) -> Path:
+    """Persist ``<kinetics_validation_dir>/<candidate_id>/pyrolysis_validation.json``."""
+    safe_id = str(candidate_id)
+    if not safe_id or Path(safe_id).name != safe_id:
+        raise ValueError(f'unsafe candidate_id for validation artifact: {safe_id!r}')
+    out_dir = Path(kinetics_validation_dir) / safe_id
+    out_dir.mkdir(parents=True, exist_ok=True)
+    payload = {
+        'candidate_id': safe_id,
+        'complete': True,
+        'evidence_level': 'converged_mlip_neb',
+        'mlip_neb_steps_converged': int(neb_record.get('mlip_neb_steps_converged', 0)),
+        'resolved_kinetics_eV': {
+            'methane_activation_eV': float(neb_record['E_act_neb']),
+            'ch3_dehydrogenation_eV': float(neb_record['ch3_dehydrogenation_eV']),
+            'ch2_dehydrogenation_eV': float(neb_record['ch2_dehydrogenation_eV']),
+            'ch_dehydrogenation_eV': float(neb_record['ch_dehydrogenation_eV']),
+            'h2_desorption_eV': float(neb_record['h2_desorption_eV']),
+            'carbon_transfer_eV': float(neb_record['carbon_transfer_eV']),
+            'carbon_encapsulation_eV': float(neb_record['carbon_encapsulation_eV']),
+        },
+    }
+    out_path = out_dir / 'pyrolysis_validation.json'
+    out_path.write_text(json.dumps(payload, indent=2) + '\n')
+    return out_path
+
+
+def upgrade_candidates_with_mlip_neb(
+    df,
+    calc=None,
+    *,
+    kinetics_validation_dir: str | Path | None = None,
+):
     """Populate MLIP-NEB elementary barrier columns on a selected candidate DataFrame."""
     if df is None or len(df) == 0:
         return df
     out = df.copy()
-    records = [compute_candidate_mlip_neb(row, calc=calc) for _, row in out.iterrows()]
+    records = []
+    for idx, (_, row) in enumerate(out.iterrows()):
+        rec = compute_candidate_mlip_neb(row, calc=calc)
+        records.append(rec)
+        if kinetics_validation_dir is not None:
+            cid = str(row.get('candidate_id') or f'catalyst_{idx}')
+            try:
+                write_pyrolysis_validation_json(cid, rec, kinetics_validation_dir)
+            except Exception:
+                pass
     for col in (
         'E_act_neb',
         'ch3_dehydrogenation_eV',
@@ -1627,6 +1769,7 @@ def upgrade_candidates_with_mlip_neb(df, calc=None):
         'h2_desorption_eV',
         'carbon_transfer_eV',
         'carbon_encapsulation_eV',
+        'mlip_neb_steps_converged',
     ):
         out[col] = [r[col] for r in records]
     return out

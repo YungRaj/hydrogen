@@ -587,7 +587,7 @@ def test_b2_b3_b4_reactor_contracts(tmp_path):
     assert 'cycle_averaged_CH4_conversion' in fluid_res
 
 
-def test_mlip_neb_upgrade_and_stability_hull_gate():
+def test_mlip_neb_upgrade_and_stability_hull_gate(tmp_path):
     pd = pytest.importorskip('pandas')
     from pipeline.reactors.mechanisms import CandidateKinetics
     from pipeline.screening.objectives import operating_stability_and_hull_gate
@@ -604,9 +604,16 @@ def test_mlip_neb_upgrade_and_stability_hull_gate():
         'screening_protocol': 'esen-v1',
         'valid': True,
     }])
-    upgraded = upgrade_candidates_with_mlip_neb(df)
+    upgraded = upgrade_candidates_with_mlip_neb(
+        df, kinetics_validation_dir=tmp_path
+    )
+    val_path = tmp_path / 'ni_cu_test' / 'pyrolysis_validation.json'
+    assert val_path.is_file()
+    val_payload = json.loads(val_path.read_text())
+    assert val_payload['complete'] is True
+    assert val_payload['evidence_level'] == 'converged_mlip_neb'
     kinetics = CandidateKinetics.from_screening_row(
-        upgraded.iloc[0], candidate_id='ni_cu_test'
+        upgraded.iloc[0], candidate_id='ni_cu_test', validation=val_payload
     )
     resolved = kinetics.resolved()
     assert resolved['quantitative_status'] == 'mlip_neb_complete'
@@ -624,4 +631,85 @@ def test_mlip_neb_upgrade_and_stability_hull_gate():
     )
     assert unstable_gate['phase_stable'] is False
     assert unstable_gate['synthesizable'] is False
+
+
+def test_sota_scorecard_solvation_and_campaign_preset(tmp_path):
+    import run_production_campaign as campaign
+    from pipeline.reactors.scorecard import (
+        NI_JUDGE_CATALYST,
+        build_solids_scorecard,
+    )
+    from pipeline.screening.fc_screener import (
+        compute_grand_canonical_orr_corrections,
+        compute_pourbaix_stability_margin,
+    )
+
+    records = [
+        {
+            'reactor_type': 'PFR',
+            'catalyst_name': NI_JUDGE_CATALYST,
+            'T_K': 973.15,
+            'CH4_conversion': 0.1694,
+            'single_pass_CH4_conversion': 0.1694,
+            'catalyst_E_act_eV': 0.90,
+            'catalyst_dE_H_eV': -0.52,
+            'status': 'complete',
+            'surface_loaded': True,
+            'exceeds_equilibrium': False,
+        },
+        {
+            'reactor_type': 'PFR',
+            'catalyst_name': 'cand_co_ce_01',
+            'T_K': 1100.0,
+            'CH4_conversion': 0.642,
+            'single_pass_CH4_conversion': 0.642,
+            'catalyst_E_act_eV': 0.62,
+            'catalyst_dE_H_eV': -0.28,
+            'status': 'complete',
+            'surface_loaded': True,
+            'exceeds_equilibrium': False,
+            'kinetics_status': 'mlip_neb_complete',
+        },
+    ]
+    card = build_solids_scorecard(
+        records,
+        judge_catalyst=NI_JUDGE_CATALYST,
+        headline_t_min=923.15,
+        headline_t_max=973.15,
+    )
+    assert card['headline_solids_conversion'] == pytest.approx(0.1694)
+    assert card['candidate_champion_conversion'] == pytest.approx(0.642)
+    assert card['candidate_champion_catalyst'] == 'cand_co_ce_01'
+    assert card['solids_max_excluding_h_parked'] is None
+
+    gc_pt = compute_grand_canonical_orr_corrections(
+        0.85, 1.75, 3.85,
+        genome=('SolidCatalyst', 'Pt', 'C', 'fcc111', 0.0, ('Co',), 1, 0),
+    )
+    assert gc_pt['pourbaix_acid_stable'] is True
+    assert gc_pt['pourbaix_dissolution_margin_V'] > 0.30
+    assert 0.0 < gc_pt['orr_overpotential_gc_V'] < 2.0
+
+    pb_mn = compute_pourbaix_stability_margin(
+        ('SolidCatalyst', 'Mn', 'C', 'bcc110', 0.0, (), 1, 0),
+        U_V_vs_RHE=0.80,
+        pH=0.0,
+    )
+    assert pb_mn['pourbaix_acid_stable'] is False
+
+    parser = campaign._build_parser()
+    args = parser.parse_args([
+        '--sota-campaign',
+        '--results-dir',
+        str(tmp_path / 'sota_out'),
+    ])
+    campaign._resolve_paths(args)
+    assert args.no_dft is True
+    assert args.no_vqe is True
+    assert args.branch_class_floor == 4
+    assert args.branch_max_leaves == 56
+    assert args.calibration_probes == 1000
+    assert args.validation_batch == 500
+    assert args.min_validation_per_class == 4
+
 

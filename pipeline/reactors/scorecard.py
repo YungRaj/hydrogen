@@ -271,6 +271,24 @@ def build_solids_scorecard(
     elif headline.get('Fluidized'):
         headline_catalyst = headline['Fluidized']['catalyst_name']
 
+    scoreable_non_h_parked = [
+        r for r in solids_src if is_scoreable_solids(r) and not is_h_parked(r)
+    ]
+    candidate_solids = [
+        r for r in scoreable_non_h_parked
+        if r.get('catalyst_name') != judge_catalyst
+    ]
+    best_candidate_solids = max(
+        candidate_solids,
+        key=lambda r: (single_pass_x(r), -_t_k(r)),
+        default=None,
+    )
+    solids_max_ex_h = (
+        max((single_pass_x(r) for r in scoreable_non_h_parked), default=None)
+        if B5_ACCEPTED
+        else None
+    )
+
     return {
         'judge_catalyst': judge_catalyst if named_present else None,
         'headline_catalyst': headline_catalyst,
@@ -288,7 +306,32 @@ def build_solids_scorecard(
         'headline': headline,
         'headline_solids_conversion': judge_x,
         'ranking_authority': B5_ACCEPTED,
-        'solids_max_excluding_h_parked': None,
+        'solids_max_excluding_h_parked': solids_max_ex_h,
+        'candidate_champion_conversion': (
+            float(single_pass_x(best_candidate_solids))
+            if best_candidate_solids is not None
+            else None
+        ),
+        'candidate_champion_catalyst': (
+            str(best_candidate_solids.get('catalyst_name'))
+            if best_candidate_solids is not None
+            else None
+        ),
+        'candidate_champion_reactor': (
+            str(best_candidate_solids.get('reactor_type'))
+            if best_candidate_solids is not None
+            else None
+        ),
+        'candidate_champion_T_K': (
+            float(_t_k(best_candidate_solids))
+            if best_candidate_solids is not None
+            else None
+        ),
+        'candidate_champion_kinetics_status': (
+            str(best_candidate_solids.get('kinetics_status') or '') or None
+            if best_candidate_solids is not None
+            else None
+        ),
         'h_parked_excluded': h_parked,
         'mmbcr_max_conversion': mmbcr_max,
         'mmbcr_note': 'X_eq by construction for large Da; not a catalyst rank (B5)',
@@ -321,6 +364,13 @@ def log_solids_scorecard(scorecard: SolidsScorecard, logger) -> None:
             f"  {reactor_type} {row.get('catalyst_name')} "
             f"T={row.get('T_K')}  X={x:.2%}  a={a}  "
             f"WHSV={whsv} h-1  dP={dp} bar"
+        )
+    cand_x = scorecard.get('candidate_champion_conversion')
+    if cand_x is not None:
+        logger.info(
+            f"  Candidate solids champion: {scorecard.get('candidate_champion_catalyst')} "
+            f"({scorecard.get('candidate_champion_reactor')} @ "
+            f"{scorecard.get('candidate_champion_T_K')} K) X={cand_x:.2%}"
         )
     mmbcr = scorecard.get('mmbcr_max_conversion')
     if mmbcr is not None:

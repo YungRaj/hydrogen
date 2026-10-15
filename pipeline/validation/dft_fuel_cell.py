@@ -307,6 +307,16 @@ def validate_orr_catalyst(
         result['rate_determining_step'] = rds
         result['limiting_potential_V'] = float(E_ORR_eq - eta)
 
+        from pipeline.screening.fc_screener import (
+            compute_grand_canonical_orr_corrections,
+        )
+
+        result.update(
+            compute_grand_canonical_orr_corrections(
+                dG_OH, dG_O, dG_OOH, genome=genome
+            )
+        )
+
         logger.info(f"  ORR overpotential: η = {eta:.4f} V (RDS: {rds})")
     else:
         logger.warning("  Cannot compute overpotential: missing DFT energies")
