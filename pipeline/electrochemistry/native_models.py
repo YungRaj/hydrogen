@@ -92,6 +92,8 @@ def ntec_screening_point(parameters: dict[str, float]) -> dict[str, Any]:
     Returns:
         Diagnostic collision, impact, and regeneration values.
     """
+    import math
+
     collisions = collision_events_per_volume_s(
         parameters['shear_rate_s'], parameters['particle_diameter_m'],
         parameters['number_density_m3'],
@@ -100,21 +102,49 @@ def ntec_screening_point(parameters: dict[str, float]) -> dict[str, Any]:
         parameters['effective_mass_kg'], parameters['shear_rate_s'],
         parameters['particle_diameter_m'],
     )
-    return {
+    detached = detachment_probability(
+        parameters['adhesion_energy_J_m2'], impact, parameters['contact_area_m2']
+    )
+    result: dict[str, Any] = {
         'status': 'diagnostic', 'reactor_evidence_tier': 'native_screening_model',
         'can_exclude_candidate': False, 'collision_events_per_volume_s': collisions,
         'impact_energy_J': impact,
-        'detachment_probability': detachment_probability(
-            parameters['adhesion_energy_J_m2'], impact, parameters['contact_area_m2']
-        ),
+        'detachment_probability': detached,
         'carbon_regeneration_rate_1_s': (
             collisions / (
                 parameters['number_density_m3']
                 * 3.141592653589793 * parameters['particle_diameter_m'] ** 2
             )
             * parameters['contact_area_m2']
-            * detachment_probability(
-                parameters['adhesion_energy_J_m2'], impact, parameters['contact_area_m2']
-            )
+            * detached
         ),
     }
+    if all(
+        key in parameters
+        for key in ('surface_rate_mol_m2_s', 'interface_area_m2', 'ch4_feed_mol_s')
+    ):
+        rate = float(parameters['surface_rate_mol_m2_s'])
+        area = float(parameters['interface_area_m2'])
+        feed = float(parameters['ch4_feed_mol_s'])
+        if rate < 0.0 or area <= 0.0 or feed <= 0.0:
+            raise ValueError('NTEC kinetic rate must be nonnegative and area/feed positive')
+        enhancement = float(parameters.get('field_rate_enhancement', 1.0))
+        consumed = rate * enhancement * area
+        conversion = consumed / feed
+        if conversion > 1.0:
+            return {
+                **result, 'status': 'invalid',
+                'reason': 'consumption_exceeds_feed_supply',
+            }
+        h2_kg_s = 2.0 * consumed * 2.0 * 0.00100794
+        power_w = float(parameters.get('mechanical_power_W', 0.0))
+        result.update({
+            'status': 'complete',
+            'CH4_conversion': conversion,
+            'H2_selectivity': 1.0,
+            'solid_C_selectivity': 1.0,
+            'specific_energy_kWh_kg_H2': (
+                power_w / h2_kg_s / 3.6e6 if h2_kg_s > 0.0 else math.inf
+            ),
+        })
+    return result

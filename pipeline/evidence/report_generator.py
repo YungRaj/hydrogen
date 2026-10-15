@@ -238,6 +238,23 @@ def _reactor_section(p2: dict, reactor: list) -> list:
             lines.append(f"| {res.get('catalyst_name', '?')} | {res.get('reactor_type', '?')} | "
                          f"{res.get('T_K', '?')} | " + _solids_columns(res, single_pass_x(res)))
         lines.append("")
+    non_solids = [
+        x for x in real_reactor if not is_solids_run(x) and is_usable_result(x)
+    ]
+    if non_solids:
+        lines += [
+            "### Liquid-Metal, NTEC, and Electrochemical Runs\n",
+            "| Catalyst | Reactor | T (K) | CH₄ Conversion | H₂ Selectivity | Evidence Tier |",
+            "|----------|---------|-------|----------------|----------------|---------------|",
+        ]
+        for res in sorted(non_solids, key=single_pass_x, reverse=True)[:20]:
+            lines.append(
+                f"| {res.get('catalyst_name', '?')} | {res.get('reactor_type', '?')} | "
+                f"{res.get('T_K', '?')} | {_report_number(single_pass_x(res), '.2%')} | "
+                f"{_report_number(res.get('H2_selectivity'), '.2%')} | "
+                f"{res.get('reactor_evidence_tier', 'N/A')} |"
+            )
+        lines.append("")
     if len(real_reactor) != len(reactor):
         lines.append(
             f"Excluded {len(reactor) - len(real_reactor)} non-run reactor files "

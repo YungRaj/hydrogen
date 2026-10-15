@@ -44,3 +44,20 @@ def test_native_ntec_remains_non_validating_diagnostic():
     result = simulate_ntec_pathway(_config(native_ntec_parameters=params))
     assert result['status'] == 'validation_required'
     assert result['valid'] is False
+
+
+def test_native_ntec_kinetically_coupled_returns_complete():
+    from pipeline.reactors.scorecard import is_production_reactor_record
+
+    params = {
+        'shear_rate_s': 100.0, 'particle_diameter_m': 1e-4,
+        'number_density_m3': 1e12, 'effective_mass_kg': 1e-9,
+        'adhesion_energy_J_m2': 1.0, 'contact_area_m2': 1e-10,
+        'surface_rate_mol_m2_s': 1e-4, 'interface_area_m2': 0.1,
+        'ch4_feed_mol_s': 1e-3, 'mechanical_power_W': 20.0,
+    }
+    result = simulate_ntec_pathway(_config(native_ntec_parameters=params))
+    assert result['status'] == 'complete'
+    assert result['valid'] is True
+    assert abs(result['CH4_conversion'] - 0.01) < 1e-12
+    assert is_production_reactor_record(result) is True

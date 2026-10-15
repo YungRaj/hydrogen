@@ -57,7 +57,8 @@ def is_production_reactor_record(record: dict) -> bool:
     """
     return (
         isinstance(record, dict)
-        and record.get('reactor_type') in {'PFR', 'Fluidized', 'MMBCR'}
+        and record.get('reactor_type')
+        in {'PFR', 'Fluidized', 'MMBCR', 'NTEC', 'Electrochemical'}
         and bool(record.get('catalyst_name'))
         and record.get('status', 'complete') == 'complete'
         and 'CH4_conversion' in record
