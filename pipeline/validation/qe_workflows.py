@@ -1686,6 +1686,8 @@ def run_pw(
     command = build_qe_command(pw, input_path, config)
     environment = os.environ.copy()
     environment['OMP_NUM_THREADS'] = str(config.omp_threads)
+    environment['OPENBLAS_NUM_THREADS'] = str(config.omp_threads)
+    environment['MKL_NUM_THREADS'] = str(config.omp_threads)
     started = time.monotonic()
     timed_out, returncode = False, -1
     with open(output_path, 'w') as sink:

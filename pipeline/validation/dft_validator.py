@@ -496,19 +496,8 @@ def validate_catalyst(
                 for i in (active_idx or [])
                 if 0 <= i < len(structure) and structure[i].symbol != 'X'
             ]
-            seen_unique = list(dict.fromkeys(active_elems + raw_elems))
-            site_elems = (seen_unique + raw_elems)[:4]
-            while len(site_elems) < 4:
-                site_elems.append(site_elems[0] if site_elems else 'Ni')
-            celldm = _FCC_EQUIVALENT_LATTICE_BOHR.get(site_elems[0], 7.0)
-            input_text = generate_bulk_scf_input(
-                site_elems,
-                list(_FCC_CONVENTIONAL_SITES),
-                celldm,
-                ibrav=1,
-                calc_name=catalyst_name,
-                ecutwfc=50.0,
-                kpoints=(4, 4, 4),
+            input_text = _generate_motif_scf_input(
+                active_elems + raw_elems, catalyst_name
             )
         except Exception as e:
             logger.warning(f"Structure generation failed for {mat_class}: {e}")
@@ -651,6 +640,24 @@ _FCC_CONVENTIONAL_SITES = (
 )
 
 
+def _generate_motif_scf_input(elements: List[str], name: str) -> str:
+    """Build a 4-site conventional cell SCF input from ordered motif elements."""
+    seen_unique = list(dict.fromkeys(elements))
+    site_elems = (seen_unique + elements)[:4]
+    while len(site_elems) < 4:
+        site_elems.append(site_elems[0] if site_elems else 'Ni')
+    celldm = _FCC_EQUIVALENT_LATTICE_BOHR.get(site_elems[0], 7.0)
+    return generate_bulk_scf_input(
+        site_elems,
+        list(_FCC_CONVENTIONAL_SITES),
+        celldm,
+        ibrav=1,
+        calc_name=name,
+        ecutwfc=50.0,
+        kpoints=(2, 2, 2),
+    )
+
+
 def _generate_alloy_input(genome: tuple, name: str) -> str:
     """Generate QE input for an alloy bulk structure (4-site fcc cube)."""
     mat_class = genome[0]
@@ -675,7 +682,7 @@ def _generate_alloy_input(genome: tuple, name: str) -> str:
         ibrav=1,
         calc_name=name,
         ecutwfc=50.0,
-        kpoints=(6, 6, 6),
+        kpoints=(2, 2, 2),
     )
 
 
@@ -694,23 +701,8 @@ def _generate_cluster_input(genome: tuple, name: str) -> str:
         metal, coord = 'Ni', 'N4'
 
     cluster = generate_porphyrin_cluster(metal, coord)
-
     raw_elems = [atom.symbol for atom in cluster if atom.symbol != 'X']
-    seen_unique = list(dict.fromkeys([metal] + raw_elems))
-    site_elems = (seen_unique + raw_elems)[:4]
-    while len(site_elems) < 4:
-        site_elems.append(metal)
-    celldm = _FCC_EQUIVALENT_LATTICE_BOHR.get(metal, 7.0)
-
-    return generate_bulk_scf_input(
-        site_elems,
-        list(_FCC_CONVENTIONAL_SITES),
-        celldm,
-        ibrav=1,
-        calc_name=name,
-        ecutwfc=50.0,
-        kpoints=(4, 4, 4),
-    )
+    return _generate_motif_scf_input([metal] + raw_elems, name)
 
 
 if __name__ == '__main__':
