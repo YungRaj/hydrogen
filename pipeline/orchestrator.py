@@ -358,8 +358,14 @@ if __name__ == '__main__':
     parser.add_argument('--start', type=int, default=1, help='Start phase')
     parser.add_argument('--end', type=int, default=6, help='End phase')
     parser.add_argument('--quick', action='store_true', help='Quick mode (reduced parameters)')
-    parser.add_argument('--no-dft', action='store_true', help='Skip DFT execution')
-    parser.add_argument('--no-vqe', action='store_true', help='Skip VQE execution')
+    parser.add_argument('--no-dft', dest='no_dft', action='store_true', default=True,
+                        help='Skip DFT execution (default: True)')
+    parser.add_argument('--run-dft', dest='no_dft', action='store_false',
+                        help='Opt in to Phase 3 Quantum ESPRESSO DFT execution')
+    parser.add_argument('--no-vqe', dest='no_vqe', action='store_true', default=True,
+                        help='Skip VQE execution (default: True)')
+    parser.add_argument('--run-vqe', dest='no_vqe', action='store_false',
+                        help='Opt in to Phase 4 CUDA-Q VQE execution')
     parser.add_argument('--mode', choices=MODE_CHOICES, default=DEFAULT_MODE,
                         help=f'Methane-conversion pathway (default: {DEFAULT_MODE})')
     parser.add_argument('--multiphysics-results-dir', default=None)

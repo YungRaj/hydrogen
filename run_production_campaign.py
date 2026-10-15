@@ -86,8 +86,14 @@ def _build_parser() -> argparse.ArgumentParser:
                         help='Max wall-clock hours. 0 = unlimited (default: 0)')
     parser.add_argument('--top-k', type=int, default=200,
                         help='Top-K for reactor simulation (default: 200)')
-    parser.add_argument('--no-dft', action='store_true')
-    parser.add_argument('--no-vqe', action='store_true')
+    parser.add_argument('--no-dft', dest='no_dft', action='store_true', default=True,
+                        help='Skip Phase 3 DFT validation (default: True)')
+    parser.add_argument('--run-dft', dest='no_dft', action='store_false',
+                        help='Opt in to Phase 3 Quantum ESPRESSO DFT validation')
+    parser.add_argument('--no-vqe', dest='no_vqe', action='store_true', default=True,
+                        help='Skip Phase 4 CUDA-Q VQE refinement (default: True)')
+    parser.add_argument('--run-vqe', dest='no_vqe', action='store_false',
+                        help='Opt in to Phase 4 CUDA-Q VQE transition-state refinement')
     parser.add_argument('--mode', choices=MODE_CHOICES, default=DEFAULT_MODE,
                         help=f'Methane-conversion pathway (default: {DEFAULT_MODE})')
     parser.add_argument('--ntec-conditions-json', default='',
@@ -188,13 +194,14 @@ def _validate_resources(parser: argparse.ArgumentParser, args: argparse.Namespac
         parser.error(
             f'--validation-batch must be at least {required_validation} to reserve '
             f'{args.min_validation_per_class} candidate(s) across all 14 classes')
-    requested_qe_cpus = (args.qe_mpi_ranks * args.qe_omp_threads *
-                         args.qe_max_concurrent)
-    available_cpus = os.cpu_count() or 1
-    if requested_qe_cpus > available_cpus:
-        parser.error(
-            f'QE allocation requests {requested_qe_cpus} CPUs, '
-            f'but only {available_cpus} are visible')
+    if not args.no_dft:
+        requested_qe_cpus = (args.qe_mpi_ranks * args.qe_omp_threads *
+                             args.qe_max_concurrent)
+        available_cpus = os.cpu_count() or 1
+        if requested_qe_cpus > available_cpus:
+            parser.error(
+                f'QE allocation requests {requested_qe_cpus} CPUs, '
+                f'but only {available_cpus} are visible')
 
 
 def _configure_environment(args: argparse.Namespace):
@@ -780,8 +787,14 @@ def _run_vqe(name: str, results_dir: Path, hamiltonian: Path) -> dict:
         f"{name!r}, 'CH_split', target='nvidia', "
         f"candidate_hamiltonian={str(hamiltonian)!r}); print(json.dumps(r))"
     )
+    prefix_py = Path('/opt/envs/quantum-env/bin/python')
+    cmd = (
+        [str(prefix_py), '-c', code]
+        if prefix_py.is_file()
+        else ['conda', 'run', '-n', 'quantum-env', 'python', '-c', code]
+    )
     proc = subprocess.run(
-        ['conda', 'run', '-n', 'quantum-env', 'python', '-c', code],
+        cmd,
         cwd=str(REPO_DIR), capture_output=True, text=True)
     if proc.returncode != 0:
         raise RuntimeError(f"CUDA-Q failed for {name}: {proc.stderr[-1000:]}")
@@ -1018,11 +1031,17 @@ def main():
     if time.time() < t_deadline and not args.no_dft:
         _run_phase3_dft(args, pipeline_state, dft_candidates, results_dir)
     elif args.no_dft:
-        pipeline_state['phase3'] = {'skipped': True, 'reason': '--no-dft flag'}
+        pipeline_state['phase3'] = {
+            'skipped': True,
+            'reason': 'disabled by default (pass --run-dft to enable)',
+        }
     if time.time() < t_deadline and not args.no_vqe:
         _run_phase4_vqe(pipeline_state, top_catalysts, results_dir)
     elif args.no_vqe:
-        pipeline_state['phase4'] = {'skipped': True, 'reason': '--no-vqe flag'}
+        pipeline_state['phase4'] = {
+            'skipped': True,
+            'reason': 'disabled by default (pass --run-vqe to enable)',
+        }
     if time.time() < t_deadline:
         _run_phase5_fuel_cell(args, pipeline_state, t_deadline, results_dir)
     _run_phase6_report(pipeline_state, t_start)
