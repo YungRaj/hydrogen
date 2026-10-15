@@ -489,20 +489,26 @@ def validate_catalyst(
         from pipeline.screening.surface_screener import generate_structure
 
         try:
-            structure, _, _ = generate_structure(genome)
-            elements = [a.symbol for a in structure if a.symbol != 'X']
-            positions = [tuple(a.position) for a in structure if a.symbol != 'X']
-            cell_size = 15.0
-            cell_params = [[cell_size, 0, 0], [0, cell_size, 0], [0, 0, cell_size]]
-            from pipeline.validation.dft_fuel_cell import generate_slab_scf_input
-
-            input_text = generate_slab_scf_input(
-                elements,
-                positions,
-                cell_params,
+            structure, active_idx, _ = generate_structure(genome)
+            raw_elems = [a.symbol for a in structure if a.symbol != 'X']
+            active_elems = [
+                structure[i].symbol
+                for i in (active_idx or [])
+                if 0 <= i < len(structure) and structure[i].symbol != 'X'
+            ]
+            seen_unique = list(dict.fromkeys(active_elems + raw_elems))
+            site_elems = (seen_unique + raw_elems)[:4]
+            while len(site_elems) < 4:
+                site_elems.append(site_elems[0] if site_elems else 'Ni')
+            celldm = _FCC_EQUIVALENT_LATTICE_BOHR.get(site_elems[0], 7.0)
+            input_text = generate_bulk_scf_input(
+                site_elems,
+                list(_FCC_CONVENTIONAL_SITES),
+                celldm,
+                ibrav=1,
                 calc_name=catalyst_name,
-                ecutwfc=40.0,
-                kpoints=(1, 1, 1),
+                ecutwfc=50.0,
+                kpoints=(4, 4, 4),
             )
         except Exception as e:
             logger.warning(f"Structure generation failed for {mat_class}: {e}")
@@ -689,23 +695,21 @@ def _generate_cluster_input(genome: tuple, name: str) -> str:
 
     cluster = generate_porphyrin_cluster(metal, coord)
 
-    elements = [atom.symbol for atom in cluster if atom.symbol != 'X']
-    positions = [tuple(atom.position) for atom in cluster if atom.symbol != 'X']
+    raw_elems = [atom.symbol for atom in cluster if atom.symbol != 'X']
+    seen_unique = list(dict.fromkeys([metal] + raw_elems))
+    site_elems = (seen_unique + raw_elems)[:4]
+    while len(site_elems) < 4:
+        site_elems.append(metal)
+    celldm = _FCC_EQUIVALENT_LATTICE_BOHR.get(metal, 7.0)
 
-    cell_size = 15.0
-    cell_params = [
-        [cell_size, 0.0, 0.0],
-        [0.0, cell_size, 0.0],
-        [0.0, 0.0, cell_size],
-    ]
-
-    return generate_slab_scf_input(
-        elements,
-        positions,
-        cell_params,
+    return generate_bulk_scf_input(
+        site_elems,
+        list(_FCC_CONVENTIONAL_SITES),
+        celldm,
+        ibrav=1,
         calc_name=name,
-        ecutwfc=40.0,
-        kpoints=(1, 1, 1),
+        ecutwfc=50.0,
+        kpoints=(4, 4, 4),
     )
 
 
