@@ -564,32 +564,50 @@ def _calibrate_ranker_from_dft(
         return {'n_validation_samples': 0}
     try:
         import pandas as pd
-        from pipeline.screening.small_data_ranker import TreeRanker
+        from pipeline.screening.small_data_ranker import fit_tree_ranker
+        from pipeline.search.adaptive_validation import record_validation
+        from pipeline.search.discovery import candidate_id
         from pipeline.utils import save_json
 
         ev_path = results_dir / 'screening' / 'branch_ranker_evidence.csv'
+        scan_db = results_dir / 'screening' / 'indexed_scan.sqlite'
         if not ev_path.is_file():
             return {'n_validation_samples': 0}
-        ranker = TreeRanker('E_act', application='turquoise_hydrogen')
-        ranker.fit(pd.read_csv(ev_path))
+        ranker = fit_tree_ranker(pd.read_csv(ev_path), 'turquoise_hydrogen')
         by_cid = (
             {str(r['candidate_id']): r for _, r in dft_candidates.iterrows()}
             if 'candidate_id' in dft_candidates.columns
             else {}
         )
-        val_rows = []
+        recorded = 0
         for r in converged_dft:
-            src = by_cid.get(str(r.get('candidate_id', '')), {})
+            raw_genome = r.get('genome')
+            genome = (
+                ast.literal_eval(raw_genome)
+                if isinstance(raw_genome, str)
+                else tuple(raw_genome)
+            )
+            cid = str(r.get('candidate_id') or candidate_id(genome))
+            src = by_cid.get(cid, {})
             force = float(r.get('max_force_Ry_bohr') or 0.0)
-            base_e = float(src.get('E_act', 1.0)) if src is not None else 1.0
-            dft_e_act = max(0.05, base_e + 0.10 * force)
-            val_rows.append({
-                'genome': r.get('genome'),
-                'material_class': r.get('material_class'),
-                'E_act': float(r.get('E_act_dft', dft_e_act)),
-                'converged': True,
-            })
-        calibration = ranker.apply_validation_calibration(pd.DataFrame(val_rows))
+            base_e = float(src.get('E_act', 1.0)) if hasattr(src, 'get') else 1.0
+            dft_e_act = float(r.get('E_act_dft', max(0.05, base_e + 0.10 * force)))
+            record_validation(
+                str(scan_db),
+                'turquoise_hydrogen',
+                genome,
+                base_e,
+                dft_e_act,
+                'screening_dft',
+                dft_e_act <= 1.0,
+                {'source_id': f'screening_dft:{cid}'},
+            )
+            recorded += 1
+        class_bias = ranker.apply_validation_calibration(str(scan_db))
+        calibration = {
+            'n_validation_samples': recorded,
+            'class_bias_eV': class_bias,
+        }
         save_json(calibration, 'active_learning_calibration.json', subdir='dft')
         return calibration
     except Exception as exc:
@@ -610,7 +628,7 @@ def _run_phase3_dft(args, pipeline_state: dict, dft_candidates, results_dir: Pat
         represented_classes = (
             dft_candidates['material_class'].nunique()
             if 'material_class' in dft_candidates else 0)
-        n_dft = min(max(10, represented_classes), len(dft_candidates))
+        n_dft = min(max(14, represented_classes), len(dft_candidates))
         dft_tasks = []
         protocol_id = (
             f'screening-dft-v2:sssp-1.3.0:physical-realization-v2:'
