@@ -187,9 +187,19 @@ class TreeRanker:
     secondary_models: dict[str, object] = field(default_factory=dict)
     secondary_class_bias: dict[str, dict[str, float]] = field(default_factory=dict)
     secondary_diagnostics: dict[str, RankerDiagnostics] = field(default_factory=dict)
+    region_bias: dict[str, float] = field(default_factory=dict)
 
     def _primary(self, raw) -> np.ndarray:
         return _primary_target(raw, self.application)
+
+    def _genome_bias(self, genome: tuple) -> float:
+        if self.region_bias:
+            from pipeline.search.discovery import discovery_region
+
+            region_key = "|".join(discovery_region(genome))
+            if region_key in self.region_bias:
+                return float(self.region_bias[region_key])
+        return float(self.class_bias.get(str(genome[0]), 0.0))
 
     def predict(
         self, genomes, *, uncertainty: bool = True
@@ -221,9 +231,11 @@ class TreeRanker:
         else:
             variance = np.maximum(0.0, total_sq / count - mean * mean)
             uncertainty_values = np.sqrt(variance)
-        mean += CLASS_BIAS_WEIGHT * np.asarray(
-            [self.class_bias.get(str(genome[0]), 0.0) for genome in genomes]
-        )
+        if self.region_bias:
+            offsets = [self._genome_bias(genome) for genome in genomes]
+        else:
+            offsets = [self.class_bias.get(str(genome[0]), 0.0) for genome in genomes]
+        mean += CLASS_BIAS_WEIGHT * np.asarray(offsets, dtype=float)
         # Class calibration shifts every tree equally and therefore cannot
         # change ensemble variance. Streaming moments avoid a batch-by-tree
         # allocation in every shard.
@@ -263,7 +275,7 @@ class TreeRanker:
         return scores, (stds if uncertainty else np.zeros_like(stds))
 
     def apply_validation_calibration(self, database: str) -> dict[str, float]:
-        """Update class bias offsets using persisted high-fidelity validation residuals.
+        """Update class and regional bias offsets using validation residuals.
 
         Args:
             database: SQLite validation database path containing observations.
@@ -272,7 +284,10 @@ class TreeRanker:
             Updated mapping of material class to calibrated residual bias.
         """
         from pathlib import Path
-        from pipeline.search.adaptive_validation import class_calibration
+        from pipeline.search.adaptive_validation import (
+            class_calibration,
+            regional_calibration,
+        )
 
         if not database or not Path(database).exists():
             return dict(self.class_bias)
@@ -286,6 +301,92 @@ class TreeRanker:
                 self.class_bias[str(material_class)] = float(
                     current + weight * bias
                 )
+        regions = regional_calibration(str(database), self.application)
+        for region, stats in regions.items():
+            n = int(stats.get("n", 0))
+            bias = float(stats.get("bias", 0.0))
+            if n > 0 and np.isfinite(bias):
+                material_class = str(region).split("|", 1)[0]
+                base = self.class_bias.get(material_class, 0.0)
+                weight = n / (n + CLASS_BIAS_PRIOR_ROWS)
+                self.region_bias[str(region)] = float(base + weight * bias)
+        return dict(self.class_bias)
+
+    def apply_calibration_artifact(
+        self, calibration_path: str | None, *, database: str | None = None
+    ) -> dict[str, float]:
+        """Apply persisted DFT active-learning calibration from JSON.
+
+        When ``database`` is provided and the artifact includes raw
+        ``observations``, they are replayed into ``validation_observations``
+        before applying empirical-Bayes calibration; otherwise explicit
+        ``class_bias_delta_eV`` / ``class_bias_eV`` offsets are merged.
+        """
+        import json
+        from pathlib import Path
+        from pipeline.search.adaptive_validation import (
+            class_calibration,
+            seed_validation_from_artifact,
+        )
+
+        if not calibration_path or not Path(calibration_path).is_file():
+            if database:
+                return self.apply_validation_calibration(str(database))
+            return dict(self.class_bias)
+        path = Path(calibration_path)
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            if database:
+                return self.apply_validation_calibration(str(database))
+            return dict(self.class_bias)
+        if not isinstance(payload, dict):
+            if database:
+                return self.apply_validation_calibration(str(database))
+            return dict(self.class_bias)
+        if database:
+            seed_validation_from_artifact(str(database), self.application, path)
+            self.apply_validation_calibration(str(database))
+            calibrated_classes = set(
+                class_calibration(str(database), self.application)
+            )
+        else:
+            calibrated_classes = set()
+        delta_map = payload.get("class_bias_delta_eV")
+        if isinstance(delta_map, dict):
+            for material_class, delta in delta_map.items():
+                if str(material_class) in calibrated_classes:
+                    continue
+                try:
+                    val = float(delta)
+                except (TypeError, ValueError):
+                    continue
+                if np.isfinite(val):
+                    current = self.class_bias.get(str(material_class), 0.0)
+                    self.class_bias[str(material_class)] = float(current + val)
+                    calibrated_classes.add(str(material_class))
+        bias_map = payload.get("class_bias_eV")
+        if isinstance(bias_map, dict):
+            for material_class, target_bias in bias_map.items():
+                if str(material_class) in calibrated_classes:
+                    continue
+                try:
+                    val = float(target_bias)
+                except (TypeError, ValueError):
+                    continue
+                if np.isfinite(val):
+                    self.class_bias[str(material_class)] = val
+        region_map = payload.get("region_bias_eV")
+        if isinstance(region_map, dict):
+            for region, target_bias in region_map.items():
+                if str(region) in self.region_bias:
+                    continue
+                try:
+                    val = float(target_bias)
+                except (TypeError, ValueError):
+                    continue
+                if np.isfinite(val):
+                    self.region_bias[str(region)] = val
         return dict(self.class_bias)
 
 
@@ -420,6 +521,7 @@ def fit_tree_ranker(
     random_state: int = 20260721,
     *,
     validation_database: str | None = None,
+    calibration_artifact: str | None = None,
 ) -> TreeRanker:
     """Fit the application-specific form validated by prospective pilots.
 
@@ -428,6 +530,7 @@ def fit_tree_ranker(
         application: Scientific objective, such as pyrolysis or ORR.
         random_state: Random state used by this operation.
         validation_database: Optional SQLite validation database for residual feedback.
+        calibration_artifact: Optional JSON path with persisted DFT calibration.
 
     Returns:
         Computed `TreeRanker` result.
@@ -564,7 +667,11 @@ def fit_tree_ranker(
         secondary_class_bias=sec_biases,
         secondary_diagnostics=sec_diagnostics,
     )
-    if validation_database is not None:
+    if calibration_artifact is not None:
+        ranker.apply_calibration_artifact(
+            calibration_artifact, database=validation_database
+        )
+    elif validation_database is not None:
         ranker.apply_validation_calibration(validation_database)
     return ranker
 

@@ -64,6 +64,7 @@ def _branch_config_kwargs(
         'refresh_pending_priorities': args.branch_priority_refresh,
         'scan_workers': args.scan_workers,
         'workers_per_gpu': args.workers_per_gpu,
+        'calibration_artifact': getattr(args, 'calibration_json', None),
     }
 
 
@@ -121,6 +122,9 @@ def _build_parser() -> argparse.ArgumentParser:
                         help='Prior-art SQLite database (default: <results-dir>/prior_art.sqlite)')
     parser.add_argument('--prior-art-csv', action='append', default=[],
                         help='CSV registry to import; repeat for multiple sources')
+    parser.add_argument('--calibration-json', default=None,
+                        help=('Active-learning DFT calibration JSON '
+                              '(default: <results-dir>/dft/active_learning_calibration.json)'))
     parser.add_argument('--final-campaign', action='store_true',
                         help='Fail closed unless coverage and prior-art readiness requirements pass')
     parser.add_argument('--evidence-manifest', default=None,
@@ -150,6 +154,14 @@ def _resolve_paths(args: argparse.Namespace) -> Path:
     args.mechanisms_dir = str(mechanisms_dir)
     if args.prior_art_db is None:
         args.prior_art_db = str(results_dir / 'prior_art.sqlite')
+    if getattr(args, 'calibration_json', None) is None:
+        args.calibration_json = str(
+            results_dir / 'dft' / 'active_learning_calibration.json'
+        )
+    else:
+        args.calibration_json = str(
+            Path(args.calibration_json).expanduser().resolve()
+        )
     if args.evidence_manifest is None:
         args.evidence_manifest = str(results_dir / 'evidence_manifest.json')
     if args.kinetics_validation_dir is None:
@@ -566,7 +578,7 @@ def _calibrate_ranker_from_dft(
         import pandas as pd
         from pipeline.screening.small_data_ranker import fit_tree_ranker
         from pipeline.search.adaptive_validation import record_validation
-        from pipeline.search.discovery import candidate_id
+        from pipeline.search.discovery import candidate_id, discovery_region
         from pipeline.utils import save_json
 
         ev_path = results_dir / 'screening' / 'branch_ranker_evidence.csv'
@@ -574,6 +586,7 @@ def _calibrate_ranker_from_dft(
         if not ev_path.is_file():
             return {'n_validation_samples': 0}
         ranker = fit_tree_ranker(pd.read_csv(ev_path), 'turquoise_hydrogen')
+        baseline_bias = dict(ranker.class_bias)
         by_cid = {}
         for _, row in dft_candidates.iterrows():
             try:
@@ -586,6 +599,7 @@ def _calibrate_ranker_from_dft(
             except Exception:
                 pass
         recorded = 0
+        observations = []
         for r in converged_dft:
             raw_genome = r.get('genome')
             genome = (
@@ -605,6 +619,7 @@ def _calibrate_ranker_from_dft(
                 if pd.notna(raw_dft)
                 else max(0.05, base_e + 0.10 * force)
             )
+            provenance = {'source_id': f'screening_dft:{cid}'}
             record_validation(
                 str(scan_db),
                 'turquoise_hydrogen',
@@ -613,13 +628,32 @@ def _calibrate_ranker_from_dft(
                 dft_e_act,
                 'screening_dft',
                 dft_e_act <= 1.0,
-                {'source_id': f'screening_dft:{cid}'},
+                provenance,
             )
+            observations.append({
+                'application': 'turquoise_hydrogen',
+                'candidate_id': cid,
+                'material_class': str(genome[0]),
+                'region': '|'.join(discovery_region(genome)),
+                'genome': repr(genome),
+                'predicted_eV': base_e,
+                'observed_eV': dft_e_act,
+                'fidelity': 'screening_dft',
+                'productive': bool(dft_e_act <= 1.0),
+                'provenance': provenance,
+            })
             recorded += 1
         class_bias = ranker.apply_validation_calibration(str(scan_db))
+        class_delta = {
+            cls: float(val - baseline_bias.get(cls, 0.0))
+            for cls, val in class_bias.items()
+        }
         calibration = {
             'n_validation_samples': recorded,
             'class_bias_eV': class_bias,
+            'class_bias_delta_eV': class_delta,
+            'region_bias_eV': dict(ranker.region_bias),
+            'observations': observations,
         }
         save_json(calibration, 'active_learning_calibration.json', subdir='dft')
         return calibration

@@ -303,23 +303,34 @@ def record_validation(
         )
 
 
-def regional_calibration(database: str, application: str) -> dict:
+def regional_calibration(
+    database: str, application: str, *, fidelity: str | None = None
+) -> dict:
     """Return MAE, bias, disagreement, and productivity for each chemistry region.
 
     Args:
         database: Database used by this operation.
         application: Scientific objective, such as pyrolysis or ORR.
+        fidelity: Optional validation fidelity tier to filter on.
 
     Returns:
         Dictionary containing the computed values, status, and supporting metadata.
     """
     with _connect(database) as conn:
-        rows = conn.execute(
-            """SELECT region, COUNT(*), AVG(absolute_error),
-            AVG(observed-predicted), AVG(productive), MIN(observed) FROM validation_observations
-            WHERE application=? GROUP BY region""",
-            (application,),
-        ).fetchall()
+        if fidelity is None:
+            rows = conn.execute(
+                """SELECT region, COUNT(*), AVG(absolute_error),
+                AVG(observed-predicted), AVG(productive), MIN(observed) FROM validation_observations
+                WHERE application=? GROUP BY region""",
+                (application,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """SELECT region, COUNT(*), AVG(absolute_error),
+                AVG(observed-predicted), AVG(productive), MIN(observed) FROM validation_observations
+                WHERE application=? AND fidelity=? GROUP BY region""",
+                (application, fidelity),
+            ).fetchall()
     return {
         region: {
             'n': int(n),
@@ -332,23 +343,34 @@ def regional_calibration(database: str, application: str) -> dict:
     }
 
 
-def class_calibration(database: str, application: str) -> dict:
+def class_calibration(
+    database: str, application: str, *, fidelity: str | None = None
+) -> dict:
     """Aggregate calibration when an exact chemistry region is still unseen.
 
     Args:
         database: Database used by this operation.
         application: Scientific objective, such as pyrolysis or ORR.
+        fidelity: Optional validation fidelity tier to filter on.
 
     Returns:
         Dictionary containing the computed values, status, and supporting metadata.
     """
     with _connect(database) as conn:
-        rows = conn.execute(
-            """SELECT material_class, COUNT(*), AVG(absolute_error),
-            AVG(observed-predicted), AVG(productive), MIN(observed) FROM validation_observations
-            WHERE application=? GROUP BY material_class""",
-            (application,),
-        ).fetchall()
+        if fidelity is None:
+            rows = conn.execute(
+                """SELECT material_class, COUNT(*), AVG(absolute_error),
+                AVG(observed-predicted), AVG(productive), MIN(observed) FROM validation_observations
+                WHERE application=? GROUP BY material_class""",
+                (application,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """SELECT material_class, COUNT(*), AVG(absolute_error),
+                AVG(observed-predicted), AVG(productive), MIN(observed) FROM validation_observations
+                WHERE application=? AND fidelity=? GROUP BY material_class""",
+                (application, fidelity),
+            ).fetchall()
     return {
         material_class: {
             'n': int(n),
@@ -359,6 +381,65 @@ def class_calibration(database: str, application: str) -> dict:
         }
         for material_class, n, mae, bias, productivity, best in rows
     }
+
+
+def seed_validation_from_artifact(
+    database: str, application: str, calibration_path: str | Path
+) -> int:
+    """Replay persisted DFT/active-learning observations into ``database``.
+
+    Args:
+        database: Target SQLite database path.
+        application: Scientific objective namespace.
+        calibration_path: Path to ``active_learning_calibration.json``.
+
+    Returns:
+        Number of observations written to ``validation_observations``.
+    """
+    path = Path(calibration_path)
+    if not database or not path.is_file():
+        return 0
+    try:
+        payload = json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, json.JSONDecodeError):
+        return 0
+    observations = payload.get('observations')
+    if not isinstance(observations, list):
+        return 0
+    recorded = 0
+    for item in observations:
+        if not isinstance(item, Mapping):
+            continue
+        item_app = str(item.get('application') or application)
+        if item_app != application:
+            continue
+        raw_genome = item.get('genome')
+        try:
+            genome = (
+                ast.literal_eval(raw_genome)
+                if isinstance(raw_genome, str)
+                else tuple(raw_genome)
+            )
+            predicted = float(item.get('predicted_eV', item.get('predicted')))
+            observed = float(item.get('observed_eV', item.get('observed')))
+            fidelity = str(item.get('fidelity') or 'screening_dft')
+            productive = bool(item.get('productive', observed <= 1.0))
+            cid = str(item.get('candidate_id') or candidate_id(genome))
+            provenance = item.get('provenance') or {'source_id': f'{fidelity}:{cid}'}
+            record_validation(
+                database,
+                application,
+                genome,
+                predicted,
+                observed,
+                fidelity,
+                productive,
+                provenance,
+            )
+            recorded += 1
+        except (ValueError, TypeError, SyntaxError):
+            continue
+    return recorded
 
 
 def _calibration_for(genome: tuple, regional: dict, by_class: dict) -> dict:

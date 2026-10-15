@@ -21,7 +21,7 @@ from pipeline.screening.branch_discovery import (
     PilotBudget,
     run_guided_branch_discovery,
 )
-from pipeline.utils import SCREENING_DIR, setup_logger
+from pipeline.utils import DFT_DIR, SCREENING_DIR, setup_logger
 
 logger = setup_logger('genetic_optimizer', 'screening/genetic_optimizer.log')
 ADVANCEMENT_BARRIER_EV = 0.8
@@ -32,6 +32,9 @@ class BranchDiscoveryConfig(_BranchDiscoveryConfig):
     """Configure turquoise-hydrogen catalyst-guided branch discovery."""
 
     exhaustive_db: str = str(SCREENING_DIR / 'indexed_scan.sqlite')
+    calibration_artifact: Optional[str] = str(
+        DFT_DIR / 'active_learning_calibration.json'
+    )
 
 
 def run_branch_discovery(

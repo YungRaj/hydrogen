@@ -1698,6 +1698,34 @@ def test_branch_finite_budget_preserves_class_floor():
         assert result['scheduling_decisions']['class_floor'] > 0
 
 
+def test_branch_subclass_floor_splits_smaller_classes():
+    import tempfile
+    from pathlib import Path
+    from pipeline.search.branch_search import BranchConfig, run_branch_and_bound
+
+    def scorer(genomes):
+        return np.zeros((len(genomes), 4))
+
+    with tempfile.TemporaryDirectory() as tmp:
+        result = run_branch_and_bound(
+            BranchConfig(
+                application='subclass_floor_test',
+                database=str(Path(tmp) / 'branch.sqlite'),
+                leaf_size=1_000_000,
+                scan_batch_size=512,
+                max_leaves=4,
+                material_classes=('MetalFreeCarbon', 'SAA'),
+                min_resolved_leaves_per_class=2,
+            ),
+            scorer,
+        )
+        resolved = result['resolved_terminal_nodes_by_class']
+        assert resolved['MetalFreeCarbon'] == 2
+        assert resolved['SAA'] == 2
+        cert = result['coverage_certificate']
+        assert cert['gap_free'] and cert['overlap_free'] and cert['complete']
+
+
 def test_branch_certificate_detects_incomplete_and_gaps():
     import sqlite3
     import tempfile

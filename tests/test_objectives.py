@@ -319,6 +319,55 @@ class TestMultiObjectiveUncertaintyAndPareto(unittest.TestCase):
             cal_pred, _ = calibrated_ranker.predict([turq_genomes[0]])
             self.assertGreater(float(cal_pred[0]), float(base_pred[0]))
 
+    def test_calibration_artifact_seeds_db_and_calibrates_ranker(self):
+        from pipeline.search.adaptive_validation import class_calibration
+        from pipeline.search.discovery import candidate_id, discovery_region
+
+        turq_genomes, turq_df = self._make_turquoise_frame(24)
+        baseline_ranker = fit_tree_ranker(turq_df, "turquoise_hydrogen")
+        base_pred, _ = baseline_ranker.predict([turq_genomes[0]])
+
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = str(Path(tmp) / "round2.sqlite")
+            artifact_path = Path(tmp) / "active_learning_calibration.json"
+            observations = [
+                {
+                    "application": "turquoise_hydrogen",
+                    "candidate_id": candidate_id(turq_genomes[idx]),
+                    "material_class": str(turq_genomes[idx][0]),
+                    "region": "|".join(discovery_region(turq_genomes[idx])),
+                    "genome": repr(turq_genomes[idx]),
+                    "predicted_eV": 0.75,
+                    "observed_eV": 1.25,
+                    "fidelity": "screening_dft",
+                    "productive": False,
+                }
+                for idx in range(4)
+            ]
+            artifact_path.write_text(
+                json.dumps(
+                    {
+                        "n_validation_samples": len(observations),
+                        "class_bias_eV": {},
+                        "observations": observations,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            calibrated_ranker = fit_tree_ranker(
+                turq_df,
+                "turquoise_hydrogen",
+                validation_database=db_path,
+                calibration_artifact=str(artifact_path),
+            )
+            cal_pred, _ = calibrated_ranker.predict([turq_genomes[0]])
+            self.assertGreater(float(cal_pred[0]), float(base_pred[0]))
+            self.assertTrue(calibrated_ranker.region_bias)
+            seeded_classes = class_calibration(
+                db_path, "turquoise_hydrogen", fidelity="screening_dft"
+            )
+            self.assertIn(str(turq_genomes[0][0]), seeded_classes)
+
 
 if __name__ == "__main__":
     unittest.main()

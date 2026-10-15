@@ -78,6 +78,29 @@ def _node_id(application: str, start: int, stop: int) -> str:
     return hashlib.sha1(f"{application}:{start}:{stop}".encode()).hexdigest()[:20]
 
 
+def _effective_leaf_size(config: BranchConfig, material_class: str) -> int:
+    """Return the maximum terminal leaf size for ``material_class``.
+
+    When ``min_resolved_leaves_per_class > 1``, cap the per-class leaf size
+    so binary bisection produces at least
+    ``min(CLASS_SIZES[material_class], min_resolved_leaves_per_class)``
+    terminal leaves even when a class has fewer candidates than
+    ``config.leaf_size``.
+    """
+    floor = config.min_resolved_leaves_per_class
+    if floor <= 1:
+        return config.leaf_size
+    class_size = CLASS_SIZES.get(material_class, config.leaf_size)
+    if class_size <= floor:
+        return 1
+    target_leaves = 1 << (floor - 1).bit_length()
+    if class_size < target_leaves:
+        class_cap = max(1, class_size // floor)
+    else:
+        class_cap = math.ceil(class_size / target_leaves)
+    return min(config.leaf_size, max(1, class_cap))
+
+
 def _open(path: str) -> sqlite3.Connection:
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path, timeout=60)
@@ -383,7 +406,7 @@ def run_branch_and_bound(
                 pruned += 1
                 continue
 
-        if size > config.leaf_size:
+        if size > _effective_leaf_size(config, cls):
             mid = start + size // 2
             _insert_node(conn, config, cls, start, mid, depth + 1, scorer, node_id)
             _insert_node(conn, config, cls, mid, stop, depth + 1, scorer, node_id)

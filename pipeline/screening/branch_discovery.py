@@ -81,6 +81,7 @@ class BranchDiscoveryConfig:
     refresh_pending_priorities: int = 10_000
     scan_workers: int = 8
     workers_per_gpu: int = 2
+    calibration_artifact: Optional[str] = None
     pilot_budget: PilotBudget | None = None
 
 
@@ -234,7 +235,10 @@ def run_guided_branch_discovery(
         evidence, workflow.calibration_db, subdir=workflow.database_subdir
     )
     model = fit_tree_ranker(
-        evidence, workflow.application, validation_database=config.exhaustive_db
+        evidence,
+        workflow.application,
+        validation_database=config.exhaustive_db,
+        calibration_artifact=config.calibration_artifact,
     )
     workflow.logger.info(
         '%s ranker diagnostics: %s; acquisition_mode=%s',
