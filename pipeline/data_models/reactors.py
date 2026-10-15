@@ -118,5 +118,9 @@ class SolidsScorecard(TypedDict):
     h_parked_excluded: list[SolidsMetricRow]
     mmbcr_max_conversion: float | None
     mmbcr_note: str
+    ntec_max_conversion: float | None
+    electrochemical_max_conversion: float | None
     n_solids_records: int
     n_mmbcr_records: int
+    n_ntec_records: int
+    n_electrochemical_records: int

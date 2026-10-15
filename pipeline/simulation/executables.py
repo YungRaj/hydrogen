@@ -58,6 +58,11 @@ def resolve_executable(
     if resolved:
         return resolved
 
+    if conda_env:
+        prefix_bin = Path('/opt/envs') / conda_env / 'bin' / name
+        if prefix_bin.is_file() and os.access(prefix_bin, os.X_OK):
+            return str(prefix_bin.absolute())
+
     conda = shutil.which('conda')
     if conda and conda_env:
         probe = subprocess.run(

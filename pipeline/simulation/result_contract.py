@@ -160,6 +160,15 @@ def verify_physical_outputs(
 
 
 def _conda_module_available(environment: str, module: str) -> bool:
+    prefix_py = Path('/opt/envs') / environment / 'bin' / 'python'
+    if prefix_py.is_file() and os.access(prefix_py, os.X_OK):
+        probe = subprocess.run(
+            [str(prefix_py), '-c', f'import {module}'],
+            capture_output=True,
+            timeout=30,
+        )
+        if probe.returncode == 0:
+            return True
     conda = shutil.which('conda')
     if not conda:
         return False

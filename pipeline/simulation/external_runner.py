@@ -107,6 +107,15 @@ def _cantera_version() -> str:
     if importlib.util.find_spec('cantera') is not None:
         import cantera
         return str(cantera.__version__)
+    for environment in ('fairchem-env', 'cp2k-env', 'moose-env'):
+        prefix_py = Path('/opt/envs') / environment / 'bin' / 'python'
+        if prefix_py.is_file() and os.access(prefix_py, os.X_OK):
+            probe = subprocess.run(
+                [str(prefix_py), '-c',
+                 'import cantera; print(cantera.__version__)'],
+                capture_output=True, text=True, timeout=30)
+            if probe.returncode == 0 and probe.stdout.strip():
+                return probe.stdout.strip().splitlines()[-1]
     conda = shutil.which('conda')
     if conda:
         for environment in ('cp2k-env', 'moose-env'):

@@ -192,6 +192,20 @@ def build_solids_scorecard(
         and r.get('reactor_type') == 'MMBCR'
         and is_usable_result(r)
     ]
+    ntec = [
+        r
+        for r in results
+        if is_production_reactor_record(r)
+        and r.get('reactor_type') == 'NTEC'
+        and is_usable_result(r)
+    ]
+    electrochemical = [
+        r
+        for r in results
+        if is_production_reactor_record(r)
+        and r.get('reactor_type') == 'Electrochemical'
+        and is_usable_result(r)
+    ]
     judge_src = (
         [r for r in solids_src if r.get('catalyst_name') == judge_catalyst]
         if judge_catalyst
@@ -237,6 +251,14 @@ def build_solids_scorecard(
         (float(r.get('CH4_conversion') or 0.0) for r in mmbcr),
         default=None,
     )
+    ntec_max = max(
+        (float(r.get('CH4_conversion') or 0.0) for r in ntec),
+        default=None,
+    )
+    electrochemical_max = max(
+        (float(r.get('CH4_conversion') or 0.0) for r in electrochemical),
+        default=None,
+    )
     judge_x = None
     if headline.get('PFR'):
         judge_x = headline['PFR']['single_pass_CH4_conversion']
@@ -270,8 +292,12 @@ def build_solids_scorecard(
         'h_parked_excluded': h_parked,
         'mmbcr_max_conversion': mmbcr_max,
         'mmbcr_note': 'X_eq by construction for large Da; not a catalyst rank (B5)',
+        'ntec_max_conversion': ntec_max,
+        'electrochemical_max_conversion': electrochemical_max,
         'n_solids_records': len(solids),
         'n_mmbcr_records': len(mmbcr),
+        'n_ntec_records': len(ntec),
+        'n_electrochemical_records': len(electrochemical),
     }
 
 
@@ -299,6 +325,12 @@ def log_solids_scorecard(scorecard: SolidsScorecard, logger) -> None:
     mmbcr = scorecard.get('mmbcr_max_conversion')
     if mmbcr is not None:
         logger.info(f"  MMBCR max X={mmbcr:.2%} ({scorecard.get('mmbcr_note')})")
+    ntec = scorecard.get('ntec_max_conversion')
+    if ntec is not None:
+        logger.info(f"  NTEC max X={ntec:.2%} (coupled MOOSE+Cantera screening)")
+    echem = scorecard.get('electrochemical_max_conversion')
+    if echem is not None:
+        logger.info(f"  Electrochemical max X={echem:.2%} (coupled MOOSE+Cantera screening)")
 
 
 def evaluate_b5_closure_gate(

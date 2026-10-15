@@ -125,9 +125,19 @@ def _executive_summary(p1: dict, p2: dict, p5: dict) -> list:
         lines.append("| Solids judge CH₄ conversion (PFR) | N/A |")
     mmbcr_x = _scorecard_value(p2, 'mmbcr_max_conversion', 'mmbcr_max_conversion')
     if isinstance(mmbcr_x, (int, float)):
-        lines.append(f"| MMBCR max CH₄ conversion | {mmbcr_x:.1%} (not a solids rank) |")
+        lines.append(f"| MMBCR max CH₄ conversion | {mmbcr_x:.2%} (not a solids rank) |")
     else:
         lines.append("| MMBCR max CH₄ conversion | N/A |")
+    ntec_x = _scorecard_value(p2, 'ntec_max_conversion', 'ntec_max_conversion')
+    if isinstance(ntec_x, (int, float)):
+        lines.append(f"| NTEC max CH₄ conversion (coupled MOOSE+Cantera) | {ntec_x:.2%} |")
+    echem_x = _scorecard_value(
+        p2, 'electrochemical_max_conversion', 'electrochemical_max_conversion'
+    )
+    if isinstance(echem_x, (int, float)):
+        lines.append(
+            f"| Electrochemical max CH₄ conversion (coupled MOOSE+Cantera) | {echem_x:.2%} |"
+        )
     lines += [
         _metric_row('FC catalysts evaluated',
                     p5.get('total_evaluated', p5.get('n_cathodes_screened'))),
