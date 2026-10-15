@@ -262,6 +262,32 @@ class TreeRanker:
         scores = robust_objective_matrix(means, stds, kappa=kappa)
         return scores, (stds if uncertainty else np.zeros_like(stds))
 
+    def apply_validation_calibration(self, database: str) -> dict[str, float]:
+        """Update class bias offsets using persisted high-fidelity validation residuals.
+
+        Args:
+            database: SQLite validation database path containing observations.
+
+        Returns:
+            Updated mapping of material class to calibrated residual bias.
+        """
+        from pathlib import Path
+        from pipeline.search.adaptive_validation import class_calibration
+
+        if not database or not Path(database).exists():
+            return dict(self.class_bias)
+        calibration = class_calibration(str(database), self.application)
+        for material_class, stats in calibration.items():
+            n = int(stats.get("n", 0))
+            bias = float(stats.get("bias", 0.0))
+            if n > 0 and np.isfinite(bias):
+                weight = n / (n + CLASS_BIAS_PRIOR_ROWS)
+                current = self.class_bias.get(str(material_class), 0.0)
+                self.class_bias[str(material_class)] = float(
+                    current + weight * bias
+                )
+        return dict(self.class_bias)
+
 
 def _extract_secondary_targets(
     row, application: str
@@ -385,7 +411,11 @@ def _fit_secondary_objectives(
 
 
 def fit_tree_ranker(
-    frame, application: str, random_state: int = 20260721
+    frame,
+    application: str,
+    random_state: int = 20260721,
+    *,
+    validation_database: str | None = None,
 ) -> TreeRanker:
     """Fit the application-specific form validated by prospective pilots.
 
@@ -393,6 +423,7 @@ def fit_tree_ranker(
         frame: Tabular candidate or result records.
         application: Scientific objective, such as pyrolysis or ORR.
         random_state: Random state used by this operation.
+        validation_database: Optional SQLite validation database for residual feedback.
 
     Returns:
         Computed `TreeRanker` result.
@@ -519,7 +550,7 @@ def fit_tree_ranker(
     sec_models, sec_biases, sec_diagnostics = _fit_secondary_objectives(
         raw_rows, encoded, groups, application, random_state
     )
-    return TreeRanker(
+    ranker = TreeRanker(
         application,
         model,
         columns,
@@ -529,6 +560,9 @@ def fit_tree_ranker(
         secondary_class_bias=sec_biases,
         secondary_diagnostics=sec_diagnostics,
     )
+    if validation_database is not None:
+        ranker.apply_validation_calibration(validation_database)
+    return ranker
 
 
 def _primary_target(raw, application: str) -> np.ndarray:

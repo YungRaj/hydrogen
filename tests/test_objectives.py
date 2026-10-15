@@ -291,6 +291,34 @@ class TestMultiObjectiveUncertaintyAndPareto(unittest.TestCase):
             self.assertIn("objective_specs", cert)
             self.assertEqual(len(cert["objective_specs"]), 4)
 
+    def test_validation_feedback_calibrates_tree_ranker_class_bias(self):
+        from pipeline.search.adaptive_validation import record_validation
+
+        turq_genomes, turq_df = self._make_turquoise_frame(24)
+        baseline_ranker = fit_tree_ranker(turq_df, "turquoise_hydrogen")
+        base_pred, _ = baseline_ranker.predict([turq_genomes[0]])
+
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = str(Path(tmp) / "feedback.sqlite")
+            for idx in range(4):
+                record_validation(
+                    db_path,
+                    "turquoise_hydrogen",
+                    turq_genomes[idx],
+                    predicted=0.80,
+                    observed=1.20,
+                    fidelity="dft",
+                    productive=False,
+                    provenance={"source_id": f"dft:{idx}"},
+                )
+            calibrated_ranker = fit_tree_ranker(
+                turq_df,
+                "turquoise_hydrogen",
+                validation_database=db_path,
+            )
+            cal_pred, _ = calibrated_ranker.predict([turq_genomes[0]])
+            self.assertGreater(float(cal_pred[0]), float(base_pred[0]))
+
 
 if __name__ == "__main__":
     unittest.main()

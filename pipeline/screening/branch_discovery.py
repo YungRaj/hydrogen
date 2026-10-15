@@ -233,7 +233,9 @@ def run_guided_branch_discovery(
     save_screening_db(
         evidence, workflow.calibration_db, subdir=workflow.database_subdir
     )
-    model = fit_tree_ranker(evidence, workflow.application)
+    model = fit_tree_ranker(
+        evidence, workflow.application, validation_database=config.exhaustive_db
+    )
     workflow.logger.info(
         '%s ranker diagnostics: %s; acquisition_mode=%s',
         workflow.diagnostics_label,

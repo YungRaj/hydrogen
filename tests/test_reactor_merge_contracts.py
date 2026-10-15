@@ -138,10 +138,64 @@ def test_generated_mechanism_is_balanced_and_matches_carbon_provenance():
         assert evidence["can_exclude_candidate"] is (not carbon_is_gas)
 
 
+def test_kinetics_fidelity_ladder_bep_mlip_neb_and_dft():
+    bep_row = {
+        "E_act": 0.95,
+        "dE_H": -0.25,
+        "dE_CH3": -0.40,
+        "dE_C": -0.70,
+        "screening_protocol": "ladder-v1",
+    }
+    bep_kin = CandidateKinetics.from_screening_row(
+        bep_row, candidate_id="cand-ladder"
+    ).resolved()
+    assert bep_kin["quantitative_status"] == "screening_complete"
+    assert bep_kin["provenance"]["methane_activation_eV"] == "screening:ladder-v1"
+    assert bep_kin["provenance"]["ch2_dehydrogenation_eV"] == "template_default"
+
+    neb_row = dict(bep_row, E_act_neb=0.84, ch3_dehydrogenation_eV=0.72)
+    neb_row_kin = CandidateKinetics.from_screening_row(
+        neb_row, candidate_id="cand-ladder"
+    ).resolved()
+    assert neb_row_kin["methane_activation_eV"] == 0.84
+    assert (
+        neb_row_kin["provenance"]["methane_activation_eV"]
+        == "mlip_neb:ladder-v1:E_act_neb"
+    )
+    assert neb_row_kin["ch3_dehydrogenation_eV"] == 0.72
+    assert (
+        neb_row_kin["provenance"]["ch3_dehydrogenation_eV"]
+        == "mlip_neb:ladder-v1:ch3_dehydrogenation_eV"
+    )
+
+    mlip_validation = {
+        "candidate_id": "cand-ladder",
+        "complete": True,
+        "evidence_level": "converged_mlip_neb",
+        "resolved_kinetics_eV": {
+            "methane_activation_eV": 0.82,
+            "ch3_dehydrogenation_eV": 0.71,
+            "ch2_dehydrogenation_eV": 0.76,
+            "ch_dehydrogenation_eV": 0.66,
+            "h2_desorption_eV": 0.56,
+            "carbon_transfer_eV": 0.46,
+        },
+    }
+    mlip_kin = CandidateKinetics.from_screening_row(
+        bep_row, candidate_id="cand-ladder", validation=mlip_validation
+    ).resolved()
+    assert mlip_kin["quantitative_status"] == "mlip_neb_complete"
+    assert (
+        mlip_kin["provenance"]["ch2_dehydrogenation_eV"]
+        == "mlip_neb:converged_mlip_neb"
+    )
+
+
 TESTS = (
     test_reactor_modes_cannot_cross_wire_pfr_and_mmbcr,
     test_candidate_specific_kinetics_identity_and_provenance_are_complete,
     test_generated_mechanism_is_balanced_and_matches_carbon_provenance,
+    test_kinetics_fidelity_ladder_bep_mlip_neb_and_dft,
 )
 
 

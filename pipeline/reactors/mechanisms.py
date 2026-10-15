@@ -106,6 +106,10 @@ class CandidateKinetics:
             raise ValueError('a finite positive E_act is required')
         protocol = str(row.get('screening_protocol', 'unknown'))
         sources = {'methane_activation_eV': f'screening:{protocol}'}
+        neb_barrier = finite('E_act_neb')
+        if neb_barrier is not None and neb_barrier > 0:
+            barrier = neb_barrier
+            sources['methane_activation_eV'] = f'mlip_neb:{protocol}:E_act_neb'
         mapping = {
             'h_adsorption_eV': 'dE_H',
             'ch3_adsorption_eV': 'dE_CH3',
@@ -116,6 +120,19 @@ class CandidateKinetics:
             values[target] = finite(source)
             if values[target] is not None:
                 sources[target] = f'screening:{protocol}:{source}'
+        step_columns = (
+            'ch3_dehydrogenation_eV',
+            'ch2_dehydrogenation_eV',
+            'ch_dehydrogenation_eV',
+            'h2_desorption_eV',
+            'carbon_transfer_eV',
+            'carbon_encapsulation_eV',
+        )
+        for step_col in step_columns:
+            step_val = finite(step_col)
+            if step_val is not None and step_val >= 0:
+                values[step_col] = step_val
+                sources[step_col] = f'mlip_neb:{protocol}:{step_col}'
         genome = parse_catalyst_genome(row.get('genome'))
         material_class = row.get('material_class')
         if material_class is None or (
@@ -127,11 +144,17 @@ class CandidateKinetics:
         if validation is not None:
             if str(validation.get('candidate_id')) != str(candidate_id):
                 raise ValueError('kinetics validation candidate_id mismatch')
-            if (
-                not validation.get('complete')
-                or validation.get('evidence_level') != 'converged_dft_neb_frequency'
+            evidence_level = validation.get('evidence_level')
+            if not validation.get('complete') or evidence_level not in (
+                'converged_dft_neb_frequency',
+                'converged_mlip_neb',
             ):
                 raise ValueError('kinetics validation campaign is incomplete')
+            source_prefix = (
+                'candidate_specific'
+                if evidence_level == 'converged_dft_neb_frequency'
+                else 'mlip_neb'
+            )
             resolved = validation.get('resolved_kinetics_eV', {})
             allowed = {
                 'methane_activation_eV',
@@ -155,7 +178,7 @@ class CandidateKinetics:
                     barrier = value
                 else:
                     values[name] = value
-                sources[name] = 'candidate_specific:converged_dft_neb_frequency'
+                sources[name] = f'{source_prefix}:{evidence_level}'
         return cls(
             methane_activation_eV=barrier,
             candidate_id=candidate_id,
@@ -247,11 +270,15 @@ class CandidateKinetics:
         required = set(defaults)
         if not off_site_carbon_allowed(self.genome, self.material_class):
             required.discard('carbon_encapsulation_eV')
-        values['quantitative_status'] = (
-            'candidate_specific'
-            if not any(provenance.get(name) == 'template_default' for name in required)
-            else 'screening_complete'
-        )
+        if any(provenance.get(name) == 'template_default' for name in required):
+            values['quantitative_status'] = 'screening_complete'
+        elif any(
+            str(provenance.get(name, '')).startswith('mlip_neb:')
+            for name in required
+        ):
+            values['quantitative_status'] = 'mlip_neb_complete'
+        else:
+            values['quantitative_status'] = 'candidate_specific'
         return values
 
 
