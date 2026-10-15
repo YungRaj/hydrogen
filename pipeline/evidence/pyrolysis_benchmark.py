@@ -129,12 +129,34 @@ def rate_free_energy_span_eV(row: dict[str, Any]) -> float:
     return effective_barrier_eV(spans, temperature_K)
 
 
+def _row_h2_mu_eV(row: dict[str, Any]) -> float:
+    """Return H2 chemical potential when condition temperature is present."""
+    temp_raw = row.get('temperature_K')
+    if temp_raw is None and 'genome' in row:
+        try:
+            genome = ast.literal_eval(str(row['genome']))
+            if isinstance(genome, tuple) and len(genome) >= 5:
+                temp_raw = genome[4]
+        except (SyntaxError, ValueError, TypeError):
+            temp_raw = None
+    if temp_raw is None:
+        return 0.0
+    try:
+        temperature_K = float(temp_raw)
+    except (TypeError, ValueError):
+        return 0.0
+    if 298.0 <= temperature_K <= 2500.0:
+        return h2_chemical_potential_eV(temperature_K)
+    return 0.0
+
+
 def energetic_span_eV(row: dict[str, Any]) -> float:
     """Return the largest uphill step in the minimal CH4 -> C + 2 H2 cycle.
 
     The score has no fitted coefficients.  It compares methane activation with
-    the thermodynamic costs of releasing two adsorbed H atoms as H2 and one
-    adsorbed C atom as solid carbon.  Lower values are better.
+    the thermodynamic costs of releasing two adsorbed H atoms as H2 and
+    forming or releasing one adsorbed C atom relative to the CH4 - 2 H2
+    reference state at the condition temperature.  Lower values are better.
 
     Args:
         row: Completed pyrolysis screening result.
@@ -152,7 +174,9 @@ def energetic_span_eV(row: dict[str, Any]) -> float:
         raise ValueError('missing finite energetic-span input') from exc
     if not all(math.isfinite(value) for value in (e_act, d_e_h, d_e_c)):
         raise ValueError('missing finite energetic-span input')
-    return max(e_act, -2.0 * d_e_h, -d_e_c, 0.0)
+    h2_mu = _row_h2_mu_eV(row)
+    dg_c = d_e_c + 2.0 * h2_mu
+    return max(e_act, -2.0 * d_e_h + h2_mu, dg_c, -dg_c, 0.0)
 
 
 def roc_auc(labels: list[bool], scores: list[float]) -> float:
@@ -394,12 +418,18 @@ def analyze_screening_results(
         if result.get('pyrolysis_viable') not in TRUE_VALUES:
             failures.append(f"{condition['condition_id']}: non-viable screening result")
             continue
+        row_with_temp = {
+            **result,
+            'temperature_K': result.get('temperature_K', condition.get('temperature_K')),
+        }
         try:
-            span = energetic_span_eV(result)
+            span = energetic_span_eV(row_with_temp)
             current = float(result['E_act_raw'])
         except (KeyError, TypeError, ValueError) as exc:
             failures.append(f"{condition['condition_id']}: {exc}")
             continue
+        h2_mu = _row_h2_mu_eV(row_with_temp)
+        dg_c = float(result['dE_C']) + 2.0 * h2_mu
         scored.append({
             'condition_id': condition['condition_id'],
             'source_family': condition['source_family'],
@@ -410,8 +440,9 @@ def analyze_screening_results(
             'limiting_step': max(
                 (
                     ('methane_activation', current),
-                    ('hydrogen_release', -2.0 * float(result['dE_H'])),
-                    ('carbon_release', -float(result['dE_C'])),
+                    ('hydrogen_release', -2.0 * float(result['dE_H']) + h2_mu),
+                    ('carbon_formation', dg_c),
+                    ('carbon_release', -dg_c),
                 ),
                 key=lambda item: item[1],
             )[0],

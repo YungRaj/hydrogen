@@ -299,3 +299,53 @@ def log_solids_scorecard(scorecard: SolidsScorecard, logger) -> None:
     mmbcr = scorecard.get('mmbcr_max_conversion')
     if mmbcr is not None:
         logger.info(f"  MMBCR max X={mmbcr:.2%} ({scorecard.get('mmbcr_note')})")
+
+
+def evaluate_b5_closure_gate(
+    scorecard: SolidsScorecard,
+    b66_summary: dict | None = None,
+    joint_summary: dict | None = None,
+    *,
+    min_roi_conversion: float = 0.50,
+) -> dict:
+    """Evaluate whether B5 solids closure criteria are met by reactor evidence.
+
+    Args:
+        scorecard: Solids scorecard dictionary containing headline results.
+        b66_summary: Optional B6-6 carbon-criteria summary dictionary.
+        joint_summary: Optional B6-7 joint-band summary dictionary.
+        min_roi_conversion: Minimum single-pass CH4 conversion required in the ROI.
+
+    Returns:
+        Dictionary of B5 gate pass/fail flags and ROI conversion values.
+    """
+    headline = scorecard.get('headline') or {}
+    pfr = headline.get('PFR') or {}
+    fluid = headline.get('Fluidized') or {}
+    pfr_x = float(pfr.get('single_pass_CH4_conversion') or 0.0)
+    fluid_x = float(fluid.get('single_pass_CH4_conversion') or 0.0)
+    judge_ok = scorecard.get('judge_catalyst') == NI_JUDGE_CATALYST
+    pfr_ok = judge_ok and pfr_x >= min_roi_conversion and not pfr.get('exceeds_equilibrium', False)
+    fluid_ok = judge_ok and fluid_x >= min_roi_conversion and not fluid.get('exceeds_equilibrium', False)
+    criteria = (b66_summary or {}).get('criteria') or {}
+    b66_ok = bool(criteria) and all(
+        bool((criteria.get(key) or {}).get('pass'))
+        for key in ('flat', 'linearity', 'encapsulation_onset', 'lifetime', 'yield')
+    )
+    joint_ok = (
+        isinstance(joint_summary, dict)
+        and joint_summary.get('declaration') == 'simultaneous_hit'
+        and int(joint_summary.get('n_both_roi') or 0) > 0
+    )
+    passed = pfr_ok and fluid_ok and b66_ok and joint_ok
+    return {
+        'b5_accepted': passed,
+        'judge_ok': judge_ok,
+        'pfr_roi_conversion': pfr_x,
+        'fluidized_roi_conversion': fluid_x,
+        'pfr_conversion_ok': pfr_ok,
+        'fluidized_conversion_ok': fluid_ok,
+        'b66_criteria_ok': b66_ok,
+        'b67_joint_roi_ok': joint_ok,
+    }
+

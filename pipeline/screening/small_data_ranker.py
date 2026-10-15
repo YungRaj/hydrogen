@@ -315,8 +315,12 @@ def _extract_secondary_targets(
         if np.isfinite(coking_val):
             targets["coking_susceptibility_eV"] = float(coking_val)
         if np.isfinite(de_h) and np.isfinite(de_c):
+            from pipeline.evidence.pyrolysis_benchmark import _row_h2_mu_eV
+
+            h2_mu = _row_h2_mu_eV(row if isinstance(row, dict) else dict(row))
+            dg_c = de_c + 2.0 * h2_mu
             targets["desorption_overbinding_penalty_eV"] = float(
-                max(-2.0 * de_h, -de_c, 0.0)
+                max(-2.0 * de_h + h2_mu, abs(dg_c), 0.0)
             )
     elif application == "fuel_cell_orr":
         binding = np.nan

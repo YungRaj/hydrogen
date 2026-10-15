@@ -163,6 +163,17 @@ class ProspectiveContracts(unittest.TestCase):
         self.assertEqual(energetic_span_eV(carbon_parked), 3.0)
         with self.assertRaisesRegex(ValueError, 'energetic-span input'):
             energetic_span_eV({'E_act': 0.8, 'dE_H': -0.2, 'dE_C': -0.3})
+        benchmark = json.loads((
+            REPO_ROOT / 'docs/evidence/pyrolysis_benchmark_dataset.json'
+        ).read_text())
+        rows = pd.read_csv(
+            REPO_ROOT / 'results/screening/pyrolysis_benchmark.csv'
+        ).to_dict(orient='records')
+        report = analyze_screening_results(benchmark, rows)
+        self.assertTrue(report['acceptance_passed'])
+        self.assertGreaterEqual(report['energetic_span']['auc'], 0.70)
+        self.assertGreater(report['energetic_span']['ci95_low'], 0.50)
+        self.assertGreaterEqual(report['auc_improvement'], 0.10)
 
     def test_rate_average_gives_fast_sites_their_arrhenius_weight(self) -> None:
         effective = effective_barrier_eV([0.4, 1.5, 1.5, 1.5, 1.5], 1273.15)

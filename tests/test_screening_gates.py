@@ -62,9 +62,38 @@ def test_thermal_scores_do_not_steer_before_b5_closure(monkeypatch):
 
 
 def test_b5_closure_is_not_accepted_without_evidence():
-    from pipeline.reactors.scorecard import B5_ACCEPTED
+    from pipeline.reactors.scorecard import (
+        B5_ACCEPTED,
+        NI_JUDGE_CATALYST,
+        evaluate_b5_closure_gate,
+    )
 
     assert B5_ACCEPTED is False
+    incomplete = evaluate_b5_closure_gate({
+        'judge_catalyst': NI_JUDGE_CATALYST,
+        'headline': {
+            'PFR': {'single_pass_CH4_conversion': 0.1456},
+            'Fluidized': {'single_pass_CH4_conversion': 0.1694},
+        },
+    })
+    assert incomplete['b5_accepted'] is False
+    complete = evaluate_b5_closure_gate(
+        {
+            'judge_catalyst': NI_JUDGE_CATALYST,
+            'headline': {
+                'PFR': {'single_pass_CH4_conversion': 0.62, 'exceeds_equilibrium': False},
+                'Fluidized': {'single_pass_CH4_conversion': 0.58, 'exceeds_equilibrium': False},
+            },
+        },
+        b66_summary={
+            'criteria': {
+                k: {'pass': True}
+                for k in ('flat', 'linearity', 'encapsulation_onset', 'lifetime', 'yield')
+            }
+        },
+        joint_summary={'declaration': 'simultaneous_hit', 'n_both_roi': 1},
+    )
+    assert complete['b5_accepted'] is True
 
 
 def test_tea_feedstock_uses_methane_stoichiometry():
