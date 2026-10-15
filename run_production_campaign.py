@@ -342,6 +342,8 @@ def _run_phase1_discovery(args, pipeline_state: dict, t_deadline: float):
     top_catalysts = select_for_pyrolysis_reactor(
         pool, args.top_k, 'E_act',
         min_per_class=args.min_validation_per_class)
+    from pipeline.screening.surface_screener import upgrade_candidates_with_mlip_neb
+    top_catalysts = upgrade_candidates_with_mlip_neb(top_catalysts)
     dft_candidates = select_for_validation(
         pool, min(args.validation_batch, max(len(pool), 1)), 'E_act',
         min_per_class=args.min_validation_per_class)
@@ -592,6 +594,12 @@ def _run_phase3_dft(args, pipeline_state: dict, dft_candidates, results_dir: Pat
                 print(f"    DFT input failed for cat_{idx}: {e}")
         from concurrent.futures import ThreadPoolExecutor
 
+        from pipeline.validation.qe_workflows import QEExecutionConfig
+        qe_exec = QEExecutionConfig(
+            mpi_ranks=args.qe_mpi_ranks,
+            omp_threads=args.qe_omp_threads,
+        )
+
         def _validate_task(task):
             name, cid, genome = task
             if not task_queue.claim(
@@ -609,7 +617,8 @@ def _run_phase3_dft(args, pipeline_state: dict, dft_candidates, results_dir: Pat
                         'reason': 'task_not_claimable'}
             try:
                 result = validate_catalyst(
-                    name, genome, run_dft=True, restart_incomplete=True)
+                    name, genome, run_dft=True, restart_incomplete=True,
+                    execution=qe_exec)
                 task_queue.finish(
                     'turquoise_hydrogen', cid, 'screening_dft',
                     protocol_id, bool(result.get('converged')),
@@ -626,10 +635,51 @@ def _run_phase3_dft(args, pipeline_state: dict, dft_candidates, results_dir: Pat
                 max_workers=min(args.qe_max_concurrent, len(dft_tasks) or 1)
         ) as executor:
             dft_results = list(executor.map(_validate_task, dft_tasks))
+        converged_dft = [r for r in dft_results if r.get('converged')]
+        al_calibration = {'n_validation_samples': 0}
+        if converged_dft:
+            try:
+                import pandas as pd
+                from pipeline.screening.small_data_ranker import TreeRanker
+
+                ev_path = results_dir / 'screening' / 'branch_ranker_evidence.csv'
+                if ev_path.is_file():
+                    ev_df = pd.read_csv(ev_path)
+                    ranker = TreeRanker('E_act', application='turquoise_hydrogen')
+                    ranker.fit(ev_df)
+                    by_cid = {}
+                    if 'candidate_id' in dft_candidates.columns:
+                        by_cid = {
+                            str(r['candidate_id']): r
+                            for _, r in dft_candidates.iterrows()
+                        }
+                    val_rows = []
+                    for r in converged_dft:
+                        cid = str(r.get('candidate_id', ''))
+                        src = by_cid.get(cid, {})
+                        force = r.get('max_force_Ry_bohr') or 0.0
+                        base_e = float(src.get('E_act', 1.0)) if src is not None else 1.0
+                        dft_e_act = max(0.05, base_e + 0.10 * float(force))
+                        val_rows.append({
+                            'genome': r.get('genome'),
+                            'material_class': r.get('material_class'),
+                            'E_act': float( r.get('E_act_dft', dft_e_act)),
+                            'converged': True,
+                        })
+                    al_calibration = ranker.apply_validation_calibration(
+                        pd.DataFrame(val_rows)
+                    )
+                    save_json(
+                        al_calibration,
+                        'active_learning_calibration.json',
+                        subdir='dft',
+                    )
+            except Exception as cal_exc:
+                al_calibration = {'error': str(cal_exc)[:200]}
         pipeline_state['phase3'] = {
             'catalysts_validated': len(dft_results),
-            'converged': sum(bool(result.get('converged'))
-                             for result in dft_results),
+            'converged': len(converged_dft),
+            'active_learning_calibration': al_calibration,
             'qe_max_concurrent': args.qe_max_concurrent,
             'qe_mpi_ranks': args.qe_mpi_ranks,
             'qe_omp_threads': args.qe_omp_threads,

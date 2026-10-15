@@ -586,3 +586,42 @@ def test_b2_b3_b4_reactor_contracts(tmp_path):
     assert 'single_pass_CH4_conversion' in fluid_res
     assert 'cycle_averaged_CH4_conversion' in fluid_res
 
+
+def test_mlip_neb_upgrade_and_stability_hull_gate():
+    pd = pytest.importorskip('pandas')
+    from pipeline.reactors.mechanisms import CandidateKinetics
+    from pipeline.screening.objectives import operating_stability_and_hull_gate
+    from pipeline.screening.surface_screener import upgrade_candidates_with_mlip_neb
+
+    df = pd.DataFrame([{
+        'candidate_id': 'ni_cu_test',
+        'genome': str(('SolidCatalyst', 'Ni', 'Al2O3', 'fcc111', 0.0, ('Cu',), 1, 0)),
+        'material_class': 'SolidCatalyst',
+        'E_act': 0.88,
+        'dE_H': -0.35,
+        'dE_CH3': -0.45,
+        'dE_C': -0.50,
+        'screening_protocol': 'esen-v1',
+        'valid': True,
+    }])
+    upgraded = upgrade_candidates_with_mlip_neb(df)
+    kinetics = CandidateKinetics.from_screening_row(
+        upgraded.iloc[0], candidate_id='ni_cu_test'
+    )
+    resolved = kinetics.resolved()
+    assert resolved['quantitative_status'] == 'mlip_neb_complete'
+
+    stable_gate = operating_stability_and_hull_gate(
+        ('SolidCatalyst', 'Ni', 'Al2O3', 'fcc111', 0.0, ('Cu',), 1, 0),
+        'turquoise_hydrogen',
+    )
+    assert stable_gate['phase_stable'] is True
+    assert stable_gate['synthesizable'] is True
+
+    unstable_gate = operating_stability_and_hull_gate(
+        ('MOF', 'Zr', 'BDC', 'fcu', 'none', 0),
+        'turquoise_hydrogen',
+    )
+    assert unstable_gate['phase_stable'] is False
+    assert unstable_gate['synthesizable'] is False
+

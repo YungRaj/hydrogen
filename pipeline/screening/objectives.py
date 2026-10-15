@@ -336,6 +336,78 @@ def _desorption_overbinding_proxy(
     return values
 
 
+MAX_SYNTHESIZABLE_HULL_EV_ATOM = 0.10
+
+
+def operating_stability_and_hull_gate(
+    genome: tuple,
+    application: str = 'turquoise_hydrogen',
+    *,
+    T_K: float = 1000.0,
+    U_V_vs_RHE: float = 0.80,
+) -> dict[str, Any]:
+    """Evaluate convex-hull synthesizability and grand-canonical surface stability.
+
+    Computes a Miedema / Hume-Rothery atomic-mismatch convex-hull distance proxy
+    ``hull_distance_eV_atom`` and an operating-condition poisoning / dissolution
+    free-energy penalty ``grand_canonical_poisoning_eV`` at ``T_K`` (900-1200 K
+    CH4/H2 for turquoise pyrolysis) or ``U_V_vs_RHE`` (0.8 V acidic PEMFC).
+    """
+    from pipeline.search.scope import (
+        APPLICATION_PEMFC,
+        APPLICATION_PYROLYSIS,
+        phase_stable_at_application_T,
+    )
+
+    elements = [el for el in extract_elements(genome) if el in _ELEMENT_DESCRIPTORS]
+    if len(elements) >= 2:
+        radii = np.asarray([_ELEMENT_DESCRIPTORS[el][2] for el in elements], dtype=float)
+        chis = np.asarray([_ELEMENT_DESCRIPTORS[el][1] for el in elements], dtype=float)
+        r_mean = max(float(np.mean(radii)), 1e-6)
+        delta_r = float(np.std(radii) / r_mean)
+        delta_chi = float(np.std(chis))
+        # Hume-Rothery size mismatch (>15%) and electronegativity variance raise E_hull
+        hull_eV_atom = max(0.0, 0.85 * max(0.0, delta_r - 0.08) + 0.04 * delta_chi)
+    else:
+        hull_eV_atom = 0.01
+
+    d_center, chi, _ = _element_descriptor_stats(genome)
+    is_orr = application in ('fuel_cell_orr', 'pemfc_cathode', 'orr')
+    scope_app = APPLICATION_PEMFC if is_orr else APPLICATION_PYROLYSIS
+    scope_info = phase_stable_at_application_T(genome, T_K=T_K, application=scope_app)
+    phase_stable = scope_info['status'] == 'candidate'
+
+    if is_orr:
+        # At U = 0.80 V vs RHE in pH 0, oxophilic non-noble metals (high d-band center,
+        # low Pauling chi) undergo anodic dissolution / irreversible oxide passivation.
+        dissolution_drive = max(0.0, (d_center + 2.15) * 0.45 + (2.05 - chi) * 0.60 + (U_V_vs_RHE - 0.80))
+        poisoning_eV = float(dissolution_drive)
+    else:
+        # At 900-1200 K in CH4/H2, strongly carbophilic early TMs (d_center > -1.35 eV)
+        # suffer irreversible bulk carburization unless hosted in a liquid metal.
+        k_B_T = 8.617333262e-5 * float(T_K)
+        carburization_drive = max(0.0, (d_center + 1.35) * 0.75 - 0.5 * k_B_T)
+        if str(genome[0]) == 'MoltenMetal':
+            carburization_drive *= 0.25
+        poisoning_eV = float(carburization_drive)
+
+    synthesizable = (
+        phase_stable
+        and hull_eV_atom <= MAX_SYNTHESIZABLE_HULL_EV_ATOM
+        and poisoning_eV <= 0.50
+    )
+    return {
+        'hull_distance_eV_atom': float(hull_eV_atom),
+        'grand_canonical_poisoning_eV': float(poisoning_eV),
+        'phase_stable': bool(phase_stable),
+        'synthesizable': bool(synthesizable),
+        'penalty_eV': float(
+            max(0.0, hull_eV_atom - MAX_SYNTHESIZABLE_HULL_EV_ATOM) * 5.0
+            + max(0.0, poisoning_eV - 0.25)
+        ),
+    }
+
+
 def _oxide_overbinding_proxy(
     genomes: Sequence[tuple], primary_mean: np.ndarray
 ) -> np.ndarray:
@@ -458,6 +530,10 @@ def build_turquoise_objectives(
         desorp_mean = _desorption_overbinding_proxy(genomes, primary_mean)
         desorp_std = 0.5 * primary_std if uncertainty else np.zeros(n, dtype=float)
 
+    for i, genome in enumerate(genomes):
+        gate = operating_stability_and_hull_gate(genome, 'turquoise_hydrogen')
+        desorp_mean[i] += gate['penalty_eV']
+
     costs = np.asarray(
         [-abundance_cost_penalty(extract_elements(genome)) for genome in genomes],
         dtype=float,
@@ -530,6 +606,10 @@ def build_orr_objectives(
     else:
         oxide_mean = _oxide_overbinding_proxy(genomes, primary_mean)
         oxide_std = 0.5 * primary_std if uncertainty else np.zeros(n, dtype=float)
+
+    for i, genome in enumerate(genomes):
+        gate = operating_stability_and_hull_gate(genome, 'fuel_cell_orr')
+        oxide_mean[i] += gate['penalty_eV']
 
     means = np.column_stack([primary_mean, fenton, costs, oxide_mean])
     stds = np.column_stack([primary_std, fenton_std, cost_std, oxide_std])

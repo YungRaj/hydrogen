@@ -439,6 +439,7 @@ def validate_catalyst(
     genome: tuple,
     run_dft: bool = True,
     restart_incomplete: bool = False,
+    execution=None,
 ) -> DFTResult:
     """
         Full DFT validation workflow for a champion catalyst.
@@ -455,6 +456,7 @@ def validate_catalyst(
         genome: Encoded catalyst composition and structural configuration.
         run_dft: Whether to enable run dft.
         restart_incomplete: Whether to enable restart incomplete.
+        execution: Optional QEExecutionConfig override.
 
     Returns:
         Dictionary containing the computed values, status, and supporting metadata.
@@ -554,11 +556,16 @@ def validate_catalyst(
         try:
             from pipeline.validation.qe_workflows import QEExecutionConfig, run_pw
 
+            exec_cfg = (
+                execution
+                if execution is not None
+                else QEExecutionConfig.production_default()
+            )
             outcome = run_pw(
                 str(input_file),
                 str(output_file),
                 timeout_s=3600,
-                execution=QEExecutionConfig.production_default(),
+                execution=exec_cfg,
             )
             result['returncode'] = outcome['returncode']
             result['execution'] = outcome['execution']
