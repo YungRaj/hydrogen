@@ -1553,11 +1553,15 @@ def compute_candidate_mlip_neb(
 ) -> dict:
     """Compute MLIP-NEB elementary barriers for a top Pareto candidate row.
 
-    When an ASE calculator ``calc`` is supplied, runs climbing-image NEB
-    across all 4 sequential CH_x -> CH_{x-1}* + H* dehydrogenation steps and
-    recombinative 2H* -> H2 desorption on the candidate's explicit surface
-    structure, falling back to thermodynamically consistent Brønsted-Evans-
-    Polanyi scaling when ``calc`` is omitted.
+    Args:
+        row: Screening candidate row mapping or Series.
+        calc: Optional ASE calculator for climbing-image NEB evaluation.
+        n_images: Number of NEB images along each elementary path.
+        fmax: Force convergence threshold (eV/A) for FIRE NEB optimization.
+        max_steps: Maximum FIRE optimization steps per NEB path.
+
+    Returns:
+        Dictionary of elementary activation barriers (eV) and converged step count.
     """
     from pipeline.reactors.mechanisms import (
         EV_TO_J_MOL,
@@ -1715,7 +1719,16 @@ def write_pyrolysis_validation_json(
     neb_record: dict,
     kinetics_validation_dir: str | Path,
 ) -> Path:
-    """Persist ``<kinetics_validation_dir>/<candidate_id>/pyrolysis_validation.json``."""
+    """Persist ``<kinetics_validation_dir>/<candidate_id>/pyrolysis_validation.json``.
+
+    Args:
+        candidate_id: Content-addressed candidate identifier.
+        neb_record: Dictionary of MLIP-NEB elementary barriers from ``compute_candidate_mlip_neb``.
+        kinetics_validation_dir: Root directory storing per-candidate validation JSONs.
+
+    Returns:
+        Path to the written ``pyrolysis_validation.json`` artifact.
+    """
     safe_id = str(candidate_id)
     if not safe_id or Path(safe_id).name != safe_id:
         raise ValueError(f'unsafe candidate_id for validation artifact: {safe_id!r}')
@@ -1747,7 +1760,16 @@ def upgrade_candidates_with_mlip_neb(
     *,
     kinetics_validation_dir: str | Path | None = None,
 ):
-    """Populate MLIP-NEB elementary barrier columns on a selected candidate DataFrame."""
+    """Populate MLIP-NEB elementary barrier columns on a selected candidate DataFrame.
+
+    Args:
+        df: Selected pyrolysis candidate DataFrame.
+        calc: Optional ASE calculator for climbing-image NEB evaluation.
+        kinetics_validation_dir: Optional directory to write per-candidate ``pyrolysis_validation.json``.
+
+    Returns:
+        Copy of ``df`` with elementary barrier columns added.
+    """
     if df is None or len(df) == 0:
         return df
     out = df.copy()

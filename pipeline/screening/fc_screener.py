@@ -367,7 +367,16 @@ def compute_pourbaix_stability_margin(
     U_V_vs_RHE: float = 0.80,
     pH: float = 0.0,
 ) -> dict:
-    """Estimate Pourbaix anodic dissolution onset and stability margin at (U, pH)."""
+    """Estimate Pourbaix anodic dissolution onset and stability margin at (U, pH).
+
+    Args:
+        genome: Encoded catalyst genome tuple or string representation.
+        U_V_vs_RHE: Operating electrode potential in V vs RHE.
+        pH: Electrolyte pH.
+
+    Returns:
+        Dictionary with dissolution onset potential, margin, and acid stability flag.
+    """
     from pipeline.reactors.mechanisms import parse_catalyst_genome
 
     parsed = parse_catalyst_genome(genome) if not isinstance(genome, tuple) else genome
@@ -421,7 +430,21 @@ def compute_grand_canonical_orr_corrections(
     helmholtz_thickness_A: float = 3.0,
     pH: float = 0.0,
 ) -> dict:
-    """Compute constant-potential double-layer solvation + electric-field corrections."""
+    """Compute constant-potential double-layer solvation + electric-field corrections.
+
+    Args:
+        dG_OH: Unsolvated OH* adsorption free energy (eV).
+        dG_O: Unsolvated O* adsorption free energy (eV).
+        dG_OOH: Unsolvated OOH* adsorption free energy (eV).
+        genome: Optional catalyst genome tuple or string.
+        U_V_vs_RHE: Operating electrode potential in V vs RHE.
+        U_pzc_V: Potential of zero charge in V vs RHE.
+        helmholtz_thickness_A: Effective compact double-layer thickness in Angstrom.
+        pH: Electrolyte pH.
+
+    Returns:
+        Dictionary of grand-canonical solvated free energies, overpotential, and Pourbaix stability.
+    """
     from pipeline.reactors.mechanisms import parse_catalyst_genome
 
     parsed = parse_catalyst_genome(genome) if (genome is not None and not isinstance(genome, tuple)) else genome
@@ -465,7 +488,16 @@ def upgrade_orr_candidates_with_solvation_pourbaix(
     U_V_vs_RHE: float = 0.80,
     pH: float = 0.0,
 ):
-    """Populate grand-canonical solvation and Pourbaix stability columns on an ORR DataFrame."""
+    """Populate grand-canonical solvation and Pourbaix stability columns on an ORR DataFrame.
+
+    Args:
+        df: Selected ORR candidate DataFrame.
+        U_V_vs_RHE: Operating electrode potential in V vs RHE.
+        pH: Electrolyte pH.
+
+    Returns:
+        Copy of ``df`` with grand-canonical solvation and Pourbaix columns added.
+    """
     if df is None or len(df) == 0:
         return df
     out = df.copy()

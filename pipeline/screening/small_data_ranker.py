@@ -317,10 +317,12 @@ class TreeRanker:
     ) -> dict[str, float]:
         """Apply persisted DFT active-learning calibration from JSON.
 
-        When ``database`` is provided and the artifact includes raw
-        ``observations``, they are replayed into ``validation_observations``
-        before applying empirical-Bayes calibration; otherwise explicit
-        ``class_bias_delta_eV`` / ``class_bias_eV`` offsets are merged.
+        Args:
+            calibration_path: Path to the active-learning calibration JSON file.
+            database: Optional SQLite path for validation_observations replay.
+
+        Returns:
+            Updated class_bias mapping after applying empirical-Bayes calibration.
         """
         import json
         from pathlib import Path

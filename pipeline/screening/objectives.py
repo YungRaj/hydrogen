@@ -377,10 +377,14 @@ def operating_stability_and_hull_gate(
 ) -> dict[str, Any]:
     """Evaluate convex-hull synthesizability and grand-canonical surface stability.
 
-    Computes a Miedema / Hume-Rothery atomic-mismatch convex-hull distance proxy
-    ``hull_distance_eV_atom`` and an operating-condition poisoning / dissolution
-    free-energy penalty ``grand_canonical_poisoning_eV`` at ``T_K`` (900-1200 K
-    CH4/H2 for turquoise pyrolysis) or ``U_V_vs_RHE`` (0.8 V acidic PEMFC).
+    Args:
+        genome: Encoded catalyst genome tuple.
+        application: Target application ('turquoise_hydrogen' or 'fuel_cell_orr').
+        T_K: Operating temperature in K for turquoise pyrolysis.
+        U_V_vs_RHE: Electrode potential in V vs RHE for acidic PEMFC ORR.
+
+    Returns:
+        Dictionary of hull distance, grand-canonical poisoning penalty, and stability flags.
     """
     d_center, chi, _, hull_eV_atom = _descriptor_and_hull_stats(
         tuple(extract_elements(genome))
