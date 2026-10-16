@@ -382,8 +382,15 @@ def _run_phase1_discovery(args, pipeline_state: dict, t_deadline: float):
     try:
         import torch
         if torch.cuda.is_available():
-            from pipeline.screening.surface_calculator import load_surface_calculator
-            neb_calc = load_surface_calculator(0)
+            from pipeline.screening.surface_calculator import get_ocp_calculator
+            prev_inf = os.environ.get('HYDROGEN_FAIRCHEM_INFERENCE')
+            if prev_inf is None:
+                os.environ['HYDROGEN_FAIRCHEM_INFERENCE'] = 'batch'
+            try:
+                neb_calc = get_ocp_calculator(device='cuda:0')
+            finally:
+                if prev_inf is None:
+                    os.environ.pop('HYDROGEN_FAIRCHEM_INFERENCE', None)
     except Exception:
         neb_calc = None
     top_catalysts = upgrade_candidates_with_mlip_neb(

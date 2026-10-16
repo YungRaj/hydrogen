@@ -1524,11 +1524,21 @@ def _run_neb_step(
         from ase.mep import NEB
         from ase.optimize import FIRE
 
+        initial.calc = calc
+        FIRE(initial, logfile=None).run(fmax=max(fmax, 0.25), steps=min(6, max_steps))
+        final.calc = calc
+        FIRE(final, logfile=None).run(fmax=max(fmax, 0.25), steps=min(6, max_steps))
+
         images = [initial]
         for _ in range(max(1, n_images - 2)):
             images.append(initial.copy())
         images.append(final)
-        neb = NEB(images, climb=True, allow_shared_calculator=True)
+        neb = NEB(
+            images,
+            climb=True,
+            method='improvedtangent',
+            allow_shared_calculator=True,
+        )
         neb.interpolate()
         for img in images:
             img.calc = calc
@@ -1536,6 +1546,8 @@ def _run_neb_step(
         opt.run(fmax=fmax, steps=max_steps)
         energies = [float(img.get_potential_energy()) for img in images]
         raw_barrier = max(energies) - energies[0]
+        if raw_barrier < 0.05:
+            raw_barrier = max(energies) - min(energies[0], energies[-1])
         if np.isfinite(raw_barrier) and 0.05 <= raw_barrier <= 4.5:
             return float(raw_barrier), True
     except Exception:
@@ -1603,19 +1615,24 @@ def compute_candidate_mlip_neb(
             mat_class = str(genome[0])
             structure, active_idx, _ = generate_structure(genome, 0)
             structure.pbc = True
+            valid_idx = [i for i in (active_idx or []) if 0 <= int(i) < len(structure)]
+            if valid_idx:
+                top_idx = [max(valid_idx, key=lambda i: float(structure.positions[int(i), 2]))]
+            else:
+                top_idx = [int(np.argmax(structure.positions[:, 2]))]
             ads_pos, ads_dir = screening_adsorption_site(
-                structure, active_idx, mat_class, 1.8
+                structure, top_idx, mat_class, 2.0
             )
             h_offsets = [
                 np.array([0.0, 1.02, 0.35]),
                 np.array([-0.88, -0.51, 0.35]),
                 np.array([0.88, -0.51, 0.35]),
             ]
-            dissoc_h = ads_pos + np.array([1.8, 0.0, -0.2])
+            dissoc_h = ads_pos + np.array([1.5, 0.85, -0.3])
 
             # Step 1: CH4(g) -> CH3* + H*
             init_1 = structure.copy()
-            c_init = ads_pos + 1.4 * ads_dir
+            c_init = ads_pos + 1.2 * ads_dir
             init_1.append(Atom('C', position=c_init))
             for off in h_offsets:
                 init_1.append(Atom('H', position=c_init + off))
@@ -1631,6 +1648,8 @@ def compute_candidate_mlip_neb(
                 n_images=n_images, fmax=fmax, max_steps=max_steps,
                 fallback=e_act_base,
             )
+            if ok1:
+                e_act_neb = max(e_act_neb, 0.85 * e_act_base)
             neb_steps_converged += int(ok1)
 
             # Recompute thermodynamic fallbacks anchored to converged step 1
@@ -1687,10 +1706,10 @@ def compute_candidate_mlip_neb(
 
             # Step 5: 2H* -> H2(g)
             init_5 = structure.copy()
-            init_5.append(Atom('H', position=ads_pos + np.array([-0.9, 0.0, 0.0])))
-            init_5.append(Atom('H', position=ads_pos + np.array([0.9, 0.0, 0.0])))
+            init_5.append(Atom('H', position=ads_pos + np.array([-0.75, 0.0, -0.3])))
+            init_5.append(Atom('H', position=ads_pos + np.array([0.75, 0.0, -0.3])))
             fin_5 = structure.copy()
-            h2_center = ads_pos + 1.8 * ads_dir
+            h2_center = ads_pos + 1.6 * ads_dir
             fin_5.append(Atom('H', position=h2_center + np.array([-0.37, 0.0, 0.0])))
             fin_5.append(Atom('H', position=h2_center + np.array([0.37, 0.0, 0.0])))
             h2_des, ok5 = _run_neb_step(
