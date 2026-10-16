@@ -361,6 +361,43 @@ _ADSORBATE_ALPHA_E_A2_V = {'OH*': 0.12, 'O*': 0.06, 'OOH*': 0.18}
 _IMPLICIT_HBOND_EV = {'OH*': -0.30, 'O*': -0.05, 'OOH*': -0.25}
 
 
+# Coordination/lattice Pourbaix stabilization shift (V) by material class across all 14 classes
+POURBAIX_CLASS_COORD_SHIFT_V: dict[str, float] = {
+    'MoltenMetal': 0.20,
+    'SolidCatalyst': 0.40,
+    'SAC': 1.05,
+    'DAC': 1.05,
+    'MOF': 1.00,
+    'COF': 1.05,
+    'Perovskite': 1.10,
+    'MetalHydride': 0.25,
+    'MAXPhase': 0.95,
+    'HEA': 0.55,
+    'Spinel': 1.10,
+    'MXene': 0.95,
+    'SAA': 0.55,
+    'MetalFreeCarbon': 1.25,
+}
+
+# Interfacial H-bond water stabilization scale factor across all 14 classes
+HBOND_CLASS_SCALE: dict[str, float] = {
+    'MoltenMetal': 0.85,
+    'SolidCatalyst': 1.00,
+    'SAC': 0.75,
+    'DAC': 0.75,
+    'MOF': 0.75,
+    'COF': 0.75,
+    'Perovskite': 1.05,
+    'MetalHydride': 0.90,
+    'MAXPhase': 0.95,
+    'HEA': 1.00,
+    'Spinel': 1.05,
+    'MXene': 1.00,
+    'SAA': 1.00,
+    'MetalFreeCarbon': 0.75,
+}
+
+
 def compute_pourbaix_stability_margin(
     genome,
     *,
@@ -390,26 +427,15 @@ def compute_pourbaix_stability_margin(
     elements = [el for el in _extract_elements(parsed) if el in STANDARD_REDUCTION_POTENTIALS_V]
     if not elements:
         # MetalFreeCarbon / covalent non-metal frameworks resist anodic metal dissolution
-        onset = 1.25
+        onset = POURBAIX_CLASS_COORD_SHIFT_V.get(mat_class, 1.25)
     else:
         # Active site is governed by the primary metal (first extracted metal)
         e0_primary = STANDARD_REDUCTION_POTENTIALS_V[elements[0]]
         e0_mean = float(np.mean([STANDARD_REDUCTION_POTENTIALS_V[el] for el in elements]))
         base_e0 = 0.65 * e0_primary + 0.35 * e0_mean
-        if mat_class in ('SAC', 'DAC', 'COF', 'MOF'):
-            # N4/macrocycle chelation shifts metal demetallation onset by +1.05 V in acid
-            coord_shift = 1.05
-        elif mat_class in ('Perovskite', 'Spinel'):
-            # Crystalline oxide sublattice stabilization
-            coord_shift = 1.10
-        elif mat_class in ('MAXPhase', 'MXene'):
-            coord_shift = 0.95
-        elif mat_class == 'SAA':
-            # Host-metal alloying chemical potential stabilization
-            coord_shift = 0.55
-        else:
-            # Alloying / support stabilization on nanoparticles
-            coord_shift = 0.45 if len(elements) > 1 else 0.30
+        coord_shift = POURBAIX_CLASS_COORD_SHIFT_V.get(mat_class, 0.35)
+        if mat_class == 'SolidCatalyst' and len(elements) == 1:
+            coord_shift = 0.30
         onset = base_e0 + coord_shift + 0.05916 * float(pH)
     margin = float(onset - U_V_vs_RHE)
     return {
@@ -449,12 +475,7 @@ def compute_grand_canonical_orr_corrections(
 
     parsed = parse_catalyst_genome(genome) if (genome is not None and not isinstance(genome, tuple)) else genome
     mat_class = str(parsed[0]) if parsed else 'SolidCatalyst'
-    # Hydrophobic carbon/framework hosts attenuate water H-bond network by ~25%
-    hbond_scale = (
-        0.75
-        if mat_class in ('MetalFreeCarbon', 'SAC', 'DAC', 'COF', 'MOF')
-        else 1.0
-    )
+    hbond_scale = HBOND_CLASS_SCALE.get(mat_class, 1.0)
     e_field_V_A = (float(U_V_vs_RHE) - float(U_pzc_V)) / max(1.0, float(helmholtz_thickness_A))
 
     def _shift(ads: str) -> float:
