@@ -15,7 +15,7 @@ from pipeline.screening.surface_screener import run_screening
 
 def main():
     engine = os.environ.get('HYDROGEN_SCREENING_ENGINE', 'batched')
-    workers_per_gpu = int(os.environ.get('HYDROGEN_WORKERS_PER_GPU', '1'))
+    workers_per_gpu = int(os.environ.get('HYDROGEN_WORKERS_PER_GPU', '14'))
     application = os.environ.get('HYDROGEN_SCREENING_APPLICATION', 'pyrolysis')
     expected = int(
         subprocess.check_output(
