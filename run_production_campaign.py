@@ -12,17 +12,33 @@ directory from the environment at import time, so every pipeline import
 happens after ``configure_environment``.
 """
 
+import argparse
+import ast
+import json
 import os
+import subprocess
 import sys
 import time
-import json
-import ast
-import argparse
-import subprocess
 from pathlib import Path
+from typing import Mapping, cast
 
 sys.path.insert(0, str(Path(__file__).parent))
-from typing import Mapping, cast
+
+from pipeline.campaigns.cli_setup import (
+    REPO_DIR,
+    _apply_sota_preset,
+    _assess_readiness,
+    _branch_config_kwargs,
+    _build_parser,
+    _check_design_space,
+    _configure_environment,
+    _get_conda_env,
+    _get_git_sha,
+    _load_hf_token,
+    _record_provenance,
+    _resolve_paths,
+    _validate_resources,
+)
 from pipeline.data_models.campaigns import (
     CampaignReadinessReport,
     PipelineStateDocument,
@@ -34,328 +50,27 @@ from pipeline.data_models.reactors import (
 )
 from pipeline.data_models.stages import CandidateSelection, TableLike
 from pipeline.reactors.modes import (
-    DEFAULT_MODE, MODE_CHOICES, THERMAL_REACTOR_TEMPERATURES_K,
-    reactor_temperatures_for_mode, reactor_types_for_mode)
+    DEFAULT_MODE,
+    MODE_CHOICES,
+    THERMAL_REACTOR_TEMPERATURES_K,
+    reactor_temperatures_for_mode,
+    reactor_types_for_mode,
+)
 
-REPO_DIR = Path(__file__).parent
 REACTOR_TEMPERATURES_K = list(THERMAL_REACTOR_TEMPERATURES_K)
 
 
 def _reactor_temperatures(mode: str) -> list[float]:
     """Return the shared mode temperature grid from pipeline.reactors.modes."""
     return list(reactor_temperatures_for_mode(mode))
+
+
 MAX_REACTOR_CANDIDATES = 20
 MAX_VQE_CANDIDATES = 5
 PEMFC_CANDIDATES = 30
 
-
-def _branch_config_kwargs(
-    args: argparse.Namespace, deadline_epoch_s: float
-) -> dict[str, object]:
-    """Translate shared CLI settings into either branch-discovery config."""
-    return {
-        'initial_fairchem_samples': args.calibration_probes,
-        'fairchem_eval_top_k': args.validation_batch,
-        'exhaustive_batch_size': args.scan_batch_size,
-        'branch_leaf_size': args.branch_leaf_size,
-        'branch_probe_count': args.branch_probes,
-        'branch_max_leaves': (
-            None if args.branch_max_leaves == 0 else args.branch_max_leaves
-        ),
-        'expected_space_size': args.expected_space_size,
-        'max_runtime_s': (
-            None
-            if args.hours == 0
-            else max(0.0, deadline_epoch_s - time.time())
-        ),
-        'prior_art_db': args.prior_art_db,
-        'min_validation_per_class': args.min_validation_per_class,
-        'min_resolved_leaves_per_class': args.branch_class_floor,
-        'branch_exploration_interval': args.branch_exploration_interval,
-        'refresh_pending_priorities': args.branch_priority_refresh,
-        'scan_workers': args.scan_workers,
-        'workers_per_gpu': args.workers_per_gpu,
-        'calibration_artifact': getattr(args, 'calibration_json', None),
-    }
-
-
-# ─── Configuration ──────────────────────────────────────────────────────────
-
-
-def _build_parser() -> argparse.ArgumentParser:
-    """Return the campaign command-line interface."""
-    parser = argparse.ArgumentParser(
-        description='GPU-Saturated Turquoise H₂ Catalyst Discovery'
-    )
-    parser.add_argument('--calibration-probes', type=int, default=500,
-                        help='Deterministic binary-tree probes used to calibrate the surrogate')
-    parser.add_argument('--validation-batch', type=int, default=500,
-                        help='Branch/archive champions sent to the atomistic model')
-    parser.add_argument('--min-validation-per-class', type=int, default=2,
-                        help='Reserved atomistic validation quota per represented class')
-    parser.add_argument('--hours', type=float, default=0,
-                        help='Max wall-clock hours. 0 = unlimited (default: 0)')
-    parser.add_argument('--top-k', type=int, default=200,
-                        help='Top-K for reactor simulation (default: 200)')
-    parser.add_argument('--no-dft', dest='no_dft', action='store_true', default=True,
-                        help='Skip Phase 3 DFT validation (default: True)')
-    parser.add_argument('--run-dft', dest='no_dft', action='store_false',
-                        help='Opt in to Phase 3 Quantum ESPRESSO DFT validation')
-    parser.add_argument('--no-vqe', dest='no_vqe', action='store_true', default=True,
-                        help='Skip Phase 4 CUDA-Q VQE refinement (default: True)')
-    parser.add_argument('--run-vqe', dest='no_vqe', action='store_false',
-                        help='Opt in to Phase 4 CUDA-Q VQE transition-state refinement')
-    parser.add_argument('--mode', choices=MODE_CHOICES, default=DEFAULT_MODE,
-                        help=f'Methane-conversion pathway (default: {DEFAULT_MODE})')
-    parser.add_argument('--ntec-conditions-json', default='',
-                        help=('JSON with measured operating conditions and paired '
-                              'NTEC/control effect calibration'))
-    parser.add_argument('--electrochemical-conditions-json', default='',
-                        help=('JSON measured electrochemical operating point; '
-                              'electrolyte_phase is aqueous or molten'))
-    parser.add_argument('--workers-per-gpu', type=int, default=32,
-                        help='Candidate threads sharing each GPU in the batched '
-                             'eSEN engine (relaxation CPU work overlaps inference)')
-    parser.add_argument('--scan-batch-size', type=int, default=65536)
-    parser.add_argument('--scan-workers', type=int, default=8,
-                        help='Independent deterministic scanner shards per resolved leaf')
-    parser.add_argument('--branch-leaf-size', type=int, default=1_000_000)
-    parser.add_argument('--branch-probes', type=int, default=9)
-    parser.add_argument('--branch-max-leaves', type=int, default=0,
-                        help='Process at most this many leaves per run; 0 continues until complete')
-    parser.add_argument('--branch-class-floor', type=int, default=1,
-                        help='Resolve at least this many leaves per class before pure exploitation')
-    parser.add_argument('--branch-exploration-interval', type=int, default=4,
-                        help='After class floors, reserve every Nth leaf for the least-covered class')
-    parser.add_argument('--branch-priority-refresh', type=int, default=10000,
-                        help='Re-score up to this many pending nodes when resuming')
-    parser.add_argument('--expected-space-size', type=int, default=21_092_657_271,
-                        help='Fail if the indexed population denominator differs')
-    parser.add_argument('--results-dir', default='results',
-                        help='Isolated output root for this campaign (default: results)')
-    parser.add_argument('--mechanisms-dir', default=None,
-                        help='Generated Cantera mechanisms (default: <results-dir>/mechanisms)')
-    parser.add_argument('--prior-art-db', default=None,
-                        help='Prior-art SQLite database (default: <results-dir>/prior_art.sqlite)')
-    parser.add_argument('--prior-art-csv', action='append', default=[],
-                        help='CSV registry to import; repeat for multiple sources')
-    parser.add_argument('--calibration-json', default=None,
-                        help=('Active-learning DFT calibration JSON '
-                              '(default: <results-dir>/dft/active_learning_calibration.json)'))
-    parser.add_argument('--final-campaign', action='store_true',
-                        help='Fail closed unless coverage and prior-art readiness requirements pass')
-    parser.add_argument('--sota-campaign', action='store_true',
-                        help='Configure high-volume SOTA discovery preset (56+ sub-class leaves, '
-                             '4 leaves/class floor, 1000 calibration probes, 500 validation batch)')
-    parser.add_argument('--evidence-manifest', default=None,
-                        help='Measured/validated evidence counts required by --final-campaign')
-    parser.add_argument(
-        '--kinetics-validation-dir', default=None,
-        help=('Directory containing <candidate_id>/pyrolysis_validation.json; '
-              'complete matching campaigns replace Cantera template barriers'))
-    parser.add_argument(
-        '--multiphysics-results-dir', default=None,
-        help=('Required OpenFOAM/MOOSE artifacts (default: '
-              '<results-dir>/multiphysics)'))
-    parser.add_argument('--qe-mpi-ranks', type=int, default=4)
-    parser.add_argument('--qe-omp-threads', type=int, default=1)
-    default_qe_concurrency = max(1, min(4, (os.cpu_count() or 1) // 4))
-    parser.add_argument('--qe-max-concurrent', type=int, default=default_qe_concurrency,
-                        help='Maximum independent candidate DFT jobs launched together')
-    return parser
-
-
-def _apply_sota_preset(args: argparse.Namespace) -> None:
-    """Apply high-volume SOTA branch-and-bound discovery defaults when requested."""
-    if not getattr(args, 'sota_campaign', False):
-        return
-    args.branch_class_floor = max(int(args.branch_class_floor), 4)
-    if int(args.branch_max_leaves) == 0:
-        args.branch_max_leaves = 56
-    args.calibration_probes = max(int(args.calibration_probes), 1000)
-    args.validation_batch = max(int(args.validation_batch), 500)
-    args.min_validation_per_class = max(int(args.min_validation_per_class), 4)
-
-
-def _resolve_paths(args: argparse.Namespace) -> Path:
-    """Make every output path absolute and default it under the results root."""
-    _apply_sota_preset(args)
-    results_dir = Path(args.results_dir).expanduser().resolve()
-    args.results_dir = str(results_dir)
-    mechanisms_dir = (Path(args.mechanisms_dir).expanduser().resolve()
-                      if args.mechanisms_dir else results_dir / 'mechanisms')
-    args.mechanisms_dir = str(mechanisms_dir)
-    if args.prior_art_db is None:
-        args.prior_art_db = str(results_dir / 'prior_art.sqlite')
-    if getattr(args, 'calibration_json', None) is None:
-        args.calibration_json = str(
-            results_dir / 'dft' / 'active_learning_calibration.json'
-        )
-    else:
-        args.calibration_json = str(
-            Path(args.calibration_json).expanduser().resolve()
-        )
-    if args.evidence_manifest is None:
-        args.evidence_manifest = str(results_dir / 'evidence_manifest.json')
-    if args.kinetics_validation_dir is None:
-        args.kinetics_validation_dir = str(results_dir / 'dft' / 'pyrolysis_kinetics')
-    if args.multiphysics_results_dir is None:
-        args.multiphysics_results_dir = str(results_dir / 'multiphysics')
-    else:
-        args.multiphysics_results_dir = str(
-            Path(args.multiphysics_results_dir).expanduser().resolve())
-    os.environ['HYDROGEN_RESULTS_DIR'] = str(results_dir)
-    os.environ['HYDROGEN_MECHANISMS_DIR'] = str(mechanisms_dir)
-    return results_dir
-
-
-def _validate_resources(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
-    """Reject budgets the branch search or the QE allocation cannot honour."""
-    if args.scan_workers < 1 or args.workers_per_gpu < 1 or args.qe_mpi_ranks < 1 or \
-            args.qe_omp_threads < 1 or args.qe_max_concurrent < 1:
-        parser.error('scanner and QE resource dimensions must be positive')
-    if args.calibration_probes < 20:
-        parser.error('--calibration-probes must be at least 20 for the tree ranker')
-    required_validation = 14 * args.min_validation_per_class
-    if args.validation_batch < required_validation:
-        parser.error(
-            f'--validation-batch must be at least {required_validation} to reserve '
-            f'{args.min_validation_per_class} candidate(s) across all 14 classes')
-    if not args.no_dft:
-        requested_qe_cpus = (args.qe_mpi_ranks * args.qe_omp_threads *
-                             args.qe_max_concurrent)
-        available_cpus = os.cpu_count() or 1
-        if requested_qe_cpus > available_cpus:
-            parser.error(
-                f'QE allocation requests {requested_qe_cpus} CPUs, '
-                f'but only {available_cpus} are visible')
-
-
-def _configure_environment(args: argparse.Namespace):
-    """Export run settings, load prior art, and print the hardware banner.
-
-    Returns:
-        The prior-art registry, GPU count and GPU names.
-    """
-    # QE executables are resolved at execution time only from the explicit
-    # PW_X/NEB_X and MPIEXEC set by the pinned Blackwell GPU activation file.
-    os.environ['QE_MPI_RANKS'] = str(args.qe_mpi_ranks)
-    os.environ['QE_OMP_THREADS'] = str(args.qe_omp_threads)
-
-    from pipeline.evidence.prior_art import PriorArtRegistry
-    prior_registry = PriorArtRegistry(args.prior_art_db)
-    for prior_csv in args.prior_art_csv:
-        prior_registry.import_csv(prior_csv)
-
-    os.environ['PYROLYSIS_MODE'] = args.mode
-    if args.ntec_conditions_json:
-        os.environ['NTEC_CONDITIONS_JSON'] = args.ntec_conditions_json
-    if args.electrochemical_conditions_json:
-        os.environ['ELECTROCHEMICAL_CONDITIONS_JSON'] = \
-            args.electrochemical_conditions_json
-    import torch
-    n_gpus = torch.cuda.device_count()
-    gpu_names = [torch.cuda.get_device_name(i) for i in range(n_gpus)]
-    gpu_mem = [torch.cuda.get_device_properties(i).total_memory / 1e9 for i in range(n_gpus)]
-
-    print("=" * 80)
-    print("  GPU-SATURATED CATALYST DISCOVERY CAMPAIGN v2")
-    print("=" * 80)
-    for i in range(n_gpus):
-        print(f"  GPU[{i}] {gpu_names[i]} — {gpu_mem[i]:.1f} GB")
-    print(f"  CPUs: {os.cpu_count()} cores")
-    print(f"  Mode: {args.mode.upper()}")
-    print("  Search: catalyst-guided, coverage-safe branch-and-bound")
-    print(f"  Calibration probes: {args.calibration_probes:,}")
-    print(f"  Validation batch: {args.validation_batch:,}")
-    print(f"  Prior-art records: {prior_registry.count():,}")
-    print("=" * 80)
-    return prior_registry, n_gpus, gpu_names
-
-
-def _load_hf_token() -> None:
-    """Load the HuggingFace token needed for the gated eSEN surface model.
-
-    Uses the environment, ``$HF_HOME/token`` or the repo ``.hf_token``; prompts
-    only on an interactive terminal; and fails fast otherwise, because
-    screening has no non-gated fallback model.
-    """
-    from pipeline.screening.surface_calculator import _ensure_hf_token
-
-    if not _ensure_hf_token() and sys.stdin.isatty():
-        print("\n  HuggingFace token needed for the eSEN OC25 surface model")
-        print("    Get one at: https://huggingface.co/settings/tokens")
-        token = input("  Enter HF token: ").strip()
-        if token:
-            os.environ['HF_TOKEN'] = token
-    if not os.environ.get('HF_TOKEN'):
-        raise SystemExit(
-            'No HuggingFace token: set HF_TOKEN or run `huggingface-cli login` '
-            '(writes $HF_HOME/token); eSEN screening cannot run without it')
-    print("  ✓ HuggingFace token loaded (eSEN surface model enabled)")
-
-
-def _check_design_space(args: argparse.Namespace) -> None:
-    """Fail unless the indexed denominator and the canonical-identity audit pass."""
-    from pipeline.search.design_space import estimate_design_space_size, ALL_MATERIAL_CLASSES
-    from pipeline.utils import save_json
-
-    sizes = estimate_design_space_size()
-    if args.expected_space_size != sizes['TOTAL']:
-        raise SystemExit(
-            f"Population denominator mismatch: --expected-space-size={args.expected_space_size:,}, "
-            f"but this repository indexes {sizes['TOTAL']:,}. Update the design-space "
-            "definition or use the verified denominator; do not label it 25.3B."
-        )
-    from pipeline.evidence.design_space_audit import audit_design_space
-    design_audit = audit_design_space(sample_per_class=2048)
-    save_json(design_audit, 'design_space_audit.json', subdir='')
-    if not design_audit['valid']:
-        raise SystemExit(f"Design-space audit failed: {design_audit['failures']}")
-    print(f"\n  Design Space: {sizes['TOTAL']:,} ({sizes['TOTAL']/1e9:.1f}B)")
-    print(f"  Canonical identities: {design_audit['canonical_total']:,}")
-    for cls in ALL_MATERIAL_CLASSES:
-        print(f"    {cls:20s}: {sizes[cls]:>15,}")
-
-
-def _get_git_sha():
-    try:
-        return subprocess.check_output(
-            ['git', 'rev-parse', '--short', 'HEAD'],
-            cwd=str(REPO_DIR), stderr=subprocess.DEVNULL
-        ).decode().strip()
-    except Exception:
-        return 'unknown'
-
-
-def _get_conda_env():
-    try:
-        return subprocess.check_output(
-            ['conda', 'list', '--export'],
-            stderr=subprocess.DEVNULL
-        ).decode()[:2000]  # truncate for readability
-    except Exception:
-        return 'unavailable'
-
-
-def _record_provenance(
-    args: argparse.Namespace, n_gpus: int, gpu_names: list[str]
-) -> PipelineStateDocument:
-    """Start ``pipeline_state.json`` with reproducibility metadata."""
-    from pipeline.utils import save_json
-
-    pipeline_state = validate_pipeline_state({
-        'provenance': {
-            'timestamp': time.strftime('%Y-%m-%dT%H:%M:%S%z'),
-            'git_sha': _get_git_sha(),
-            'cli_args': vars(args),
-            'n_gpus': n_gpus,
-            'gpu_names': gpu_names,
-            'conda_env_snapshot': _get_conda_env(),
-        }
-    })
-    save_json(pipeline_state, "pipeline_state.json")
-    return pipeline_state
+# QE executables are resolved at execution time only from the explicit
+# PW_X/NEB_X and MPIEXEC set by the pinned Blackwell GPU activation file.
 
 
 # ─── Phases ─────────────────────────────────────────────────────────────────
@@ -375,16 +90,24 @@ def _run_phase1_discovery(
 
     print_banner("PHASE 1: DETERMINISTIC BRANCH-AND-BOUND + META ESEN-SM")
     t1 = time.time()
+    print("  Search: catalyst-guided, coverage-safe branch-and-bound")
 
-    from pipeline.screening.genetic_optimizer import run_branch_discovery, BranchDiscoveryConfig
+    from pipeline.screening.genetic_optimizer import (
+        BranchDiscoveryConfig,
+        run_branch_discovery,
+    )
 
     branch_config = BranchDiscoveryConfig(**_branch_config_kwargs(args, t_deadline))
 
     pareto_genomes, screening_db = run_branch_discovery(branch_config)
 
-    from pipeline.search.scope import scope_pyrolysis_pool
     from pipeline.screening.stage_selection import (
-        annotate_evidence, select_for_pyrolysis_reactor, select_for_validation)
+        annotate_evidence,
+        select_for_pyrolysis_reactor,
+        select_for_validation,
+    )
+    from pipeline.search.scope import scope_pyrolysis_pool
+
     valid_db = screening_db[screening_db['valid'] == True].copy()
     evidence_db = annotate_evidence(screening_db, 'E_act')
     # Same split as run_discovery_stage: admissibility on the full table,
@@ -392,14 +115,20 @@ def _run_phase1_discovery(
     # here drops unresolved rows the DFT rescue path is supposed to keep.
     pool, admissibility = scope_pyrolysis_pool(screening_db)
     top_catalysts = select_for_pyrolysis_reactor(
-        pool, args.top_k, 'E_act',
-        min_per_class=args.min_validation_per_class)
+        pool,
+        args.top_k,
+        'E_act',
+        min_per_class=args.min_validation_per_class,
+    )
     from pipeline.screening.surface_screener import upgrade_candidates_with_mlip_neb
+
     neb_calc = None
     try:
         import torch
+
         if torch.cuda.is_available():
             from pipeline.screening.surface_calculator import get_ocp_calculator
+
             prev_inf = os.environ.get('HYDROGEN_FAIRCHEM_INFERENCE')
             if prev_inf is None:
                 os.environ['HYDROGEN_FAIRCHEM_INFERENCE'] = 'batch'
@@ -416,8 +145,11 @@ def _run_phase1_discovery(
         kinetics_validation_dir=getattr(args, 'kinetics_validation_dir', None),
     )
     dft_candidates = select_for_validation(
-        pool, min(args.validation_batch, max(len(pool), 1)), 'E_act',
-        min_per_class=args.min_validation_per_class)
+        pool,
+        min(args.validation_batch, max(len(pool), 1)),
+        'E_act',
+        min_per_class=args.min_validation_per_class,
+    )
 
     pipeline_state['phase1'] = {
         'pareto_size': len(pareto_genomes),
@@ -427,20 +159,28 @@ def _run_phase1_discovery(
         'dft_resolution_count': len(dft_candidates),
         'admissibility': admissibility,
         'candidate_dispositions': evidence_db[
-            'candidate_disposition'].value_counts().to_dict(),
+            'candidate_disposition'
+        ].value_counts().to_dict(),
         'elapsed_s': time.time() - t1,
         'search_strategy': 'deterministic_branch_and_bound',
     }
     # Censored barriers sit at the clip floor; only metric-eligible rows
     # (the same rule run_discovery_stage uses) may report a best barrier.
     from pipeline.screening.small_data_ranker import screening_metric_eligibility
+
     eligible_db = screening_db.loc[
-        screening_metric_eligibility(screening_db, 'turquoise_hydrogen')]
+        screening_metric_eligibility(screening_db, 'turquoise_hydrogen')
+    ]
     pipeline_state['phase1']['metric_eligible_count'] = len(eligible_db)
     if len(eligible_db) > 0:
         pipeline_state['phase1']['best_E_act'] = float(eligible_db['E_act'].min())
-        if 'coking_index' in eligible_db.columns and eligible_db['coking_index'].notna().any():
-            pipeline_state['phase1']['best_coking'] = f"{float(eligible_db['coking_index'].dropna().max()):.3f} eV"
+        if (
+            'coking_index' in eligible_db.columns
+            and eligible_db['coking_index'].notna().any()
+        ):
+            pipeline_state['phase1']['best_coking'] = (
+                f"{float(eligible_db['coking_index'].dropna().max()):.3f} eV"
+            )
     save_json(pipeline_state, "pipeline_state.json")
     print(f"\n  Phase 1: {time.time()-t1:.0f}s | Evaluated: {len(screening_db):,}")
     return CandidateSelection(
@@ -455,8 +195,11 @@ def _load_kinetics_validation(
     args: argparse.Namespace, candidate_key: str
 ) -> PyrolysisValidationArtifact | None:
     """Return a complete matching pyrolysis validation campaign, if present."""
-    validation_path = (Path(args.kinetics_validation_dir) / candidate_key /
-                       'pyrolysis_validation.json')
+    validation_path = (
+        Path(args.kinetics_validation_dir)
+        / candidate_key
+        / 'pyrolysis_validation.json'
+    )
     if validation_path.is_file():
         available = json.loads(validation_path.read_text())
         if isinstance(available, Mapping) and available.get('complete'):
@@ -482,12 +225,15 @@ def _simulate_reactor_candidate(
     """Run one candidate's reactor sweep and summarise its best condition."""
     e_act = row.get('E_act', 1.0)
     stage_result = simulate_candidate(
-        row, candidate_key, _reactor_temperatures(args.mode),
+        row,
+        candidate_key,
+        _reactor_temperatures(args.mode),
         reactor_types=reactor_types_for_mode(args.mode),
         forbid_mock=True,
         kinetics_validation=_load_kinetics_validation(args, candidate_key),
         pathway_mode=args.mode,
-        multiphysics_results_dir=args.multiphysics_results_dir)
+        multiphysics_results_dir=args.multiphysics_results_dir,
+    )
     sweep = stage_result['sweep']
     sweep_records.extend(sweep)
     best_condition = stage_result['best_condition']
@@ -502,18 +248,28 @@ def _simulate_reactor_candidate(
         'sweep_status': stage_result['sweep_status'],
         # Completed reactor records carry T_K; temperature_K is only set on
         # failed-condition records.
-        'temperature_K': best_condition.get('T_K', best_condition.get('temperature_K')),
-        **{k: best_condition.get(k) for k in (
-            'H2_selectivity', 'CH4_conversion',
-            'deactivation_fraction_per_h', 'coke_fraction',
-            'kinetics_status', 'reactor_evidence_tier',
-            'can_exclude_candidate')},
+        'temperature_K': best_condition.get(
+            'T_K', best_condition.get('temperature_K')
+        ),
+        **{
+            k: best_condition.get(k)
+            for k in (
+                'H2_selectivity',
+                'CH4_conversion',
+                'deactivation_fraction_per_h',
+                'coke_fraction',
+                'kinetics_status',
+                'reactor_evidence_tier',
+                'can_exclude_candidate',
+            )
+        },
     }
 
 
 def _tea_estimates(reactor_results: list) -> list:
     """Pyrolysis TEA ($/kg H₂) for candidates above 1% conversion."""
     from pipeline.economics.tea import estimate_scenario_range
+
     tea_results = []
     for r in reactor_results:
         conv = r.get('best_conversion', 0)
@@ -521,8 +277,7 @@ def _tea_estimates(reactor_results: list) -> list:
             estimate = estimate_scenario_range(conv)
             tea_results.append({
                 'catalyst': r['catalyst'],
-                'h2_cost_usd_kg': estimate['estimates']['base'][
-                    'h2_cost_usd_kg'],
+                'h2_cost_usd_kg': estimate['estimates']['base']['h2_cost_usd_kg'],
                 **estimate,
             })
     return tea_results
@@ -547,10 +302,14 @@ def _simulate_judge_reference(args, simulate_candidate, sweep_records: list) -> 
         return
     try:
         result = simulate_candidate(
-            reference, NI_JUDGE_CATALYST, _reactor_temperatures(args.mode),
-            reactor_types=reactor_types, forbid_mock=True,
+            reference,
+            NI_JUDGE_CATALYST,
+            _reactor_temperatures(args.mode),
+            reactor_types=reactor_types,
+            forbid_mock=True,
             pathway_mode=args.mode,
-            multiphysics_results_dir=args.multiphysics_results_dir)
+            multiphysics_results_dir=args.multiphysics_results_dir,
+        )
         sweep_records.extend(result['sweep'])
     except Exception as e:
         print(f"    Judge reference error: {e}")
@@ -572,45 +331,65 @@ def _run_phase2_reactors(
     print_banner("PHASE 2: PATHWAY-SPECIFIC REACTOR SIMULATION")
     t2 = time.time()
     try:
-        from pipeline.stages.reactor import simulate_candidate
         from pipeline.reactors.equilibrium import run_equilibrium_sweep
         from pipeline.reactors.scorecard import (
-            NI_JUDGE_CATALYST, NI_JUDGE_HEADLINE_T_MAX, NI_JUDGE_HEADLINE_T_MIN,
-            build_solids_scorecard, log_solids_scorecard)
+            NI_JUDGE_CATALYST,
+            NI_JUDGE_HEADLINE_T_MAX,
+            NI_JUDGE_HEADLINE_T_MIN,
+            build_solids_scorecard,
+            log_solids_scorecard,
+        )
+        from pipeline.stages.reactor import simulate_candidate
 
         eq_result = run_equilibrium_sweep()
-        print(f"  Equilibrium check within_tol={eq_result.get('within_tolerance')} "
-              f"worst_err={eq_result.get('worst_abs_error')}")
+        print(
+            f"  Equilibrium check within_tol={eq_result.get('within_tolerance')} "
+            f"worst_err={eq_result.get('worst_abs_error')}"
+        )
 
         reactor_results = []
         reactor_sweep_records = []
         n_reactor = min(MAX_REACTOR_CANDIDATES, len(top_catalysts))
         for i, (_, row) in enumerate(top_catalysts.head(n_reactor).iterrows()):
             candidate_key = _reactor_candidate_key(row, i)
-            print(f"  Reactor sim {i+1}/{n_reactor}: E_act={row.get('E_act', 1.0):.3f} eV")
+            print(
+                f"  Reactor sim {i+1}/{n_reactor}: E_act={row.get('E_act', 1.0):.3f} eV"
+            )
             try:
-                reactor_results.append(_simulate_reactor_candidate(
-                    args, row, candidate_key, simulate_candidate, reactor_sweep_records))
+                reactor_results.append(
+                    _simulate_reactor_candidate(
+                        args,
+                        row,
+                        candidate_key,
+                        simulate_candidate,
+                        reactor_sweep_records,
+                    )
+                )
             except Exception as e:
                 print(f"    Reactor error: {e}")
 
         tea_results = _tea_estimates(reactor_results)
         _simulate_judge_reference(args, simulate_candidate, reactor_sweep_records)
         scorecard = build_solids_scorecard(
-            reactor_sweep_records, judge_catalyst=NI_JUDGE_CATALYST,
+            reactor_sweep_records,
+            judge_catalyst=NI_JUDGE_CATALYST,
             headline_t_min=NI_JUDGE_HEADLINE_T_MIN,
-            headline_t_max=NI_JUDGE_HEADLINE_T_MAX)
+            headline_t_max=NI_JUDGE_HEADLINE_T_MAX,
+        )
         save_json(scorecard, 'phase2_solids_scorecard.json', subdir='reactor')
         log_solids_scorecard(scorecard, _PrintLogger())
         pipeline_state['phase2'] = {
             'catalysts_attempted': n_reactor,
             'catalysts_simulated': len(reactor_results),
             'complete_sweeps': sum(
-                r.get('sweep_status') == 'complete' for r in reactor_results),
+                r.get('sweep_status') == 'complete' for r in reactor_results
+            ),
             'partial_sweeps': sum(
-                r.get('sweep_status') == 'partial' for r in reactor_results),
+                r.get('sweep_status') == 'partial' for r in reactor_results
+            ),
             'failed_sweeps': sum(
-                r.get('sweep_status') == 'failed' for r in reactor_results),
+                r.get('sweep_status') == 'failed' for r in reactor_results
+            ),
             'elapsed_s': time.time() - t2,
             'equilibrium_check': {
                 'within_tolerance': eq_result.get('within_tolerance'),
@@ -619,6 +398,7 @@ def _run_phase2_reactors(
             'solids_scorecard': scorecard,
         }
         from pipeline.validation.viability import evaluate_turquoise
+
         viability = [evaluate_turquoise(r) for r in reactor_results]
         pipeline_state['phase2']['industrial_viability'] = {
             'pass': sum(v['status'] == 'pass' for v in viability),
@@ -629,14 +409,18 @@ def _run_phase2_reactors(
         # the headline band. A raw max across catalysts has no ranking
         # authority before B5 closure.
         pipeline_state['phase2']['best_conversion'] = scorecard.get(
-            'headline_solids_conversion')
+            'headline_solids_conversion'
+        )
         pipeline_state['phase2']['best_conversion_scope'] = (
             'solids_single_pass_judge_'
-            + str(scorecard.get('judge_catalyst') or 'unavailable'))
+            + str(scorecard.get('judge_catalyst') or 'unavailable')
+        )
         pipeline_state['phase2']['candidate_champion_conversion'] = scorecard.get(
-            'candidate_champion_conversion')
+            'candidate_champion_conversion'
+        )
         pipeline_state['phase2']['candidate_champion_catalyst'] = scorecard.get(
-            'candidate_champion_catalyst')
+            'candidate_champion_catalyst'
+        )
         if tea_results:
             best_tea = min(tea_results, key=lambda x: x['h2_cost_usd_kg'])
             pipeline_state['phase2']['best_h2_cost_usd_kg'] = best_tea['h2_cost_usd_kg']
@@ -656,6 +440,7 @@ def _calibrate_ranker_from_dft(
         return {'n_validation_samples': 0}
     try:
         import pandas as pd
+
         from pipeline.screening.small_data_ranker import fit_tree_ranker
         from pipeline.search.adaptive_validation import record_validation
         from pipeline.search.discovery import candidate_id, discovery_region
@@ -748,21 +533,28 @@ def _run_phase3_dft(args, pipeline_state: dict, dft_candidates, results_dir: Pat
     print_banner("PHASE 3: DFT VALIDATION (Quantum ESPRESSO)")
     t3 = time.time()
     try:
-        from pipeline.validation.dft_validator import validate_catalyst
-        from pipeline.validation.task_queue import ValidationTaskQueue
+        from concurrent.futures import ThreadPoolExecutor
+
         from pipeline.search.discovery import candidate_id
+        from pipeline.validation.dft_validator import validate_catalyst
+        from pipeline.validation.qe_workflows import QEExecutionConfig
+        from pipeline.validation.task_queue import ValidationTaskQueue
 
         represented_classes = (
             dft_candidates['material_class'].nunique()
-            if 'material_class' in dft_candidates else 0)
+            if 'material_class' in dft_candidates
+            else 0
+        )
         n_dft = min(max(14, represented_classes), len(dft_candidates))
         dft_tasks = []
         protocol_id = (
             f'screening-dft-v2:sssp-1.3.0:physical-realization-v2:'
             f'mpi={args.qe_mpi_ranks}:'
-            f'omp={args.qe_omp_threads}')
+            f'omp={args.qe_omp_threads}'
+        )
         task_queue = ValidationTaskQueue(
-            results_dir / 'dft' / 'validation_tasks.sqlite')
+            results_dir / 'dft' / 'validation_tasks.sqlite'
+        )
         # The campaign is the only writer: any 'running' row at start is
         # from a killed run and must be reclaimable immediately.
         task_queue.recover_stale(stale_after_s=0)
@@ -772,14 +564,12 @@ def _run_phase3_dft(args, pipeline_state: dict, dft_candidates, results_dir: Pat
                 cid = candidate_id(genome)
                 name = f"campaign_{cid}"
                 task_queue.enqueue(
-                    'turquoise_hydrogen', genome,
-                    'screening_dft', protocol_id)
+                    'turquoise_hydrogen', genome, 'screening_dft', protocol_id
+                )
                 dft_tasks.append((name, cid, genome))
             except Exception as e:
                 print(f"    DFT input failed for cat_{idx}: {e}")
-        from concurrent.futures import ThreadPoolExecutor
 
-        from pipeline.validation.qe_workflows import QEExecutionConfig
         qe_exec = QEExecutionConfig(
             mpi_ranks=args.qe_mpi_ranks,
             omp_threads=args.qe_omp_threads,
@@ -788,36 +578,60 @@ def _run_phase3_dft(args, pipeline_state: dict, dft_candidates, results_dir: Pat
         def _validate_task(task):
             name, cid, genome = task
             if not task_queue.claim(
-                    'turquoise_hydrogen', cid,
-                    'screening_dft', protocol_id):
+                'turquoise_hydrogen', cid, 'screening_dft', protocol_id
+            ):
                 state = task_queue.task(
-                    'turquoise_hydrogen', cid, 'screening_dft', protocol_id)
-                if (state and state['status'] == 'converged'
-                        and state['result_path']
-                        and Path(state['result_path']).is_file()):
-                    # Already-converged work from an earlier run still counts.
+                    'turquoise_hydrogen', cid, 'screening_dft', protocol_id
+                )
+                if (
+                    state
+                    and state['status'] == 'converged'
+                    and state['result_path']
+                    and Path(state['result_path']).is_file()
+                ):
                     return json.loads(Path(state['result_path']).read_text())
-                return {'catalyst_name': name, 'candidate_id': cid,
-                        'skipped': True, 'converged': False,
-                        'reason': 'task_not_claimable'}
+                return {
+                    'catalyst_name': name,
+                    'candidate_id': cid,
+                    'skipped': True,
+                    'converged': False,
+                    'reason': 'task_not_claimable',
+                }
             try:
                 result = validate_catalyst(
-                    name, genome, run_dft=True, restart_incomplete=True,
-                    execution=qe_exec)
+                    name,
+                    genome,
+                    run_dft=True,
+                    restart_incomplete=True,
+                    execution=qe_exec,
+                )
                 task_queue.finish(
-                    'turquoise_hydrogen', cid, 'screening_dft',
-                    protocol_id, bool(result.get('converged')),
+                    'turquoise_hydrogen',
+                    cid,
+                    'screening_dft',
+                    protocol_id,
+                    bool(result.get('converged')),
                     result_path=str(results_dir / 'dft' / f'{name}_dft.json'),
-                    error=result.get('error'))
+                    error=result.get('error'),
+                )
                 return result
             except Exception as exc:
                 task_queue.finish(
-                    'turquoise_hydrogen', cid, 'screening_dft',
-                    protocol_id, False, error=str(exc))
-                return {'catalyst_name': name, 'error': str(exc)[:200],
-                        'converged': False}
+                    'turquoise_hydrogen',
+                    cid,
+                    'screening_dft',
+                    protocol_id,
+                    False,
+                    error=str(exc),
+                )
+                return {
+                    'catalyst_name': name,
+                    'error': str(exc)[:200],
+                    'converged': False,
+                }
+
         with ThreadPoolExecutor(
-                max_workers=min(args.qe_max_concurrent, len(dft_tasks) or 1)
+            max_workers=min(args.qe_max_concurrent, len(dft_tasks) or 1)
         ) as executor:
             dft_results = list(executor.map(_validate_task, dft_tasks))
         converged_dft = [r for r in dft_results if r.get('converged')]
@@ -832,7 +646,8 @@ def _run_phase3_dft(args, pipeline_state: dict, dft_candidates, results_dir: Pat
             'qe_mpi_ranks': args.qe_mpi_ranks,
             'qe_omp_threads': args.qe_omp_threads,
             'task_queue': task_queue.summary(
-                'turquoise_hydrogen', 'screening_dft'),
+                'turquoise_hydrogen', 'screening_dft'
+            ),
             'evidence_level': 'screening_dft',
             'elapsed_s': time.time() - t3,
         }
@@ -867,8 +682,8 @@ def _run_vqe(name: str, results_dir: Path, hamiltonian: Path) -> dict:
         else ['conda', 'run', '-n', 'quantum-env', 'python', '-c', code]
     )
     proc = subprocess.run(
-        cmd,
-        cwd=str(REPO_DIR), capture_output=True, text=True)
+        cmd, cwd=str(REPO_DIR), capture_output=True, text=True
+    )
     if proc.returncode != 0:
         raise RuntimeError(f"CUDA-Q failed for {name}: {proc.stderr[-1000:]}")
     result_path = results_dir / 'vqe' / f'vqe_{name}_CH_split.json'
@@ -877,9 +692,12 @@ def _run_vqe(name: str, results_dir: Path, hamiltonian: Path) -> dict:
     result = json.loads(result_path.read_text())
     if result.get('mock'):
         raise RuntimeError(f"CUDA-Q returned mock evidence for {name}")
-    if not result.get('catalyst_specific_hamiltonian') or not result.get('benchmarked'):
+    if not result.get('catalyst_specific_hamiltonian') or not result.get(
+        'benchmarked'
+    ):
         raise RuntimeError(
-            f"CUDA-Q result for {name} is not catalyst-specific benchmarked evidence")
+            f"CUDA-Q result for {name} is not catalyst-specific benchmarked evidence"
+        )
     return result
 
 
@@ -901,7 +719,8 @@ def _run_phase4_vqe(pipeline_state: dict, top_catalysts, results_dir: Path) -> N
             candidate_key = _reactor_candidate_key(row, i)
             hamiltonian = _candidate_hamiltonian_path(results_dir, candidate_key)
             (ready if hamiltonian.is_file() else missing).append(
-                (candidate_key, hamiltonian))
+                (candidate_key, hamiltonian)
+            )
         if not ready:
             pipeline_state['phase4'] = {
                 'skipped': True,
@@ -924,9 +743,10 @@ def _run_phase4_vqe(pipeline_state: dict, top_catalysts, results_dir: Path) -> N
 
 def _model_pemfc_stack(pipeline_state: dict, top_fc) -> None:
     """Membrane sweep on the ORR slate, then a 400-cell stack for the best cell."""
-    from pipeline.utils import print_banner
+    from pipeline.fuel_cell import composite_score
     from pipeline.fuel_cell.pemfc import sweep_membranes
     from pipeline.fuel_cell.stack import StackConfig, model_stack
+    from pipeline.utils import print_banner
 
     print_banner("PHASE 5B: PEMFC STACK MODELING")
     pemfc_results = []
@@ -941,12 +761,14 @@ def _model_pemfc_stack(pipeline_state: dict, top_fc) -> None:
     if not pemfc_results:
         return
 
-    from pipeline.fuel_cell import composite_score
-
     best = max(pemfc_results, key=composite_score)
-    stack = model_stack(StackConfig(n_cells=400,
-        cell_voltage_V=best.get('peak_voltage_V', 0.65),
-        current_density_A_cm2=best.get('peak_current_A_cm2', 1.5)))
+    stack = model_stack(
+        StackConfig(
+            n_cells=400,
+            cell_voltage_V=best.get('peak_voltage_V', 0.65),
+            current_density_A_cm2=best.get('peak_current_A_cm2', 1.5),
+        )
+    )
     pipeline_state['phase5_stack'] = {
         'best_power_W_cm2': best.get('peak_power_W_cm2', 0),
         'best_efficiency': best.get('efficiency_at_peak', 0),
@@ -957,50 +779,67 @@ def _model_pemfc_stack(pipeline_state: dict, top_fc) -> None:
         'stack_efficiency': stack.get('system_efficiency', 0),
     }
     from pipeline.validation.viability import evaluate_fuel_cell
+
     viability_record = dict(best)
     viability_record['system_efficiency'] = stack.get('system_efficiency', 0)
-    pipeline_state['phase5_stack']['industrial_viability'] = evaluate_fuel_cell(viability_record)
+    pipeline_state['phase5_stack']['industrial_viability'] = evaluate_fuel_cell(
+        viability_record
+    )
 
 
-def _run_phase5_fuel_cell(args, pipeline_state: dict, t_deadline: float,
-                         results_dir: Path) -> None:
+def _run_phase5_fuel_cell(
+    args, pipeline_state: dict, t_deadline: float, results_dir: Path
+) -> None:
     """ORR branch-and-bound over the same space, then PEMFC stack modelling."""
     from pipeline.utils import print_banner, save_json
 
     print_banner("PHASE 5: FUEL CELL ORR — BRANCH-AND-BOUND (21.1B ENCODED SPACE)")
     t5 = time.time()
 
-    remaining_hours = (t_deadline - time.time()) / 3600 if t_deadline != float('inf') else float('inf')
-    time_str = f"{remaining_hours:.1f}h" if remaining_hours != float('inf') else "unlimited"
+    remaining_hours = (
+        (t_deadline - time.time()) / 3600
+        if t_deadline != float('inf')
+        else float('inf')
+    )
+    time_str = (
+        f"{remaining_hours:.1f}h"
+        if remaining_hours != float('inf')
+        else "unlimited"
+    )
     print(f"  Remaining time: {time_str}")
     print("  FC search: catalyst-guided, coverage-safe branch-and-bound")
-    print(f"  Same 21.1B encoded design space, ORR-specific objectives")
+    print("  Same 21.1B encoded design space, ORR-specific objectives")
 
-    from pipeline.screening.fc_genetic_optimizer import run_fc_branch_discovery, FCBranchDiscoveryConfig
-    from pipeline.screening.stage_selection import (
-        annotate_evidence, select_for_reactor, select_for_validation)
-
-    fc_config = FCBranchDiscoveryConfig(
-        **_branch_config_kwargs(args, t_deadline)
+    from pipeline.screening.fc_genetic_optimizer import (
+        FCBranchDiscoveryConfig,
+        run_fc_branch_discovery,
     )
-
-    fc_pareto, fc_screening_db = run_fc_branch_discovery(fc_config)
-
-    from pipeline.search.scope import scope_pemfc_pool
     from pipeline.screening.fc_screener import (
         upgrade_orr_candidates_with_solvation_pourbaix,
     )
+    from pipeline.screening.stage_selection import (
+        annotate_evidence,
+        select_for_reactor,
+        select_for_validation,
+    )
+    from pipeline.search.scope import scope_pemfc_pool
+
+    fc_config = FCBranchDiscoveryConfig(**_branch_config_kwargs(args, t_deadline))
+    fc_pareto, fc_screening_db = run_fc_branch_discovery(fc_config)
+
     fc_valid = fc_screening_db[fc_screening_db['valid'] == True].copy()
-    fc_evidence = annotate_evidence(
-        fc_screening_db, 'orr_overpotential_V')
+    fc_evidence = annotate_evidence(fc_screening_db, 'orr_overpotential_V')
     fc_pool, fc_scope = scope_pemfc_pool(fc_screening_db)
     top_fc = select_for_reactor(
-        fc_pool, PEMFC_CANDIDATES, 'orr_overpotential_V',
-        min_per_class=1)
+        fc_pool, PEMFC_CANDIDATES, 'orr_overpotential_V', min_per_class=1
+    )
     top_fc = upgrade_orr_candidates_with_solvation_pourbaix(top_fc)
     fc_validation = select_for_validation(
-        fc_pool, min(args.validation_batch, len(fc_pool)),
-        'orr_overpotential_V', min_per_class=args.min_validation_per_class)
+        fc_pool,
+        min(args.validation_batch, len(fc_pool)),
+        'orr_overpotential_V',
+        min_per_class=args.min_validation_per_class,
+    )
     fc_validation = upgrade_orr_candidates_with_solvation_pourbaix(fc_validation)
     fc_validation_path = results_dir / 'fuel_cell' / 'validation_slate.csv'
     fc_validation_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1015,14 +854,21 @@ def _run_phase5_fuel_cell(args, pipeline_state: dict, t_deadline: float,
         'validation_slate': str(fc_validation_path),
         'pemfc_scope': fc_scope,
         'candidate_dispositions': fc_evidence[
-            'candidate_disposition'].value_counts().to_dict(),
+            'candidate_disposition'
+        ].value_counts().to_dict(),
         'elapsed_s': time.time() - t5,
     }
     if len(fc_valid) > 0 and 'orr_overpotential_V' in fc_valid.columns:
-        pipeline_state['phase5_branch']['best_overpotential_V'] = float(fc_valid['orr_overpotential_V'].min())
+        pipeline_state['phase5_branch']['best_overpotential_V'] = float(
+            fc_valid['orr_overpotential_V'].min()
+        )
     if len(top_fc) > 0 and 'orr_overpotential_gc_V' in top_fc.columns:
-        pipeline_state['phase5_branch']['best_overpotential_gc_V'] = float(top_fc['orr_overpotential_gc_V'].min())
-        pipeline_state['phase5_branch']['pourbaix_acid_stable_count'] = int(top_fc['pourbaix_acid_stable'].sum())
+        pipeline_state['phase5_branch']['best_overpotential_gc_V'] = float(
+            top_fc['orr_overpotential_gc_V'].min()
+        )
+        pipeline_state['phase5_branch']['pourbaix_acid_stable_count'] = int(
+            top_fc['pourbaix_acid_stable'].sum()
+        )
 
     if time.time() < t_deadline and len(top_fc) > 0:
         _model_pemfc_stack(pipeline_state, top_fc)
@@ -1034,15 +880,17 @@ def _run_phase5_fuel_cell(args, pipeline_state: dict, t_deadline: float,
         'n_valid': len(fc_valid),
     }
     save_json(pipeline_state, "pipeline_state.json")
-    print(f"\n  Phase 5: {time.time()-t5:.0f}s | FC catalysts evaluated: {len(fc_screening_db):,}")
+    print(
+        f"\n  Phase 5: {time.time()-t5:.0f}s | FC catalysts evaluated: {len(fc_screening_db):,}"
+    )
 
 
 def _run_phase6_report(
     pipeline_state: PipelineStateDocument, t_start: float
 ) -> PipelineStateDocument:
     """Write the full report and print the dual-campaign summary."""
-    from pipeline.utils import print_banner, save_json, load_json
     from pipeline.stages.report import run_report_stage
+    from pipeline.utils import load_json, print_banner, save_json
 
     print_banner("PHASE 6: REPORT")
     t6 = time.time()
@@ -1072,38 +920,8 @@ def _run_phase6_report(
     return pipeline_state
 
 
-def _assess_readiness(
-    args: argparse.Namespace, results_dir: Path
-) -> CampaignReadinessReport:
-    """Coverage, prior-art and six-point readiness; fail closed for final campaigns."""
-    from pipeline.utils import save_json
-    from pipeline.evidence.readiness import campaign_readiness
-    from pipeline.evidence.campaign_status import assess_campaign
-
-    h2_ready = campaign_readiness(
-        results_dir / 'screening' / 'turquoise_hydrogen_coverage_certificate.json', args.prior_art_db,
-        evidence_manifest=args.evidence_manifest if args.final_campaign else None,
-        application='turquoise_hydrogen', pyrolysis_mode=args.mode)
-    fc_ready = campaign_readiness(
-        results_dir / 'fuel_cell' / 'coverage_certificate.json', args.prior_art_db,
-        evidence_manifest=args.evidence_manifest if args.final_campaign else None,
-        application='fuel_cell')
-    six_point = assess_campaign(results_dir, pyrolysis_mode=args.mode)
-    readiness: CampaignReadinessReport = {
-        'turquoise_hydrogen': cast(dict, h2_ready),  # type: ignore[typeddict-item]
-        'fuel_cell': cast(dict, fc_ready),  # type: ignore[typeddict-item]
-        'six_point_status': cast(dict, six_point),  # type: ignore[typeddict-item]
-        'ready': bool(h2_ready['ready'] and fc_ready['ready'] and six_point['ready']),
-    }
-    save_json(readiness, 'campaign_readiness.json')
-    if args.final_campaign and not readiness['ready']:
-        raise SystemExit(f"Final campaign readiness failed: {readiness}")
-    return readiness
-
-
 def main():
-    """Run the module command-line entry point.
-    """
+    """Run the module command-line entry point."""
     parser = _build_parser()
     args = parser.parse_args()
     results_dir = _resolve_paths(args)
@@ -1145,4 +963,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

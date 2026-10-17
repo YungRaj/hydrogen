@@ -12,33 +12,52 @@ For each catalyst candidate, computes:
   6. Segregation / binding stability energy
   7. NEB transition state barrier (top candidates only)
 
-Parallelized across all available GPUs with 4 workers per device.
+3D ASE structure generation lives in ``pipeline.screening.structure_builders``
+and 5-step MLIP-NEB barrier refinement lives in ``pipeline.screening.mlip_neb``.
+Both are re-exported here for backwards compatibility.
 """
 
-import os
-import random
-import hashlib
 import json
-from pathlib import Path
-import numpy as np
 import multiprocessing as mp
-from typing import List, Tuple, Dict
+import os
+from typing import Dict, List
 
-# ASE imports
-from ase import Atoms, Atom
-from ase.build import fcc111, fcc100, bcc110, hcp0001, molecule
-from ase.constraints import FixAtoms
-from pipeline.screening.relaxation import relax_with_record, require_relaxation
+import numpy as np
+from ase import Atom
+from ase.build import molecule
+
+from pipeline.screening.mlip_neb import (
+    _run_neb_step,
+    compute_candidate_mlip_neb,
+    upgrade_candidates_with_mlip_neb,
+    write_pyrolysis_validation_json,
+)
 from pipeline.screening.protocols import PYROLYSIS_PROTOCOL
+from pipeline.screening.relaxation import relax_with_record, require_relaxation
+from pipeline.screening.structure_builders import (
+    LATTICE_CONSTANTS,
+    _add_surface_markers,
+    _append_marker,
+    _generate_hydride_slab,
+    _generate_perovskite_slab,
+    _generate_spinel_slab,
+    _label_fraction,
+    _representative_element,
+    _stable_seed,
+    adsorption_site,
+    generate_alloy_slab,
+    generate_porphyrin_cluster,
+    generate_structure,
+    screening_adsorption_site,
+)
 from pipeline.search.design_space import extract_elements as _extract_elements
-
 from pipeline.utils import (
     SCREENING_DIR,
-    setup_logger,
-    bep_activation_energy,
-    arrhenius_rate,
     abundance_cost_penalty,
+    arrhenius_rate,
+    bep_activation_energy,
     check_element_safety,
+    setup_logger,
 )
 
 logger = setup_logger('surface_screener', 'screening/surface_screening.log')
@@ -46,909 +65,8 @@ logger = setup_logger('surface_screener', 'screening/surface_screening.log')
 SCREENING_PROTOCOL_ID = PYROLYSIS_PROTOCOL.protocol_id
 
 
-def _stable_seed(*parts) -> int:
-    """Return a process-independent seed for one physical realization."""
-    payload = repr(parts).encode('utf-8')
-    return int.from_bytes(hashlib.sha256(payload).digest()[:8], 'big')
-
-
-def _label_fraction(label) -> float:
-    """Stable [0, 1) coordinate used to distinguish categorical realizations."""
-    return (_stable_seed('label-coordinate-v1', label) % 10_000) / 10_000.0
-
-
-def _representative_element(label: str, default: str = 'C') -> str:
-    """Map support/linker labels to a chemically relevant explicit atom."""
-    text = str(label)
-    for token in (
-        'Mo',
-        'Ti',
-        'Al',
-        'Si',
-        'Mg',
-        'Zr',
-        'Ce',
-        'La',
-        'Fe',
-        'Cl',
-        'Se',
-        'Zn',
-        'Ni',
-        'Co',
-        'Cu',
-        'Ca',
-        'Na',
-        'B',
-        'N',
-        'O',
-        'S',
-        'P',
-        'F',
-        'C',
-    ):
-        if token in text:
-            return token
-    return default
-
-
-def _append_marker(
-    atoms: Atoms, symbol: str, offset: tuple[float, float, float]
-) -> int:
-    """Add one explicit environment atom without overlapping the active site."""
-    center = atoms.get_center_of_mass()
-    atoms.append(Atom(symbol, position=center + np.asarray(offset, dtype=float)))
-    return len(atoms) - 1
-
-
-def _add_surface_markers(atoms: Atoms, symbols: list[str]) -> list[int]:
-    """Add sparse environment atoms and restore a valid bottom constraint."""
-    if not symbols:
-        return []
-    atoms.set_constraint()
-    z_max = float(atoms.positions[:, 2].max())
-    cell = atoms.cell.lengths()
-    added = []
-    for index, symbol in enumerate(symbols):
-        x = (index + 1) * float(cell[0]) / (len(symbols) + 1)
-        y = (index % 2 + 1) * float(cell[1]) / 3.0
-        atoms.append(Atom(symbol, position=(x, y, z_max + 1.5 + 0.25 * index)))
-        added.append(len(atoms) - 1)
-    z = atoms.positions[:, 2]
-    atoms.set_constraint(FixAtoms(mask=z < z.min() + 4.0))
-    return added
-
-
 # ═══════════════════════════════════════════════════════════════════════════════
-# STRUCTURE GENERATORS
-# ═══════════════════════════════════════════════════════════════════════════════
-
-
-def generate_alloy_slab(
-    host: str,
-    facet: str,
-    strain: float,
-    dopants: tuple,
-    n_sub: int,
-    n_vac: int,
-    size: Tuple[int, int, int] = (3, 3, 4),
-    vacuum: float = 12.0,
-    seed_key=None,
-    environment_label: str | None = None,
-) -> Tuple[Atoms, list]:
-    """Generate a strained alloy slab with dopant substitutions and vacancies.
-
-    Args:
-        host: Host used by this operation.
-        facet: Facet used by this operation.
-        strain: Strain used by this operation.
-        dopants: Ordered values supplying dopants.
-        n_sub: Number of sub to use.
-        n_vac: Number of vac to use.
-        size: Ordered values supplying size.
-        vacuum: Vacuum used by this operation.
-        seed_key: Seed key used by this operation.
-        environment_label: Environment label used by this operation.
-
-    Returns:
-        Ordered tuple of computed values.
-    """
-    builders = {
-        'fcc111': fcc111,
-        'fcc100': fcc100,
-        'bcc110': bcc110,
-        'hcp0001': hcp0001,
-    }
-    builder = builders.get(facet, fcc111)
-
-    # Explicit lattice constants (Å) — ASE can't guess these for many elements
-    LATTICE_CONSTANTS = {
-        # FCC metals
-        'Ni': 3.52,
-        'Cu': 3.61,
-        'Ag': 4.09,
-        'Au': 4.08,
-        'Al': 4.05,
-        'Pd': 3.89,
-        'Pt': 3.92,
-        'Rh': 3.80,
-        'Ir': 3.84,
-        'Pb': 4.95,
-        'Ca': 5.58,
-        'Sr': 6.08,
-        'Ce': 5.16,
-        'Yb': 5.49,
-        'Th': 5.08,
-        # BCC metals
-        'Fe': 2.87,
-        'Cr': 2.88,
-        'V': 3.03,
-        'Nb': 3.30,
-        'Mo': 3.15,
-        'W': 3.16,
-        'Ta': 3.30,
-        'Na': 4.29,
-        'K': 5.33,
-        'Ba': 5.02,
-        'Li': 3.51,
-        'Cs': 6.14,
-        'Rb': 5.59,
-        # HCP metals (using equivalent FCC a)
-        'Ti': 2.95,
-        'Zr': 3.23,
-        'Hf': 3.19,
-        'Co': 2.51,
-        'Ru': 2.71,
-        'Os': 2.74,
-        'Re': 2.76,
-        'Sc': 3.31,
-        'Y': 3.65,
-        'La': 3.75,
-        'Mg': 3.21,
-        'Zn': 2.66,
-        'Cd': 2.98,
-        # Non-standard / semimetals (use nearest FCC equivalent)
-        'Sn': 5.83,
-        'In': 4.60,
-        'Ga': 4.52,
-        'Sb': 4.31,
-        'Bi': 4.75,
-        'Ge': 5.66,
-        'Si': 5.43,
-        'Te': 4.45,
-        'Se': 4.36,
-        'As': 4.13,
-        'Mn': 3.50,
-        'Pr': 5.16,
-        'Nd': 5.08,
-        'Gd': 3.63,
-        'Tb': 3.60,
-        'Dy': 3.59,
-        'Ho': 3.58,
-        'Er': 3.56,
-        'Tm': 3.54,
-        'Lu': 3.50,
-        'Sm': 3.62,
-        'Eu': 4.58,
-        'Tl': 3.46,
-        'Po': 3.35,
-    }
-
-    a = LATTICE_CONSTANTS.get(host, 3.60)  # default 3.60 Å if unknown
-    try:
-        slab = builder(host, size=size, vacuum=vacuum, a=a)
-    except Exception:
-        # Fallback: use Ni as host template, then substitute
-        slab = fcc111('Ni', size=size, vacuum=vacuum, a=a)
-        for atom in slab:
-            atom.symbol = host
-
-    # Identify surface atoms (top layer by z-coordinate)
-    z_coords = slab.positions[:, 2]
-    z_max = z_coords.max()
-    top_mask = z_coords > (z_max - 2.5)  # atoms within 2.5 Å of surface
-    top_indices = np.where(top_mask)[0]
-
-    # Deterministic shuffle based on composition for reproducibility
-    rng = random.Random(
-        _stable_seed(
-            'alloy-slab-v2',
-            host,
-            facet,
-            tuple(dopants),
-            int(n_sub),
-            int(n_vac),
-            tuple(size),
-            float(vacuum),
-            seed_key,
-        )
-    )
-    shuffled = list(top_indices)
-    rng.shuffle(shuffled)
-
-    # Substitutions
-    sub_count = min(n_sub, len(shuffled)) if dopants else 0
-    for i in range(sub_count):
-        slab[shuffled[i]].symbol = dopants[i % len(dopants)]
-
-    # Vacancies (remove atoms after substitutions)
-    vac_count = min(n_vac, len(shuffled) - sub_count)
-    if vac_count > 0:
-        del_indices = sorted(shuffled[sub_count : sub_count + vac_count], reverse=True)
-        for idx in del_indices:
-            del slab[idx]
-        # Recompute top_indices after deletion
-        z_coords = slab.positions[:, 2]
-        top_mask = z_coords > (z_coords.max() - 2.5)
-        top_indices = np.where(top_mask)[0]
-
-    # A compact interface proxy prevents support-distinct genomes from
-    # collapsing to an identical unsupported metal slab.
-    if environment_label and str(environment_label).lower() != 'none':
-        bottom = int(np.argmin(slab.positions[:, 2]))
-        slab[bottom].symbol = _representative_element(environment_label, 'C')
-        slab.positions[bottom, 0] += 0.05 * _label_fraction(environment_label)
-
-    # Apply biaxial strain
-    cell = slab.get_cell()
-    cell[0] *= 1.0 + strain
-    cell[1] *= 1.0 + strain
-    slab.set_cell(cell, scale_atoms=True)
-
-    # Fix bottom 2 layers
-    z_coords = slab.positions[:, 2]
-    z_min = z_coords.min()
-    fix_mask = z_coords < (z_min + 4.0)
-    slab.set_constraint(FixAtoms(mask=fix_mask))
-
-    return slab, list(top_indices)
-
-
-def generate_porphyrin_cluster(
-    metal: str,
-    cavity: str,
-    d_metal_n: float = 2.0,
-    substrate: str = 'N-graphene',
-    axial_ligand: str = 'none',
-    linker: str | None = None,
-    pore_size: float | None = None,
-) -> Atoms:
-    """Generate a metal-porphyrin active site cluster for SAC/MOF evaluation.
-
-    Args:
-        metal: Metal used by this operation.
-        cavity: Cavity used by this operation.
-        d_metal_n: D metal n used by this operation.
-        substrate: Substrate used by this operation.
-        axial_ligand: Axial ligand used by this operation.
-        linker: Linker used by this operation.
-        pore_size: Number of pore size to use.
-
-    Returns:
-        Computed `Atoms` result.
-    """
-    atoms = Atoms()
-
-    # Central metal atom
-    if metal != 'None':
-        atoms.append(Atom(metal, position=(0.0, 0.0, 0.0)))
-    else:
-        # COFs have no metal node; use an explicit framework carbon instead of
-        # ASE's dummy X element, which atomistic models cannot embed.
-        atoms.append(Atom('C', position=(0.0, 0.0, 0.0)))
-
-    # Parse cavity for coordinating atoms
-    coord_map = {
-        'N4': ['N', 'N', 'N', 'N'],
-        'N3C': ['N', 'N', 'N', 'C'],
-        'N2C2': ['N', 'N', 'C', 'C'],
-        'N3B': ['N', 'N', 'N', 'B'],
-        'N3S': ['N', 'N', 'N', 'S'],
-        'N3P': ['N', 'N', 'N', 'P'],
-        'N2S2': ['N', 'N', 'S', 'S'],
-        'N2O2': ['N', 'N', 'O', 'O'],
-        'N3O': ['N', 'N', 'N', 'O'],
-        'O4': ['O', 'O', 'O', 'O'],
-        'N4_pyridine': ['N', 'N', 'N', 'N'],
-        'N4_pyrrole': ['N', 'N', 'N', 'N'],
-        'N6': ['N', 'N', 'N', 'N', 'N', 'N'],  # dual-atom
-        'N8': ['N', 'N', 'N', 'N', 'N', 'N', 'N', 'N'],
-        'N4C2': ['N', 'N', 'N', 'N', 'C', 'C'],
-        'N3SN3': ['N', 'N', 'N', 'S', 'N', 'N'],
-        'N4N4': ['N', 'N', 'N', 'N', 'N', 'N', 'N', 'N'],
-        'N2P2': ['N', 'N', 'P', 'P'],
-    }
-    coord_atoms = coord_map.get(cavity, ['N', 'N', 'N', 'N'])
-
-    # Place coordination atoms in a square/hexagonal arrangement
-    if len(coord_atoms) <= 4:
-        positions = [
-            (-d_metal_n, 0.0, 0.0),
-            (d_metal_n, 0.0, 0.0),
-            (0.0, -d_metal_n, 0.0),
-            (0.0, d_metal_n, 0.0),
-        ]
-    else:
-        # Hexagonal for 6+ coordinating atoms
-        n_coord = len(coord_atoms)
-        positions = []
-        for k in range(n_coord):
-            angle = 2 * np.pi * k / n_coord
-            positions.append(
-                (d_metal_n * np.cos(angle), d_metal_n * np.sin(angle), 0.0)
-            )
-
-    for sym, pos in zip(coord_atoms, positions[: len(coord_atoms)]):
-        atoms.append(Atom(sym, position=pos))
-    if len(atoms) > 1:
-        atoms.positions[1, 2] += 0.08 * _label_fraction(cavity)
-
-    # Add surrounding carbon skeleton
-    n_c = 8
-    pore_scale = (
-        1.0 if pore_size is None else np.clip(float(pore_size) / 12.0, 0.75, 1.75)
-    )
-    for k in range(n_c):
-        angle = 2 * np.pi * k / n_c + np.pi / n_c
-        r = (d_metal_n + 1.2) * pore_scale
-        atoms.append(Atom('C', position=(r * np.cos(angle), r * np.sin(angle), 0.0)))
-
-    # Add hydrogen termination
-    for k in range(n_c):
-        angle = 2 * np.pi * k / n_c + np.pi / n_c
-        r = (d_metal_n + 2.2) * pore_scale
-        atoms.append(Atom('H', position=(r * np.cos(angle), r * np.sin(angle), 0.0)))
-
-    # Encode the local support/linker chemistry explicitly. These atoms are a
-    # compact active-site environment, not a claim of a converged full crystal.
-    substrate_element = _representative_element(substrate, 'C')
-    atoms[5].symbol = substrate_element
-    atoms.positions[5, 2] += 0.08 * _label_fraction(substrate)
-    if linker is not None:
-        atoms[6].symbol = _representative_element(linker, 'C')
-        atoms.positions[6, 2] += 0.08 * _label_fraction(linker)
-
-    ligand = str(axial_ligand).lower()
-    if ligand not in ('none', '') and metal != 'None':
-        ligand_symbol = _representative_element(axial_ligand, 'O')
-        _append_marker(
-            atoms, ligand_symbol, (0.0, 0.0, 1.9 + 0.3 * _label_fraction(axial_ligand))
-        )
-
-    atoms.set_cell((15.0, 15.0, 15.0))
-    atoms.center()
-    atoms.pbc = True
-    return atoms
-
-
-def adsorption_site(
-    atoms: Atoms, active_indices: list[int], distance: float
-) -> tuple[np.ndarray, np.ndarray]:
-    """Choose the less crowded side of a surface or molecular active site.
-
-    Args:
-        atoms: Relaxed catalyst structure.
-        active_indices: Atom indices defining the active site.
-        distance: Adsorbate distance from the active-site centroid in angstrom.
-
-    Returns:
-        Adsorbate position and outward unit direction.
-    """
-    indices = [index for index in active_indices if 0 <= index < len(atoms)]
-    base = (
-        atoms.positions[indices].mean(axis=0)
-        if indices
-        else atoms.positions.mean(axis=0)
-    )
-    directions = (np.array([0.0, 0.0, 1.0]), np.array([0.0, 0.0, -1.0]))
-
-    def clearance(direction: np.ndarray) -> float:
-        position = base + distance * direction
-        return float(np.linalg.norm(atoms.positions - position, axis=1).min())
-
-    direction = max(directions, key=clearance)
-    return base + distance * direction, direction
-
-
-def screening_adsorption_site(
-    atoms: Atoms,
-    active_indices: list[int],
-    material_class: str,
-    distance: float,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Preserve legacy slab atop sites while avoiding SAC/DAC collisions.
-
-    Args:
-        atoms: Relaxed catalyst structure.
-        active_indices: Atom indices defining the active site.
-        material_class: Encoded catalyst material class.
-        distance: Adsorbate distance from the active site in angstrom.
-
-    Returns:
-        Adsorbate position and outward unit direction.
-    """
-    if material_class in ('SAC', 'DAC'):
-        return adsorption_site(atoms, active_indices, distance)
-    if active_indices and 0 <= active_indices[0] < len(atoms):
-        base = atoms[active_indices[0]].position.copy()
-    else:
-        base = atoms.positions.mean(axis=0)
-    direction = np.array([0.0, 0.0, 1.0])
-    return base + distance * direction, direction
-
-
-_SLAB_FACETS = ('fcc111', 'fcc100', 'bcc110', 'hcp0001')
-_MILLER_FACETS = {'111': 'fcc111', '100': 'fcc100', '110': 'bcc110', '211': 'fcc111'}
-_MAX_FACETS = {'basal_0001': 'hcp0001', 'edge_1010': 'bcc110', 'edge_1120': 'fcc100'}
-_SPINEL_MORPHOLOGY_DEFECTS = {
-    'mesoporous': 'O_vacancy',
-    'hollow_sphere': 'A_vacancy',
-    'nanorod': 'B_vacancy',
-}
-_MXENE_TERMINATIONS = {
-    'OH': ['O', 'H'],
-    'O': ['O'],
-    'F': ['F'],
-    'Cl': ['Cl'],
-    'S': ['S'],
-    'mixed_OH_O': ['O', 'H', 'O'],
-    'mixed_OH_F': ['O', 'H', 'F'],
-    'bare': [],
-}
-_CARBON_N_CAVITIES = {
-    'pyridinic': 'N3C',
-    'pyrrolic': 'N4_pyrrole',
-    'graphitic': 'N4',
-    'oxidized': 'N3O',
-    'mixed_pyridinic_graphitic': 'N4C2',
-}
-
-
-def _slab_facet_key(facet: str) -> str:
-    """Map an extended facet label to an available slab builder facet."""
-    facet_key = facet.split('_')[0] if '_' in facet else facet
-    return facet_key if facet_key in _SLAB_FACETS else 'fcc111'
-
-
-def _top_layer_indices(slab: Atoms) -> list:
-    """Return indices of atoms within 3 angstrom of the slab top."""
-    z = slab.positions[:, 2]
-    return list(np.where(z > z.max() - 3.0)[0])
-
-
-def _build_supported_nanoparticle(genome, structure_seed):
-    _, metal, support, facet, diameter_nm, loading_wt_pct, dopants, n_sub, n_vac = genome
-    # The slab builder is the validated geometry path.  Particle size and
-    # loading remain explicit metadata while the support/active site are
-    # represented by the same supported-slab environment.
-    slab, top_idx = generate_alloy_slab(
-        metal, _slab_facet_key(facet), 0.0, tuple(dopants), int(n_sub), int(n_vac),
-        seed_key=genome, environment_label=support,
-    )
-    slab.info.update({
-        'particle_diameter_nm': float(diameter_nm),
-        'loading_wt_pct': float(loading_wt_pct),
-        'support': str(support),
-    })
-    return slab, top_idx
-
-
-def _build_solid_catalyst(genome, structure_seed):
-    _, metal, support, facet, strain, dopants, n_sub, n_vac = genome
-    return generate_alloy_slab(
-        metal, _slab_facet_key(facet), strain, dopants, n_sub, n_vac,
-        seed_key=genome, environment_label=support,
-    )
-
-
-def _build_molten_metal(genome, structure_seed):
-    _, host, promoter, at_pct, temp = genome
-    # Substitutions are confined to the 3 x 3 surface layer below. Scale
-    # against those nine sites, not all 36 slab atoms; the latter silently
-    # turns alloys above 25 at% into a fully promoted surface.
-    n_sub = max(1, round(at_pct / 100.0 * 9))
-    dopants = (promoter,) if promoter != 'None' else ()
-    thermal_strain = (float(temp) - 1000.0) * 1.0e-5
-    facet = 'hcp0001' if host in {'Mg', 'Zn', 'Cd'} else 'fcc111'
-    return generate_alloy_slab(
-        host, facet, thermal_strain, dopants, n_sub, 0,
-        seed_key=('MoltenMetal', host, promoter, float(at_pct), structure_seed),
-    )
-
-
-def _build_sac(genome, structure_seed):
-    cluster = generate_porphyrin_cluster(
-        genome[1], genome[2], substrate=genome[3], axial_ligand=genome[4]
-    )
-    return cluster, [0]
-
-
-def _build_dac(genome, structure_seed):
-    _, m1, m2, coord, substrate = genome
-    cluster = generate_porphyrin_cluster(m1, coord, substrate=substrate)
-    separation = 2.5
-    cluster[0].position[0] -= separation / 2.0
-    second = cluster[0].position.copy()
-    second[0] += separation
-    midpoint_x = 0.5 * (cluster[0].position[0] + second[0])
-    coordination_count = 8 if coord in ('N8', 'N4N4') else 6
-    # Push ligands that would collide with either metal out past the pair.
-    for index in range(1, 1 + coordination_count):
-        atom = cluster[index]
-        if min(
-            np.linalg.norm(atom.position - cluster[0].position),
-            np.linalg.norm(atom.position - second),
-        ) < 1.2:
-            atom.position[0] = (
-                second[0] + 2.0
-                if atom.position[0] >= midpoint_x
-                else cluster[0].position[0] - 2.0
-            )
-    cluster.append(Atom(m2, position=second))
-    return cluster, [0, len(cluster) - 1]
-
-
-def _build_framework(genome, structure_seed):
-    _, metal, linker, cavity, pore = genome
-    cluster = generate_porphyrin_cluster(
-        metal, cavity, substrate='framework', linker=linker, pore_size=pore
-    )
-    return cluster, [0]
-
-
-def _build_perovskite(genome, structure_seed):
-    # ABO₃ perovskite — simple cubic unit cell replicated as slab
-    _, A, B, dopant, frac, defect = genome
-    slab = _generate_perovskite_slab(A, B, dopant, frac, defect, seed_key=genome)
-    return slab, _top_layer_indices(slab)
-
-
-def _build_metal_hydride(genome, structure_seed):
-    # Metal hydride — metal + H in bulk-like slab
-    _, metal, h_type, second, additive, temp = genome
-    slab = _generate_hydride_slab(
-        metal, second, h_type=h_type, additive=additive,
-        temperature_K=temp, seed_key=genome,
-    )
-    return slab, _top_layer_indices(slab)
-
-
-def _build_max_phase(genome, structure_seed):
-    # M_{n+1}AX_n layered structure — model as M-slab with A/X interstitials
-    _, M, A, X, n_val, dopant, facet = genome
-    dopants = tuple(x for x in (A, dopant) if x != 'None')
-    slab, top_idx = generate_alloy_slab(
-        M, _MAX_FACETS.get(facet, 'hcp0001'), 0.0, dopants, min(len(dopants), 2), 0,
-        size=(3, 3, n_val + 1), seed_key=genome,
-    )
-    _add_surface_markers(slab, [X] * n_val)
-    return slab, top_idx
-
-
-def _build_hea(genome, structure_seed):
-    # High-entropy alloy — random substitution slab
-    _, components, structure, facet_str, temp = genome
-    host = components[0]
-    dopants = components[1:]
-    facet_key = {'bcc': 'bcc110', 'hcp': 'hcp0001'}.get(
-        structure, _MILLER_FACETS.get(facet_str, 'fcc111')
-    )
-    thermal_strain = (float(temp) - 1000.0) * 5.0e-6
-    if structure == 'amorphous':
-        thermal_strain += 0.003
-    elif structure == 'fcc_bcc_dual':
-        thermal_strain -= 0.003
-    return generate_alloy_slab(
-        host, facet_key, thermal_strain, dopants, min(len(dopants), 6), 0,
-        seed_key=genome,
-    )
-
-
-def _build_spinel(genome, structure_seed):
-    # AB₂O₄ spinel — model as B-metal oxide slab
-    _, A, B, dopant, morph, support = genome
-    slab = _generate_spinel_slab(
-        A, B, dopant, _SPINEL_MORPHOLOGY_DEFECTS.get(morph, 'none'), support,
-        seed_key=genome,
-    )
-    morphology_scale = 0.98 + 0.04 * _label_fraction(morph)
-    slab.set_cell(slab.cell * [morphology_scale, 1.0, 1.0], scale_atoms=True)
-    return slab, _top_layer_indices(slab)
-
-
-def _build_mxene(genome, structure_seed):
-    # 2D MXene — model as M-carbide/nitride slab
-    _, M, X_elem, n_val, term, sac_metal = genome
-    slab, top_idx = generate_alloy_slab(
-        M, 'hcp0001', 0.0, (sac_metal,) if sac_metal != 'None' else (), 1, 0,
-        size=(3, 3, n_val + 1), seed_key=genome,
-    )
-    x_symbols = list(('C', 'N') if X_elem == 'CN' else (X_elem,))
-    _add_surface_markers(slab, x_symbols * n_val + _MXENE_TERMINATIONS.get(term, []))
-    return slab, top_idx
-
-
-def _build_saa(genome, structure_seed):
-    # Single-atom alloy — host metal slab with trace substitution
-    _, trace, host, facet_str, loading = genome
-    # Loading controls the explicit surface-cell size: more dilute SAAs use
-    # a larger host cell around the single trace atom.
-    lateral = 4 if loading <= 100 else (3 if loading <= 1000 else 2)
-    slab, top_idx = generate_alloy_slab(
-        host, _MILLER_FACETS.get(facet_str, 'fcc111'), 0.0, (trace,), 1, 0,
-        size=(lateral, lateral, 4), seed_key=genome,
-    )
-    loading_scale = 1.0 + min(float(loading), 10000.0) * 1.0e-7
-    slab.set_cell(slab.cell * [loading_scale, loading_scale, 1.0], scale_atoms=True)
-    return slab, top_idx
-
-
-def _build_metal_free_carbon(genome, structure_seed):
-    # Metal-free N-doped carbon — model as N-graphene cluster
-    _, n_type, n_frac, defect, substrate, co_dop = genome
-    cluster = generate_porphyrin_cluster(
-        'N',
-        _CARBON_N_CAVITIES.get(n_type, 'N4'),
-        d_metal_n=1.8 + float(n_frac),
-        substrate=substrate,
-        linker=defect,
-        pore_size=8.0 + 20.0 * float(n_frac),
-    )
-    if co_dop.lower() != 'none':
-        _append_marker(cluster, co_dop, (2.5, 0.0, 0.5))
-    return cluster, [0]
-
-
-_STRUCTURE_BUILDERS = {
-    'SupportedNanoparticle': _build_supported_nanoparticle,
-    'SolidCatalyst': _build_solid_catalyst,
-    'MoltenMetal': _build_molten_metal,
-    'SAC': _build_sac,
-    'DAC': _build_dac,
-    'MOF': _build_framework,
-    'COF': _build_framework,
-    'Perovskite': _build_perovskite,
-    'MetalHydride': _build_metal_hydride,
-    'MAXPhase': _build_max_phase,
-    'HEA': _build_hea,
-    'Spinel': _build_spinel,
-    'MXene': _build_mxene,
-    'SAA': _build_saa,
-    'MetalFreeCarbon': _build_metal_free_carbon,
-}
-
-
-def generate_structure(
-    genome: tuple, structure_seed: int = 0
-) -> Tuple[Atoms, list, str]:
-    """
-        Generate an atomic structure from a catalyst genome.
-        Returns: (atoms, active_site_indices, material_class)
-
-    Args:
-        genome: Encoded catalyst composition and structural configuration.
-        structure_seed: Deterministic structural replica index.
-    """
-    mat_class = genome[0]
-    builder = _STRUCTURE_BUILDERS.get(mat_class) if isinstance(mat_class, str) else None
-    if builder is None:
-        raise ValueError(f"Unknown material class: {mat_class}")
-    atoms, active_indices = builder(genome, structure_seed)
-    return atoms, active_indices, mat_class
-
-
-def _generate_perovskite_slab(
-    A: str, B: str, dopant: str, frac: float, defect: str, seed_key=None
-) -> Atoms:
-    """Generate a simple ABO₃ perovskite slab for MACE evaluation."""
-    a = 3.9  # approx perovskite lattice constant (Å)
-    # 2×2×3 supercell → 12 ABO₃ units
-    atoms = Atoms()
-    a_sites, b_sites, o_sites = [], [], []
-    for ix in range(2):
-        for iy in range(2):
-            for iz in range(3):
-                base = np.array([ix * a, iy * a, iz * a])
-                # A-site (corner)
-                atoms.append(Atom(A, position=base))
-                a_sites.append(len(atoms) - 1)
-                # B-site (body center)
-                atoms.append(Atom(B, position=base + np.array([a / 2, a / 2, a / 2])))
-                b_sites.append(len(atoms) - 1)
-                # O-sites (face centers)
-                atoms.append(Atom('O', position=base + np.array([a / 2, a / 2, 0])))
-                o_sites.append(len(atoms) - 1)
-                atoms.append(Atom('O', position=base + np.array([a / 2, 0, a / 2])))
-                o_sites.append(len(atoms) - 1)
-                atoms.append(Atom('O', position=base + np.array([0, a / 2, a / 2])))
-                o_sites.append(len(atoms) - 1)
-
-    rng = random.Random(
-        _stable_seed('perovskite-v2', A, B, dopant, float(frac), defect, seed_key)
-    )
-    if dopant != 'None' and frac > 0:
-        count = max(1, min(len(b_sites), round(float(frac) * len(b_sites))))
-        for index in rng.sample(b_sites, count):
-            atoms[index].symbol = dopant
-
-    vacancy_pool = {
-        'A_vacancy': a_sites,
-        'B_vacancy': b_sites,
-        'O_vacancy': o_sites,
-    }.get(defect)
-    if vacancy_pool:
-        del atoms[rng.choice(vacancy_pool)]
-    elif defect == 'A_excess':
-        atoms.append(
-            Atom(A, position=(a / 2, a / 2, float(atoms.positions[:, 2].max()) + 1.8))
-        )
-
-    cell = [2 * a, 2 * a, 3 * a + 12.0]  # vacuum in z
-    atoms.set_cell(cell)
-    atoms.pbc = True
-    # Fix bottom layer
-    z = atoms.positions[:, 2]
-    atoms.set_constraint(FixAtoms(mask=z < z.min() + 2.0))
-    return atoms
-
-
-def _generate_spinel_slab(
-    A: str, B: str, dopant: str, defect: str, support: str, seed_key=None
-) -> Atoms:
-    """Build an AB2O4-like local slab rather than reusing ABO3 stoichiometry."""
-    atoms = Atoms()
-    a = 4.1
-    for ix in range(2):
-        for iy in range(2):
-            for iz in range(2):
-                base = np.array([ix * a, iy * a, iz * a])
-                atoms.append(Atom(A, position=base))
-                atoms.append(Atom(B, position=base + (a / 4, a / 4, a / 4)))
-                atoms.append(Atom(B, position=base + (3 * a / 4, 3 * a / 4, 3 * a / 4)))
-                for offset in (
-                    (a / 2, 0, 0),
-                    (0, a / 2, 0),
-                    (0, 0, a / 2),
-                    (a / 2, a / 2, a / 2),
-                ):
-                    atoms.append(Atom('O', position=base + offset))
-    rng = random.Random(
-        _stable_seed('spinel-v2', A, B, dopant, defect, support, seed_key)
-    )
-    if dopant != 'None':
-        b_sites = [i for i, atom in enumerate(atoms) if atom.symbol == B]
-        atoms[rng.choice(b_sites)].symbol = dopant
-    vacancy_symbol = {'A_vacancy': A, 'B_vacancy': B, 'O_vacancy': 'O'}.get(defect)
-    if vacancy_symbol:
-        choices = [i for i, atom in enumerate(atoms) if atom.symbol == vacancy_symbol]
-        if choices:
-            del atoms[rng.choice(choices)]
-    if support != 'none':
-        atoms[0].symbol = _representative_element(support, 'C')
-    atoms.set_cell((2 * a, 2 * a, 2 * a + 12.0))
-    atoms.pbc = True
-    z = atoms.positions[:, 2]
-    atoms.set_constraint(FixAtoms(mask=z < z.min() + 2.0))
-    return atoms
-
-
-def _generate_hydride_slab(
-    metal: str,
-    second: str,
-    h_type: str = 'simple',
-    additive: str = 'None',
-    temperature_K: float = 300,
-    seed_key=None,
-) -> Atoms:
-    """Generate a metal-hydride slab: metal FCC + interstitial H."""
-    # Use explicit lattice constant (same table as generate_alloy_slab)
-    LATTICE_CONSTANTS = {
-        'Ni': 3.52,
-        'Cu': 3.61,
-        'Ag': 4.09,
-        'Au': 4.08,
-        'Al': 4.05,
-        'Pd': 3.89,
-        'Pt': 3.92,
-        'Fe': 2.87,
-        'Ti': 2.95,
-        'Zr': 3.23,
-        'Mg': 3.21,
-        'Ca': 5.58,
-        'Na': 4.29,
-        'Li': 3.51,
-        'La': 3.75,
-        'Ce': 5.16,
-        'V': 3.03,
-        'Mn': 3.50,
-        'Co': 2.51,
-        'Zn': 2.66,
-        'Sn': 5.83,
-        'In': 4.60,
-        'Sb': 4.31,
-        'Bi': 4.75,
-    }
-    a = LATTICE_CONSTANTS.get(metal, 3.60)
-
-    try:
-        slab = fcc111(metal, size=(3, 3, 3), vacuum=12.0, a=a)
-    except Exception:
-        slab = fcc111('Ni', size=(3, 3, 3), vacuum=12.0, a=a)
-        for atom in slab:
-            atom.symbol = metal
-
-    # Collect H positions first, then add (don't iterate while appending)
-    z = slab.positions[:, 2]
-    top_z = z.max()
-    h_positions = []
-    for atom in slab:
-        if atom.position[2] > top_z - 2.5:
-            h_pos = atom.position.copy()
-            h_pos[2] += 1.0
-            h_positions.append(h_pos)
-    for h_pos in h_positions:
-        slab.append(Atom('H', position=h_pos))
-
-    # Hydride family controls approximate hydrogen loading. This is a compact
-    # screening realization; DFT promotion still requires phase-specific cells.
-    extra_h = {
-        'simple': 0,
-        'intermetallic_AB': 1,
-        'intermetallic_AB2': 2,
-        'intermetallic_AB5': 3,
-        'intermetallic_A2B': 2,
-        'complex_alanate': 4,
-        'complex_borohydride': 4,
-        'complex_amide': 3,
-        'perovskite_hydride': 2,
-    }.get(h_type, 0)
-    rng = random.Random(
-        _stable_seed(
-            'hydride-v2',
-            metal,
-            second,
-            h_type,
-            additive,
-            float(temperature_K),
-            seed_key,
-        )
-    )
-    for index in range(extra_h):
-        slab.append(
-            Atom(
-                'H',
-                position=(
-                    (index + 1) * slab.cell.lengths()[0] / (extra_h + 1),
-                    (index % 2 + 1) * slab.cell.lengths()[1] / 3.0,
-                    top_z + 2.5 + 0.35 * index,
-                ),
-            )
-        )
-
-    # Substitute surface atoms with second metal
-    if second != 'None' and second != metal:
-        indices = [
-            i
-            for i in range(len(slab))
-            if slab[i].symbol == metal and slab[i].position[2] > top_z - 2.5
-        ]
-        for i in indices[:2]:
-            slab[i].symbol = second
-
-    if additive != 'None':
-        added = _add_surface_markers(slab, [_representative_element(additive, 'C')])
-        slab.positions[added[0], 0] += 0.1 * _label_fraction(additive)
-
-    thermal_scale = 1.0 + (float(temperature_K) - 300.0) * 1.0e-5
-    slab.set_cell(slab.cell * [thermal_scale, thermal_scale, 1.0], scale_atoms=True)
-
-    # Recompute z after adding H and set constraints
-    z_all = slab.positions[:, 2]
-    slab.set_constraint(FixAtoms(mask=z_all < z_all.min() + 3.0))
-    return slab
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# MACE EVALUATION WORKER
+# MACE / ESEN EVALUATION WORKER
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
@@ -1007,10 +125,7 @@ def compute_reference_energies(calc) -> Dict[str, float]:
 def _evaluate_candidate_replica(
     genome: tuple, calc, refs: dict, structure_seed: int
 ) -> dict:
-    """
-        Evaluate a single catalyst candidate using Meta eSen-SM.
-
-        Returns a dictionary with all computed descriptors.
+    """Evaluate a single catalyst candidate using Meta eSen-SM.
 
     Args:
         genome: Encoded catalyst composition and structural configuration.
@@ -1032,7 +147,7 @@ def _evaluate_candidate_replica(
 
     try:
         structure, active_idx, _ = generate_structure(genome, structure_seed)
-        structure.pbc = True  # eSen requires PBC set to True in all dimensions
+        structure.pbc = True
 
         # 1. Relax clean surface/cluster
         structure.calc = calc
@@ -1044,8 +159,6 @@ def _evaluate_candidate_replica(
         e_clean = structure.get_potential_energy()
         result['e_clean'] = e_clean
 
-        # Choose the open side of the active site. This avoids placing an
-        # adsorbate through an encoded axial ligand or a second DAC metal.
         ads_pos, ads_direction = screening_adsorption_site(
             structure, active_idx, mat_class, 1.8
         )
@@ -1062,10 +175,12 @@ def _evaluate_candidate_replica(
         dE_H = e_h - e_clean - 0.5 * refs['H2']
         result['dE_H'] = dE_H
         h_index = len(slab_h) - 1
-        result['h_surface_clearance_A'] = float(min(
-            slab_h.get_distance(h_index, index, mic=True)
-            for index in range(h_index)
-        ))
+        result['h_surface_clearance_A'] = float(
+            min(
+                slab_h.get_distance(h_index, index, mic=True)
+                for index in range(h_index)
+            )
+        )
         result['h_height_above_surface_A'] = float(
             slab_h[h_index].position[2] - slab_h.positions[:h_index, 2].max()
         )
@@ -1076,8 +191,12 @@ def _evaluate_candidate_replica(
         slab_ch3.append(Atom('C', position=c_pos))
         z_offset = 0.35 * ads_direction
         slab_ch3.append(Atom('H', position=c_pos + np.array([0.0, 1.02, 0.0]) + z_offset))
-        slab_ch3.append(Atom('H', position=c_pos + np.array([-0.88, -0.51, 0.0]) + z_offset))
-        slab_ch3.append(Atom('H', position=c_pos + np.array([0.88, -0.51, 0.0]) + z_offset))
+        slab_ch3.append(
+            Atom('H', position=c_pos + np.array([-0.88, -0.51, 0.0]) + z_offset)
+        )
+        slab_ch3.append(
+            Atom('H', position=c_pos + np.array([0.88, -0.51, 0.0]) + z_offset)
+        )
         slab_ch3.calc = calc
         if not require_relaxation(
             result, slab_ch3, 'ch3', budget.fmax_eV_A, budget.steps
@@ -1110,10 +229,12 @@ def _evaluate_candidate_replica(
         dE_C = e_c - e_clean - refs['C']
         result['dE_C'] = dE_C
         c_index = len(slab_c) - 1
-        result['c_surface_clearance_A'] = float(min(
-            slab_c.get_distance(c_index, index, mic=True)
-            for index in range(c_index)
-        ))
+        result['c_surface_clearance_A'] = float(
+            min(
+                slab_c.get_distance(c_index, index, mic=True)
+                for index in range(c_index)
+            )
+        )
         result['c_height_above_surface_A'] = float(
             slab_c[c_index].position[2] - slab_c.positions[:c_index, 2].max()
         )
@@ -1137,18 +258,16 @@ def _evaluate_candidate_replica(
         result['coking_index_scope'] = coking_scope['status']
         result['coking_index_scope_reason'] = coking_scope.get('reason')
 
-        coking_index = dE_C - 2.0 * dE_H  # positive = resistant
+        coking_index = dE_C - 2.0 * dE_H
 
-        # NTEC bonus only when the slab descriptor is in scope. MoltenMetal
-        # ranking must not use ΔE_C − 2ΔE_H.
         py_mode = os.environ.get('PYROLYSIS_MODE', 'thermocatalytic')
         if py_mode == 'ntec' and coking_scope['status'] == 'candidate':
-            from pipeline.screening.genetic_optimizer import (
-                _extract_elements_from_genome,
-            )
             from pipeline.electrochemistry.ntec import (
                 conditions_from_environment,
                 ntec_assistance,
+            )
+            from pipeline.screening.genetic_optimizer import (
+                _extract_elements_from_genome,
             )
 
             assistance = ntec_assistance(conditions_from_environment())
@@ -1166,17 +285,15 @@ def _evaluate_candidate_replica(
 
         # 8. Stability metric
         if mat_class in ('SolidCatalyst', 'MoltenMetal'):
-            # Segregation energy for alloys
             e_seg = _compute_segregation_energy(structure, active_idx, calc, e_clean)
             result['segregation_energy'] = e_seg
         else:
-            # Binding energy for SAC/MOF
             e_bind = _compute_binding_energy(structure, calc, e_clean, genome)
             result['segregation_energy'] = e_bind
 
         # 9. Rate constant at reference temperature
         T_ref = genome[4] if mat_class == 'MoltenMetal' else 1000.0
-        A_prefactor = 1e13  # standard TST prefactor
+        A_prefactor = 1e13
         rate_k = arrhenius_rate(A_prefactor, E_act, T_ref)
         result['rate_constant'] = rate_k
         result['temperature_K'] = T_ref
@@ -1201,8 +318,6 @@ def _evaluate_candidate_replica(
         )
 
         # 11. Physical sanity filters
-        # Meta model can produce unphysical energies on exotic structures.
-        # Valid adsorption energies for surface chemistry: |ΔE| < 10 eV
         SANE_LIMIT = 10.0  # eV
         for key in ('dE_H', 'dE_CH3', 'dE_C', 'dE_split'):
             val = result.get(key, 0)
@@ -1213,26 +328,21 @@ def _evaluate_candidate_replica(
                 result['needs_dft_validation'] = True
                 return result
 
-        # Clamp derived values to physical ranges
         result['E_act'] = max(0.01, min(result.get('E_act', 5.0), 5.0))
         result['E_act_censored'] = result['E_act'] in (0.01, 5.0)
         if result['E_act_censored']:
             result['needs_dft_validation'] = True
-        # coking_index is required. Two different "empty" states:
-        #   * missing key  → evaluation did not finish the descriptor; fail closed
-        #     (never invent 0; that would look like moderate coking resistance)
-        #   * explicit NaN → slab descriptor out of scope (MoltenMetal). That is a
-        #     set value. Do not clamp or replace it.
+
         if 'coking_index' not in result:
             result['valid'] = False
             result['candidate_disposition'] = 'validation_required'
             result['error'] = 'coking_index was never set'
             return result
         coking_val = result['coking_index']
-        if coking_val == coking_val:  # finite; NaN != NaN
+        if coking_val == coking_val:
             result['coking_index'] = max(-20.0, min(float(coking_val), 20.0))
 
-        # 12. OOD confidence — how much we trust this prediction
+        # 12. OOD confidence
         from pipeline.screening.ood import compute_model_confidence
 
         conf = compute_model_confidence(genome, elements)
@@ -1274,11 +384,6 @@ def evaluate_candidate(
     genome: tuple, calc, refs: dict, structure_seed: int | None = None
 ) -> dict:
     """Evaluate one candidate, averaging molten alloys over five replicas.
-
-    A static alloy termination is not a reproducible representation of a
-    liquid surface. Production molten-metal results therefore average five
-    deterministic surface configurations. Passing ``structure_seed`` evaluates
-    one explicit replica for diagnostics; other material classes use seed zero.
 
     Args:
         genome: Encoded catalyst composition and conditions.
@@ -1324,23 +429,29 @@ def evaluate_candidate(
     result['rate_constant'] = arrhenius_rate(
         1e13, result['E_act'], float(result['temperature_K'])
     )
-    result['molten_replica_spread_json'] = json.dumps({
-        field: {
-            'min': min(float(row[field]) for row in valid_replicas),
-            'max': max(float(row[field]) for row in valid_replicas),
-            'std': float(np.std([float(row[field]) for row in valid_replicas])),
-        }
-        for field in ('E_act_raw', 'dE_H', 'dE_CH3', 'dE_C')
-    }, sort_keys=True)
-    result['molten_replicas_json'] = json.dumps([
+    result['molten_replica_spread_json'] = json.dumps(
         {
-            'structure_seed': int(row['structure_seed']),
-            'E_act_raw': float(row['E_act_raw']),
-            'dE_H': float(row['dE_H']),
-            'dE_C': float(row['dE_C']),
-        }
-        for row in valid_replicas
-    ], sort_keys=True)
+            field: {
+                'min': min(float(row[field]) for row in valid_replicas),
+                'max': max(float(row[field]) for row in valid_replicas),
+                'std': float(np.std([float(row[field]) for row in valid_replicas])),
+            }
+            for field in ('E_act_raw', 'dE_H', 'dE_CH3', 'dE_C')
+        },
+        sort_keys=True,
+    )
+    result['molten_replicas_json'] = json.dumps(
+        [
+            {
+                'structure_seed': int(row['structure_seed']),
+                'E_act_raw': float(row['E_act_raw']),
+                'dE_H': float(row['dE_H']),
+                'dE_C': float(row['dE_C']),
+            }
+            for row in valid_replicas
+        ],
+        sort_keys=True,
+    )
     result['needs_dft_validation'] = True
     return result
 
@@ -1361,7 +472,7 @@ def _compute_segregation_energy(slab, active_idx, calc, e_clean):
                 slab_swap[bulk_idx].symbol = sym_s
                 slab_swap.calc = calc
                 e_swap = slab_swap.get_potential_energy()
-                return e_clean - e_swap  # negative = dopant prefers surface
+                return e_clean - e_swap
         return 0.0
     except Exception:
         return 0.0
@@ -1371,7 +482,7 @@ def _compute_binding_energy(structure, calc, e_clean, genome):
     """Compute metal-cavity binding energy for SAC/MOF."""
     try:
         cavity_struct = structure.copy()
-        del cavity_struct[0]  # remove central metal
+        del cavity_struct[0]
         cavity_struct.calc = calc
         e_empty = cavity_struct.get_potential_energy()
 
@@ -1396,13 +507,13 @@ def _compute_binding_energy(structure, calc, e_clean, genome):
         }
         metal = genome[1]
         e_metal = ref_energies.get(metal, -4.0)
-        return (e_clean - e_empty - e_metal) / 10.0  # normalized
+        return (e_clean - e_empty - e_metal) / 10.0
     except Exception:
         return 0.0
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# WORKER PROCESS
+# WORKER PROCESS & MAIN SCREENING ENGINE
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
@@ -1452,19 +563,13 @@ def eval_worker(
     )
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# MAIN SCREENING ENGINE
-# ═══════════════════════════════════════════════════════════════════════════════
-
-
 def run_screening(
     genomes: List[tuple],
     db_filename: str = "surface_screening.csv",
     workers_per_gpu: int = 2,
     engine: str = 'batched',
 ) -> 'pd.DataFrame':
-    """
-    Run parallel Meta eSen-SM screening on a list of catalyst genomes.
+    """Run parallel Meta eSen-SM screening on a list of catalyst genomes.
 
     Args:
         genomes: List of catalyst genome tuples
@@ -1496,7 +601,6 @@ def run_screening(
         ),
     )
 
-    # Summary statistics
     valid_df = df[df['valid'] == True]
     if len(valid_df) > 0:
         logger.info(f"  Valid candidates: {len(valid_df)}/{len(df)}")
@@ -1509,379 +613,9 @@ def run_screening(
     return df
 
 
-def _run_neb_step(
-    initial,
-    final,
-    calc,
-    *,
-    n_images: int = 5,
-    fmax: float = 0.25,
-    max_steps: int = 10,
-    fallback: float = 1.0,
-) -> tuple[float, bool]:
-    """Run a climbing-image NEB between two surface configurations."""
-    try:
-        from ase.mep import NEB
-        from ase.optimize import FIRE
-
-        initial.calc = calc
-        FIRE(initial, logfile=None).run(fmax=max(fmax, 0.25), steps=min(3, max_steps))
-        final.calc = calc
-        FIRE(final, logfile=None).run(fmax=max(fmax, 0.25), steps=min(3, max_steps))
-
-        images = [initial]
-        for _ in range(max(1, n_images - 2)):
-            images.append(initial.copy())
-        images.append(final)
-        neb = NEB(
-            images,
-            climb=True,
-            method='improvedtangent',
-            allow_shared_calculator=True,
-        )
-        neb.interpolate()
-        for img in images:
-            img.calc = calc
-        opt = FIRE(neb, logfile=None)
-        opt.run(fmax=fmax, steps=max_steps)
-        energies = [float(img.get_potential_energy()) for img in images]
-        raw_barrier = max(energies) - energies[0]
-        if raw_barrier < 0.05:
-            raw_barrier = max(energies) - min(energies[0], energies[-1])
-        if np.isfinite(raw_barrier) and 0.05 <= raw_barrier <= 4.5:
-            regularized = 0.30 * float(raw_barrier) + 0.70 * float(fallback)
-            lower = min(float(fallback), 0.85 * float(fallback))
-            upper = max(float(fallback) + 0.35, 0.95)
-            return float(np.clip(regularized, lower, upper)), True
-    except Exception:
-        pass
-    return float(fallback), False
-
-
-from typing import Mapping
-from pipeline.data_models.reactors import (
-    MlipNebValidationRecord,
-    PyrolysisValidationArtifact,
-)
-
-
-def compute_candidate_mlip_neb(
-    row: Mapping[str, object],
-    calc=None,
-    *,
-    n_images: int = 5,
-    fmax: float = 0.25,
-    max_steps: int = 10,
-) -> MlipNebValidationRecord:
-    """Compute MLIP-NEB elementary barriers for a top Pareto candidate row.
-
-    Args:
-        row: Screening candidate row mapping or Series.
-        calc: Optional ASE calculator for climbing-image NEB evaluation.
-        n_images: Number of NEB images along each elementary path.
-        fmax: Force convergence threshold (eV/A) for FIRE NEB optimization.
-        max_steps: Maximum FIRE optimization steps per NEB path.
-
-    Returns:
-        Dictionary of elementary activation barriers (eV) and converged step count.
-    """
-    from pipeline.reactors.mechanisms import (
-        EV_TO_J_MOL,
-        H_F_CH3_RADICAL_J_MOL,
-        H_F_CH4_J_MOL,
-        parse_catalyst_genome,
-    )
-
-    def _finite(name: str, default: float) -> float:
-        try:
-            raw = row.get(name, default)
-            v = float(raw) if isinstance(raw, (int, float, str)) else default
-            return v if np.isfinite(v) else default
-        except (TypeError, ValueError):
-            return default
-
-    e_act_base = _finite('E_act', 1.0)
-    de_h = _finite('dE_H', -0.25)
-    de_ch3 = _finite('dE_CH3', -0.20)
-    de_c = _finite('dE_C', -0.40)
-    genome = parse_catalyst_genome(row.get('genome'))
-
-    # Convert adsorption energies to absolute surface enthalpies (eV) for step ΔH
-    h_ch3 = de_ch3 + H_F_CH3_RADICAL_J_MOL / EV_TO_J_MOL
-    h_c = de_c + H_F_CH4_J_MOL / EV_TO_J_MOL
-    h_h = de_h
-    dh_step = (h_c - h_ch3) / 3.0 + h_h
-
-    e_act_neb = e_act_base
-    ch3_deh = max(0.15, e_act_neb + 0.08 + 0.25 * dh_step, dh_step + 0.15)
-    ch2_deh = max(0.15, e_act_neb + 0.12 + 0.25 * dh_step, dh_step + 0.15)
-    ch_deh = max(0.15, e_act_neb + 0.04 + 0.25 * dh_step, dh_step + 0.15)
-    h2_des = max(0.25, 0.75 + max(0.0, -2.0 * de_h), -2.0 * de_h + 0.10)
-    c_trans = max(0.50, 1.40 + 0.12 * max(-2.0, min(2.0, de_c)))
-    c_encap = c_trans + 0.03
-    neb_steps_converged = 0
-
-    if calc is not None and genome is not None:
-        try:
-            from ase.optimize import FIRE
-
-            mat_class = str(genome[0])
-            structure, active_idx, _ = generate_structure(genome, 0)
-            structure.pbc = True
-            structure.calc = calc
-            FIRE(structure, logfile=None).run(fmax=max(fmax, 0.25), steps=min(4, max_steps))
-            structure.set_constraint(FixAtoms(indices=list(range(len(structure)))))
-            valid_idx = [i for i in (active_idx or []) if 0 <= int(i) < len(structure)]
-            if valid_idx:
-                top_idx = [max(valid_idx, key=lambda i: float(structure.positions[int(i), 2]))]
-            else:
-                top_idx = [int(np.argmax(structure.positions[:, 2]))]
-            ads_pos, ads_dir = screening_adsorption_site(
-                structure, top_idx, mat_class, 2.0
-            )
-            h_offsets = [
-                np.array([0.0, 1.02, 0.35]),
-                np.array([-0.88, -0.51, 0.35]),
-                np.array([0.88, -0.51, 0.35]),
-            ]
-            dissoc_h = ads_pos + np.array([1.5, 0.85, -0.3])
-
-            # Step 1: CH4(g) -> CH3* + H*
-            init_1 = structure.copy()
-            c_init = ads_pos + 1.2 * ads_dir
-            init_1.append(Atom('C', position=c_init))
-            for off in h_offsets:
-                init_1.append(Atom('H', position=c_init + off))
-            init_1.append(Atom('H', position=c_init - 1.09 * ads_dir))
-
-            fin_1 = structure.copy()
-            fin_1.append(Atom('C', position=ads_pos.copy()))
-            for off in h_offsets:
-                fin_1.append(Atom('H', position=ads_pos + off))
-            fin_1.append(Atom('H', position=dissoc_h))
-            e_act_neb, ok1 = _run_neb_step(
-                init_1, fin_1, calc,
-                n_images=n_images, fmax=fmax, max_steps=max_steps,
-                fallback=e_act_base,
-            )
-            if ok1:
-                e_act_neb = max(e_act_neb, 0.90 if e_act_base < 0.90 else 0.85 * e_act_base)
-            neb_steps_converged += int(ok1)
-
-            # Recompute thermodynamic fallbacks anchored to converged step 1
-            ch3_fallback = max(0.15, e_act_neb + 0.08 + 0.25 * dh_step, dh_step + 0.15)
-            ch2_fallback = max(0.15, e_act_neb + 0.12 + 0.25 * dh_step, dh_step + 0.15)
-            ch_fallback = max(0.15, e_act_neb + 0.04 + 0.25 * dh_step, dh_step + 0.15)
-
-            # Step 2: CH3* -> CH2* + H*
-            init_2 = structure.copy()
-            init_2.append(Atom('C', position=ads_pos.copy()))
-            for off in h_offsets:
-                init_2.append(Atom('H', position=ads_pos + off))
-            fin_2 = structure.copy()
-            fin_2.append(Atom('C', position=ads_pos.copy()))
-            for off in h_offsets[:2]:
-                fin_2.append(Atom('H', position=ads_pos + off))
-            fin_2.append(Atom('H', position=dissoc_h))
-            ch3_deh, ok2 = _run_neb_step(
-                init_2, fin_2, calc,
-                n_images=n_images, fmax=fmax, max_steps=max_steps,
-                fallback=ch3_fallback,
-            )
-            neb_steps_converged += int(ok2)
-
-            # Step 3: CH2* -> CH* + H*
-            init_3 = structure.copy()
-            init_3.append(Atom('C', position=ads_pos.copy()))
-            for off in h_offsets[:2]:
-                init_3.append(Atom('H', position=ads_pos + off))
-            fin_3 = structure.copy()
-            fin_3.append(Atom('C', position=ads_pos.copy()))
-            fin_3.append(Atom('H', position=ads_pos + h_offsets[0]))
-            fin_3.append(Atom('H', position=dissoc_h))
-            ch2_deh, ok3 = _run_neb_step(
-                init_3, fin_3, calc,
-                n_images=n_images, fmax=fmax, max_steps=max_steps,
-                fallback=ch2_fallback,
-            )
-            neb_steps_converged += int(ok3)
-
-            # Step 4: CH* -> C* + H*
-            init_4 = structure.copy()
-            init_4.append(Atom('C', position=ads_pos.copy()))
-            init_4.append(Atom('H', position=ads_pos + h_offsets[0]))
-            fin_4 = structure.copy()
-            fin_4.append(Atom('C', position=ads_pos.copy()))
-            fin_4.append(Atom('H', position=dissoc_h))
-            ch_deh, ok4 = _run_neb_step(
-                init_4, fin_4, calc,
-                n_images=n_images, fmax=fmax, max_steps=max_steps,
-                fallback=ch_fallback,
-            )
-            neb_steps_converged += int(ok4)
-
-            # Step 5: 2H* -> H2(g)
-            init_5 = structure.copy()
-            init_5.append(Atom('H', position=ads_pos + np.array([-0.75, 0.0, -0.3])))
-            init_5.append(Atom('H', position=ads_pos + np.array([0.75, 0.0, -0.3])))
-            fin_5 = structure.copy()
-            h2_center = ads_pos + 1.6 * ads_dir
-            fin_5.append(Atom('H', position=h2_center + np.array([-0.37, 0.0, 0.0])))
-            fin_5.append(Atom('H', position=h2_center + np.array([0.37, 0.0, 0.0])))
-            h2_des, ok5 = _run_neb_step(
-                init_5, fin_5, calc,
-                n_images=n_images, fmax=fmax, max_steps=max_steps,
-                fallback=h2_des,
-            )
-            neb_steps_converged += int(ok5)
-        except Exception:
-            pass
-
-    return {
-        'E_act_neb': float(e_act_neb),
-        'ch3_dehydrogenation_eV': float(ch3_deh),
-        'ch2_dehydrogenation_eV': float(ch2_deh),
-        'ch_dehydrogenation_eV': float(ch_deh),
-        'h2_desorption_eV': float(h2_des),
-        'carbon_transfer_eV': float(c_trans),
-        'carbon_encapsulation_eV': float(c_encap),
-        'mlip_neb_steps_converged': int(neb_steps_converged),
-    }
-
-
-def write_pyrolysis_validation_json(
-    candidate_id: str,
-    neb_record: MlipNebValidationRecord | Mapping[str, float | int],
-    kinetics_validation_dir: str | Path,
-) -> Path:
-    """Persist ``<kinetics_validation_dir>/<candidate_id>/pyrolysis_validation.json``.
-
-    Args:
-        candidate_id: Content-addressed candidate identifier.
-        neb_record: Dictionary of MLIP-NEB elementary barriers from ``compute_candidate_mlip_neb``.
-        kinetics_validation_dir: Root directory storing per-candidate validation JSONs.
-
-    Returns:
-        Path to the written ``pyrolysis_validation.json`` artifact.
-    """
-    safe_id = str(candidate_id)
-    if not safe_id or Path(safe_id).name != safe_id:
-        raise ValueError(f'unsafe candidate_id for validation artifact: {safe_id!r}')
-    out_dir = Path(kinetics_validation_dir) / safe_id
-    out_dir.mkdir(parents=True, exist_ok=True)
-    payload: PyrolysisValidationArtifact = {
-        'candidate_id': safe_id,
-        'complete': True,
-        'evidence_level': 'converged_mlip_neb',
-        'mlip_neb_steps_converged': int(neb_record.get('mlip_neb_steps_converged', 0)),
-        'resolved_kinetics_eV': {
-            'methane_activation_eV': float(neb_record['E_act_neb']),
-            'ch3_dehydrogenation_eV': float(neb_record['ch3_dehydrogenation_eV']),
-            'ch2_dehydrogenation_eV': float(neb_record['ch2_dehydrogenation_eV']),
-            'ch_dehydrogenation_eV': float(neb_record['ch_dehydrogenation_eV']),
-            'h2_desorption_eV': float(neb_record['h2_desorption_eV']),
-            'carbon_transfer_eV': float(neb_record['carbon_transfer_eV']),
-            'carbon_encapsulation_eV': float(neb_record['carbon_encapsulation_eV']),
-        },
-    }
-    out_path = out_dir / 'pyrolysis_validation.json'
-    out_path.write_text(json.dumps(payload, indent=2) + '\n')
-    return out_path
-
-
-def upgrade_candidates_with_mlip_neb(
-    df,
-    calc=None,
-    *,
-    kinetics_validation_dir: str | Path | None = None,
-    max_gpu_candidates: int = 8,
-):
-    """Populate MLIP-NEB elementary barrier columns on a selected candidate DataFrame.
-
-    Args:
-        df: Selected pyrolysis candidate DataFrame.
-        calc: Optional ASE calculator for climbing-image NEB evaluation.
-        kinetics_validation_dir: Optional directory to write per-candidate ``pyrolysis_validation.json``.
-        max_gpu_candidates: Maximum number of rows evaluated with the live 3D calculator.
-
-    Returns:
-        Copy of ``df`` with elementary barrier columns added.
-    """
-    if df is None or len(df) == 0:
-        return df
-    from pipeline.reactors.mechanisms import (
-        off_site_carbon_allowed,
-        parse_catalyst_genome,
-    )
-
-    out = df.copy()
-    rows_list = list(out.iterrows())
-    priority_order = sorted(
-        range(len(rows_list)),
-        key=lambda i: (
-            0
-            if off_site_carbon_allowed(
-                parse_catalyst_genome(rows_list[i][1].get('genome')),
-                rows_list[i][1].get('material_class'),
-            )
-            else 1,
-            i,
-        ),
-    )
-    gpu_selected = set(priority_order[: max(0, int(max_gpu_candidates))])
-
-    records = []
-    for idx, (_, row) in enumerate(rows_list):
-        cid = str(row.get('candidate_id') or f'catalyst_{idx}')
-        cached_rec = None
-        if kinetics_validation_dir is not None and Path(cid).name == cid:
-            existing = Path(kinetics_validation_dir) / cid / 'pyrolysis_validation.json'
-            if existing.is_file():
-                try:
-                    data = json.loads(existing.read_text())
-                    rk = data.get('resolved_kinetics_eV', {})
-                    if data.get('complete') and int(data.get('mlip_neb_steps_converged', 0)) > 0:
-                        cached_rec = {
-                            'E_act_neb': float(rk['methane_activation_eV']),
-                            'ch3_dehydrogenation_eV': float(rk['ch3_dehydrogenation_eV']),
-                            'ch2_dehydrogenation_eV': float(rk['ch2_dehydrogenation_eV']),
-                            'ch_dehydrogenation_eV': float(rk['ch_dehydrogenation_eV']),
-                            'h2_desorption_eV': float(rk['h2_desorption_eV']),
-                            'carbon_transfer_eV': float(rk['carbon_transfer_eV']),
-                            'carbon_encapsulation_eV': float(rk['carbon_encapsulation_eV']),
-                            'mlip_neb_steps_converged': int(data.get('mlip_neb_steps_converged', 0)),
-                        }
-                except Exception:
-                    cached_rec = None
-        if cached_rec is not None:
-            rec = cached_rec
-        else:
-            row_calc = calc if idx in gpu_selected else None
-            rec = compute_candidate_mlip_neb(row, calc=row_calc)
-            if kinetics_validation_dir is not None:
-                try:
-                    write_pyrolysis_validation_json(cid, rec, kinetics_validation_dir)
-                except Exception:
-                    pass
-        records.append(rec)
-    for col in (
-        'E_act_neb',
-        'ch3_dehydrogenation_eV',
-        'ch2_dehydrogenation_eV',
-        'ch_dehydrogenation_eV',
-        'h2_desorption_eV',
-        'carbon_transfer_eV',
-        'carbon_encapsulation_eV',
-        'mlip_neb_steps_converged',
-    ):
-        out[col] = [r[col] for r in records]
-    return out
-
-
 if __name__ == '__main__':
     from pipeline.search.indexed_space import deterministic_tree_probes
 
-    # Quick test: screen deterministic divide-and-conquer calibration probes
     pop = deterministic_tree_probes(20)
     df = run_screening(pop, db_filename="test_screening.csv", workers_per_gpu=2)
     print(f"\nScreening complete: {len(df)} candidates evaluated")
