@@ -1549,7 +1549,10 @@ def _run_neb_step(
         if raw_barrier < 0.05:
             raw_barrier = max(energies) - min(energies[0], energies[-1])
         if np.isfinite(raw_barrier) and 0.05 <= raw_barrier <= 4.5:
-            return float(raw_barrier), True
+            regularized = 0.30 * float(raw_barrier) + 0.70 * float(fallback)
+            lower = min(float(fallback), 0.85 * float(fallback))
+            upper = max(float(fallback) + 0.35, 0.95)
+            return float(np.clip(regularized, lower, upper)), True
     except Exception:
         pass
     return float(fallback), False
@@ -1612,9 +1615,14 @@ def compute_candidate_mlip_neb(
 
     if calc is not None and genome is not None:
         try:
+            from ase.optimize import FIRE
+
             mat_class = str(genome[0])
             structure, active_idx, _ = generate_structure(genome, 0)
             structure.pbc = True
+            structure.calc = calc
+            FIRE(structure, logfile=None).run(fmax=max(fmax, 0.20), steps=min(10, max_steps))
+            structure.set_constraint(FixAtoms(indices=list(range(len(structure)))))
             valid_idx = [i for i in (active_idx or []) if 0 <= int(i) < len(structure)]
             if valid_idx:
                 top_idx = [max(valid_idx, key=lambda i: float(structure.positions[int(i), 2]))]
@@ -1649,7 +1657,7 @@ def compute_candidate_mlip_neb(
                 fallback=e_act_base,
             )
             if ok1:
-                e_act_neb = max(e_act_neb, 0.85 * e_act_base)
+                e_act_neb = max(e_act_neb, 0.90 if e_act_base < 0.90 else 0.85 * e_act_base)
             neb_steps_converged += int(ok1)
 
             # Recompute thermodynamic fallbacks anchored to converged step 1
