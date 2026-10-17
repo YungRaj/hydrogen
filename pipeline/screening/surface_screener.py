@@ -1515,8 +1515,8 @@ def _run_neb_step(
     calc,
     *,
     n_images: int = 5,
-    fmax: float = 0.20,
-    max_steps: int = 25,
+    fmax: float = 0.25,
+    max_steps: int = 10,
     fallback: float = 1.0,
 ) -> tuple[float, bool]:
     """Run a climbing-image NEB between two surface configurations."""
@@ -1525,9 +1525,9 @@ def _run_neb_step(
         from ase.optimize import FIRE
 
         initial.calc = calc
-        FIRE(initial, logfile=None).run(fmax=max(fmax, 0.25), steps=min(6, max_steps))
+        FIRE(initial, logfile=None).run(fmax=max(fmax, 0.25), steps=min(3, max_steps))
         final.calc = calc
-        FIRE(final, logfile=None).run(fmax=max(fmax, 0.25), steps=min(6, max_steps))
+        FIRE(final, logfile=None).run(fmax=max(fmax, 0.25), steps=min(3, max_steps))
 
         images = [initial]
         for _ in range(max(1, n_images - 2)):
@@ -1563,8 +1563,8 @@ def compute_candidate_mlip_neb(
     calc=None,
     *,
     n_images: int = 5,
-    fmax: float = 0.20,
-    max_steps: int = 25,
+    fmax: float = 0.25,
+    max_steps: int = 10,
 ) -> dict:
     """Compute MLIP-NEB elementary barriers for a top Pareto candidate row.
 
@@ -1621,7 +1621,7 @@ def compute_candidate_mlip_neb(
             structure, active_idx, _ = generate_structure(genome, 0)
             structure.pbc = True
             structure.calc = calc
-            FIRE(structure, logfile=None).run(fmax=max(fmax, 0.20), steps=min(10, max_steps))
+            FIRE(structure, logfile=None).run(fmax=max(fmax, 0.25), steps=min(4, max_steps))
             structure.set_constraint(FixAtoms(indices=list(range(len(structure)))))
             valid_idx = [i for i in (active_idx or []) if 0 <= int(i) < len(structure)]
             if valid_idx:
@@ -1786,6 +1786,7 @@ def upgrade_candidates_with_mlip_neb(
     calc=None,
     *,
     kinetics_validation_dir: str | Path | None = None,
+    max_gpu_candidates: int = 8,
 ):
     """Populate MLIP-NEB elementary barrier columns on a selected candidate DataFrame.
 
@@ -1793,23 +1794,68 @@ def upgrade_candidates_with_mlip_neb(
         df: Selected pyrolysis candidate DataFrame.
         calc: Optional ASE calculator for climbing-image NEB evaluation.
         kinetics_validation_dir: Optional directory to write per-candidate ``pyrolysis_validation.json``.
+        max_gpu_candidates: Maximum number of rows evaluated with the live 3D calculator.
 
     Returns:
         Copy of ``df`` with elementary barrier columns added.
     """
     if df is None or len(df) == 0:
         return df
+    from pipeline.reactors.mechanisms import (
+        off_site_carbon_allowed,
+        parse_catalyst_genome,
+    )
+
     out = df.copy()
+    rows_list = list(out.iterrows())
+    priority_order = sorted(
+        range(len(rows_list)),
+        key=lambda i: (
+            0
+            if off_site_carbon_allowed(
+                parse_catalyst_genome(rows_list[i][1].get('genome')),
+                rows_list[i][1].get('material_class'),
+            )
+            else 1,
+            i,
+        ),
+    )
+    gpu_selected = set(priority_order[: max(0, int(max_gpu_candidates))])
+
     records = []
-    for idx, (_, row) in enumerate(out.iterrows()):
-        rec = compute_candidate_mlip_neb(row, calc=calc)
+    for idx, (_, row) in enumerate(rows_list):
+        cid = str(row.get('candidate_id') or f'catalyst_{idx}')
+        cached_rec = None
+        if kinetics_validation_dir is not None and Path(cid).name == cid:
+            existing = Path(kinetics_validation_dir) / cid / 'pyrolysis_validation.json'
+            if existing.is_file():
+                try:
+                    data = json.loads(existing.read_text())
+                    rk = data.get('resolved_kinetics_eV', {})
+                    if data.get('complete') and int(data.get('mlip_neb_steps_converged', 0)) > 0:
+                        cached_rec = {
+                            'E_act_neb': float(rk['methane_activation_eV']),
+                            'ch3_dehydrogenation_eV': float(rk['ch3_dehydrogenation_eV']),
+                            'ch2_dehydrogenation_eV': float(rk['ch2_dehydrogenation_eV']),
+                            'ch_dehydrogenation_eV': float(rk['ch_dehydrogenation_eV']),
+                            'h2_desorption_eV': float(rk['h2_desorption_eV']),
+                            'carbon_transfer_eV': float(rk['carbon_transfer_eV']),
+                            'carbon_encapsulation_eV': float(rk['carbon_encapsulation_eV']),
+                            'mlip_neb_steps_converged': int(data.get('mlip_neb_steps_converged', 0)),
+                        }
+                except Exception:
+                    cached_rec = None
+        if cached_rec is not None:
+            rec = cached_rec
+        else:
+            row_calc = calc if idx in gpu_selected else None
+            rec = compute_candidate_mlip_neb(row, calc=row_calc)
+            if kinetics_validation_dir is not None:
+                try:
+                    write_pyrolysis_validation_json(cid, rec, kinetics_validation_dir)
+                except Exception:
+                    pass
         records.append(rec)
-        if kinetics_validation_dir is not None:
-            cid = str(row.get('candidate_id') or f'catalyst_{idx}')
-            try:
-                write_pyrolysis_validation_json(cid, rec, kinetics_validation_dir)
-            except Exception:
-                pass
     for col in (
         'E_act_neb',
         'ch3_dehydrogenation_eV',
