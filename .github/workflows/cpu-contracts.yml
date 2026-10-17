@@ -15,6 +15,19 @@ jobs:
         with:
           python-version: '3.11'
           cache: pip
+      - name: Cache SSSP 1.3.0 PBE efficiency pseudopotentials
+        uses: actions/cache@v4
+        with:
+          path: quantum_espresso/sssp/1.3.0-pbe-efficiency
+          key: sssp-1.3.0-pbe-efficiency-v1
+      - name: Ensure SSSP pseudopotentials are unpacked
+        run: |
+          SSSP_DIR="quantum_espresso/sssp/1.3.0-pbe-efficiency"
+          mkdir -p "$SSSP_DIR"
+          if [ ! -f "$SSSP_DIR/C.pbe-n-kjpaw_psl.1.0.0.UPF" ]; then
+            curl -fsSL -o /tmp/sssp.tar.gz "https://archive.materialscloud.org/api/records/rcyfm-68h65/files/SSSP_1.3.0_PBE_efficiency.tar.gz/content"
+            tar -xzf /tmp/sssp.tar.gz --no-same-owner --no-same-permissions -C "$SSSP_DIR"
+          fi
       - run: pip install numpy pandas scipy scikit-learn ase cantera pyyaml
       - run: python tests/test_prospective_contracts.py
       - run: python tests/test_pipeline.py
