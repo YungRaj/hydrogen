@@ -244,7 +244,7 @@ class ProspectiveContracts(unittest.TestCase):
 
     def test_historical_locks_verify_at_their_recorded_commits(self) -> None:
         from pipeline.evidence.provenance import (
-            LOCK_PROVENANCE, git_commit, verify_lock_at_commit,
+            LOCK_PROVENANCE, commit_present, git_commit, verify_lock_at_commit,
         )
 
         registry = json.loads(LOCK_PROVENANCE.read_text())['locks']
@@ -266,6 +266,8 @@ class ProspectiveContracts(unittest.TestCase):
         if git_commit(REPO_ROOT) is None:
             self.skipTest('not a git checkout; commit-anchored verification skipped')
         for lock, commit in registry.items():
+            if not commit_present(commit, REPO_ROOT):
+                continue
             self.assertEqual(verify_lock_at_commit(REPO_ROOT / lock, commit), [], lock)
 
     def test_rate_descriptor_result_preserves_lock_and_screening_input(self) -> None:

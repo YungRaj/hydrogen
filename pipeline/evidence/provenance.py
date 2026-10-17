@@ -121,6 +121,24 @@ def git_commit(root: str | Path = REPO_ROOT) -> str | None:
     return result.stdout.strip() if result.returncode == 0 else None
 
 
+def commit_present(commit: str, root: str | Path = REPO_ROOT) -> bool:
+    """Return True when ``commit`` is present in the local git object database.
+
+    Args:
+        commit: Commit hash or tag to check.
+        root: Repository root.
+
+    Returns:
+        True when ``git cat-file -e <commit>^{commit}`` succeeds.
+    """
+    result = subprocess.run(
+        ['git', 'cat-file', '-e', f'{commit}^{{commit}}'],
+        cwd=root,
+        capture_output=True,
+    )
+    return result.returncode == 0
+
+
 def _show(root: Path, commit: str, path: str) -> bytes | None:
     result = subprocess.run(
         ['git', 'show', f'{commit}:{path}'], cwd=root, capture_output=True
