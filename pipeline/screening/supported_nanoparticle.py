@@ -55,5 +55,17 @@ def evaluate_supported_nanoparticle(
             )
         if result.get('valid') or result.get('error') != 'CH3 adsorbate lost molecular integrity':
             break
+    slab, _, _ = surface_screener.generate_structure(
+        genome, structure_seed=structure_seed
+    )
+    for key in (
+        'particle_diameter_nm',
+        'loading_wt_pct',
+        'dispersion',
+        'step_site_fraction',
+        'effective_strain',
+    ):
+        if key in slab.info:
+            result[key] = slab.info[key]
     result['screening_protocol'] = SUPPORTED_NANOPARTICLE_PROTOCOL
     return result

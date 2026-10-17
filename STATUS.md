@@ -74,7 +74,8 @@
   required calibrated and held-out evidence is present.
 - **Preservation:** tag `orr-confirmatory-v1` identifies the confirmed ORR
   result and its checksum-locked DFT slate.
-- **Supported nanoparticles:** the opt-in genome is a partial schema. Diameter
-  and loading are recorded for B6 studies, but the current screener does not
-  yet change slab morphology with those values; do not treat them as validated
+- **Supported nanoparticles:** the opt-in genome records diameter and loading for
+  B6 studies and now varies slab capillary/loading strain, dispersion, and
+  sub-5 nm step-edge vacancy morphology with `diameter_nm` and `loading_wt_pct`;
+  experimental calibration is still required before treating them as validated
   physical controls.

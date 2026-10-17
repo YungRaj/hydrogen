@@ -245,3 +245,50 @@ def test_reactor_stage_records_screening_failure(tmp_path):
     assert result['reactor_evidence_tier'] == 'required_solver_evidence_missing'
     assert 'mechanism file is missing' in result['multiphysics_evidence']['screening_error']
     assert not (tmp_path / 'multiphysics').exists()
+
+
+def test_build_calibrated_physical_case_and_ntec_paired_control(tmp_path):
+    from pipeline.simulation.physical_case import (
+        build_calibrated_physical_case,
+        verify_ntec_paired_control,
+    )
+
+    mech = _mechanism(tmp_path)
+    ntec_cal = {
+        'training_ids': ['ntec-train-1', 'ntec-train-2'],
+        'validation_ids': ['ntec-holdout-1'],
+        'source': 'paired-control Couette shear calibration dataset v1',
+        'metric': 'relative_rmse',
+        'acceptance_threshold': 0.10,
+        'paired_control': True,
+    }
+    target = build_calibrated_physical_case(
+        tmp_path / 'cal_ntec',
+        candidate_id='cand',
+        mode='ntec',
+        reactor_type='NTEC',
+        temperature_K=473.15,
+        mechanism_path=mech,
+        calibration=ntec_cal,
+    )
+    loaded = load_physical_case(
+        target,
+        candidate_id='cand',
+        mode='ntec',
+        reactor_type='NTEC',
+        temperature_K=473.15,
+        require_calibration=True,
+    )
+    assert loaded['calibration']['paired_control'] is True
+    assert 'screening' not in loaded
+
+    check = verify_ntec_paired_control(
+        {'CH4_conversion': 0.045}, {'CH4_conversion': 0.010}, min_enhancement_ratio=1.2
+    )
+    assert check['passed'] is True
+    assert check['enhancement_ratio'] == pytest.approx(4.5)
+    failed = verify_ntec_paired_control(
+        {'CH4_conversion': 0.010}, {'CH4_conversion': 0.010}, min_enhancement_ratio=1.2
+    )
+    assert failed['passed'] is False
+

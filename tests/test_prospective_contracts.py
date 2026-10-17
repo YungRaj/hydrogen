@@ -19,7 +19,9 @@ from pipeline.evidence.orr_dft_slate import verify_slate
 from pipeline.evidence.orr_quality_diagnostic import verify_diagnostic
 from pipeline.evidence.pyrolysis_benchmark import (
     analyze_screening_results,
+    calibrated_rate_free_energy_span_eV,
     dataset_digest,
+    dft_anchor_offset_eV,
     effective_barrier_eV,
     energetic_span_eV,
     h2_chemical_potential_eV,
@@ -201,6 +203,32 @@ class ProspectiveContracts(unittest.TestCase):
         pure = {**alloy, 'genome': "('MoltenMetal', 'Bi', 'None', 0.0, 1273.15)"}
         with self.assertRaisesRegex(ValueError, 'outside validated scope'):
             rate_free_energy_span_eV(pure)
+
+    def test_dft_anchor_calibration_restores_cu45bi55_rate_barrier(self) -> None:
+        palmer_dft = [2.53, 2.60]
+        predicted = [1.6259, 1.2933, 1.4835, 1.3954, 1.3462]
+        temp_K = 1273.15
+        offset = dft_anchor_offset_eV(palmer_dft, predicted, temp_K)
+        self.assertGreater(offset, 1.1)
+        row = {
+            'genome': "('MoltenMetal', 'Bi', 'Cu', 45.0, 1273.15)",
+            'temperature_K': temp_K,
+            'molten_replicas_json': json.dumps([
+                {'E_act_raw': b, 'dE_H': -0.3, 'dE_C': 0.5} for b in predicted
+            ]),
+        }
+        calibrated = calibrated_rate_free_energy_span_eV(
+            row,
+            anchor_offset_eV=offset,
+            anchor_source='doi:10.1021/acscatal.9b01833',
+        )
+        self.assertAlmostEqual(
+            calibrated['calibrated_activation_eV'],
+            effective_barrier_eV(palmer_dft, temp_K),
+            places=5,
+        )
+        self.assertEqual(calibrated['dominant_limiting_step'], 'methane_activation')
+        self.assertEqual(calibrated['anchor_source'], 'doi:10.1021/acscatal.9b01833')
 
     def test_roc_auc_handles_ties(self) -> None:
         self.assertEqual(roc_auc([True, False], [1.0, 0.0]), 1.0)

@@ -129,6 +129,93 @@ def rate_free_energy_span_eV(row: dict[str, Any]) -> float:
     return effective_barrier_eV(spans, temperature_K)
 
 
+def dft_anchor_offset_eV(
+    reference_barriers_eV: list[float],
+    predicted_barriers_eV: list[float],
+    temperature_K: float,
+) -> float:
+    """Compute the single-anchor DFT minus MLIP/BEP rate-averaged barrier offset.
+
+    Args:
+        reference_barriers_eV: Independent DFT NEB transition-state barriers in eV.
+        predicted_barriers_eV: Uncalibrated MLIP/BEP replica barriers in eV.
+        temperature_K: Absolute condition temperature in kelvin.
+
+    Returns:
+        Additive barrier correction in eV restoring rate-consistent anchor agreement.
+    """
+    ref_eff = effective_barrier_eV(reference_barriers_eV, temperature_K)
+    pred_eff = effective_barrier_eV(predicted_barriers_eV, temperature_K)
+    return float(ref_eff - pred_eff)
+
+
+def calibrated_rate_free_energy_span_eV(
+    row: dict[str, Any],
+    *,
+    anchor_offset_eV: float = 0.0,
+    anchor_source: str = 'uncalibrated',
+) -> dict[str, Any]:
+    """Return the DFT-anchor-calibrated molten rate/free-energy span and diagnostics.
+
+    Args:
+        row: Completed ensemble screening row for a promoted molten alloy.
+        anchor_offset_eV: Additive DFT minus MLIP/BEP activation-barrier offset in eV.
+        anchor_source: Provenance identifier for the DFT anchor.
+
+    Returns:
+        Dictionary with calibrated and uncalibrated spans, calibrated activation
+        barrier, dominant limiting step, and anchor provenance.
+    """
+    if not math.isfinite(float(anchor_offset_eV)):
+        raise ValueError('anchor_offset_eV must be finite')
+    try:
+        genome = ast.literal_eval(str(row['genome']))
+        temperature_K = float(row['temperature_K'])
+        replicas = json.loads(str(row['molten_replicas_json']))
+    except (KeyError, TypeError, ValueError, SyntaxError, json.JSONDecodeError) as exc:
+        raise ValueError('missing molten rate/free-energy input') from exc
+    if genome[0] != 'MoltenMetal' or genome[2] == 'None':
+        raise ValueError('pure-host molten BEP barrier is outside validated scope')
+    if not str(anchor_source).strip():
+        raise ValueError('anchor_source must be non-empty')
+    h2_mu = h2_chemical_potential_eV(temperature_K)
+    uncalibrated_spans = rate_free_energy_span_eV(row)
+    cal_spans: list[float] = []
+    cal_activations: list[float] = []
+    replica_steps: list[tuple[float, str]] = []
+    for replica in replicas:
+        try:
+            raw_act = float(replica['E_act_raw'])
+            cal_act = max(0.0, raw_act + float(anchor_offset_eV))
+            hydrogen_release = -2.0 * float(replica['dE_H']) + h2_mu
+            carbon_release = -float(replica['dE_C'])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError('missing molten rate/free-energy input') from exc
+        terms = (
+            ('methane_activation', cal_act),
+            ('hydrogen_release', hydrogen_release),
+            ('carbon_release', carbon_release),
+        )
+        step_name, step_val = max(terms, key=lambda item: item[1])
+        span = max(step_val, 0.0)
+        if not math.isfinite(span):
+            raise ValueError('missing molten rate/free-energy input')
+        cal_spans.append(span)
+        cal_activations.append(cal_act)
+        replica_steps.append((span, step_name))
+    fastest_step = min(replica_steps, key=lambda item: item[0])[1]
+    return {
+        'rate_free_energy_span_eV': effective_barrier_eV(cal_spans, temperature_K),
+        'uncalibrated_span_eV': float(uncalibrated_spans),
+        'calibrated_activation_eV': effective_barrier_eV(
+            cal_activations, temperature_K
+        ),
+        'anchor_offset_eV': float(anchor_offset_eV),
+        'anchor_source': str(anchor_source),
+        'dominant_limiting_step': fastest_step,
+    }
+
+
 def _row_h2_mu_eV(row: dict[str, Any]) -> float:
     """Return H2 chemical potential when condition temperature is present."""
     temp_raw = row.get('temperature_K')

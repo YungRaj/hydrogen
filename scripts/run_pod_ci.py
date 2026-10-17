@@ -463,7 +463,9 @@ def _acquire_pod(
     return _deploy_fresh_pod_under_cap(api_key, max_cost_per_hr, ssh_key)
 
 
-def _run_remote_ci(ip: str, port: int, ssh_key: str) -> int:
+def _run_remote_ci(
+    ip: str, port: int, ssh_key: str, *, include_moose: bool = False
+) -> int:
     """Sync current repository state to the pod and execute pyright + pytest contracts."""
     ssh_base = [
         'ssh',
@@ -550,13 +552,23 @@ fi
     if sync_proc.returncode != 0:
         return sync_proc.returncode
 
-    # Step 3: Run pyright + pytest contracts on the pod
+    # Step 3: Run pyright + pytest contracts (+ MOOSE verification when installed or requested)
     print('[runpod-ci] Running pyright and pytest contract suite on pod...', flush=True)
+    moose_block = (
+        'if [ -x /opt/envs/moose-env/bin/moose-opt ]; then '
+        'export MOOSE_EXECUTABLE=/opt/envs/moose-env/bin/moose-opt; '
+        'fi; '
+        'if [ "' + ('1' if include_moose else '0') + '" = "1" ] || command -v moose-opt >/dev/null 2>&1 || [ -n "${MOOSE_EXECUTABLE:-}" ]; then '
+        'echo "[runpod-ci] Running MOOSE model verification (tests/test_moose_models.py)..."; '
+        'python3 tests/test_moose_models.py; '
+        'fi'
+    )
     test_cmd = (
         'set -euo pipefail; '
         'cd /root/hydrogen; '
         'pyright; '
-        'python3 tests/run_pytest_contracts.py'
+        'python3 tests/run_pytest_contracts.py; '
+        + moose_block
     )
     test_proc = subprocess.run(ssh_base + [test_cmd], cwd=str(REPO_ROOT))
     return test_proc.returncode
@@ -592,6 +604,12 @@ def main() -> int:
         default=True,
         help='Always stop/terminate the pod after CI completes (default: True)',
     )
+    parser.add_argument(
+        '--include-moose',
+        action='store_true',
+        default=os.environ.get('HYDROGEN_CI_INCLUDE_MOOSE', '0') == '1',
+        help='Require MOOSE model verification (tests/test_moose_models.py)',
+    )
     args = parser.parse_args()
 
     if args.max_cost > 1.00:
@@ -616,7 +634,7 @@ def main() -> int:
         pod_id, ip, port, cleanup_mode = _acquire_pod(
             api_key, args.max_cost, args.ssh_key
         )
-        rc = _run_remote_ci(ip, port, args.ssh_key)
+        rc = _run_remote_ci(ip, port, args.ssh_key, include_moose=args.include_moose)
         elapsed = time.time() - t0
         status_str = 'PASSED' if rc == 0 else f'FAILED (exit {rc})'
         print(f'[runpod-ci] CI {status_str} in {elapsed:.1f}s', flush=True)

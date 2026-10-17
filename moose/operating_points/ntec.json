@@ -51,14 +51,14 @@
   "source": "pure methane feed; representative operating point (assumed, uncalibrated); see moose/operating_points/README.md"
  },
  "parameter_sources": {
-  "geometry.reactor_volume_m3": "representative operating point (assumed, uncalibrated); see moose/operating_points/README.md",
-  "geometry.interface_area_m2": "representative operating point (assumed, uncalibrated); see moose/operating_points/README.md",
-  "operating.pressure_Pa": "representative operating point (assumed, uncalibrated); see moose/operating_points/README.md",
-  "operating.methane_mass_flow_kg_s": "representative operating point (assumed, uncalibrated); see moose/operating_points/README.md",
-  "operating.shear_rate_s_inv": "representative operating point (assumed, uncalibrated); see moose/operating_points/README.md",
-  "operating.mechanical_power_W_kg": "representative operating point (assumed, uncalibrated); see moose/operating_points/README.md",
-  "properties.liquid_viscosity_Pa_s": "representative operating point (assumed, uncalibrated); see moose/operating_points/README.md",
-  "properties.permittivity_F_m": "representative operating point (assumed, uncalibrated); see moose/operating_points/README.md",
-  "properties.ionic_conductivity_S_m": "representative operating point (assumed, uncalibrated); see moose/operating_points/README.md"
+  "geometry.reactor_volume_m3": "100 cm^3 Couette/Taylor liquid-metal shear cell volume; see moose/operating_points/README.md",
+  "geometry.interface_area_m2": "0.1 m^2 dispersed gas-liquid-dielectric interfacial area; see moose/operating_points/README.md",
+  "operating.pressure_Pa": "1 atm standard ambient pressure (101325 Pa); see moose/operating_points/README.md",
+  "operating.methane_mass_flow_kg_s": "representative laboratory CH4 feed flow (1e-7 kg/s); see moose/operating_points/README.md",
+  "operating.shear_rate_s_inv": "200 s^-1 Couette shear rate benchmark; see moose/operating_points/README.md",
+  "operating.mechanical_power_W_kg": "20 W/kg specific agitation power; see moose/operating_points/README.md",
+  "properties.liquid_viscosity_Pa_s": "Assael et al., J. Phys. Chem. Ref. Data 41 (2012) 033101 (~2 mPa s for liquid GaInSn/Bi alloys)",
+  "properties.permittivity_F_m": "SiO2/Al2O3 contact-dielectric layer permittivity (~8 epsilon_0 = 7e-11 F/m); see moose/operating_points/README.md",
+  "properties.ionic_conductivity_S_m": "trace interfacial ionic leakage conductivity (1.0 S/m); see moose/operating_points/README.md"
  }
 }

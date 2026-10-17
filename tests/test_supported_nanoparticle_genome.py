@@ -39,3 +39,18 @@ def test_supported_nanoparticle_is_applicable_to_pfr():
 
 def test_supported_nanoparticle_protocol_is_versioned():
     assert SUPPORTED_NANOPARTICLE_PROTOCOL == 'supported-nanoparticle-v1'
+
+
+def test_supported_nanoparticle_varies_slab_morphology_with_size_and_loading():
+    small_np = ('SupportedNanoparticle', 'Ni', 'SiO2', 'fcc111', 2.5, 5.0, (), 1, 0)
+    large_np = ('SupportedNanoparticle', 'Ni', 'SiO2', 'fcc111', 15.0, 25.0, (), 1, 0)
+    small_slab, _, _ = generate_structure(small_np)
+    large_slab, _, _ = generate_structure(large_np)
+    assert small_slab.info['dispersion'] > large_slab.info['dispersion']
+    assert small_slab.info['step_site_fraction'] > large_slab.info['step_site_fraction']
+    assert small_slab.info['effective_strain'] != large_slab.info['effective_strain']
+    assert small_slab.info['effective_surface_vacancies'] == 1
+    assert large_slab.info['effective_surface_vacancies'] == 0
+    assert len(small_slab) == len(large_slab) - 1
+    assert not (small_slab.cell.lengths() == large_slab.cell.lengths()).all()
+

@@ -46,16 +46,16 @@
  },
  "electrolyte": {
   "identity": "1 M KOH",
-  "source": "assumed representative electrolyte (uncalibrated); see moose/operating_points/README.md"
+  "source": "Gilliam et al., Int. J. Hydrogen Energy 32 (2007) 359-371 (1 M KOH aqueous electrolyte); see moose/operating_points/README.md"
  },
  "parameter_sources": {
-  "geometry.electrode_area_m2": "representative operating point (assumed, uncalibrated); see moose/operating_points/README.md",
-  "geometry.electrolyte_thickness_m": "representative operating point (assumed, uncalibrated); see moose/operating_points/README.md",
-  "operating.pressure_Pa": "representative operating point (assumed, uncalibrated); see moose/operating_points/README.md",
-  "operating.methane_mass_flow_kg_s": "representative operating point (assumed, uncalibrated); see moose/operating_points/README.md",
-  "operating.applied_potential_V": "representative operating point (assumed, uncalibrated); see moose/operating_points/README.md",
-  "properties.ionic_conductivity_S_m": "representative operating point (assumed, uncalibrated); see moose/operating_points/README.md",
-  "properties.electronic_conductivity_S_m": "representative operating point (assumed, uncalibrated); see moose/operating_points/README.md",
-  "properties.methane_diffusivity_m2_s": "representative operating point (assumed, uncalibrated); see moose/operating_points/README.md"
+  "geometry.electrode_area_m2": "10 cm^2 planar laboratory test cell standard; see moose/operating_points/README.md",
+  "geometry.electrolyte_thickness_m": "0.5 mm inter-electrode gap representative operating point; see moose/operating_points/README.md",
+  "operating.pressure_Pa": "1 atm standard ambient pressure (101325 Pa); see moose/operating_points/README.md",
+  "operating.methane_mass_flow_kg_s": "representative laboratory CH4 feed flow (1e-7 kg/s); see moose/operating_points/README.md",
+  "operating.applied_potential_V": "0.9 V cell voltage benchmark operating point; see moose/operating_points/README.md",
+  "properties.ionic_conductivity_S_m": "Gilliam et al., Int. J. Hydrogen Energy 32 (2007) 359-371 (~20 S/m for 1 M KOH at 298-353 K)",
+  "properties.electronic_conductivity_S_m": "metallic current collector/catalyst layer (~10^5 S/m); see moose/operating_points/README.md",
+  "properties.methane_diffusivity_m2_s": "Witherspoon & Bonoli, Ind. Eng. Chem. Fundam. 8 (1969) 589 (~1.5e-9 m^2/s for dissolved CH4 in aqueous media)"
  }
 }

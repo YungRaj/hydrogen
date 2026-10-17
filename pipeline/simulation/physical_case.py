@@ -6,7 +6,7 @@ import json
 import math
 import argparse
 from pathlib import Path
-from typing import cast
+from typing import Mapping, cast
 
 from pipeline.data_models.artifacts import (
     PhysicalCaseDocument, PhysicalCaseSummary, SurrogateInputDocument)
@@ -337,5 +337,93 @@ def surrogate_inputs(case: PhysicalCaseDocument) -> SurrogateInputDocument:
     }
 
 
+def build_calibrated_physical_case(
+    case_dir: str | Path,
+    *,
+    candidate_id: str,
+    mode: str,
+    reactor_type: str,
+    temperature_K: float,
+    mechanism_path: str | Path,
+    calibration: Mapping[str, object],
+) -> Path:
+    """Create a complete, provenance-validated physical case with a calibration block.
+
+    Args:
+        case_dir: Empty directory to populate with ``hydrogen_case.json`` and mechanism.
+        candidate_id: Stable candidate identifier.
+        mode: Pathway mode routing ``reactor_type``.
+        reactor_type: ``NTEC`` or ``Electrochemical``.
+        temperature_K: Absolute operating temperature in kelvin.
+        mechanism_path: Candidate Cantera YAML file from ``write_full_mechanism``.
+        calibration: Calibration metadata including ``training_ids``,
+            ``validation_ids``, ``source``, ``metric``, ``acceptance_threshold``,
+            and (for ``NTEC``) ``paired_control: True``.
+
+    Returns:
+        Path to the validated ``hydrogen_case.json`` file.
+    """
+    from pipeline.simulation.screening_cases import build_screening_case
+
+    target = build_screening_case(
+        case_dir,
+        candidate_id=candidate_id,
+        mode=mode,
+        reactor_type=reactor_type,
+        temperature_K=temperature_K,
+        mechanism_path=mechanism_path,
+    )
+    document = json.loads(target.read_text(encoding='utf-8'))
+    document.pop('screening', None)
+    document.pop('template', None)
+    document['calibration'] = dict(calibration)
+    target.write_text(json.dumps(document, indent=1, sort_keys=True) + '\n')
+    load_physical_case(
+        target,
+        candidate_id=candidate_id,
+        mode=mode,
+        reactor_type=reactor_type,
+        temperature_K=temperature_K,
+        require_calibration=True,
+    )
+    return target
+
+
+def verify_ntec_paired_control(
+    active_outputs: Mapping[str, float],
+    control_outputs: Mapping[str, float],
+    *,
+    min_enhancement_ratio: float = 1.05,
+) -> dict[str, object]:
+    """Compare an active NTEC case against its zero-charge/zero-field paired control.
+
+    Args:
+        active_outputs: Solver outputs for the shear/field-active NTEC case.
+        control_outputs: Solver outputs for the thermal-only paired control.
+        min_enhancement_ratio: Minimum required ratio of active to control conversion.
+
+    Returns:
+        Dictionary recording active and control conversions, enhancement ratio,
+        net non-thermal conversion, and pass status.
+    """
+    if min_enhancement_ratio <= 1.0:
+        raise ValueError('min_enhancement_ratio must exceed 1.0')
+    active_x = float(active_outputs['CH4_conversion'])
+    control_x = float(control_outputs['CH4_conversion'])
+    if not (0.0 <= active_x <= 1.0 and 0.0 <= control_x <= 1.0):
+        raise ValueError('CH4_conversion values must lie in [0, 1]')
+    ratio = active_x / max(control_x, 1e-12)
+    net_gain = active_x - control_x
+    passed = bool(net_gain > 0.0 and ratio >= float(min_enhancement_ratio))
+    return {
+        'passed': passed,
+        'active_conversion': active_x,
+        'control_conversion': control_x,
+        'net_non_thermal_conversion': net_gain,
+        'enhancement_ratio': ratio,
+    }
+
+
 if __name__ == '__main__':
     main()
+

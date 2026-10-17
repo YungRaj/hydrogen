@@ -619,14 +619,22 @@ def _generate_hydride_slab(
 
 def _build_supported_nanoparticle(genome, structure_seed):
     _, metal, support, facet, diameter_nm, loading_wt_pct, dopants, n_sub, n_vac = genome
+    d_nm = max(float(diameter_nm), 0.5)
+    load_pct = min(max(float(loading_wt_pct), 0.0), 100.0)
+    dispersion = min(1.0, 1.1 / d_nm)
+    step_fraction = min(1.0, (2.5 / d_nm) ** 2)
+    capillary_strain = -0.015 / max(d_nm, 1.0)
+    loading_strain = 0.002 * (1.0 - min(load_pct, 30.0) / 30.0)
+    effective_strain = float(np.clip(capillary_strain + loading_strain, -0.03, 0.03))
+    effective_n_vac = max(int(n_vac), 1 if d_nm < 5.0 else 0)
     slab, top_idx = generate_alloy_slab(
         metal,
         _slab_facet_key(facet),
-        0.0,
+        effective_strain,
         tuple(dopants),
         int(n_sub),
-        int(n_vac),
-        seed_key=genome,
+        effective_n_vac,
+        seed_key=(genome, int(structure_seed)),
         environment_label=support,
     )
     slab.info.update(
@@ -634,6 +642,10 @@ def _build_supported_nanoparticle(genome, structure_seed):
             'particle_diameter_nm': float(diameter_nm),
             'loading_wt_pct': float(loading_wt_pct),
             'support': str(support),
+            'dispersion': float(dispersion),
+            'step_site_fraction': float(step_fraction),
+            'effective_strain': effective_strain,
+            'effective_surface_vacancies': int(effective_n_vac),
         }
     )
     return slab, top_idx
