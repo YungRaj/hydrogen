@@ -69,3 +69,23 @@ class StackResult(TypedDict):
 
 class EmptyStackResult(TypedDict):
     """No stack was modeled because the PEMFC stage produced no candidates."""
+
+
+class PourbaixStabilityRecord(TypedDict):
+    """Anodic dissolution onset potential, margin, and acid-stability flag."""
+
+    pourbaix_dissolution_onset_V: float
+    pourbaix_dissolution_margin_V: float
+    pourbaix_acid_stable: bool
+
+
+class GrandCanonicalORRRecord(PourbaixStabilityRecord):
+    """Constant-potential solvated ORR free energies, overpotential, and Pourbaix stability."""
+
+    dG_OH_gc_eV: float
+    dG_O_gc_eV: float
+    dG_OOH_gc_eV: float
+    orr_overpotential_gc_V: float
+    limiting_potential_gc_V: float
+    rate_determining_step_gc: str
+

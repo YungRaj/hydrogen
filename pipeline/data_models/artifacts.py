@@ -135,3 +135,58 @@ class ValidArtifactResult(TypedDict):
 
 
 ArtifactValidationResult = ValidArtifactResult | InvalidArtifactResult
+
+
+class ConservationBalance(TypedDict):
+    """Inlet and outlet flux balance for one conserved quantity."""
+
+    inlet: float
+    outlet: float
+
+
+class InterfaceExchangeFeedback(TypedDict):
+    """Coupled boundary parameters exchanged between MOOSE and Cantera."""
+
+    schema_version: int
+    iteration: int
+    computed: dict[str, float]
+    moose_values_used: dict[str, float]
+    moose_parameters: dict[str, float]
+
+
+class MeshRefinementPoint(TypedDict):
+    """Observable value at one uniform mesh refinement level."""
+
+    cells: int
+    observable: float
+
+
+class CouplingConvergenceDocument(TypedDict):
+    """Convergence status, mesh-refinement series, and conservation budgets."""
+
+    converged: bool
+    mesh_series: list[MeshRefinementPoint]
+    mesh_tolerance_relative: float
+    conservation_budgets: dict[str, ConservationBalance]
+
+
+class FeedbackArtifactDigest(TypedDict):
+    """Content-addressed reference to a written coupling feedback file."""
+
+    path: str
+    sha256: str
+
+
+class CouplingStepState(TypedDict):
+    """Persisted coupling state returned by one MOOSE-Cantera interface step."""
+
+    schema_version: int
+    candidate_id: str
+    reactor_type: str
+    temperature_K: float
+    iteration: int
+    residual_relative: float
+    tolerance_relative: float
+    converged: bool
+    feedback_artifact: FeedbackArtifactDigest
+

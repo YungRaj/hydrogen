@@ -7,8 +7,31 @@ argument, not a module constant.
 
 from __future__ import annotations
 
-from pipeline.reactors.eligibility import is_usable_result
-from pipeline.data_models.reactors import SolidsMetricRow, SolidsScorecard
+from typing import Iterable, Mapping, Protocol, cast
+
+from pipeline.reactors.eligibility import finite_number, is_usable_result
+from pipeline.reactors.modes import ReactorTypeName
+from pipeline.data_models.reactors import (
+    B5ClosureGateResult,
+    SolidsMetricRow,
+    SolidsScorecard,
+)
+
+
+class InfoLogger(Protocol):
+    """Minimal logging sink accepted by log_solids_scorecard."""
+
+    def info(self, msg: str) -> object:
+        """Write an informational message.
+
+        Args:
+            msg: Formatted message string to write to the log sink.
+
+        Returns:
+            Optional logger return value.
+        """
+        ...
+
 
 SOLIDS_TYPES = frozenset({'PFR', 'Fluidized'})
 H_PARKED_E_ACT_MAX = 0.05
@@ -27,7 +50,7 @@ NI_JUDGE_CATALYST = 'ni_np_lit'
 B5_ACCEPTED = False
 
 
-def is_h_parked(record: dict) -> bool:
+def is_h_parked(record: Mapping[str, object]) -> bool:
     """Return whether excessive hydrogen coverage invalidates a solids rank.
 
     Args:
@@ -38,14 +61,14 @@ def is_h_parked(record: dict) -> bool:
     """
     e_act = record.get('catalyst_E_act_eV')
     dE_H = record.get('catalyst_dE_H_eV')
-    if e_act is None or dE_H is None:
+    if not isinstance(e_act, (int, float)) or not isinstance(dE_H, (int, float)):
         return False
     return (
         float(e_act) <= H_PARKED_E_ACT_MAX and abs(float(dE_H)) >= H_PARKED_ABS_DEH_MIN
     )
 
 
-def is_production_reactor_record(record: dict) -> bool:
+def is_production_reactor_record(record: Mapping[str, object]) -> bool:
     """A completed single-condition run. Upstream's non-run records
     (``not_applicable``, ``validation_required``, ``failed``) carry a
     ``status`` and no conversion; they are evidence about the workflow, not
@@ -56,7 +79,7 @@ def is_production_reactor_record(record: dict) -> bool:
         Validated bool output for this operation.
     """
     return (
-        isinstance(record, dict)
+        isinstance(record, Mapping)  # pyright: ignore[reportUnnecessaryIsInstance]
         and record.get('reactor_type')
         in {'PFR', 'Fluidized', 'MMBCR', 'NTEC', 'Electrochemical'}
         and bool(record.get('catalyst_name'))
@@ -66,7 +89,7 @@ def is_production_reactor_record(record: dict) -> bool:
     )
 
 
-def is_solids_run(record: dict) -> bool:
+def is_solids_run(record: Mapping[str, object]) -> bool:
     """PFR/fluidized with a loaded Langmuir surface. Missing surface_loaded
     (legacy JSON) or gas_only/mock is not a solids result.
 
@@ -85,7 +108,7 @@ def is_solids_run(record: dict) -> bool:
     )
 
 
-def is_scoreable_solids(record: dict) -> bool:
+def is_scoreable_solids(record: Mapping[str, object]) -> bool:
     """Solids run that may enter a headline or max-X rank.
 
     Shared usable baseline (complete, not mock, no X>X_eq, carbon
@@ -98,7 +121,7 @@ def is_scoreable_solids(record: dict) -> bool:
     return is_solids_run(record) and is_usable_result(record)
 
 
-def single_pass_x(record: dict) -> float:
+def single_pass_x(record: Mapping[str, object]) -> float:
     """Read the canonical single-pass methane conversion from a record.
 
     Args:
@@ -108,17 +131,22 @@ def single_pass_x(record: dict) -> float:
         Validated float output for this operation.
     """
     value = record.get('single_pass_CH4_conversion', record.get('CH4_conversion'))
-    return float(value or 0.0)
+    return float(value) if isinstance(value, (int, float)) else 0.0
 
 
-def _t_k(record: dict) -> float:
+def _t_k(record: Mapping[str, object]) -> float:
+    value = record.get('T_K')
+    if isinstance(value, (int, float)):
+        return float(value)
     try:
-        return float(record.get('T_K') or 0.0)
+        return float(str(value or 0.0))
     except (TypeError, ValueError):
         return 0.0
 
 
-def in_headline_band(record: dict, t_min: float, t_max: float | None = None) -> bool:
+def in_headline_band(
+    record: Mapping[str, object], t_min: float, t_max: float | None = None
+) -> bool:
     """True if T is in [t_min, t_max]. ``t_max is None`` means no upper bound.
 
     Args:
@@ -135,7 +163,15 @@ def in_headline_band(record: dict, t_min: float, t_max: float | None = None) -> 
     return True
 
 
-def metric_row(record: dict) -> SolidsMetricRow:
+def _opt_str(value: object) -> str | None:
+    return str(value) if isinstance(value, str) else None
+
+
+def _opt_bool(value: object) -> bool | None:
+    return value if isinstance(value, bool) else None
+
+
+def metric_row(record: Mapping[str, object]) -> SolidsMetricRow:
     """Project a reactor result into the solids-scorecard metric schema.
 
     Args:
@@ -144,29 +180,30 @@ def metric_row(record: dict) -> SolidsMetricRow:
     Returns:
         Validated dict output for this operation.
     """
+    rt = _opt_str(record.get('reactor_type'))
     return {
-        'catalyst_name': record.get('catalyst_name'),
-        'reactor_type': record.get('reactor_type'),
-        'T_K': record.get('T_K'),
+        'catalyst_name': _opt_str(record.get('catalyst_name')),
+        'reactor_type': cast(ReactorTypeName | None, rt),
+        'T_K': finite_number(record.get('T_K')),
         'single_pass_CH4_conversion': single_pass_x(record),
-        'active_sv_1_m': record.get('active_sv_1_m'),
-        'WHSV_h-1': record.get('WHSV_h-1'),
-        'ergun_delta_p_Pa': record.get('ergun_delta_p_Pa'),
-        'ergun_delta_p_bar': record.get('ergun_delta_p_bar'),
-        'ergun_ok': record.get('ergun_ok'),
-        'catalyst_E_act_eV': record.get('catalyst_E_act_eV'),
-        'catalyst_dE_H_eV': record.get('catalyst_dE_H_eV'),
+        'active_sv_1_m': finite_number(record.get('active_sv_1_m')),
+        'WHSV_h-1': finite_number(record.get('WHSV_h-1')),
+        'ergun_delta_p_Pa': finite_number(record.get('ergun_delta_p_Pa')),
+        'ergun_delta_p_bar': finite_number(record.get('ergun_delta_p_bar')),
+        'ergun_ok': _opt_bool(record.get('ergun_ok')),
+        'catalyst_E_act_eV': finite_number(record.get('catalyst_E_act_eV')),
+        'catalyst_dE_H_eV': finite_number(record.get('catalyst_dE_H_eV')),
         'h_parked': is_h_parked(record),
-        'catalyst_particle_mm': record.get('catalyst_particle_mm'),
-        'metal_loading': record.get('metal_loading'),
-        'metal_dispersion': record.get('metal_dispersion'),
+        'catalyst_particle_mm': finite_number(record.get('catalyst_particle_mm')),
+        'metal_loading': finite_number(record.get('metal_loading')),
+        'metal_dispersion': finite_number(record.get('metal_dispersion')),
         'exceeds_equilibrium': bool(record.get('exceeds_equilibrium')),
-        'carbon_balance_ok': record.get('carbon_balance_ok'),
+        'carbon_balance_ok': _opt_bool(record.get('carbon_balance_ok')),
     }
 
 
 def build_solids_scorecard(
-    results,
+    results: Iterable[Mapping[str, object]],
     *,
     judge_catalyst: str | None = None,
     headline_t_min: float = DEFAULT_HEADLINE_T_MIN,
@@ -213,8 +250,9 @@ def build_solids_scorecard(
     )
     named_present = bool(judge_src)
     if named_present:
-        pool = [metric_row(r) for r in judge_src if is_scoreable_solids(r)]
-        rank_key = _t_k
+        pool: list[SolidsMetricRow] = [
+            metric_row(r) for r in judge_src if is_scoreable_solids(r)
+        ]
         judge_reason = (
             'named judge catalyst; not 0.01 eV H-parked; '
             'MMBCR X_eq is not a solids rank'
@@ -223,7 +261,6 @@ def build_solids_scorecard(
         # B5/B6 remain open: Phase 2 conversion describes a specified judge,
         # but is not authorized to choose among catalysts.
         pool = []
-        rank_key = _t_k
         if judge_catalyst:
             judge_reason = (
                 f'{judge_catalyst} missing from solids results; '
@@ -235,41 +272,43 @@ def build_solids_scorecard(
                 'while B5/B6 are open'
             )
 
-    headline = {}
+    headline: dict[str, SolidsMetricRow] = {}
     for reactor_type in ('PFR', 'Fluidized'):
         candidates = [
             r
             for r in pool
-            if r['reactor_type'] == reactor_type
+            if r.get('reactor_type') == reactor_type
             and in_headline_band(r, headline_t_min, headline_t_max)
         ]
         if candidates:
-            headline[reactor_type] = max(candidates, key=rank_key)
+            headline[reactor_type] = max(candidates, key=_t_k)
 
-    h_parked = [r for r in solids if r['h_parked'] and _t_k(r) >= headline_t_min]
+    h_parked = [
+        r for r in solids if r.get('h_parked') and _t_k(r) >= headline_t_min
+    ]
     mmbcr_max = max(
-        (float(r.get('CH4_conversion') or 0.0) for r in mmbcr),
+        (finite_number(r.get('CH4_conversion')) or 0.0 for r in mmbcr),
         default=None,
     )
     ntec_max = max(
-        (float(r.get('CH4_conversion') or 0.0) for r in ntec),
+        (finite_number(r.get('CH4_conversion')) or 0.0 for r in ntec),
         default=None,
     )
     electrochemical_max = max(
-        (float(r.get('CH4_conversion') or 0.0) for r in electrochemical),
+        (finite_number(r.get('CH4_conversion')) or 0.0 for r in electrochemical),
         default=None,
     )
-    judge_x = None
-    if headline.get('PFR'):
-        judge_x = headline['PFR']['single_pass_CH4_conversion']
-    elif headline.get('Fluidized'):
-        judge_x = headline['Fluidized']['single_pass_CH4_conversion']
+    judge_x: float | None = None
+    if 'PFR' in headline:
+        judge_x = headline['PFR'].get('single_pass_CH4_conversion')
+    elif 'Fluidized' in headline:
+        judge_x = headline['Fluidized'].get('single_pass_CH4_conversion')
 
-    headline_catalyst = None
-    if headline.get('PFR'):
-        headline_catalyst = headline['PFR']['catalyst_name']
-    elif headline.get('Fluidized'):
-        headline_catalyst = headline['Fluidized']['catalyst_name']
+    headline_catalyst: str | None = None
+    if 'PFR' in headline:
+        headline_catalyst = headline['PFR'].get('catalyst_name')
+    elif 'Fluidized' in headline:
+        headline_catalyst = headline['Fluidized'].get('catalyst_name')
 
     scoreable_non_h_parked = [
         r for r in solids_src if is_scoreable_solids(r) and not is_h_parked(r)
@@ -344,7 +383,7 @@ def build_solids_scorecard(
     }
 
 
-def log_solids_scorecard(scorecard: SolidsScorecard, logger) -> None:
+def log_solids_scorecard(scorecard: SolidsScorecard, logger: InfoLogger) -> None:
     """Write the principal scorecard decisions to a supplied logger.
 
     Args:
@@ -385,11 +424,11 @@ def log_solids_scorecard(scorecard: SolidsScorecard, logger) -> None:
 
 def evaluate_b5_closure_gate(
     scorecard: SolidsScorecard,
-    b66_summary: dict | None = None,
-    joint_summary: dict | None = None,
+    b66_summary: Mapping[str, object] | None = None,
+    joint_summary: Mapping[str, object] | None = None,
     *,
     min_roi_conversion: float = 0.50,
-) -> dict:
+) -> B5ClosureGateResult:
     """Evaluate whether B5 solids closure criteria are met by reactor evidence.
 
     Args:
@@ -409,15 +448,27 @@ def evaluate_b5_closure_gate(
     judge_ok = scorecard.get('judge_catalyst') == NI_JUDGE_CATALYST
     pfr_ok = judge_ok and pfr_x >= min_roi_conversion and not pfr.get('exceeds_equilibrium', False)
     fluid_ok = judge_ok and fluid_x >= min_roi_conversion and not fluid.get('exceeds_equilibrium', False)
-    criteria = (b66_summary or {}).get('criteria') or {}
-    b66_ok = bool(criteria) and all(
-        bool((criteria.get(key) or {}).get('pass'))
-        for key in ('flat', 'linearity', 'encapsulation_onset', 'lifetime', 'yield')
+    raw_criteria = (b66_summary or {}).get('criteria')
+    empty_map: Mapping[str, object] = {}
+    criteria: Mapping[str, object] = (
+        cast(Mapping[str, object], raw_criteria)
+        if isinstance(raw_criteria, Mapping)
+        else empty_map
     )
+    b66_ok = bool(criteria)
+    for key in ('flat', 'linearity', 'encapsulation_onset', 'lifetime', 'yield'):
+        entry = criteria.get(key)
+        entry_map: Mapping[str, object] = (
+            cast(Mapping[str, object], entry)
+            if isinstance(entry, Mapping)
+            else empty_map
+        )
+        if not bool(entry_map.get('pass')):
+            b66_ok = False
     joint_ok = (
-        isinstance(joint_summary, dict)
+        isinstance(joint_summary, Mapping)
         and joint_summary.get('declaration') == 'simultaneous_hit'
-        and int(joint_summary.get('n_both_roi') or 0) > 0
+        and int(str(joint_summary.get('n_both_roi') or 0)) > 0
     )
     passed = pfr_ok and fluid_ok and b66_ok and joint_ok
     return {
@@ -430,4 +481,6 @@ def evaluate_b5_closure_gate(
         'b66_criteria_ok': b66_ok,
         'b67_joint_roi_ok': joint_ok,
     }
+
+
 

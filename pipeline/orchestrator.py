@@ -237,7 +237,7 @@ def run_pipeline(config: PipelineConfig | None = None,
                          if selection is not None else None)
 
         outcome = require_stage_outcome(components.reactor_batch(
-            top_catalysts, temperatures=config.reactor_temperatures,
+            top_catalysts, temperatures=config.reactor_temperatures or (),
             reactor_types=selected_reactors,
             pathway_mode=config.pyrolysis_mode,
             multiphysics_results_dir=multiphysics_results_dir,

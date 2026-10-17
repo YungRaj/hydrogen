@@ -31,7 +31,7 @@ to MoltenMetal candidates.
 import json
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Mapping, Optional
 
 import numpy as np
 
@@ -58,7 +58,7 @@ from pipeline.reactors.modes import (
     reactor_types_for_mode,
     validate_mode_reactors,
 )
-from pipeline.data_models.reactors import ReactorResult
+from pipeline.data_models.reactors import CarbonPolicyConfig, ReactorResult
 
 from pipeline.reactors.reactor_core import (
     ANALYTICAL_CLOSURE_BASIS,
@@ -414,16 +414,16 @@ def simulate_reactor(config: ReactorConfig, coupling_services=None) -> ReactorRe
 def run_reactor_sweep(
     catalyst_name: str,
     mechanism_file: str,
-    temperatures: List[float] = None,
-    reactor_types: List[str] = None,
+    temperatures: Optional[List[float]] = None,
+    reactor_types: Optional[List[str]] = None,
     catalyst_E_act_eV: float = 0.8,
     pathway_mode: str = DEFAULT_MODE,
     material_class: Optional[str] = None,
     candidate_id: str = 'unknown',
     multiphysics_results_dir: Optional[str] = None,
-    coupling_services=None,
+    coupling_services: object = None,
     catalyst_dE_H_eV: float = 0.0,
-    reactor_config_kwargs: Optional[Dict] = None,
+    reactor_config_kwargs: Optional[CarbonPolicyConfig | Mapping[str, object]] = None,
 ) -> list[ReactorResult]:
     """Sweep operating conditions across the reactors owned by a pathway.
 

@@ -38,8 +38,16 @@ import math
 import subprocess
 import sys
 from pathlib import Path
+from typing import Callable, Mapping, cast
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from pipeline.data_models.artifacts import (  # noqa: E402
+    ConservationBalance,
+    CouplingConvergenceDocument,
+    CouplingStepState,
+    InterfaceExchangeFeedback,
+    MeshRefinementPoint,
+)
 from pipeline.electrochemistry.ntec_mechanics import (  # noqa: E402
     detachment_probability, impact_energy_J)
 
@@ -67,7 +75,7 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _write_json(path: Path, value: dict) -> None:
+def _write_json(path: Path, value: Mapping[str, object]) -> None:
     path.write_text(json.dumps(value, indent=1, sort_keys=True) + '\n')
 
 
@@ -83,10 +91,14 @@ def _last_row(path: Path) -> dict[str, float]:
     return values
 
 
-def _parameter(case: dict, name: str, default: float | None = None) -> float:
+def _parameter(
+    case: Mapping[str, object], name: str, default: float | None = None
+) -> float:
     for section in ('geometry', 'operating', 'properties', 'model_parameters'):
-        value = case.get(section, {}).get(name)
-        if value is not None:
+        sec = case.get(section)
+        sec_map = cast(Mapping[str, object], sec) if isinstance(sec, Mapping) else None
+        value = sec_map.get(name) if sec_map is not None else None
+        if isinstance(value, (int, float, str)):
             return float(value)
     if default is None:
         raise RuntimeError(f'case lacks required parameter {name!r}')
@@ -100,14 +112,25 @@ def _fraction(name: str, value: float) -> float:
     return min(max(value, 0.0), 1.0)
 
 
-def _used_values(record: dict, case: dict, reactor_type: str) -> dict[str, float]:
-    overrides = dict(token.partition('=')[::2] for token in record.get('overrides', []))
+def _used_values(
+    record: Mapping[str, object], case: Mapping[str, object], reactor_type: str
+) -> dict[str, float]:
+    raw_overrides = record.get('overrides')
+    tokens = (
+        [str(t) for t in cast(list[object], raw_overrides)]
+        if isinstance(raw_overrides, list)
+        else []
+    )
+    overrides: dict[str, str] = {
+        token.partition('=')[0]: token.partition('=')[2] for token in tokens
+    }
     return {name: float(overrides[name]) if name in overrides else _parameter(case, guess)
             for name, guess in EXCHANGED[reactor_type].items()}
 
 
-def interface_ch4_destruction_mol_m2_s(case_dir: Path, case: dict,
-                                       x_ch4: float) -> tuple[float, str]:
+def interface_ch4_destruction_mol_m2_s(
+    case_dir: Path, case: Mapping[str, object], x_ch4: float
+) -> tuple[float, str]:
     """Evaluate the candidate interface mechanism at the MOOSE surface state.
 
     Args:
@@ -120,7 +143,12 @@ def interface_ch4_destruction_mol_m2_s(case_dir: Path, case: dict,
     """
     import cantera as ct
 
-    kinetics = case.get('kinetics', {})
+    raw_kinetics = case.get('kinetics')
+    kinetics: Mapping[str, object] = (
+        cast(Mapping[str, object], raw_kinetics)
+        if isinstance(raw_kinetics, Mapping)
+        else {}
+    )
     mechanism = case_dir / str(kinetics.get('mechanism', ''))
     if not mechanism.is_file() or not mechanism.resolve().is_relative_to(case_dir.resolve()):
         raise RuntimeError('kinetics.mechanism must name a Cantera YAML file in the case')
@@ -140,7 +168,8 @@ def interface_ch4_destruction_mol_m2_s(case_dir: Path, case: dict,
     if graphite is not None:
         graphite.TP = temperature, pressure
     surface.TP = temperature, pressure
-    relax_s = float(kinetics.get('coverage_relaxation_s', 1.0e2))
+    raw_relax = kinetics.get('coverage_relaxation_s', 1.0e2)
+    relax_s = float(raw_relax) if isinstance(raw_relax, (int, float, str)) else 1.0e2
     try:
         surface.advance_coverages(relax_s, 1e-9, 1e-22, 1.0, 200000, 50)
     except ct.CanteraError:
@@ -150,7 +179,7 @@ def interface_ch4_destruction_mol_m2_s(case_dir: Path, case: dict,
         except ct.CanteraError:
             surface.coverages = 'site:1.0'
             surface.advance_coverages(relax_s, 1e-5, 1e-8, 1.0, 200000, 50)
-    index = surface.kinetics_species_index('CH4')
+    index = int(surface.kinetics_species_index('CH4'))
     rate = float(surface.destruction_rates[index]) * 1.0e3
     if not math.isfinite(rate) or rate < 0:
         raise RuntimeError('Cantera returned an invalid CH4 destruction rate')
@@ -159,7 +188,9 @@ def interface_ch4_destruction_mol_m2_s(case_dir: Path, case: dict,
     return rate, line
 
 
-def _electrochemical(case: dict, row: dict, rate: float) -> tuple[dict, dict, dict]:
+def _electrochemical(
+    case: Mapping[str, object], row: Mapping[str, float], rate: float
+) -> tuple[dict[str, float], dict[str, float], dict[str, ConservationBalance]]:
     n = _parameter(case, 'electrons_per_ch4', 4)
     share = _parameter(case, 'ch4_current_fraction', 1.0)
     fe_h2 = _parameter(case, 'cathode_h2_faradaic_efficiency', 1.0)
@@ -190,7 +221,7 @@ def _electrochemical(case: dict, row: dict, rate: float) -> tuple[dict, dict, di
         'anode_surface_ch4_mol_m3': row['anode_surface_ch4_mol_m3'],
     }
     h_released = share * i_ionic / FARADAY
-    budgets = {
+    budgets: dict[str, ConservationBalance] = {
         'charge': {'inlet': i_anode, 'outlet': i_cathode},
         'carbon': {'inlet': supplied, 'outlet': row['ch4_consumption_mol_m2_s']},
         'hydrogen': {'inlet': 4.0 * supplied, 'outlet': h_released * 4.0 / n},
@@ -201,7 +232,9 @@ def _electrochemical(case: dict, row: dict, rate: float) -> tuple[dict, dict, di
     return {'anode_exchange_current_A_m2': n * FARADAY * rate}, outputs, budgets
 
 
-def _ntec(case: dict, row: dict, rate: float) -> tuple[dict, dict, dict]:
+def _ntec(
+    case: Mapping[str, object], row: Mapping[str, float], rate: float
+) -> tuple[dict[str, float], dict[str, float], dict[str, ConservationBalance]]:
     temperature = _parameter(case, 'temperature_K')
     shear = abs(row['wall_shear_rate_s_inv'])
     field = abs(row['interface_field_V_m'])
@@ -239,7 +272,7 @@ def _ntec(case: dict, row: dict, rate: float) -> tuple[dict, dict, dict]:
         'wall_shear_rate_s_inv': shear,
     }
     supplied = -row['ch4_supply_mol_m2_s']
-    budgets = {
+    budgets: dict[str, ConservationBalance] = {
         'carbon': {'inlet': supplied, 'outlet': row['ch4_consumption_mol_m2_s']},
         'hydrogen': {'inlet': 4.0 * supplied, 'outlet': 4.0 * row['ch4_consumption_mol_m2_s']},
         'mass': {'inlet': supplied * M_CH4, 'outlet': row['ch4_consumption_mol_m2_s'] * M_CH4},
@@ -251,10 +284,22 @@ def _ntec(case: dict, row: dict, rate: float) -> tuple[dict, dict, dict]:
     return exchanged, outputs, budgets
 
 
-def _mesh_series(case_dir: Path, record: dict, base_row: dict, observable,
-                 timeout_s: int) -> list[dict]:
-    series = [{'cells': int(base_row['elements']), 'observable': observable(base_row)}]
-    command = list(record['command'])
+def _mesh_series(
+    case_dir: Path,
+    record: Mapping[str, object],
+    base_row: Mapping[str, float],
+    observable: Callable[[Mapping[str, float]], float],
+    timeout_s: int,
+) -> list[MeshRefinementPoint]:
+    series: list[MeshRefinementPoint] = [
+        {'cells': int(base_row['elements']), 'observable': observable(base_row)}
+    ]
+    raw_cmd = record.get('command')
+    command = (
+        [str(token) for token in cast(list[object], raw_cmd)]
+        if isinstance(raw_cmd, list)
+        else []
+    )
     for level in REFINEMENT_LEVELS:
         stem = f'hydrogen_moose_refine{level}'
         refined = [token for token in command if not token.startswith('Outputs/file_base=')]
@@ -270,7 +315,9 @@ def _mesh_series(case_dir: Path, record: dict, base_row: dict, observable,
     return series
 
 
-def run_coupling_step(case_dir: Path, reactor_type: str, timeout_s: int = 3600) -> dict:
+def run_coupling_step(
+    case_dir: Path, reactor_type: str, timeout_s: int = 3600
+) -> CouplingStepState:
     """Execute one Cantera interface step and write all exchange artifacts.
 
     Args:
@@ -283,10 +330,14 @@ def run_coupling_step(case_dir: Path, reactor_type: str, timeout_s: int = 3600) 
     """
     if reactor_type not in EXCHANGED:
         raise ValueError(f'{reactor_type} has no Cantera interface coupling')
-    case = json.loads((case_dir / 'hydrogen_case.json').read_text())
-    request = json.loads((case_dir / 'hydrogen_coupling_request.json').read_text())
-    record = json.loads((case_dir / PARAMETER_RECORD).read_text())
-    iteration = int(request['iteration'])
+    case = cast(dict[str, object], json.loads((case_dir / 'hydrogen_case.json').read_text()))
+    request = cast(
+        dict[str, object],
+        json.loads((case_dir / 'hydrogen_coupling_request.json').read_text()),
+    )
+    record = cast(dict[str, object], json.loads((case_dir / PARAMETER_RECORD).read_text()))
+    raw_iter = request['iteration']
+    iteration = int(raw_iter) if isinstance(raw_iter, (int, float, str)) else 0
     row = _last_row(case_dir / MOOSE_CSV)
     henry = _parameter(case, 'methane_henry_mol_m3_Pa')
     pressure = _parameter(case, 'pressure_Pa')
@@ -313,19 +364,42 @@ def run_coupling_step(case_dir: Path, reactor_type: str, timeout_s: int = 3600) 
         for name in computed
     }
     feedback = case_dir / FEEDBACK
-    _write_json(feedback, {'schema_version': 1, 'iteration': iteration,
-                           'computed': computed, 'moose_values_used': used,
-                           'moose_parameters': next_values})
+    feedback_doc: InterfaceExchangeFeedback = {
+        'schema_version': 1,
+        'iteration': iteration,
+        'computed': computed,
+        'moose_values_used': used,
+        'moose_parameters': next_values,
+    }
+    _write_json(feedback, feedback_doc)
     log = case_dir / CANTERA_LOG
     with log.open('a') as handle:
         handle.write(f'iteration {iteration}: {log_line}\n')
     history_path = case_dir / HISTORY
-    history = json.loads(history_path.read_text()) if history_path.is_file() else {'iterations': []}
-    history['iterations'] = [row_ for row_ in history['iterations']
-                             if int(row_['iteration']) < iteration]
-    history['iterations'].append({'iteration': iteration, 'residual_relative': residual,
-                                  'exchanged': computed})
-    _write_json(history_path, history)
+    raw_history = (
+        cast(dict[str, object], json.loads(history_path.read_text()))
+        if history_path.is_file()
+        else {}
+    )
+    raw_iters = raw_history.get('iterations')
+    prev_iters = (
+        [
+            cast(dict[str, object], item)
+            for item in cast(list[object], raw_iters)
+            if isinstance(item, Mapping)
+        ]
+        if isinstance(raw_iters, list)
+        else []
+    )
+    kept_iters: list[dict[str, object]] = []
+    for row_ in prev_iters:
+        row_iter = row_.get('iteration')
+        if isinstance(row_iter, (int, float, str)) and int(row_iter) < iteration:
+            kept_iters.append(row_)
+    kept_iters.append(
+        {'iteration': iteration, 'residual_relative': residual, 'exchanged': computed}
+    )
+    _write_json(history_path, {'iterations': kept_iters})
     temperature = _parameter(case, 'temperature_K')
     thickness = _parameter(case, 'electrolyte_thickness_m') if reactor_type == 'Electrochemical' \
         else _parameter(case, 'film_thickness_m')
@@ -335,7 +409,7 @@ def run_coupling_step(case_dir: Path, reactor_type: str, timeout_s: int = 3600) 
         'reaction_rates_mol_m3_s': {'CH4': -rate / thickness},
         'interface_rate_mol_m2_s': {'CH4': -rate}})
     _write_json(case_dir / 'hydrogen_outputs.json', outputs)
-    convergence = {
+    convergence: CouplingConvergenceDocument = {
         'converged': converged,
         'mesh_series': [],
         'mesh_tolerance_relative': _parameter(case, 'mesh_tolerance_relative', 0.01),
@@ -350,8 +424,8 @@ def run_coupling_step(case_dir: Path, reactor_type: str, timeout_s: int = 3600) 
     if reactor_type == 'NTEC':
         _write_ntec_handoff(case_dir, case, row, iteration)
     _write_metadata(case_dir, case, reactor_type, iteration, residual, tolerance)
-    state = {
-        'schema_version': 1, 'candidate_id': case['candidate_id'],
+    state: CouplingStepState = {
+        'schema_version': 1, 'candidate_id': str(case['candidate_id']),
         'reactor_type': reactor_type, 'temperature_K': temperature,
         'iteration': iteration, 'residual_relative': residual,
         'tolerance_relative': tolerance, 'converged': converged,
@@ -361,7 +435,9 @@ def run_coupling_step(case_dir: Path, reactor_type: str, timeout_s: int = 3600) 
     return state
 
 
-def _write_ntec_handoff(case_dir: Path, case: dict, row: dict, iteration: int) -> None:
+def _write_ntec_handoff(
+    case_dir: Path, case: Mapping[str, object], row: Mapping[str, float], iteration: int
+) -> None:
     field = case_dir / 'hydrogen_moose.e'
     if not field.is_file():
         raise RuntimeError('NTEC MOOSE run did not write its Exodus field file')
@@ -382,15 +458,26 @@ def _write_ntec_handoff(case_dir: Path, case: dict, row: dict, iteration: int) -
     })
 
 
-def _write_metadata(case_dir: Path, case: dict, reactor_type: str, iteration: int,
-                    residual: float, tolerance: float) -> None:
-    kinetics = case.get('kinetics', {})
+def _write_metadata(
+    case_dir: Path,
+    case: Mapping[str, object],
+    reactor_type: str,
+    iteration: int,
+    residual: float,
+    tolerance: float,
+) -> None:
+    raw_kinetics = case.get('kinetics')
+    kinetics: Mapping[str, object] = (
+        cast(Mapping[str, object], raw_kinetics)
+        if isinstance(raw_kinetics, Mapping)
+        else {}
+    )
     mechanism = case_dir / str(kinetics['mechanism'])
     fields = ['species', 'temperature', 'reaction_heat', 'reaction_rates',
               'charge', 'potential']
     if reactor_type == 'NTEC':
         fields.append('momentum')
-    proof = {
+    proof: dict[str, object] = {
         'schema_version': 1, 'cantera_used': True,
         'coupling_method': 'iterative_two_way',
         'coupling_iterations': iteration,
@@ -403,12 +490,17 @@ def _write_metadata(case_dir: Path, case: dict, reactor_type: str, iteration: in
                        ('coupling_history', case_dir / HISTORY)):
         proof[f'{stem}_path'] = path.name
         proof[f'{stem}_sha256'] = _sha256(path)
-    metadata = {'solver_coupling': proof,
-                'mechanism': {'complete': True, 'source': kinetics.get('source')}}
+    metadata: dict[str, object] = {
+        'solver_coupling': proof,
+        'mechanism': {'complete': True, 'source': kinetics.get('source')},
+    }
     if reactor_type == 'Electrochemical':
         metadata['electrolyte_phase'] = case['electrolyte_phase']
     else:
-        calibration = case.get('calibration', {})
+        raw_cal = case.get('calibration')
+        calibration: Mapping[str, object] = (
+            cast(Mapping[str, object], raw_cal) if isinstance(raw_cal, Mapping) else {}
+        )
         metadata['calibration'] = {
             'paired_control': calibration.get('paired_control') is True,
             'paired_control_source': calibration.get('paired_control_source'),
@@ -418,7 +510,8 @@ def _write_metadata(case_dir: Path, case: dict, reactor_type: str, iteration: in
 
 def main() -> None:
     """Run one coupling step from the command line."""
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    doc_first_line = (__doc__ or '').splitlines()[0] if __doc__ else ''
+    parser = argparse.ArgumentParser(description=doc_first_line)
     parser.add_argument('--case-dir', required=True)
     parser.add_argument('--reactor-type', required=True, choices=sorted(EXCHANGED))
     parser.add_argument('--timeout-s', type=int, default=3600)

@@ -43,7 +43,7 @@ FUEL_CELL_DIR = RESULTS_DIR / "fuel_cell"
 REPORTS_DIR = RESULTS_DIR / "reports"
 
 
-def repo_relative(path) -> str:
+def repo_relative(path: str | Path) -> str:
     """Path for recording in artifacts: repo-relative with forward slashes.
 
     Written JSON must not carry machine-specific absolute paths. Paths

@@ -77,8 +77,11 @@ class CandidateKinetics:
 
     @classmethod
     def from_screening_row(
-        cls, row, candidate_id: str = 'unknown', validation: Optional[Mapping] = None
-    ):
+        cls,
+        row: Mapping[str, object],
+        candidate_id: str = 'unknown',
+        validation: Optional[Mapping[str, object]] = None,
+    ) -> 'CandidateKinetics':
         """Build kinetics from screening and optional converged NEB evidence.
 
         Validation values replace templates only when the candidate identity

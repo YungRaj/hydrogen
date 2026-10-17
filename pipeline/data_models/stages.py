@@ -53,7 +53,10 @@ the boundary avoids erasing the handoff to ``Any``.
 
 class _DiscoveryStateOptional(TypedDict, total=False):
     best_E_act: float
-    best_coking: float
+    best_coking: float | str
+    metric_eligible_count: int
+    search_strategy: str
+    admissibility: AdmissibilitySummary
 
 
 class DiscoveryState(_DiscoveryStateOptional):
@@ -64,7 +67,6 @@ class DiscoveryState(_DiscoveryStateOptional):
     valid_count: int
     top_catalysts_count: int
     dft_resolution_count: int
-    admissibility: AdmissibilitySummary
     candidate_dispositions: dict[str, int]
 
 
@@ -79,17 +81,27 @@ class DiscoveryProducts(TypedDict):
 
 
 class _ReactorBatchStateOptional(TypedDict, total=False):
+    n_simulations: int
+    catalysts_attempted: int
+    catalysts_simulated: int
+    complete_sweeps: int
+    partial_sweeps: int
+    failed_sweeps: int
     equilibrium_check: EquilibriumSummary
     solids_scorecard: SolidsScorecard
     best_conversion: float | None
     best_conversion_scope: str
+    candidate_champion_conversion: float | None
+    candidate_champion_catalyst: str | None
+    best_h2_cost_usd_kg: float
     mmbcr_max_conversion: float | None
+    industrial_viability: dict[str, int]
+    skipped: bool
+    reason: str
 
 
 class ReactorBatchState(_ReactorBatchStateOptional):
     """Persistable summary emitted by a reactor batch."""
-
-    n_simulations: int
 
 
 class ReactorBatchProducts(TypedDict):
@@ -135,9 +147,17 @@ class VQEProducts(_VQEProductsOptional):
 
 
 class _FuelCellStateOptional(TypedDict, total=False):
+    n_pemfc_simulations: int
     best_power_W_cm2: float
     best_efficiency: float
     min_overpotential_V: float
+    best_overpotential_V: float
+    best_overpotential_gc_V: float
+    pourbaix_acid_stable_count: int
+    best_catalyst: str
+    best_membrane: str
+    stack_net_kW: float
+    stack_efficiency: float
 
 
 class FuelCellState(_FuelCellStateOptional):
@@ -145,7 +165,7 @@ class FuelCellState(_FuelCellStateOptional):
 
     n_cathodes_screened: int
     n_valid: int
-    n_pemfc_simulations: int
+
 
 
 class FuelCellProducts(TypedDict):

@@ -17,10 +17,12 @@ failure.
 from __future__ import annotations
 
 import math
-from typing import Any, Optional
+from typing import Iterable, Mapping, Optional, TypeVar
+
+RecordT = TypeVar('RecordT', bound=Mapping[str, object])
 
 
-def finite_number(value: Any) -> Optional[float]:
+def finite_number(value: object) -> Optional[float]:
     """Convert a value to a finite float or return None.
 
     Args:
@@ -29,6 +31,8 @@ def finite_number(value: Any) -> Optional[float]:
     Returns:
         Validated Optional[float] output for this operation.
     """
+    if not isinstance(value, (int, float, str)):
+        return None
     try:
         number = float(value)
     except (TypeError, ValueError):
@@ -36,13 +40,13 @@ def finite_number(value: Any) -> Optional[float]:
     return number if math.isfinite(number) else None
 
 
-def is_usable_result(record: dict) -> bool:
+def is_usable_result(record: Mapping[str, object]) -> bool:
     """True if *record* may enter a rank, table sort, or TEA estimate.
 
     Returns:
         Validated bool output for this operation.
     """
-    if not isinstance(record, dict):
+    if not isinstance(record, Mapping):  # pyright: ignore[reportUnnecessaryIsInstance]
         return False
     if record.get('status', 'complete') != 'complete':
         return False
@@ -60,7 +64,7 @@ def is_usable_result(record: dict) -> bool:
     return True
 
 
-def is_rankable_result(record: dict) -> bool:
+def is_rankable_result(record: Mapping[str, object]) -> bool:
     """Usable baseline plus a finite conversion — used to pick best_condition.
 
     Args:
@@ -75,7 +79,7 @@ def is_rankable_result(record: dict) -> bool:
     )
 
 
-def usable_results(records) -> list:
+def usable_results(records: Iterable[RecordT]) -> list[RecordT]:
     """Filter records through the shared result-eligibility baseline.
 
     Args:
@@ -87,7 +91,7 @@ def usable_results(records) -> list:
     return [record for record in records if is_usable_result(record)]
 
 
-def rankable_results(records) -> list:
+def rankable_results(records: Iterable[RecordT]) -> list[RecordT]:
     """Filter records that are both usable and conversion-rankable.
 
     Args:
@@ -97,3 +101,4 @@ def rankable_results(records) -> list:
         Validated list output for this operation.
     """
     return [record for record in records if is_rankable_result(record)]
+

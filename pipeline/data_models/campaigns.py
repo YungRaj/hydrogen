@@ -55,12 +55,15 @@ class ReportPhaseRecord(ReportState):
 
 
 class _PipelineStateOptional(TypedDict, total=False):
-    phase1: DiscoveryPhaseRecord
-    phase2: ReactorPhaseRecord
-    phase3: DFTPhaseRecord
-    phase4: VQEPhaseRecord
-    phase5: FuelCellPhaseRecord
-    phase6: ReportPhaseRecord
+    phase1: DiscoveryPhaseRecord | dict[str, object]
+    phase2: ReactorPhaseRecord | dict[str, object]
+    phase3: DFTPhaseRecord | dict[str, object]
+    phase4: VQEPhaseRecord | dict[str, object]
+    phase5: FuelCellPhaseRecord | dict[str, object]
+    phase5_branch: dict[str, object]
+    phase5_stack: dict[str, object]
+    phase6: ReportPhaseRecord | dict[str, object]
+    provenance: dict[str, object]
     total_elapsed_s: float
 
 
@@ -68,6 +71,46 @@ class PipelineStateDocument(_PipelineStateOptional):
     """Versionable persisted summary assembled by the master coordinator."""
 
     schema_version: int
+
+
+class SixPointCriteriaStatus(TypedDict):
+    """Pass/fail map for the six-point campaign readiness gate."""
+
+    complete_search: bool
+    validated_champions: bool
+    validated_reactor: bool
+    validated_pemfc: bool
+    defensible_novelty: bool
+
+
+class SixPointReadinessStatus(TypedDict):
+    """Detailed six-point status emitted by campaign_status.assess_campaign."""
+
+    ready: bool
+    criteria: SixPointCriteriaStatus
+    missing: list[str]
+    evidence_manifest_valid: bool
+    evidence_errors: list[str]
+
+
+class ApplicationReadinessReport(TypedDict, total=False):
+    """Readiness evaluation for one application search (pyrolysis or ORR)."""
+
+    ready: bool
+    failures: list[str]
+    warnings: list[str]
+    prior_art_records: int
+    coverage: dict[str, object]
+    evidence: dict[str, object]
+
+
+class CampaignReadinessReport(TypedDict):
+    """Persisted campaign_readiness.json document combining both applications."""
+
+    turquoise_hydrogen: ApplicationReadinessReport
+    fuel_cell: ApplicationReadinessReport
+    ready: bool
+    six_point_status: SixPointReadinessStatus
 
 
 def validate_pipeline_state(value: object) -> PipelineStateDocument:
@@ -118,3 +161,4 @@ def validate_pipeline_state(value: object) -> PipelineStateDocument:
             raise ValueError('pipeline total_elapsed_s must be finite and nonnegative')
         state['total_elapsed_s'] = float(elapsed)
     return cast(PipelineStateDocument, state)
+

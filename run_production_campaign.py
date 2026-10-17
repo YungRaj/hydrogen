@@ -22,6 +22,17 @@ import subprocess
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+from typing import Mapping, cast
+from pipeline.data_models.campaigns import (
+    CampaignReadinessReport,
+    PipelineStateDocument,
+    validate_pipeline_state,
+)
+from pipeline.data_models.reactors import (
+    PyrolysisValidationArtifact,
+    ReactorResult,
+)
+from pipeline.data_models.stages import CandidateSelection, TableLike
 from pipeline.reactors.modes import (
     DEFAULT_MODE, MODE_CHOICES, THERMAL_REACTOR_TEMPERATURES_K,
     reactor_temperatures_for_mode, reactor_types_for_mode)
@@ -327,11 +338,13 @@ def _get_conda_env():
         return 'unavailable'
 
 
-def _record_provenance(args: argparse.Namespace, n_gpus: int, gpu_names: list) -> dict:
+def _record_provenance(
+    args: argparse.Namespace, n_gpus: int, gpu_names: list[str]
+) -> PipelineStateDocument:
     """Start ``pipeline_state.json`` with reproducibility metadata."""
     from pipeline.utils import save_json
 
-    pipeline_state = {
+    pipeline_state = validate_pipeline_state({
         'provenance': {
             'timestamp': time.strftime('%Y-%m-%dT%H:%M:%S%z'),
             'git_sha': _get_git_sha(),
@@ -340,7 +353,7 @@ def _record_provenance(args: argparse.Namespace, n_gpus: int, gpu_names: list) -
             'gpu_names': gpu_names,
             'conda_env_snapshot': _get_conda_env(),
         }
-    }
+    })
     save_json(pipeline_state, "pipeline_state.json")
     return pipeline_state
 
@@ -348,11 +361,15 @@ def _record_provenance(args: argparse.Namespace, n_gpus: int, gpu_names: list) -
 # ─── Phases ─────────────────────────────────────────────────────────────────
 
 
-def _run_phase1_discovery(args, pipeline_state: dict, t_deadline: float):
+def _run_phase1_discovery(
+    args: argparse.Namespace,
+    pipeline_state: PipelineStateDocument,
+    t_deadline: float,
+) -> CandidateSelection:
     """Branch-and-bound discovery, then admissibility-first slate selection.
 
     Returns:
-        Reactor slate and DFT-resolution slate.
+        Typed CandidateSelection containing screening_database, top_catalysts, and dft_candidates.
     """
     from pipeline.utils import print_banner, save_json
 
@@ -373,7 +390,7 @@ def _run_phase1_discovery(args, pipeline_state: dict, t_deadline: float):
     # Same split as run_discovery_stage: admissibility on the full table,
     # then each slate applies its own validity rule. Filtering valid==True
     # here drops unresolved rows the DFT rescue path is supposed to keep.
-    pool, _ = scope_pyrolysis_pool(screening_db)
+    pool, admissibility = scope_pyrolysis_pool(screening_db)
     top_catalysts = select_for_pyrolysis_reactor(
         pool, args.top_k, 'E_act',
         min_per_class=args.min_validation_per_class)
@@ -408,6 +425,7 @@ def _run_phase1_discovery(args, pipeline_state: dict, t_deadline: float):
         'valid_count': len(valid_db),
         'top_catalysts_count': len(top_catalysts),
         'dft_resolution_count': len(dft_candidates),
+        'admissibility': admissibility,
         'candidate_dispositions': evidence_db[
             'candidate_disposition'].value_counts().to_dict(),
         'elapsed_s': time.time() - t1,
@@ -425,21 +443,28 @@ def _run_phase1_discovery(args, pipeline_state: dict, t_deadline: float):
             pipeline_state['phase1']['best_coking'] = f"{float(eligible_db['coking_index'].dropna().max()):.3f} eV"
     save_json(pipeline_state, "pipeline_state.json")
     print(f"\n  Phase 1: {time.time()-t1:.0f}s | Evaluated: {len(screening_db):,}")
-    return top_catalysts, dft_candidates
+    return CandidateSelection(
+        screening_database=screening_db,
+        top_catalysts=top_catalysts,
+        dft_candidates=dft_candidates,
+        admissibility=admissibility,
+    )
 
 
-def _load_kinetics_validation(args, candidate_key: str):
+def _load_kinetics_validation(
+    args: argparse.Namespace, candidate_key: str
+) -> PyrolysisValidationArtifact | None:
     """Return a complete matching pyrolysis validation campaign, if present."""
     validation_path = (Path(args.kinetics_validation_dir) / candidate_key /
                        'pyrolysis_validation.json')
     if validation_path.is_file():
         available = json.loads(validation_path.read_text())
-        if available.get('complete'):
-            return available
+        if isinstance(available, Mapping) and available.get('complete'):
+            return cast(PyrolysisValidationArtifact, available)
     return None
 
 
-def _reactor_candidate_key(row, index: int) -> str:
+def _reactor_candidate_key(row: Mapping[str, object], index: int) -> str:
     """Return the candidate id; an unsafe path component aborts the campaign."""
     candidate_key = str(row.get('candidate_id', f'catalyst_{index}'))
     if Path(candidate_key).name != candidate_key:
@@ -447,8 +472,13 @@ def _reactor_candidate_key(row, index: int) -> str:
     return candidate_key
 
 
-def _simulate_reactor_candidate(args, row, candidate_key: str, simulate_candidate,
-                                sweep_records: list):
+def _simulate_reactor_candidate(
+    args: argparse.Namespace,
+    row: Mapping[str, object],
+    candidate_key: str,
+    simulate_candidate,
+    sweep_records: list[ReactorResult],
+) -> dict[str, object]:
     """Run one candidate's reactor sweep and summarise its best condition."""
     e_act = row.get('E_act', 1.0)
     stage_result = simulate_candidate(
@@ -531,7 +561,11 @@ class _PrintLogger:
         print(f"  {msg}")
 
 
-def _run_phase2_reactors(args, pipeline_state: dict, top_catalysts) -> None:
+def _run_phase2_reactors(
+    args: argparse.Namespace,
+    pipeline_state: PipelineStateDocument,
+    top_catalysts: TableLike,
+) -> None:
     """Pathway-specific reactor sweeps, solids scorecard, TEA and viability."""
     from pipeline.utils import print_banner, save_json
 
@@ -1003,14 +1037,18 @@ def _run_phase5_fuel_cell(args, pipeline_state: dict, t_deadline: float,
     print(f"\n  Phase 5: {time.time()-t5:.0f}s | FC catalysts evaluated: {len(fc_screening_db):,}")
 
 
-def _run_phase6_report(pipeline_state: dict, t_start: float) -> dict:
+def _run_phase6_report(
+    pipeline_state: PipelineStateDocument, t_start: float
+) -> PipelineStateDocument:
     """Write the full report and print the dual-campaign summary."""
     from pipeline.utils import print_banner, save_json, load_json
     from pipeline.stages.report import run_report_stage
 
     print_banner("PHASE 6: REPORT")
     t6 = time.time()
-    pipeline_state = load_json("pipeline_state.json") or pipeline_state
+    loaded = load_json("pipeline_state.json")
+    if isinstance(loaded, Mapping):
+        pipeline_state = validate_pipeline_state(loaded)
     pipeline_state['total_elapsed_s'] = time.time() - t_start
     outcome = run_report_stage(pipeline_state)
     pipeline_state['phase6'] = {**outcome.state, 'elapsed_s': time.time() - t6}
@@ -1018,10 +1056,13 @@ def _run_phase6_report(pipeline_state: dict, t_start: float) -> dict:
     save_json(pipeline_state, "pipeline_state.json")
 
     total = pipeline_state['total_elapsed_s']
-    h2_eval = pipeline_state.get('phase1', {}).get('total_evaluated', 0)
-    fc_eval = pipeline_state.get('phase5', {}).get(
-        'total_evaluated',
-        pipeline_state.get('phase5_branch', {}).get('total_evaluated', 0))
+    h2_eval = int(pipeline_state.get('phase1', {}).get('total_evaluated', 0))  # type: ignore[arg-type]
+    fc_eval = int(
+        pipeline_state.get('phase5', {}).get(
+            'total_evaluated',
+            pipeline_state.get('phase5_branch', {}).get('total_evaluated', 0),
+        )  # type: ignore[arg-type]
+    )
     print("\n" + "=" * 80)
     print(f"  DUAL-CAMPAIGN COMPLETE: {total:.0f}s ({total/3600:.2f} hours)")
     print(f"  H₂ Production catalysts evaluated: {h2_eval:,}")
@@ -1031,10 +1072,13 @@ def _run_phase6_report(pipeline_state: dict, t_start: float) -> dict:
     return pipeline_state
 
 
-def _assess_readiness(args, results_dir: Path) -> None:
+def _assess_readiness(
+    args: argparse.Namespace, results_dir: Path
+) -> CampaignReadinessReport:
     """Coverage, prior-art and six-point readiness; fail closed for final campaigns."""
     from pipeline.utils import save_json
     from pipeline.evidence.readiness import campaign_readiness
+    from pipeline.evidence.campaign_status import assess_campaign
 
     h2_ready = campaign_readiness(
         results_dir / 'screening' / 'turquoise_hydrogen_coverage_certificate.json', args.prior_art_db,
@@ -1044,15 +1088,17 @@ def _assess_readiness(args, results_dir: Path) -> None:
         results_dir / 'fuel_cell' / 'coverage_certificate.json', args.prior_art_db,
         evidence_manifest=args.evidence_manifest if args.final_campaign else None,
         application='fuel_cell')
-    readiness = {'turquoise_hydrogen': h2_ready, 'fuel_cell': fc_ready,
-                 'ready': h2_ready['ready'] and fc_ready['ready']}
-    from pipeline.evidence.campaign_status import assess_campaign
-    readiness['six_point_status'] = assess_campaign(
-        results_dir, pyrolysis_mode=args.mode)
-    readiness['ready'] = readiness['ready'] and readiness['six_point_status']['ready']
+    six_point = assess_campaign(results_dir, pyrolysis_mode=args.mode)
+    readiness: CampaignReadinessReport = {
+        'turquoise_hydrogen': cast(dict, h2_ready),  # type: ignore[typeddict-item]
+        'fuel_cell': cast(dict, fc_ready),  # type: ignore[typeddict-item]
+        'six_point_status': cast(dict, six_point),  # type: ignore[typeddict-item]
+        'ready': bool(h2_ready['ready'] and fc_ready['ready'] and six_point['ready']),
+    }
     save_json(readiness, 'campaign_readiness.json')
     if args.final_campaign and not readiness['ready']:
         raise SystemExit(f"Final campaign readiness failed: {readiness}")
+    return readiness
 
 
 def main():
@@ -1072,7 +1118,9 @@ def main():
     t_deadline = t_start + args.hours * 3600 if args.hours > 0 else float('inf')
     pipeline_state = _record_provenance(args, n_gpus, gpu_names)
 
-    top_catalysts, dft_candidates = _run_phase1_discovery(args, pipeline_state, t_deadline)
+    selection = _run_phase1_discovery(args, pipeline_state, t_deadline)
+    top_catalysts = selection.top_catalysts
+    dft_candidates = selection.dft_candidates
     if time.time() < t_deadline and len(top_catalysts) > 0:
         _run_phase2_reactors(args, pipeline_state, top_catalysts)
     if time.time() < t_deadline and not args.no_dft:
@@ -1097,3 +1145,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+

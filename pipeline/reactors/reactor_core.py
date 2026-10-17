@@ -18,6 +18,9 @@ try:
 except ImportError:
     HAS_CANTERA = False
 
+from pipeline.data_models.artifacts import ExternalSolverArtifact
+from pipeline.data_models.reactors import AnalyticalClosureEvidence
+from pipeline.data_models.transport import ReactorClosure
 from pipeline.reactors.mechanisms import MONOLAYER_SITE_DENSITY_MOL_CM2
 from pipeline.reactors.modes import DEFAULT_MODE
 from pipeline.utils import setup_logger
@@ -119,12 +122,14 @@ class ReactorConfig:
     pathway_mode: str = DEFAULT_MODE
     candidate_id: str = 'unknown'
     multiphysics_results_dir: Optional[str] = None
-    multiphysics_artifact: Optional[dict] = None
-    closure_features: Optional[dict] = None
-    reactor_closure_evidence: Optional[dict] = None
+    multiphysics_artifact: Optional[ExternalSolverArtifact | dict[str, object]] = None
+    closure_features: Optional[dict[str, float]] = None
+    reactor_closure_evidence: Optional[
+        AnalyticalClosureEvidence | ReactorClosure | dict[str, object]
+    ] = None
     # Uncalibrated NTEC/electrochemical MOOSE+Cantera screening record
     # (pipeline.simulation.screening_cases); never authorizes exclusion.
-    screening_multiphysics: Optional[dict] = None
+    screening_multiphysics: Optional[dict[str, object]] = None
     max_residence_time_s: float = 60.0
     catalyst_E_act_eV: float = 0.8
     catalyst_dE_H_eV: float = 0.0
@@ -140,8 +145,8 @@ class ReactorConfig:
     ntec_number_density_m3: Optional[float] = None
     ntec_effective_mass_kg: Optional[float] = None
     ntec_adhesion_energy_J: Optional[float] = None
-    native_electrochemical_parameters: Optional[dict] = None
-    native_ntec_parameters: Optional[dict] = None
+    native_electrochemical_parameters: Optional[dict[str, float]] = None
+    native_ntec_parameters: Optional[dict[str, float]] = None
 
     mmbcr_carbon_removal_rate_1_s: Optional[float] = (
         MMBCR_FLOTATION_UNCONSTRAINED)

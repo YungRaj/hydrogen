@@ -101,7 +101,71 @@ SolidsMetricRow = TypedDict(
 """Unit-bearing reactor fields used to rank solid catalysts."""
 
 
-class SolidsScorecard(TypedDict):
+class CarbonPolicyConfig(TypedDict, total=False):
+    """Explicit carbon-removal and regeneration policy applied to a reactor sweep."""
+
+    co2_permitted: bool
+    fluidized_mode: Literal['batch_regen', 'circulating']
+    max_regen_cycles: int
+    regen_mechanism: Literal['mechanical', 'consumable', 'oxidative']
+
+
+class AnalyticalClosureEvidence(TypedDict):
+    """Provenance record for an analytical hydrodynamic closure fallback."""
+
+    source: str
+    candidate_exclusion_authorized: bool
+    basis: str
+    multiphysics_evidence: ArtifactValidationResult | dict[str, object]
+
+
+class ResolvedKineticsBarriers(TypedDict):
+    """Elementary activation barriers in eV consumed by CandidateKinetics."""
+
+    methane_activation_eV: float
+    ch3_dehydrogenation_eV: float
+    ch2_dehydrogenation_eV: float
+    ch_dehydrogenation_eV: float
+    h2_desorption_eV: float
+    carbon_transfer_eV: float
+    carbon_encapsulation_eV: float
+
+
+class MlipNebValidationRecord(TypedDict):
+    """Elementary activation barriers and convergence count from 5-step MLIP CI-NEB."""
+
+    E_act_neb: float
+    ch3_dehydrogenation_eV: float
+    ch2_dehydrogenation_eV: float
+    ch_dehydrogenation_eV: float
+    h2_desorption_eV: float
+    carbon_transfer_eV: float
+    carbon_encapsulation_eV: float
+    mlip_neb_steps_converged: int
+
+
+class _PyrolysisValidationOptional(TypedDict, total=False):
+    evidence_level: str
+    mlip_neb_steps_converged: int
+
+
+class PyrolysisValidationArtifact(_PyrolysisValidationOptional):
+    """Persisted pyrolysis_validation.json consumed by Phase 2 Cantera mechanisms."""
+
+    candidate_id: str
+    complete: bool
+    resolved_kinetics_eV: ResolvedKineticsBarriers
+
+
+class _SolidsScorecardOptional(TypedDict, total=False):
+    candidate_champion_conversion: float | None
+    candidate_champion_catalyst: str | None
+    candidate_champion_reactor: str | None
+    candidate_champion_T_K: float | None
+    candidate_champion_kinetics_status: str | None
+
+
+class SolidsScorecard(_SolidsScorecardOptional):
     """Fail-closed comparison of PFR/fluidized solids and MMBCR output."""
 
     judge_catalyst: str | None
@@ -114,7 +178,7 @@ class SolidsScorecard(TypedDict):
     headline: dict[str, SolidsMetricRow]
     headline_solids_conversion: float | None
     ranking_authority: bool
-    solids_max_excluding_h_parked: SolidsMetricRow | None
+    solids_max_excluding_h_parked: float | None
     h_parked_excluded: list[SolidsMetricRow]
     mmbcr_max_conversion: float | None
     mmbcr_note: str
@@ -124,3 +188,17 @@ class SolidsScorecard(TypedDict):
     n_mmbcr_records: int
     n_ntec_records: int
     n_electrochemical_records: int
+
+
+class B5ClosureGateResult(TypedDict):
+    """Pass/fail evidence summary for the B5 solids ranking authority gate."""
+
+    b5_accepted: bool
+    judge_ok: bool
+    pfr_roi_conversion: float
+    fluidized_roi_conversion: float
+    pfr_conversion_ok: bool
+    fluidized_conversion_ok: bool
+    b66_criteria_ok: bool
+    b67_joint_roi_ok: bool
+

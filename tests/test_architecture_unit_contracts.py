@@ -292,15 +292,45 @@ def test_discovery_reactor_and_solver_artifacts_have_named_contracts():
     """Selection, scorecard, and solver evidence retain traceable identities."""
     from typing import get_type_hints
 
+    import run_production_campaign as campaign
     from pipeline.data_models.artifacts import (
         ArtifactValidationResult,
+        CouplingConvergenceDocument,
+        CouplingStepState,
         ExternalSolverArtifact,
+        InterfaceExchangeFeedback,
         InvalidArtifactResult,
         ValidArtifactResult,
     )
+    from pipeline.data_models.campaigns import (
+        CampaignReadinessReport,
+        PipelineStateDocument,
+    )
     from pipeline.data_models.discovery import AdmissibilitySummary
-    from pipeline.data_models.reactors import SolidsMetricRow, SolidsScorecard
-    from pipeline.reactors.scorecard import build_solids_scorecard, metric_row
+    from pipeline.data_models.fuel_cells import (
+        GrandCanonicalORRRecord,
+        PourbaixStabilityRecord,
+    )
+    from pipeline.data_models.reactors import (
+        B5ClosureGateResult,
+        CarbonPolicyConfig,
+        MlipNebValidationRecord,
+        PyrolysisValidationArtifact,
+        SolidsMetricRow,
+        SolidsScorecard,
+    )
+    from pipeline.data_models.stages import CandidateSelection
+    from pipeline.electrochemistry.cantera_coupling import run_coupling_step
+    from pipeline.reactors.scorecard import (
+        build_solids_scorecard,
+        evaluate_b5_closure_gate,
+        metric_row,
+    )
+    from pipeline.screening.fc_screener import (
+        compute_grand_canonical_orr_corrections,
+        compute_pourbaix_stability_margin,
+    )
+    from pipeline.screening.surface_screener import compute_candidate_mlip_neb
     from pipeline.search.scope import scope_pyrolysis_pool
     from pipeline.simulation.result_contract import load_validated_artifact
 
@@ -310,6 +340,28 @@ def test_discovery_reactor_and_solver_artifacts_have_named_contracts():
     )
     assert get_type_hints(metric_row)['return'] is SolidsMetricRow
     assert get_type_hints(build_solids_scorecard)['return'] is SolidsScorecard
+    assert get_type_hints(evaluate_b5_closure_gate)['return'] is B5ClosureGateResult
+    assert (
+        get_type_hints(compute_candidate_mlip_neb)['return'] is MlipNebValidationRecord
+    )
+    assert (
+        get_type_hints(compute_pourbaix_stability_margin)['return']
+        is PourbaixStabilityRecord
+    )
+    assert (
+        get_type_hints(compute_grand_canonical_orr_corrections)['return']
+        is GrandCanonicalORRRecord
+    )
+    assert get_type_hints(run_coupling_step)['return'] is CouplingStepState
+    assert get_type_hints(campaign._record_provenance)['return'] is PipelineStateDocument
+    assert get_type_hints(campaign._run_phase1_discovery)['return'] is CandidateSelection
+    assert (
+        get_type_hints(campaign._load_kinetics_validation)['return']
+        == PyrolysisValidationArtifact | None
+    )
+    assert (
+        get_type_hints(campaign._assess_readiness)['return'] is CampaignReadinessReport
+    )
     assert get_type_hints(load_validated_artifact)['return'] == ArtifactValidationResult
     assert {'filter'} <= AdmissibilitySummary.__required_keys__
     assert {
@@ -317,6 +369,29 @@ def test_discovery_reactor_and_solver_artifacts_have_named_contracts():
         'headline',
         'mmbcr_max_conversion',
     } <= SolidsScorecard.__required_keys__
+    assert {
+        'candidate_champion_conversion',
+        'candidate_champion_catalyst',
+        'candidate_champion_reactor',
+        'candidate_champion_T_K',
+        'candidate_champion_kinetics_status',
+    } <= SolidsScorecard.__optional_keys__
+    assert {
+        'co2_permitted',
+        'fluidized_mode',
+        'max_regen_cycles',
+        'regen_mechanism',
+    } <= CarbonPolicyConfig.__optional_keys__
+    assert {
+        'computed',
+        'moose_values_used',
+        'moose_parameters',
+    } <= InterfaceExchangeFeedback.__required_keys__
+    assert {
+        'converged',
+        'mesh_series',
+        'conservation_budgets',
+    } <= CouplingConvergenceDocument.__required_keys__
     assert {
         'candidate_id',
         'outputs',

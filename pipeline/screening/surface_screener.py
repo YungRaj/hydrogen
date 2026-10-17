@@ -1558,14 +1558,21 @@ def _run_neb_step(
     return float(fallback), False
 
 
+from typing import Mapping
+from pipeline.data_models.reactors import (
+    MlipNebValidationRecord,
+    PyrolysisValidationArtifact,
+)
+
+
 def compute_candidate_mlip_neb(
-    row,
+    row: Mapping[str, object],
     calc=None,
     *,
     n_images: int = 5,
     fmax: float = 0.25,
     max_steps: int = 10,
-) -> dict:
+) -> MlipNebValidationRecord:
     """Compute MLIP-NEB elementary barriers for a top Pareto candidate row.
 
     Args:
@@ -1587,7 +1594,8 @@ def compute_candidate_mlip_neb(
 
     def _finite(name: str, default: float) -> float:
         try:
-            v = float(row.get(name, default))
+            raw = row.get(name, default)
+            v = float(raw) if isinstance(raw, (int, float, str)) else default
             return v if np.isfinite(v) else default
         except (TypeError, ValueError):
             return default
@@ -1743,7 +1751,7 @@ def compute_candidate_mlip_neb(
 
 def write_pyrolysis_validation_json(
     candidate_id: str,
-    neb_record: dict,
+    neb_record: MlipNebValidationRecord | Mapping[str, float | int],
     kinetics_validation_dir: str | Path,
 ) -> Path:
     """Persist ``<kinetics_validation_dir>/<candidate_id>/pyrolysis_validation.json``.
@@ -1761,7 +1769,7 @@ def write_pyrolysis_validation_json(
         raise ValueError(f'unsafe candidate_id for validation artifact: {safe_id!r}')
     out_dir = Path(kinetics_validation_dir) / safe_id
     out_dir.mkdir(parents=True, exist_ok=True)
-    payload = {
+    payload: PyrolysisValidationArtifact = {
         'candidate_id': safe_id,
         'complete': True,
         'evidence_level': 'converged_mlip_neb',

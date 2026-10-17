@@ -398,12 +398,18 @@ HBOND_CLASS_SCALE: dict[str, float] = {
 }
 
 
+from pipeline.data_models.fuel_cells import (
+    GrandCanonicalORRRecord,
+    PourbaixStabilityRecord,
+)
+
+
 def compute_pourbaix_stability_margin(
     genome,
     *,
     U_V_vs_RHE: float = 0.80,
     pH: float = 0.0,
-) -> dict:
+) -> PourbaixStabilityRecord:
     """Estimate Pourbaix anodic dissolution onset and stability margin at (U, pH).
 
     Args:
@@ -455,7 +461,7 @@ def compute_grand_canonical_orr_corrections(
     U_pzc_V: float = 0.30,
     helmholtz_thickness_A: float = 3.0,
     pH: float = 0.0,
-) -> dict:
+) -> GrandCanonicalORRRecord:
     """Compute constant-potential double-layer solvation + electric-field corrections.
 
     Args:
