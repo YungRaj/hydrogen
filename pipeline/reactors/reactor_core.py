@@ -231,6 +231,8 @@ def _validate_reactor_config(config: ReactorConfig) -> None:
     """Reject geometries that do not represent the selected physical bed."""
     if config.T_inlet_K <= 0 or config.P_inlet_Pa <= 0:
         raise ValueError('reactor temperature and pressure must be positive')
+    if config.max_residence_time_s <= 0:
+        raise ValueError('max_residence_time_s must be positive')
     if config.reactor_type == 'PFR':
         if (
             config.bed_length_m <= 0
@@ -244,6 +246,12 @@ def _validate_reactor_config(config: ReactorConfig) -> None:
         if not 0 < config.bed_porosity < 1:
             raise ValueError(
                 'packed-bed porosity must lie strictly between zero and one'
+            )
+        tau_pfr = config.bed_length_m * config.bed_porosity / config.gas_velocity_m_s
+        if tau_pfr > config.max_residence_time_s:
+            raise ValueError(
+                f'PFR residence time {tau_pfr:.2f} s exceeds '
+                f'max_residence_time_s={config.max_residence_time_s:.2f} s'
             )
     elif config.reactor_type == 'Fluidized':
         if (

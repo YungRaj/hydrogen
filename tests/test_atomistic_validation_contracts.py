@@ -60,3 +60,22 @@ def test_thermochemistry_comparison_is_non_mutating() -> None:
     )
     assert result['within_tolerance'] is True
     assert result['difference_eV'] == pytest.approx(0.02)
+
+
+def test_molten_methane_endpoints_preserve_slab_atom_matching(monkeypatch) -> None:
+    from ase.build import fcc111
+    from ase.calculators.emt import EMT
+
+    slab = fcc111('Cu', size=(3, 3, 3), vacuum=10.0)
+    slab.pbc = True
+    monkeypatch.setattr(
+        molten_neb,
+        'relax_with_record',
+        lambda atoms, label, fmax, steps: {f'relax_{label}_converged': True, f'relax_{label}_steps': 1},
+    )
+    cfg = molten_neb.NEBConfig(minimum_product_CH_A=1.2, maximum_product_CH_A=3.5)
+    initial, final, meta = molten_neb.methane_endpoints(slab, 0, EMT(), cfg)
+    assert meta['endpoint_match']['passed'] is True
+    assert meta['endpoint_match']['max_surface_displacement_A'] == pytest.approx(0.0)
+    assert len(initial) == len(final) == len(slab) + 5
+

@@ -213,13 +213,22 @@ def _endpoint_match(
 ) -> dict[str, Any]:
     """Check atom-wise endpoint correspondence before interpolation."""
     displacement = np.linalg.norm(final.positions - initial.positions, axis=1)
+    surface_indices = [
+        index for index in range(len(initial)) if index not in excluded
+    ]
+    max_surface_disp = (
+        float(max(displacement[index] for index in surface_indices))
+        if surface_indices
+        else 0.0
+    )
     violations = [
         {'atom_index': int(index), 'displacement_A': float(displacement[index])}
-        for index in range(len(initial))
-        if index not in excluded and displacement[index] > maximum_A
+        for index in surface_indices
+        if displacement[index] > maximum_A
     ]
     return {
         'maximum_allowed_A': maximum_A,
+        'max_surface_displacement_A': max_surface_disp,
         'excluded_indices': sorted(int(index) for index in excluded),
         'violations': violations,
         'passed': not violations,
@@ -356,15 +365,9 @@ def methane_endpoints(
     """
     site = structure[active_index].position.copy()
     final_h = site + np.array([1.5, 0.0, 1.2])
-    initial_c = site + np.array([0.0, 0.0, config.reactant_height_A])
     methane_bond_A, gas_energy_eV, gas_relaxation = _relaxed_methane_bond(
         calculator, config
     )
-    initial = structure.copy()
-    initial.extend(Atoms(
-        'CH4', positions=[initial_c] + [initial_c + vector for vector in
-        _tetrahedral_vectors(final_h - initial_c, methane_bond_A)]
-    ))
     final = structure.copy()
     carbon = site + np.array([0.0, 0.0, 2.0])
     final.append(Atom('C', carbon))
@@ -375,27 +378,10 @@ def methane_endpoints(
     )))
     final.append(Atom('H', final_h))
     slab_constraint = _local_constraint(structure, active_index, config.local_radius_A)
-    for endpoint in (initial, final):
-        endpoint.set_cell(structure.cell)
-        endpoint.set_pbc(structure.pbc)
-        endpoint.calc = calculator
-    initial.set_constraint(slab_constraint)
+    final.set_cell(structure.cell)
+    final.set_pbc(structure.pbc)
+    final.calc = calculator
     carbon_index = len(structure)
-    initial.set_constraint([
-        slab_constraint,
-        Hookean(
-            carbon_index,
-            active_index,
-            k=5.0,
-            rt=config.reactant_height_A,
-        ),
-    ])
-    reactant = relax_with_record(
-        initial, 'neb_reactant', config.endpoint_fmax_eV_A, config.endpoint_steps
-    )
-    initial.set_constraint(slab_constraint)
-    if not reactant['relax_neb_reactant_converged']:
-        raise RuntimeError('MLIP-NEB reactant endpoint did not converge')
     final.set_constraint([
         slab_constraint,
         Hookean(
@@ -420,8 +406,9 @@ def methane_endpoints(
             f'< {config.minimum_product_CH_A:.3f} A'
         )
     # Rebuild the reactant from the relaxed product, matching the validated
-    # Ni(111) construction. Only C and the breaking H are changed; the CH3
-    # fragment and surface remain atom-matched between endpoints.
+    # Ni(111) construction. Freeze the relaxed product slab during reactant
+    # adsorbate relaxation so surface atoms remain 100% atom-matched, then
+    # restore slab_constraint for the staged NEB path.
     corrected = final.copy()
     corrected.positions[carbon_index:len(corrected) - 1, 2] += 0.7
     direction = corrected.positions[-1] - corrected.positions[carbon_index]
@@ -430,11 +417,20 @@ def methane_endpoints(
         corrected.positions[carbon_index] + methane_bond_A * direction
     )
     corrected.calc = calculator
-    corrected.set_constraint(slab_constraint)
+    corrected.set_constraint([
+        FixAtoms(indices=list(range(len(structure)))),
+        Hookean(
+            carbon_index,
+            active_index,
+            k=5.0,
+            rt=config.reactant_height_A,
+        ),
+    ])
     reactant = relax_with_record(
         corrected, 'neb_reactant_corrected', config.endpoint_fmax_eV_A,
         config.endpoint_steps
     )
+    corrected.set_constraint(slab_constraint)
     if not reactant['relax_neb_reactant_corrected_converged']:
         raise RuntimeError('MLIP-NEB corrected reactant endpoint did not converge')
     endpoint_match = _endpoint_match(
@@ -455,6 +451,7 @@ def methane_endpoints(
         'reactant': reactant,
         'product': product,
         'product_detached_CH_A': detached_ch_A,
+        'endpoint_match': endpoint_match,
     }
 
 
@@ -606,7 +603,6 @@ def run_ni111_reference(
             'product': product,
             'product_detached_CH_A': detached_ch_A,
             'reactant': reactant,
-            'endpoint_match': endpoint_match,
             'endpoint_match': endpoint_match,
         },
     }

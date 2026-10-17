@@ -135,6 +135,23 @@ def simulate_pfr(
         cov_start=pass_start_cov[0],
     )
 
+    inv_fields = solids_inventory_fields(config, geometric_sv_pfr(config))
+    tau_in_band = bool(
+        PFR_PILOT_TAU_BAND_S[0] <= tau_total <= PFR_PILOT_TAU_BAND_S[1]
+    )
+    ergun_ok = bool(inv_fields.get('ergun_ok', True))
+    max_theta_c = float(max(theta_C_tos) if theta_C_tos else 0.0)
+    overloaded_bed_warning = bool(not tau_in_band or not ergun_ok)
+    plugging_risk = bool(
+        max_theta_c >= config.regen_coverage_threshold or not ergun_ok
+    )
+    b2_carbon_policy_summary = (
+        f"regen_mechanism={config.regen_mechanism};"
+        f"regen_cycles={cycles_completed};"
+        f"max_theta_C={max_theta_c:.3f};"
+        f"plugging_risk={plugging_risk}"
+    )
+
     result = {
         'reactor_type': 'PFR',
         'catalyst_name': config.catalyst_name,
@@ -143,10 +160,11 @@ def simulate_pfr(
         'bed_diameter_m': config.bed_diameter_m,
         'catalyst_particle_mm': config.catalyst_particle_mm,
         'residence_time_s': tau_total,
-        'residence_time_within_pilot_band': bool(
-            PFR_PILOT_TAU_BAND_S[0] <= tau_total <= PFR_PILOT_TAU_BAND_S[1]
-        ),
+        'residence_time_within_pilot_band': tau_in_band,
         'pilot_residence_time_band_s': list(PFR_PILOT_TAU_BAND_S),
+        'overloaded_bed_warning': overloaded_bed_warning,
+        'plugging_risk': plugging_risk,
+        'b2_carbon_policy_summary': b2_carbon_policy_summary,
         'produce_time_s': produce_time_s,
         'WHSV_h-1': reciprocal_residence_h(tau_total),
         'CH4_conversion': float(final_conv),
@@ -176,11 +194,11 @@ def simulate_pfr(
         'theta_C_profile_basis': 'single_shared_surface_cumulative_time_on_stream',
         'theta_C_axial': theta_C_tos,
         'inlet_theta_C': float(theta_C_tos[1] if len(theta_C_tos) > 1 else 0.0),
-        'max_theta_C': float(max(theta_C_tos) if theta_C_tos else 0.0),
+        'max_theta_C': max_theta_c,
         'exit_theta_C': float(theta_C_tos[-1]) if theta_C_tos else None,
         **off_site,
         **kinetics_fields(config),
-        **solids_inventory_fields(config, geometric_sv_pfr(config)),
+        **inv_fields,
         **_kinetics_evidence(config),
         **_policy_metadata(config),
         **_load_status_fields(config, graphite, surf),

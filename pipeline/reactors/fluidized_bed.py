@@ -171,6 +171,14 @@ def simulate_fluidized_bed(
         )
     x_h2 = _species_x(gas, 'H2')
 
+    circulating_outfeed_active = bool(circulating and removal_rate > 0.0)
+    b2_carbon_policy_summary = (
+        f"fluidized_mode={config.fluidized_mode};"
+        f"circulating_outfeed={circulating_outfeed_active};"
+        f"removal_rate_1_s={removal_rate:.3f};"
+        f"exit_theta_C={float(exit_theta_c or 0.0):.3f}"
+    )
+
     result = {
         'reactor_type': 'Fluidized',
         'catalyst_name': config.catalyst_name,
@@ -197,6 +205,8 @@ def simulate_fluidized_bed(
         'cycle_averaged_CH4_conversion': float(
             (1.0 - delta) * np.mean(per_cycle) if per_cycle else final_conv
         ),
+        'circulating_outfeed_active': circulating_outfeed_active,
+        'b2_carbon_policy_summary': b2_carbon_policy_summary,
         'bypass_basis': 'ar_tracer_molar_mix',
         'CH4_mole_fraction_drop': _mole_fraction_drop(gas, ch4_initial),
         'conversion_basis': 'argon_tracer',

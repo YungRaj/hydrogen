@@ -482,27 +482,12 @@ def _run_remote_ci(
         f'root@{ip}',
     ]
 
-    # Step 1: Fast bootstrap on pod (uses cached wheels in /workspace/cache/ci_wheels.tar.gz if available)
-    bootstrap_script = r"""
-set -euo pipefail
-if ! python3 -c "import pytest, ase, cantera, sklearn, scipy, pandas" >/dev/null 2>&1 || ! command -v pyright >/dev/null 2>&1; then
-    echo "[runpod-ci] Bootstrapping Python CI dependencies on container..."
-    if [ -f /workspace/cache/ci_wheels.tar.gz ]; then
-        rm -rf /tmp/wheels
-        tar -xzf /workspace/cache/ci_wheels.tar.gz -C /tmp
-        pip install -q --no-index --find-links=/tmp/wheels --break-system-packages --root-user-action=ignore pytest pyright ase cantera scikit-learn scipy pandas
-    else
-        pip install -q --break-system-packages --root-user-action=ignore pytest pyright ase cantera scikit-learn scipy pandas
-    fi
-fi
-mkdir -p /root/hydrogen
-"""
-    boot = subprocess.run(ssh_base + [bootstrap_script], cwd=str(REPO_ROOT))
-    if boot.returncode != 0:
-        return boot.returncode
-
-    # Step 2: Stream the exact working tree (tracked + untracked non-ignored files) via tar over SSH
-    print('[runpod-ci] Syncing repository snapshot to pod...', flush=True)
+    # Step 1: Stream the exact working tree (tracked + untracked non-ignored files) via tar over SSH
+    # while concurrently bootstrapping Python wheels, pyright node binary, and SSSP pseudopotentials.
+    print(
+        '[runpod-ci] Syncing repository snapshot & bootstrapping pod environment in parallel...',
+        flush=True,
+    )
     files_proc = subprocess.run(
         ['git', 'ls-files', '--cached', '--others', '--exclude-standard', '-z'],
         cwd=str(REPO_ROOT),
@@ -529,25 +514,57 @@ mkdir -p /root/hydrogen
     if tar_proc.returncode != 0:
         raise RuntimeError('Failed to create local tar archive of repository files')
 
-    sync_cmd = r"""
+    sync_and_boot_cmd = r"""
 set -euo pipefail
+export PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# 1. Start Python + pyright bootstrap in background
+(
+    if ! python3 -c "import pytest, ase, cantera, sklearn, scipy, pandas" >/dev/null 2>&1 || ! command -v pyright >/dev/null 2>&1; then
+        echo "[runpod-ci] Bootstrapping Python CI dependencies on container..."
+        if [ -f /workspace/cache/ci_wheels.tar.gz ]; then
+            rm -rf /tmp/wheels
+            tar -xzf /workspace/cache/ci_wheels.tar.gz -C /tmp
+            pip install -q --no-index --find-links=/tmp/wheels --break-system-packages --root-user-action=ignore pytest pyright ase cantera scikit-learn scipy pandas
+        else
+            pip install -q --prefer-binary --break-system-packages --root-user-action=ignore pytest pyright ase cantera scikit-learn scipy pandas
+        fi
+    fi
+    pyright --version >/dev/null 2>&1 || true
+) &
+BOOT_PID=$!
+
+# 2. Start SSSP pseudopotential unpack/download into /tmp/sssp_staging in background
+(
+    mkdir -p /tmp/sssp_staging
+    if [ ! -f /root/hydrogen/quantum_espresso/sssp/1.3.0-pbe-efficiency/C.pbe-n-kjpaw_psl.1.0.0.UPF ]; then
+        if [ -f /workspace/cache/SSSP_1.3.0_PBE_efficiency.tar.gz ]; then
+            tar -xzf /workspace/cache/SSSP_1.3.0_PBE_efficiency.tar.gz --no-same-owner --no-same-permissions -C /tmp/sssp_staging
+        else
+            echo "[runpod-ci] Downloading SSSP 1.3.0 PBE efficiency pseudopotentials..."
+            curl -fsSL -o /tmp/sssp.tar.gz "https://archive.materialscloud.org/api/records/rcyfm-68h65/files/SSSP_1.3.0_PBE_efficiency.tar.gz/content"
+            tar -xzf /tmp/sssp.tar.gz --no-same-owner --no-same-permissions -C /tmp/sssp_staging
+        fi
+    fi
+) &
+SSSP_PID=$!
+
+# 3. Unpack repository snapshot from stdin concurrently
 mkdir -p /root/hydrogen
 find /root/hydrogen -mindepth 1 -maxdepth 1 ! -name quantum_espresso ! -name .git -exec rm -rf {} +
 tar -xzf - --no-same-owner --no-same-permissions -C /root/hydrogen
+
+# 4. Wait for background tasks and move staged SSSP files into place if needed
+wait "$BOOT_PID"
+wait "$SSSP_PID"
 SSSP_DIR=/root/hydrogen/quantum_espresso/sssp/1.3.0-pbe-efficiency
 mkdir -p "$SSSP_DIR"
-if [ ! -f "$SSSP_DIR/C.pbe-n-kjpaw_psl.1.0.0.UPF" ]; then
-    if [ -f /workspace/cache/SSSP_1.3.0_PBE_efficiency.tar.gz ]; then
-        tar -xzf /workspace/cache/SSSP_1.3.0_PBE_efficiency.tar.gz --no-same-owner --no-same-permissions -C "$SSSP_DIR"
-    else
-        echo "[runpod-ci] Downloading SSSP 1.3.0 PBE efficiency pseudopotentials..."
-        curl -fsSL -o /tmp/sssp.tar.gz "https://archive.materialscloud.org/api/records/rcyfm-68h65/files/SSSP_1.3.0_PBE_efficiency.tar.gz/content"
-        tar -xzf /tmp/sssp.tar.gz --no-same-owner --no-same-permissions -C "$SSSP_DIR"
-    fi
+if [ ! -f "$SSSP_DIR/C.pbe-n-kjpaw_psl.1.0.0.UPF" ] && [ -f /tmp/sssp_staging/C.pbe-n-kjpaw_psl.1.0.0.UPF ]; then
+    cp -a /tmp/sssp_staging/. "$SSSP_DIR/"
 fi
 """
     sync_proc = subprocess.run(
-        ssh_base + [sync_cmd], input=tar_bytes, cwd=str(REPO_ROOT)
+        ssh_base + [sync_and_boot_cmd], input=tar_bytes, cwd=str(REPO_ROOT)
     )
     if sync_proc.returncode != 0:
         return sync_proc.returncode

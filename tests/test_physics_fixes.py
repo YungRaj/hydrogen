@@ -713,3 +713,70 @@ def test_sota_scorecard_solvation_and_campaign_preset(tmp_path):
     assert args.min_validation_per_class == 4
 
 
+def test_b2_b3_b4_reactor_guardrails_and_diagnostics(tmp_path):
+    from pipeline.reactors.reactor_core import (
+        ReactorConfig,
+        _validate_carbon_policy,
+        _validate_reactor_config,
+    )
+
+    # B4: PFR residence time bound and max_residence_time_s validation
+    with pytest.raises(ValueError, match='max_residence_time_s must be positive'):
+        _validate_reactor_config(
+            ReactorConfig(reactor_type='PFR', max_residence_time_s=0.0)
+        )
+    with pytest.raises(ValueError, match='exceeds max_residence_time_s'):
+        _validate_reactor_config(
+            ReactorConfig(
+                reactor_type='PFR',
+                bed_length_m=5.0,
+                bed_porosity=0.5,
+                gas_velocity_m_s=0.01,
+                max_residence_time_s=60.0,
+            )
+        )
+
+    # B3: MMBCR interfacial k0 guardrail
+    with pytest.raises(ValueError, match='mmbcr_interfacial_k0_m_s'):
+        _validate_carbon_policy(
+            ReactorConfig(reactor_type='MMBCR', mmbcr_interfacial_k0_m_s=2.5)
+        )
+
+    pytest.importorskip('cantera')
+    from pipeline.reactors.mechanisms import write_full_mechanism
+    from pipeline.reactors.models import simulate_fluidized_bed, simulate_pfr
+
+    mech_path = write_full_mechanism('b2_b4_diag_cat', E_act_CH4=0.88, output_dir=tmp_path)
+
+    pfr_res = simulate_pfr(
+        ReactorConfig(
+            reactor_type='PFR',
+            mechanism_file=str(mech_path),
+            catalyst_name='b2_b4_diag_cat',
+            T_inlet_K=973.15,
+            bed_length_m=0.5,
+            bed_porosity=0.4,
+            gas_velocity_m_s=0.05,
+        )
+    )
+    assert 'overloaded_bed_warning' in pfr_res
+    assert 'plugging_risk' in pfr_res
+    assert 'b2_carbon_policy_summary' in pfr_res
+    assert 'regen_mechanism=' in pfr_res['b2_carbon_policy_summary']
+
+    fb_res = simulate_fluidized_bed(
+        ReactorConfig(
+            reactor_type='Fluidized',
+            mechanism_file=str(mech_path),
+            catalyst_name='b2_b4_diag_cat',
+            T_inlet_K=973.15,
+            gas_velocity_m_s=0.08,
+            u_mf_m_s=0.02,
+        )
+    )
+    assert fb_res['circulating_outfeed_active'] is True
+    assert 'b2_carbon_policy_summary' in fb_res
+    assert 'circulating_outfeed=True' in fb_res['b2_carbon_policy_summary']
+
+
+
