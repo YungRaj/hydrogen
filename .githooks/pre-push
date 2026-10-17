@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Pre-push git hook: runs pyright and the pytest contract suite on a RunPod
+# GPU instance (strictly <= $1.00/hr) and guarantees the pod is stopped after.
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+exec python3 "$REPO_ROOT/scripts/run_pod_ci.py" --max-cost 1.00 --always-stop

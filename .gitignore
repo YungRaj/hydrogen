@@ -47,3 +47,4 @@ models/*.ckpt
 CRASH
 input_tmp.in
 .hf_token
+.runpod_api_key
