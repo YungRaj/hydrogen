@@ -399,15 +399,32 @@ def _extract_secondary_targets(
     targets: dict[str, float] = {}
     if application == "turquoise_hydrogen":
         coking_val = np.nan
-        for col in ("coking_index", "coking_index_raw_slab"):
-            if col in row:
-                try:
-                    candidate_val = float(row[col])
-                except (TypeError, ValueError):
-                    candidate_val = np.nan
-                if np.isfinite(candidate_val):
-                    coking_val = -candidate_val
-                    break
+        c_disp = np.nan
+        if "c_height_above_surface_A" in row:
+            try:
+                raw_ch = float(row["c_height_above_surface_A"])
+                if np.isfinite(raw_ch):
+                    c_disp = abs(raw_ch)
+            except (TypeError, ValueError):
+                c_disp = np.nan
+        if "coking_index" in row:
+            try:
+                candidate_val = float(row["coking_index"])
+            except (TypeError, ValueError):
+                candidate_val = np.nan
+            if np.isfinite(candidate_val):
+                coking_val = -candidate_val + (c_disp if np.isfinite(c_disp) else 0.0)
+        if not np.isfinite(coking_val) and np.isfinite(c_disp):
+            # For MoltenMetal (where coking_index is NaN / out_of_scope), use the
+            # externally validated interfacial carbon displacement |c_height_above_surface_A|.
+            coking_val = float(c_disp)
+        if not np.isfinite(coking_val) and "coking_index_raw_slab" in row:
+            try:
+                raw_slab = float(row["coking_index_raw_slab"])
+                if np.isfinite(raw_slab):
+                    coking_val = -raw_slab
+            except (TypeError, ValueError):
+                pass
         try:
             de_h = float(row["dE_H"]) if "dE_H" in row else np.nan
             de_c = float(row["dE_C"]) if "dE_C" in row else np.nan

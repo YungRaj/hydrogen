@@ -10,9 +10,12 @@ Turquoise hydrogen (``TURQUOISE_OBJECTIVES``, M = 4):
        calibrated tree ensemble.
     1. ``coking_susceptibility_eV`` (minimize, eV):
        Negated coking resistance index ``-coking_index = 2 * dE_H - dE_C``
-       (including support/dopant coking bonuses on solid slabs), where positive
-       ``coking_index`` indicates resistance to carbon accumulation relative to
-       H2 evolution. Minimizing ``-coking_index`` penalizes deep carbon binding.
+       (including support/dopant coking bonuses on solid slabs) coupled with
+       the externally validated interfacial carbon displacement
+       ``|c_height_above_surface_A|`` from
+       :func:`pipeline.evidence.pyrolysis_benchmark.interfacial_carbon_displacement_A`
+       (which supplies the melt carbon-separation descriptor when slab
+       ``coking_index`` is out-of-scope on ``MoltenMetal``).
     2. ``desorption_overbinding_penalty_eV`` (minimize, eV):
        Thermodynamic product-release barrier ``max(-2 * dE_H, -dE_C, 0.0)``
        from the zero-parameter catalytic cycle span in

@@ -368,6 +368,207 @@ class TestMultiObjectiveUncertaintyAndPareto(unittest.TestCase):
             )
             self.assertIn(str(turq_genomes[0][0]), seeded_classes)
 
+    def test_interfacial_carbon_wired_into_ranker_and_stage_selection(self):
+        from pipeline.screening.small_data_ranker import _extract_secondary_targets
+        from pipeline.screening.stage_selection import (
+            annotate_interfacial_pyrolysis,
+            select_for_pyrolysis_reactor,
+        )
+
+        # MoltenMetal row with NaN coking_index uses |c_height_above_surface_A|
+        molten_row = {
+            "material_class": "MoltenMetal",
+            "coking_index": float("nan"),
+            "coking_index_raw_slab": 4.10,
+            "c_height_above_surface_A": -0.185,
+            "dE_H": -0.01,
+            "dE_C": 3.59,
+        }
+        sec = _extract_secondary_targets(molten_row, "turquoise_hydrogen")
+        self.assertAlmostEqual(sec["coking_susceptibility_eV"], 0.185, places=6)
+
+        # Stage selection annotates and Pareto-ranks by interfacial_pyrolysis_score_eV
+        frame = pd.DataFrame([
+            {
+                "genome": "('MoltenMetal', 'Cu', 'Bi', 0.45, 1000)",
+                "material_class": "MoltenMetal",
+                "valid": True,
+                "E_act": 0.80,
+                "E_act_raw": 0.80,
+                "E_act_censored": False,
+                "pyrolysis_viable": True,
+                "c_height_above_surface_A": -0.15,
+            },
+            {
+                "genome": "('MoltenMetal', 'Fe', 'Ga', 0.20, 1000)",
+                "material_class": "MoltenMetal",
+                "valid": True,
+                "E_act": 0.78,
+                "E_act_raw": 0.78,
+                "E_act_censored": False,
+                "pyrolysis_viable": True,
+                "c_height_above_surface_A": -2.40,
+            },
+        ])
+        annotated = annotate_interfacial_pyrolysis(frame)
+        self.assertIn("interfacial_carbon_displacement_A", annotated.columns)
+        self.assertIn("interfacial_pyrolysis_score_eV", annotated.columns)
+        self.assertAlmostEqual(
+            float(annotated.loc[0, "interfacial_pyrolysis_score_eV"]), 0.95, places=6
+        )
+        selected = select_for_pyrolysis_reactor(frame, n_select=2, min_per_class=1)
+        self.assertEqual(len(selected), 2)
+        self.assertIn("interfacial_pyrolysis_score_eV", selected.columns)
+
+    def test_multipathway_champion_scorecard_aggregates_all_six_pathways(self):
+        from pipeline.economics.tea import build_multipathway_champion_scorecard
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "screening").mkdir(parents=True)
+            (root / "reactor").mkdir(parents=True)
+            (root / "fuel_cell").mkdir(parents=True)
+
+            pd.DataFrame([
+                {
+                    "candidate_id": "cat_hea_1",
+                    "genome": "('HEA', ('Fe', 'Zn', 'Nb', 'Ir', 'Sc'), 'hcp', '111', 800)",
+                    "material_class": "HEA",
+                    "valid": True,
+                    "E_act": 0.3168,
+                    "E_act_raw": 0.3168,
+                    "E_act_censored": False,
+                    "pyrolysis_viable": True,
+                    "c_height_above_surface_A": -0.142,
+                    "coking_index": 3.95,
+                },
+                {
+                    "candidate_id": "cat_molten_1",
+                    "genome": "('MoltenMetal', 'Te', 'Ti', 0.1, 750)",
+                    "material_class": "MoltenMetal",
+                    "valid": True,
+                    "E_act": 0.8186,
+                    "E_act_raw": 0.8186,
+                    "E_act_censored": False,
+                    "pyrolysis_viable": True,
+                    "c_height_above_surface_A": -0.1855,
+                    "coking_index": float("nan"),
+                },
+            ]).to_csv(root / "screening" / "branch_ranker_evidence.csv", index=False)
+
+            reactor_fixtures = [
+                ("PFR_cat_hea_1_1100K.json", {
+                    "catalyst_name": "cat_hea_1",
+                    "reactor_type": "PFR",
+                    "status": "complete",
+                    "T_K": 1100.0,
+                    "CH4_conversion": 0.5348,
+                    "single_pass_CH4_conversion": 0.5348,
+                    "H2_selectivity": 0.998,
+                    "surface_loaded": True,
+                    "exceeds_equilibrium": False,
+                    "carbon_balance_ok": True,
+                    "catalyst_E_act_eV": 0.3168,
+                    "catalyst_dE_H_eV": -0.55,
+                    "kinetics_status": "mlip_neb_complete",
+                }),
+                ("Fluidized_cat_hea_1_1100K.json", {
+                    "catalyst_name": "cat_hea_1",
+                    "reactor_type": "Fluidized",
+                    "status": "complete",
+                    "T_K": 1100.0,
+                    "CH4_conversion": 0.3412,
+                    "single_pass_CH4_conversion": 0.3412,
+                    "H2_selectivity": 0.995,
+                    "surface_loaded": True,
+                    "exceeds_equilibrium": False,
+                    "carbon_balance_ok": True,
+                    "catalyst_E_act_eV": 0.3168,
+                    "catalyst_dE_H_eV": -0.55,
+                    "kinetics_status": "mlip_neb_complete",
+                }),
+                ("MMBCR_cat_molten_1_1300K.json", {
+                    "catalyst_name": "cat_molten_1",
+                    "reactor_type": "MMBCR",
+                    "status": "complete",
+                    "T_K": 1300.0,
+                    "CH4_conversion": 0.9461,
+                    "single_pass_CH4_conversion": 0.9461,
+                    "H2_selectivity": 1.0,
+                    "exceeds_equilibrium": False,
+                    "carbon_balance_ok": True,
+                }),
+                ("NTEC_cat_hea_1_473K.json", {
+                    "catalyst_name": "cat_hea_1",
+                    "reactor_type": "NTEC",
+                    "status": "complete",
+                    "T_K": 473.0,
+                    "CH4_conversion": 0.5920,
+                    "single_pass_CH4_conversion": 0.5920,
+                    "H2_selectivity": 0.990,
+                    "exceeds_equilibrium": False,
+                    "carbon_balance_ok": True,
+                }),
+                ("Electrochemical_cat_hea_1_823K.json", {
+                    "catalyst_name": "cat_hea_1",
+                    "reactor_type": "Electrochemical",
+                    "status": "complete",
+                    "T_K": 823.0,
+                    "CH4_conversion": 0.7204,
+                    "single_pass_CH4_conversion": 0.7204,
+                    "H2_selectivity": 0.985,
+                    "exceeds_equilibrium": False,
+                    "carbon_balance_ok": True,
+                }),
+            ]
+            for fname, payload in reactor_fixtures:
+                (root / "reactor" / fname).write_text(
+                    json.dumps(payload), encoding="utf-8"
+                )
+            (root / "fuel_cell" / "pemfc_cat1_AquivionE87.json").write_text(
+                json.dumps({
+                    "cathode_catalyst": "008ae0ff99146112d2f0",
+                    "membrane": "AquivionE87",
+                    "peak_power_W_cm2": 1.385,
+                    "peak_voltage_V": 0.66,
+                    "peak_current_A_cm2": 2.10,
+                    "orr_overpotential_V": 0.285,
+                    "efficiency_at_peak": 0.536,
+                }),
+                encoding="utf-8",
+            )
+
+            scorecard = build_multipathway_champion_scorecard(str(root))
+            self.assertEqual(
+                scorecard["evidence_level"], "screening_multipathway_scorecard"
+            )
+            self.assertEqual(len(scorecard["discovery_champions"]), 2)
+            self.assertAlmostEqual(
+                float(scorecard["discovery_champions"][0]["interfacial_pyrolysis_score_eV"]),
+                0.4588,
+                places=4,
+            )
+            leaderboard = scorecard["pathway_leaderboard"]
+            for mode_name in (
+                "thermocatalytic_pfr",
+                "thermocatalytic_fluidized",
+                "thermocatalytic",
+                "mmbcr",
+                "ntec",
+                "electrochemical",
+            ):
+                self.assertIn(mode_name, leaderboard)
+                self.assertEqual(leaderboard[mode_name]["status"], "complete")
+                self.assertGreater(
+                    float(leaderboard[mode_name]["single_pass_CH4_conversion"]), 0.0
+                )
+                self.assertIsNotNone(leaderboard[mode_name]["tea_base_h2_usd_kg"])
+            pemfc = scorecard["pemfc_stack_summary"]
+            self.assertEqual(pemfc["status"], "complete")
+            self.assertGreater(float(pemfc["stack_net_power_kW"]), 0.0)
+            self.assertEqual(len(scorecard["coupled_turquoise_pemfc_tea"]), 6)
+
 
 if __name__ == "__main__":
     unittest.main()
+

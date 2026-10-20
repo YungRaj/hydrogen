@@ -38,6 +38,23 @@
   400 steps or remained discontinuous. MLIP-NEB is therefore not validated as
   a barrier replacement, the held-out conditions remain untouched, and no
   pyrolysis campaign is authorized.
+- **Molten-alloy NEB endpoint-alignment follow-up:** `methane_endpoints` in
+  `pipeline/evidence/molten_neb.py` now relaxes the product (`*CH3 + *H`) first
+  and constructs the reactant (`CH4(g) + melt`) from the relaxed product slab
+  with `FixAtoms` on the melt and rigid `CH3` lift, guaranteeing
+  `max_surface_displacement_A == 0.0` across all amorphous seeds before NEB
+  interpolation.
+- **Pyrolysis interfacial carbon displacement follow-up:** across all 24
+  external primary-literature conditions (`docs/evidence/pyrolysis_benchmark_dataset.json`,
+  12 independent sources per label), zero-parameter interfacial carbon
+  displacement `|c_height_above_surface_A|` achieved AUC 0.9931 (`95% CI
+  [0.9580, 1.0000]`) on eSEN and AUC 0.9583 (`95% CI [0.8667, 1.0000]`) on
+  UMA-s-1p1, while the coupled activation + interfacial retention score
+  `interfacial_pyrolysis_score_eV = max(E_act_raw, 0) + |c_height_above_surface_A|`
+  achieved AUC 0.9722 (`95% CI [0.8929, 1.0000]`, +0.4236 over `E_act_raw`),
+  clearing all preregistered benchmark gates (`AUC >= 0.70`, `ci95_low > 0.50`,
+  `auc_improvement >= +0.10`) and wired into secondary objective training and
+  reactor stage selection.
 - **Pyrolysis selection:** reactor handoffs and headline barriers use only
   finite, valid, uncensored, phase-viable screening rows. Unresolved or
   censored rows remain eligible for higher-fidelity rescue, never reactor
