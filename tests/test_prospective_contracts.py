@@ -18,6 +18,7 @@ import run_divide_conquer_pilot as campaign
 from pipeline.evidence.orr_dft_slate import verify_slate
 from pipeline.evidence.orr_quality_diagnostic import verify_diagnostic
 from pipeline.evidence.pyrolysis_benchmark import (
+    analyze_interfacial_pyrolysis_benchmark,
     analyze_screening_results,
     calibrated_rate_free_energy_span_eV,
     dataset_digest,
@@ -25,6 +26,8 @@ from pipeline.evidence.pyrolysis_benchmark import (
     effective_barrier_eV,
     energetic_span_eV,
     h2_chemical_potential_eV,
+    interfacial_carbon_displacement_A,
+    interfacial_pyrolysis_score_eV,
     rate_free_energy_span_eV,
     roc_auc,
     validate_benchmark,
@@ -241,6 +244,31 @@ class ProspectiveContracts(unittest.TestCase):
         ).read_text())
         with self.assertRaisesRegex(ValueError, 'missing screening result'):
             analyze_screening_results(benchmark, [])
+
+    def test_interfacial_pyrolysis_benchmark_clears_auc_acceptance_gate(self) -> None:
+        benchmark = json.loads((
+            REPO_ROOT / 'docs/evidence/pyrolysis_benchmark_dataset.json'
+        ).read_text())
+        rows = pd.read_csv(
+            REPO_ROOT / 'results/screening/pyrolysis_benchmark.csv'
+        ).to_dict(orient='records')
+        report = analyze_interfacial_pyrolysis_benchmark(benchmark, rows)
+        self.assertEqual(report['conditions_scored'], 24)
+        self.assertTrue(report['acceptance_passed'])
+        self.assertGreaterEqual(
+            report['interfacial_carbon_displacement']['auc'], 0.95
+        )
+        self.assertGreaterEqual(
+            report['interfacial_pyrolysis_score']['auc'], 0.90
+        )
+        self.assertGreater(
+            report['interfacial_pyrolysis_score']['ci95_low'], 0.80
+        )
+        self.assertGreaterEqual(report['auc_improvement'], 0.35)
+        with self.assertRaisesRegex(ValueError, 'interfacial carbon displacement'):
+            interfacial_carbon_displacement_A({})
+        with self.assertRaisesRegex(ValueError, 'interfacial pyrolysis score'):
+            interfacial_pyrolysis_score_eV({'c_height_above_surface_A': 0.5})
 
     def test_historical_locks_verify_at_their_recorded_commits(self) -> None:
         from pipeline.evidence.provenance import (

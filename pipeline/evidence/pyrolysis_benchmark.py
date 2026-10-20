@@ -266,6 +266,59 @@ def energetic_span_eV(row: dict[str, Any]) -> float:
     return max(e_act, -2.0 * d_e_h + h2_mu, dg_c, -dg_c, 0.0)
 
 
+def interfacial_carbon_displacement_A(row: dict[str, Any]) -> float:
+    """Return the absolute vertical displacement of C* from the top melt/surface plane.
+
+    In molten-metal and liquid-interface methane pyrolysis, active alloys pin
+    nascent C* near the gas-liquid interface (``|z_C - z_surf| -> 0``) where
+    carbon nucleates and floats off, whereas inactive p-block hosts either
+    expel C* into the gas phase (``z_C - z_surf >> 0``, e.g. Sn, Pb) or sink
+    C* into subsurface traps (``z_C - z_surf << 0``, e.g. Bi, single-phase
+    liquid Ni33Sn67). Lower values are better and no parameters are fitted.
+
+    Args:
+        row: Completed pyrolysis screening result containing ``c_height_above_surface_A``.
+
+    Returns:
+        Non-negative interfacial carbon displacement ``|c_height_above_surface_A|`` in Å.
+
+    Raises:
+        ValueError: If ``c_height_above_surface_A`` is missing or non-finite.
+    """
+    try:
+        c_height = float(row['c_height_above_surface_A'])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError('missing finite interfacial carbon displacement input') from exc
+    if not math.isfinite(c_height):
+        raise ValueError('missing finite interfacial carbon displacement input')
+    return abs(c_height)
+
+
+def interfacial_pyrolysis_score_eV(row: dict[str, Any]) -> float:
+    """Return the zero-parameter coupled activation and interfacial-carbon score.
+
+    Combines the physical forward activation barrier ``max(E_act_raw, 0)`` (eV)
+    with the unit-stiffness (1 eV/Å) interfacial carbon displacement penalty
+    ``|c_height_above_surface_A|`` (Å). Lower values are better.
+
+    Args:
+        row: Completed pyrolysis screening result.
+
+    Returns:
+        Coupled activation + interfacial carbon retention score in eV-equivalent units.
+
+    Raises:
+        ValueError: If required inputs are missing or non-finite.
+    """
+    try:
+        e_act = float(row['E_act_raw'])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError('missing finite interfacial pyrolysis score input') from exc
+    if not math.isfinite(e_act):
+        raise ValueError('missing finite interfacial pyrolysis score input')
+    return max(e_act, 0.0) + interfacial_carbon_displacement_A(row)
+
+
 def roc_auc(labels: list[bool], scores: list[float]) -> float:
     """Compute tie-aware ROC AUC where larger scores predict ``True``.
 
@@ -550,6 +603,77 @@ def analyze_screening_results(
         'conditions_scored': len(scored),
         'current_E_act': current_stats,
         'energetic_span': span_stats,
+        'auc_improvement': improvement,
+        'acceptance_passed': passed and not failures,
+        'unscored_conditions': failures,
+        'records': scored,
+    }
+
+
+def analyze_interfacial_pyrolysis_benchmark(
+    benchmark: dict[str, Any],
+    screening_rows: list[dict[str, Any]],
+    allow_incomplete: bool = False,
+) -> dict[str, Any]:
+    """Evaluate zero-parameter interfacial carbon retention and coupled pyrolysis descriptors.
+
+    Args:
+        benchmark: Checksum-verified benchmark document.
+        screening_rows: Screening results keyed by their serialized genome.
+        allow_incomplete: Exploratory only: score resolvable conditions instead of raising.
+
+    Returns:
+        Complete benchmark report comparing ``interfacial_carbon_displacement_A``
+        and ``interfacial_pyrolysis_score_eV`` against ``E_act_raw``.
+    """
+    by_genome = {str(row.get('genome')): row for row in screening_rows}
+    scored: list[dict[str, Any]] = []
+    failures: list[str] = []
+    for condition in benchmark['records']:
+        result = by_genome.get(condition['genome'])
+        if result is None:
+            failures.append(f"{condition['condition_id']}: missing screening result")
+            continue
+        if result.get('valid') not in TRUE_VALUES:
+            failures.append(f"{condition['condition_id']}: invalid screening result")
+            continue
+        if result.get('pyrolysis_viable') not in TRUE_VALUES:
+            failures.append(f"{condition['condition_id']}: non-viable screening result")
+            continue
+        try:
+            current = float(result['E_act_raw'])
+            c_disp = interfacial_carbon_displacement_A(result)
+            coupled = interfacial_pyrolysis_score_eV(result)
+        except (KeyError, TypeError, ValueError) as exc:
+            failures.append(f"{condition['condition_id']}: {exc}")
+            continue
+        scored.append({
+            'condition_id': condition['condition_id'],
+            'source_family': condition['source_family'],
+            'label': condition['label'],
+            'genome': condition['genome'],
+            'E_act_eV': current,
+            'interfacial_carbon_displacement_A': c_disp,
+            'interfacial_pyrolysis_score_eV': coupled,
+        })
+    if failures and not allow_incomplete:
+        raise ValueError('benchmark screening is incomplete: ' + '; '.join(failures))
+    current_stats = grouped_bootstrap_auc(scored, 'E_act_eV')
+    disp_stats = grouped_bootstrap_auc(scored, 'interfacial_carbon_displacement_A')
+    coupled_stats = grouped_bootstrap_auc(scored, 'interfacial_pyrolysis_score_eV')
+    improvement = coupled_stats['auc'] - current_stats['auc']
+    passed = (
+        coupled_stats['auc'] >= 0.70
+        and coupled_stats['ci95_low'] > 0.50
+        and improvement >= 0.10
+    )
+    return {
+        'schema_version': 1,
+        'dataset_sha256': benchmark['dataset_sha256'],
+        'conditions_scored': len(scored),
+        'current_E_act': current_stats,
+        'interfacial_carbon_displacement': disp_stats,
+        'interfacial_pyrolysis_score': coupled_stats,
         'auc_improvement': improvement,
         'acceptance_passed': passed and not failures,
         'unscored_conditions': failures,
