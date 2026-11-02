@@ -283,6 +283,7 @@ class _SolidsScorecardOptional(TypedDict, total=False):
     candidate_champion_reactor: str | None
     candidate_champion_T_K: float | None
     candidate_champion_kinetics_status: str | None
+    pbr_b4_diagnostics: dict[str, object]
 
 
 class SolidsScorecard(_SolidsScorecardOptional):

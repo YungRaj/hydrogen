@@ -17,6 +17,8 @@ from pipeline.io.json import write_atomic_json
 
 ROOT = Path('results/prospective_search')
 OUTPUT = Path('results/dft/orr_confirmatory_slate.json')
+# 50-candidate DFT slate: 14 class champions + 20 guided_top (with 2 champion overlaps)
+# + 6 uncertainty controls + 6 validity controls + 6 coverage controls = 50 unique genomes
 SLATE_SIZE = 50
 
 

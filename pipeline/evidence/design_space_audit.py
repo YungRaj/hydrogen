@@ -23,6 +23,7 @@ def canonical_class_sizes() -> dict[str, int]:
     """
     sizes = dict(CLASS_SIZES)
     dopants = len(cs.SOLID_DOPANTS)
+    # Unordered dopant pair count N*(N+1)/2 (with replacement) * 20 coverages * 4 PromoterCounts * 3 PromoterTypes
     sizes["SolidCatalyst"] = (
         len(cs.SOLID_ACTIVE_METALS) * len(cs.SOLID_SUPPORTS) *
         len(cs.SOLID_FACETS) * 20 * (dopants * (dopants + 1) // 2) * 4 * 3
@@ -65,6 +66,7 @@ def canonical_class_sizes() -> dict[str, int]:
 
 
 def _van_der_corput(value: int) -> float:
+    # Base-2 radical inverse phi_2(n) = sum_{k>=0} d_k * 2^{-(k+1)} in [0, 1) for low-discrepancy sampling
     result, denominator = 0.0, 1.0
     while value:
         value, digit = divmod(value, 2)

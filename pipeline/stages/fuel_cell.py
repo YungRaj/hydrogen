@@ -144,6 +144,7 @@ def run_fuel_cell_stage(
         pemfc.extend(
             services.sweep_membranes(
                 row['name'],
+                # 0.40 V default ORR overpotential (Pt/C benchmark baseline)
                 row.get('orr_overpotential_V', 0.4),
                 material_class=row.get('material_class', None),
             )
@@ -151,6 +152,7 @@ def run_fuel_cell_stage(
     stack: StackResult | EmptyStackResult = {}
     if pemfc:
         best = max(pemfc, key=fuel_cell_composite_score)
+        # Nominal automotive PEMFC rated point: 0.65 V/cell at 1.5 A/cm^2 (DOE 80 kW stack baseline)
         stack = services.model_stack(
             services.build_stack_config(
                 n_cells=stack_cells,

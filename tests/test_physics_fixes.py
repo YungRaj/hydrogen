@@ -1095,25 +1095,39 @@ def test_second_pass_assumption_fixes(tmp_path):
         calibrated_interfacial_pyrolysis_score_eV,
         class_dft_barrier_offset_eV,
     )
+    from pipeline.reactors.scorecard import build_solids_scorecard
     from pipeline.reactors.sweeps.carbon_criteria import evaluate_pbr_and_b4_diagnostics
+    from pipeline.screening.stage_selection import annotate_interfacial_pyrolysis
 
-    diag = evaluate_pbr_and_b4_diagnostics([
-        {
-            'status': 'complete',
-            'reactor_type': 'PBR',
-            'overall_effectiveness_factor': 0.72,
-            'thiele_modulus': 1.4,
-            'ergun_ok': True,
-            'residence_time_within_pilot_band': True,
-            'plugging_risk': 'low',
-            'single_pass_CH4_conversion': 0.42,
-            'cycle_averaged_CH4_conversion': 0.39,
-        }
-    ])
+    pbr_rec = {
+        'status': 'complete',
+        'reactor_type': 'PBR',
+        'catalyst_name': 'Ni_Al2O3_ref',
+        'T_K': 973.15,
+        'CH4_conversion': 0.42,
+        'surface_loaded': True,
+        'exceeds_equilibrium': False,
+        'overall_effectiveness_factor': 0.72,
+        'thiele_modulus': 1.4,
+        'ergun_ok': True,
+        'residence_time_within_pilot_band': True,
+        'plugging_risk': 'low',
+        'single_pass_CH4_conversion': 0.42,
+        'cycle_averaged_CH4_conversion': 0.39,
+    }
+    diag = evaluate_pbr_and_b4_diagnostics([pbr_rec])
     assert diag['n_pbr_records'] == 1
     assert diag['mean_pbr_overall_effectiveness_factor'] == pytest.approx(0.72)
     assert diag['n_b4_within_pilot_band'] == 1
     assert diag['mean_b2_cycle_minus_single_pass_X'] == pytest.approx(-0.03)
+    scorecard_with_diag = build_solids_scorecard(
+        [pbr_rec], judge_catalyst='Ni_Al2O3_ref', headline_t_min=923.15
+    )
+    assert scorecard_with_diag['pbr_b4_diagnostics']['n_pbr_records'] == 1
+    assert scorecard_with_diag['pbr_b4_diagnostics'][
+        'mean_pbr_overall_effectiveness_factor'
+    ] == pytest.approx(0.72)
+
     ni_anchor = class_dft_barrier_offset_eV('SolidCatalyst')
     assert ni_anchor['anchor_offset_eV'] == pytest.approx(1.05 - 0.386)
     cal_score = calibrated_interfacial_pyrolysis_score_eV({
@@ -1122,3 +1136,29 @@ def test_second_pass_assumption_fixes(tmp_path):
         'c_height_above_surface_A': 0.20,
     })
     assert cal_score['calibrated_interfacial_score_eV'] == pytest.approx(1.25)
+
+    pd = pytest.importorskip('pandas')
+    annotated_df = annotate_interfacial_pyrolysis(
+        pd.DataFrame([
+            {
+                'material_class': 'SolidCatalyst',
+                'E_act_raw': 0.386,
+                'c_height_above_surface_A': -0.20,
+            },
+            {
+                'material_class': 'MoltenMetal',
+                'E_act_raw': 0.562,
+                'c_height_above_surface_A': 0.15,
+            },
+        ])
+    )
+    molten_anchor = class_dft_barrier_offset_eV('MoltenMetal')
+    assert annotated_df.loc[0, 'calibrated_activation_eV'] == pytest.approx(1.05)
+    assert annotated_df.loc[0, 'calibrated_interfacial_score_eV'] == pytest.approx(1.25)
+    assert annotated_df.loc[1, 'calibrated_activation_eV'] == pytest.approx(
+        0.562 + molten_anchor['anchor_offset_eV']
+    )
+    assert annotated_df.loc[1, 'calibrated_interfacial_score_eV'] == pytest.approx(
+        0.562 + molten_anchor['anchor_offset_eV'] + 0.15
+    )
+

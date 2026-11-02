@@ -146,6 +146,7 @@ def run_reactor_batch_stage(
         if not allow_mock_inputs:
             raise RuntimeError('mock catalyst fallback is disabled')
         material_class = 'MoltenMetal' if pathway_mode == 'mmbcr' else 'SolidCatalyst'
+        # Test-only C-H activation barrier fixtures (eV): molten Ni-Bi (0.85), FeC (0.65), Cu-Sn (1.10)
         for name, barrier in (
             ('NiBi_10', 0.85),
             ('FeC_supported', 0.65),

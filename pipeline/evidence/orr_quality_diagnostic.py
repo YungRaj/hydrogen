@@ -31,6 +31,7 @@ def _failure_family(error: str) -> str:
 
 
 def _binding_bin(raw: str) -> str:
+    # Partition |dE_ads| (eV) into physical chemisorption (<=3 eV) vs overbinding (>3 eV) regimes
     value = abs(float(raw))
     if value <= 1.0:
         return 'abs_le_1_eV'
@@ -84,6 +85,7 @@ def build_diagnostic(output: Path = OUTPUT) -> Path:
                 totals['valid'] += 1
                 by_class[material_class]['valid'] += 1
                 value = float(row['orr_overpotential_V'])
+                # 3.0 V is the CHE ORR overpotential ceiling clamp when an intermediate step is strongly uphill
                 censored = math.isfinite(value) and value == 3.0
                 if censored:
                     totals['censored_valid'] += 1

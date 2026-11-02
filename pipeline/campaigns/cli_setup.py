@@ -142,6 +142,7 @@ def _build_parser() -> argparse.ArgumentParser:
             'eSEN engine (relaxation CPU work overlaps inference)'
         ),
     )
+    # 2^16 = 65,536 candidates per vectorized surrogate evaluation chunk
     parser.add_argument('--scan-batch-size', type=int, default=65536)
     parser.add_argument(
         '--scan-workers',
@@ -149,7 +150,9 @@ def _build_parser() -> argparse.ArgumentParser:
         default=8,
         help='Independent deterministic scanner shards per resolved leaf',
     )
+    # Stop binary partitioning when leaf subtrees contain <= 10^6 candidates
     parser.add_argument('--branch-leaf-size', type=int, default=1_000_000)
+    # 9 deterministic van der Corput low-discrepancy probes per internal tree node
     parser.add_argument('--branch-probes', type=int, default=9)
     parser.add_argument(
         '--branch-max-leaves',
@@ -175,6 +178,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default=10000,
         help='Re-score up to this many pending nodes when resuming',
     )
+    # Exact combinatorial population across all 14 catalyst classes (21,092,657,271 genomes)
     parser.add_argument(
         '--expected-space-size',
         type=int,
@@ -260,6 +264,7 @@ def _apply_sota_preset(args: argparse.Namespace) -> None:
     """Apply high-volume SOTA branch-and-bound discovery defaults when requested."""
     if not getattr(args, 'sota_campaign', False):
         return
+    # 14 classes * 4 leaves/class = 56 leaves minimum for uniform class floor coverage
     args.branch_class_floor = max(int(args.branch_class_floor), 4)
     if int(args.branch_max_leaves) == 0:
         args.branch_max_leaves = 56

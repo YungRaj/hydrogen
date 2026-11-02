@@ -205,6 +205,79 @@ def metric_row(record: Mapping[str, object]) -> SolidsMetricRow:
     }
 
 
+def evaluate_pbr_and_b4_diagnostics(
+    records: Iterable[Mapping[str, object]],
+) -> dict[str, object]:
+    """Summarize PBR intraparticle effectiveness, Ergun ΔP, B4 residence-time, and B2 conversion deltas.
+
+    Quantifies packed-bed pellet diffusion limitations (overall effectiveness
+    factor $\\Omega$ and Thiele modulus $\\phi$), coupled Ergun pressure-drop
+    compliance, B4 residence-time pilot-band adherence ($\\tau \\in [0.1, 10]\\text{ s}$),
+    and B2 cycle-averaged vs. single-pass conversion across completed sweep rows.
+
+    Args:
+        records: Iterable of sweep record dictionaries to aggregate.
+
+    Returns:
+        Dictionary summarizing PBR effectiveness, Ergun compliance, B4 pilot-band
+        counts, and B2 cycle-averaged vs. single-pass conversion statistics.
+    """
+    completed = [rec for rec in records if rec.get('status') == 'complete']
+    pbr_rows = [rec for rec in completed if rec.get('reactor_type') == 'PBR']
+    omega_vals = [
+        val
+        for val in (
+            finite_number(r.get('overall_effectiveness_factor')) for r in pbr_rows
+        )
+        if val is not None
+    ]
+    thiele_vals = [
+        val
+        for val in (finite_number(r.get('thiele_modulus')) for r in pbr_rows)
+        if val is not None
+    ]
+    ergun_checked = [r for r in completed if r.get('ergun_ok') is not None]
+    ergun_ok_count = sum(1 for r in ergun_checked if bool(r.get('ergun_ok')))
+    b4_checked = [
+        r for r in completed if r.get('residence_time_within_pilot_band') is not None
+    ]
+    b4_in_band_count = sum(
+        1 for r in b4_checked if bool(r.get('residence_time_within_pilot_band'))
+    )
+    plugging_flagged = sum(
+        1
+        for r in completed
+        if r.get('plugging_risk') in ('moderate', 'high', 'plugged')
+        or bool(r.get('overloaded_bed_warning'))
+    )
+    b2_deltas: list[float] = []
+    for rec in completed:
+        x_single = finite_number(
+            rec.get('single_pass_CH4_conversion', rec.get('CH4_conversion'))
+        )
+        x_cycle = finite_number(rec.get('cycle_averaged_CH4_conversion'))
+        if x_single is not None and x_cycle is not None:
+            b2_deltas.append(x_cycle - x_single)
+    return {
+        'n_completed': len(completed),
+        'n_pbr_records': len(pbr_rows),
+        'mean_pbr_overall_effectiveness_factor': (
+            sum(omega_vals) / len(omega_vals) if omega_vals else None
+        ),
+        'mean_pbr_thiele_modulus': (
+            sum(thiele_vals) / len(thiele_vals) if thiele_vals else None
+        ),
+        'n_ergun_checked': len(ergun_checked),
+        'n_ergun_ok': ergun_ok_count,
+        'n_b4_checked': len(b4_checked),
+        'n_b4_within_pilot_band': b4_in_band_count,
+        'n_plugging_or_overloaded_flagged': plugging_flagged,
+        'mean_b2_cycle_minus_single_pass_X': (
+            sum(b2_deltas) / len(b2_deltas) if b2_deltas else None
+        ),
+    }
+
+
 def build_solids_scorecard(
     results: Iterable[Mapping[str, object]],
     *,
@@ -335,6 +408,8 @@ def build_solids_scorecard(
         else None
     )
 
+    pbr_b4_diag = evaluate_pbr_and_b4_diagnostics(solids_src)
+
     return {
         'judge_catalyst': judge_catalyst if named_present else None,
         'headline_catalyst': headline_catalyst,
@@ -387,6 +462,7 @@ def build_solids_scorecard(
         'n_mmbcr_records': len(mmbcr),
         'n_ntec_records': len(ntec),
         'n_electrochemical_records': len(electrochemical),
+        'pbr_b4_diagnostics': pbr_b4_diag,
     }
 
 

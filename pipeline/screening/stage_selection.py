@@ -71,6 +71,7 @@ def _frame_pareto_ranks(frame: pd.DataFrame, columns: list[str]) -> np.ndarray:
         negate = spec.startswith('-')
         col_name = spec[1:] if negate else spec
         series = pd.to_numeric(frame.get(col_name), errors='coerce')
+        # 1e9 acts as a finite worst-case penalty sentinel so NaN objectives sort behind valid rows
         values = (-series if negate else series).fillna(1e9).to_numpy(dtype=float)
         cols.append(values)
     return pareto_ranks(np.column_stack(cols))
@@ -179,19 +180,24 @@ def select_for_reactor(
 def annotate_interfacial_pyrolysis(frame: pd.DataFrame) -> pd.DataFrame:
     """Attach validated interfacial carbon displacement and pyrolysis score columns.
 
-    When ``c_height_above_surface_A`` is present in ``frame``, computes
-    ``interfacial_carbon_displacement_A = |c_height_above_surface_A|`` and
-    ``interfacial_pyrolysis_score_eV = max(E_act_raw, 0.0) + |c_height_above_surface_A|``
-    (falling back to ``E_act`` when ``E_act_raw`` is absent).
+    When ``c_height_above_surface_A`` is present in ``frame``, computes:
+      - ``interfacial_carbon_displacement_A = |c_height_above_surface_A|``
+      - ``interfacial_pyrolysis_score_eV = max(E_act_raw, 0.0) + |c_height_above_surface_A|``
+        (falling back to ``E_act`` when ``E_act_raw`` is absent)
+      - ``calibrated_activation_eV = max(E_act_raw + Delta_E_anchor(class), 0.0)``
+      - ``calibrated_interfacial_score_eV = calibrated_activation_eV + |c_height_above_surface_A|``
+        using the class-specific DFT reference anchor offsets from
+        ``pipeline.evidence.pyrolysis_benchmark.class_dft_barrier_offset_eV``.
 
     Args:
         frame: Pyrolysis screening DataFrame.
 
     Returns:
-        Copy of ``frame`` with ``interfacial_carbon_displacement_A`` and
-        ``interfacial_pyrolysis_score_eV`` added when ``c_height_above_surface_A``
-        is available.
+        Copy of ``frame`` with interfacial and DFT-calibrated pyrolysis columns
+        added when ``c_height_above_surface_A`` is available.
     """
+    from pipeline.evidence.pyrolysis_benchmark import class_dft_barrier_offset_eV
+
     result = frame.copy()
     if 'c_height_above_surface_A' not in result.columns:
         return result
@@ -200,8 +206,25 @@ def annotate_interfacial_pyrolysis(frame: pd.DataFrame) -> pd.DataFrame:
     result['interfacial_carbon_displacement_A'] = displacement
     barrier_col = 'E_act_raw' if 'E_act_raw' in result.columns else 'E_act'
     if barrier_col in result.columns:
-        barrier = pd.to_numeric(result[barrier_col], errors='coerce').clip(lower=0.0)
+        raw_barrier = pd.to_numeric(result[barrier_col], errors='coerce')
+        barrier = raw_barrier.clip(lower=0.0)
         result['interfacial_pyrolysis_score_eV'] = barrier + displacement
+        if 'material_class' in result.columns:
+            offsets = result['material_class'].map(
+                lambda cls: float(
+                    class_dft_barrier_offset_eV(
+                        'SolidCatalyst' if pd.isna(cls) else str(cls)
+                    )['anchor_offset_eV']
+                )
+            )
+        else:
+            default_offset = float(
+                class_dft_barrier_offset_eV('SolidCatalyst')['anchor_offset_eV']
+            )
+            offsets = pd.Series(default_offset, index=result.index, dtype=float)
+        calibrated_barrier = (raw_barrier + offsets).clip(lower=0.0)
+        result['calibrated_activation_eV'] = calibrated_barrier
+        result['calibrated_interfacial_score_eV'] = calibrated_barrier + displacement
     return result
 
 
