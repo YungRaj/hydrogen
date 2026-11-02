@@ -631,21 +631,41 @@ def _off_site_carbon_metrics(
 
 
 def validate_carbon_policy(config: ReactorConfig) -> None:
-    """Typed public wrapper for carbon-policy validation."""
+    """Validate carbon-handling policy settings on a reactor configuration.
+
+    Args:
+        config: Reactor configuration to validate.
+    """
     _validate_carbon_policy(config)
 
 
 def load_gas_and_surface(
     config: ReactorConfig,
 ) -> tuple[CanteraGasPhase, object | None, CanteraSurfacePhase | None]:
-    """Typed public wrapper loading Cantera gas, graphite, and surface phases."""
+    """Load Cantera gas, graphite, and catalytic surface phases for a reactor run.
+
+    Args:
+        config: Reactor configuration specifying mechanism and catalyst name.
+
+    Returns:
+        Tuple of `(gas, graphite, surf)` Cantera phase objects.
+    """
     return _load_gas_and_surface(config)
 
 
 def load_status_fields(
     config: ReactorConfig, graphite: object | None, surf: object | None
 ) -> LoadStatusFields:
-    """Typed public wrapper for Cantera phase-loading status fields."""
+    """Return phase-loading status flags for a reactor simulation record.
+
+    Args:
+        config: Reactor configuration supplying `gas_only` and `catalyst_name`.
+        graphite: Loaded Cantera graphite phase or `None`.
+        surf: Loaded Cantera surface phase or `None`.
+
+    Returns:
+        Typed dictionary of phase-loading status fields.
+    """
     return {
         'gas_only': bool(config.gas_only),
         'surface_loaded': surf is not None,
@@ -655,17 +675,38 @@ def load_status_fields(
 
 
 def species_x(gas: CanteraGasPhase, name: str) -> float:
-    """Typed public wrapper returning gas species mole fraction."""
+    """Return the mole fraction of a named species in the gas phase.
+
+    Args:
+        gas: Cantera gas phase instance.
+        name: Gas species identifier.
+
+    Returns:
+        Species mole fraction in `[0, 1]`, or `0.0` if absent.
+    """
     return float(_species_x(gas, name))
 
 
 def surface_coverage(surf: CanteraSurfacePhase | None, name: str) -> float:
-    """Typed public wrapper returning surface species coverage."""
+    """Return the fractional site coverage of a named surface species.
+
+    Args:
+        surf: Cantera catalytic surface phase or `None`.
+        name: Surface species identifier.
+
+    Returns:
+        Fractional coverage in `[0, 1]`, or `0.0` if absent.
+    """
     return float(_coverage(surf, name))
 
 
 def require_ar_tracer(x_ch4_feed: float, x_ar_feed: float) -> None:
-    """Typed public wrapper enforcing argon tracer presence."""
+    """Verify positive methane and argon tracer mole fractions in the feed.
+
+    Args:
+        x_ch4_feed: Inlet methane mole fraction.
+        x_ar_feed: Inlet argon tracer mole fraction.
+    """
     _require_ar_tracer(x_ch4_feed, x_ar_feed)
 
 
@@ -676,32 +717,75 @@ def advance_reactor_stage(
     surface_area_m2: float,
     dt: float,
 ) -> None:
-    """Typed public wrapper advancing one isothermal Cantera stage."""
+    """Advance one isothermal Cantera reactor stage with optional catalytic wall.
+
+    Args:
+        gas: Cantera gas phase for the stage.
+        surf: Cantera catalytic surface phase or `None`.
+        volume_m3: Stage gas volume in cubic meters.
+        surface_area_m2: Stage active catalytic surface area in square meters.
+        dt: Stage residence time in seconds.
+    """
     _advance_reactor_stage(gas, surf, volume_m3, surface_area_m2, dt)
 
 
 def ch4_extent(gas: CanteraGasPhase, x_ch4_feed: float, x_ar_feed: float) -> float:
-    """Typed public wrapper computing argon-tracer CH4 conversion."""
+    """Compute true methane conversion using the inert argon tracer ratio.
+
+    Args:
+        gas: Cantera gas phase at the current stage state.
+        x_ch4_feed: Inlet methane mole fraction.
+        x_ar_feed: Inlet argon tracer mole fraction.
+
+    Returns:
+        Fractional methane conversion in `[0, 1]`.
+    """
     return float(_ch4_extent(gas, x_ch4_feed, x_ar_feed))
 
 
 def mole_fraction_drop(gas: CanteraGasPhase, x_ch4_feed: float) -> float:
-    """Typed public wrapper computing apparent CH4 mole-fraction drop."""
+    """Compute apparent methane mole-fraction drop without molar-expansion correction.
+
+    Args:
+        gas: Cantera gas phase at the current stage state.
+        x_ch4_feed: Inlet methane mole fraction.
+
+    Returns:
+        Apparent relative drop in methane mole fraction.
+    """
     return float(_mole_fraction_drop(gas, x_ch4_feed))
 
 
 def reset_surface_carbon(surf: CanteraSurfacePhase | None) -> None:
-    """Typed public wrapper clearing reversible surface carbon."""
+    """Clear reversible surface carbon (`C_s`) back to vacant sites (`X_s`).
+
+    Args:
+        surf: Cantera catalytic surface phase or `None`.
+    """
     _reset_surface_carbon(surf)
 
 
 def kinetics_evidence(config: ReactorConfig) -> KineticsEvidenceFields:
-    """Typed public wrapper returning kinetic provenance and exclusion flags."""
+    """Construct kinetic evidence tier, limitations, and exclusion-gate metadata.
+
+    Args:
+        config: Reactor configuration for the evaluated candidate.
+
+    Returns:
+        Typed dictionary of kinetic evidence fields.
+    """
     return _kinetics_evidence(config)
 
 
 def policy_metadata(config: ReactorConfig) -> dict[str, object]:
-    """Typed public wrapper returning reactor carbon-policy metadata."""
+    """Build carbon-policy provenance metadata for a reactor simulation output.
+
+    Args:
+        config: Reactor configuration supplying carbon-policy fields.
+
+    Returns:
+        Dictionary of carbon-policy metadata fields.
+    """
     return _policy_metadata(config)
 
 
@@ -721,7 +805,26 @@ def off_site_carbon_metrics(
     removed_surface_carbon_mol: float = 0.0,
     basis: str = 'Gamma*A_stage / (c_CH4*eps*V_stage), PFR parcel',
 ) -> dict[str, object]:
-    """Typed public wrapper for per-pass B5/B6 carbon accounting."""
+    """Compute per-pass B5/B6 off-site carbon closure and filament yield metrics.
+
+    Args:
+        config: Reactor configuration for the evaluated bed.
+        gas: Cantera gas phase at bed exit.
+        surf: Cantera catalytic surface phase or `None`.
+        ch4_initial: Inlet methane mole fraction.
+        ar_initial: Inlet argon tracer mole fraction.
+        pass_conversion: Single-pass methane conversion.
+        n_sites_mol: Total catalytic surface sites in the stage/bed in moles.
+        n_ch4_fed_mol: Methane fed per pass in moles.
+        n_parcel_in_mol: Total gas moles in the inlet parcel.
+        pass_time_s: Single-pass gas residence time in seconds.
+        cov_start: Surface coverage vector at the start of the pass.
+        removed_surface_carbon_mol: Surface carbon removed during the pass in moles.
+        basis: Text label describing the site-to-gas normalization basis.
+
+    Returns:
+        Dictionary of per-pass carbon balance and turnover metrics.
+    """
     return _off_site_carbon_metrics(
         config,
         gas,

@@ -26,7 +26,16 @@ class CanteraGasPhase(Protocol):
     X: npt.NDArray[np.float64]
     species_names: list[str]
 
-    def species_index(self, name: str) -> int: ...
+    def species_index(self, name: str) -> int:
+        """Return the zero-based index of a gas species by name.
+
+        Args:
+            name: Species identifier in the Cantera gas phase.
+
+        Returns:
+            Zero-based species index in `species_names` and `X`.
+        """
+        ...
 
 
 class CanteraSurfacePhase(Protocol):
@@ -36,7 +45,16 @@ class CanteraSurfacePhase(Protocol):
     species_names: list[str]
     n_species: int
 
-    def species_index(self, name: str) -> int: ...
+    def species_index(self, name: str) -> int:
+        """Return the zero-based index of a surface species by name.
+
+        Args:
+            name: Species identifier on the Cantera catalytic interface.
+
+        Returns:
+            Zero-based species index in `species_names` and `coverages`.
+        """
+        ...
 
 
 class LoadStatusFields(TypedDict):
