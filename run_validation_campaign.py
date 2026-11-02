@@ -20,6 +20,8 @@ def main() -> None:
     parser.add_argument('--orr-name')
     parser.add_argument('--orr-structure',
                         help='ASE-readable surface used to emit a site/coverage validation plan')
+    # Quarter-, half-, and full-monolayer surface coverages (0.25, 0.50, 1.00 ML)
+    # spanning dilute to laterally crowded ORR adsorbate regimes on a (2x2) supercell
     parser.add_argument('--orr-coverages', default='0.25,0.5,1.0')
     parser.add_argument('--orr-plan-output', default='orr_validation_plan.json')
     parser.add_argument('--orr-ensemble-results',
@@ -31,6 +33,7 @@ def main() -> None:
                         help='Run the next eligible stages; otherwise report only')
     parser.add_argument('--restart-incomplete', action='store_true',
                         help='Overwrite incomplete ORR outputs (never use while a job is active)')
+    # Default 86,400 s (24 h) per-stage Quantum ESPRESSO wall-clock limit and 4 MPI ranks
     parser.add_argument('--timeout-s', type=int, default=86400)
     parser.add_argument('--mpi-ranks', type=int, default=4)
     parser.add_argument('--omp-threads', type=int, default=1)

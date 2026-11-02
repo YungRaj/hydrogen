@@ -25,6 +25,11 @@ SWEEP_NAMES = (
     'ni_np_b66_agamma_theta',
 )
 
+# Literature base kinetics for supported Ni(111)/SiO2 nanoparticle catalyst:
+# - E_act = 1.0 eV: Bengaard et al., J. Catal. 209 (2002) 365-384 (101 kJ/mol = 1.05 eV TS, rounded to 1.00 eV)
+# - carbon_transfer_prefactor_1_s = 1.0e13 s^-1: k_B T / h single-hop TST lattice-vibration frequency
+# - encapsulation_crossover_coverage = 0.5: half-monolayer theta* crossover where C_delta scales as (theta_C / theta*)^2
+# - ch4_sticking_coefficient = 0.01: reactive CH4 sticking probability s_0 on terrace Ni(111)
 BASE_KINETICS = {
     'E_act': 1.0,
     'carbon_transfer_prefactor_1_s': 1.0e13,
@@ -32,6 +37,12 @@ BASE_KINETICS = {
     'ch4_sticking_coefficient': 0.01,
 }
 
+# B6-6 five-gate acceptance thresholds:
+# 1. Flat gate: |d ln X / d E_act| >= 5.0 eV^-1 (~0.45 * e / (k_B T) at 923 K, ensuring kinetically sensitive regime)
+# 2. Linearity gate: |t_prod - t_large| / mean > 0.20 (20% relative difference in per-site turnovers across cells)
+# 3. Encapsulation onset: exit graphene coverage theta_encap >= 0.10 ML, or filament-to-encap ratio C_gamma / C_delta < 10
+# 4. Lifetime band: 4.0 <= tau_encap <= 50.0 h time-on-stream before deactivation on supported Ni (Takenaka et al., J. Catal. 2003)
+# 5. Filament yield band: 8.0 <= Y_C <= 10.0 g_C/(g_Ni*h) steady-state CNT/nanofiber growth rate (Ermakova et al., Appl. Catal. A 2000)
 FLAT_THRESHOLD_PER_EV = 5.0
 LINEARITY_THRESHOLD = 0.20
 ENCAP_ONSET_THETA = 0.1
@@ -39,7 +50,7 @@ ENCAP_ONSET_RATIO = 10.0
 NI_TOS_LIFETIME_BAND_H = (4.0, 50.0)
 NI_FILAMENT_YIELD_BAND = (8.0, 10.0)
 
-# Neighbours used for the central-difference flat test at E_act = 1.0.
+# Neighbours E_act = 1.0 +/- 0.1 eV (Delta E = 0.2 eV) for the second-order central difference |ln(X_hi/X_lo) / (E_hi - E_lo)|.
 FLAT_E_LO = 0.9
 FLAT_E_HI = 1.1
 FLAT_E_BASE = 1.0
@@ -53,6 +64,7 @@ def _finite(value: Any) -> Optional[float]:
     return number if math.isfinite(number) else None
 
 
+# Relative tolerance 1e-6 and absolute tolerance 1e-12 for floating-point grid-point matching
 def _close(a: Any, b: Any, rel: float = 1e-6, abs_tol: float = 1e-12) -> bool:
     left, right = _finite(a), _finite(b)
     if left is None or right is None:
@@ -448,8 +460,80 @@ def _sweep_counts(payloads: dict) -> dict:
     return counts
 
 
+def evaluate_pbr_and_b4_diagnostics(records: Iterable[dict]) -> dict:
+    """Summarize PBR intraparticle effectiveness, Ergun ΔP, B4 residence-time, and B2 conversion deltas.
+
+    Quantifies packed-bed pellet diffusion limitations (overall effectiveness
+    factor $\\Omega$ and Thiele modulus $\\phi$), coupled Ergun pressure-drop
+    compliance, B4 residence-time pilot-band adherence ($\\tau \\in [0.1, 10]\\text{ s}$),
+    and B2 cycle-averaged vs. single-pass conversion across completed sweep rows.
+
+    Args:
+        records: Iterable of sweep record dictionaries to aggregate.
+
+    Returns:
+        Dictionary summarizing PBR effectiveness, Ergun compliance, B4 pilot-band
+        counts, and B2 cycle-averaged vs. single-pass conversion statistics.
+    """
+    completed = [rec for rec in records if is_complete(rec)]
+    pbr_rows = [rec for rec in completed if rec.get('reactor_type') == 'PBR']
+    omega_vals = [
+        val
+        for val in (_finite(r.get('overall_effectiveness_factor')) for r in pbr_rows)
+        if val is not None
+    ]
+    thiele_vals = [
+        val
+        for val in (_finite(r.get('thiele_modulus')) for r in pbr_rows)
+        if val is not None
+    ]
+    ergun_checked = [r for r in completed if r.get('ergun_ok') is not None]
+    ergun_ok_count = sum(1 for r in ergun_checked if bool(r.get('ergun_ok')))
+    b4_checked = [
+        r for r in completed if r.get('residence_time_within_pilot_band') is not None
+    ]
+    b4_in_band_count = sum(
+        1 for r in b4_checked if bool(r.get('residence_time_within_pilot_band'))
+    )
+    plugging_flagged = sum(
+        1
+        for r in completed
+        if r.get('plugging_risk') in ('moderate', 'high', 'plugged')
+        or bool(r.get('overloaded_bed_warning'))
+    )
+    b2_deltas = []
+    for rec in completed:
+        x_single = _finite(
+            rec.get('single_pass_CH4_conversion', rec.get('CH4_conversion'))
+        )
+        x_cycle = _finite(rec.get('cycle_averaged_CH4_conversion'))
+        if x_single is not None and x_cycle is not None:
+            b2_deltas.append(x_cycle - x_single)
+    return {
+        'n_completed': len(completed),
+        'n_pbr_records': len(pbr_rows),
+        'mean_pbr_overall_effectiveness_factor': (
+            sum(omega_vals) / len(omega_vals) if omega_vals else None
+        ),
+        'mean_pbr_thiele_modulus': (
+            sum(thiele_vals) / len(thiele_vals) if thiele_vals else None
+        ),
+        'n_ergun_checked': len(ergun_checked),
+        'n_ergun_ok': ergun_ok_count,
+        'n_b4_checked': len(b4_checked),
+        'n_b4_within_pilot_band': b4_in_band_count,
+        'n_plugging_or_overloaded_flagged': plugging_flagged,
+        'mean_b2_cycle_minus_single_pass_X': (
+            sum(b2_deltas) / len(b2_deltas) if b2_deltas else None
+        ),
+    }
+
+
 def evaluate_criteria(payloads: dict) -> dict:
     """Score the five B6-6 gates on already-loaded run payloads.
+
+    Args:
+        payloads: Mapping from sweep name to loaded run.json payload dictionary.
 
     Returns:
         Validated dict output for this operation.
@@ -475,6 +559,7 @@ def evaluate_criteria(payloads: dict) -> dict:
             'and are not scored as successes'
         ),
         'criteria': {c['name']: c for c in criteria},
+        'pbr_b4_diagnostics': evaluate_pbr_and_b4_diagnostics(records),
         'n_pass': sum(1 for c in criteria if c['pass']),
         'n_fail': sum(1 for c in criteria if not c['pass']),
     }

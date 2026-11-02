@@ -27,8 +27,12 @@ from pipeline.reactors.sweeps.carbon_criteria import (
 )
 
 JOINT_SWEEP = 'ni_np_b67_joint'
+# Band widths W_Y = 10.0 - 8.0 = 2.0 g_C/(g_Ni*h) and W_tau = 50.0 - 4.0 = 46.0 h
+# used to normalize distances in the dimensionless Euclidean miss metric.
 YIELD_WIDTH = NI_FILAMENT_YIELD_BAND[1] - NI_FILAMENT_YIELD_BAND[0]
 LIFE_WIDTH = NI_TOS_LIFETIME_BAND_H[1] - NI_TOS_LIFETIME_BAND_H[0]
+# Supported-Ni filamentous carbon temperature window: 650-700 °C (923.15-973.15 K;
+# Alves et al. 2021; Xu et al. 2021) where CNT/CNF growth outcompetes encapsulation.
 ROI_T_MIN = 923.15
 ROI_T_MAX = 973.15
 
@@ -43,7 +47,7 @@ def _distance_to_band(value: Optional[float], lo: float, hi: float) -> Optional[
 
 
 def _normalized_miss(record: dict) -> Optional[float]:
-    """0 if both bands hit; else hypot of yield/life distances over band widths."""
+    """0 if both bands hit; else dimensionless Euclidean miss sqrt((dY/W_Y)^2 + (dtau/W_tau)^2)."""
     y = _distance_to_band(
         record.get('filament_yield_gC_per_gMetal_h'), *NI_FILAMENT_YIELD_BAND
     )

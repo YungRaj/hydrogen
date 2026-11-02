@@ -65,6 +65,9 @@ def _reactor_temperatures(mode: str) -> list[float]:
     return list(reactor_temperatures_for_mode(mode))
 
 
+# Per-stage candidate evaluation caps balancing 14-class coverage with compute budget:
+# top 20 pyrolysis catalysts for Phase 2 Cantera sweeps, top 5 champions with explicit
+# FCIDUMP Hamiltonians for Phase 4 CUDA-Q VQE, and top 30 ORR cathodes for Phase 5B PEMFC.
 MAX_REACTOR_CANDIDATES = 20
 MAX_VQE_CANDIDATES = 5
 PEMFC_CANDIDATES = 30
@@ -273,6 +276,8 @@ def _tea_estimates(reactor_results: list) -> list:
     tea_results = []
     for r in reactor_results:
         conv = r.get('best_conversion', 0)
+        # 1% single-pass CH4 conversion minimum floor: below X = 0.01, PSA recycle
+        # ratio (1 - X)/X > 99 causes recycle compression cost to diverge.
         if conv > 0.01:
             estimate = estimate_scenario_range(conv)
             tea_results.append({
@@ -479,6 +484,10 @@ def _calibrate_ranker_from_dft(
             raw_base = src.get('E_act', 1.0) if hasattr(src, 'get') else 1.0
             base_e = float(raw_base) if pd.notna(raw_base) else 1.0
             raw_dft = r.get('E_act_dft')
+            # When screening DFT finishes slab relaxation without a full NEB barrier,
+            # apply a conservative force-residual shift (+0.10 eV per Ry/bohr of
+            # residual Hellmann-Feynman force, floored at the 0.05 eV clip floor);
+            # E_act <= 1.0 eV (~Bengaard Ni(111) reference) marks productive sites.
             dft_e_act = (
                 float(raw_dft)
                 if pd.notna(raw_dft)
@@ -754,6 +763,7 @@ def _model_pemfc_stack(pipeline_state: dict, top_fc) -> None:
         name = str(row.get('candidate_id', ''))
         if not name or Path(name).name != name:
             raise ValueError('PEMFC candidate_id is missing or unsafe')
+        # Default 0.40 V ORR overpotential (~Pt(111) CHE benchmark, Nørskov et al. 2004)
         eta = row.get('orr_overpotential_V', 0.4)
         mat_cls = row.get('material_class', None)
         mem = sweep_membranes(name, eta, material_class=mat_cls)
@@ -762,6 +772,8 @@ def _model_pemfc_stack(pipeline_state: dict, top_fc) -> None:
         return
 
     best = max(pemfc_results, key=composite_score)
+    # 400-cell heavy-duty automotive PEMFC stack at nominal rated operating point
+    # (0.65 V/cell, 1.5 A/cm² fallback when peak polarization metrics are absent)
     stack = model_stack(
         StackConfig(
             n_cells=400,

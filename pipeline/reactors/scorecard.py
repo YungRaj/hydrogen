@@ -34,6 +34,9 @@ class InfoLogger(Protocol):
 
 
 SOLIDS_TYPES = frozenset({'PFR', 'PBR', 'Fluidized'})
+# H-parked site-poisoning filter: candidates clipped at the BEP floor (E_act <= 0.05 eV)
+# with overly strong or unphysical hydrogen binding (|dE_H| >= 2.0 eV vs. 1/2 H2(g))
+# lock active sites as H(s) or reflect unrelaxed geometries, and cannot hold a solids rank.
 H_PARKED_E_ACT_MAX = 0.05
 H_PARKED_ABS_DEH_MIN = 2.0
 # High-T end of the standard 4-point pyrolysis sweep (773, 900, 1100, 1300).
@@ -431,6 +434,8 @@ def evaluate_b5_closure_gate(
     b66_summary: Mapping[str, object] | None = None,
     joint_summary: Mapping[str, object] | None = None,
     *,
+    # 50% single-pass CH4 conversion threshold in the 650-700 °C supported-Ni
+    # filament ROI (Alves et al. 2021; Xu et al. 2021; X_eq(973 K, 1 atm) ≈ 0.78)
     min_roi_conversion: float = 0.50,
 ) -> B5ClosureGateResult:
     """Evaluate whether B5 solids closure criteria are met by reactor evidence.

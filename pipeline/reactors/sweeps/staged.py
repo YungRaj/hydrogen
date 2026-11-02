@@ -204,6 +204,9 @@ def _extend_bounds(coarse_levels: Sequence[float], lo: float, hi: float) -> tupl
     levels = sorted(float(x) for x in coarse_levels)
     if len(levels) < 2:
         return lo, hi
+    # When the high-scoring band touches the lower or upper coarse-grid boundary
+    # (within 1e-7 relative tolerance), extrapolate one geometric step x_0 * (x_0 / x_1)
+    # for positive levers or one linear step x_0 - (x_1 - x_0) otherwise.
     if lo <= levels[0] * 1.0000001:
         if levels[0] > 0 and levels[1] > 0:
             lo = levels[0] * (levels[0] / levels[1])

@@ -34,7 +34,7 @@ catalyst:
 
 conditions:
   temperatures_K: [773.15, 900, 923.15, 948.15, 973.15, 1100, 1300]
-  reactors: [PFR]
+  reactors: [PFR, PBR]
 
 policy:
   co2_permitted: false

@@ -56,8 +56,10 @@ def run_eact_sweep(
         Validated Dict output for this operation.
     """
     if temperatures is None:
+        # ADR 0001 high-temperature pyrolysis ceiling (1300 K)
         temperatures = [1300.0]
     if e_acts_eV is None:
+        # 20-point uniform CH4 C-H activation barrier grid from 0.10 to 2.00 eV (0.10 eV step)
         e_acts_eV = list(np.round(np.linspace(0.1, 2.0, 20), 3))
     if reactor_types is None:
         reactor_types = ['MMBCR', 'PFR', 'PBR', 'Fluidized']
@@ -130,7 +132,7 @@ def run_eact_sweep(
             x_low = xs[0] if xs else None  # lowest E_act
             x_high = xs[-1] if xs else None
             span = (max(xs) - min(xs)) if xs else 0.0
-            # Monotonic decreasing in E_act?
+            # Monotonic decreasing in E_act (within 1e-9 numerical ODE tolerance)?
             mono = (
                 all(xs[i] >= xs[i + 1] - 1e-9 for i in range(len(xs) - 1))
                 if len(xs) > 1
@@ -139,6 +141,9 @@ def run_eact_sweep(
             frac_of_eq = (
                 (x_low / x_eq) if (x_eq and x_low is not None and x_eq > 0) else None
             )
+            # Sigmoid discrimination gate: conversion span across [0.1, 2.0] eV must exceed
+            # 5 percentage points (Delta X > 0.05), low-barrier conversion must reach >50% of
+            # equilibrium (X(E_min)/X_eq > 0.50), and X(E_act) must decrease monotonically.
             discriminating = bool(
                 span > 0.05 and frac_of_eq is not None and frac_of_eq > 0.5 and mono
             )

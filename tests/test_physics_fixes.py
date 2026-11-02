@@ -1090,7 +1090,35 @@ def test_second_pass_assumption_fixes(tmp_path):
     tea_low_t = estimate_hydrogen_cost(0.80, 'base', temperature_K=973.15)
     assert tea_high_t['energy_input_kwh_kg_h2'] > tea_low_t['energy_input_kwh_kg_h2']
 
+    # 10. PBR/B4/B2 sweep diagnostics and class-anchored DFT pyrolysis calibration
+    from pipeline.evidence.pyrolysis_benchmark import (
+        calibrated_interfacial_pyrolysis_score_eV,
+        class_dft_barrier_offset_eV,
+    )
+    from pipeline.reactors.sweeps.carbon_criteria import evaluate_pbr_and_b4_diagnostics
 
-
-
-
+    diag = evaluate_pbr_and_b4_diagnostics([
+        {
+            'status': 'complete',
+            'reactor_type': 'PBR',
+            'overall_effectiveness_factor': 0.72,
+            'thiele_modulus': 1.4,
+            'ergun_ok': True,
+            'residence_time_within_pilot_band': True,
+            'plugging_risk': 'low',
+            'single_pass_CH4_conversion': 0.42,
+            'cycle_averaged_CH4_conversion': 0.39,
+        }
+    ])
+    assert diag['n_pbr_records'] == 1
+    assert diag['mean_pbr_overall_effectiveness_factor'] == pytest.approx(0.72)
+    assert diag['n_b4_within_pilot_band'] == 1
+    assert diag['mean_b2_cycle_minus_single_pass_X'] == pytest.approx(-0.03)
+    ni_anchor = class_dft_barrier_offset_eV('SolidCatalyst')
+    assert ni_anchor['anchor_offset_eV'] == pytest.approx(1.05 - 0.386)
+    cal_score = calibrated_interfacial_pyrolysis_score_eV({
+        'material_class': 'SolidCatalyst',
+        'E_act_raw': 0.386,
+        'c_height_above_surface_A': 0.20,
+    })
+    assert cal_score['calibrated_interfacial_score_eV'] == pytest.approx(1.25)

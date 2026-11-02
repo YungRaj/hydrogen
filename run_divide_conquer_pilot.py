@@ -35,6 +35,8 @@ BASELINE_OUTCOMES = {
     'turquoise_hydrogen': Path('results/screening/branch_calibration.csv'),
     'fuel_cell_orr': Path('results/fuel_cell/prospective/smoke-relax-v4-20261009_orr.csv'),
 }
+# Top-quintile hit definition: a candidate is a "hit" if its metric ranks in the
+# best 20% of metric-eligible candidates in the batch, k = ceil(0.20 * N_eligible).
 HIT_FRACTION = 0.20
 # The policy identity is the full import closure of this runner, locked at
 # campaign launch (``lock-policy``), so no imported module can drift
@@ -304,6 +306,8 @@ def _select_policies(
     )
     _, uncertainty = ranker.predict(pool)
     genomes = [ast.literal_eval(raw) for raw in all_train.genome]
+    # Balanced 256-tree ExtraTrees validity classifier (min_samples_leaf=2,
+    # full feature set max_features=1.0, fixed seed 20260722) estimating P(valid | x).
     validity = ExtraTreesClassifier(
         n_estimators=256,
         min_samples_leaf=2,
@@ -356,6 +360,7 @@ def _select_policies(
         },
         'ranker_diagnostics': asdict(ranker.diagnostics),
         'random_seed': random_seed,
+        # M = 50,000 stratified random draws for the one-sided α = 0.05 permutation test
         'random_trials': 50000,
         'random_one_sided_alpha': 0.05,
     }
@@ -728,6 +733,9 @@ def rescore_campaign() -> Path:
             for policy in ('catalyst', 'uncertainty', 'validity')
         }
         observed = policy_hits['catalyst']
+        # Central 95% empirical interval [Q_0.025, Q_0.975] of the null hit sum,
+        # and Phipson-Smyth finite-sample Monte Carlo p-value (Phipson & Smyth,
+        # Stat. Appl. Genet. Mol. Biol. 2010): p = (1 + #{H_rand >= H_obs}) / (M + 1).
         pooled.append({
             'application': app,
             'policy_hits': policy_hits,
@@ -787,6 +795,8 @@ def replay_and_power() -> Path:
             random_by_app[app].append(random_hits)
         replayed.append({'batch_id': batch, 'results': results})
 
+    # Fixed seed 20261008 with B = 2,000 bootstrap replicates and M_null = 1,000
+    # null draws per replicate to estimate campaign power 1 - beta at alpha = 0.05.
     rng = np.random.default_rng(20261008)
     bootstrap_replicates = 2000
     null_trials = 1000
@@ -843,6 +853,7 @@ def replay_and_power() -> Path:
                 str(batch_count): estimate(without_powered, batch_count)
                 for batch_count in (10, 15, 20, 25, 30, 35, 40)
             },
+            # Standard 1 - beta >= 0.80 (80% statistical power) threshold for confirmatory launch
             'confirmatory_recommendation': leave_batch_04_out_power >= .80,
         })
     output = ROOT / 'fixed_policy_replay.json'

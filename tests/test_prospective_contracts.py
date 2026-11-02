@@ -20,7 +20,9 @@ from pipeline.evidence.orr_quality_diagnostic import verify_diagnostic
 from pipeline.evidence.pyrolysis_benchmark import (
     analyze_interfacial_pyrolysis_benchmark,
     analyze_screening_results,
+    calibrated_interfacial_pyrolysis_score_eV,
     calibrated_rate_free_energy_span_eV,
+    class_dft_barrier_offset_eV,
     dataset_digest,
     dft_anchor_offset_eV,
     effective_barrier_eV,
@@ -232,6 +234,19 @@ class ProspectiveContracts(unittest.TestCase):
         )
         self.assertEqual(calibrated['dominant_limiting_step'], 'methane_activation')
         self.assertEqual(calibrated['anchor_source'], 'doi:10.1021/acscatal.9b01833')
+        molten_anchor = class_dft_barrier_offset_eV('MoltenMetal', temperature_K=temp_K)
+        solid_anchor = class_dft_barrier_offset_eV('SolidCatalyst', temperature_K=temp_K)
+        self.assertAlmostEqual(molten_anchor['anchor_offset_eV'], offset, places=6)
+        self.assertAlmostEqual(solid_anchor['anchor_offset_eV'], 1.05 - 0.386, places=6)
+        scored_solid = calibrated_interfacial_pyrolysis_score_eV({
+            'material_class': 'SolidCatalyst',
+            'E_act_raw': 0.386,
+            'c_height_above_surface_A': -0.15,
+        })
+        self.assertAlmostEqual(scored_solid['calibrated_activation_eV'], 1.05, places=6)
+        self.assertAlmostEqual(
+            scored_solid['calibrated_interfacial_score_eV'], 1.05 + 0.15, places=6
+        )
 
     def test_roc_auc_handles_ties(self) -> None:
         self.assertEqual(roc_auc([True, False], [1.0, 0.0]), 1.0)

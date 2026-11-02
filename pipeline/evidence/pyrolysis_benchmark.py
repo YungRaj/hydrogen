@@ -270,6 +270,65 @@ def energetic_span_eV(row: dict[str, Any]) -> float:
     return max(e_act, -2.0 * d_e_h + h2_mu, dg_c, -dg_c, 0.0)
 
 
+# Literature DFT transition-state anchors vs. eSEN-sm-conserving-all MLIP/BEP barriers:
+# - Solid Ni(111) terrace CH4 -> CH3* + H* TS: 101 kJ/mol = 1.05 eV (Bengaard et al., J. Catal. 209, 2002)
+#   vs. 0.386 eV eSEN climbing-image NEB (docs/evidence/molten_neb_calibration_lock.json; Delta E = +0.664 eV).
+# - Molten Cu45Bi55 alloy CH4 TS at 1273 K: [2.53, 2.60] eV (Palmer et al., ACS Catal. 9, 2019; J. Phys. Chem. C 2020)
+#   vs. 5-replica eSEN barriers on Cu45Bi55 at 1273.15 K (docs/evidence/pyrolysis_descriptor_benchmark.json).
+SOLID_NI111_DFT_BARRIER_EV = 1.05
+SOLID_NI111_ESEN_NEB_BARRIER_EV = 0.386
+MOLTEN_CU45BI55_DFT_BARRIERS_EV = (2.53, 2.60)
+MOLTEN_CU45BI55_ESEN_REPLICA_BARRIERS_EV = (
+    1.6259,
+    1.2933,
+    1.4835,
+    1.3954,
+    1.3462,
+)
+
+
+def class_dft_barrier_offset_eV(
+    material_class: str, temperature_K: float = 1273.15
+) -> dict[str, Any]:
+    """Return the literature DFT minus MLIP/BEP activation-barrier offset for a catalyst class.
+
+    Uses the Palmer et al. (2019/2020) $\\text{Cu}_{45}\\text{Bi}_{55}$ ab initio MD NEB
+    anchor ($[2.53, 2.60]\\text{ eV}$) for ``'MoltenMetal'`` and the Bengaard et al. (2002)
+    $\\text{Ni}(111)$ terrace DFT NEB anchor ($1.05\\text{ eV}$ vs. $0.386\\text{ eV}$ eSEN
+    CI-NEB) for solid catalyst classes.
+
+    Args:
+        material_class: Catalyst material class identifier (e.g., ``'MoltenMetal'`` or ``'SolidCatalyst'``).
+        temperature_K: Absolute temperature in K used for Boltzmann rate averaging of replica anchors.
+
+    Returns:
+        Dictionary containing ``material_class``, ``anchor_offset_eV``, ``reference_barrier_eV``,
+        ``predicted_barrier_eV``, and ``anchor_source``.
+    """
+    if not str(material_class).strip():
+        raise ValueError('material_class must be non-empty')
+    if temperature_K <= 0.0 or not math.isfinite(float(temperature_K)):
+        raise ValueError('temperature_K must be positive and finite')
+    cls_name = str(material_class).strip()
+    if cls_name == 'MoltenMetal':
+        ref_barriers = list(MOLTEN_CU45BI55_DFT_BARRIERS_EV)
+        pred_barriers = list(MOLTEN_CU45BI55_ESEN_REPLICA_BARRIERS_EV)
+        source = 'palmer_2019_2020_cu45bi55_aimd_neb'
+    else:
+        ref_barriers = [SOLID_NI111_DFT_BARRIER_EV]
+        pred_barriers = [SOLID_NI111_ESEN_NEB_BARRIER_EV]
+        source = 'bengaard_2002_ni111_terrace_neb'
+    ref_eff = effective_barrier_eV(ref_barriers, float(temperature_K))
+    pred_eff = effective_barrier_eV(pred_barriers, float(temperature_K))
+    return {
+        'material_class': cls_name,
+        'anchor_offset_eV': float(ref_eff - pred_eff),
+        'reference_barrier_eV': float(ref_eff),
+        'predicted_barrier_eV': float(pred_eff),
+        'anchor_source': source,
+    }
+
+
 def interfacial_carbon_displacement_A(row: dict[str, Any]) -> float:
     """Return the absolute vertical displacement of C* from the top melt/surface plane.
 
@@ -321,6 +380,58 @@ def interfacial_pyrolysis_score_eV(row: dict[str, Any]) -> float:
     if not math.isfinite(e_act):
         raise ValueError('missing finite interfacial pyrolysis score input')
     return max(e_act, 0.0) + interfacial_carbon_displacement_A(row)
+
+
+def calibrated_interfacial_pyrolysis_score_eV(row: dict[str, Any]) -> dict[str, Any]:
+    """Return the class-anchored DFT-calibrated activation + interfacial carbon score.
+
+    Applies the literature DFT anchor offset $\\Delta E_{\\text{anchor}}$ for the
+    row's ``material_class`` (Palmer $\\text{Cu}_{45}\\text{Bi}_{55}$ for ``'MoltenMetal'``,
+    Bengaard $\\text{Ni}(111)$ for solid classes) to ``E_act_raw`` before adding the
+    unit-stiffness ($1\\text{ eV/\\AA}$) interfacial carbon displacement penalty
+    $|z_{\\text{C}} - z_{\\text{surf}}|$.
+
+    Args:
+        row: Completed pyrolysis screening result containing ``E_act_raw`` and
+            ``c_height_above_surface_A``.
+
+    Returns:
+        Dictionary with ``calibrated_interfacial_score_eV``,
+        ``uncalibrated_interfacial_score_eV``, ``calibrated_activation_eV``,
+        ``interfacial_carbon_displacement_A``, ``anchor_offset_eV``, and ``anchor_source``.
+    """
+    uncalibrated = interfacial_pyrolysis_score_eV(row)
+    displacement = interfacial_carbon_displacement_A(row)
+    e_act_raw = float(row['E_act_raw'])
+    mat_class = str(row.get('material_class') or '').strip()
+    if not mat_class and 'genome' in row:
+        try:
+            parsed = ast.literal_eval(str(row['genome']))
+            if isinstance(parsed, tuple) and parsed:
+                mat_class = str(parsed[0])
+        except (SyntaxError, ValueError, TypeError):
+            mat_class = ''
+    if not mat_class:
+        mat_class = 'SolidCatalyst'
+    temp_raw = row.get('temperature_K')
+    temperature_K = 1273.15
+    if temp_raw is not None:
+        try:
+            cand_t = float(temp_raw)
+            if math.isfinite(cand_t) and cand_t > 0.0:
+                temperature_K = cand_t
+        except (TypeError, ValueError):
+            pass
+    anchor = class_dft_barrier_offset_eV(mat_class, temperature_K=temperature_K)
+    cal_act = max(0.0, e_act_raw + float(anchor['anchor_offset_eV']))
+    return {
+        'calibrated_interfacial_score_eV': float(cal_act + displacement),
+        'uncalibrated_interfacial_score_eV': float(uncalibrated),
+        'calibrated_activation_eV': float(cal_act),
+        'interfacial_carbon_displacement_A': float(displacement),
+        'anchor_offset_eV': float(anchor['anchor_offset_eV']),
+        'anchor_source': str(anchor['anchor_source']),
+    }
 
 
 def roc_auc(labels: list[bool], scores: list[float]) -> float:

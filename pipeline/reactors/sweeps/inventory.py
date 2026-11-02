@@ -43,6 +43,8 @@ SWEEP_NAME = 'inventory_b1'
 PROBE_INDEX = 9
 CONTROL_INDEX = 40
 SOLIDS_TYPES = ('PFR', 'PBR', 'Fluidized')
+# ADR 0001 solids pyrolysis temperature endpoints (500 °C = 773.15 K and 1027 °C = 1300.0 K)
+# plus intermediate 1100.0 K point in the targeted ROI refinement stage.
 COARSE_TEMPERATURES = (773.15, 1300.0)
 TARGETED_TEMPERATURES = (773.15, 1100.0, 1300.0)
 LEGACY_COARSE = 'inventory_sweep_b1_2.json'
@@ -69,6 +71,10 @@ def inventory_spec() -> SweepSpec:
             and r.get('reactor_type') == 'PFR'
             and (r.get('T_K') or 0) >= 1200
         ),
+        # Retain cells achieving >= 30% of the maximum coarse-grid CH4 conversion
+        # and densify each lever to 6 levels within physical bounds:
+        # d_p in [0.05, 2.0] mm (Geldart A/B powder to 2 mm packed-bed pellet),
+        # w_m in [0, 1] mass fraction, and D in [0, 1] surface dispersion fraction.
         keep_fraction_of_max=0.30,
         n_targeted_per_lever=6,
         hard_bounds={

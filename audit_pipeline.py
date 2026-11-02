@@ -311,6 +311,8 @@ for cls in ALL_14:
                 cost_fenton_failures.append(f"{cls}: cost NaN/Inf")
             if np.isnan(fenton) or np.isinf(fenton):
                 cost_fenton_failures.append(f"{cls}: fenton NaN/Inf")
+            # Fenton radical-generation penalty index is bounded on [0, 10]
+            # (0 = inert noble metal Pt/Ir, 10 = maximum Fe²⁺/Cu⁺ H₂O₂ cleavage risk)
             if not (0 <= fenton <= 10):
                 cost_fenton_failures.append(f"{cls}: fenton={fenton} out of [0,10]")
         except Exception as ex:
@@ -333,6 +335,7 @@ from pipeline.fuel_cell.pemfc import sweep_membranes
 pemfc_failures = []
 for cls in ALL_14:
     try:
+        # Probe all 5 membranes at a moderate 0.50 V kinetic ORR overpotential
         results = sweep_membranes(
             cathode_name=f"audit_{cls}", orr_eta=0.5, material_class=cls
         )
@@ -441,6 +444,7 @@ print("\n═══ DESIGN SPACE AUDIT ═══")
 
 from pipeline.evidence.design_space_audit import audit_design_space
 
+# Sample 2^10 = 1,024 indexed candidates per class across all 14 classes (14,336 total)
 design_audit = audit_design_space(sample_per_class=1024)
 check(
     "All 14 design classes remain sizable and provenance-backed",
