@@ -229,3 +229,102 @@ def test_campaign_and_orchestrator_share_temperatures_judge_and_selectors():
     assert 'select_for_pyrolysis_reactor' in Path(campaign.__file__).read_text()
     assert 'run_report_stage' in Path(campaign.__file__).read_text()
 
+
+def test_pbr_wired_into_campaign_and_cantera_simulation(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from typing import get_type_hints
+
+    import run_production_campaign as campaign
+    from pipeline.data_models.reactors import (
+        PBRPelletEffectivenessMetrics,
+        ReactorResult,
+    )
+    from pipeline.reactors import mechanisms as reactor_mechanisms
+    from pipeline.reactors import models as reactor_models
+    from pipeline.reactors.modes import reactor_types_for_mode
+    from pipeline.reactors.pbr import pbr_pellet_effectiveness, simulate_pbr
+    from pipeline.reactors.scorecard import build_solids_scorecard
+
+    assert (
+        get_type_hints(pbr_pellet_effectiveness)['return']
+        is PBRPelletEffectivenessMetrics
+    )
+    assert get_type_hints(simulate_pbr)['return'] is ReactorResult
+    assert reactor_types_for_mode('thermocatalytic') == ('PFR', 'PBR', 'Fluidized')
+    assert reactor_types_for_mode('thermocatalytic_pbr') == ('PBR',)
+
+    seen_reactors = []
+
+    def fake_simulate(row, name, temperatures, **kwargs):
+        seen_reactors.append((name, tuple(kwargs.get('reactor_types', ()))))
+        return {'sweep': [{'catalyst_name': name, 'reactor_type': 'PBR', 'T_K': 973.15}]}
+
+    pbr_args = SimpleNamespace(
+        mode='thermocatalytic_pbr', multiphysics_results_dir=None
+    )
+    pbr_records = []
+    campaign._simulate_judge_reference(pbr_args, fake_simulate, pbr_records)
+    assert seen_reactors == [('ni_np_lit', ('PBR',))]
+
+    monkeypatch.setattr(reactor_mechanisms, 'MECHANISMS_DIR', tmp_path)
+    monkeypatch.setattr(reactor_models, 'save_json', lambda *args, **kwargs: None)
+    mech = reactor_mechanisms.write_full_mechanism(
+        'pbr_ni_test', E_act_CH4=0.75, T_ref=973.15
+    )
+
+    fine_cfg = reactor_models.ReactorConfig(
+        T_inlet_K=1073.15,
+        reactor_type='PBR',
+        pathway_mode='thermocatalytic_pbr',
+        material_class='SolidCatalyst',
+        mechanism_file=str(mech),
+        catalyst_name='pbr_ni_test',
+        candidate_id='pbr_ni_test',
+        catalyst_particle_mm=0.5,
+        pellet_porosity=0.45,
+        pellet_tortuosity=3.0,
+        pellet_pore_radius_nm=10.0,
+    )
+    coarse_cfg = reactor_models.ReactorConfig(
+        T_inlet_K=1073.15,
+        reactor_type='PBR',
+        pathway_mode='thermocatalytic_pbr',
+        material_class='SolidCatalyst',
+        mechanism_file=str(mech),
+        catalyst_name='pbr_ni_test',
+        candidate_id='pbr_ni_test',
+        catalyst_particle_mm=4.0,
+        pellet_porosity=0.25,
+        pellet_tortuosity=5.0,
+        pellet_pore_radius_nm=3.0,
+    )
+    fine_res = reactor_models.simulate_reactor(fine_cfg)
+    coarse_res = reactor_models.simulate_reactor(coarse_cfg)
+
+    assert fine_res['status'] == 'complete'
+    assert coarse_res['status'] == 'complete'
+    assert fine_res['reactor_type'] == 'PBR'
+    assert fine_res['catalyst_weight_kg'] > 0.0
+    assert fine_res['WHSV_mass_kg_feed_per_kg_cat_h'] > 0.0
+    assert fine_res['coupled_ergun_delta_p_Pa'] > 0.0
+    assert fine_res['exit_P_Pa'] < fine_res['P_Pa']
+    assert coarse_res['thiele_modulus'] > fine_res['thiele_modulus'] > 0.0
+    assert (
+        0.0
+        < coarse_res['overall_effectiveness_factor']
+        < fine_res['overall_effectiveness_factor']
+        <= 1.0
+    )
+    assert coarse_res['CH4_conversion'] < fine_res['CH4_conversion']
+
+    scorecard = build_solids_scorecard(
+        [fine_res],
+        judge_catalyst='pbr_ni_test',
+        headline_t_min=900.0,
+        headline_t_max=1100.0,
+    )
+    assert scorecard['n_solids_records'] == 1
+    assert 'PBR' in scorecard['headline']
+    assert scorecard['headline_solids_conversion'] == fine_res['single_pass_CH4_conversion']
+
+

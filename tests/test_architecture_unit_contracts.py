@@ -198,6 +198,7 @@ def test_data_models_are_the_initial_strict_type_checking_boundary():
     assert config['typeCheckingMode'] == 'strict'
     assert config['pythonVersion'] == '3.10'
     assert 'pipeline/data_models' in config['include']
+    assert 'pipeline/reactors/pbr.py' in config['include']
     assert 'pipeline/stages/contracts.py' in config['include']
 
 
@@ -315,12 +316,15 @@ def test_discovery_reactor_and_solver_artifacts_have_named_contracts():
         B5ClosureGateResult,
         CarbonPolicyConfig,
         MlipNebValidationRecord,
+        PBRPelletEffectivenessMetrics,
         PyrolysisValidationArtifact,
+        ReactorResult,
         SolidsMetricRow,
         SolidsScorecard,
     )
     from pipeline.data_models.stages import CandidateSelection
     from pipeline.electrochemistry.cantera_coupling import run_coupling_step
+    from pipeline.reactors.pbr import pbr_pellet_effectiveness, simulate_pbr
     from pipeline.reactors.scorecard import (
         build_solids_scorecard,
         evaluate_b5_closure_gate,
@@ -341,6 +345,23 @@ def test_discovery_reactor_and_solver_artifacts_have_named_contracts():
     assert get_type_hints(metric_row)['return'] is SolidsMetricRow
     assert get_type_hints(build_solids_scorecard)['return'] is SolidsScorecard
     assert get_type_hints(evaluate_b5_closure_gate)['return'] is B5ClosureGateResult
+    assert (
+        get_type_hints(pbr_pellet_effectiveness)['return']
+        is PBRPelletEffectivenessMetrics
+    )
+    assert get_type_hints(simulate_pbr)['return'] is ReactorResult
+    assert {
+        'thiele_modulus',
+        'internal_effectiveness_factor',
+        'overall_effectiveness_factor',
+        'external_damkohler_number',
+        'external_mass_transfer_coeff_m_s',
+        'effective_diffusivity_m2_s',
+        'knudsen_diffusivity_m2_s',
+        'molecular_diffusivity_m2_s',
+        'sherwood_number',
+        'particle_reynolds_number',
+    } == PBRPelletEffectivenessMetrics.__required_keys__
     assert (
         get_type_hints(compute_candidate_mlip_neb)['return'] is MlipNebValidationRecord
     )
@@ -485,17 +506,65 @@ def test_reactor_model_decomposition_preserves_the_public_boundary():
     from pipeline.reactors import reactor_core
     from pipeline.reactors.fluidized_bed import simulate_fluidized_bed
     from pipeline.reactors.mmbcr import simulate_mmbcr
+    from pipeline.reactors.pbr import pbr_pellet_effectiveness, simulate_pbr
     from pipeline.reactors.pfr import simulate_pfr
 
     assert models.ReactorConfig is reactor_core.ReactorConfig
     assert models.DEFAULT_SOLIDS_PARTICLE_MM == (
         reactor_core.DEFAULT_SOLIDS_PARTICLE_MM
     )
-    for implementation in (simulate_mmbcr, simulate_pfr, simulate_fluidized_bed):
+    for implementation in (
+        simulate_mmbcr,
+        simulate_pfr,
+        simulate_pbr,
+        simulate_fluidized_bed,
+    ):
         assert callable(implementation)
+    assert callable(models.simulate_pbr)
+    assert models.simulate_pbr.__module__ == 'pipeline.reactors.models'
     # The stable facade owns routing and sweep persistence; algorithms do not.
     assert models.simulate_reactor.__module__ == 'pipeline.reactors.models'
     assert models.run_reactor_sweep.__module__ == 'pipeline.reactors.models'
+
+    fine_pellet = pbr_pellet_effectiveness(
+        models.ReactorConfig(
+            reactor_type='PBR',
+            catalyst_particle_mm=1.0,
+            pellet_porosity=0.45,
+            pellet_tortuosity=3.0,
+            pellet_pore_radius_nm=10.0,
+        ),
+        1073.15,
+        101325.0,
+        0.35,
+        0.40,
+    )
+    coarse_pellet = pbr_pellet_effectiveness(
+        models.ReactorConfig(
+            reactor_type='PBR',
+            catalyst_particle_mm=5.0,
+            pellet_porosity=0.45,
+            pellet_tortuosity=3.0,
+            pellet_pore_radius_nm=10.0,
+        ),
+        1073.15,
+        101325.0,
+        0.35,
+        0.40,
+    )
+    assert fine_pellet['thiele_modulus'] > 0.0
+    assert coarse_pellet['thiele_modulus'] > fine_pellet['thiele_modulus']
+    assert (
+        0.0
+        < coarse_pellet['internal_effectiveness_factor']
+        < fine_pellet['internal_effectiveness_factor']
+        <= 1.0
+    )
+    assert (
+        0.0
+        < coarse_pellet['overall_effectiveness_factor']
+        <= coarse_pellet['internal_effectiveness_factor']
+    )
 
 
 def test_every_pipeline_module_imports_without_starting_external_processes():

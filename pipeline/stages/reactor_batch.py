@@ -125,7 +125,7 @@ def run_reactor_batch_stage(
         if (
             judge_catalyst
             and services.load_reference_candidate is not None
-            and {'PFR', 'Fluidized'}.intersection(reactor_types)
+            and {'PFR', 'PBR', 'Fluidized'}.intersection(reactor_types)
             and not any(name == judge_catalyst for name, _ in named_rows)
         ):
             reference = services.load_reference_candidate(judge_catalyst)

@@ -3316,9 +3316,10 @@ cells:
 def test_yaml_sweep_splits_reactors_by_pathway_mode():
     from pipeline.reactors.sweeps.runner import _reactors_by_mode
 
-    groups = dict(_reactors_by_mode(['PFR', 'Fluidized', 'MMBCR']))
+    groups = dict(_reactors_by_mode(['PFR', 'PBR', 'Fluidized', 'MMBCR']))
     assert groups == {
         'thermocatalytic_pfr': ['PFR'],
+        'thermocatalytic_pbr': ['PBR'],
         'thermocatalytic_fluidized': ['Fluidized'],
         'mmbcr': ['MMBCR'],
     }

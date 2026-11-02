@@ -14,13 +14,14 @@ from typing import Literal, TypeAlias
 PathwayModeName: TypeAlias = Literal[
     'thermocatalytic',
     'thermocatalytic_pfr',
+    'thermocatalytic_pbr',
     'thermocatalytic_fluidized',
     'mmbcr',
     'ntec',
     'electrochemical',
 ]
 ReactorTypeName: TypeAlias = Literal[
-    'PFR', 'Fluidized', 'MMBCR', 'NTEC', 'Electrochemical'
+    'PFR', 'PBR', 'Fluidized', 'MMBCR', 'NTEC', 'Electrochemical'
 ]
 
 
@@ -28,6 +29,7 @@ DEFAULT_MODE: PathwayModeName = 'thermocatalytic'
 MODE_CHOICES: tuple[PathwayModeName, ...] = (
     'thermocatalytic',
     'thermocatalytic_pfr',
+    'thermocatalytic_pbr',
     'thermocatalytic_fluidized',
     'mmbcr',
     'ntec',
@@ -63,8 +65,9 @@ class ReactorModel:
 
 
 _MODES = {
-    'thermocatalytic': PathwayMode('thermocatalytic', ('PFR', 'Fluidized')),
+    'thermocatalytic': PathwayMode('thermocatalytic', ('PFR', 'PBR', 'Fluidized')),
     'thermocatalytic_pfr': PathwayMode('thermocatalytic_pfr', ('PFR',)),
+    'thermocatalytic_pbr': PathwayMode('thermocatalytic_pbr', ('PBR',)),
     'thermocatalytic_fluidized': PathwayMode(
         'thermocatalytic_fluidized', ('Fluidized',)
     ),
@@ -98,6 +101,14 @@ REACTOR_MODELS = {
         'fixed_packed_bed',
         'staged_lagrangian_ideal_gas_reactors',
         'heterogeneous_gas_solid_surface',
+        _SOLID_CLASSES,
+        'screening_approximation',
+    ),
+    'PBR': ReactorModel(
+        'PBR',
+        'catalytic_packed_bed_pellet',
+        'staged_lagrangian_packed_bed_reactors',
+        'heterogeneous_gas_solid_porous_pellet',
         _SOLID_CLASSES,
         'screening_approximation',
     ),
@@ -204,7 +215,14 @@ def validate_mode_reactors(
     unknown = set(requested) - set(REACTOR_MODELS)
     if unknown:
         raise ValueError(f'unknown reactor type(s): {sorted(unknown)}')
-    if requested != selected.reactor_types:
+    allowed_tuples = {selected.reactor_types}
+    if selected.name == 'thermocatalytic':
+        allowed_tuples.update({
+            ('PFR', 'PBR', 'Fluidized'),
+            ('PBR', 'Fluidized'),
+            ('PFR', 'PBR'),
+        })
+    if requested not in allowed_tuples:
         raise ValueError(
             f'mode {selected.name!r} requires reactors '
             f'{selected.reactor_types}, received {requested}'

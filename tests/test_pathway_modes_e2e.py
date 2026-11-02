@@ -21,8 +21,9 @@ REFERENCE_CSV = REPO_ROOT / 'sweeps' / 'ni_np_lit_screening_row.csv'
 # mode -> (reactor types, temperatures K, material-class override)
 MODES = {
     'thermocatalytic_pfr': (['PFR'], [923.15, 973.15], None),
+    'thermocatalytic_pbr': (['PBR'], [923.15, 973.15], None),
     'thermocatalytic_fluidized': (['Fluidized'], [923.15, 973.15], None),
-    'thermocatalytic': (['PFR', 'Fluidized'], [973.15], None),
+    'thermocatalytic': (['PFR', 'PBR', 'Fluidized'], [973.15], None),
     'mmbcr': (['MMBCR'], [1173.15], 'MoltenMetal'),
     'ntec': (['NTEC'], [473.15], None),
     'electrochemical': (['Electrochemical'], [353.15, 823.15], None),

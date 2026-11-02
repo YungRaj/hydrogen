@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Literal, TypedDict
+from typing import Literal, Protocol, TypedDict
+
+import numpy as np
+import numpy.typing as npt
 
 from pipeline.reactors.modes import ReactorTypeName
 from pipeline.data_models.artifacts import ArtifactValidationResult
@@ -11,6 +14,81 @@ from pipeline.data_models.artifacts import ArtifactValidationResult
 ReactorStatus = Literal[
     'complete', 'partial', 'failed', 'validation_required', 'not_applicable'
 ]
+
+
+class CanteraGasPhase(Protocol):
+    """Typed protocol for a Cantera gas-phase thermo/kinetics object."""
+
+    T: float
+    P: float
+    TP: tuple[float, float]
+    TPX: object
+    X: npt.NDArray[np.float64]
+    species_names: list[str]
+
+    def species_index(self, name: str) -> int: ...
+
+
+class CanteraSurfacePhase(Protocol):
+    """Typed protocol for a Cantera catalytic interface phase."""
+
+    coverages: npt.NDArray[np.float64]
+    species_names: list[str]
+    n_species: int
+
+    def species_index(self, name: str) -> int: ...
+
+
+class LoadStatusFields(TypedDict):
+    """Phase-loading status flags returned by load_status_fields."""
+
+    gas_only: bool
+    surface_loaded: bool
+    graphite_loaded: bool
+    surface_name: str
+
+
+class KineticsProvenanceFields(TypedDict):
+    """Candidate kinetic descriptor fields recorded on reactor outputs."""
+
+    catalyst_E_act_eV: float
+    catalyst_dE_H_eV: float
+
+
+class KineticsEvidenceFields(TypedDict):
+    """Kinetic provenance and exclusion-authority fields for a reactor run."""
+
+    kinetics_status: str
+    carbon_phase_model: str
+    reactor_evidence_tier: str
+    can_exclude_candidate: bool
+    reactor_evidence_limitations: list[str]
+
+
+class SolidsInventoryFields(TypedDict):
+    """Catalyst surface-to-volume and Ergun pressure-drop summary fields."""
+
+    geometric_sv_1_m: float
+    active_sv_1_m: float
+    active_area_multiplier: float
+    ergun_delta_p_Pa: float
+    ergun_delta_p_bar: float
+    ergun_ok: bool
+
+
+class PBRPelletEffectivenessMetrics(TypedDict):
+    """Dimensionless and unit-bearing pellet mass-transfer diagnostics for PBR."""
+
+    thiele_modulus: float
+    internal_effectiveness_factor: float
+    overall_effectiveness_factor: float
+    external_damkohler_number: float
+    external_mass_transfer_coeff_m_s: float
+    effective_diffusivity_m2_s: float
+    knudsen_diffusivity_m2_s: float
+    molecular_diffusivity_m2_s: float
+    sherwood_number: float
+    particle_reynolds_number: float
 
 
 class ReactorResult(TypedDict, total=False):
@@ -29,6 +107,29 @@ class ReactorResult(TypedDict, total=False):
     material_class: str
     T_K: float
     P_Pa: float
+    exit_P_Pa: float
+    coupled_ergun_delta_p_Pa: float
+    coupled_ergun_delta_p_bar: float
+    catalyst_weight_kg: float
+    stage_catalyst_weight_kg: float
+    WHSV_mass_kg_feed_per_kg_cat_h: float
+    thiele_modulus: float
+    internal_effectiveness_factor: float
+    overall_effectiveness_factor: float
+    mean_overall_effectiveness_factor: float
+    external_damkohler_number: float
+    external_mass_transfer_coeff_m_s: float
+    effective_diffusivity_m2_s: float
+    knudsen_diffusivity_m2_s: float
+    molecular_diffusivity_m2_s: float
+    sherwood_number: float
+    particle_reynolds_number: float
+    w_positions_kg: list[float]
+    pressure_profile_Pa: list[float]
+    bed_voidage_profile: list[float]
+    exit_bed_porosity: float
+    thiele_modulus_profile: list[float]
+    effectiveness_factor_profile: list[float]
     CH4_conversion: float
     single_pass_CH4_conversion: float
     H2_selectivity: float

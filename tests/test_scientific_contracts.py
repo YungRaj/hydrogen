@@ -149,11 +149,11 @@ def test_reactor_sweep_isolates_failed_conditions_without_exclusion():
             'contract',
             'unused.yaml',
             temperatures=[773.15, 900.0],
-            reactor_types=['PFR', 'Fluidized'],
+            reactor_types=['PFR', 'PBR', 'Fluidized'],
             pathway_mode='thermocatalytic',
             material_class='SolidCatalyst',
         )
-    assert len(rows) == 4 and len(calls) == 4
+    assert len(rows) == 6 and len(calls) == 6
     assert rows[0]['status'] == 'failed'
     assert rows[0]['can_exclude_candidate'] is False
     assert rows[0]['error_type'] == 'RuntimeError'
@@ -179,7 +179,7 @@ def test_reactor_sweep_isolates_failed_conditions_without_exclusion():
             [773.15, 900.0],
         )
     assert stage['sweep_status'] == 'partial'
-    assert stage['completed_conditions'] == 3
+    assert stage['completed_conditions'] == 5
     assert stage['failed_conditions'] == 1
     assert stage['can_exclude_candidate'] is False
 
@@ -197,17 +197,21 @@ def test_pathway_modes_route_explicit_physics_and_default_to_thermal():
     assert set(MODE_CHOICES) == {
         'thermocatalytic',
         'thermocatalytic_pfr',
+        'thermocatalytic_pbr',
         'thermocatalytic_fluidized',
         'mmbcr',
         'ntec',
         'electrochemical',
     }
-    assert reactor_types_for_mode(None) == ('PFR', 'Fluidized')
+    assert reactor_types_for_mode(None) == ('PFR', 'PBR', 'Fluidized')
     assert reactor_types_for_mode('thermocatalytic_pfr') == ('PFR',)
+    assert reactor_types_for_mode('thermocatalytic_pbr') == ('PBR',)
     assert reactor_types_for_mode('thermocatalytic_fluidized') == ('Fluidized',)
     assert reactor_types_for_mode('mmbcr') == ('MMBCR',)
     assert reactor_types_for_mode('ntec') == ('NTEC',)
     assert reactor_types_for_mode('electrochemical') == ('Electrochemical',)
+    validate_mode_reactors('thermocatalytic_pbr', ['PBR'])
+    validate_mode_reactors('thermocatalytic', ['PFR', 'PBR', 'Fluidized'])
     validate_mode_reactors('mmbcr', ['MMBCR'])
     try:
         validate_mode_reactors('mmbcr', ['PFR'])
@@ -215,8 +219,11 @@ def test_pathway_modes_route_explicit_physics_and_default_to_thermal():
     except ValueError:
         pass
     assert reactor_applicability('MMBCR', 'MoltenMetal') == (True, None)
+    assert reactor_applicability('PBR', 'SolidCatalyst') == (True, None)
     compatible, reason = reactor_applicability('PFR', 'MoltenMetal')
     assert compatible is False and 'not_compatible' in reason
+    pbr_compat, pbr_reason = reactor_applicability('PBR', 'MoltenMetal')
+    assert pbr_compat is False and 'not_compatible' in pbr_reason
 
 
 def test_incompatible_bed_is_non_excluding_and_never_simulated():
@@ -2785,13 +2792,27 @@ def test_vqe_toy_hamiltonians_are_hermitian_and_fail_closed_as_evidence():
 
 
 def test_fairchem_device_affinity_is_forwarded_not_merely_recorded():
+    import types
+    from unittest.mock import MagicMock
     from pipeline.screening.surface_calculator import get_ocp_calculator
 
-    with (
-        patch('fairchem.core.calculate.pretrained_mlip.get_predict_unit') as get_unit,
-        patch('fairchem.core.FAIRChemCalculator') as calculator,
+    get_unit = MagicMock(return_value=object())
+    calculator = MagicMock()
+    fairchem_mod = types.ModuleType('fairchem')
+    fairchem_core = types.ModuleType('fairchem.core')
+    fairchem_calc = types.ModuleType('fairchem.core.calculate')
+    fairchem_mlip = types.ModuleType('fairchem.core.calculate.pretrained_mlip')
+    setattr(fairchem_core, 'FAIRChemCalculator', calculator)
+    setattr(fairchem_mlip, 'get_predict_unit', get_unit)
+    with patch.dict(
+        sys.modules,
+        {
+            'fairchem': fairchem_mod,
+            'fairchem.core': fairchem_core,
+            'fairchem.core.calculate': fairchem_calc,
+            'fairchem.core.calculate.pretrained_mlip': fairchem_mlip,
+        },
     ):
-        get_unit.return_value = object()
         get_ocp_calculator('esen-sm-conserving-all-oc25', device='cuda:2')
         # Fairchem v2 accepts only the backend name; worker affinity is
         # established before calculator construction.

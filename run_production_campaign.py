@@ -293,7 +293,7 @@ def _simulate_judge_reference(args, simulate_candidate, sweep_records: list) -> 
     from pipeline.stages.candidate_io import load_reactor_reference
 
     reactor_types = reactor_types_for_mode(args.mode)
-    if not {'PFR', 'Fluidized'}.intersection(reactor_types):
+    if not {'PFR', 'PBR', 'Fluidized'}.intersection(reactor_types):
         return
     if any(r.get('catalyst_name') == NI_JUDGE_CATALYST for r in sweep_records):
         return

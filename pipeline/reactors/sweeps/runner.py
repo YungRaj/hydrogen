@@ -21,7 +21,7 @@ from pipeline.utils import BASE_DIR, SWEEPS_DIR, repo_relative, setup_logger
 
 logger = setup_logger('yaml_sweep', 'reactor/yaml_sweep.log')
 
-ALLOWED_REACTORS = ('PFR', 'Fluidized', 'MMBCR')
+ALLOWED_REACTORS = ('PFR', 'PBR', 'Fluidized', 'MMBCR')
 # catalyst.kinetics keys (kinetics-only sweeps). Adsorption energies use the
 # screener's conventions (dE_H vs 1/2 H2, dE_CH3 vs CH3 radical, dE_C vs
 # CH4 - 2 H2); the writer puts them on Cantera's absolute scale. The three

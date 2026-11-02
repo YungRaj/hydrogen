@@ -19,7 +19,15 @@ except ImportError:
     HAS_CANTERA = False
 
 from pipeline.data_models.artifacts import ExternalSolverArtifact
-from pipeline.data_models.reactors import AnalyticalClosureEvidence
+from pipeline.data_models.reactors import (
+    AnalyticalClosureEvidence,
+    CanteraGasPhase,
+    CanteraSurfacePhase,
+    KineticsEvidenceFields,
+    KineticsProvenanceFields,
+    LoadStatusFields,
+    SolidsInventoryFields,
+)
 from pipeline.data_models.transport import ReactorClosure
 from pipeline.reactors.carbon_accounting import (
     CH4_PYROLYSIS_DELTA_H_KJ_MOL,
@@ -93,11 +101,13 @@ EXTERNAL_CLOSURE_SOURCES = frozenset(
 
 SINGLE_REACTOR_MODE = {
     'PFR': 'thermocatalytic_pfr',
+    'PBR': 'thermocatalytic_pbr',
     'Fluidized': 'thermocatalytic_fluidized',
     'MMBCR': 'mmbcr',
 }
 DIAGNOSTIC_MATERIAL_CLASS = {
     'PFR': 'SolidCatalyst',
+    'PBR': 'SolidCatalyst',
     'Fluidized': 'SolidCatalyst',
     'MMBCR': 'MoltenMetal',
 }
@@ -135,6 +145,9 @@ class ReactorConfig:
     bed_diameter_m: float = 0.05
     catalyst_particle_mm: float = DEFAULT_SOLIDS_PARTICLE_MM
     bed_porosity: float = 0.4
+    pellet_porosity: float = 0.45
+    pellet_tortuosity: float = 3.0
+    pellet_pore_radius_nm: float = 10.0
     site_density_mol_cm2: float = MONOLAYER_SITE_DENSITY_MOL_CM2
     metal_loading: float = DEFAULT_METAL_LOADING
     metal_dispersion: float = DEFAULT_METAL_DISPERSION
@@ -233,7 +246,7 @@ def _validate_reactor_config(config: ReactorConfig) -> None:
         raise ValueError('reactor temperature and pressure must be positive')
     if config.max_residence_time_s <= 0:
         raise ValueError('max_residence_time_s must be positive')
-    if config.reactor_type == 'PFR':
+    if config.reactor_type in {'PFR', 'PBR'}:
         if (
             config.bed_length_m <= 0
             or config.bed_diameter_m <= 0
@@ -247,10 +260,19 @@ def _validate_reactor_config(config: ReactorConfig) -> None:
             raise ValueError(
                 'packed-bed porosity must lie strictly between zero and one'
             )
+        if config.reactor_type == 'PBR':
+            if not 0 < config.pellet_porosity < 1:
+                raise ValueError(
+                    'pellet_porosity must lie strictly between zero and one'
+                )
+            if config.pellet_tortuosity <= 0 or config.pellet_pore_radius_nm <= 0:
+                raise ValueError(
+                    'pellet_tortuosity and pellet_pore_radius_nm must be positive'
+                )
         tau_pfr = config.bed_length_m * config.bed_porosity / config.gas_velocity_m_s
         if tau_pfr > config.max_residence_time_s:
             raise ValueError(
-                f'PFR residence time {tau_pfr:.2f} s exceeds '
+                f'{config.reactor_type} residence time {tau_pfr:.2f} s exceeds '
                 f'max_residence_time_s={config.max_residence_time_s:.2f} s'
             )
     elif config.reactor_type == 'Fluidized':
@@ -300,14 +322,16 @@ def _mechanism_metadata(config: ReactorConfig) -> dict:
         }
 
 
-def _kinetics_evidence(config: ReactorConfig) -> dict:
+def _kinetics_evidence(config: ReactorConfig) -> KineticsEvidenceFields:
     """Declare whether reactor output may make a candidate-level decision."""
     metadata = _mechanism_metadata(config)
-    status = metadata.get('inputs', {}).get(
-        'quantitative_status', 'missing_provenance'
+    status = str(
+        metadata.get('inputs', {}).get(
+            'quantitative_status', 'missing_provenance'
+        )
     )
-    carbon_model = metadata.get('carbon_phase_model', 'unknown')
-    limitations = []
+    carbon_model = str(metadata.get('carbon_phase_model', 'unknown'))
+    limitations: list[str] = []
     if status != 'candidate_specific':
         limitations.append('incomplete_candidate_kinetics')
     if carbon_model == 'legacy_gas_tracer':
@@ -328,7 +352,7 @@ def _kinetics_evidence(config: ReactorConfig) -> dict:
     }
 
 
-def _policy_metadata(config: ReactorConfig) -> Dict:
+def _policy_metadata(config: ReactorConfig) -> dict[str, object]:
     return {
         'co2_permitted': bool(config.co2_permitted),
         'regen_mechanism': config.regen_mechanism,
@@ -498,7 +522,7 @@ def reciprocal_residence_h(tau_s: float) -> float:
     return 3600.0 / float(tau_s) if tau_s and float(tau_s) > 0 else 0.0
 
 
-def kinetics_fields(config: ReactorConfig) -> Dict:
+def kinetics_fields(config: ReactorConfig) -> KineticsProvenanceFields:
     """Read candidate kinetic provenance fields from mechanism metadata.
 
     Args:
@@ -513,7 +537,9 @@ def kinetics_fields(config: ReactorConfig) -> Dict:
     }
 
 
-def solids_inventory_fields(config: ReactorConfig, geometric_sv: float) -> Dict:
+def solids_inventory_fields(
+    config: ReactorConfig, geometric_sv: float
+) -> SolidsInventoryFields:
     """Calculate catalyst inventory, area, WHSV, and pressure-drop fields.
 
     Args:
@@ -571,8 +597,8 @@ def inventory_roi_grid_cells():
 
 def _off_site_carbon_metrics(
     config: ReactorConfig,
-    gas,
-    surf,
+    gas: object,
+    surf: object | None,
     *,
     ch4_initial: float,
     ar_initial: float,
@@ -584,7 +610,7 @@ def _off_site_carbon_metrics(
     cov_start: Optional[np.ndarray],
     removed_surface_carbon_mol: float = 0.0,
     basis: str = 'Gamma*A_stage / (c_CH4*eps*V_stage), PFR parcel',
-) -> Dict:
+) -> dict[str, object]:
     """Per-pass carbon accounting for the B5/B6 closure criterion."""
     return _compute_off_site_carbon_metrics(
         config,
@@ -601,6 +627,115 @@ def _off_site_carbon_metrics(
         removed_surface_carbon_mol=removed_surface_carbon_mol,
         basis=basis,
         mechanism_metadata_fn=_mechanism_metadata,
+    )
+
+
+def validate_carbon_policy(config: ReactorConfig) -> None:
+    """Typed public wrapper for carbon-policy validation."""
+    _validate_carbon_policy(config)
+
+
+def load_gas_and_surface(
+    config: ReactorConfig,
+) -> tuple[CanteraGasPhase, object | None, CanteraSurfacePhase | None]:
+    """Typed public wrapper loading Cantera gas, graphite, and surface phases."""
+    return _load_gas_and_surface(config)
+
+
+def load_status_fields(
+    config: ReactorConfig, graphite: object | None, surf: object | None
+) -> LoadStatusFields:
+    """Typed public wrapper for Cantera phase-loading status fields."""
+    return {
+        'gas_only': bool(config.gas_only),
+        'surface_loaded': surf is not None,
+        'graphite_loaded': graphite is not None,
+        'surface_name': f'{config.catalyst_name}_surface',
+    }
+
+
+def species_x(gas: CanteraGasPhase, name: str) -> float:
+    """Typed public wrapper returning gas species mole fraction."""
+    return float(_species_x(gas, name))
+
+
+def surface_coverage(surf: CanteraSurfacePhase | None, name: str) -> float:
+    """Typed public wrapper returning surface species coverage."""
+    return float(_coverage(surf, name))
+
+
+def require_ar_tracer(x_ch4_feed: float, x_ar_feed: float) -> None:
+    """Typed public wrapper enforcing argon tracer presence."""
+    _require_ar_tracer(x_ch4_feed, x_ar_feed)
+
+
+def advance_reactor_stage(
+    gas: CanteraGasPhase,
+    surf: CanteraSurfacePhase | None,
+    volume_m3: float,
+    surface_area_m2: float,
+    dt: float,
+) -> None:
+    """Typed public wrapper advancing one isothermal Cantera stage."""
+    _advance_reactor_stage(gas, surf, volume_m3, surface_area_m2, dt)
+
+
+def ch4_extent(gas: CanteraGasPhase, x_ch4_feed: float, x_ar_feed: float) -> float:
+    """Typed public wrapper computing argon-tracer CH4 conversion."""
+    return float(_ch4_extent(gas, x_ch4_feed, x_ar_feed))
+
+
+def mole_fraction_drop(gas: CanteraGasPhase, x_ch4_feed: float) -> float:
+    """Typed public wrapper computing apparent CH4 mole-fraction drop."""
+    return float(_mole_fraction_drop(gas, x_ch4_feed))
+
+
+def reset_surface_carbon(surf: CanteraSurfacePhase | None) -> None:
+    """Typed public wrapper clearing reversible surface carbon."""
+    _reset_surface_carbon(surf)
+
+
+def kinetics_evidence(config: ReactorConfig) -> KineticsEvidenceFields:
+    """Typed public wrapper returning kinetic provenance and exclusion flags."""
+    return _kinetics_evidence(config)
+
+
+def policy_metadata(config: ReactorConfig) -> dict[str, object]:
+    """Typed public wrapper returning reactor carbon-policy metadata."""
+    return _policy_metadata(config)
+
+
+def off_site_carbon_metrics(
+    config: ReactorConfig,
+    gas: CanteraGasPhase,
+    surf: CanteraSurfacePhase | None,
+    *,
+    ch4_initial: float,
+    ar_initial: float,
+    pass_conversion: float,
+    n_sites_mol: float,
+    n_ch4_fed_mol: float,
+    n_parcel_in_mol: float,
+    pass_time_s: float,
+    cov_start: Optional[np.ndarray],
+    removed_surface_carbon_mol: float = 0.0,
+    basis: str = 'Gamma*A_stage / (c_CH4*eps*V_stage), PFR parcel',
+) -> dict[str, object]:
+    """Typed public wrapper for per-pass B5/B6 carbon accounting."""
+    return _off_site_carbon_metrics(
+        config,
+        gas,
+        surf,
+        ch4_initial=ch4_initial,
+        ar_initial=ar_initial,
+        pass_conversion=pass_conversion,
+        n_sites_mol=n_sites_mol,
+        n_ch4_fed_mol=n_ch4_fed_mol,
+        n_parcel_in_mol=n_parcel_in_mol,
+        pass_time_s=pass_time_s,
+        cov_start=cov_start,
+        removed_surface_carbon_mol=removed_surface_carbon_mol,
+        basis=basis,
     )
 
 

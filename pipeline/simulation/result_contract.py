@@ -17,6 +17,7 @@ SCHEMA_VERSION = 1
 MODE_SOLVERS = {
     'thermocatalytic': {'cantera', 'openfoam'},
     'thermocatalytic_pfr': {'cantera'},
+    'thermocatalytic_pbr': {'cantera'},
     'thermocatalytic_fluidized': {'cantera', 'openfoam'},
     'mmbcr': {'cantera', 'openfoam'},
     'ntec': {'cantera', 'moose'},

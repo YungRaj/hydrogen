@@ -60,7 +60,7 @@ def run_eact_sweep(
     if e_acts_eV is None:
         e_acts_eV = list(np.round(np.linspace(0.1, 2.0, 20), 3))
     if reactor_types is None:
-        reactor_types = ['MMBCR', 'PFR', 'Fluidized']
+        reactor_types = ['MMBCR', 'PFR', 'PBR', 'Fluidized']
     extra = dict(reactor_config_kwargs or {})
     # Default: no discrete regen; continuous removal at current production default.
     extra.setdefault('co2_permitted', False)

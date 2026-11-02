@@ -128,6 +128,22 @@ def simulate_pfr(config: ReactorConfig) -> ReactorResult:
     )
 
 
+def simulate_pbr(config: ReactorConfig) -> ReactorResult:
+    """Run the thermocatalytic packed-bed reactor (PBR) implementation.
+
+    Args:
+        config: Validated reactor configuration.
+
+    Returns:
+        Thermocatalytic PBR screening result with evidence metadata.
+    """
+    from pipeline.reactors.pbr import simulate_pbr as implementation
+
+    return implementation(
+        config, cantera_available=HAS_CANTERA, mock_result=_mock_reactor_result
+    )
+
+
 def simulate_fluidized_bed(config: ReactorConfig) -> ReactorResult:
     """Run the thermocatalytic fluidized-bed implementation.
 
@@ -166,6 +182,25 @@ def _mock_reactor_result(config: ReactorConfig, reactor_type: str) -> ReactorRes
             * config.bed_porosity
             / max(config.gas_velocity_m_s, 0.1)
         )
+    elif reactor_type == 'PBR':
+        from pipeline.reactors.pbr import pbr_pellet_effectiveness
+
+        u_sup = max(config.gas_velocity_m_s, 0.1)
+        tau = config.bed_length_m * config.bed_porosity / u_sup
+        pellet = pbr_pellet_effectiveness(
+            config, config.T_inlet_K, config.P_inlet_Pa, u_sup, config.bed_porosity
+        )
+        dp_pa = ergun_delta_p_pa(config)
+        bed_vol = np.pi * (config.bed_diameter_m / 2.0) ** 2 * config.bed_length_m
+        w_cat = (1.0 - config.bed_porosity) * config.catalyst_density_kg_m3 * bed_vol
+        extra = {
+            **pellet,
+            'catalyst_weight_kg': float(w_cat),
+            'coupled_ergun_delta_p_Pa': float(dp_pa),
+            'coupled_ergun_delta_p_bar': float(dp_pa / 1e5),
+            'exit_P_Pa': float(max(10000.0, config.P_inlet_Pa - dp_pa)),
+        }
+        k = k * pellet['overall_effectiveness_factor']
     else:
         tau = config.bed_height_m / max(config.gas_velocity_m_s, 0.05)
     conversion = float(np.clip(1.0 - np.exp(-k * tau * 1e-12), 0.01, 0.99))
@@ -249,6 +284,7 @@ def simulate_reactor(config: ReactorConfig, coupling_services=None) -> ReactorRe
     simulators = {
         'MMBCR': simulate_mmbcr,
         'PFR': simulate_pfr,
+        'PBR': simulate_pbr,
         'Fluidized': simulate_fluidized_bed,
         'NTEC': simulate_ntec_pathway,
         'Electrochemical': simulate_electrochemical_pathway,
@@ -256,7 +292,12 @@ def simulate_reactor(config: ReactorConfig, coupling_services=None) -> ReactorRe
     if config.reactor_type not in simulators:
         raise ValueError(f'unsupported reactor type: {config.reactor_type}')
     selected_mode = reactor_types_for_mode(config.pathway_mode)
-    if config.reactor_type not in selected_mode:
+    allowed_for_mode = (
+        set(selected_mode) | {'PBR'}
+        if (config.pathway_mode or DEFAULT_MODE).strip().lower() == 'thermocatalytic'
+        else set(selected_mode)
+    )
+    if config.reactor_type not in allowed_for_mode:
         raise ValueError(
             f'reactor {config.reactor_type!r} is not valid for pathway mode '
             f'{config.pathway_mode!r}; expected {selected_mode}'

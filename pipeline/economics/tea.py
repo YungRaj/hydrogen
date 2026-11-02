@@ -238,6 +238,12 @@ def build_multipathway_champion_scorecard(
             and not is_h_parked(r)
             and r.get('catalyst_name') != 'ni_np_lit'
         ),
+        'thermocatalytic_pbr': lambda r: (
+            is_solids_run(r)
+            and r.get('reactor_type') == 'PBR'
+            and not is_h_parked(r)
+            and r.get('catalyst_name') != 'ni_np_lit'
+        ),
         'thermocatalytic_fluidized': lambda r: (
             is_solids_run(r)
             and r.get('reactor_type') == 'Fluidized'

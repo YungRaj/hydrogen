@@ -585,6 +585,9 @@ fi
         'cd /root/hydrogen; '
         'pyright; '
         'python3 tests/run_pytest_contracts.py; '
+        'python3 tests/test_architecture_unit_contracts.py; '
+        'python3 tests/test_scientific_contracts.py; '
+        'python3 tests/test_reactor_reference_integration.py; '
         + moose_block
     )
     test_proc = subprocess.run(ssh_base + [test_cmd], cwd=str(REPO_ROOT))

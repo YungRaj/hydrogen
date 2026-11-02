@@ -33,7 +33,7 @@ class InfoLogger(Protocol):
         ...
 
 
-SOLIDS_TYPES = frozenset({'PFR', 'Fluidized'})
+SOLIDS_TYPES = frozenset({'PFR', 'PBR', 'Fluidized'})
 H_PARKED_E_ACT_MAX = 0.05
 H_PARKED_ABS_DEH_MIN = 2.0
 # High-T end of the standard 4-point pyrolysis sweep (773, 900, 1100, 1300).
@@ -81,7 +81,7 @@ def is_production_reactor_record(record: Mapping[str, object]) -> bool:
     return (
         isinstance(record, Mapping)  # pyright: ignore[reportUnnecessaryIsInstance]
         and record.get('reactor_type')
-        in {'PFR', 'Fluidized', 'MMBCR', 'NTEC', 'Electrochemical'}
+        in {'PFR', 'PBR', 'Fluidized', 'MMBCR', 'NTEC', 'Electrochemical'}
         and bool(record.get('catalyst_name'))
         and record.get('status', 'complete') == 'complete'
         and 'CH4_conversion' in record
@@ -273,7 +273,7 @@ def build_solids_scorecard(
             )
 
     headline: dict[str, SolidsMetricRow] = {}
-    for reactor_type in ('PFR', 'Fluidized'):
+    for reactor_type in ('PFR', 'PBR', 'Fluidized'):
         candidates = [
             r
             for r in pool
@@ -301,12 +301,16 @@ def build_solids_scorecard(
     judge_x: float | None = None
     if 'PFR' in headline:
         judge_x = headline['PFR'].get('single_pass_CH4_conversion')
+    elif 'PBR' in headline:
+        judge_x = headline['PBR'].get('single_pass_CH4_conversion')
     elif 'Fluidized' in headline:
         judge_x = headline['Fluidized'].get('single_pass_CH4_conversion')
 
     headline_catalyst: str | None = None
     if 'PFR' in headline:
         headline_catalyst = headline['PFR'].get('catalyst_name')
+    elif 'PBR' in headline:
+        headline_catalyst = headline['PBR'].get('catalyst_name')
     elif 'Fluidized' in headline:
         headline_catalyst = headline['Fluidized'].get('catalyst_name')
 

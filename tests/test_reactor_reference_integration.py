@@ -228,6 +228,100 @@ def test_default_campaign_loads_ni_reference_and_produces_a_real_headline():
         )
 
 
+def test_pbr_campaign_simulates_coupled_ergun_and_pellet_effectiveness():
+    """Verify PBR pathway mode runs Cantera with coupled Ergun ΔP and pellet Ω."""
+    import cantera  # noqa: F401
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        with (
+            patch.object(reactor_mechanisms, 'MECHANISMS_DIR', tmp_path),
+            patch.object(reactor_models, 'save_json', lambda *args, **kwargs: None),
+        ):
+            config = normalized_pipeline_config(
+                PipelineConfig(
+                    pyrolysis_mode='thermocatalytic_pbr',
+                    reactor_types=('PBR',),
+                )
+            )
+            candidates = pd.DataFrame(columns=['candidate_id', 'E_act'])
+            services = replace(
+                default_reactor_batch_services(),
+                prepare_gas_mechanism=lambda: None,
+                check_equilibrium=None,
+                persist_scorecard=None,
+            )
+            result = run_reactor_batch_stage(
+                candidates,
+                temperatures=config.reactor_temperatures,
+                reactor_types=('PBR',),
+                pathway_mode='thermocatalytic_pbr',
+                multiphysics_results_dir=str(tmp_path),
+                allow_mock_inputs=False,
+                judge_catalyst=config.solids_judge_catalyst,
+                headline_t_min=config.solids_headline_t_min,
+                headline_t_max=config.solids_headline_t_max,
+                services=services,
+            )
+        card = result.state['solids_scorecard']
+        assert card['judge_catalyst'] == 'ni_np_lit'
+        assert card['headline']['PBR']['T_K'] == 973.15
+        rows = result.products['reactor_results']
+        assert len(rows) == len(config.reactor_temperatures)
+        for row in rows:
+            assert row['status'] == 'complete' and not row.get('mock')
+            assert row['reactor_type'] == 'PBR'
+            assert row['bed_or_interface'] == 'catalytic_packed_bed_pellet'
+            assert (
+                row['cantera_reactor_model'] == 'staged_lagrangian_packed_bed_reactors'
+            )
+            assert row['catalyst_weight_kg'] > 0.0
+            assert row['WHSV_mass_kg_feed_per_kg_cat_h'] > 0.0
+            assert row['exit_P_Pa'] < row['P_Pa']
+            assert row['coupled_ergun_delta_p_Pa'] > 0.0
+            assert row['thiele_modulus'] >= 0.0
+            assert (
+                0.0
+                < row['overall_effectiveness_factor']
+                <= row['internal_effectiveness_factor']
+                <= 1.0
+            )
+            assert len(row['w_positions_kg']) == len(row['z_positions_m'])
+            assert row['pressure_profile_Pa'][0] > row['pressure_profile_Pa'][-1]
+            assert (
+                'pbr_screening_model_not_validated'
+                in row['reactor_evidence_limitations']
+            )
+
+        with (
+            patch.object(reactor_mechanisms, 'MECHANISMS_DIR', tmp_path),
+            patch.object(reactor_models, 'save_json', lambda *args, **kwargs: None),
+        ):
+            full_cfg = normalized_pipeline_config(
+                PipelineConfig(reactor_temperatures=(923.15, 973.15))
+            )
+            selected_reactors = reactor_models.reactor_types_for_mode(
+                full_cfg.pyrolysis_mode
+            )
+            assert selected_reactors == ('PFR', 'PBR', 'Fluidized')
+            full_res = run_reactor_batch_stage(
+                candidates,
+                temperatures=full_cfg.reactor_temperatures,
+                reactor_types=selected_reactors,
+                pathway_mode=full_cfg.pyrolysis_mode,
+                multiphysics_results_dir=str(tmp_path),
+                allow_mock_inputs=False,
+                judge_catalyst=full_cfg.solids_judge_catalyst,
+                headline_t_min=full_cfg.solids_headline_t_min,
+                headline_t_max=full_cfg.solids_headline_t_max,
+                services=services,
+            )
+        full_card = full_res.state['solids_scorecard']
+        for rtype in ('PFR', 'PBR', 'Fluidized'):
+            assert full_card['headline'][rtype] is not None
+            assert full_card['headline'][rtype]['T_K'] == 973.15
+
+
 def test_reference_is_only_added_to_enabled_solids_campaigns():
     """Do not inject the Ni judge into MMBCR or judge-disabled campaigns."""
 
