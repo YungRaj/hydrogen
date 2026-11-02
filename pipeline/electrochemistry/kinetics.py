@@ -38,7 +38,7 @@ def butler_volmer_current_density(
     overpotential_V: float,
     temperature_K: float,
     symmetry_factor: float = 0.5,
-    electrons: int = 2,
+    electrons: int = 1,
 ) -> float:
     """Return signed Butler–Volmer current density in A/cm².
 
@@ -47,7 +47,7 @@ def butler_volmer_current_density(
         overpotential_V: Applied overpotential.
         temperature_K: Absolute temperature.
         symmetry_factor: Charge-transfer symmetry factor.
-        electrons: Number of transferred electrons.
+        electrons: Number of electrons transferred in the rate-determining step (default 1).
 
     Returns:
         Signed current density in A/cm².

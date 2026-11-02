@@ -260,6 +260,11 @@ def generate_alloy_slab(
         z_coords = slab.positions[:, 2]
         top_mask = z_coords > (z_coords.max() - 2.5)
         top_indices = np.where(top_mask)[0]
+    elif sub_count > 0:
+        sub_set = set(int(idx) for idx in shuffled[:sub_count])
+        top_indices = [int(idx) for idx in shuffled[:sub_count]] + [
+            int(idx) for idx in top_indices if int(idx) not in sub_set
+        ]
 
     if environment_label and str(environment_label).lower() != 'none':
         bottom = int(np.argmin(slab.positions[:, 2]))
@@ -276,7 +281,7 @@ def generate_alloy_slab(
     fix_mask = z_coords < (z_min + 4.0)
     slab.set_constraint(FixAtoms(mask=fix_mask))
 
-    return slab, list(top_indices)
+    return slab, [int(idx) for idx in top_indices]
 
 
 def generate_porphyrin_cluster(

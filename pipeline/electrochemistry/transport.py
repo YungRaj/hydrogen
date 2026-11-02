@@ -48,7 +48,7 @@ def limiting_current_A(
 
 def concentration_overpotential_V(
     current_A: float, limiting_current_A_value: float, temperature_K: float,
-    electrons: int = 2,
+    electrons: int = 4,
 ) -> float:
     """Return concentration overpotential before the limiting current.
 

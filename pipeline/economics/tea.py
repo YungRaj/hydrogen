@@ -53,6 +53,9 @@ def estimate_hydrogen_cost(
     scenario: str = 'base',
     *,
     psa_ch4_recovery: float = PSA_CH4_RECOVERY,
+    temperature_K: float | None = None,
+    solid_c_selectivity: float = 1.0,
+    specific_energy_kwh_kg_h2: float | None = None,
 ) -> dict:
     """Return an assumption-labelled screening estimate with PSA CH4 recycle, never a measurement.
 
@@ -70,6 +73,9 @@ def estimate_hydrogen_cost(
         conversion: Single-pass methane conversion fraction in (0, 1].
         scenario: Scenario used by this operation.
         psa_ch4_recovery: Fraction of unreacted CH4 recovered and recycled by PSA.
+        temperature_K: Optional reactor operating temperature in kelvin.
+        solid_c_selectivity: Fraction of converted carbon captured as solid carbon in [0, 1].
+        specific_energy_kwh_kg_h2: Optional pathway-specific energy input in kWh/kg H2.
 
     Returns:
         Dictionary containing the computed values, status, and supporting metadata.
@@ -81,19 +87,38 @@ def estimate_hydrogen_cost(
     assumptions = SCENARIOS[scenario]
     conversion = float(conversion)
     r_psa = min(max(float(psa_ch4_recovery), 0.0), 0.999)
+    s_c = min(max(float(solid_c_selectivity), 0.0), 1.0)
     recycle_ratio = (1.0 - conversion) / conversion
     net_ch4_utilization = conversion / max(1.0 - r_psa * (1.0 - conversion), 1e-6)
-    energy = assumptions.base_energy_kwh_kg_h2 * (
+    base_energy = assumptions.base_energy_kwh_kg_h2
+    if specific_energy_kwh_kg_h2 is not None and float(specific_energy_kwh_kg_h2) > 0.0:
+        base_energy = float(specific_energy_kwh_kg_h2)
+    elif temperature_K is not None and float(temperature_K) > 298.15:
+        try:
+            from pipeline.reactors.carbon_accounting import (
+                pyrolysis_reaction_enthalpy_kJ_mol,
+            )
+
+            dh_t = pyrolysis_reaction_enthalpy_kJ_mol(float(temperature_K))
+            dh_ref = pyrolysis_reaction_enthalpy_kJ_mol(1073.15)
+        except ImportError:
+            dh_t = 74.85 + 0.0155 * (float(temperature_K) - 298.15)
+            dh_ref = 74.85 + 0.0155 * (1073.15 - 298.15)
+        sensible_ratio = max(float(temperature_K) - 298.15, 0.0) / (1073.15 - 298.15)
+        thermal_scale = 0.65 * (dh_t / max(dh_ref, 1.0)) + 0.35 * sensible_ratio
+        base_energy = base_energy * max(thermal_scale, 0.5)
+    energy = base_energy * (
         1.0 + RECYCLE_ENERGY_FRACTION * recycle_ratio
     )
     effective_capex = assumptions.capex_usd_kg_h2 * (
         1.0 + RECYCLE_CAPEX_SCALING * recycle_ratio
     )
+    carbon_credit = assumptions.carbon_value_usd_kg_h2 * s_c
     cost = (
         assumptions.natural_gas_usd_mmbtu * MMBTU_CH4_PER_KG_H2 / net_ch4_utilization
         + energy * assumptions.electricity_usd_kwh
         + effective_capex
-        - assumptions.carbon_value_usd_kg_h2
+        - carbon_credit
     )
     return {
         'scenario': scenario,
@@ -102,6 +127,8 @@ def estimate_hydrogen_cost(
         'recycle_ratio': round(recycle_ratio, 4),
         'net_ch4_utilization': round(net_ch4_utilization, 4),
         'psa_ch4_recovery': r_psa,
+        'solid_c_selectivity': round(s_c, 4),
+        'carbon_credit_usd_kg_h2': round(carbon_credit, 4),
         'energy_input_kwh_kg_h2': energy,
         'effective_capex_usd_kg_h2': round(effective_capex, 4),
         'assumptions': asdict(assumptions),
@@ -109,16 +136,34 @@ def estimate_hydrogen_cost(
     }
 
 
-def estimate_scenario_range(conversion: float) -> dict:
+def estimate_scenario_range(
+    conversion: float,
+    *,
+    temperature_K: float | None = None,
+    solid_c_selectivity: float = 1.0,
+    specific_energy_kwh_kg_h2: float | None = None,
+) -> dict:
     """Evaluate hydrogen cost across named techno-economic scenarios.
 
     Args:
         conversion: Methane conversion fraction used by the cost model.
+        temperature_K: Optional reactor operating temperature in kelvin.
+        solid_c_selectivity: Fraction of converted carbon captured as solid carbon in [0, 1].
+        specific_energy_kwh_kg_h2: Optional pathway-specific energy input in kWh/kg H2.
 
     Returns:
         A dictionary containing estimate scenario range outputs, status, and supporting metadata.
     """
-    estimates = {name: estimate_hydrogen_cost(conversion, name) for name in SCENARIOS}
+    estimates = {
+        name: estimate_hydrogen_cost(
+            conversion,
+            name,
+            temperature_K=temperature_K,
+            solid_c_selectivity=solid_c_selectivity,
+            specific_energy_kwh_kg_h2=specific_energy_kwh_kg_h2,
+        )
+        for name in SCENARIOS
+    }
     return {
         'estimates': estimates,
         'min_usd_kg': min(x['h2_cost_usd_kg'] for x in estimates.values()),
@@ -303,13 +348,30 @@ def build_multipathway_champion_scorecard(
             key=lambda r: (single_pass_x(r), -float(r.get('T_K') or 0.0)),
         )
         conv = float(single_pass_x(best_rec))
-        tea_range = estimate_scenario_range(conv) if 0.0 < conv <= 1.0 else None
+        t_rec = float(best_rec.get('T_K') or 0.0)
+        s_c_rec = float(best_rec.get('solid_C_selectivity', 1.0))
+        raw_spec_e = best_rec.get('specific_energy_kWh_kg_H2')
+        spec_e = (
+            float(raw_spec_e)
+            if isinstance(raw_spec_e, (int, float)) and 0.0 < float(raw_spec_e) < 1e6
+            else None
+        )
+        tea_range = (
+            estimate_scenario_range(
+                conv,
+                temperature_K=t_rec if t_rec > 298.15 else None,
+                solid_c_selectivity=s_c_rec,
+                specific_energy_kwh_kg_h2=spec_e,
+            )
+            if 0.0 < conv <= 1.0
+            else None
+        )
         pathway_leaderboard[mode_name] = {
             'status': 'complete',
             'n_usable_records': len(matching),
             'champion_catalyst': str(best_rec.get('catalyst_name', '')),
             'reactor_type': str(best_rec.get('reactor_type', '')),
-            'T_K': float(best_rec.get('T_K') or 0.0),
+            'T_K': t_rec,
             'single_pass_CH4_conversion': round(conv, 4),
             'H2_selectivity': round(float(best_rec.get('H2_selectivity') or 1.0), 4),
             'reactor_evidence_tier': str(
@@ -363,11 +425,28 @@ def build_multipathway_champion_scorecard(
             dedup_pemfc.values(), key=composite_score, reverse=True
         )
         best_cell = ranked_pemfc[0]
+        pgm_free_classes = {
+            'SAC',
+            'DAC',
+            'MOF',
+            'COF',
+            'MetalFreeCarbon',
+            'Perovskite',
+            'Spinel',
+            'MAXPhase',
+            'MXene',
+        }
+        mat_cls = str(best_cell.get('material_class', ''))
+        default_pgm = 0.05 if mat_cls in pgm_free_classes else 0.10
+        cell_pgm = float(best_cell.get('pgm_loading_mg_cm2', default_pgm))
+        cell_mem_cost = float(best_cell.get('membrane_cost_usd_cm2', 0.025))
         stack_res = model_stack(
             StackConfig(
                 n_cells=stack_cells,
                 cell_voltage_V=float(best_cell.get('peak_voltage_V', 0.65)),
                 current_density_A_cm2=float(best_cell.get('peak_current_A_cm2', 1.5)),
+                pgm_loading_mg_cm2=cell_pgm,
+                membrane_cost_usd_cm2=cell_mem_cost,
             )
         )
         sys_eff = float(stack_res.get('system_efficiency', 0.50))

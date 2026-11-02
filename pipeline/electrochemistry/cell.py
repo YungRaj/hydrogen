@@ -18,7 +18,7 @@ class CellOperatingPoint:
     limiting_current_A: float
     resistance_ohm: float
     temperature_K: float
-    electrons: int = 2
+    electrons: int = 4
 
 
 def cell_voltage(point: CellOperatingPoint) -> float:

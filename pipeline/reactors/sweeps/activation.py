@@ -177,12 +177,13 @@ def run_eact_sweep(
     return out
 
 
-# PFR clears C_s only by discrete regen. It does not read a continuous
-# detachment rate; a flat PFR pair is "not wired", not "detachment = 0".
+# PFR and PBR clear C_s only by discrete regen. They do not read a continuous
+# detachment rate; a flat PFR/PBR pair is "not wired", not "detachment = 0".
 ABLATION_RESPONSE = {
     'MMBCR': True,
     'Fluidized': True,
     'PFR': False,
+    'PBR': False,
 }
 
 
@@ -194,7 +195,7 @@ def run_detachment_ablation(T_K: float = 1300.0, E_act_eV: float = 0.1) -> Dict:
     0 fouls the interface; finite keeps it open.
     Fluidized circulating: ``circulating_carbon_removal_rate_1_s`` is
     applied during integrate (substeps), not after ``net.advance()``.
-    PFR: discrete regen only. Rows are kept with
+    PFR / PBR: discrete regen only. Rows are kept with
     ``responds_to_ablated_variable=false``.
 
     Args:
@@ -218,7 +219,7 @@ def run_detachment_ablation(T_K: float = 1300.0, E_act_eV: float = 0.1) -> Dict:
     }
     rows = []
     for name, kwargs in cases.items():
-        for rt in ('MMBCR', 'PFR', 'Fluidized'):
+        for rt in ('MMBCR', 'PFR', 'PBR', 'Fluidized'):
             cfg = ReactorConfig(
                 T_inlet_K=T_K,
                 reactor_type=rt,
@@ -248,7 +249,7 @@ def run_detachment_ablation(T_K: float = 1300.0, E_act_eV: float = 0.1) -> Dict:
                     'ablation_note': (
                         None
                         if ABLATION_RESPONSE[rt]
-                        else 'PFR clears C_s only by discrete regen; '
+                        else f'{rt} clears C_s only by discrete regen; '
                         'max_regen_cycles=0 so both cases are the same produce pass'
                     ),
                 }

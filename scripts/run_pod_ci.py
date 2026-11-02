@@ -530,7 +530,7 @@ export PIP_DISABLE_PIP_VERSION_CHECK=1
             pip install -q --prefer-binary --break-system-packages --root-user-action=ignore pytest pyright ase cantera scikit-learn scipy pandas
         fi
     fi
-    pyright --version >/dev/null 2>&1 || true
+    pyright --version >/dev/null 2>&1 || (rm -rf /root/.cache/pyright-python && pyright --version >/dev/null 2>&1) || true
 ) &
 BOOT_PID=$!
 

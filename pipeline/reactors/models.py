@@ -55,6 +55,7 @@ from pipeline.reactors.modes import (
     REACTOR_MODELS,
     ReactorModel,
     reactor_applicability,
+    reactor_temperatures_for_mode,
     reactor_types_for_mode,
     validate_mode_reactors,
 )
@@ -492,7 +493,7 @@ def run_reactor_sweep(
         complete sweep.
     """
     if temperatures is None:
-        temperatures = [773.15, 900.0, 1100.0, 1300.0]
+        temperatures = list(reactor_temperatures_for_mode(pathway_mode))
     if reactor_types is None:
         # The default family is conventional thermocatalysis. MMBCR, NTEC, and
         # electrochemical physics must be selected explicitly.

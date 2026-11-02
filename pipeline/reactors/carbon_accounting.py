@@ -22,6 +22,91 @@ ENCAP_ONSET_RATIO = 10.0
 ENCAP_DEAD_THETA = 0.5
 PFR_PILOT_TAU_BAND_S = (2.0, 12.0)
 CH4_PYROLYSIS_DELTA_H_KJ_MOL = 74.85
+SOLID_CARBON_DENSITY_KG_M3 = 2160.0
+
+_NASA7_CH4_LOW = (
+    5.14987613,
+    -0.0136709788,
+    4.91800599e-05,
+    -4.84743026e-08,
+    1.66693956e-11,
+    -10246.6,
+)
+_NASA7_CH4_HIGH = (
+    0.074851495,
+    0.0133909467,
+    -5.73285809e-06,
+    1.22292535e-09,
+    -1.01815230e-13,
+    -9468.34459,
+)
+_NASA7_H2_LOW = (
+    2.34433112,
+    7.98052075e-03,
+    -1.9478151e-05,
+    2.01572094e-08,
+    -7.37611761e-12,
+    -917.935173,
+)
+_NASA7_H2_HIGH = (
+    2.93286575,
+    8.26608026e-04,
+    -1.46402364e-07,
+    1.54100414e-11,
+    -6.888048e-16,
+    -813.065581,
+)
+_NASA7_CGR_LOW = (
+    -0.310872072,
+    4.40353686e-03,
+    1.90394118e-06,
+    -6.38546966e-09,
+    2.98964248e-12,
+    -108.650794,
+)
+_NASA7_CGR_HIGH = (
+    1.45571829,
+    1.71702216e-03,
+    -6.97562786e-07,
+    1.35277032e-10,
+    -9.67590652e-15,
+    -695.138814,
+)
+
+
+def _nasa7_enthalpy_j_mol(
+    T_K: float, coeffs_low: tuple[float, ...], coeffs_high: tuple[float, ...]
+) -> float:
+    t = min(max(float(T_K), 200.0), 5000.0)
+    a1, a2, a3, a4, a5, a6 = coeffs_low if t <= 1000.0 else coeffs_high
+    r_j_mol_k = 8.314462618
+    return r_j_mol_k * (
+        a1 * t
+        + 0.5 * a2 * (t ** 2)
+        + (a3 / 3.0) * (t ** 3)
+        + 0.25 * a4 * (t ** 4)
+        + 0.2 * a5 * (t ** 5)
+        + a6
+    )
+
+
+def pyrolysis_reaction_enthalpy_kJ_mol(T_K: float = 298.15) -> float:
+    """Compute Kirchhoff reaction enthalpy ΔH_rxn(T) [kJ/mol CH4] for CH4 -> C(gr) + 2 H2.
+
+    Evaluates the NASA-7 polynomials used in the Cantera mechanism for CH4(g),
+    H2(g), and C(gr) at ``T_K``.
+
+    Args:
+        T_K: Absolute temperature in kelvin (default 298.15 K).
+
+    Returns:
+        Endothermic reaction enthalpy in kJ/mol CH4.
+    """
+    h_ch4 = _nasa7_enthalpy_j_mol(T_K, _NASA7_CH4_LOW, _NASA7_CH4_HIGH)
+    h_h2 = _nasa7_enthalpy_j_mol(T_K, _NASA7_H2_LOW, _NASA7_H2_HIGH)
+    h_cgr = _nasa7_enthalpy_j_mol(T_K, _NASA7_CGR_LOW, _NASA7_CGR_HIGH)
+    return float((h_cgr + 2.0 * h_h2 - h_ch4) / 1000.0)
+
 
 
 def _load_gas_and_surface(config):
@@ -301,6 +386,25 @@ def _off_site_carbon_metrics(
                 * 12.011
                 / (n_metal * METAL_MOLAR_MASS_G_MOL[metal])
             )
+        eps_parcel = (
+            0.45
+            if getattr(config, 'reactor_type', '') == 'Fluidized'
+            else float(getattr(config, 'bed_porosity', 0.4))
+        )
+        rho_cat = float(getattr(config, 'catalyst_density_kg_m3', 2500.0))
+        bulk_metal_mass_g_per_m3_bed = (
+            (1.0 - eps_parcel) * rho_cat * float(config.metal_loading) * 1000.0
+        )
+        c_total_in = float(config.P_inlet_Pa) / (8.314462618 * float(config.T_inlet_K))
+        v_bed_parcel_m3 = (
+            n_parcel_in_mol / max(c_total_in * eps_parcel, 1e-12)
+        )
+        bulk_metal_mass_parcel_g = bulk_metal_mass_g_per_m3_bed * v_bed_parcel_m3
+        bulk_yield_rate = (
+            (n_gamma / pass_time_s) * 3600.0 * 12.011 / bulk_metal_mass_parcel_g
+            if (metal and pass_time_s > 0 and bulk_metal_mass_parcel_g > 0)
+            else None
+        )
         out.update(
             {
                 'filament_metal': metal,
@@ -308,6 +412,8 @@ def _off_site_carbon_metrics(
                 'filament_yield_basis': (
                     'pass-averaged C_gamma rate; metal moles = sites / dispersion'
                 ),
+                'bulk_metal_mass_g_per_m3_bed': bulk_metal_mass_g_per_m3_bed,
+                'bulk_filament_yield_gC_per_gMetal_bulk_h': bulk_yield_rate,
                 'filament_yield_literature_band_gC_per_gNi_h': list(
                     NI_FILAMENT_YIELD_BAND_G_C_PER_G_NI_H
                 ),
@@ -347,11 +453,19 @@ def _ch4_extent(gas, x_ch4_feed: float, x_ar_feed: float) -> float:
 def _clamp_gas_to_equilibrium(
     gas, x_ch4_feed: float, x_ar_feed: float
 ) -> None:
-    """Prevent irreversible C_s => C(gr) + site sink from pulling X past X_eq(T)."""
+    """Prevent irreversible C_s => C(gr) + site sink from pulling X past X_eq(T, P)."""
     if x_ch4_feed <= 0.0 or x_ar_feed <= 0.0:
         return
     try:
-        x_eq = _tabulated_x_eq(float(gas.T))
+        x_eq_1bar = _tabulated_x_eq(float(gas.T))
+        p_pa = float(gas.P)
+        if p_pa > 105000.0:
+            x_eq = min(
+                x_eq_1bar,
+                _local_tp_x_eq(float(gas.T), p_pa, x_ch4_feed),
+            )
+        else:
+            x_eq = x_eq_1bar
     except ValueError:
         return
     conv = _ch4_extent(gas, x_ch4_feed, x_ar_feed)

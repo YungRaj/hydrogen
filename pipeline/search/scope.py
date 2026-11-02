@@ -137,6 +137,16 @@ def slab_coking_index_scope(genome: tuple) -> dict:
     return {'status': 'candidate', 'reason': None}
 
 
+LOW_MELTING_HOST_METALS_K = {
+    'Ga': 302.9,
+    'In': 429.8,
+    'Sn': 505.1,
+    'Bi': 544.7,
+    'Pb': 600.6,
+    'Zn': 692.7,
+}
+
+
 def phase_stable_at_application_T(
     genome: tuple, T_K: float = None, application: str = APPLICATION_PYROLYSIS
 ) -> dict:
@@ -172,6 +182,23 @@ def phase_stable_at_application_T(
         }
     if not material_class:
         return {'status': 'unknown', 'reason': 'missing material class'}
+    host_idx = 2 if material_class == 'SAA' else 1
+    if (
+        T_K is not None
+        and material_class in ('SolidCatalyst', 'SupportedNanoparticle', 'SAA')
+        and len(genome) > host_idx
+        and str(genome[host_idx]) in LOW_MELTING_HOST_METALS_K
+        and float(T_K) > LOW_MELTING_HOST_METALS_K[str(genome[host_idx])]
+    ):
+        host = str(genome[host_idx])
+        tm_k = LOW_MELTING_HOST_METALS_K[host]
+        return {
+            'status': 'out_of_scope',
+            'reason': (
+                f'{material_class} host {host} melts at {tm_k} K < T={T_K} K '
+                '(liquid metal at pyrolysis T; use MoltenMetal pathway)'
+            ),
+        }
     return {'status': 'candidate', 'reason': None}
 
 

@@ -147,6 +147,50 @@ def _rated_point(j_array, V_array, voltage: float):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+def water_saturation_pressure_Pa(T_K: float) -> float:
+    """Return liquid water saturation vapor pressure in Pa (Springer et al. 1991).
+
+    Args:
+        T_K: Absolute temperature in kelvin.
+
+    Returns:
+        Saturation vapor pressure of water in pascals.
+    """
+    t_c = float(T_K) - 273.15
+    log10_p_atm = (
+        -2.1794
+        + 0.02953 * t_c
+        - 9.1837e-5 * (t_c ** 2)
+        + 1.4454e-7 * (t_c ** 3)
+    )
+    return float((10.0 ** log10_p_atm) * 101325.0)
+
+
+def springer_conductivity_multiplier(
+    T_K: float, RH_anode: float = 1.0, RH_cathode: float = 1.0
+) -> float:
+    """Return Springer Nafion conductivity scaling relative to 353.15 K and RH=1.0.
+
+    Args:
+        T_K: Cell temperature in kelvin.
+        RH_anode: Anode relative humidity in [0, 1].
+        RH_cathode: Cathode relative humidity in [0, 1].
+
+    Returns:
+        Dimensionless conductivity multiplier normalized to 1.0 at (353.15 K, RH=1.0).
+    """
+    a_w = min(max(0.5 * (float(RH_anode) + float(RH_cathode)), 0.0), 1.0)
+    lam = 0.043 + 17.81 * a_w - 39.85 * (a_w ** 2) + 36.0 * (a_w ** 3)
+    sigma_raw = max(0.005139 * lam - 0.00326, 0.001) * float(
+        np.exp(1268.0 * (1.0 / 303.15 - 1.0 / max(float(T_K), 273.15)))
+    )
+    lam_ref = 0.043 + 17.81 - 39.85 + 36.0
+    sigma_ref = (0.005139 * lam_ref - 0.00326) * float(
+        np.exp(1268.0 * (1.0 / 303.15 - 1.0 / 353.15))
+    )
+    return float(sigma_raw / sigma_ref)
+
+
 def nernst_voltage(T_K: float, P_H2: float, P_O2: float) -> float:
     """
         Compute the Nernst open-circuit voltage.
@@ -306,10 +350,16 @@ def simulate_pemfc(config: PEMFCConfig) -> PEMFCResult:
     """
     logger.info(f"Simulating PEMFC: {config.cathode_catalyst} at {config.T_K:.0f} K")
 
-    # Open circuit voltage
+    # Open circuit voltage (dry nominal and humidified channel partial pressures)
     P_H2 = config.P_anode_Pa / 101325.0  # in atm
     P_O2 = 0.21 * config.P_cathode_Pa / 101325.0  # partial pressure O₂
     OCV = nernst_voltage(config.T_K, P_H2, P_O2)
+    p_sat = water_saturation_pressure_Pa(config.T_K)
+    P_H2_wet = max(config.P_anode_Pa - config.RH_anode * p_sat, 1000.0) / 101325.0
+    P_O2_wet = (
+        0.21 * max(config.P_cathode_Pa - config.RH_cathode * p_sat, 1000.0) / 101325.0
+    )
+    OCV_wet = nernst_voltage(config.T_K, P_H2_wet, P_O2_wet)
 
     # Cathode exchange current density (from ORR overpotential)
     # j0_cathode = j_ref * exp(-η_ref / b_natural)
@@ -336,9 +386,13 @@ def simulate_pemfc(config: PEMFCConfig) -> PEMFCResult:
     )
     j0_anode = config.hor_exchange_current_A_cm2 * impurity_factor
 
-    # Ohmic resistance
+    # Ohmic resistance with Springer hydration & temperature scaling
+    cond_mult = springer_conductivity_multiplier(
+        config.T_K, config.RH_anode, config.RH_cathode
+    )
+    eff_conductivity = max(config.membrane_conductivity_S_m * cond_mult, 1e-4)
     R_membrane = (
-        config.membrane_thickness_m / config.membrane_conductivity_S_m * 1e4
+        config.membrane_thickness_m / eff_conductivity * 1e4
     )  # Ω·cm²
     R_electronic = 0.005  # Ω·cm² (bipolar plates, GDL)
     R_contact = 0.01  # Ω·cm² (contact resistance)
@@ -400,6 +454,11 @@ def simulate_pemfc(config: PEMFCConfig) -> PEMFCResult:
         'membrane': config.membrane_name,
         'T_K': config.T_K,
         'OCV_V': float(OCV),
+        'OCV_wet_V': float(OCV_wet),
+        'effective_membrane_conductivity_S_m': float(eff_conductivity),
+        'pgm_loading_mg_cm2': float(
+            config.cathode_loading_mg_cm2 + config.anode_loading_mg_cm2
+        ),
         'peak_power_W_cm2': float(peak_power),
         'peak_current_A_cm2': float(peak_current),
         'peak_voltage_V': float(peak_voltage),
@@ -462,11 +521,24 @@ def sweep_membranes(
         membranes = MEMBRANE_TYPES
 
     tafel = TAFEL_SLOPE_BY_CLASS.get(material_class, 70.0) if material_class else 70.0
+    pgm_free_classes = {
+        'SAC',
+        'DAC',
+        'MOF',
+        'COF',
+        'MetalFreeCarbon',
+        'Perovskite',
+        'Spinel',
+        'MAXPhase',
+        'MXene',
+    }
+    cathode_pgm = 0.0 if material_class in pgm_free_classes else 0.1
 
     results = []
     for mem in membranes:
         config = PEMFCConfig(
             cathode_catalyst=cathode_name,
+            cathode_loading_mg_cm2=cathode_pgm,
             membrane_name=mem['name'],
             membrane_thickness_m=mem['thickness_um'] * 1e-6,
             membrane_conductivity_S_m=mem['conductivity_S_cm'] * 100.0,

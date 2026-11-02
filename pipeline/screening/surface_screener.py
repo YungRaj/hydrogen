@@ -292,7 +292,11 @@ def _evaluate_candidate_replica(
             result['segregation_energy'] = e_bind
 
         # 9. Rate constant at reference temperature
-        T_ref = genome[4] if mat_class == 'MoltenMetal' else 1000.0
+        T_ref = (
+            float(genome[4])
+            if mat_class in ('MoltenMetal', 'HEA') and len(genome) > 4
+            else 1000.0
+        )
         A_prefactor = 1e13
         rate_k = arrhenius_rate(A_prefactor, E_act, T_ref)
         result['rate_constant'] = rate_k
@@ -314,7 +318,8 @@ def _evaluate_candidate_replica(
         from pipeline.search.scope import phase_stable_at_application_T
 
         result['pyrolysis_viable'] = (
-            phase_stable_at_application_T(genome)['status'] == 'candidate'
+            phase_stable_at_application_T(genome, T_K=float(T_ref))['status']
+            == 'candidate'
         )
 
         # 11. Physical sanity filters

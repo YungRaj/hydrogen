@@ -446,12 +446,28 @@ def evaluate_b5_closure_gate(
     """
     headline = scorecard.get('headline') or {}
     pfr = headline.get('PFR') or {}
+    pbr = headline.get('PBR') or {}
     fluid = headline.get('Fluidized') or {}
     pfr_x = float(pfr.get('single_pass_CH4_conversion') or 0.0)
+    pbr_x = float(pbr.get('single_pass_CH4_conversion') or 0.0)
     fluid_x = float(fluid.get('single_pass_CH4_conversion') or 0.0)
     judge_ok = scorecard.get('judge_catalyst') == NI_JUDGE_CATALYST
-    pfr_ok = judge_ok and pfr_x >= min_roi_conversion and not pfr.get('exceeds_equilibrium', False)
-    fluid_ok = judge_ok and fluid_x >= min_roi_conversion and not fluid.get('exceeds_equilibrium', False)
+    pfr_ok = (
+        judge_ok
+        and pfr_x >= min_roi_conversion
+        and not pfr.get('exceeds_equilibrium', False)
+    )
+    pbr_ok = (
+        judge_ok
+        and pbr_x >= min_roi_conversion
+        and not pbr.get('exceeds_equilibrium', False)
+    )
+    packed_bed_ok = (pfr_ok or pbr_ok) and (pbr_ok if 'PBR' in headline else True)
+    fluid_ok = (
+        judge_ok
+        and fluid_x >= min_roi_conversion
+        and not fluid.get('exceeds_equilibrium', False)
+    )
     raw_criteria = (b66_summary or {}).get('criteria')
     empty_map: Mapping[str, object] = {}
     criteria: Mapping[str, object] = (
@@ -474,13 +490,15 @@ def evaluate_b5_closure_gate(
         and joint_summary.get('declaration') == 'simultaneous_hit'
         and int(str(joint_summary.get('n_both_roi') or 0)) > 0
     )
-    passed = pfr_ok and fluid_ok and b66_ok and joint_ok
+    passed = packed_bed_ok and fluid_ok and b66_ok and joint_ok
     return {
         'b5_accepted': passed,
         'judge_ok': judge_ok,
         'pfr_roi_conversion': pfr_x,
+        'pbr_roi_conversion': pbr_x,
         'fluidized_roi_conversion': fluid_x,
         'pfr_conversion_ok': pfr_ok,
+        'pbr_conversion_ok': pbr_ok,
         'fluidized_conversion_ok': fluid_ok,
         'b66_criteria_ok': b66_ok,
         'b67_joint_roi_ok': joint_ok,

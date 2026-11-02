@@ -83,8 +83,11 @@ def simulate_mmbcr(
             x_eq,
             _local_tp_x_eq(config.T_inlet_K, p_stage, x_ch4_feed),
         )
-        # Account for gas molar expansion (1 + y_CH4,0 * X) reducing local bubble stage residence
-        expansion_factor = 1.0 + x_ch4_feed * max(0.0, conv)
+        # Account for gas molar expansion (1 + y_CH4,0 * X) and hydrostatic
+        # decompression (P_bottom / P(z)) reducing local bubble stage residence
+        expansion_factor = (1.0 + x_ch4_feed * max(0.0, conv)) * (
+            inlet_bottom_p_pa / max(p_stage, 10000.0)
+        )
         da_stage_local = da_stage / max(expansion_factor, 1.0)
         # First-order approach to local melt/gas equilibrium; C floats out of the bubble.
         if conv < x_eq_local:
@@ -137,6 +140,12 @@ def simulate_mmbcr(
         'X_eq_table': float(x_eq),
         'X_eq_local_tp': float(
             _local_tp_x_eq(config.T_inlet_K, config.P_inlet_Pa, x_ch4_feed)
+        ),
+        'endothermic_heat_duty_kJ_per_mol_CH4_fed': float(
+            CH4_PYROLYSIS_DELTA_H_KJ_MOL * final_conv
+        ),
+        'endothermic_heat_duty_T_kJ_per_mol_CH4_fed': float(
+            pyrolysis_reaction_enthalpy_kJ_mol(config.T_inlet_K) * final_conv
         ),
         'adiabatic_temperature_drop_K': adiabatic_temperature_drop_k(
             x_ch4_feed, final_conv

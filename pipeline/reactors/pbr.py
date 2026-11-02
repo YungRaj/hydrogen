@@ -17,6 +17,7 @@ from pipeline.reactors.reactor_core import (
     PFR_PILOT_TAU_BAND_S,
     REGEN_OXIDATIVE,
     R_J_MOL_K,
+    SOLID_CARBON_DENSITY_KG_M3,
     ReactorConfig,
     active_area_multiplier,
     active_sv,
@@ -35,6 +36,7 @@ from pipeline.reactors.reactor_core import (
     mole_fraction_drop,
     off_site_carbon_metrics,
     policy_metadata,
+    pyrolysis_reaction_enthalpy_kJ_mol,
     reciprocal_residence_h,
     require_ar_tracer,
     reset_surface_carbon,
@@ -44,8 +46,6 @@ from pipeline.reactors.reactor_core import (
     validate_carbon_policy,
 )
 
-# Solid carbon skeletal density [kg/m³] for dynamic packed-bed voidage reduction.
-SOLID_CARBON_DENSITY_KG_M3: float = 2000.0
 MIN_PACKED_BED_POROSITY: float = 0.10
 MIN_STAGE_PRESSURE_PA: float = 10000.0
 CH4_MOLAR_MASS_KG_MOL: float = 0.016043
@@ -58,6 +58,7 @@ def pbr_pellet_effectiveness(
     P_Pa: float,
     u_sup_m_s: float,
     eps_bed: float,
+    theta_c: float = 0.0,
 ) -> PBRPelletEffectivenessMetrics:
     """Compute spherical-pellet Thiele modulus, internal η, and Wakao-Funazkri overall Ω.
 
@@ -72,6 +73,7 @@ def pbr_pellet_effectiveness(
         P_Pa: Local stage pressure in pascals.
         u_sup_m_s: Local superficial gas velocity in m/s.
         eps_bed: Local packed-bed void fraction in (0, 1).
+        theta_c: Fractional surface carbon site coverage in [0, 1].
 
     Returns:
         Typed record of dimensionless and unit-bearing mass-transfer metrics.
@@ -97,12 +99,15 @@ def pbr_pellet_effectiveness(
     d_bosanquet = 1.0 / (1.0 / max(d_mol, 1e-12) + 1.0 / max(d_knudsen, 1e-12))
     d_eff = max((eps_p / max(tau_p, 1e-6)) * d_bosanquet, 1e-12)
 
-    # Intrinsic first-order surface reaction velocity k_s'' [m/s] from kinetic theory
+    # Intrinsic first-order surface reaction velocity k_s'' [m/s] from kinetic theory,
+    # attenuated by free-site availability (1 - θ_C).
     k_b_ev = 8.617333262e-5
     e_act = max(float(config.catalyst_E_act_eV), 0.0)
+    free_site_frac = min(max(1.0 - float(theta_c), 0.0), 1.0)
     k_surf_m_s = (
         0.25
         * DEFAULT_STICKING_COEFF
+        * free_site_frac
         * v_thermal
         * float(np.exp(-e_act / max(k_b_ev * T_K, 1e-9)))
     )
@@ -272,6 +277,11 @@ def simulate_pbr(
 
         p_local = float(config.P_inlet_Pa)
         tau_total_pass_s = 0.0
+        sv_geom_0 = 6.0 * (1.0 - eps_0) / d_p_m
+        sv_active_0 = active_sv(sv_geom_0, config)
+        c_inlet_mol_m3 = float(config.P_inlet_Pa) / (R_J_MOL_K * float(config.T_inlet_K))
+        carbon_molar_vol_m3_mol = 0.012011 / SOLID_CARBON_DENSITY_KG_M3
+        gamma_mol_m2_stage = float(config.site_density_mol_cm2) * 1e4
 
         for _ in range(n_stages):
             x_prev = conversion_profile[-1]
@@ -279,9 +289,23 @@ def simulate_pbr(
             theta_c_curr = float(surface_coverage(surf, 'C_s') or 0.0)
 
             # Dynamic voidage reduction from surface/deposited carbon holdup
+            # using physical graphite density (2160 kg/m³)
+            c_surf_vol_frac = (
+                gamma_mol_m2_stage
+                * sv_active_0
+                * max(theta_c_curr, 0.0)
+                * carbon_molar_vol_m3_mol
+            )
+            c_dep_vol_frac = (
+                c_inlet_mol_m3
+                * eps_0
+                * ch4_initial
+                * max(x_prev, 0.0)
+                * carbon_molar_vol_m3_mol
+            )
             c_holdup_vol_frac = min(
                 0.5 * eps_0,
-                0.08 * max(theta_c_curr, 0.0) + 0.02 * max(x_prev, 0.0),
+                c_surf_vol_frac + c_dep_vol_frac + 0.04 * max(theta_c_curr, 0.0),
             )
             eps_local = max(MIN_PACKED_BED_POROSITY, eps_0 - c_holdup_vol_frac)
 
@@ -296,17 +320,16 @@ def simulate_pbr(
 
             # Pellet Thiele modulus and overall effectiveness factor Ω_i
             pellet = pbr_pellet_effectiveness(
-                config, t_local, p_local, u_local, eps_local
+                config, t_local, p_local, u_local, eps_local, theta_c=theta_c_curr
             )
             omega_i = pellet['overall_effectiveness_factor']
             thiele_profile.append(pellet['thiele_modulus'])
             effectiveness_profile.append(omega_i)
 
-            # Stage geometric and effective active catalyst surface area
-            sv_geom_local = 6.0 * (1.0 - eps_local) / d_p_m
-            sv_active_local = active_sv(sv_geom_local, config)
+            # Stage geometric and effective active catalyst surface area fixed to
+            # initial catalyst loading (carbon holdup plugs pores, never adds catalyst)
             stage_gas_vol = stage_bed_volume * eps_local
-            stage_eff_area = omega_i * sv_active_local * stage_bed_volume
+            stage_eff_area = omega_i * sv_active_0 * stage_bed_volume
             tau_stage = stage_length * eps_local / max(u_local, 1e-6)
 
             gas.TP = t_local, p_local
@@ -447,6 +470,9 @@ def simulate_pbr(
             ),
             'endothermic_heat_duty_kJ_per_mol_CH4_fed': float(
                 CH4_PYROLYSIS_DELTA_H_KJ_MOL * final_conv
+            ),
+            'endothermic_heat_duty_T_kJ_per_mol_CH4_fed': float(
+                pyrolysis_reaction_enthalpy_kJ_mol(config.T_inlet_K) * final_conv
             ),
             'adiabatic_temperature_drop_K': adiabatic_temperature_drop_k(
                 ch4_initial, final_conv

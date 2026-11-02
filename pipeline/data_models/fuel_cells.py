@@ -9,6 +9,9 @@ class _PEMFCResultOptional(TypedDict, total=False):
     membrane_cost_usd_cm2: float
     power_per_dollar: float
     material_class: str
+    OCV_wet_V: float
+    effective_membrane_conductivity_S_m: float
+    pgm_loading_mg_cm2: float
 
 
 class PEMFCResult(_PEMFCResultOptional):

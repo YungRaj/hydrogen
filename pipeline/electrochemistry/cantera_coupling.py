@@ -129,7 +129,10 @@ def _used_values(
 
 
 def interface_ch4_destruction_mol_m2_s(
-    case_dir: Path, case: Mapping[str, object], x_ch4: float
+    case_dir: Path,
+    case: Mapping[str, object],
+    x_ch4: float,
+    clearance_fraction_override: float | None = None,
 ) -> tuple[float, str]:
     """Evaluate the candidate interface mechanism at the MOOSE surface state.
 
@@ -137,6 +140,7 @@ def interface_ch4_destruction_mol_m2_s(
         case_dir: Case directory containing the declared mechanism.
         case: Physical case document.
         x_ch4: CH4 mole fraction in the gas in equilibrium with the surface.
+        clearance_fraction_override: Optional dynamic interfacial carbon clearance fraction.
 
     Returns:
         CH4 destruction rate in mol m^-2 s^-1 and a log line.
@@ -192,9 +196,13 @@ def interface_ch4_destruction_mol_m2_s(
         if cov[idx_c] > 0.99:
             raw_clear = kinetics.get('interfacial_carbon_clearance_fraction', 1.0e-3)
             clear_frac = (
-                float(raw_clear)
-                if isinstance(raw_clear, (int, float, str))
-                else 1.0e-3
+                float(clearance_fraction_override)
+                if clearance_fraction_override is not None
+                else (
+                    float(raw_clear)
+                    if isinstance(raw_clear, (int, float, str))
+                    else 1.0e-3
+                )
             )
             freed = cov[idx_c] * min(max(clear_frac, 0.0), 0.25)
             cov[idx_c] -= freed
@@ -279,7 +287,8 @@ def _ntec(
                         _parameter(case, 'particle_diameter_m')),
         _parameter(case, 'contact_area_m2'))
     h2_kg_s = 2.0 * consumed * 2.0 * M_H
-    mechanical_w = row['wall_work_W_m2'] * area
+    agitation_w = _parameter(case, 'agitation_power_W', 0.0)
+    mechanical_w = row['wall_work_W_m2'] * area + max(agitation_w, 0.0)
     outputs = {
         'CH4_conversion': _fraction('CH4_conversion', conversion),
         # The candidate interface mechanism has no gas-phase carbon product.

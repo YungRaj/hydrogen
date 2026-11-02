@@ -161,6 +161,49 @@ def generate_fc_catalyst_list() -> List[Dict]:
 # META ESEN-SM-BASED ORR DESCRIPTOR SCREENING
 # ═══════════════════════════════════════════════════════════════════════════════
 
+SOLVATION_CORRECTION_EV: Dict[str, float] = {
+    'OH': -0.30,
+    'O': 0.00,
+    'OOH': -0.25,
+}
+
+
+def build_orr_adsorbates(structure, active_idx: list[int]) -> Dict:
+    """Build initial OH*, O*, and bent OOH* adsorbate structures on the active site.
+
+    Args:
+        structure: Clean ASE Atoms slab structure.
+        active_idx: Active surface atom indices.
+
+    Returns:
+        Dictionary mapping `'OH'`, `'O'`, and `'OOH'` to ASE Atoms structures.
+    """
+    from ase import Atom
+
+    if active_idx and active_idx[0] < len(structure):
+        ads_base = structure[active_idx[0]].position.copy()
+    else:
+        ads_base = structure.positions.mean(axis=0)
+
+    slab_oh = structure.copy()
+    oh_pos = ads_base + np.array([0.0, 0.0, 1.9])
+    slab_oh.append(Atom('O', position=oh_pos))
+    slab_oh.append(Atom('H', position=oh_pos + np.array([0.0, 0.0, 0.97])))
+
+    slab_o = structure.copy()
+    o_pos = ads_base + np.array([0.0, 0.0, 1.7])
+    slab_o.append(Atom('O', position=o_pos))
+
+    slab_ooh = structure.copy()
+    o1_pos = ads_base + np.array([0.0, 0.0, 1.9])
+    o2_pos = o1_pos + np.array([1.25, 0.0, 0.70])
+    h_pos = o2_pos + np.array([0.35, 0.0, 0.91])
+    slab_ooh.append(Atom('O', position=o1_pos))
+    slab_ooh.append(Atom('O', position=o2_pos))
+    slab_ooh.append(Atom('H', position=h_pos))
+
+    return {'OH': slab_oh, 'O': slab_o, 'OOH': slab_ooh}
+
 
 def screen_orr_candidate(candidate: Dict, calc, e_h2o: float, e_h2: float) -> Dict:
     """
@@ -227,10 +270,14 @@ def screen_orr_candidate(candidate: Dict, calc, e_h2o: float, e_h2: float) -> Di
         e_oh = slab_oh.get_potential_energy()
 
         # Reference: E(H₂O) - 0.5*E(H₂)
-        # Using standard CHE offset
+        # Using standard CHE offset + water-bilayer solvation (-0.30 eV for OH*)
         dG_OH = (
-            (e_oh - e_clean) - (e_h2o - 0.5 * e_h2) + 0.35 - 0.07
-        )  # + ZPE - TS corrections
+            (e_oh - e_clean)
+            - (e_h2o - 0.5 * e_h2)
+            + 0.35
+            - 0.07
+            + SOLVATION_CORRECTION_EV['OH']
+        )  # + ZPE - TS + solvation corrections
 
         # ── O* ──────────────────────────────────────────────────────────────
         slab_o = structure.copy()
@@ -246,13 +293,13 @@ def screen_orr_candidate(candidate: Dict, calc, e_h2o: float, e_h2: float) -> Di
             result.update({'error': geometry_reason, 'candidate_disposition': 'validation_required'})
             return result
         e_o = slab_o.get_potential_energy()
-        dG_O = (e_o - e_clean) - (e_h2o - e_h2) + 0.05 - 0.00
+        dG_O = (e_o - e_clean) - (e_h2o - e_h2) + 0.05 - 0.00 + SOLVATION_CORRECTION_EV['O']
 
         # ── OOH* ────────────────────────────────────────────────────────────
         slab_ooh = structure.copy()
         o1_pos = ads_base + np.array([0.0, 0.0, 1.9])
-        o2_pos = o1_pos + np.array([1.2, 0.0, 0.6])
-        h_pos = o2_pos + np.array([0.0, 0.0, 0.97])
+        o2_pos = o1_pos + np.array([1.25, 0.0, 0.70])
+        h_pos = o2_pos + np.array([0.35, 0.0, 0.91])
         slab_ooh.append(Atom('O', position=o1_pos))
         slab_ooh.append(Atom('O', position=o2_pos))
         slab_ooh.append(Atom('H', position=h_pos))
@@ -266,7 +313,8 @@ def screen_orr_candidate(candidate: Dict, calc, e_h2o: float, e_h2: float) -> Di
             result.update({'error': geometry_reason, 'candidate_disposition': 'validation_required'})
             return result
         e_ooh = slab_ooh.get_potential_energy()
-        dG_OOH = (e_ooh - e_clean) - (2 * e_h2o - 1.5 * e_h2) + 0.40 - 0.10
+        # Includes water-bilayer solvation (-0.25 eV for OOH*)
+        dG_OOH = (e_ooh - e_clean) - (2 * e_h2o - 1.5 * e_h2) + 0.40 - 0.10 - 0.25
 
         # ── ORR Overpotential ───────────────────────────────────────────────
         eta, rds = orr_overpotential(dG_OH, dG_O, dG_OOH)

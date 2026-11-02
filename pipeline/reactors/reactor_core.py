@@ -38,6 +38,7 @@ from pipeline.reactors.carbon_accounting import (
     NI_FILAMENT_YIELD_BAND_G_C_PER_G_NI_H,
     NI_TOS_LIFETIME_BAND_H,
     PFR_PILOT_TAU_BAND_S,
+    SOLID_CARBON_DENSITY_KG_M3,
     _advance_reactor_stage,
     _apply_continuous_carbon_removal,
     _ch4_extent,
@@ -57,6 +58,7 @@ from pipeline.reactors.carbon_accounting import (
     _species_x,
     _surface_carbon_coverage,
     _tabulated_x_eq,
+    pyrolysis_reaction_enthalpy_kJ_mol,
 )
 from pipeline.reactors.mechanisms import MONOLAYER_SITE_DENSITY_MOL_CM2
 from pipeline.reactors.modes import DEFAULT_MODE
@@ -355,6 +357,7 @@ def _kinetics_evidence(config: ReactorConfig) -> KineticsEvidenceFields:
 
 
 def _policy_metadata(config: ReactorConfig) -> dict[str, object]:
+    sigma_eff, rho_eff, melt_basis = resolve_molten_metal_properties(config)
     return {
         'co2_permitted': bool(config.co2_permitted),
         'regen_mechanism': config.regen_mechanism,
@@ -384,9 +387,9 @@ def _policy_metadata(config: ReactorConfig) -> dict[str, object]:
         'mmbcr_residence_time_basis': MMBCR_RESIDENCE_BASIS,
         'mmbcr_gas_holdup_basis': 'derived u_sup / u_b; not an input',
         'mmbcr_max_gas_holdup': MMBCR_MAX_GAS_HOLDUP,
-        'melt_surface_tension_N_m': float(config.melt_surface_tension_N_m),
-        'melt_density_kg_m3': float(config.melt_density_kg_m3),
-        'melt_property_basis': 'Ni-Bi order of magnitude; not fitted',
+        'melt_surface_tension_N_m': float(sigma_eff),
+        'melt_density_kg_m3': float(rho_eff),
+        'melt_property_basis': melt_basis,
         'solids_thermal_mode': 'isothermal_energy_disabled',
         'solids_conversion_basis': 'argon_tracer',
         'h2_metric_note': (
@@ -502,15 +505,21 @@ def active_sv(geometric_sv: float, config: ReactorConfig) -> float:
     return float(geometric_sv) * active_area_multiplier(config)
 
 
-def adiabatic_temperature_drop_k(ch4_initial: float, conversion: float) -> float:
+def adiabatic_temperature_drop_k(
+    ch4_initial: float,
+    conversion: float,
+    T_K: Optional[float] = None,
+) -> float:
     """Estimate adiabatic temperature drop ΔT_ad [K] for CH4 -> C(s) + 2 H2.
 
-    Uses ΔH_rxn = 74.85 kJ/mol CH4 and high-temperature molar heat capacities
-    Cp_CH4 ≈ 71.5 J/(mol·K) and Cp_Ar ≈ 20.8 J/(mol·K) around 1000 K.
+    Uses Kirchhoff ΔH_rxn(T_K) when ``T_K`` is provided (or standard
+    ΔH_rxn = 74.85 kJ/mol CH4 when omitted) and high-temperature molar heat
+    capacities Cp_CH4 ≈ 71.5 J/(mol·K) and Cp_Ar ≈ 20.8 J/(mol·K) around 1000 K.
 
     Args:
         ch4_initial: Inlet methane mole fraction.
         conversion: Fractional methane conversion in [0, 1].
+        T_K: Optional operating temperature in kelvin for Kirchhoff ΔH_rxn(T).
 
     Returns:
         Adiabatic temperature drop in kelvin (>= 0).
@@ -518,8 +527,13 @@ def adiabatic_temperature_drop_k(ch4_initial: float, conversion: float) -> float
     y_ch4 = min(max(float(ch4_initial), 0.0), 1.0)
     y_ar = max(0.0, 1.0 - y_ch4)
     cp_mix_j_mol_k = max(y_ch4 * 71.5 + y_ar * 20.8, 20.8)
+    dh_kj_mol = (
+        pyrolysis_reaction_enthalpy_kJ_mol(float(T_K))
+        if T_K is not None
+        else CH4_PYROLYSIS_DELTA_H_KJ_MOL
+    )
     q_j_per_mol_feed = (
-        y_ch4 * min(max(float(conversion), 0.0), 1.0) * CH4_PYROLYSIS_DELTA_H_KJ_MOL * 1000.0
+        y_ch4 * min(max(float(conversion), 0.0), 1.0) * dh_kj_mol * 1000.0
     )
     return float(q_j_per_mol_feed / cp_mix_j_mol_k)
 

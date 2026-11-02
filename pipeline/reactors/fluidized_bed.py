@@ -208,11 +208,20 @@ def simulate_fluidized_bed(
         'surface_area_basis': 'sv_per_emulsion_volume_times_emulsion_volume',
         'emulsion_CH4_conversion': float(emulsion_conv),
         'CH4_conversion': float(final_conv),
+        'kunii_levenspiel_coupled_CH4_conversion': float(
+            (1.0 - kl_metrics['effective_bypass_fraction']) * emulsion_conv
+        ),
         'single_pass_CH4_conversion': float(
             (1.0 - delta) * per_cycle[0] if per_cycle else final_conv
         ),
         'cycle_averaged_CH4_conversion': float(
             (1.0 - delta) * np.mean(per_cycle) if per_cycle else final_conv
+        ),
+        'endothermic_heat_duty_kJ_per_mol_CH4_fed': float(
+            CH4_PYROLYSIS_DELTA_H_KJ_MOL * final_conv
+        ),
+        'endothermic_heat_duty_T_kJ_per_mol_CH4_fed': float(
+            pyrolysis_reaction_enthalpy_kJ_mol(config.T_inlet_K) * final_conv
         ),
         'adiabatic_temperature_drop_K': adiabatic_temperature_drop_k(
             ch4_initial, final_conv

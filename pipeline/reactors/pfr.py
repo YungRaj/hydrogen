@@ -178,6 +178,9 @@ def simulate_pfr(
         'endothermic_heat_duty_kJ_per_mol_CH4_fed': float(
             CH4_PYROLYSIS_DELTA_H_KJ_MOL * final_conv
         ),
+        'endothermic_heat_duty_T_kJ_per_mol_CH4_fed': float(
+            pyrolysis_reaction_enthalpy_kJ_mol(config.T_inlet_K) * final_conv
+        ),
         'adiabatic_temperature_drop_K': adiabatic_temperature_drop_k(
             ch4_initial, final_conv
         ),

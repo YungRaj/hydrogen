@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Literal, Protocol, TypedDict
+from typing import TYPE_CHECKING, Literal, Protocol, TypedDict
 
-import numpy as np
-import numpy.typing as npt
+if TYPE_CHECKING:
+    import numpy as np
+    import numpy.typing as npt
 
 from pipeline.reactors.modes import ReactorTypeName
 from pipeline.data_models.artifacts import ArtifactValidationResult
@@ -315,8 +316,10 @@ class B5ClosureGateResult(TypedDict):
     b5_accepted: bool
     judge_ok: bool
     pfr_roi_conversion: float
+    pbr_roi_conversion: float
     fluidized_roi_conversion: float
     pfr_conversion_ok: bool
+    pbr_conversion_ok: bool
     fluidized_conversion_ok: bool
     b66_criteria_ok: bool
     b67_joint_roi_ok: bool

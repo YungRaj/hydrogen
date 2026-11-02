@@ -52,7 +52,8 @@ def electrochemical_screening_point(parameters: dict[str, float]) -> dict[str, A
     Returns:
         Diagnostic current, voltage, conversion, and selectivity values.
     """
-    n_electrons = int(parameters.get('electrons', 2))
+    n_electrons = int(parameters.get('electrons', 4))
+    n_bv_electrons = int(parameters.get('charge_transfer_electrons', 1))
     thermo_v_rev = turquoise_reversible_voltage_V(
         parameters['temperature_K'], n_electrons
     )
@@ -65,7 +66,7 @@ def electrochemical_screening_point(parameters: dict[str, float]) -> dict[str, A
     )
     current_density = butler_volmer_current_density(
         exchange, parameters['overpotential_V'], parameters['temperature_K'],
-        parameters.get('symmetry_factor', 0.5), n_electrons,
+        parameters.get('symmetry_factor', 0.5), n_bv_electrons,
     )
     area = parameters['area_m2']
     current = current_density * 1.0e4 * area
@@ -107,6 +108,8 @@ def electrochemical_screening_point(parameters: dict[str, float]) -> dict[str, A
         'can_exclude_candidate': False, 'current_density_A_cm2': current_density,
         'cell_voltage_V': voltage, 'electrical_power_density_W_cm2': voltage * current_density,
         'thermodynamic_reversible_voltage_V': thermo_v_rev,
+        'stoichiometric_electrons': n_electrons,
+        'charge_transfer_electrons': n_bv_electrons,
         'CH4_conversion': conversion, 'H2_selectivity': faradaic_efficiency,
         'faradaic_efficiency_H2': faradaic_efficiency,
         'selectivity_assumption': 'H2 selectivity equals H2 Faradaic efficiency',
@@ -135,19 +138,20 @@ def ntec_screening_point(parameters: dict[str, float]) -> dict[str, Any]:
     detached = detachment_probability(
         parameters['adhesion_energy_J_m2'], impact, parameters['contact_area_m2']
     )
+    k_regen = (
+        collisions / (
+            parameters['number_density_m3']
+            * 3.141592653589793 * parameters['particle_diameter_m'] ** 2
+        )
+        * parameters['contact_area_m2']
+        * detached
+    )
     result: dict[str, Any] = {
         'status': 'diagnostic', 'reactor_evidence_tier': 'native_screening_model',
         'can_exclude_candidate': False, 'collision_events_per_volume_s': collisions,
         'impact_energy_J': impact,
         'detachment_probability': detached,
-        'carbon_regeneration_rate_1_s': (
-            collisions / (
-                parameters['number_density_m3']
-                * 3.141592653589793 * parameters['particle_diameter_m'] ** 2
-            )
-            * parameters['contact_area_m2']
-            * detached
-        ),
+        'carbon_regeneration_rate_1_s': k_regen,
     }
     if all(
         key in parameters
@@ -171,6 +175,7 @@ def ntec_screening_point(parameters: dict[str, float]) -> dict[str, Any]:
         result.update({
             'status': 'complete',
             'CH4_conversion': conversion,
+            'detachment_modulated_CH4_conversion': min(conversion * detached, 1.0),
             'H2_selectivity': 1.0,
             'solid_C_selectivity': 1.0,
             'specific_energy_kWh_kg_H2': (

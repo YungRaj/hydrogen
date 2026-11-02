@@ -942,5 +942,155 @@ def test_assumption_audit_fixes(tmp_path):
     assert tea_50['net_ch4_utilization'] > 0.90
 
 
+def test_second_pass_assumption_fixes(tmp_path):
+    """Verify second-pass physical, chemical, kinetic, atomistic, electrochemistry, PEMFC, and TEA fixes."""
+    from pipeline.economics.tea import estimate_hydrogen_cost
+    from pipeline.electrochemistry.cell import CellOperatingPoint
+    from pipeline.electrochemistry.kinetics import butler_volmer_current_density
+    from pipeline.electrochemistry.native_models import electrochemical_screening_point
+    from pipeline.fuel_cell.pemfc import (
+        PEMFCConfig,
+        simulate_pemfc,
+        springer_conductivity_multiplier,
+        sweep_membranes,
+        water_saturation_pressure_Pa,
+    )
+    from pipeline.reactors.carbon_accounting import (
+        SOLID_CARBON_DENSITY_KG_M3,
+        pyrolysis_reaction_enthalpy_kJ_mol,
+    )
+    from pipeline.reactors.pbr import pbr_pellet_effectiveness
+    from pipeline.reactors.reactor_core import (
+        ReactorConfig,
+        _policy_metadata,
+        adiabatic_temperature_drop_k,
+    )
+    from pipeline.reactors.scorecard import evaluate_b5_closure_gate
+    from pipeline.reactors.sweeps.activation import ABLATION_RESPONSE
+    from pipeline.screening.fc_cathode_screener import (
+        SOLVATION_CORRECTION_EV,
+        build_orr_adsorbates,
+    )
+    from pipeline.screening.small_data_ranker import _extract_secondary_targets
+    from pipeline.screening.structure_builders import generate_structure
+    from pipeline.search.scope import phase_stable_at_application_T
+
+    # 1. Unified solid carbon density (2160 kg/m^3 = 2.16 g/cm^3) and Kirchhoff enthalpy ΔH(T)
+    assert SOLID_CARBON_DENSITY_KG_M3 == pytest.approx(2160.0)
+    dh_298 = pyrolysis_reaction_enthalpy_kJ_mol(298.15)
+    dh_1073 = pyrolysis_reaction_enthalpy_kJ_mol(1073.15)
+    assert dh_298 == pytest.approx(74.85, rel=0.02)
+    assert dh_1073 > 85.0  # Kirchhoff increase at high T
+    assert adiabatic_temperature_drop_k(0.95, 0.50, T_K=1073.15) > adiabatic_temperature_drop_k(
+        0.95, 0.50
+    )
+
+    # 2. PBR effectiveness fouling with theta_c and B5 closure gate PBR support
+    cfg_pbr = ReactorConfig(reactor_type='PBR', catalyst_particle_mm=2.0)
+    clean_eff = pbr_pellet_effectiveness(cfg_pbr, 1073.15, 150000.0, 0.25, 0.40, theta_c=0.0)
+    fouled_eff = pbr_pellet_effectiveness(cfg_pbr, 1073.15, 150000.0, 0.25, 0.40, theta_c=0.75)
+    assert fouled_eff['thiele_modulus'] < clean_eff['thiele_modulus']
+    assert 'PBR' in ABLATION_RESPONSE
+    b5_gate = evaluate_b5_closure_gate({})
+    assert 'pbr_roi_conversion' in b5_gate and 'pbr_conversion_ok' in b5_gate
+
+    # 3. MMBCR _policy_metadata preserves composition-resolved melt properties
+    from pipeline.reactors.mechanisms import CandidateKinetics, write_full_mechanism
+
+    mech_ga = write_full_mechanism(
+        'ga_ni_policy',
+        kinetics=CandidateKinetics(
+            methane_activation_eV=0.85,
+            candidate_id='ga_ni_policy',
+            material_class='MoltenMetal',
+            genome=('MoltenMetal', 'Ga', 'Ni', 20.0, 1273.15),
+            screening_protocol='esen-v1',
+        ),
+        output_dir=tmp_path,
+    )
+    pol_ga = _policy_metadata(ReactorConfig(reactor_type='MMBCR', mechanism_file=str(mech_ga)))
+    assert pol_ga['melt_surface_tension_N_m'] > 0.60
+    assert 'Ga_Ni' in str(pol_ga['melt_property_basis'])
+
+    # 4. Dopant/promoter active site ordering in generate_alloy_slab and low-melting solid host rejection
+    saa_atoms, saa_surf, _ = generate_structure(('SAA', 'Ni', 'Cu', 'fcc111', 1), 0)
+    assert saa_atoms[saa_surf[0]].symbol == 'Ni'
+    assert (
+        phase_stable_at_application_T(
+            ('SolidCatalyst', 'Ga', 'Al2O3', 'fcc111', 0.0, (), 0, 0), T_K=1073.15
+        )['status']
+        == 'out_of_scope'
+    )
+    assert (
+        phase_stable_at_application_T(
+            ('SolidCatalyst', 'Ni', 'Al2O3', 'fcc111', 0.0, (), 0, 0), T_K=1073.15
+        )['status']
+        == 'candidate'
+    )
+
+    # 5. Small-data ranker signed desorption overbinding penalty (-dg_c)
+    sec_weak_c = _extract_secondary_targets(
+        {'dE_H': 0.0, 'dE_C': 3.50, 'temperature_K': 1000.0},
+        'turquoise_hydrogen',
+    )
+    sec_overbound_c = _extract_secondary_targets(
+        {'dE_H': 0.0, 'dE_C': 2.00, 'temperature_K': 1000.0},
+        'turquoise_hydrogen',
+    )
+    assert sec_weak_c['desorption_overbinding_penalty_eV'] == pytest.approx(0.0)
+    assert sec_overbound_c['desorption_overbinding_penalty_eV'] > 0.50
+
+    # 6. FC cathode screener solvation corrections and bent OOH* geometry
+    assert SOLVATION_CORRECTION_EV['OH'] == pytest.approx(-0.30)
+    assert SOLVATION_CORRECTION_EV['OOH'] == pytest.approx(-0.25)
+    ooh_atoms = build_orr_adsorbates(saa_atoms, saa_surf)['OOH']
+    # Distal O is displaced laterally (bent O-O-H), not colinear along z
+    o1_pos = ooh_atoms.positions[-3]
+    o2_pos = ooh_atoms.positions[-2]
+    assert abs(float(o2_pos[0] - o1_pos[0])) > 0.5
+
+    # 7. Electrochemistry 4-electron stoichiometry and 1-electron RDS Butler-Volmer default
+    assert CellOperatingPoint(1.0, 0.1, -0.1, 0.1, 1.0, 1.0, 1000.0).electrons == 4
+    bv_default = butler_volmer_current_density(0.1, 0.1, 1000.0)
+    bv_n1 = butler_volmer_current_density(0.1, 0.1, 1000.0, electrons=1)
+    assert bv_default == pytest.approx(bv_n1)
+    ec_res = electrochemical_screening_point({
+        'descriptor_eV': 0.0,
+        'optimum_descriptor_eV': 0.0,
+        'reference_current_A_cm2': 0.1,
+        'temperature_K': 900.0,
+        'overpotential_V': 0.15,
+        'area_m2': 1e-4,
+        'diffusivity_m2_s': 1e-9,
+        'concentration_mol_m3': 1000.0,
+        'boundary_layer_m': 1e-4,
+        'gap_m': 1e-3,
+        'conductivity_S_m': 10.0,
+        'ch4_feed_mol_s': 1e-3,
+    })
+    assert ec_res['stoichiometric_electrons'] == 4
+    assert ec_res['charge_transfer_electrons'] == 1
+
+    # 8. PEMFC Springer conductivity hydration scaling, wet Nernst OCV, and PGM-free loading
+    assert springer_conductivity_multiplier(353.15, 1.0, 1.0) == pytest.approx(1.0)
+    assert springer_conductivity_multiplier(353.15, 0.4, 0.4) < 0.5
+    assert water_saturation_pressure_Pa(353.15) > 40000.0
+    pem_wet = simulate_pemfc(PEMFCConfig(cathode_catalyst='Pt_wet', RH_anode=1.0, RH_cathode=1.0))
+    pem_dry = simulate_pemfc(PEMFCConfig(cathode_catalyst='Pt_dry', RH_anode=0.3, RH_cathode=0.3))
+    assert pem_dry['R_ohmic_ohm_cm2'] > pem_wet['R_ohmic_ohm_cm2']
+    assert pem_wet['OCV_wet_V'] < pem_wet['OCV_V']
+    sac_sweeps = sweep_membranes('Fe_N_C', 0.38, material_class='SAC')
+    assert sac_sweeps[0]['pgm_loading_mg_cm2'] == pytest.approx(0.05)
+
+    # 9. TEA carbon selectivity credit scaling and temperature-dependent duty
+    tea_full_c = estimate_hydrogen_cost(0.80, 'base', solid_c_selectivity=1.0)
+    tea_half_c = estimate_hydrogen_cost(0.80, 'base', solid_c_selectivity=0.5)
+    assert tea_half_c['h2_cost_usd_kg'] > tea_full_c['h2_cost_usd_kg']
+    tea_high_t = estimate_hydrogen_cost(0.80, 'base', temperature_K=1373.15)
+    tea_low_t = estimate_hydrogen_cost(0.80, 'base', temperature_K=973.15)
+    assert tea_high_t['energy_input_kwh_kg_h2'] > tea_low_t['energy_input_kwh_kg_h2']
+
+
+
 
 
