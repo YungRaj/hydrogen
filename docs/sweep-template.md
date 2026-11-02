@@ -43,16 +43,20 @@ Carbon stays as site-blocking `C_s` until a named regen policy clears it. If cov
 
 Cell inventory (`d_p`, loading, dispersion) sets active area `a = a_geom × loading × dispersion`. The table reports *a*, WHSV, and Ergun ΔP. This is the solids judge path.
 
+### PBR — catalytic packed-bed reactor (pellet diffusion + differential Ergun ΔP)
+
+A catalyst-weight-integrated (`dW`) packed bed of porous catalyst pellets (`pipeline/reactors/pbr.py`). Each axial increment updates local pressure via the differential Ergun equation (`-dP/dz`), dynamically reduces bed voidage `ε(z)` as solid carbon accumulates, and scales surface kinetics by the overall pellet effectiveness factor `Ω` (combining Bosanquet molecular + Knudsen pore diffusion, spherical Thiele modulus `φ`, internal effectiveness `η_int`, and Wakao–Funazkri external film mass transfer `k_c`).
+
 ### Fluidized — fluidized solid bed
 
-The same solid-surface physics (`C_s` blocks sites; same inventory levers; Ergun ΔP), but the particles are fluidized (0.8 m bed, emulsion residence from `u0` / `u_mf`).
+The same solid-surface physics (`C_s` blocks sites; same inventory levers; Ergun ΔP), but the particles are fluidized (0.8 m bed, emulsion residence from `u0` / `u_mf` with Kunii–Levenspiel interphase bubble-to-emulsion exchange).
 
 Two modes, chosen by `fluidized_mode`:
 
 - **`circulating`** (default) — carbon is removed continuously during the integrate (a circulating-bed stand-in). No discrete regen loop.
 - **`batch_regen`** — the bed parks and cokes; then the same discrete regen loop as the PFR (mechanical clear, up to `max_regen_cycles`).
 
-`fluidized_mode` does nothing on PFR or MMBCR.
+`fluidized_mode` does nothing on PFR, PBR, or MMBCR.
 
 ### MMBCR — molten-metal bubble column
 
@@ -66,7 +70,7 @@ Use MMBCR as the melt contrast, not as a third solids score.
 
 ### Pathway modes and hydrodynamic closure
 
-Upstream routes each reactor through a pathway mode (`thermocatalytic_pfr`, `thermocatalytic_fluidized`, `mmbcr`) and refuses a run that mixes solids and melt modes. A sweep file may still list all three reactors; the runner splits them into one call per mode.
+Upstream routes each reactor through a pathway mode (`thermocatalytic_pfr`, `thermocatalytic_pbr`, `thermocatalytic_fluidized`, `mmbcr`) and refuses a run that mixes solids and melt modes. A sweep file may still list all reactors; the runner splits them into one call per mode.
 
 Fluidized and MMBCR hydrodynamics are external-solver quantities upstream. When a validated OpenFOAM artifact or calibrated surrogate is present it is used. Without one the run proceeds on the labelled `analytical_hydrodynamic_closure` (Mendelson `u_b` / derived holdup for the melt; clipped `(u0−umf)/u0` bubble bypass for the bed) and records `closure_source`. Such a run can never exclude a candidate.
 

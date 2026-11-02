@@ -720,8 +720,8 @@ The integration lives in:
 - `pipeline/reactors/mechanisms.py` for Cantera YAML generation;
 - `pipeline/reactors/reactor_core.py` for common configuration, phase loading,
   physical correlations, carbon accounting, and validation;
-- `pipeline/reactors/mmbcr.py`, `pfr.py`, and `fluidized_bed.py` for the three
-  distinct thermocatalytic reactor implementations;
+- `pipeline/reactors/mmbcr.py`, `pfr.py`, `pbr.py`, and `fluidized_bed.py` for
+  the four distinct thermocatalytic reactor implementations;
 - `pipeline/reactors/electrochemical_models.py` for NTEC and electrochemical
   multiphysics-result adaptation; and
 - `pipeline/reactors/models.py` for stable routing, sweep execution, and
@@ -746,8 +746,16 @@ geometry parameters. `simulate_reactor` dispatches to:
 
 - `simulate_mmbcr`: a molten-metal bubble-column representation using a CSTR
   cascade, bubble surface-to-volume ratio, and axial conversion profile;
-- `simulate_pfr`: a staged plug-flow representation;
-- `simulate_fluidized_bed`: a two-phase fluidized-bed proxy;
+- `simulate_pfr`: a staged plug-flow representation with axial differential
+  Ergun pressure drop and molar gas-expansion accounting;
+- `simulate_pbr`: a differential catalyst-weight (`dW`) packed-bed
+  representation coupling stage-by-stage Ergun pressure drop (`-dP/dz`), gas
+  molar expansion, dynamic carbon-holdup bed voidage (`ε(z)`), Bosanquet
+  molecular + Knudsen intraparticle pore diffusion, spherical-pellet Thiele
+  modulus (`φ`), internal effectiveness factor (`η_int`), and Wakao–Funazkri
+  external film mass transfer (`Ω`);
+- `simulate_fluidized_bed`: a two-phase fluidized-bed representation with
+  Kunii–Levenspiel interphase bubble-to-emulsion mass exchange (`K_be`);
 - `simulate_ntec_pathway`: consumes a validated MOOSE + Cantera
   artifact for the liquid-solid NTEC pathway;
 - `simulate_electrochemical_pathway`: consumes a validated MOOSE + Cantera
@@ -766,9 +774,10 @@ The thermal models have deliberately bounded interpretations:
 
 | Reactor | Cantera construction | Geometry/phase contract | Limitation |
 |---|---|---|---|
-| Packed-bed PFR | Sequential isothermal ideal-gas reactors followed as a Lagrangian parcel, each with `ReactorSurface` | Solid catalyst; surface area from total packed volume, gas residence from void volume | Staged 1-D approximation; no axial dispersion, pressure drop, heat/mass-transfer limitation, or pellet diffusion |
-| Fluidized bed | Isothermal reacting emulsion parcel plus explicit unreacted bubble bypass mixing | Particulate solid catalyst; superficial velocity must exceed minimum fluidization velocity | Conservative two-phase screening closure; no interphase exchange correlation, population balance, attrition, or CFD |
-| MMBCR | Isothermal steady `IdealGasReactor` CSTRs in series with `ReactorSurface` | `MoltenMetal` candidates only; column area sets flow, gas holdup sets residence, bubble diameter and holdup set interfacial area; gas-liquid kinetics currently use a declared Cantera ideal-surface proxy | Idealized interface/bubbles/CSTRs; no liquid-phase activity model, coalescence, breakup, circulation, mass-transfer coefficient, or CFD |
+| Packed-bed PFR | Sequential ideal-gas reactors followed as a Lagrangian parcel, each with `ReactorSurface` and coupled Ergun `ΔP` | Solid catalyst; surface area from total packed volume, gas residence from void volume corrected for molar expansion `(1 + X_CH4)` | Staged 1-D approximation; no axial dispersion or intraparticle pellet diffusion (use `PBR` for pellet diffusion) |
+| Catalytic Packed-Bed (`PBR`) | Differential catalyst-weight (`dW`) stages with `ReactorSurface` scaled by overall pellet effectiveness `Ω`, coupled Ergun `-dP/dz`, and dynamic voidage `ε(z)` from solid carbon holdup | Solid catalyst pellets (`d_p`, `ε_pellet`, `τ_pellet`, `r_pore`, `ρ_cat_bulk`); integrates on catalyst-mass / WHSV basis with Bosanquet diffusivity, spherical Thiele modulus `φ`, and Wakao–Funazkri external mass transfer | 1-D pseudo-homogeneous/heterogeneous pellet effectiveness closure; radial wall heat-transfer profiles are not resolved in 2-D |
+| Fluidized bed | Reacting emulsion parcel coupled with Kunii–Levenspiel bubble-to-emulsion interphase mass transfer (`K_be`) | Particulate solid catalyst; superficial velocity must exceed minimum fluidization velocity | Two-phase screening closure when run without an OpenFOAM artifact; no population balance or attrition |
+| MMBCR | Steady `IdealGasReactor` CSTRs in series with `ReactorSurface` or active-metal dissolved-carbon activity closure (`γ_C`, `S_C`) | `MoltenMetal` candidates only; column area sets flow, gas holdup sets residence, bubble diameter and holdup set interfacial area | Idealized bubble-column cascade when run without an OpenFOAM artifact; no coalescence/breakup population balance |
 
 Cantera integrates the declared gas and heterogeneous surface reaction network
 inside those idealized thermal control volumes. Cantera also supports declared
@@ -788,7 +797,8 @@ See Cantera's official documentation for
 and [reactor-network scope](https://cantera.org/stable/reference/reactors/).
 
 The shared reactor stage generates a candidate thermal Cantera YAML only for
-the three thermal dispatch targets. NTEC and electrochemical execution leaves
+the four thermal dispatch targets (`PFR`, `PBR`, `Fluidized`, `MMBCR`). NTEC and
+electrochemical execution leaves
 `mechanism_file` null and instead requires a mode-owned artifact. A valid
 artifact completes the condition; a missing, mismatched, unconverged,
 non-conservative, or non-mesh-independent artifact returns
@@ -818,19 +828,14 @@ External cases pass through three independently implemented gates:
 create missing non-runnable skeletons. It never invents physical values or
 marks a template ready.
 
-### 11.4 Current carbon-model limitation
+### 11.4 Solid-carbon phase and site accounting
 
-The current mechanism still lists `C_graphite` inside the ideal-gas phase as a
-legacy bookkeeping tracer. Therefore Cantera attaches ideal-gas chemical
-potential behavior—including composition/partial-pressure dependence—to that
-species. Deposited carbon should instead be represented by an appropriate
-condensed fixed-stoichiometry phase and/or surface C* transfer to bulk graphite.
-
-This limitation is deliberately exposed in evidence metadata as
-`legacy_gas_carbon_tracer`. It is not fixed in this repository version because
-that change is being handled separately. Until then, carbon selectivity and
-coking conclusions from the reactor mechanism are diagnostic, not validated
-physical evidence.
+Solid carbon is represented as a dedicated stoichiometric condensed graphite
+phase (`C(gr)`) alongside site-blocking surface carbon (`C_s`) and
+encapsulating carbon (`C_encap_s`); there is no gas-phase carbon tracer.
+Nanoparticle catalysts (e.g., Ni, Fe, Co, and supported transition-metal slabs)
+include off-site carbon nucleation (`C_s => C(gr) + site`) and encapsulation
+(`C_s => C_encap_s`), together with self-gasification by H₂ (`C_s + 2 H2 <=> CH4 + site`).
 
 ### 11.5 Fail-closed interpretation
 
@@ -839,23 +844,22 @@ physical evidence.
 - `candidate_specific_kinetics` only when no template or carbon-model
   limitation remains;
 - otherwise `diagnostic_screening_template`;
-- `can_exclude_candidate = false` for incomplete kinetics or the legacy carbon
-  representation.
+- `can_exclude_candidate = false` for incomplete kinetics or template defaults.
 
-Thus Cantera can help rank conditions and identify sensitivity targets, but the
-current incomplete mechanism cannot eliminate a catalyst or count as measured
+Thus Cantera can help rank conditions and identify sensitivity targets, but an
+incomplete mechanism cannot eliminate a catalyst or count as measured
 reactor validation.
 
 ## 12. Methane-conversion pathway modes
 
-`PYROLYSIS_MODE` selects one of six explicitly routed pathway modes:
-`thermocatalytic` (the default PFR + fluidized-bed family),
-`thermocatalytic_pfr`, `thermocatalytic_fluidized`, `mmbcr`, `ntec`, or
-`electrochemical`. Aqueous versus molten electrolyte is an electrochemical
-condition, not a separate orchestration mode. NTEC and electrochemical routes
-consume strict external-solver artifacts and return non-excluding
-`validation_required` evidence when those artifacts are absent or invalid;
-they never fall back silently to a thermal reactor.
+`PYROLYSIS_MODE` selects one of seven explicitly routed pathway modes:
+`thermocatalytic` (the default `PFR` + `PBR` + `Fluidized` family),
+`thermocatalytic_pfr`, `thermocatalytic_pbr`, `thermocatalytic_fluidized`,
+`mmbcr`, `ntec`, or `electrochemical`. Aqueous versus molten electrolyte is an
+electrochemical condition, not a separate orchestration mode. NTEC and
+electrochemical routes consume strict external-solver artifacts and return
+non-excluding `validation_required` evidence when those artifacts are absent or
+invalid; they never fall back silently to a thermal reactor.
 
 Thermocatalytic screening uses the unassisted atomistic descriptors. NTEC uses
 the same candidate base calculation and optionally applies a bounded transfer

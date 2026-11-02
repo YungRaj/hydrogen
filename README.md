@@ -188,16 +188,18 @@ prediction. Current status is:
 | Mode | Software status | Inputs needed to complete a condition | Claim boundary |
 |---|---|---|---|
 | `thermocatalytic_pfr` | Operational now | Candidate screening record; generated Cantera mechanism | Qualified diagnostic screening, not experimentally validated prediction |
-| `thermocatalytic` | Operational dispatcher | PFR inputs plus a valid fluidized OpenFOAM artifact | PFR completes independently; missing fluidized evidence is `validation_required` |
+| `thermocatalytic_pbr` | Operational now | Candidate screening record; generated Cantera mechanism; pellet diffusion & differential Ergun parameters | Qualified diagnostic screening with pellet Thiele/Wakao-Funazkri effectiveness and coupled Ergun ΔP |
+| `thermocatalytic` | Operational dispatcher | PFR and PBR inputs plus a valid fluidized OpenFOAM artifact | PFR and PBR complete independently; missing fluidized evidence is `validation_required` |
 | `thermocatalytic_fluidized` | Solver integration complete | Sourced physical case, OpenFOAM hydrodynamics, calibration and held-out validation | Non-excluding until a valid artifact is present |
 | `mmbcr` | Solver integration complete | Sourced molten-metal case, OpenFOAM hydrodynamics, candidate interface kinetics, calibration and holdout | Non-excluding until a valid artifact is present; graphite correction remains separate work |
 | `ntec` | Solver integration complete | Coupled MOOSE/Cantera case and real paired NTEC/control calibration | No speculative NTEC assistance or conversion |
 | `electrochemical` | Solver integration complete | MOOSE/Cantera case, complete charge-transfer mechanism, aqueous/molten properties and holdout | No fabricated electrochemical performance |
 
 For an immediately runnable reactor-screening campaign, explicitly select
-`--mode thermocatalytic_pfr`. The default `thermocatalytic` deliberately
-dispatches both PFR and fluidized-bed conditions; fluidized conditions remain
-visible but incomplete until their validated OpenFOAM artifacts exist.
+`--mode thermocatalytic_pfr` or `--mode thermocatalytic_pbr`. The default
+`thermocatalytic` deliberately dispatches PFR, PBR, and fluidized-bed
+conditions; fluidized conditions remain visible but incomplete until their
+validated OpenFOAM artifacts exist.
 
 Inside `pipeline/`, source is grouped by responsibility:
 
@@ -208,8 +210,9 @@ Inside `pipeline/`, source is grouped by responsibility:
 - **`validation/`:** `qe_workflows.py`, `orr_workflows.py`,
   `dft_validator.py`, and `dft_fuel_cell.py`.
 - **`reactors/`:** methane-conversion routing, Cantera mechanisms, thermal
-  reactor models, equilibrium/result interpretation, and focused `sweeps/`
-  tooling for carbon-closure and sensitivity studies.
+  reactor models (`pfr.py`, `pbr.py`, `fluidized_bed.py`, `mmbcr.py`),
+  equilibrium/result interpretation, and focused `sweeps/` tooling for
+  carbon-closure and sensitivity studies.
 - **`simulation/`:** physical cases, external solver execution, validated
   artifacts, and OpenFOAM/MOOSE/Cantera handoffs.
 - **`transport/`:** representative cases, learned closures, model registries,
@@ -230,11 +233,12 @@ Python caches are intentionally ignored. They are runtime assets, not source.
 ### Turquoise Hydrogen Pathway Modes
 
 Methane splitting traditionally requires high temperatures because of its C-H
-activation barrier. The default `thermocatalytic` mode evaluates both PFR and
+activation barrier. The default `thermocatalytic` mode evaluates PFR, PBR, and
 fluidized-bed operation over **500°C (773.15 K) to 1300 K** (using points
-`[773.15, 900.0, 1100.0, 1300.0] K`). The corresponding single-reactor modes
-are `thermocatalytic_pfr` and `thermocatalytic_fluidized`; `mmbcr` selects the
-thermal molten-metal bubble-column route explicitly.
+`[773.15, 900.0, 923.15, 973.15, 1100.0, 1300.0] K`). The corresponding
+single-reactor modes are `thermocatalytic_pfr`, `thermocatalytic_pbr`, and
+`thermocatalytic_fluidized`; `mmbcr` selects the thermal molten-metal
+bubble-column route explicitly.
 
 * **Nanotribo-Mechano-Electrochemical (NTEC) Pyrolysis:**
   - **Mechanism:** Employs mechanical fluidization or shearing forces to create local triboelectric fields, facilitating C-H bond activation.
@@ -447,7 +451,7 @@ ranking whenever an uncensored candidate is available.
 | Solid carbon | Condensed `C(gr)` plus site-blocking `C_s`. Ungated YAML **ends at `C_s`**. Nanoparticle Ni/Fe/Co also get `C_s => C(gr) + site` (Cγ) and `C_s => C_encap_s` (Cδ). Not SAC/`cat_9`. No gas-phase carbon tracer. |
 | Solids inventory | Geometric `a = 6(1−ε)/d_p` × loading × dispersion (both ≤ 1), applied per bed volume (`A = a · V_bed`). Γ locked at a monolayer (`2.5×10⁻⁹ mol/cm²`). Production defaults: `d_p = 0.13 mm`, loading `0.5`, dispersion `0.3`. |
 | Hydrodynamic closure | Fluidized / MMBCR take validated OpenFOAM artifacts or calibrated surrogates first; absent both they run on a labelled `analytical_hydrodynamic_closure` (Mendelson `u_b`, derived holdup ≤ 0.3; clipped `(u0−umf)/u0` bypass) that can never exclude a candidate. |
-| Reactor types | PFR (shared surface, time-on-stream, discrete regen); circulating / batch-regen fluidized bed with Ar-tracer bubble bypass; MMBCR melt ODE to `X_eq` with `τ = H / u_b` (MoltenMetal only); MOOSE+Cantera NTEC; MOOSE+Cantera electrochemical. NTEC / electrochemical fail closed on missing evidence. |
+| Reactor types | PFR (shared surface, time-on-stream, coupled Ergun ΔP, discrete regen); PBR (catalyst-weight `dW` integration, coupled differential Ergun `-dP/dz`, dynamic carbon-holdup voidage `ε(z)`, Bosanquet pore diffusion, spherical Thiele modulus `φ`, internal effectiveness `η_int`, Wakao–Funazkri external mass transfer `Ω`); circulating / batch-regen fluidized bed with Kunii–Levenspiel bubble-to-emulsion exchange (`K_be`) and Ar-tracer conversion; MMBCR melt ODE to `X_eq` with `τ = H / u_b` and active-metal dissolved-carbon activity closure (MoltenMetal only); MOOSE+Cantera NTEC; MOOSE+Cantera electrochemical. NTEC / electrochemical fail closed on missing evidence. |
 
 ### Fuel Cell Models
 
@@ -783,7 +787,7 @@ runtimes. No machine-specific home directory is assumed.
 | `--evidence-manifest` | `results/evidence_manifest.json` | Counts of converged calculations and measured reactor/MEA/durability/NTEC-control evidence required in final mode |
 | `--no-dft` | false | Skip Quantum ESPRESSO phase |
 | `--no-vqe` | false | Skip CUDA-Q VQE phase |
-| `--mode` | `thermocatalytic` | Pathway mode: `thermocatalytic`, `thermocatalytic_pfr`, `thermocatalytic_fluidized`, `mmbcr`, `ntec`, or `electrochemical` |
+| `--mode` | `thermocatalytic` | Pathway mode: `thermocatalytic`, `thermocatalytic_pfr`, `thermocatalytic_pbr`, `thermocatalytic_fluidized`, `mmbcr`, `ntec`, or `electrochemical` |
 | `--ntec-conditions-json` | — | Measured NTEC operating inputs plus paired-control effect calibration; incomplete inputs receive no numerical assistance |
 | `--electrochemical-conditions-json` | — | Measured electrochemical operating point; `electrolyte_phase` selects `aqueous` or `molten` physics |
 | `--multiphysics-results-dir` | `<results-dir>/multiphysics` | Root containing identity- and convergence-gated OpenFOAM/MOOSE artifacts |
@@ -798,16 +802,16 @@ as valid labels.
 ### Methane-Conversion Pathway Modes
 
 The `--mode` flag selects physical pathway routing, rather than merely changing
-a score. The default `thermocatalytic` family dispatches both PFR and
-fluidized-bed models; it does not imply both have complete evidence.
-`thermocatalytic_pfr` and `thermocatalytic_fluidized` select one model, while
-`mmbcr` explicitly selects the thermal molten-metal bubble column. These
-thermal modes sweep **500°C (773.15 K) to 1300 K**
-(`[773.15, 900.0, 1100.0, 1300.0] K`).
+a score. The default `thermocatalytic` family dispatches PFR, PBR, and
+fluidized-bed models; it does not imply all three have external CFD evidence.
+`thermocatalytic_pfr`, `thermocatalytic_pbr`, and `thermocatalytic_fluidized`
+select a single reactor model, while `mmbcr` explicitly selects the thermal
+molten-metal bubble column. These thermal modes sweep **500°C (773.15 K) to
+1300 K** (`[773.15, 900.0, 923.15, 973.15, 1100.0, 1300.0] K`).
 
 `ntec` represents the mechanically stimulated liquid-solid interfacial
-pathway. It does not silently reuse MMBCR, PFR, or fluidized-bed hydrodynamics.
-An NTEC result is accepted only from a converged MOOSE + Cantera
+pathway. It does not silently reuse MMBCR, PFR, PBR, or fluidized-bed
+hydrodynamics. An NTEC result is accepted only from a converged MOOSE + Cantera
 artifact with mesh independence, conservation checks, input provenance, and a
 paired NTEC/control calibration. Missing or invalid evidence remains visible
 and non-excluding.
@@ -830,10 +834,11 @@ candidate from discovery.
 
 | Mode | Physical configuration | Implementation and present boundary |
 |---|---|---|
-| `thermocatalytic` | Fixed packed bed plus gas-solid fluidized bed | Dispatches both; PFR runs internally and fluidized requires its validated OpenFOAM artifact |
-| `thermocatalytic_pfr` | Fixed packed bed | Isothermal staged Lagrangian ideal-gas control volumes with candidate surface kinetics; catalyst area uses total bed volume and gas residence uses void volume |
-| `thermocatalytic_fluidized` | Gas-solid fluidized bed | OpenFOAM supplies converged hydrodynamics; Cantera applies candidate surface kinetics to the resulting emulsion/bubble screening model |
-| `mmbcr` | Methane bubbles in molten metal | OpenFOAM supplies gas velocity, holdup, and bubble size; Cantera applies candidate interface kinetics in a CSTR cascade; restricted to `MoltenMetal` candidates |
+| `thermocatalytic` | Fixed packed bed (PFR + PBR) plus gas-solid fluidized bed | Dispatches PFR, PBR, and Fluidized; PFR and PBR run internally and fluidized requires its validated OpenFOAM artifact |
+| `thermocatalytic_pfr` | Fixed packed bed (plug-flow) | Staged Lagrangian ideal-gas control volumes with candidate surface kinetics, coupled Ergun ΔP, and molar expansion `(1 + X_CH4)`; catalyst area uses total bed volume and gas residence uses void volume |
+| `thermocatalytic_pbr` | Catalytic packed-bed (pellet-resolved) | Differential catalyst-weight (`dW` / WHSV) integration with coupled Ergun `-dP/dz`, dynamic carbon-holdup voidage `ε(z)`, Bosanquet pore diffusion, spherical Thiele modulus `φ`, internal effectiveness `η_int`, and Wakao–Funazkri external mass transfer `Ω` |
+| `thermocatalytic_fluidized` | Gas-solid fluidized bed | OpenFOAM supplies converged hydrodynamics (or labelled analytical Kunii–Levenspiel `K_be` closure when absent); Cantera applies candidate surface kinetics to the emulsion/bubble model |
+| `mmbcr` | Methane bubbles in molten metal | OpenFOAM supplies gas velocity, holdup, and bubble size; Cantera applies candidate interface kinetics or dissolved-carbon activity closure in a CSTR cascade; restricted to `MoltenMetal` candidates |
 | `ntec` | Mechanically agitated liquid-solid interface | MOOSE flow, electrostatics and transport + Cantera chemistry, accepted only with paired-control calibration |
 | `electrochemical` | Aqueous or molten electrode-electrolyte interface | MOOSE electrolyte/electrode transport + Cantera charge-transfer kinetics, accepted only with a complete methane-specific mechanism |
 
@@ -1006,6 +1011,7 @@ hydrogen/
 │   ├── reactors/                  # Methane-conversion reactor domain
 │   │   ├── reactor_core.py        # Shared configuration and reactor physics
 │   │   ├── pfr.py                 # Thermocatalytic plug-flow model
+│   │   ├── pbr.py                 # Thermocatalytic packed-bed model (Ergun ΔP + Thiele pellet diffusion)
 │   │   ├── fluidized_bed.py       # Two-phase fluidized-bed model
 │   │   ├── mmbcr.py               # Molten-metal bubble-column model
 │   │   ├── electrochemical_models.py # NTEC/electrochemical evidence adapters
@@ -1598,16 +1604,19 @@ For each pyrolysis-admissible top-K catalyst from Phase 1
    parameter, `coking_index_mapped_to_off_site: false`, and whether the
    mechanism remains an incomplete screening template.
 3. Route the selected pathway to its compatible reactor model(s). The default
-   runs packed-bed PFR and fluidized-bed paths; `mmbcr` runs only the
+   `thermocatalytic` mode runs packed-bed `PFR`, pellet-resolved `PBR`, and
+   `Fluidized`-bed paths (`thermocatalytic_pfr`, `thermocatalytic_pbr`, and
+   `thermocatalytic_fluidized` run each individually); `mmbcr` runs only the
    molten-metal path and is `not_applicable` for non-`MoltenMetal` classes.
-   Thermal modes sweep the standardized four temperatures
-   (500°C to 1300 K / 773.15–1300 K). Fluidized/MMBCR hydrodynamics take
-   validated OpenFOAM artifacts or calibrated surrogates first; without them
-   they run on the labelled `analytical_hydrodynamic_closure`, which can never
-   exclude a candidate. NTEC requires MOOSE + Cantera;
-   electrochemical requires MOOSE + Cantera. Every external path requires a
-   sourced `hydrogen_case.json`, disjoint calibration/holdout records, and a
-   held-out error within its declared acceptance threshold.
+   Thermal modes sweep the standardized six temperatures
+   (500°C to 1300 K / `[773.15, 900.0, 923.15, 973.15, 1100.0, 1300.0] K`).
+   Fluidized/MMBCR hydrodynamics take validated OpenFOAM artifacts or
+   calibrated surrogates first; without them they run on the labelled
+   `analytical_hydrodynamic_closure`, which can never exclude a candidate.
+   NTEC requires MOOSE + Cantera; electrochemical requires MOOSE + Cantera.
+   Every external path requires a sourced `hydrogen_case.json`, disjoint
+   calibration/holdout records, and a held-out error within its declared
+   acceptance threshold.
 4. Report single-pass X from the Ar tracer already in the feed:
    `X = 1 - (x_CH4/x_Ar)/(x_CH4,0/x_Ar,0)`. That is exact whether carbon
    leaves as C(s) or stays in the C2 chain. Do not use `1 - x_CH4/x_CH4,0`

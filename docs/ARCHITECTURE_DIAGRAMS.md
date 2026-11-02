@@ -225,12 +225,16 @@ flowchart TB
         direction LR
         DEFAULT["thermocatalytic<br/>default route"]
         PFR_MODE["thermocatalytic_pfr"]
+        PBR_MODE["thermocatalytic_pbr"]
         FLUID_MODE["thermocatalytic_fluidized"]
         PFR["Plug-flow reactor<br/>fixed catalytic bed · Cantera"]
+        PBR["Packed-bed reactor<br/>pellet Thiele + Ergun ΔP · Cantera"]
         FLUID["Fluidized bed<br/>gas-solid flow · OpenFOAM + Cantera"]
         DEFAULT --> PFR
+        DEFAULT --> PBR
         DEFAULT --> FLUID
         PFR_MODE --> PFR
+        PBR_MODE --> PBR
         FLUID_MODE --> FLUID
     end
 
@@ -250,6 +254,7 @@ flowchart TB
     REQUEST --> MODE
     MODE --> DEFAULT
     MODE --> PFR_MODE
+    MODE --> PBR_MODE
     MODE --> FLUID_MODE
     MODE --> MMB_MODE
     MODE --> NTEC_MODE
@@ -259,7 +264,7 @@ flowchart TB
     classDef thermal fill:#e8f8ee,stroke:#15803d,color:#052e16
     classDef specialized fill:#f3e8ff,stroke:#7e22ce,color:#3b0764
     class REQUEST,MODE control
-    class DEFAULT,PFR_MODE,FLUID_MODE,PFR,FLUID thermal
+    class DEFAULT,PFR_MODE,PBR_MODE,FLUID_MODE,PFR,PBR,FLUID thermal
     class MMB_MODE,NTEC_MODE,ELECTRO_MODE,MMB,NTEC,ELECTRO specialized
 ```
 
