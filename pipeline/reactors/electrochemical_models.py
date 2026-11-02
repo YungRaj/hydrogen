@@ -128,6 +128,18 @@ def simulate_ntec_pathway(config: ElectrochemicalReactorConfig) -> ReactorResult
     }
 
 
+def _specific_energy_from_outputs(outputs: dict) -> float:
+    """Return specific electrical energy (kWh/kg H2) from outputs or Faraday law."""
+    fe_h2 = max(float(outputs['faradaic_efficiency_H2']), 1e-6)
+    v_cell = float(outputs['cell_voltage_V'])
+    return float(
+        outputs.get(
+            'specific_energy_kWh_kg_H2',
+            v_cell * 4.0 * 96485.33212 / (fe_h2 * 3.6e6 * 0.00403188),
+        )
+    )
+
+
 def simulate_electrochemical_pathway(
     config: ElectrochemicalReactorConfig,
 ) -> ReactorResult:
@@ -167,6 +179,7 @@ def simulate_electrochemical_pathway(
                     'electrical_power_density_W_cm2',
                 )
             },
+            'specific_energy_kWh_kg_H2': _specific_energy_from_outputs(outputs),
             'electrochemical_evidence': evidence,
             'multiphysics_evidence': solver_evidence,
             'reactor_evidence_tier': 'mechanistic_multiphysics_screening',
@@ -190,6 +203,7 @@ def simulate_electrochemical_pathway(
                     'electrical_power_density_W_cm2',
                 )
             },
+            'specific_energy_kWh_kg_H2': _specific_energy_from_outputs(outputs),
             'electrochemical_evidence': evidence,
             'multiphysics_screening': screening,
             'reactor_evidence_tier': SCREENING_TIER,

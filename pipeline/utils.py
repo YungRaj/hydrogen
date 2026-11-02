@@ -11,13 +11,7 @@ import json
 import logging
 import tempfile
 import numpy as np
-
-try:
-    import pandas as pd
-
-    HAS_PANDAS = True
-except ImportError:
-    HAS_PANDAS = False
+import pandas as pd
 from pathlib import Path
 from typing import List, Tuple, Optional
 

@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 from pathlib import Path
+
+from pipeline.io.hashing import file_sha256
 
 
 EVIDENCE_KEYS = (
@@ -32,22 +33,6 @@ REQUIRED_STATUS = {
     'time_split_benchmark': 'valid',
     'curated_prior_art_source': 'curated',
 }
-
-
-def file_sha256(path: str | Path) -> str:
-    """Compute the SHA-256 digest of a file.
-
-    Args:
-        path: Input or output filesystem path.
-
-    Returns:
-        The lowercase hexadecimal SHA-256 digest.
-    """
-    digest = hashlib.sha256()
-    with Path(path).open('rb') as handle:
-        for block in iter(lambda: handle.read(1024 * 1024), b''):
-            digest.update(block)
-    return digest.hexdigest()
 
 
 def verify_evidence_manifest(path: str | Path) -> dict:

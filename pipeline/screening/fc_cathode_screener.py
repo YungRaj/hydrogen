@@ -221,7 +221,6 @@ def screen_orr_candidate(candidate: Dict, calc, e_h2o: float, e_h2: float) -> Di
     Returns:
         Dictionary containing the computed values, status, and supporting metadata.
     """
-    from ase import Atom
     from pipeline.screening.surface_screener import generate_structure
 
     genome = candidate['genome']
@@ -247,17 +246,10 @@ def screen_orr_candidate(candidate: Dict, calc, e_h2o: float, e_h2: float) -> Di
             return result
         e_clean = structure.get_potential_energy()
 
-        # Active site position
-        if active_idx and active_idx[0] < len(structure):
-            ads_base = structure[active_idx[0]].position.copy()
-        else:
-            ads_base = structure.positions.mean(axis=0)
+        adsorbates = build_orr_adsorbates(structure, active_idx)
 
         # ── OH* ─────────────────────────────────────────────────────────────
-        slab_oh = structure.copy()
-        oh_pos = ads_base + np.array([0.0, 0.0, 1.9])
-        slab_oh.append(Atom('O', position=oh_pos))
-        slab_oh.append(Atom('H', position=oh_pos + np.array([0.0, 0.0, 0.97])))
+        slab_oh = adsorbates['OH']
         slab_oh.calc = calc
         if not require_relaxation(
             result, slab_oh, 'oh', adsorbate.fmax_eV_A, adsorbate.steps
@@ -280,9 +272,7 @@ def screen_orr_candidate(candidate: Dict, calc, e_h2o: float, e_h2: float) -> Di
         )  # + ZPE - TS + solvation corrections
 
         # ── O* ──────────────────────────────────────────────────────────────
-        slab_o = structure.copy()
-        o_pos = ads_base + np.array([0.0, 0.0, 1.7])
-        slab_o.append(Atom('O', position=o_pos))
+        slab_o = adsorbates['O']
         slab_o.calc = calc
         if not require_relaxation(
             result, slab_o, 'o', adsorbate.fmax_eV_A, adsorbate.steps
@@ -296,13 +286,7 @@ def screen_orr_candidate(candidate: Dict, calc, e_h2o: float, e_h2: float) -> Di
         dG_O = (e_o - e_clean) - (e_h2o - e_h2) + 0.05 - 0.00 + SOLVATION_CORRECTION_EV['O']
 
         # ── OOH* ────────────────────────────────────────────────────────────
-        slab_ooh = structure.copy()
-        o1_pos = ads_base + np.array([0.0, 0.0, 1.9])
-        o2_pos = o1_pos + np.array([1.25, 0.0, 0.70])
-        h_pos = o2_pos + np.array([0.35, 0.0, 0.91])
-        slab_ooh.append(Atom('O', position=o1_pos))
-        slab_ooh.append(Atom('O', position=o2_pos))
-        slab_ooh.append(Atom('H', position=h_pos))
+        slab_ooh = adsorbates['OOH']
         slab_ooh.calc = calc
         if not require_relaxation(
             result, slab_ooh, 'ooh', adsorbate.fmax_eV_A, adsorbate.steps

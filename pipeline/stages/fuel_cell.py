@@ -95,19 +95,7 @@ def _has_mock_rows(cathodes) -> bool:
     return any(bool(row.get('mock')) for row in cathodes or [])
 
 
-def fuel_cell_composite_score(result: PEMFCResult) -> float:
-    """Preserve the established efficiency/power/overpotential priority.
-
-    Args:
-        result: Mapping supplying result.
-
-    Returns:
-        Computed `float` value in the units documented above.
-    """
-    efficiency = result.get('efficiency_at_peak', 0.0)
-    power = result.get('peak_power_W_cm2', 0.0)
-    overpotential = max(result.get('orr_overpotential_V', 0.4), 0.01)
-    return (efficiency * power) / overpotential
+from pipeline.fuel_cell import composite_score as fuel_cell_composite_score
 
 
 def run_fuel_cell_stage(

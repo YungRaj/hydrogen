@@ -93,6 +93,31 @@ def h2_chemical_potential_eV(
     return standard_eV + K_B_EV_K * temperature_K * math.log(pressure_bar)
 
 
+def _parse_molten_replicas(
+    row: dict[str, Any],
+) -> tuple[float, list[tuple[float, float, float]]]:
+    """Validate a molten alloy row and return (temperature_K, [(E_act_raw, dG_H2_rel, dG_C_rel), ...])."""
+    try:
+        genome = ast.literal_eval(str(row['genome']))
+        temperature_K = float(row['temperature_K'])
+        replicas = json.loads(str(row['molten_replicas_json']))
+    except (KeyError, TypeError, ValueError, SyntaxError, json.JSONDecodeError) as exc:
+        raise ValueError('missing molten rate/free-energy input') from exc
+    if genome[0] != 'MoltenMetal' or genome[2] == 'None':
+        raise ValueError('pure-host molten BEP barrier is outside validated scope')
+    h2_mu = h2_chemical_potential_eV(temperature_K)
+    parsed: list[tuple[float, float, float]] = []
+    for replica in replicas:
+        try:
+            raw_act = float(replica['E_act_raw'])
+            hydrogen_release = -2.0 * float(replica['dE_H']) + h2_mu
+            carbon_release = -float(replica['dE_C'])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError('missing molten rate/free-energy input') from exc
+        parsed.append((raw_act, hydrogen_release, carbon_release))
+    return temperature_K, parsed
+
+
 def rate_free_energy_span_eV(row: dict[str, Any]) -> float:
     """Return the rate-averaged, H2-free-energy-corrected molten score.
 
@@ -105,24 +130,10 @@ def rate_free_energy_span_eV(row: dict[str, Any]) -> float:
     Raises:
         ValueError: If ensemble data are absent or the BEP scope is unsupported.
     """
-    try:
-        genome = ast.literal_eval(str(row['genome']))
-        temperature_K = float(row['temperature_K'])
-        replicas = json.loads(str(row['molten_replicas_json']))
-    except (KeyError, TypeError, ValueError, SyntaxError, json.JSONDecodeError) as exc:
-        raise ValueError('missing molten rate/free-energy input') from exc
-    if genome[0] != 'MoltenMetal' or genome[2] == 'None':
-        raise ValueError('pure-host molten BEP barrier is outside validated scope')
-    h2_mu = h2_chemical_potential_eV(temperature_K)
+    temperature_K, parsed_replicas = _parse_molten_replicas(row)
     spans: list[float] = []
-    for replica in replicas:
-        try:
-            activation = max(0.0, float(replica['E_act_raw']))
-            hydrogen_release = -2.0 * float(replica['dE_H']) + h2_mu
-            carbon_release = -float(replica['dE_C'])
-        except (KeyError, TypeError, ValueError) as exc:
-            raise ValueError('missing molten rate/free-energy input') from exc
-        span = max(activation, hydrogen_release, carbon_release, 0.0)
+    for raw_act, hydrogen_release, carbon_release in parsed_replicas:
+        span = max(max(0.0, raw_act), hydrogen_release, carbon_release, 0.0)
         if not math.isfinite(span):
             raise ValueError('missing molten rate/free-energy input')
         spans.append(span)
@@ -168,29 +179,15 @@ def calibrated_rate_free_energy_span_eV(
     """
     if not math.isfinite(float(anchor_offset_eV)):
         raise ValueError('anchor_offset_eV must be finite')
-    try:
-        genome = ast.literal_eval(str(row['genome']))
-        temperature_K = float(row['temperature_K'])
-        replicas = json.loads(str(row['molten_replicas_json']))
-    except (KeyError, TypeError, ValueError, SyntaxError, json.JSONDecodeError) as exc:
-        raise ValueError('missing molten rate/free-energy input') from exc
-    if genome[0] != 'MoltenMetal' or genome[2] == 'None':
-        raise ValueError('pure-host molten BEP barrier is outside validated scope')
+    temperature_K, parsed_replicas = _parse_molten_replicas(row)
     if not str(anchor_source).strip():
         raise ValueError('anchor_source must be non-empty')
-    h2_mu = h2_chemical_potential_eV(temperature_K)
     uncalibrated_spans = rate_free_energy_span_eV(row)
     cal_spans: list[float] = []
     cal_activations: list[float] = []
     replica_steps: list[tuple[float, str]] = []
-    for replica in replicas:
-        try:
-            raw_act = float(replica['E_act_raw'])
-            cal_act = max(0.0, raw_act + float(anchor_offset_eV))
-            hydrogen_release = -2.0 * float(replica['dE_H']) + h2_mu
-            carbon_release = -float(replica['dE_C'])
-        except (KeyError, TypeError, ValueError) as exc:
-            raise ValueError('missing molten rate/free-energy input') from exc
+    for raw_act, hydrogen_release, carbon_release in parsed_replicas:
+        cal_act = max(0.0, raw_act + float(anchor_offset_eV))
         terms = (
             ('methane_activation', cal_act),
             ('hydrogen_release', hydrogen_release),

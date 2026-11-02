@@ -12,7 +12,6 @@ from pipeline.data_models.reactors import (
     ReactorResult,
 )
 from pipeline.reactors.reactor_core import (
-    CH4_PYROLYSIS_DELTA_H_KJ_MOL,
     ERGUN_DP_LIMIT_PA,
     PFR_PILOT_TAU_BAND_S,
     REGEN_OXIDATIVE,
@@ -21,23 +20,18 @@ from pipeline.reactors.reactor_core import (
     ReactorConfig,
     active_area_multiplier,
     active_sv,
-    adiabatic_temperature_drop_k,
     advance_reactor_stage,
     ch4_extent,
     ch4_feed_density_kg_m3,
     ch4_viscosity_pa_s,
     clamp_gas_to_equilibrium,
+    common_reactor_result_fields,
     geometric_sv_pfr,
     kinetics_evidence,
-    kinetics_fields,
     load_gas_and_surface,
-    load_status_fields,
     logger,
     mole_fraction_drop,
     off_site_carbon_metrics,
-    policy_metadata,
-    pyrolysis_reaction_enthalpy_kJ_mol,
-    reciprocal_residence_h,
     require_ar_tracer,
     reset_surface_carbon,
     solids_inventory_fields,
@@ -460,22 +454,12 @@ def simulate_pbr(
             'plugging_risk': plugging_risk,
             'b2_carbon_policy_summary': b2_carbon_policy_summary,
             'produce_time_s': float(produce_time_s),
-            'WHSV_h-1': reciprocal_residence_h(tau_total_pass_s),
             'CH4_conversion': float(final_conv),
             'single_pass_CH4_conversion': float(
                 per_cycle_conversion[0] if per_cycle_conversion else final_conv
             ),
             'cycle_averaged_CH4_conversion': float(
                 np.mean(per_cycle_conversion) if per_cycle_conversion else final_conv
-            ),
-            'endothermic_heat_duty_kJ_per_mol_CH4_fed': float(
-                CH4_PYROLYSIS_DELTA_H_KJ_MOL * final_conv
-            ),
-            'endothermic_heat_duty_T_kJ_per_mol_CH4_fed': float(
-                pyrolysis_reaction_enthalpy_kJ_mol(config.T_inlet_K) * final_conv
-            ),
-            'adiabatic_temperature_drop_K': adiabatic_temperature_drop_k(
-                ch4_initial, final_conv
             ),
             'CH4_mole_fraction_drop': float(mole_fraction_drop(gas, ch4_initial)),
             'conversion_basis': 'argon_tracer',
@@ -513,12 +497,11 @@ def simulate_pbr(
             'max_theta_C': max_theta_c,
             'exit_theta_C': float(theta_C_tos[-1]) if theta_C_tos else None,
             **off_site,
-            **kinetics_fields(config),
             **inv_fields,
-            **kinetics_ev,
+            **common_reactor_result_fields(
+                config, final_conv, tau_total_pass_s, ch4_initial, graphite, surf
+            ),
             'reactor_evidence_limitations': kinetics_ev_limitations,
-            **policy_metadata(config),
-            **load_status_fields(config, graphite, surf),
         },
     )
     logger.info(

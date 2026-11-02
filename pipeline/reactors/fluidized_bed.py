@@ -8,8 +8,33 @@ except ImportError:  # The facade selects the explicit mock path first.
     ct = None
 
 from pipeline.data_models.reactors import ReactorResult
-from pipeline.reactors.reactor_core import *  # noqa: F403
-from pipeline.reactors.reactor_core import logger
+from pipeline.reactors.reactor_core import (
+    FLUIDIZED_CIRCULATING,
+    FLUIDIZED_EMULSION_VOIDAGE,
+    FLUIDIZED_REMOVAL_SUBSTEPS,
+    REGEN_OXIDATIVE,
+    R_J_MOL_K,
+    ReactorConfig,
+    _advance_reactor_stage,
+    _apply_continuous_carbon_removal,
+    _ch4_extent,
+    _clamp_gas_to_equilibrium,
+    _coverage,
+    _load_gas_and_surface,
+    _mix_bubble_bypass,
+    _mole_fraction_drop,
+    _off_site_carbon_metrics,
+    _require_ar_tracer,
+    _reset_surface_carbon,
+    _species_x,
+    _validate_carbon_policy,
+    active_sv,
+    common_reactor_result_fields,
+    geometric_sv_fluidized,
+    kunii_levenspiel_bubble_exchange,
+    logger,
+    solids_inventory_fields,
+)
 
 
 def _integrate_fluidized_pass(
@@ -203,7 +228,6 @@ def simulate_fluidized_bed(
         ),
         **kl_metrics,
         'residence_time_s': tau_emulsion,
-        'WHSV_h-1': reciprocal_residence_h(tau_emulsion),
         'emulsion_voidage': FLUIDIZED_EMULSION_VOIDAGE,
         'surface_area_basis': 'sv_per_emulsion_volume_times_emulsion_volume',
         'emulsion_CH4_conversion': float(emulsion_conv),
@@ -216,15 +240,6 @@ def simulate_fluidized_bed(
         ),
         'cycle_averaged_CH4_conversion': float(
             (1.0 - delta) * np.mean(per_cycle) if per_cycle else final_conv
-        ),
-        'endothermic_heat_duty_kJ_per_mol_CH4_fed': float(
-            CH4_PYROLYSIS_DELTA_H_KJ_MOL * final_conv
-        ),
-        'endothermic_heat_duty_T_kJ_per_mol_CH4_fed': float(
-            pyrolysis_reaction_enthalpy_kJ_mol(config.T_inlet_K) * final_conv
-        ),
-        'adiabatic_temperature_drop_K': adiabatic_temperature_drop_k(
-            ch4_initial, final_conv
         ),
         'circulating_outfeed_active': circulating_outfeed_active,
         'b2_carbon_policy_summary': b2_carbon_policy_summary,
@@ -240,11 +255,10 @@ def simulate_fluidized_bed(
         'per_cycle_CH4_conversion': per_cycle,
         'per_cycle_basis': 'emulsion_only_before_bypass_mix',
         **off_site,
-        **kinetics_fields(config),
         **solids_inventory_fields(config, geometric_sv_fluidized(config)),
-        **_kinetics_evidence(config),
-        **_policy_metadata(config),
-        **_load_status_fields(config, graphite, surf),
+        **common_reactor_result_fields(
+            config, final_conv, tau_emulsion, ch4_initial, graphite, surf
+        ),
     }
     logger.info(
         f"  Fluidized result: conversion={final_conv:.2%} "

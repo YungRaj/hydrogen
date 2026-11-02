@@ -16,19 +16,11 @@ from pipeline.screening.branch_discovery import (
     BranchDiscoveryWorkflow,
     run_guided_branch_discovery,
 )
+from pipeline.screening.fc_screener import FENTON_RISK
 from pipeline.utils import FUEL_CELL_DIR, setup_logger
 
 logger = setup_logger('fc_genetic_optimizer', 'fuel_cell/fc_genetic_optimizer.log')
 ADVANCEMENT_OVERPOTENTIAL_V = 0.4
-
-FENTON_RISK: dict[str, int] = {
-    'Fe': 3,
-    'Cu': 2,
-    'Co': 1,
-    'Mn': 1,
-    'Cr': 1,
-    'V': 1,
-}
 
 
 @dataclass

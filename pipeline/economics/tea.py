@@ -349,7 +349,12 @@ def build_multipathway_champion_scorecard(
         )
         conv = float(single_pass_x(best_rec))
         t_rec = float(best_rec.get('T_K') or 0.0)
-        s_c_rec = float(best_rec.get('solid_C_selectivity', 1.0))
+        raw_sc = best_rec.get('solid_C_selectivity')
+        s_c_rec = (
+            float(raw_sc)
+            if isinstance(raw_sc, (int, float)) and 0.0 <= float(raw_sc) <= 1.0
+            else 1.0
+        )
         raw_spec_e = best_rec.get('specific_energy_kWh_kg_H2')
         spec_e = (
             float(raw_spec_e)

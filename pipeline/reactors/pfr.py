@@ -10,8 +10,28 @@ except ImportError:  # The facade selects the explicit mock path first.
     ct = None
 
 from pipeline.data_models.reactors import ReactorResult
-from pipeline.reactors.reactor_core import *  # noqa: F403
-from pipeline.reactors.reactor_core import logger
+from pipeline.reactors.reactor_core import (
+    PFR_PILOT_TAU_BAND_S,
+    REGEN_OXIDATIVE,
+    R_J_MOL_K,
+    ReactorConfig,
+    _advance_reactor_stage,
+    _ch4_extent,
+    _clamp_gas_to_equilibrium,
+    _coverage,
+    _load_gas_and_surface,
+    _mole_fraction_drop,
+    _off_site_carbon_metrics,
+    _require_ar_tracer,
+    _reset_surface_carbon,
+    _species_x,
+    _validate_carbon_policy,
+    active_sv,
+    common_reactor_result_fields,
+    geometric_sv_pfr,
+    logger,
+    solids_inventory_fields,
+)
 
 
 def simulate_pfr(
@@ -167,22 +187,12 @@ def simulate_pfr(
         'plugging_risk': plugging_risk,
         'b2_carbon_policy_summary': b2_carbon_policy_summary,
         'produce_time_s': produce_time_s,
-        'WHSV_h-1': reciprocal_residence_h(tau_total),
         'CH4_conversion': float(final_conv),
         'single_pass_CH4_conversion': float(
             per_cycle_conversion[0] if per_cycle_conversion else final_conv
         ),
         'cycle_averaged_CH4_conversion': float(
             np.mean(per_cycle_conversion) if per_cycle_conversion else final_conv
-        ),
-        'endothermic_heat_duty_kJ_per_mol_CH4_fed': float(
-            CH4_PYROLYSIS_DELTA_H_KJ_MOL * final_conv
-        ),
-        'endothermic_heat_duty_T_kJ_per_mol_CH4_fed': float(
-            pyrolysis_reaction_enthalpy_kJ_mol(config.T_inlet_K) * final_conv
-        ),
-        'adiabatic_temperature_drop_K': adiabatic_temperature_drop_k(
-            ch4_initial, final_conv
         ),
         'CH4_mole_fraction_drop': _mole_fraction_drop(gas, ch4_initial),
         'conversion_basis': 'argon_tracer',
@@ -204,11 +214,10 @@ def simulate_pfr(
         'max_theta_C': max_theta_c,
         'exit_theta_C': float(theta_C_tos[-1]) if theta_C_tos else None,
         **off_site,
-        **kinetics_fields(config),
         **inv_fields,
-        **_kinetics_evidence(config),
-        **_policy_metadata(config),
-        **_load_status_fields(config, graphite, surf),
+        **common_reactor_result_fields(
+            config, final_conv, tau_total, ch4_initial, graphite, surf
+        ),
     }
     logger.info(
         f"  PFR result: conversion={final_conv:.2%}, τ={tau_total:.1f}s, "

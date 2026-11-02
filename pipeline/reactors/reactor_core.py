@@ -675,41 +675,6 @@ def inventory_roi_grid_cells():
     )
 
 
-def _off_site_carbon_metrics(
-    config: ReactorConfig,
-    gas: object,
-    surf: object | None,
-    *,
-    ch4_initial: float,
-    ar_initial: float,
-    pass_conversion: float,
-    n_sites_mol: float,
-    n_ch4_fed_mol: float,
-    n_parcel_in_mol: float,
-    pass_time_s: float,
-    cov_start: Optional[np.ndarray],
-    removed_surface_carbon_mol: float = 0.0,
-    basis: str = 'Gamma*A_stage / (c_CH4*eps*V_stage), PFR parcel',
-) -> dict[str, object]:
-    """Per-pass carbon accounting for the B5/B6 closure criterion."""
-    return _compute_off_site_carbon_metrics(
-        config,
-        gas,
-        surf,
-        ch4_initial=ch4_initial,
-        ar_initial=ar_initial,
-        pass_conversion=pass_conversion,
-        n_sites_mol=n_sites_mol,
-        n_ch4_fed_mol=n_ch4_fed_mol,
-        n_parcel_in_mol=n_parcel_in_mol,
-        pass_time_s=pass_time_s,
-        cov_start=cov_start,
-        removed_surface_carbon_mol=removed_surface_carbon_mol,
-        basis=basis,
-        mechanism_metadata_fn=_mechanism_metadata,
-    )
-
-
 def validate_carbon_policy(config: ReactorConfig) -> None:
     """Validate carbon-handling policy settings on a reactor configuration.
 
@@ -725,10 +690,10 @@ def load_gas_and_surface(
     """Load Cantera gas, graphite, and catalytic surface phases for a reactor run.
 
     Args:
-        config: Reactor configuration specifying mechanism and catalyst name.
+        config: Reactor configuration specifying mechanism and catalyst phase.
 
     Returns:
-        Tuple of `(gas, graphite, surf)` Cantera phase objects.
+        Tuple of `(gas, graphite, surface)` Cantera phase objects.
     """
     return _load_gas_and_surface(config)
 
@@ -739,8 +704,8 @@ def load_status_fields(
     """Return phase-loading status flags for a reactor simulation record.
 
     Args:
-        config: Reactor configuration supplying `gas_only` and `catalyst_name`.
-        graphite: Loaded Cantera graphite phase or `None`.
+        config: Reactor configuration for the evaluated run.
+        graphite: Loaded graphite phase object or `None`.
         surf: Loaded Cantera surface phase or `None`.
 
     Returns:
@@ -918,7 +883,7 @@ def off_site_carbon_metrics(
     Returns:
         Dictionary of per-pass carbon balance and turnover metrics.
     """
-    return _off_site_carbon_metrics(
+    return _compute_off_site_carbon_metrics(
         config,
         gas,
         surf,
@@ -932,7 +897,51 @@ def off_site_carbon_metrics(
         cov_start=cov_start,
         removed_surface_carbon_mol=removed_surface_carbon_mol,
         basis=basis,
+        mechanism_metadata_fn=_mechanism_metadata,
     )
+
+
+_off_site_carbon_metrics = off_site_carbon_metrics
+
+
+def common_reactor_result_fields(
+    config: ReactorConfig,
+    final_conv: float,
+    tau_s: float,
+    ch4_initial: float,
+    graphite: object | None,
+    surf: object | None,
+) -> dict[str, object]:
+    """Return thermodynamic heat-duty, WHSV, kinetic, policy, and phase-status fields.
+
+    Args:
+        config: Reactor configuration for the evaluated run.
+        final_conv: Final methane conversion fraction in `[0, 1]`.
+        tau_s: Gas residence time in seconds.
+        ch4_initial: Inlet methane mole fraction.
+        graphite: Loaded graphite phase object or `None`.
+        surf: Loaded Cantera surface phase or `None`.
+
+    Returns:
+        Dictionary of shared thermodynamic and provenance fields.
+    """
+    conv = float(final_conv)
+    return {
+        'WHSV_h-1': reciprocal_residence_h(tau_s),
+        'endothermic_heat_duty_kJ_per_mol_CH4_fed': float(
+            CH4_PYROLYSIS_DELTA_H_KJ_MOL * conv
+        ),
+        'endothermic_heat_duty_T_kJ_per_mol_CH4_fed': float(
+            pyrolysis_reaction_enthalpy_kJ_mol(config.T_inlet_K) * conv
+        ),
+        'adiabatic_temperature_drop_K': adiabatic_temperature_drop_k(
+            ch4_initial, conv
+        ),
+        **kinetics_fields(config),
+        **kinetics_evidence(config),
+        **policy_metadata(config),
+        **load_status_fields(config, graphite, surf),
+    }
 
 
 def wen_yu_umf_m_s(config: ReactorConfig) -> float:

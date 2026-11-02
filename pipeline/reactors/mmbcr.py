@@ -3,8 +3,22 @@
 import numpy as np
 
 from pipeline.data_models.reactors import ReactorResult
-from pipeline.reactors.reactor_core import *  # noqa: F403
-from pipeline.reactors.reactor_core import logger
+from pipeline.reactors.reactor_core import (
+    G_M_S2,
+    ReactorConfig,
+    _h2_atom_balance_metric,
+    _load_gas_and_surface,
+    _local_tp_x_eq,
+    _mmbcr_flotation_eta,
+    _mmbcr_hydrodynamics,
+    _mmbcr_interfacial_k_m_s,
+    _set_gas_from_ch4_conversion,
+    _species_x,
+    _tabulated_x_eq,
+    _validate_carbon_policy,
+    common_reactor_result_fields,
+    logger,
+)
 
 
 def simulate_mmbcr(
@@ -141,28 +155,18 @@ def simulate_mmbcr(
         'X_eq_local_tp': float(
             _local_tp_x_eq(config.T_inlet_K, config.P_inlet_Pa, x_ch4_feed)
         ),
-        'endothermic_heat_duty_kJ_per_mol_CH4_fed': float(
-            CH4_PYROLYSIS_DELTA_H_KJ_MOL * final_conv
-        ),
-        'endothermic_heat_duty_T_kJ_per_mol_CH4_fed': float(
-            pyrolysis_reaction_enthalpy_kJ_mol(config.T_inlet_K) * final_conv
-        ),
-        'adiabatic_temperature_drop_K': adiabatic_temperature_drop_k(
-            x_ch4_feed, final_conv
-        ),
         'mmbcr_k_if_m_s': float(k_if),
         'mmbcr_flotation_eta': float(eta_float),
         'mmbcr_Da': float(k_if * sv_ratio * tau_total * eta_float),
         'conversion_basis': 'melt_ode_to_Xeq',
         'thermal_mode': 'isothermal_by_construction',
-        **kinetics_fields(config),
         'z_positions': z_positions.tolist(),
         'conversion_profile': conversion_profile,
         'temperature_profile': temperature_profile,
         'theta_C_profile': [0.0] * len(conversion_profile),
-        **_kinetics_evidence(config),
-        **_policy_metadata(config),
-        **_load_status_fields(config, graphite, surf),
+        **common_reactor_result_fields(
+            config, final_conv, tau_total, x_ch4_feed, graphite, surf
+        ),
     }
     logger.info(
         f"  MMBCR result: conversion={final_conv:.2%}, "

@@ -241,39 +241,6 @@ class TreeRanker:
         # allocation in every shard.
         return mean, uncertainty_values
 
-    def predict_objectives(
-        self, genomes, *, uncertainty: bool = True, kappa: float = 0.0
-    ) -> tuple[np.ndarray, np.ndarray]:
-        """Predict full multi-objective matrix and per-objective uncertainty.
-
-        Args:
-            genomes: Encoded catalyst candidates to score.
-            uncertainty: Whether ensemble standard deviations should be computed.
-            kappa: Non-negative lower-confidence-bound penalty multiplier.
-
-        Returns:
-            Tuple ``(scores, stds)`` of ``(N, M)`` arrays.
-        """
-        from pipeline.screening.objectives import (
-            build_orr_objectives,
-            build_turquoise_objectives,
-            robust_objective_matrix,
-        )
-
-        need_std = uncertainty or kappa > 0.0
-        if self.application in ("turquoise_hydrogen", "turquoise_pyrolysis"):
-            means, stds = build_turquoise_objectives(
-                genomes, self, uncertainty=need_std
-            )
-        elif self.application in ("fuel_cell_orr", "pemfc_cathode"):
-            means, stds = build_orr_objectives(
-                genomes, self, uncertainty=need_std
-            )
-        else:
-            raise ValueError(f"unknown application {self.application}")
-        scores = robust_objective_matrix(means, stds, kappa=kappa)
-        return scores, (stds if uncertainty else np.zeros_like(stds))
-
     def apply_validation_calibration(self, database: str) -> dict[str, float]:
         """Update class and regional bias offsets using validation residuals.
 
@@ -705,6 +672,23 @@ def _primary_target(raw, application: str) -> np.ndarray:
     return 1.23 + np.maximum.reduce([d_ooh - 4.92, d_o - d_ooh, d_oh - d_o, -d_oh])
 
 
+def _build_tree_objectives(
+    genomes,
+    ranker: TreeRanker,
+    builder_fn,
+    *,
+    kappa: float = 0.0,
+    return_uncertainty: bool = False,
+) -> np.ndarray | tuple[np.ndarray, np.ndarray]:
+    """Compute robust objective matrix (and optional uncertainty) from an objective builder."""
+    from pipeline.screening.objectives import robust_objective_matrix
+
+    need_std = return_uncertainty or kappa > 0.0
+    means, stds = builder_fn(genomes, ranker, uncertainty=need_std)
+    scores = robust_objective_matrix(means, stds, kappa=kappa)
+    return (scores, stds) if return_uncertainty else scores
+
+
 def turquoise_tree_objectives(
     genomes,
     ranker: TreeRanker,
@@ -723,19 +707,15 @@ def turquoise_tree_objectives(
     Returns:
         ``(N, 4)`` objective array, or ``(objectives, stds)`` when requested.
     """
-    from pipeline.screening.objectives import (
-        build_turquoise_objectives,
-        robust_objective_matrix,
-    )
+    from pipeline.screening.objectives import build_turquoise_objectives
 
-    need_std = return_uncertainty or kappa > 0.0
-    means, stds = build_turquoise_objectives(
-        genomes, ranker, uncertainty=need_std
+    return _build_tree_objectives(
+        genomes,
+        ranker,
+        build_turquoise_objectives,
+        kappa=kappa,
+        return_uncertainty=return_uncertainty,
     )
-    scores = robust_objective_matrix(means, stds, kappa=kappa)
-    if return_uncertainty:
-        return scores, stds
-    return scores
 
 
 def orr_tree_objectives(
@@ -756,19 +736,15 @@ def orr_tree_objectives(
     Returns:
         ``(N, 4)`` objective array, or ``(objectives, stds)`` when requested.
     """
-    from pipeline.screening.objectives import (
-        build_orr_objectives,
-        robust_objective_matrix,
-    )
+    from pipeline.screening.objectives import build_orr_objectives
 
-    need_std = return_uncertainty or kappa > 0.0
-    means, stds = build_orr_objectives(
-        genomes, ranker, uncertainty=need_std
+    return _build_tree_objectives(
+        genomes,
+        ranker,
+        build_orr_objectives,
+        kappa=kappa,
+        return_uncertainty=return_uncertainty,
     )
-    scores = robust_objective_matrix(means, stds, kappa=kappa)
-    if return_uncertainty:
-        return scores, stds
-    return scores
 
 
 def orr_catalyst_acquisition(
