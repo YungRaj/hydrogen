@@ -81,6 +81,7 @@ def simulate_pfr(
             _advance_reactor_stage(
                 gas, surf, stage_gas_volume, stage_surface_area, tau_stage
             )
+            _clamp_gas_to_equilibrium(gas, ch4_initial, ar_initial)
             produce_time_s += tau_stage
             conversion_profile.append(_ch4_extent(gas, ch4_initial, ar_initial))
             temperature_profile.append(float(gas.T))
@@ -176,6 +177,9 @@ def simulate_pfr(
         ),
         'endothermic_heat_duty_kJ_per_mol_CH4_fed': float(
             CH4_PYROLYSIS_DELTA_H_KJ_MOL * final_conv
+        ),
+        'adiabatic_temperature_drop_K': adiabatic_temperature_drop_k(
+            ch4_initial, final_conv
         ),
         'CH4_mole_fraction_drop': _mole_fraction_drop(gas, ch4_initial),
         'conversion_basis': 'argon_tracer',

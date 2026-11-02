@@ -43,13 +43,33 @@ SCENARIOS = {
 # (v2 used 0.05 MMBtu/kg, about 4x too little feedstock.)
 KG_CH4_PER_KG_H2 = 16.043 / (2 * 2.016)
 MMBTU_CH4_PER_KG_H2 = KG_CH4_PER_KG_H2 * 55.5 / 1055.06
+PSA_CH4_RECOVERY: float = 0.96
+RECYCLE_ENERGY_FRACTION: float = 0.25
+RECYCLE_CAPEX_SCALING: float = 0.12
 
-def estimate_hydrogen_cost(conversion: float, scenario: str = 'base') -> dict:
-    """Return an assumption-labelled screening estimate, never a measurement.
+
+def estimate_hydrogen_cost(
+    conversion: float,
+    scenario: str = 'base',
+    *,
+    psa_ch4_recovery: float = PSA_CH4_RECOVERY,
+) -> dict:
+    """Return an assumption-labelled screening estimate with PSA CH4 recycle, never a measurement.
+
+    Models an industrial PSA H2 purification and unreacted CH4 recycle loop:
+    - Recycle ratio ``R = (1 - X) / X`` moles recycled per mole converted.
+    - Net methane feedstock utilization ``U_CH4 = X / (1 - r_PSA * (1 - X))``
+      (equals 1.0 at ``X = 1.0``, and reflects only PSA tail-gas purge loss at
+      partial single-pass conversion rather than venting all unreacted CH4).
+    - Recycle compression and sensible-reheat energy penalty scales with ``R``
+      as ``base_energy * (1 + RECYCLE_ENERGY_FRACTION * R)``.
+    - Recycle loop and PSA vessel sizing scales CAPEX as
+      ``capex * (1 + RECYCLE_CAPEX_SCALING * R)``.
 
     Args:
-        conversion: Conversion used by this operation.
+        conversion: Single-pass methane conversion fraction in (0, 1].
         scenario: Scenario used by this operation.
+        psa_ch4_recovery: Fraction of unreacted CH4 recovered and recycled by PSA.
 
     Returns:
         Dictionary containing the computed values, status, and supporting metadata.
@@ -60,18 +80,30 @@ def estimate_hydrogen_cost(conversion: float, scenario: str = 'base') -> dict:
         raise ValueError('conversion must be in (0, 1]')
     assumptions = SCENARIOS[scenario]
     conversion = float(conversion)
-    energy = assumptions.base_energy_kwh_kg_h2 / conversion
+    r_psa = min(max(float(psa_ch4_recovery), 0.0), 0.999)
+    recycle_ratio = (1.0 - conversion) / conversion
+    net_ch4_utilization = conversion / max(1.0 - r_psa * (1.0 - conversion), 1e-6)
+    energy = assumptions.base_energy_kwh_kg_h2 * (
+        1.0 + RECYCLE_ENERGY_FRACTION * recycle_ratio
+    )
+    effective_capex = assumptions.capex_usd_kg_h2 * (
+        1.0 + RECYCLE_CAPEX_SCALING * recycle_ratio
+    )
     cost = (
-        assumptions.natural_gas_usd_mmbtu * MMBTU_CH4_PER_KG_H2 / conversion
+        assumptions.natural_gas_usd_mmbtu * MMBTU_CH4_PER_KG_H2 / net_ch4_utilization
         + energy * assumptions.electricity_usd_kwh
-        + assumptions.capex_usd_kg_h2
+        + effective_capex
         - assumptions.carbon_value_usd_kg_h2
     )
     return {
         'scenario': scenario,
         'h2_cost_usd_kg': round(cost, 3),
         'conversion': conversion,
+        'recycle_ratio': round(recycle_ratio, 4),
+        'net_ch4_utilization': round(net_ch4_utilization, 4),
+        'psa_ch4_recovery': r_psa,
         'energy_input_kwh_kg_h2': energy,
+        'effective_capex_usd_kg_h2': round(effective_capex, 4),
         'assumptions': asdict(assumptions),
         'evidence_level': 'screening_scenario_not_measured_tea',
     }

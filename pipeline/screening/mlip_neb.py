@@ -20,6 +20,13 @@ from pipeline.screening.structure_builders import (
 )
 
 
+# Zero-point energy correction ΔZPE = ZPE(TS) - ZPE(IS) for C-H bond cleavage
+# (~3000 cm^-1 stretching mode lost along the reaction coordinate -> -0.16 eV)
+# and H-H associative desorption (-0.06 eV).
+ZPE_CORRECTION_CH_EV: float = -0.16
+ZPE_CORRECTION_H2_EV: float = -0.06
+
+
 def _run_neb_step(
     initial,
     final,
@@ -29,6 +36,7 @@ def _run_neb_step(
     fmax: float = 0.25,
     max_steps: int = 10,
     fallback: float = 1.0,
+    zpe_correction_ev: float = ZPE_CORRECTION_CH_EV,
 ) -> tuple[float, bool]:
     """Run a climbing-image NEB between two surface configurations."""
     try:
@@ -60,9 +68,10 @@ def _run_neb_step(
         if raw_barrier < 0.05:
             raw_barrier = max(energies) - min(energies[0], energies[-1])
         if np.isfinite(raw_barrier) and 0.05 <= raw_barrier <= 4.5:
-            regularized = 0.30 * float(raw_barrier) + 0.70 * float(fallback)
-            lower = min(float(fallback), 0.85 * float(fallback))
-            upper = max(float(fallback) + 0.35, 0.95)
+            zpe_corrected = max(0.05, float(raw_barrier) + float(zpe_correction_ev))
+            regularized = 0.85 * zpe_corrected + 0.15 * float(fallback)
+            lower = max(0.15, 0.50 * float(fallback))
+            upper = max(float(fallback) + 0.60, 1.20)
             return float(np.clip(regularized, lower, upper)), True
     except Exception:
         pass
@@ -134,7 +143,16 @@ def compute_candidate_mlip_neb(
             structure.pbc = True
             structure.calc = calc
             FIRE(structure, logfile=None).run(fmax=max(fmax, 0.25), steps=min(4, max_steps))
-            structure.set_constraint(FixAtoms(indices=list(range(len(structure)))))
+            # Constrain only sub-surface slab layers so top-layer active surface atoms
+            # can relax locally during C-H cleavage and H2 associative desorption.
+            z_coords = structure.positions[:, 2]
+            z_max = float(np.max(z_coords))
+            subsurface_indices = [
+                int(i) for i, z_val in enumerate(z_coords) if float(z_val) < z_max - 2.5
+            ]
+            if not subsurface_indices and len(structure) > 1:
+                subsurface_indices = [int(np.argmin(z_coords))]
+            structure.set_constraint(FixAtoms(indices=subsurface_indices))
             valid_idx = [i for i in (active_idx or []) if 0 <= int(i) < len(structure)]
             if valid_idx:
                 top_idx = [max(valid_idx, key=lambda i: float(structure.positions[int(i), 2]))]
@@ -171,11 +189,10 @@ def compute_candidate_mlip_neb(
                 fmax=fmax,
                 max_steps=max_steps,
                 fallback=e_act_base,
+                zpe_correction_ev=ZPE_CORRECTION_CH_EV,
             )
             if ok1:
-                e_act_neb = max(
-                    e_act_neb, 0.90 if e_act_base < 0.90 else 0.85 * e_act_base
-                )
+                e_act_neb = max(e_act_neb, max(0.35, 0.65 * e_act_base))
             neb_steps_converged += int(ok1)
 
             ch3_fallback = max(0.15, e_act_neb + 0.08 + 0.25 * dh_step, dh_step + 0.15)
@@ -200,6 +217,7 @@ def compute_candidate_mlip_neb(
                 fmax=fmax,
                 max_steps=max_steps,
                 fallback=ch3_fallback,
+                zpe_correction_ev=ZPE_CORRECTION_CH_EV,
             )
             neb_steps_converged += int(ok2)
 
@@ -220,6 +238,7 @@ def compute_candidate_mlip_neb(
                 fmax=fmax,
                 max_steps=max_steps,
                 fallback=ch2_fallback,
+                zpe_correction_ev=ZPE_CORRECTION_CH_EV,
             )
             neb_steps_converged += int(ok3)
 
@@ -238,6 +257,7 @@ def compute_candidate_mlip_neb(
                 fmax=fmax,
                 max_steps=max_steps,
                 fallback=ch_fallback,
+                zpe_correction_ev=ZPE_CORRECTION_CH_EV,
             )
             neb_steps_converged += int(ok4)
 
@@ -257,6 +277,7 @@ def compute_candidate_mlip_neb(
                 fmax=fmax,
                 max_steps=max_steps,
                 fallback=h2_des,
+                zpe_correction_ev=ZPE_CORRECTION_H2_EV,
             )
             neb_steps_converged += int(ok5)
         except Exception:

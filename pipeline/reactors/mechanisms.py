@@ -397,8 +397,24 @@ def _nanoparticle_metals(
     if not genome:
         return frozenset()
     cls = material_class or genome[0]
-    if cls in ('SolidCatalyst', 'SupportedNanoparticle') and len(genome) > 1:
-        return frozenset({genome[1]})
+    if cls == 'SolidCatalyst' and len(genome) > 1:
+        metals = {genome[1]}
+        if (
+            len(genome) > 6
+            and isinstance(genome[5], (tuple, list))
+            and int(genome[6]) > 0
+        ):
+            metals.update(str(m) for m in genome[5])
+        return frozenset(metals)
+    if cls == 'SupportedNanoparticle' and len(genome) > 1:
+        metals = {genome[1]}
+        if (
+            len(genome) > 7
+            and isinstance(genome[6], (tuple, list))
+            and int(genome[7]) > 0
+        ):
+            metals.update(str(m) for m in genome[6])
+        return frozenset(metals)
     if cls == 'SAA' and len(genome) > 2:
         return frozenset({genome[2]})
     if cls == 'HEA' and len(genome) > 1:
@@ -546,11 +562,11 @@ species:
 {_GAS_SPECIES_YAML}
 {_GRAPHITE_SPECIES_YAML}
 reactions:
-- equation: 2 CH4 => C2H6 + H2
+- equation: 2 CH4 <=> C2H6 + H2
   rate-constant: {{A: 2.3e+13, b: 0.0, Ea: 356000.0}}
-- equation: C2H6 => C2H4 + H2
+- equation: C2H6 <=> C2H4 + H2
   rate-constant: {{A: 4.65e+13, b: 0.0, Ea: 273000.0}}
-- equation: C2H4 => C2H2 + H2
+- equation: C2H4 <=> C2H2 + H2
   rate-constant: {{A: 1.0e+14, b: 0.0, Ea: 331000.0}}
 """
     filepath = MECHANISMS_DIR / "gri30_ch4_subset.yaml"
@@ -640,7 +656,10 @@ def write_full_mechanism(
         ):
             raise ValueError('carbon regeneration rate must be positive')
         phases = _gas_graphite_phases_yaml(T_ref) + '\n' + _surface_phase_yaml(
-            catalyst_name, site_density, include_off_site
+            catalyst_name,
+            site_density,
+            include_off_site,
+            include_graphite_adjacent=(carbon_regeneration_rate_1_s is not None),
         )
         surface_species = _surface_species_yaml(h0, include_off_site)
         surface_rxns = _surface_reactions_yaml(
@@ -665,11 +684,11 @@ species:
 {_GRAPHITE_SPECIES_YAML}
 {surface_species}
 reactions:
-- equation: 2 CH4 => C2H6 + H2
+- equation: 2 CH4 <=> C2H6 + H2
   rate-constant: {{A: 2.3e+13, b: 0.0, Ea: 356000.0}}
-- equation: C2H6 => C2H4 + H2
+- equation: C2H6 <=> C2H4 + H2
   rate-constant: {{A: 4.65e+13, b: 0.0, Ea: 273000.0}}
-- equation: C2H4 => C2H2 + H2
+- equation: C2H4 <=> C2H2 + H2
   rate-constant: {{A: 1.0e+14, b: 0.0, Ea: 331000.0}}
 
 {surface_rxns}

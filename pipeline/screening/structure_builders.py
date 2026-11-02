@@ -671,7 +671,7 @@ def _build_molten_metal(genome, structure_seed):
     dopants = (promoter,) if promoter != 'None' else ()
     thermal_strain = (float(temp) - 1000.0) * 1.0e-5
     facet = 'hcp0001' if host in {'Mg', 'Zn', 'Cd'} else 'fcc111'
-    return generate_alloy_slab(
+    slab, top_idx = generate_alloy_slab(
         host,
         facet,
         thermal_strain,
@@ -680,6 +680,30 @@ def _build_molten_metal(genome, structure_seed):
         0,
         seed_key=('MoltenMetal', host, promoter, float(at_pct), structure_seed),
     )
+    # Apply deterministic liquid-metal positional disorder (capillary/thermal
+    # corrugation scaling as sqrt(T)) and Gibbs surface-tension relaxation where
+    # higher-surface-tension transition-metal promoters relax slightly inward (-z)
+    # relative to low-surface-tension liquid p-block hosts (Bi, Ga, In, Sn, Pb, Te).
+    rng_liq = random.Random(
+        _stable_seed(
+            'molten-liquid-corrugation-v1',
+            host,
+            promoter,
+            float(at_pct),
+            float(temp),
+            structure_seed,
+        )
+    )
+    amp = 0.08 * float(np.sqrt(max(float(temp), 300.0) / 1000.0))
+    high_gamma_promoters = {'Ni', 'Co', 'Fe', 'Cu', 'Pd', 'Pt', 'Mo', 'Ru', 'Rh'}
+    for idx in top_idx:
+        dx = rng_liq.uniform(-amp, amp)
+        dy = rng_liq.uniform(-amp, amp)
+        dz = rng_liq.uniform(-0.5 * amp, 0.5 * amp)
+        if slab[int(idx)].symbol in high_gamma_promoters and host not in high_gamma_promoters:
+            dz -= 0.14
+        slab.positions[int(idx)] += np.array([dx, dy, dz], dtype=float)
+    return slab, top_idx
 
 
 def _build_sac(genome, structure_seed):

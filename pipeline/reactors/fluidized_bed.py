@@ -13,7 +13,13 @@ from pipeline.reactors.reactor_core import logger
 
 
 def _integrate_fluidized_pass(
-    gas, surf, tau: float, sv_ratio: float, removal_rate_1_s: float
+    gas,
+    surf,
+    tau: float,
+    sv_ratio: float,
+    removal_rate_1_s: float,
+    ch4_initial: float = 0.95,
+    ar_initial: float = 0.05,
 ) -> float:
     """Advance emulsion residence with C_s removal *during* integrate (B2).
 
@@ -34,6 +40,7 @@ def _integrate_fluidized_pass(
         _advance_reactor_stage(
             gas, surf, FLUIDIZED_EMULSION_VOIDAGE, sv_ratio, dt
         )
+        _clamp_gas_to_equilibrium(gas, ch4_initial, ar_initial)
         if removal_rate_1_s > 0 and surf is not None:
             carbon_removed += _apply_continuous_carbon_removal(
                 surf, removal_rate_1_s, dt
@@ -104,7 +111,7 @@ def simulate_fluidized_bed(
         _reset_surface_carbon(surf)
     pass_start_cov = np.array(surf.coverages, dtype=float) if surf is not None else None
     carbon_removed = _integrate_fluidized_pass(
-        gas, surf, tau_emulsion, sv_ratio, removal_rate
+        gas, surf, tau_emulsion, sv_ratio, removal_rate, ch4_initial, ar_initial
     )
     last_pass_removed = carbon_removed
 
@@ -125,7 +132,7 @@ def simulate_fluidized_bed(
             gas.TPX = config.T_inlet_K, config.P_inlet_Pa, config.inlet_composition
             pass_start_cov = np.array(surf.coverages, dtype=float)
             last_pass_removed = _integrate_fluidized_pass(
-                gas, surf, tau_emulsion, sv_ratio, 0.0
+                gas, surf, tau_emulsion, sv_ratio, 0.0, ch4_initial, ar_initial
             )
             carbon_removed += last_pass_removed
             theta = _coverage(surf, 'C_s')
@@ -170,6 +177,7 @@ def simulate_fluidized_bed(
             f'(1-delta)*X_em={expected:.6f}'
         )
     x_h2 = _species_x(gas, 'H2')
+    kl_metrics = kunii_levenspiel_bubble_exchange(config, delta, u0, umf)
 
     circulating_outfeed_active = bool(circulating and removal_rate > 0.0)
     b2_carbon_policy_summary = (
@@ -193,6 +201,7 @@ def simulate_fluidized_bed(
             if config.fluidized_bubble_fraction is not None
             else 'clip((u0-umf)/u0, 0.01, 0.5)'
         ),
+        **kl_metrics,
         'residence_time_s': tau_emulsion,
         'WHSV_h-1': reciprocal_residence_h(tau_emulsion),
         'emulsion_voidage': FLUIDIZED_EMULSION_VOIDAGE,
@@ -204,6 +213,9 @@ def simulate_fluidized_bed(
         ),
         'cycle_averaged_CH4_conversion': float(
             (1.0 - delta) * np.mean(per_cycle) if per_cycle else final_conv
+        ),
+        'adiabatic_temperature_drop_K': adiabatic_temperature_drop_k(
+            ch4_initial, final_conv
         ),
         'circulating_outfeed_active': circulating_outfeed_active,
         'b2_carbon_policy_summary': b2_carbon_policy_summary,

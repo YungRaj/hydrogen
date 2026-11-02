@@ -164,7 +164,13 @@ def interface_ch4_destruction_mol_m2_s(
     x_ch4 = min(max(x_ch4, 0.0), 1.0)
     temperature = _parameter(case, 'temperature_K')
     pressure = _parameter(case, 'pressure_Pa')
-    gas.TPX = temperature, pressure, {'CH4': max(x_ch4, 1e-30), balance: max(1.0 - x_ch4, 1e-30)}
+    x_h2 = min(max(1.0 - x_ch4, 0.0) * 0.02, 0.01)
+    x_bal = max(1.0 - x_ch4 - x_h2, 1e-30)
+    gas.TPX = (
+        temperature,
+        pressure,
+        {'CH4': max(x_ch4, 1e-30), 'H2': max(x_h2, 1e-30), balance: x_bal},
+    )
     if graphite is not None:
         graphite.TP = temperature, pressure
     surface.TP = temperature, pressure
@@ -179,6 +185,21 @@ def interface_ch4_destruction_mol_m2_s(
         except ct.CanteraError:
             surface.coverages = 'site:1.0'
             surface.advance_coverages(relax_s, 1e-5, 1e-8, 1.0, 200000, 50)
+    if graphite is None and 'C_s' in surface.species_names and 'site' in surface.species_names:
+        cov = list(surface.coverages)
+        idx_c = surface.species_index('C_s')
+        idx_site = surface.species_index('site')
+        if cov[idx_c] > 0.99:
+            raw_clear = kinetics.get('interfacial_carbon_clearance_fraction', 1.0e-3)
+            clear_frac = (
+                float(raw_clear)
+                if isinstance(raw_clear, (int, float, str))
+                else 1.0e-3
+            )
+            freed = cov[idx_c] * min(max(clear_frac, 0.0), 0.25)
+            cov[idx_c] -= freed
+            cov[idx_site] += freed
+            surface.coverages = cov
     index = int(surface.kinetics_species_index('CH4'))
     rate = float(surface.destruction_rates[index]) * 1.0e3
     if not math.isfinite(rate) or rate < 0:

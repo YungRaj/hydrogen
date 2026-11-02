@@ -58,6 +58,47 @@ def interpolate_x_eq(T_K: float) -> float:
     return float(points[-1][1])
 
 
+def equilibrium_ch4_conversion_tp(
+    T_K: float, P_Pa: float = 100000.0, y_ch4_0: float = 1.0
+) -> float:
+    """Compute pressure- and dilution-adjusted CH4 equilibrium conversion.
+
+    Derives the equilibrium constant ``K_p(T) = 4 x_1^2 / (1 - x_1^2)`` at
+    ``P_ref = 1 bar`` from ``x_1 = interpolate_x_eq(T_K)``, then solves the
+    exact reaction stoichiometry ``CH4(g) <=> C(gr) + 2 H2(g)`` at arbitrary
+    total pressure ``P_Pa`` and inlet methane mole fraction ``y_ch4_0`` (with
+    inert balance ``1 - y_ch4_0``):
+
+        K_p(T) = [4 y_0 X^2 / ((1 - X)(1 + y_0 X))] * (P / P_ref)
+
+    Args:
+        T_K: Absolute temperature in kelvin.
+        P_Pa: Total gas pressure in pascals (default 1 bar = 100000 Pa).
+        y_ch4_0: Inlet methane mole fraction in (0, 1].
+
+    Returns:
+        Thermodynamic equilibrium CH4 conversion fraction at (T_K, P_Pa, y_ch4_0).
+    """
+    if P_Pa <= 0.0:
+        raise ValueError(f'P_Pa={P_Pa} must be positive')
+    if not 0.0 < y_ch4_0 <= 1.0:
+        raise ValueError(f'y_ch4_0={y_ch4_0} must lie in (0, 1]')
+    x1 = interpolate_x_eq(T_K)
+    if x1 <= 0.0:
+        return 0.0
+    if x1 >= 1.0:
+        return 1.0
+    kp_1bar = 4.0 * (x1 ** 2) / max(1.0 - (x1 ** 2), 1e-15)
+    r = kp_1bar * (100000.0 / float(P_Pa))
+    y0 = float(y_ch4_0)
+    # Solve y0*(4 + r)*X^2 + r*(1 - y0)*X - r = 0 for X in (0, 1)
+    a = y0 * (4.0 + r)
+    b = r * (1.0 - y0)
+    disc = max(0.0, b * b + 4.0 * a * r)
+    x_eq = (-b + float(disc ** 0.5)) / (2.0 * a)
+    return float(min(1.0, max(0.0, x_eq)))
+
+
 def ch4_conversion_from_mole_fractions(x_ch4: float, x_h2: float) -> float:
     """Extent of CH4 → C(s) + 2 H2 from a CH4/H2/inert gas.
 

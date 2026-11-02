@@ -20,6 +20,26 @@ from pipeline.electrochemistry.transport import (
 )
 
 
+CH4_PYROLYSIS_DELTA_H_J_MOL: float = 74850.0
+CH4_PYROLYSIS_DELTA_S_J_MOL_K: float = 80.6
+FARADAY_C_MOL: float = 96485.33212
+
+
+def turquoise_reversible_voltage_V(temperature_K: float, electrons: int = 4) -> float:
+    """Return temperature-dependent reversible cell potential E°(T) = ΔG°(T)/(nF) for CH4 -> C(s) + 2 H2.
+
+    Args:
+        temperature_K: Absolute cell operating temperature in kelvin.
+        electrons: Number of electrons transferred per CH4 molecule.
+
+    Returns:
+        Thermodynamic reversible potential in volts.
+    """
+    n_e = max(int(electrons), 1)
+    delta_g_j_mol = CH4_PYROLYSIS_DELTA_H_J_MOL - float(temperature_K) * CH4_PYROLYSIS_DELTA_S_J_MOL_K
+    return float(delta_g_j_mol / (n_e * FARADAY_C_MOL))
+
+
 def electrochemical_screening_point(parameters: dict[str, float]) -> dict[str, Any]:
     """Evaluate one explicit analytic electrochemical operating point.
 
@@ -32,18 +52,25 @@ def electrochemical_screening_point(parameters: dict[str, float]) -> dict[str, A
     Returns:
         Diagnostic current, voltage, conversion, and selectivity values.
     """
+    n_electrons = int(parameters.get('electrons', 2))
+    thermo_v_rev = turquoise_reversible_voltage_V(
+        parameters['temperature_K'], n_electrons
+    )
+    reversible_voltage_v = float(
+        parameters.get('reversible_voltage_V', thermo_v_rev)
+    )
     exchange = exchange_current_density(
         parameters['descriptor_eV'], parameters['optimum_descriptor_eV'],
         parameters['reference_current_A_cm2'], parameters['temperature_K'],
     )
     current_density = butler_volmer_current_density(
         exchange, parameters['overpotential_V'], parameters['temperature_K'],
-        parameters.get('symmetry_factor', 0.5), int(parameters.get('electrons', 2)),
+        parameters.get('symmetry_factor', 0.5), n_electrons,
     )
     area = parameters['area_m2']
     current = current_density * 1.0e4 * area
     limit = limiting_current_A(
-        int(parameters.get('electrons', 2)), parameters['diffusivity_m2_s'],
+        n_electrons, parameters['diffusivity_m2_s'],
         parameters['concentration_mol_m3'], area, parameters['boundary_layer_m'],
     )
     if current >= limit:
@@ -51,12 +78,13 @@ def electrochemical_screening_point(parameters: dict[str, float]) -> dict[str, A
             'status': 'invalid', 'reactor_evidence_tier': 'native_screening_model',
             'can_exclude_candidate': False, 'reason': 'current_exceeds_limiting_current',
             'current_density_A_cm2': current_density, 'limiting_current_A': limit,
+            'thermodynamic_reversible_voltage_V': thermo_v_rev,
         }
     voltage = cell_voltage(CellOperatingPoint(
-        parameters['reversible_voltage_V'], parameters['overpotential_V'],
+        reversible_voltage_v, parameters['overpotential_V'],
         parameters.get('cathode_overpotential_V', 0.0), current, limit,
         ohmic_resistance_ohm(parameters['gap_m'], parameters['conductivity_S_m'], area),
-        parameters['temperature_K'], int(parameters.get('electrons', 2)),
+        parameters['temperature_K'], n_electrons,
     ))
     faradaic_efficiency = parameters.get('faradaic_efficiency_H2', 1.0)
     ch4_share = parameters.get('ch4_current_fraction', 1.0)
@@ -65,18 +93,20 @@ def electrochemical_screening_point(parameters: dict[str, float]) -> dict[str, A
         raise ValueError('current shares and Faradaic efficiency must lie in [0, 1]')
     if feed is None or feed <= 0.0:
         raise ValueError('ch4_feed_mol_s must be positive for conversion')
-    ch4_consumed = current / (int(parameters.get('electrons', 2)) * 96485.33212) * ch4_share
+    ch4_consumed = current / (n_electrons * FARADAY_C_MOL) * ch4_share
     conversion = ch4_consumed / feed
     if conversion > 1.0:
         return {
             'status': 'invalid', 'reactor_evidence_tier': 'native_screening_model',
             'can_exclude_candidate': False, 'reason': 'current_exceeds_feed_supply',
             'current_density_A_cm2': current_density, 'cell_voltage_V': voltage,
+            'thermodynamic_reversible_voltage_V': thermo_v_rev,
         }
     return {
         'status': 'complete', 'reactor_evidence_tier': 'native_screening_model',
         'can_exclude_candidate': False, 'current_density_A_cm2': current_density,
         'cell_voltage_V': voltage, 'electrical_power_density_W_cm2': voltage * current_density,
+        'thermodynamic_reversible_voltage_V': thermo_v_rev,
         'CH4_conversion': conversion, 'H2_selectivity': faradaic_efficiency,
         'faradaic_efficiency_H2': faradaic_efficiency,
         'selectivity_assumption': 'H2 selectivity equals H2 Faradaic efficiency',

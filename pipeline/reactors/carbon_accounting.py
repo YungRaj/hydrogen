@@ -138,6 +138,14 @@ def _tabulated_x_eq(T_K: float) -> float:
     return interpolate_x_eq(T_K)
 
 
+def _local_tp_x_eq(T_K: float, P_Pa: float, y_ch4_0: float) -> float:
+    from pipeline.reactors.equilibrium import equilibrium_ch4_conversion_tp
+
+    return equilibrium_ch4_conversion_tp(
+        T_K, P_Pa, min(max(float(y_ch4_0), 1e-6), 1.0)
+    )
+
+
 def _off_site_carbon_metrics(
     config,
     gas,
@@ -158,10 +166,12 @@ def _off_site_carbon_metrics(
     """Per-pass carbon accounting for the B5/B6 closure criterion."""
     x_bound = n_sites_mol / n_ch4_fed_mol if n_ch4_fed_mol > 0 else None
     x_eq = _tabulated_x_eq(config.T_inlet_K)
+    x_eq_tp = _local_tp_x_eq(config.T_inlet_K, config.P_inlet_Pa, ch4_initial)
     out = {
         'site_inventory_bound_X': x_bound,
         'site_inventory_bound_basis': basis,
         'X_eq_table': x_eq,
+        'X_eq_local_tp': x_eq_tp,
         'exceeds_equilibrium': bool(pass_conversion > x_eq + 1e-6),
     }
     if surf is None:
@@ -260,15 +270,25 @@ def _off_site_carbon_metrics(
                 parse_catalyst_genome,
             )
 
+            parsed_g = parse_catalyst_genome(genome)
             metals = (
                 _nanoparticle_metals(
-                    parse_catalyst_genome(genome),
+                    parsed_g,
                     metadata.get('inputs', {}).get('material_class'),
                 )
                 & OFF_SITE_CARBON_METALS
             )
             if len(metals) == 1:
                 metal = next(iter(metals))
+            elif len(metals) > 1:
+                if (
+                    parsed_g
+                    and len(parsed_g) > 1
+                    and str(parsed_g[1]) in OFF_SITE_CARBON_METALS
+                ):
+                    metal = str(parsed_g[1])
+                else:
+                    metal = sorted(metals)[0]
         except Exception:
             metal = None
         dispersion = float(config.metal_dispersion)
@@ -322,6 +342,35 @@ def _ch4_extent(gas, x_ch4_feed: float, x_ar_feed: float) -> float:
     return ch4_conversion_from_argon_tracer(
         _species_x(gas, 'CH4'), _species_x(gas, 'Ar'), x_ch4_feed, x_ar_feed
     )
+
+
+def _clamp_gas_to_equilibrium(
+    gas, x_ch4_feed: float, x_ar_feed: float
+) -> None:
+    """Prevent irreversible C_s => C(gr) + site sink from pulling X past X_eq(T)."""
+    if x_ch4_feed <= 0.0 or x_ar_feed <= 0.0:
+        return
+    try:
+        x_eq = _tabulated_x_eq(float(gas.T))
+    except ValueError:
+        return
+    conv = _ch4_extent(gas, x_ch4_feed, x_ar_feed)
+    if conv <= x_eq:
+        return
+    x_ar = _species_x(gas, 'Ar')
+    if x_ar <= 0.0:
+        return
+    scale_to_feed = float(x_ar_feed) / x_ar
+    n_vec = np.array(gas.X, dtype=float) * scale_to_feed
+    i_ch4 = gas.species_index('CH4')
+    i_h2 = gas.species_index('H2')
+    target_n_ch4 = float(x_ch4_feed) * (1.0 - x_eq)
+    delta_ch4 = max(0.0, target_n_ch4 - float(n_vec[i_ch4]))
+    n_vec[i_ch4] = target_n_ch4
+    n_vec[i_h2] = max(0.0, float(n_vec[i_h2]) - 2.0 * delta_ch4)
+    total = float(n_vec.sum())
+    if total > 0.0:
+        gas.TPX = float(gas.T), float(gas.P), n_vec / total
 
 
 def _require_ar_tracer(x_ch4_feed: float, x_ar_feed: float) -> None:

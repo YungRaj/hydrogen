@@ -779,4 +779,168 @@ def test_b2_b3_b4_reactor_guardrails_and_diagnostics(tmp_path):
     assert 'circulating_outfeed=True' in fb_res['b2_carbon_policy_summary']
 
 
+def test_assumption_audit_fixes(tmp_path):
+    from pipeline.economics.tea import estimate_hydrogen_cost
+    from pipeline.electrochemistry.native_models import (
+        electrochemical_screening_point,
+        turquoise_reversible_voltage_V,
+    )
+    from pipeline.reactors.equilibrium import (
+        equilibrium_ch4_conversion_tp,
+        interpolate_x_eq,
+    )
+    from pipeline.reactors.mechanisms import (
+        off_site_carbon_allowed,
+        write_full_mechanism,
+        write_gas_only_mechanism,
+    )
+    from pipeline.reactors.pbr import DEFAULT_STICKING_COEFF, pbr_pellet_effectiveness
+    from pipeline.reactors.reactor_core import (
+        ReactorConfig,
+        _mmbcr_hydrodynamics,
+        adiabatic_temperature_drop_k,
+        class_site_utilization_factor,
+        kunii_levenspiel_bubble_exchange,
+        wen_yu_umf_m_s,
+    )
+    from pipeline.screening.mlip_neb import ZPE_CORRECTION_CH_EV
+    from pipeline.screening.structure_builders import generate_structure
+
+    # 1. Exact T/P/dilution equilibrium conversion (Le Chatelier scaling)
+    x_1bar = equilibrium_ch4_conversion_tp(1000.0, 100000.0, 1.0)
+    x_10bar = equilibrium_ch4_conversion_tp(1000.0, 1000000.0, 1.0)
+    x_diluted = equilibrium_ch4_conversion_tp(1000.0, 100000.0, 0.50)
+    assert x_1bar == pytest.approx(interpolate_x_eq(1000.0), rel=1e-4)
+    assert x_10bar < x_1bar
+    assert x_diluted > x_1bar
+
+    # 2. Doped/bimetallic SolidCatalyst & SupportedNanoparticle off-site carbon admission
+    cu_ni_genome = ('SolidCatalyst', 'Cu', 'Al2O3', 'fcc111', 0.0, ('Ni',), 1, 0)
+    cu_zn_genome = ('SolidCatalyst', 'Cu', 'Al2O3', 'fcc111', 0.0, ('Zn',), 1, 0)
+    assert off_site_carbon_allowed(cu_ni_genome, 'SolidCatalyst') is True
+    assert off_site_carbon_allowed(cu_zn_genome, 'SolidCatalyst') is False
+
+    # 3. Reversible C2 gas pyrolysis and graphite adjacency on regeneration
+    gas_yaml = Path(write_gas_only_mechanism()).read_text()
+    assert '2 CH4 <=> C2H6 + H2' in gas_yaml
+    assert 'C2H6 <=> C2H4 + H2' in gas_yaml
+    assert 'C2H4 <=> C2H2 + H2' in gas_yaml
+    sac_regen_yaml = Path(
+        write_full_mechanism(
+            'sac_regen',
+            E_act_CH4=0.85,
+            output_dir=tmp_path,
+            off_site_carbon=False,
+            carbon_regeneration_rate_1_s=0.05,
+        )
+    ).read_text()
+    assert 'adjacent-phases: [gas, graphite]' in sac_regen_yaml
+
+    # 4. Class-specific active site utilization and adiabatic temperature drop
+    assert class_site_utilization_factor('SolidCatalyst') == pytest.approx(1.0)
+    assert class_site_utilization_factor('SAC') < 0.25
+    assert adiabatic_temperature_drop_k(0.95, 0.50) > 400.0
+
+    # 5. PBR sticking parity (0.01) and linear Thiele modulus scaling with pellet diameter
+    assert DEFAULT_STICKING_COEFF == pytest.approx(0.01)
+    p1 = pbr_pellet_effectiveness(
+        ReactorConfig(reactor_type='PBR', catalyst_particle_mm=1.0),
+        1073.15,
+        150000.0,
+        0.25,
+        0.40,
+    )
+    p3 = pbr_pellet_effectiveness(
+        ReactorConfig(reactor_type='PBR', catalyst_particle_mm=3.0),
+        1073.15,
+        150000.0,
+        0.25,
+        0.40,
+    )
+    assert p3['thiele_modulus'] == pytest.approx(3.0 * p1['thiele_modulus'], rel=1e-4)
+
+    # 6. Fluidized Wen-Yu u_mf and Kunii-Levenspiel interphase exchange
+    cfg_fb = ReactorConfig(reactor_type='Fluidized', T_inlet_K=1073.15)
+    assert wen_yu_umf_m_s(cfg_fb) > 0.0
+    kl = kunii_levenspiel_bubble_exchange(cfg_fb, 0.25, 0.10, 0.02)
+    assert 0.0 < kl['effective_bypass_fraction'] < 0.25
+
+    # 7. MMBCR composition-dependent liquid metal density & surface tension
+    from pipeline.reactors.mechanisms import CandidateKinetics
+
+    mech_bi = write_full_mechanism(
+        'bi_ni_melt',
+        kinetics=CandidateKinetics(
+            methane_activation_eV=0.85,
+            candidate_id='bi_ni_melt',
+            material_class='MoltenMetal',
+            genome=('MoltenMetal', 'Bi', 'Ni', 20.0, 1273.15),
+            screening_protocol='esen-v1',
+        ),
+        output_dir=tmp_path,
+    )
+    mech_ga = write_full_mechanism(
+        'ga_ni_melt',
+        kinetics=CandidateKinetics(
+            methane_activation_eV=0.85,
+            candidate_id='ga_ni_melt',
+            material_class='MoltenMetal',
+            genome=('MoltenMetal', 'Ga', 'Ni', 20.0, 1273.15),
+            screening_protocol='esen-v1',
+        ),
+        output_dir=tmp_path,
+    )
+    hydro_bi = _mmbcr_hydrodynamics(
+        ReactorConfig(reactor_type='MMBCR', mechanism_file=str(mech_bi))
+    )
+    hydro_ga = _mmbcr_hydrodynamics(
+        ReactorConfig(reactor_type='MMBCR', mechanism_file=str(mech_ga))
+    )
+    assert hydro_bi['melt_density_kg_m3'] > 8500.0
+    assert hydro_ga['melt_density_kg_m3'] < 6500.0
+    assert hydro_ga['melt_surface_tension_N_m'] > hydro_bi['melt_surface_tension_N_m']
+
+    # 8. MoltenMetal liquid corrugation and Gibbs promoter sub-surface offset
+    assert ZPE_CORRECTION_CH_EV == pytest.approx(-0.16)
+    molten_atoms, molten_surf, _ = generate_structure(
+        ('MoltenMetal', 'Bi', 'Ni', 27.0, 1273.15), 0
+    )
+    ni_z = [
+        float(molten_atoms.positions[i, 2])
+        for i in molten_surf
+        if molten_atoms[i].symbol == 'Ni'
+    ]
+    bi_z = [
+        float(molten_atoms.positions[i, 2])
+        for i in molten_surf
+        if molten_atoms[i].symbol == 'Bi'
+    ]
+    assert np.mean(ni_z) < np.mean(bi_z)
+
+    # 9. Temperature-dependent Nernst potential and PSA CH4 recycle TEA
+    assert turquoise_reversible_voltage_V(300.0, 4) > turquoise_reversible_voltage_V(
+        1000.0, 4
+    )
+    ec_pt = electrochemical_screening_point({
+        'descriptor_eV': 0.0,
+        'optimum_descriptor_eV': 0.0,
+        'reference_current_A_cm2': 0.1,
+        'temperature_K': 900.0,
+        'overpotential_V': 0.15,
+        'area_m2': 1e-4,
+        'diffusivity_m2_s': 1e-9,
+        'concentration_mol_m3': 1000.0,
+        'boundary_layer_m': 1e-4,
+        'gap_m': 1e-3,
+        'conductivity_S_m': 10.0,
+        'ch4_feed_mol_s': 1e-3,
+    })
+    assert 'thermodynamic_reversible_voltage_V' in ec_pt
+
+    tea_50 = estimate_hydrogen_cost(0.50, 'base')
+    assert tea_50['recycle_ratio'] == pytest.approx(1.0)
+    assert tea_50['net_ch4_utilization'] > 0.90
+
+
+
 

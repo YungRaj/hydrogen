@@ -20,10 +20,12 @@ from pipeline.reactors.reactor_core import (
     ReactorConfig,
     active_area_multiplier,
     active_sv,
+    adiabatic_temperature_drop_k,
     advance_reactor_stage,
     ch4_extent,
     ch4_feed_density_kg_m3,
     ch4_viscosity_pa_s,
+    clamp_gas_to_equilibrium,
     geometric_sv_pfr,
     kinetics_evidence,
     kinetics_fields,
@@ -47,7 +49,7 @@ SOLID_CARBON_DENSITY_KG_M3: float = 2000.0
 MIN_PACKED_BED_POROSITY: float = 0.10
 MIN_STAGE_PRESSURE_PA: float = 10000.0
 CH4_MOLAR_MASS_KG_MOL: float = 0.016043
-DEFAULT_STICKING_COEFF: float = 0.05
+DEFAULT_STICKING_COEFF: float = 0.01
 
 
 def pbr_pellet_effectiveness(
@@ -105,8 +107,11 @@ def pbr_pellet_effectiveness(
         * float(np.exp(-e_act / max(k_b_ev * T_K, 1e-9)))
     )
 
-    # Active area per unit pellet volume [m² active / m³ pellet]
-    av_pellet = (6.0 / d_p) * active_area_multiplier(config)
+    # Active area per unit pellet volume [m² active / m³ pellet].
+    # Porous catalyst pellets larger than primary grain scale (~0.2 mm) retain
+    # internal mesopore surface area per unit volume rather than decaying as 6/d_p,
+    # so φ = (d_p / 6) * sqrt(k_vol / D_eff) scales linearly with d_p.
+    av_pellet = (6.0 / min(d_p, 2.0e-4)) * active_area_multiplier(config)
     k_vol_1_s = av_pellet * k_surf_m_s
 
     # Spherical pellet characteristic length L_c = d_p / 6
@@ -308,6 +313,7 @@ def simulate_pbr(
             advance_reactor_stage(
                 gas, surf, stage_gas_vol, stage_eff_area, tau_stage
             )
+            clamp_gas_to_equilibrium(gas, ch4_initial, ar_initial)
 
             # Differential Ergun pressure drop across stage dz
             dp_dz = _stage_ergun_gradient_pa_m(
@@ -441,6 +447,9 @@ def simulate_pbr(
             ),
             'endothermic_heat_duty_kJ_per_mol_CH4_fed': float(
                 CH4_PYROLYSIS_DELTA_H_KJ_MOL * final_conv
+            ),
+            'adiabatic_temperature_drop_K': adiabatic_temperature_drop_k(
+                ch4_initial, final_conv
             ),
             'CH4_mole_fraction_drop': float(mole_fraction_drop(gas, ch4_initial)),
             'conversion_basis': 'argon_tracer',

@@ -51,6 +51,13 @@ def simulate_mmbcr(
     )
     da_stage = k_if * sv_ratio * tau_stage * eta_float
 
+    rho_l = float(hydro['melt_density_kg_m3'])
+    eps_g = float(hydro['gas_holdup_fraction'])
+    inlet_bottom_p_pa = float(
+        config.P_inlet_Pa
+        + rho_l * G_M_S2 * max(0.0, 1.0 - eps_g) * float(config.column_height_m)
+    )
+
     z_positions = np.linspace(0, config.column_height_m, config.n_cstr_stages + 1)
     conversion_profile = [0.0]
     temperature_profile = [config.T_inlet_K]
@@ -61,17 +68,41 @@ def simulate_mmbcr(
     carbon_removed_coverage = 0.0
 
     for _stage in range(config.n_cstr_stages):
-        # First-order approach to melt/gas equilibrium; C floats out of the bubble.
-        conv = x_eq - (x_eq - conv) * np.exp(-da_stage)
+        # Local hydrostatic pressure P(z) and pressure-adjusted equilibrium ceiling
+        z_mid = float(
+            0.5 * (z_positions[_stage] + z_positions[_stage + 1])
+        )
+        p_stage = float(
+            config.P_inlet_Pa
+            + rho_l
+            * G_M_S2
+            * max(0.0, 1.0 - eps_g)
+            * max(0.0, float(config.column_height_m) - z_mid)
+        )
+        x_eq_local = min(
+            x_eq,
+            _local_tp_x_eq(config.T_inlet_K, p_stage, x_ch4_feed),
+        )
+        # Account for gas molar expansion (1 + y_CH4,0 * X) reducing local bubble stage residence
+        expansion_factor = 1.0 + x_ch4_feed * max(0.0, conv)
+        da_stage_local = da_stage / max(expansion_factor, 1.0)
+        # First-order approach to local melt/gas equilibrium; C floats out of the bubble.
+        if conv < x_eq_local:
+            conv = x_eq_local - (x_eq_local - conv) * float(np.exp(-da_stage_local))
+        conv = float(min(conv, x_eq))
         carbon_removed_coverage += max(0.0, conv - conversion_profile[-1]) * x_ch4_feed
         _set_gas_from_ch4_conversion(
-            gas, config.T_inlet_K, config.P_inlet_Pa, x_ch4_feed, x_ar_feed, conv
+            gas, config.T_inlet_K, p_stage, x_ch4_feed, x_ar_feed, conv
         )
         conversion_profile.append(float(conv))
         temperature_profile.append(config.T_inlet_K)
         for sp in species_profiles:
             species_profiles[sp].append(_species_x(gas, sp))
 
+    # Top of column is at P_inlet_Pa
+    _set_gas_from_ch4_conversion(
+        gas, config.T_inlet_K, config.P_inlet_Pa, x_ch4_feed, x_ar_feed, conv
+    )
     final_conv = conversion_profile[-1]
     x_h2 = _species_x(gas, 'H2')
 
@@ -80,6 +111,7 @@ def simulate_mmbcr(
         'catalyst_name': config.catalyst_name,
         'T_K': config.T_inlet_K,
         'P_Pa': config.P_inlet_Pa,
+        'inlet_bottom_P_Pa': inlet_bottom_p_pa,
         'column_height_m': config.column_height_m,
         'column_diameter_m': config.column_diameter_m,
         'gas_velocity_m_s': config.gas_velocity_m_s,
@@ -103,6 +135,12 @@ def simulate_mmbcr(
         'exit_theta_C': 0.0,
         'carbon_removed_coverage_proxy': float(carbon_removed_coverage),
         'X_eq_table': float(x_eq),
+        'X_eq_local_tp': float(
+            _local_tp_x_eq(config.T_inlet_K, config.P_inlet_Pa, x_ch4_feed)
+        ),
+        'adiabatic_temperature_drop_K': adiabatic_temperature_drop_k(
+            x_ch4_feed, final_conv
+        ),
         'mmbcr_k_if_m_s': float(k_if),
         'mmbcr_flotation_eta': float(eta_float),
         'mmbcr_Da': float(k_if * sv_ratio * tau_total * eta_float),

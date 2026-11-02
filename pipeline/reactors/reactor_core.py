@@ -41,11 +41,13 @@ from pipeline.reactors.carbon_accounting import (
     _advance_reactor_stage,
     _apply_continuous_carbon_removal,
     _ch4_extent,
+    _clamp_gas_to_equilibrium,
     _coverage,
     _disable_reactor_energy,
     _h2_atom_balance_metric,
     _load_gas_and_surface,
     _load_status_fields,
+    _local_tp_x_eq,
     _mix_bubble_bypass,
     _mole_fraction_drop,
     _off_site_carbon_metrics as _compute_off_site_carbon_metrics,
@@ -433,8 +435,46 @@ def geometric_sv_fluidized(config: ReactorConfig) -> float:
     return 6.0 * (1.0 - FLUIDIZED_EMULSION_VOIDAGE) / d_p
 
 
+CLASS_SITE_UTILIZATION_FACTOR: dict[str, float] = {
+    'SolidCatalyst': 1.0,
+    'SupportedNanoparticle': 1.0,
+    'HEA': 1.0,
+    'SAA': 1.0,
+    'MoltenMetal': 1.0,
+    'MetalHydride': 0.85,
+    'MXene': 0.60,
+    'Perovskite': 0.35,
+    'MAXPhase': 0.25,
+    'Spinel': 0.20,
+    'DAC': 0.10,
+    'SAC': 0.06,
+    'MOF': 0.04,
+    'COF': 0.04,
+    'MetalFreeCarbon': 0.03,
+}
+
+
+def class_site_utilization_factor(material_class: Optional[str]) -> float:
+    """Return the active-site density ratio vs a close-packed FCC(111) monolayer.
+
+    Keeps the Cantera phase site density locked at 2.5e-9 mol/cm^2 (B1) while
+    scaling effective catalytic site area for single-atom, dual-atom, framework,
+    oxide, and metal-free classes whose physical site density is lower than a
+    bulk metallic surface.
+
+    Args:
+        material_class: Catalyst material class name or ``None``.
+
+    Returns:
+        Dimensionless site-utilization factor in ``(0, 1]``.
+    """
+    if not material_class:
+        return 1.0
+    return float(CLASS_SITE_UTILIZATION_FACTOR.get(str(material_class), 1.0))
+
+
 def active_area_multiplier(config: ReactorConfig) -> float:
-    """Return the loading-times-dispersion active-area fraction.
+    """Return the loading-times-dispersion-times-class active-area fraction.
 
     Args:
         config: Input controlling config.
@@ -442,7 +482,11 @@ def active_area_multiplier(config: ReactorConfig) -> float:
     Returns:
         Validated float output for this operation.
     """
-    return float(config.metal_loading) * float(config.metal_dispersion)
+    return (
+        float(config.metal_loading)
+        * float(config.metal_dispersion)
+        * class_site_utilization_factor(config.material_class)
+    )
 
 
 def active_sv(geometric_sv: float, config: ReactorConfig) -> float:
@@ -456,6 +500,28 @@ def active_sv(geometric_sv: float, config: ReactorConfig) -> float:
         Validated float output for this operation.
     """
     return float(geometric_sv) * active_area_multiplier(config)
+
+
+def adiabatic_temperature_drop_k(ch4_initial: float, conversion: float) -> float:
+    """Estimate adiabatic temperature drop ΔT_ad [K] for CH4 -> C(s) + 2 H2.
+
+    Uses ΔH_rxn = 74.85 kJ/mol CH4 and high-temperature molar heat capacities
+    Cp_CH4 ≈ 71.5 J/(mol·K) and Cp_Ar ≈ 20.8 J/(mol·K) around 1000 K.
+
+    Args:
+        ch4_initial: Inlet methane mole fraction.
+        conversion: Fractional methane conversion in [0, 1].
+
+    Returns:
+        Adiabatic temperature drop in kelvin (>= 0).
+    """
+    y_ch4 = min(max(float(ch4_initial), 0.0), 1.0)
+    y_ar = max(0.0, 1.0 - y_ch4)
+    cp_mix_j_mol_k = max(y_ch4 * 71.5 + y_ar * 20.8, 20.8)
+    q_j_per_mol_feed = (
+        y_ch4 * min(max(float(conversion), 0.0), 1.0) * CH4_PYROLYSIS_DELTA_H_KJ_MOL * 1000.0
+    )
+    return float(q_j_per_mol_feed / cp_mix_j_mol_k)
 
 
 def ch4_feed_density_kg_m3(T_K: float, P_Pa: float) -> float:
@@ -743,6 +809,19 @@ def ch4_extent(gas: CanteraGasPhase, x_ch4_feed: float, x_ar_feed: float) -> flo
     return float(_ch4_extent(gas, x_ch4_feed, x_ar_feed))
 
 
+def clamp_gas_to_equilibrium(
+    gas: CanteraGasPhase, x_ch4_feed: float, x_ar_feed: float
+) -> None:
+    """Enforce the thermodynamic equilibrium ceiling on a stage gas state.
+
+    Args:
+        gas: Cantera gas phase at the current stage state.
+        x_ch4_feed: Inlet methane mole fraction.
+        x_ar_feed: Inlet argon tracer mole fraction.
+    """
+    _clamp_gas_to_equilibrium(gas, x_ch4_feed, x_ar_feed)
+
+
 def mole_fraction_drop(gas: CanteraGasPhase, x_ch4_feed: float) -> float:
     """Compute apparent methane mole-fraction drop without molar-expansion correction.
 
@@ -842,6 +921,164 @@ def off_site_carbon_metrics(
     )
 
 
+def wen_yu_umf_m_s(config: ReactorConfig) -> float:
+    """Compute Wen-Yu (1966) minimum fluidization velocity u_mf [m/s].
+
+    Uses Archimedes number ``Ar = d_p^3 * rho_g * (rho_p - rho_g) * g / mu_g^2``
+    and ``Re_mf = sqrt(33.7^2 + 0.0408 * Ar) - 33.7``.
+
+    Args:
+        config: Reactor configuration providing particle size, density, T, and P.
+
+    Returns:
+        Calculated minimum fluidization velocity in m/s.
+    """
+    d_p = max(float(config.catalyst_particle_mm) * 1e-3, 1e-6)
+    rho_p = max(float(config.catalyst_density_kg_m3), 100.0)
+    rho_g = ch4_feed_density_kg_m3(config.T_inlet_K, config.P_inlet_Pa)
+    mu_g = ch4_viscosity_pa_s(config.T_inlet_K)
+    archimedes = (
+        (d_p ** 3)
+        * rho_g
+        * max(rho_p - rho_g, 1.0)
+        * G_M_S2
+        / max(mu_g ** 2, 1e-18)
+    )
+    re_mf = float(np.sqrt(33.7 ** 2 + 0.0408 * archimedes) - 33.7)
+    return float(max(re_mf * mu_g / max(d_p * rho_g, 1e-12), 1e-5))
+
+
+def kunii_levenspiel_bubble_exchange(
+    config: ReactorConfig, delta: float, u0_m_s: float, umf_m_s: float
+) -> dict[str, float]:
+    """Compute Kunii-Levenspiel (1991) bubble-to-emulsion mass transfer metrics.
+
+    Args:
+        config: Fluidized-bed configuration.
+        delta: Bubble volume fraction in [0, 1).
+        u0_m_s: Superficial gas velocity in m/s.
+        umf_m_s: Minimum fluidization velocity in m/s.
+
+    Returns:
+        Dictionary of bubble-emulsion exchange coefficient ``k_be_1_s``,
+        exchange efficiency, and effective unreacted bypass fraction.
+    """
+    t_k = float(config.T_inlet_K)
+    p_pa = max(float(config.P_inlet_Pa), 10000.0)
+    d_mol = 2.2e-5 * ((t_k / 298.15) ** 1.75) * (101325.0 / p_pa)
+    # Effective bubble diameter in Geldart B/A bubbling bed [m]
+    d_b_m = min(
+        0.08,
+        max(
+            0.005,
+            0.54
+            * ((max(u0_m_s - umf_m_s, 1e-4) ** 0.4))
+            * ((0.5 * float(config.bed_height_m) + 0.02) ** 0.8)
+            / (G_M_S2 ** 0.2),
+        ),
+    )
+    u_br = 0.711 * float(np.sqrt(G_M_S2 * d_b_m))
+    u_b = max(u0_m_s - umf_m_s + u_br, 1e-3)
+    k_bc = 4.5 * (umf_m_s / d_b_m) + 5.85 * ((d_mol ** 0.5) * (G_M_S2 ** 0.25)) / (
+        d_b_m ** 1.25
+    )
+    k_ce = 6.77 * float(
+        np.sqrt(FLUIDIZED_EMULSION_VOIDAGE * d_mol * u_br / (d_b_m ** 3))
+    )
+    k_be = 1.0 / (1.0 / max(k_bc, 1e-9) + 1.0 / max(k_ce, 1e-9))
+    n_be = float(k_be * float(config.bed_height_m) / u_b)
+    exchange_eff = float(1.0 - np.exp(-n_be))
+    effective_bypass = float(delta * np.exp(-n_be))
+    return {
+        'umf_wen_yu_m_s': wen_yu_umf_m_s(config),
+        'bubble_diameter_kl_m': float(d_b_m),
+        'bubble_rise_velocity_kl_m_s': float(u_b),
+        'k_be_1_s': float(k_be),
+        'interphase_transfer_units_N_be': n_be,
+        'bubble_exchange_efficiency': exchange_eff,
+        'effective_bypass_fraction': effective_bypass,
+    }
+
+
+MELT_ELEMENT_PROPERTIES: dict[str, tuple[float, float]] = {
+    # element: (surface_tension_N_m, liquid_density_kg_m3) around 1200-1300 K
+    'Bi': (0.35, 9300.0),
+    'Ga': (0.65, 5500.0),
+    'In': (0.50, 6400.0),
+    'Sn': (0.52, 6500.0),
+    'Pb': (0.41, 9900.0),
+    'Sb': (0.36, 6400.0),
+    'Te': (0.18, 5700.0),
+    'Cu': (1.28, 7900.0),
+    'Ag': (0.91, 9300.0),
+    'Au': (1.14, 17100.0),
+    'Ni': (1.78, 7800.0),
+    'Fe': (1.85, 7000.0),
+    'Co': (1.88, 7700.0),
+    'Pt': (1.80, 19000.0),
+    'Pd': (1.47, 10500.0),
+    'Mn': (1.10, 5900.0),
+    'Mo': (2.05, 9300.0),
+    'Zn': (0.75, 6500.0),
+    'Mg': (0.55, 1580.0),
+}
+
+
+def resolve_molten_metal_properties(
+    config: ReactorConfig,
+) -> tuple[float, float, str]:
+    """Resolve composition-dependent melt surface tension and density for MMBCR.
+
+    When ``config.melt_surface_tension_N_m`` and ``config.melt_density_kg_m3``
+    are left at the class defaults and the mechanism sidecar carries a
+    ``MoltenMetal`` genome ``('MoltenMetal', host, promoter, at_pct, temp_K)``,
+    computes the Butler/ideal-mixing surface tension and density for the actual
+    liquid-metal alloy.
+
+    Args:
+        config: Reactor configuration for the MMBCR run.
+
+    Returns:
+        Tuple of ``(sigma_N_m, rho_kg_m3, basis_string)``.
+    """
+    sigma_cfg = float(config.melt_surface_tension_N_m)
+    rho_cfg = float(config.melt_density_kg_m3)
+    if (
+        abs(sigma_cfg - MMBCR_MELT_SURFACE_TENSION_N_M) > 1e-9
+        or abs(rho_cfg - MMBCR_MELT_DENSITY_KG_M3) > 1e-9
+    ):
+        return sigma_cfg, rho_cfg, 'explicit_config_override'
+    metadata = _mechanism_metadata(config)
+    raw_genome = metadata.get('inputs', {}).get('genome')
+    from pipeline.reactors.mechanisms import parse_catalyst_genome
+
+    parsed = parse_catalyst_genome(raw_genome)
+    if (
+        parsed
+        and len(parsed) >= 4
+        and str(parsed[0]) == 'MoltenMetal'
+        and str(parsed[1]) in MELT_ELEMENT_PROPERTIES
+    ):
+        host = str(parsed[1])
+        promoter = str(parsed[2])
+        at_pct = min(max(float(parsed[3]), 0.0), 100.0)
+        x_prom = at_pct / 100.0
+        sigma_h, rho_h = MELT_ELEMENT_PROPERTIES[host]
+        sigma_p, rho_p = MELT_ELEMENT_PROPERTIES.get(promoter, (sigma_h, rho_h))
+        # Gibbs surface enrichment of the lower-surface-tension component
+        sigma_mix = float(
+            min(sigma_h, sigma_p) * 0.35
+            + ((1.0 - x_prom) * sigma_h + x_prom * sigma_p) * 0.65
+        )
+        rho_mix = float((1.0 - x_prom) * rho_h + x_prom * rho_p)
+        return (
+            sigma_mix,
+            rho_mix,
+            f'composition_resolved:{host}_{promoter}_{at_pct:g}atpct',
+        )
+    return sigma_cfg, rho_cfg, 'Ni-Bi order of magnitude; not fitted'
+
+
 def _mmbcr_interfacial_k_m_s(E_act_eV: float, T_K: float, k0_m_s: float) -> float:
     k_B_eV = 8.617333262e-5
     return float(k0_m_s * np.exp(-E_act_eV / max(k_B_eV * T_K, 1e-12)))
@@ -895,6 +1132,7 @@ def mendelson_bubble_rise_velocity_m_s(
 def _mmbcr_hydrodynamics(config: ReactorConfig) -> Dict:
     """Derive u_b, τ, and gas holdup from geometry; fail closed outside bubbly flow."""
     d_b = config.bubble_diameter_mm * 1e-3
+    sigma_eff, rho_eff, prop_basis = resolve_molten_metal_properties(config)
     evidence = config.reactor_closure_evidence or {}
     external = evidence.get('source') in EXTERNAL_CLOSURE_SOURCES
     if config.gas_holdup_fraction is not None and not external:
@@ -916,9 +1154,7 @@ def _mmbcr_hydrodynamics(config: ReactorConfig) -> Dict:
         holdup_basis = evidence.get('source')
         residence_basis = MMBCR_ARTIFACT_RESIDENCE_BASIS
     else:
-        u_b = mendelson_bubble_rise_velocity_m_s(
-            d_b, config.melt_surface_tension_N_m, config.melt_density_kg_m3
-        )
+        u_b = mendelson_bubble_rise_velocity_m_s(d_b, sigma_eff, rho_eff)
         eps_g = config.gas_velocity_m_s / u_b
         if eps_g > MMBCR_MAX_GAS_HOLDUP:
             raise ValueError(
@@ -940,9 +1176,9 @@ def _mmbcr_hydrodynamics(config: ReactorConfig) -> Dict:
         'residence_time_s': float(tau_total),
         'residence_time_basis': residence_basis,
         'interfacial_sv_ratio_1_m': 6.0 / d_b,
-        'melt_surface_tension_N_m': float(config.melt_surface_tension_N_m),
-        'melt_density_kg_m3': float(config.melt_density_kg_m3),
-        'melt_property_basis': 'Ni-Bi order of magnitude; not fitted',
+        'melt_surface_tension_N_m': float(sigma_eff),
+        'melt_density_kg_m3': float(rho_eff),
+        'melt_property_basis': prop_basis,
     }
 
 

@@ -117,14 +117,21 @@ def _gas_graphite_phases_yaml(T_ref: float) -> str:
 
 
 def _surface_phase_yaml(
-    catalyst_name: str, site_density: float, include_off_site: bool
+    catalyst_name: str,
+    site_density: float,
+    include_off_site: bool,
+    include_graphite_adjacent: bool = False,
 ) -> str:
     surf_species = (
         '[site, CH3_s, CH2_s, CH_s, H_s, C_s, C_encap_s]'
         if include_off_site
         else '[site, CH3_s, CH2_s, CH_s, H_s, C_s]'
     )
-    adjacent = '[gas, graphite]' if include_off_site else '[gas]'
+    adjacent = (
+        '[gas, graphite]'
+        if (include_off_site or include_graphite_adjacent)
+        else '[gas]'
+    )
     return f"""\
 - name: {catalyst_name}_surface
   thermo: ideal-surface
