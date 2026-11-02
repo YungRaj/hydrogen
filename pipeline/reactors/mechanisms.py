@@ -278,6 +278,7 @@ class CandidateKinetics:
         return values
 
 
+# Close-packed FCC(111) transition-metal monolayer site density Γ ≈ 1.5e15 sites/cm² = 2.5e-9 mol/cm²
 MONOLAYER_SITE_DENSITY_MOL_CM2 = 2.5e-9
 OFF_SITE_CARBON_METALS = frozenset({'Ni', 'Fe', 'Co'})
 OFF_SITE_CARBON_DENIED_CLASSES = frozenset(
@@ -300,14 +301,16 @@ C_DELTA_PROVENANCE = (
     'template_default: Amin IEC Res 2011 50 12460; '
     '147-149 kJ/mol encapsulating-carbon'
 )
+# Coverage θ* where second-order encapsulation rate r_δ ∝ (A_γ/θ*) θ_C² equals first-order filament rate r_γ ∝ A_γ θ_C at equal barrier
 DEFAULT_ENCAPSULATION_CROSSOVER_COVERAGE = 0.5
 THETA_STAR_PROVENANCE = 'declared_not_measured: swept in B6-6'
 C_DELTA_FORM = 'coverage_dependent_theta_C_squared'
-OFF_SITE_PREEXPONENTIAL_1_S = 1.0e13
+OFF_SITE_PREEXPONENTIAL_1_S = 1.0e13  # Eyring TST vibrational frequency factor k_B T / h ≈ 10^13 s^-1
 C_GAMMA_PREFACTOR_PROVENANCE = (
     'template_default: single-hop TST 1e13/s; transport+precipitation lump '
     'is D0/L^2 and particle-size dependent; swept in B6-6'
 )
+# Bulk carbon interstitial diffusivity prefactor in Ni: D0 = 2.48 cm²/s = 2.48e-4 m²/s (Lander et al., J. Appl. Phys. 1952)
 CARBON_DIFFUSION_PREFACTOR_M2_S = 2.48e-4
 CARBON_DIFFUSION_PREFACTOR_PROVENANCE = (
     'template_default: Lander J.Appl.Phys. 1952 23 1305; '
@@ -318,8 +321,9 @@ CH4_STICKING_PROVENANCE = (
     'template_default: s0 = 0.01 (methane_pox_on_pt order of magnitude); '
     'swept in B6-6'
 )
-SURFACE_TST_PREFACTOR_1_S = 1.0e13
-H2_DESORPTION_PREFACTOR_1_S = 5.0e13
+SURFACE_TST_PREFACTOR_1_S = 1.0e13  # Unimolecular surface TST attempt frequency [s^-1]
+H2_DESORPTION_PREFACTOR_1_S = 5.0e13  # Associative H2 desorption prefactor [s^-1] (rotational/translational entropy gain)
+# Standard gas-phase enthalpies of formation ΔH°_f,298 [J/mol] (NIST-JANAF): CH3•(g) = +145.7 kJ/mol, CH4(g) = -74.6 kJ/mol
 H_F_CH3_RADICAL_J_MOL = 145700.0
 H_F_CH4_J_MOL = -74600.0
 SURFACE_THERMO_REFERENCE = {

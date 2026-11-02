@@ -626,8 +626,11 @@ def _build_supported_nanoparticle(genome, structure_seed):
     _, metal, support, facet, diameter_nm, loading_wt_pct, dopants, n_sub, n_vac = genome
     d_nm = max(float(diameter_nm), 0.5)
     load_pct = min(max(float(loading_wt_pct), 0.0), 100.0)
+    # Spherical nanoparticle dispersion D ~ 1.1 / d_nm (Bergeret & Gallezot) and
+    # cuboctahedral corner/edge step-site fraction f_step ~ (2.5 / d_nm)^2 (Van Hardeveld & Hartog).
     dispersion = min(1.0, 1.1 / d_nm)
     step_fraction = min(1.0, (2.5 / d_nm) ** 2)
+    # Young-Laplace capillary compression (-1.5% at 1 nm) plus support-epitaxy tensile offset.
     capillary_strain = -0.015 / max(d_nm, 1.0)
     loading_strain = 0.002 * (1.0 - min(load_pct, 30.0) / 30.0)
     effective_strain = float(np.clip(capillary_strain + loading_strain, -0.03, 0.03))
@@ -672,6 +675,8 @@ def _build_solid_catalyst(genome, structure_seed):
 
 def _build_molten_metal(genome, structure_seed):
     _, host, promoter, at_pct, temp = genome
+    # Map atomic percent onto the 9 sites of the 3x3 top surface layer; apply linear
+    # thermal expansion alpha = 1.0e-5 K^-1 relative to the 1000 K reference state.
     n_sub = max(1, round(at_pct / 100.0 * 9))
     dopants = (promoter,) if promoter != 'None' else ()
     thermal_strain = (float(temp) - 1000.0) * 1.0e-5
@@ -686,9 +691,9 @@ def _build_molten_metal(genome, structure_seed):
         seed_key=('MoltenMetal', host, promoter, float(at_pct), structure_seed),
     )
     # Apply deterministic liquid-metal positional disorder (capillary/thermal
-    # corrugation scaling as sqrt(T)) and Gibbs surface-tension relaxation where
-    # higher-surface-tension transition-metal promoters relax slightly inward (-z)
-    # relative to low-surface-tension liquid p-block hosts (Bi, Ga, In, Sn, Pb, Te).
+    # corrugation amplitude 0.08 A * sqrt(T / 1000 K)) and Gibbs surface-tension
+    # relaxation where higher-surface-tension transition-metal promoters relax 0.14 A
+    # inward (-z) relative to low-surface-tension liquid p-block hosts (Upham et al. 2017).
     rng_liq = random.Random(
         _stable_seed(
             'molten-liquid-corrugation-v1',

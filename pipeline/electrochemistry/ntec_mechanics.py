@@ -20,6 +20,8 @@ def collision_events_per_volume_s(
     """
     if min(shear_rate_s, particle_diameter_m, number_density_m3) <= 0.0:
         raise ValueError('shear rate, diameter, and number density must be positive')
+    # Smoluchowski (1917) orthokinetic shear-collision kernel for monodisperse spheres (R_ij = d_p):
+    # Z = (4/3) * G * R_ij^3 * N^2 = (4/3) * G * d_p^3 * N^2 [events/(m³·s)]
     return (4.0 / 3.0) * shear_rate_s * particle_diameter_m**3 * number_density_m3**2
 
 

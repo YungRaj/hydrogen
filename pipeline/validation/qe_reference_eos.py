@@ -22,11 +22,12 @@ from pipeline.validation.qe_workflows import (
 )
 
 
-RY_TO_EV = 13.605693122994
-BOHR_PER_ANGSTROM = 1.889726125458
+RY_TO_EV = 13.605693122994  # Rydberg-to-eV conversion factor [eV/Ry] (CODATA 2018)
+BOHR_PER_ANGSTROM = 1.889726125458  # Inverse Bohr radius 1/a_0 [Bohr/A] (a_0 = 0.529177210903 A, CODATA 2018)
+# Experimental 293 K conventional cubic lattice constants [A] (NIST crystallographic reference)
 REFERENCE_LATTICES = {"Fe": 2.8664, "Ni": 3.5238}
 STRUCTURES = {"Fe": "bcc", "Ni": "fcc"}
-IBRAV = {"Fe": 3, "Ni": 2}
+IBRAV = {"Fe": 3, "Ni": 2}  # Quantum ESPRESSO Bravais lattice index: 2 = cubic F (FCC), 3 = cubic I (BCC)
 REFERENCE_IDS = {
     "Fe": "nist-fe-bcc-lattice-293k",
     "Ni": "nist-ni-fcc-lattice-293k",
@@ -109,6 +110,8 @@ def fit_equilibrium_lattice(lattices_A: list[float], energies_eV: list[float]) -
     """
     if len(lattices_A) != len(energies_eV) or len(lattices_A) < 5:
         raise ValueError("EOS fit requires at least five paired points")
+    # Harmonic equation-of-state fit E(a) = c_0 * a^2 + c_1 * a + c_2:
+    # convexity requires c_0 > 0, with equilibrium lattice parameter at dE/da = 0 => a_0 = -c_1 / (2*c_0).
     coefficients = np.polyfit(np.asarray(lattices_A), np.asarray(energies_eV), 2)
     if coefficients[0] <= 0:
         raise RuntimeError("EOS fit has no convex energy minimum")

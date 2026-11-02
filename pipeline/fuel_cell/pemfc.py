@@ -157,6 +157,7 @@ def water_saturation_pressure_Pa(T_K: float) -> float:
         Saturation vapor pressure of water in pascals.
     """
     t_c = float(T_K) - 273.15
+    # Springer, Zawodzinski & Gottesfeld (J. Electrochem. Soc. 1991) cubic fit for log10(P_sat [atm]) vs T [°C]
     log10_p_atm = (
         -2.1794
         + 0.02953 * t_c
@@ -180,11 +181,14 @@ def springer_conductivity_multiplier(
         Dimensionless conductivity multiplier normalized to 1.0 at (353.15 K, RH=1.0).
     """
     a_w = min(max(0.5 * (float(RH_anode) + float(RH_cathode)), 0.0), 1.0)
+    # Springer et al. (1991) Nafion 117 water uptake isotherm λ [mol H2O / mol SO3-] for water activity a_w in [0, 1],
+    # and Arrhenius proton conductivity σ(λ, T) = (0.005139*λ - 0.00326) * exp(1268*(1/303.15 - 1/T)) [S/cm]
+    # where 1268 K = E_a / R (~10.5 kJ/mol Grotthuss/vehicular hopping barrier relative to 30 °C = 303.15 K).
     lam = 0.043 + 17.81 * a_w - 39.85 * (a_w ** 2) + 36.0 * (a_w ** 3)
     sigma_raw = max(0.005139 * lam - 0.00326, 0.001) * float(
         np.exp(1268.0 * (1.0 / 303.15 - 1.0 / max(float(T_K), 273.15)))
     )
-    lam_ref = 0.043 + 17.81 - 39.85 + 36.0
+    lam_ref = 0.043 + 17.81 - 39.85 + 36.0  # λ = 14.0 at saturated vapor (a_w = 1.0)
     sigma_ref = (0.005139 * lam_ref - 0.00326) * float(
         np.exp(1268.0 * (1.0 / 303.15 - 1.0 / 353.15))
     )
@@ -204,7 +208,8 @@ def nernst_voltage(T_K: float, P_H2: float, P_O2: float) -> float:
     Returns:
         Computed `float` value in the units documented above.
     """
-    E0 = 1.229 - 0.85e-3 * (T_K - 298.15)  # temperature correction
+    # Standard reversible potential E°(298.15 K) = 1.229 V; temperature slope dE°/dT = ΔS°/(2F) = -0.85e-3 V/K
+    E0 = 1.229 - 0.85e-3 * (T_K - 298.15)
     E = E0 + (R_gas * T_K / (2 * F_const)) * np.log(P_H2 * np.sqrt(P_O2))
     return E
 

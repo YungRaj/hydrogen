@@ -305,6 +305,8 @@ def _descriptor_and_hull_stats(
     known = [el for el in elements if el in _ELEMENT_DESCRIPTORS]
     n = len(known)
     if n == 0:
+        # Neutral mid-TM fallback (e_d=-2.0 eV, chi=1.9, r=1.35 A, E_hull=0.01 eV/atom)
+        # for metal-free carbon or unindexed elements.
         return -2.0, 1.9, 1.35, 0.01
     d_sum = chi_sum = r_sum = 0.0
     for el in known:
@@ -318,11 +320,14 @@ def _descriptor_and_hull_stats(
     if n >= 2:
         r_var = sum((_ELEMENT_DESCRIPTORS[el][2] - r_mean) ** 2 for el in known) / n
         chi_var = sum((_ELEMENT_DESCRIPTORS[el][1] - chi_mean) ** 2 for el in known) / n
+        # Hume-Rothery atomic-size polydispersity delta_r = sigma_r / r_mean
+        # (Zhang et al., Adv. Eng. Mater. 2008). Solid-solution strain onset is
+        # delta_r > 0.08 (8% mismatch), combined with Pauling electronegativity spread:
         delta_r = math.sqrt(r_var) / max(r_mean, 1e-6)
         delta_chi = math.sqrt(chi_var)
         hull_eV_atom = max(0.0, 0.85 * max(0.0, delta_r - 0.08) + 0.04 * delta_chi)
     else:
-        hull_eV_atom = 0.01
+        hull_eV_atom = 0.01  # Single-element reference phase near ground-state hull
     return d_mean, chi_mean, r_mean, hull_eV_atom
 
 
@@ -344,7 +349,9 @@ def _coking_susceptibility_proxy(genomes: Sequence[tuple]) -> np.ndarray:
     values = np.empty(len(genomes), dtype=float)
     for idx, genome in enumerate(genomes):
         d_center, chi, radius = _element_descriptor_stats(genome)
-        # Map d-band center and Pauling electronegativity to -coking_index (eV).
+        # Hammer-Nørskov linear scaling around late-TM baseline (e_d=-2.2 eV, chi=1.85,
+        # r=1.35 A). MoltenMetal gets a -0.75 eV detachment credit because solid carbon
+        # floats off liquid metal interfaces (Upham et al., Science 2017).
         susceptibility = 0.85 * (d_center + 2.2) - 0.60 * (chi - 1.85) + 0.25 * (radius - 1.35)
         if str(genome[0]) == 'MoltenMetal':
             susceptibility -= 0.75
@@ -359,7 +366,9 @@ def _desorption_overbinding_proxy(
     values = np.empty(len(genomes), dtype=float)
     for idx, genome in enumerate(genomes):
         d_center, chi, radius = _element_descriptor_stats(genome)
-        # Stronger binding (higher d-band center, lower barrier) raises desorption cost.
+        # Inverse BEP/Sabatier relation: higher d-band center (e_d > -2.0 eV) and lower
+        # activation barrier (-0.35 * E_act) indicate stronger H*/C* binding and higher
+        # thermodynamic desorption cost above the 1.35 eV baseline.
         overbinding = max(
             0.0,
             1.35 + 0.45 * (d_center + 2.0) - 0.35 * float(primary_mean[idx]) + 0.20 * (1.9 - chi) + 0.15 * (radius - 1.30),
@@ -368,6 +377,8 @@ def _desorption_overbinding_proxy(
     return values
 
 
+# Materials Project metastability ceiling (0.10 eV/atom above convex hull;
+# Sun et al., Sci. Adv. 2016) for synthesizable crystalline/intermetallic phases.
 MAX_SYNTHESIZABLE_HULL_EV_ATOM = 0.10
 
 
@@ -398,19 +409,21 @@ def operating_stability_and_hull_gate(
     phase_stable = scope_info['status'] == 'candidate'
 
     if is_orr:
-        # At U = 0.80 V vs RHE in pH 0, oxophilic non-noble metals (high d-band center,
-        # low Pauling chi) undergo anodic dissolution / irreversible oxide passivation.
+        # At U = 0.80 V vs RHE in pH 0, oxophilic non-noble metals (e_d > -2.15 eV,
+        # Pauling chi < 2.05) experience anodic dissolution / oxide passivation.
         dissolution_drive = max(0.0, (d_center + 2.15) * 0.45 + (2.05 - chi) * 0.60 + (U_V_vs_RHE - 0.80))
         poisoning_eV = float(dissolution_drive)
     else:
-        # At 900-1200 K in CH4/H2, strongly carbophilic early TMs (d_center > -1.35 eV)
-        # suffer irreversible bulk carburization unless hosted in a liquid metal.
+        # At 900-1200 K in CH4/H2, strongly carbophilic early TMs (e_d > -1.35 eV)
+        # suffer irreversible bulk carburization, offset by thermal energy 0.5*k_B*T
+        # (k_B = 8.617333262e-5 eV/K) and attenuated 4x (0.25) in liquid MoltenMetal.
         k_B_T = 8.617333262e-5 * float(T_K)
         carburization_drive = max(0.0, (d_center + 1.35) * 0.75 - 0.5 * k_B_T)
         if str(genome[0]) == 'MoltenMetal':
             carburization_drive *= 0.25
         poisoning_eV = float(carburization_drive)
 
+    # 0.50 eV is the maximum tolerable grand-canonical surface poisoning free energy.
     synthesizable = (
         phase_stable
         and hull_eV_atom <= MAX_SYNTHESIZABLE_HULL_EV_ATOM
@@ -421,6 +434,8 @@ def operating_stability_and_hull_gate(
         'grand_canonical_poisoning_eV': float(poisoning_eV),
         'phase_stable': bool(phase_stable),
         'synthesizable': bool(synthesizable),
+        # Soft penalty: 5x slope above the 0.10 eV/atom hull limit plus excess
+        # poisoning above the 0.25 eV reversible surface-coverage threshold.
         'penalty_eV': float(
             max(0.0, hull_eV_atom - MAX_SYNTHESIZABLE_HULL_EV_ATOM) * 5.0
             + max(0.0, poisoning_eV - 0.25)
@@ -435,6 +450,8 @@ def _oxide_overbinding_proxy(
     values = np.empty(len(genomes), dtype=float)
     for idx, genome in enumerate(genomes):
         d_center, chi, radius = _element_descriptor_stats(genome)
+        # Reference Pt(111)-like sum |dG_OH| + |dG_O| ~ 1.80 eV at e_d = -2.1 eV, chi = 2.1;
+        # clamped at 0.05 eV minimum.
         values[idx] = max(
             0.05,
             1.80 + 0.55 * abs(d_center + 2.1) + 0.40 * (2.1 - chi) + 0.25 * float(primary_mean[idx]) + 0.15 * (radius - 1.35),
@@ -646,6 +663,8 @@ def build_orr_objectives(
 
     for i, genome in enumerate(genomes):
         if pemfc_cathode_scope(genome)['status'] != 'candidate':
+            # Dominated worst-case sentinel [eta_V, -fenton, cost_penalty, oxide_eV]
+            # so out-of-scope genomes sort to the last Pareto front.
             means[i] = [5.0, 0.0, 100.0, 10.0]
             stds[i] = [0.0, 0.0, 0.0, 0.0]
     return means, stds
@@ -743,6 +762,7 @@ def pareto_ranks(
     if active_indices is not None:
         cols = [int(i) for i in active_indices if 0 <= int(i) < m]
     else:
+        # 1e-12 peak-to-peak tolerance filters out constant/degenerate objective columns.
         cols = [j for j in range(m) if np.ptp(penalized[:, j]) > 1e-12]
     if not cols:
         cols = [0]

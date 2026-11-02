@@ -132,6 +132,8 @@ def apply_orr_corrections(
     """
     if not corrections.source_id:
         raise ValueError('ORR corrections require a traceable source_id')
+    # Nernstian proton-coupled electron transfer (PCET) shift in the Computational Hydrogen Electrode (CHE) model:
+    # ΔG_PCET(U, pH) = e*U + k_B*T*ln(10)*pH (≈ +0.05916 eV/pH at 298.15 K; Nørskov et al., J. Phys. Chem. B 2004).
     kbt_ln10_eV = 8.617333262e-5 * corrections.temperature_K * np.log(10.0)
     pcet_shift = corrections.electrode_potential_V + kbt_ln10_eV * corrections.pH
     values = {
@@ -139,6 +141,7 @@ def apply_orr_corrections(
         'dG_O_eV': dg_o + corrections.solvation_O_eV,
         'dG_OOH_eV': dg_ooh + corrections.solvation_OOH_eV,
     }
+    # 4-electron associative ORR pathway relative to O2(g) at +4.92 eV (4 * 1.229 V vs RHE)
     base_steps = {
         'step_1_OOH': values['dG_OOH_eV'] - 4.92,
         'step_2_O': values['dG_O_eV'] - values['dG_OOH_eV'],

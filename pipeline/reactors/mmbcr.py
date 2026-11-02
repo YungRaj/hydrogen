@@ -63,10 +63,14 @@ def simulate_mmbcr(
     eta_float = _mmbcr_flotation_eta(
         k_if, sv_ratio, config.mmbcr_carbon_removal_rate_1_s
     )
+    # Dimensionless interfacial Damkohler number per stage:
+    # Da_stage = k_if [m/s] * (6 / d_b) [m^-1] * tau_stage [s] * eta_float
     da_stage = k_if * sv_ratio * tau_stage * eta_float
 
     rho_l = float(hydro['melt_density_kg_m3'])
     eps_g = float(hydro['gas_holdup_fraction'])
+    # Sparger-level pressure including hydrostatic head of aerated liquid column:
+    # P_bottom = P_top + rho_L * g * (1 - eps_g) * H
     inlet_bottom_p_pa = float(
         config.P_inlet_Pa
         + rho_l * G_M_S2 * max(0.0, 1.0 - eps_g) * float(config.column_height_m)
@@ -82,7 +86,8 @@ def simulate_mmbcr(
     carbon_removed_coverage = 0.0
 
     for _stage in range(config.n_cstr_stages):
-        # Local hydrostatic pressure P(z) and pressure-adjusted equilibrium ceiling
+        # Local hydrostatic pressure P(z) = P_top + rho_L * g * (1 - eps_g) * (H - z)
+        # and pressure-adjusted equilibrium ceiling
         z_mid = float(
             0.5 * (z_positions[_stage] + z_positions[_stage + 1])
         )
@@ -97,8 +102,9 @@ def simulate_mmbcr(
             x_eq,
             _local_tp_x_eq(config.T_inlet_K, p_stage, x_ch4_feed),
         )
-        # Account for gas molar expansion (1 + y_CH4,0 * X) and hydrostatic
-        # decompression (P_bottom / P(z)) reducing local bubble stage residence
+        # Account for gas molar expansion (1 + y_CH4,0 * X) from CH4 -> 2 H2 and
+        # hydrostatic decompression (P_bottom / P(z), guarded by a 10 kPa = 0.1 bar
+        # floor), which accelerates bubbles and reduces local stage residence time.
         expansion_factor = (1.0 + x_ch4_feed * max(0.0, conv)) * (
             inlet_bottom_p_pa / max(p_stage, 10000.0)
         )

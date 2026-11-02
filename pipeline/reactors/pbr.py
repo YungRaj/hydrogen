@@ -40,10 +40,10 @@ from pipeline.reactors.reactor_core import (
     validate_carbon_policy,
 )
 
-MIN_PACKED_BED_POROSITY: float = 0.10
-MIN_STAGE_PRESSURE_PA: float = 10000.0
-CH4_MOLAR_MASS_KG_MOL: float = 0.016043
-DEFAULT_STICKING_COEFF: float = 0.01
+MIN_PACKED_BED_POROSITY: float = 0.10  # Jammed-bed voidage floor under severe carbon coking
+MIN_STAGE_PRESSURE_PA: float = 10000.0  # 0.1 bar numerical floor against total bed plugging
+CH4_MOLAR_MASS_KG_MOL: float = 0.016043  # Methane molar mass [kg/mol]
+DEFAULT_STICKING_COEFF: float = 0.01  # Baseline dissociative sticking probability s0 for CH4 on transition metals
 
 
 def pbr_pellet_effectiveness(
@@ -78,24 +78,25 @@ def pbr_pellet_effectiveness(
     tau_p = float(config.pellet_tortuosity)
     r_pore_m = float(config.pellet_pore_radius_nm) * 1e-9
 
-    # Fuller-type binary molecular diffusivity CH4 in H2/Ar mixture [m²/s]
+    # Fuller-Schettler-Giddings binary molecular diffusivity D_mol(T,P) = D_0*(T/T_0)^1.75*(P_0/P) [m²/s],
+    # with D_0 = 2.2e-5 m²/s for CH4/H2-Ar at 298.15 K and 101325 Pa (1 atm).
     d_mol = (
         2.2e-5
         * ((T_K / 298.15) ** 1.75)
         * (101325.0 / max(P_Pa, MIN_STAGE_PRESSURE_PA))
     )
-    # Knudsen diffusivity in mesopores [m²/s]
+    # Mean Maxwell-Boltzmann thermal speed v_th = sqrt(8 R T / (π M_CH4)) [m/s]
+    # and Knudsen pore diffusivity D_K = (2/3) * r_pore * v_th [m²/s].
     v_thermal = float(
         np.sqrt(8.0 * R_J_MOL_K * T_K / (np.pi * CH4_MOLAR_MASS_KG_MOL))
     )
     d_knudsen = (2.0 / 3.0) * r_pore_m * v_thermal
-    # Bosanquet effective intraparticle diffusivity [m²/s]
+    # Bosanquet harmonic sum 1/D_B = 1/D_mol + 1/D_K, scaled by porosity/tortuosity (ε_p / τ_p) [m²/s]
     d_bosanquet = 1.0 / (1.0 / max(d_mol, 1e-12) + 1.0 / max(d_knudsen, 1e-12))
     d_eff = max((eps_p / max(tau_p, 1e-6)) * d_bosanquet, 1e-12)
 
-    # Intrinsic first-order surface reaction velocity k_s'' [m/s] from kinetic theory,
-    # attenuated by free-site availability (1 - θ_C).
-    k_b_ev = 8.617333262e-5
+    # Hertz-Knudsen kinetic-theory surface reaction velocity k_s'' = (1/4) * s_0 * (1 - θ_C) * v_th * exp(-E_a / k_B T) [m/s]
+    k_b_ev = 8.617333262e-5  # Boltzmann constant in eV/K
     e_act = max(float(config.catalyst_E_act_eV), 0.0)
     free_site_frac = min(max(1.0 - float(theta_c), 0.0), 1.0)
     k_surf_m_s = (
@@ -113,7 +114,9 @@ def pbr_pellet_effectiveness(
     av_pellet = (6.0 / min(d_p, 2.0e-4)) * active_area_multiplier(config)
     k_vol_1_s = av_pellet * k_surf_m_s
 
-    # Spherical pellet characteristic length L_c = d_p / 6
+    # Spherical pellet characteristic length L_c = V_p / A_p = d_p / 6 and Thiele modulus φ = L_c * sqrt(k_vol / D_eff).
+    # Exact spherical effectiveness η_int = (3/φ²)*(φ*coth(φ) - 1), using 4th-order Taylor expansion
+    # 1 - φ²/15 + 2φ⁴/315 for φ < 0.01 (avoids 0/0 cancellation) and asymptotic 3/φ for φ > 200.
     l_char = d_p / 6.0
     thiele_phi = float(l_char * np.sqrt(max(k_vol_1_s, 0.0) / d_eff))
     if thiele_phi < 1e-2:
@@ -128,7 +131,8 @@ def pbr_pellet_effectiveness(
         )
     eta_internal = min(max(eta_internal, 1e-6), 1.0)
 
-    # External film mass transfer via Wakao-Funazkri (1979) packed-bed correlation
+    # External film mass transfer via Wakao-Funazkri (1979) packed-bed correlation:
+    # Sh = k_c * d_p / D_mol = 2.0 + 1.1 * Re_p^0.6 * Sc^(1/3), overall effectiveness Ω = η_int / (1 + Da_ext).
     rho_g = ch4_feed_density_kg_m3(T_K, P_Pa)
     mu_g = ch4_viscosity_pa_s(T_K)
     re_p = max(rho_g * max(u_sup_m_s, 1e-6) * d_p / max(mu_g, 1e-9), 1e-6)

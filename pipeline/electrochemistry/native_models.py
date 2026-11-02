@@ -20,9 +20,11 @@ from pipeline.electrochemistry.transport import (
 )
 
 
+# Standard thermodynamics for CH4(g) -> C(gr) + 2 H2(g) at 298.15 K:
+# ΔH°_298 = +74.85 kJ/mol, ΔS°_298 = +80.6 J/(mol·K); ΔG°(T) = ΔH° - T*ΔS° crosses zero near 818 K.
 CH4_PYROLYSIS_DELTA_H_J_MOL: float = 74850.0
 CH4_PYROLYSIS_DELTA_S_J_MOL_K: float = 80.6
-FARADAY_C_MOL: float = 96485.33212
+FARADAY_C_MOL: float = 96485.33212  # Faraday constant F [C/mol e-]
 
 
 def turquoise_reversible_voltage_V(temperature_K: float, electrons: int = 4) -> float:

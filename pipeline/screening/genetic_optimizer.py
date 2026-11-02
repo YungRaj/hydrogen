@@ -24,6 +24,8 @@ from pipeline.screening.branch_discovery import (
 from pipeline.utils import DFT_DIR, SCREENING_DIR, setup_logger
 
 logger = setup_logger('genetic_optimizer', 'screening/genetic_optimizer.log')
+# CH4 C-H activation barrier advancement ceiling (0.8 eV ~ 77 kJ/mol, below the
+# ~0.9-1.0 eV Ni(111) benchmark barrier at 1000 K).
 ADVANCEMENT_BARRIER_EV = 0.8
 
 
@@ -111,6 +113,7 @@ def _full_simulation_outcome(result: dict) -> dict:
         status = 'validation_required'
     usable = status == 'complete' and score is not None
     return {
+        # 1.0 - CH4_conversion: unconverted methane fraction in [0, 1] (minimized like E_act)
         'full_simulation_score': float(1.0 - score) if usable else float('nan'),
         'full_simulation_status': status,
         'full_simulation_exceeds_equilibrium': bool(result.get('exceeds_equilibrium')),

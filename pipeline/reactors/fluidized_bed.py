@@ -112,8 +112,11 @@ def simulate_fluidized_bed(
     ar_initial = _species_x(gas, 'Ar')
     _require_ar_tracer(ch4_initial, ar_initial)
 
-    u0 = max(config.gas_velocity_m_s, 0.05)
+    u0 = max(config.gas_velocity_m_s, 0.05)  # Superficial gas velocity floor (0.05 m/s)
     umf = config.u_mf_m_s
+    # Kunii-Levenspiel two-phase theory bubble volume fraction (Kunii & Levenspiel,
+    # Fluidization Engineering, 1991): delta ~ (u_0 - u_mf) / u_0, clamped to
+    # [0.01, 0.50] for the bubbling fluidization regime prior to slugging/turbulent transition.
     delta = (
         float(config.fluidized_bubble_fraction)
         if config.fluidized_bubble_fraction is not None

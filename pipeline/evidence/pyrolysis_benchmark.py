@@ -24,9 +24,14 @@ REQUIRED_TEXT_FIELDS = (
     'source_url',
 )
 TRUE_VALUES = (True, 'True', 'true', 1, '1')
-EV_PER_KJ_MOL = 1.0 / 96.4853321233
-K_B_EV_K = 8.617333262145e-5
+EV_PER_KJ_MOL = 1.0 / 96.4853321233  # 1 eV/molecule = F J/mol = 96.4853321233 kJ/mol
+K_B_EV_K = 8.617333262145e-5  # Boltzmann constant k_B [eV/K]
+# NIST-JANAF integrated sensible enthalpy H°(298.15 K) - H°(0 K) = 8.468 kJ/mol for H2(g),
+# converting Shomate H°(T) - H°(298.15 K) to a 0 K DFT reference state.
 H2_H_298_MINUS_H_0_KJ_MOL = 8.468
+# NIST WebBook Shomate polynomial parameters (A, B, C, D, E, F, G) for H2(g), t = T / 1000 K:
+# H°(T) - H°(298.15) = A*t + B*t²/2 + C*t³/3 + D*t⁴/4 - E/t + F [kJ/mol]
+# S°(T) = A*ln(t) + B*t + C*t²/2 + D*t³/3 - E/(2*t²) + G [J/(mol·K)]
 H2_SHOMATE = (
     (298.0, 1000.0, (33.066178, -11.363417, 11.432816, -2.772874, -0.158558, -9.980797, 172.707974)),
     (1000.0, 2500.0, (18.563083, 12.257357, -2.859786, 0.268238, 1.977990, -1.147438, 156.288133)),
@@ -48,6 +53,8 @@ def effective_barrier_eV(barriers: list[float], temperature_K: float) -> float:
     values = [float(value) for value in barriers]
     if not all(math.isfinite(value) and value >= 0.0 for value in values):
         raise ValueError('rate averaging requires finite non-negative barriers')
+    # Log-sum-exp ensemble rate average: exp(-E_eff / k_B T) = (1/N) * sum_i exp(-E_i / k_B T),
+    # shifted by E_min for numerical stability: E_eff = E_min - k_B*T*ln((1/N)*sum_i exp(-(E_i - E_min)/k_B T)).
     minimum = min(values)
     mean_relative_rate = sum(
         math.exp(-(value - minimum) / (K_B_EV_K * temperature_K))

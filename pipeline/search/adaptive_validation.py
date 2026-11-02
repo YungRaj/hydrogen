@@ -547,6 +547,9 @@ def allocate_validation_batch(
         improvement = (improvement - improvement.min()) / np.ptp(improvement)
     else:
         improvement = quality
+    # Convex multi-criteria active-learning acquisition score in [0, 1]:
+    # 30% normalized objective quality + 20% improvement over regional best +
+    # 25% epistemic ensemble uncertainty + 15% regional surrogate MAE + 10% regional hit rate.
     score = (
         0.30 * quality
         + 0.20 * improvement

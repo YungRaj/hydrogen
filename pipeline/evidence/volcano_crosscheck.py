@@ -27,7 +27,13 @@ def volcano_rate_log10(dG_OH_eV: float, *, temperature_K: float = 298.15) -> flo
     """
     if temperature_K <= 0 or not math.isfinite(dG_OH_eV):
         raise ValueError('finite descriptor and positive temperature required')
+    # Universal ORR Sabatier volcano apex at dG_OH* = (4.92 - 3.20) / 2 = 0.86 eV,
+    # where the OOH*-to-OH* scaling offset (3.20 eV) splits the 4.92 eV 4e- reaction
+    # energy equally between step 1 (O2 -> OOH*) and step 4 (OH* -> H2O)
+    # (Norskov et al., J. Phys. Chem. B 2004; Viswanathan et al., ACS Catal. 2012).
     activation_eV = abs(float(dG_OH_eV) - 0.86)
+    # Base-10 relative Arrhenius rate: log10(k / k_max) = -|dG_OH* - 0.86| / (k_B * T * ln(10)),
+    # where k_B = 8.617333262e-5 eV/K (CODATA 2018).
     return -activation_eV / (8.617333262e-5 * temperature_K * math.log(10.0))
 
 

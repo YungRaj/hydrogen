@@ -122,6 +122,8 @@ def ntec_assistance(conditions: NTECConditions) -> dict:
             'conditions': values,
         }
 
+    # Normalize against reference NTEC operating scales: 1e4 s^-1 high-shear regime,
+    # 1e8 V/m (0.01 V/Å) interfacial triboelectric field, and 1e3 W/kg agitation power.
     shear = min(float(conditions.shear_rate_s) / 1e4, 1.0)
     field = min(float(conditions.interfacial_field_V_m) / 1e8, 1.0)
     power = min(float(conditions.mechanical_power_W_kg) / 1e3, 1.0)
@@ -129,7 +131,8 @@ def ntec_assistance(conditions: NTECConditions) -> dict:
     support = min(shear, field, power)
     return {
         'status': 'paired_control_calibrated',
-        # Transfer is bounded by both measured effect and operating support.
+        # Transfer is bounded by both measured effect and operating support (capped at
+        # 0.25 eV max Stark/triboelectric barrier reduction and 3.0 eV max coking delta).
         # It remains modeled evidence for a new catalyst, not validation of it.
         'barrier_reduction_eV': min(
             float(conditions.measured_barrier_reduction_eV), 0.25

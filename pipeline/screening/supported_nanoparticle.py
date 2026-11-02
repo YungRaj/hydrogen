@@ -8,6 +8,8 @@ from typing import Any, Iterator
 from pipeline.screening import surface_screener
 
 SUPPORTED_NANOPARTICLE_PROTOCOL = 'supported-nanoparticle-v1'
+# Progressive normal-direction lift offsets (Å) to clear curved nanoparticle
+# step/corner sites and prevent steric CH3* dissociation on initial placement.
 SUPPORTED_ADSORBATE_LIFTS_A = (0.8, 1.2, 1.6)
 _SUPPORTED_CLASSES = frozenset({'SupportedNanoparticle'})
 

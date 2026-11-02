@@ -51,11 +51,11 @@ from pipeline.data_models.artifacts import (  # noqa: E402
 from pipeline.electrochemistry.ntec_mechanics import (  # noqa: E402
     detachment_probability, impact_energy_J)
 
-FARADAY = 96485.33212
-K_B_EV = 8.617333262145e-5
-M_CH4 = 0.01604246
-M_C = 0.0120107
-M_H = 0.00100794
+FARADAY = 96485.33212  # Faraday constant F [C/mol]
+K_B_EV = 8.617333262145e-5  # Boltzmann constant k_B [eV/K]
+M_CH4 = 0.01604246  # Methane molar mass [kg/mol]
+M_C = 0.0120107  # Carbon atomic mass [kg/mol]
+M_H = 0.00100794  # Hydrogen atomic mass [kg/mol]
 MOOSE_CSV = 'hydrogen_moose.csv'
 PARAMETER_RECORD = 'hydrogen_moose_parameters.json'
 FEEDBACK = 'hydrogen_interface_rates.json'
@@ -209,6 +209,7 @@ def interface_ch4_destruction_mol_m2_s(
             cov[idx_site] += freed
             surface.coverages = cov
     index = int(surface.kinetics_species_index('CH4'))
+    # Cantera destruction_rates are in kmol/(m²·s); multiply by 1e3 for mol/(m²·s).
     rate = float(surface.destruction_rates[index]) * 1.0e3
     if not math.isfinite(rate) or rate < 0:
         raise RuntimeError('Cantera returned an invalid CH4 destruction rate')
@@ -236,9 +237,10 @@ def _electrochemical(
     conversion = consumed / feed
     if conversion > 1.0:
         raise RuntimeError('CH4 consumption exceeds the declared feed')
+    # Faraday's law: n_H2 [mol/s] = FE_H2 * I_cathode / (2 * F), with 2 e- per H2.
     h2 = fe_h2 * i_cathode * area / (2.0 * FARADAY)
     outputs = {
-        'current_density_A_cm2': i_anode / 1.0e4,
+        'current_density_A_cm2': i_anode / 1.0e4,  # 1 m² = 1e4 cm²
         'cell_voltage_V': voltage,
         'electrical_power_density_W_cm2': voltage * i_anode / 1.0e4,
         'faradaic_efficiency_H2': fe_h2,
@@ -294,6 +296,7 @@ def _ntec(
         # The candidate interface mechanism has no gas-phase carbon product.
         'H2_selectivity': 1.0,
         'solid_C_selectivity': 1.0,
+        # 3.6e6 J/kWh converts specific mechanical work [J/kg H2] to [kWh/kg H2].
         'specific_energy_kWh_kg_H2': mechanical_w / h2_kg_s / 3.6e6 if h2_kg_s > 0 else math.inf,
         'carbon_detachment_probability': detached,
         'interface_field_V_m': field,

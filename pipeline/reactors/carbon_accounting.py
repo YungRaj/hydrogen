@@ -16,14 +16,19 @@ METAL_MOLAR_MASS_G_MOL = {'Ni': 58.6934, 'Fe': 55.845, 'Co': 58.9332}
 NI_FILAMENT_YIELD_BAND_G_C_PER_G_NI_H = (8.0, 10.0)
 # Same TOS literature: the catalyst dies (encapsulated) after 4-50 h.
 NI_TOS_LIFETIME_BAND_H = (4.0, 50.0)
-# B6-6 encapsulation-onset markers.
+# B6-6 encapsulation-onset markers:
+# ENCAP_ONSET_THETA = 0.10 (10% irreversible C_δ site blockage triggers onset warning),
+# ENCAP_ONSET_RATIO = 10.0 (filament-to-encapsulating selectivity C_γ/C_δ < 10 signals competitive deactivation),
+# ENCAP_DEAD_THETA = 0.50 (50% C_δ site blockage defines end-of-life time-on-stream τ_TOS).
 ENCAP_ONSET_THETA = 0.1
 ENCAP_ONSET_RATIO = 10.0
 ENCAP_DEAD_THETA = 0.5
-PFR_PILOT_TAU_BAND_S = (2.0, 12.0)
-CH4_PYROLYSIS_DELTA_H_KJ_MOL = 74.85
-SOLID_CARBON_DENSITY_KG_M3 = 2160.0
+PFR_PILOT_TAU_BAND_S = (2.0, 12.0)  # Pilot-scale packed-bed gas residence-time window [s]
+CH4_PYROLYSIS_DELTA_H_KJ_MOL = 74.85  # Standard reaction enthalpy ΔH°_298 for CH4(g) -> C(gr) + 2 H2(g) [kJ/mol]
+SOLID_CARBON_DENSITY_KG_M3 = 2160.0  # Bulk crystalline/turbostratic graphite density [kg/m³] (2.16 g/cm³)
 
+# NASA-7 polynomial coefficients (a1..a6) for Low (200-1000 K) and High (1000-5000/6000 K) temperature intervals:
+# H°(T)/(R T) = a1 + a2*T/2 + a3*T²/3 + a4*T³/4 + a5*T⁴/5 + a6/T
 _NASA7_CH4_LOW = (
     5.14987613,
     -0.0136709788,

@@ -318,9 +318,13 @@ def abundance_cost_penalty(elements: List[str]) -> float:
     """
     if not elements:
         return 0.0
+    # Default 1.0 ppm (~rare-earth floor) for unlisted elements; clamp at 1e-4 ppm
+    # so ultra-trace elements (e.g. Re at 7e-4 ppm) remain finite under log().
     abundances = [max(CRUSTAL_ABUNDANCE_PPM.get(e, 1.0), 1e-4) for e in elements]
     # Geometric mean: exp(mean(log(x))) — sensitive to any rare component
     geo_mean = np.exp(np.mean(np.log(abundances)))
+    # Piecewise log10 penalty: saturates at -2.0 below 1 ppm (PGMs), ramps linearly
+    # as 2*(log10(a) - 1) in [-2, 0] across 1-10 ppm, and is 0 above 10 ppm (base metals).
     if geo_mean < 1.0:
         return -2.0
     elif geo_mean < 10.0:
@@ -431,6 +435,7 @@ def is_molten_at_temperature(metal: str, temperature_K: float) -> bool:
     Returns:
         True when the documented condition holds; otherwise False.
     """
+    # Default 3000.0 K refractory fallback (> pyrolysis T) so unlisted metals stay solid.
     mp = MELTING_POINT_K.get(metal, 3000.0)
     return temperature_K > mp
 
@@ -483,6 +488,10 @@ def bep_activation_energy(
         Brønsted-Evans-Polanyi (BEP) correlation for activation energy:
         Eₐ = alpha + beta * ΔE_rxn  (for exothermic reactions, ΔE < 0)
 
+        Default transition-metal C-H scission parameters: alpha = 0.87 eV
+        (intrinsic barrier at ΔE_rxn = 0) and beta = 0.75 (Hammond-postulate
+        late-TS transfer coefficient; Nørskov et al., J. Catal. 2002).
+
         Class-specific BEP parameters from literature:
           - Transition metals: Nørskov et al., J. Catal. 2002
           - Metal oxides: Vojvodic et al., Chem. Rev. 2014
@@ -528,6 +537,8 @@ def bep_activation_energy(
         alpha, beta = BEP_PARAMS[material_class]
 
     E_act = alpha + beta * delta_E_rxn
+    # Clamp to [0.01, 5.0] eV: 0.01 eV (~0.4 k_B*T at 300 K) avoids zero/negative
+    # barriers; 5.0 eV (~480 kJ/mol, above the 4.5 eV gas-phase CH3-H BDE) caps inert sites.
     return float(np.clip(E_act, 0.01, 5.0) if clamp else E_act)
 
 
@@ -538,13 +549,13 @@ def orr_overpotential(dG_OH: float, dG_O: float, dG_OOH: float) -> Tuple[float, 
     """
         Compute ORR overpotential using the computational hydrogen electrode (CHE).
 
-        The 4-electron ORR pathway:
-          O₂ + * + H⁺ + e⁻ → OOH*      ΔG₁ = dG_OOH
-          OOH* + H⁺ + e⁻ → O* + H₂O    ΔG₂ = dG_O - dG_OOH + 3.33 (water correction)
+        The 4-electron ORR pathway (summing to ΔG_total = -4.92 eV at U = 0 V vs RHE):
+          O₂ + * + H⁺ + e⁻ → OOH*      ΔG₁ = dG_OOH - 4.92
+          OOH* + H⁺ + e⁻ → O* + H₂O    ΔG₂ = dG_O - dG_OOH
           O* + H⁺ + e⁻ → OH*            ΔG₃ = dG_OH - dG_O
           OH* + H⁺ + e⁻ → H₂O + *      ΔG₄ = -dG_OH
 
-        η = max(ΔGᵢ)/e − 1.23 V
+        η = 1.229 V - U_L, where U_L = -max(ΔGᵢ)/e
 
         Returns (overpotential_V, rate_determining_step).
 
@@ -556,6 +567,8 @@ def orr_overpotential(dG_OH: float, dG_O: float, dG_OOH: float) -> Tuple[float, 
     Returns:
         Ordered tuple of computed values.
     """
+    # 4.92 eV = 4 * 1.229 V experimental O2/H2O free energy change (Nørskov et al.,
+    # J. Phys. Chem. B 2004, 108, 17886), bypassing DFT O2 triplet self-interaction error.
     dG1 = dG_OOH - 4.92  # relative to O₂ + 2H₂O reference
     dG2 = dG_O - dG_OOH
     dG3 = dG_OH - dG_O

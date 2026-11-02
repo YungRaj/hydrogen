@@ -785,8 +785,8 @@ def _encode_molten(f: _Features, genome: tuple) -> None:
     _, host, promoter, at_pct, temp = genome
     f.hot(f.metal1, _METAL_IDX, host)
     f.hot(f.metal2, _METAL_IDX, promoter)
-    f.cont[1] = at_pct / 30.0
-    f.cont[3] = (temp - 700.0) / 500.0
+    f.cont[1] = at_pct / 30.0  # promoter concentration normalized by 30 at.% reference
+    f.cont[3] = (temp - 700.0) / 500.0  # operating T [700, 1200] K mapped to [0, 1]
 
 
 def _encode_solid(f: _Features, genome: tuple) -> None:
@@ -796,9 +796,9 @@ def _encode_solid(f: _Features, genome: tuple) -> None:
     f.hot(f.facet, _FACET_LINKER_IDX, facet)
     for dopant in dopants:
         f.hot(f.dopant, _DOPANT_IDX, dopant)
-    f.cont[0] = strain / 0.08
-    f.cont[2] = n_sub / 4.0
-    f.cont[3] = n_vac / 2.0
+    f.cont[0] = strain / 0.08  # lattice strain normalized by 8% Hume-Rothery scale
+    f.cont[2] = n_sub / 4.0  # substitutional dopant count in [1, 4] mapped to [0.25, 1]
+    f.cont[3] = n_vac / 2.0  # surface vacancy count in [0, 2] mapped to [0, 1]
 
 
 def _encode_sac(f: _Features, genome: tuple) -> None:
@@ -824,7 +824,7 @@ def _encode_framework(f: _Features, genome: tuple) -> None:
     f.hot(f.metal1, _METAL_IDX, metal)
     f.hot(f.facet, _FACET_LINKER_IDX, linker)
     f.hot(f.coord, _COORD_IDX, cavity)
-    f.cont[1] = pore / 25.0
+    f.cont[1] = pore / 25.0  # framework pore diameter (Å) normalized by 25 Å mesoporous scale
 
 
 def _encode_perovskite(f: _Features, genome: tuple) -> None:
@@ -832,7 +832,7 @@ def _encode_perovskite(f: _Features, genome: tuple) -> None:
     f.hot(f.metal1, _METAL_IDX, A)
     f.hot(f.metal2, _METAL_IDX, B)
     f.hot(f.dopant, _DOPANT_IDX, dopant)
-    f.cont[0] = frac / 0.50
+    f.cont[0] = frac / 0.50  # B-site dopant fraction in [0, 0.50] mapped to [0, 1]
     f.cont[1] = _DEFECT_LEVELS.get(defect, 0.0)
 
 
@@ -841,7 +841,7 @@ def _encode_hydride(f: _Features, genome: tuple) -> None:
     f.hot(f.metal1, _METAL_IDX, metal)
     f.hot(f.metal2, _METAL_IDX, second)
     f.cont[0] = _normalized_index(h_type, _HYDRIDE_TYPES)
-    f.cont[3] = (temp - 400.0) / 400.0
+    f.cont[3] = (temp - 400.0) / 400.0  # hydride T [400, 800] K mapped to [0, 1]
 
 
 def _encode_max_phase(f: _Features, genome: tuple) -> None:
@@ -850,7 +850,7 @@ def _encode_max_phase(f: _Features, genome: tuple) -> None:
     f.hot(f.metal2, _METAL_IDX, A)
     f.hot(f.dopant, _DOPANT_IDX, dopant)
     f.cont[0] = 1.0 if X == 'N' else 0.0  # carbide vs nitride
-    f.cont[1] = n / 3.0
+    f.cont[1] = n / 3.0  # M_{n+1}AX_n layer index n in {1, 2, 3} mapped to [1/3, 1]
     f.cont[2] = _MAX_FACET_LEVELS.get(facet, 0.0)
 
 
@@ -860,7 +860,7 @@ def _encode_hea(f: _Features, genome: tuple) -> None:
         f.hot(f.metal1, _METAL_IDX, component)
     f.cont[0] = _normalized_index(structure, _HEA_STRUCTURES)
     f.cont[1] = _MILLER_FACET_LEVELS.get(facet, 0.0)
-    f.cont[3] = (temp - 900.0) / 400.0
+    f.cont[3] = (temp - 900.0) / 400.0  # HEA operating T [900, 1300] K mapped to [0, 1]
 
 
 def _encode_spinel(f: _Features, genome: tuple) -> None:
@@ -878,7 +878,7 @@ def _encode_mxene(f: _Features, genome: tuple) -> None:
     f.hot(f.metal2, _METAL_IDX, sac_metal)
     f.hot(f.coord, _COORD_IDX, term)
     f.cont[0] = 1.0 if X == 'N' else (0.5 if X == 'CN' else 0.0)
-    f.cont[1] = n / 3.0
+    f.cont[1] = n / 3.0  # M_{n+1}X_nT_x layer index n in {1, 2, 3} mapped to [1/3, 1]
 
 
 def _encode_saa(f: _Features, genome: tuple) -> None:
@@ -886,7 +886,7 @@ def _encode_saa(f: _Features, genome: tuple) -> None:
     f.hot(f.metal1, _METAL_IDX, trace)
     f.hot(f.metal2, _METAL_IDX, host)
     f.cont[0] = _MILLER_FACET_LEVELS.get(facet, 0.0)
-    f.cont[1] = loading / 10000.0
+    f.cont[1] = loading / 10000.0  # trace PGM loading in [100, 10000] ppm mapped to [0.01, 1]
 
 
 def _encode_metal_free_carbon(f: _Features, genome: tuple) -> None:
@@ -895,7 +895,7 @@ def _encode_metal_free_carbon(f: _Features, genome: tuple) -> None:
     f.hot(f.coord, _COORD_IDX, n_type)
     f.hot(f.coord, _COORD_IDX, defect, 0.5)
     f.hot(f.support, _SUPPORT_IDX, substrate)
-    f.cont[0] = n_frac / 0.20
+    f.cont[0] = n_frac / 0.20  # N-doping fraction in [0.01, 0.20] mapped to [0.05, 1]
     f.cont[1] = _CODOPANT_LEVELS.get(co_dop, 0.0)
 
 

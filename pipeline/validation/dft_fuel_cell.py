@@ -210,6 +210,7 @@ def validate_orr_catalyst(
             result[f'E_{ads_name}_eV'] = E_ads * Ry_to_eV
 
     # ── 4b. Gas-phase references (H₂O and H₂) ─────────────────────────────────
+    # Experimental equilibrium H2 bond length r_HH = 2 * 0.37 = 0.74 A (NIST CCCBDB)
     h2_elements = ['H', 'H']
     h2_positions = [
         (cell / 2, cell / 2, cell / 2 - 0.37),
@@ -227,6 +228,9 @@ def validate_orr_catalyst(
     with open(h2_in, 'w') as f:
         f.write(h2_input)
 
+    # Experimental equilibrium H2O geometry (NIST CCCBDB):
+    # dx = +/-0.757 A, dy = +0.586 A => r_OH = sqrt(0.757^2 + 0.586^2) = 0.957 A,
+    # bond angle <HOH = 2 * arctan(0.757 / 0.586) = 104.5 deg.
     h2o_elements = ['O', 'H', 'H']
     h2o_positions = [
         (cell / 2, cell / 2, cell / 2),

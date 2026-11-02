@@ -236,6 +236,7 @@ class TransportSurrogate:
             if set(actual) != set(self.feature_names):
                 raise ValueError('feature schema does not match the trained model')
             raw = np.asarray([actual[name] for name in self.feature_names])
+            # Z-score standardization and diagonal quadratic basis phi(z) = [1, z, z^2]
             z = (raw - self.center) / self.scale
             design = np.concatenate(([1.0], z, z * z))
             ensemble = np.einsum('edf,d->ef', self.coefficients, design)
@@ -422,11 +423,14 @@ def fit_transport_surrogate(
     x = np.asarray([[row.features[name] for name in features] for row in train])
     y = np.asarray([[row.outputs[name] for name in target_names] for row in train])
     center, scale = x.mean(axis=0), x.std(axis=0)
-    scale[scale <= 1e-15] = 1.0
+    scale[scale <= 1e-15] = 1.0  # Guard constant features against zero division
     z = (x - center) / scale
+    # Diagonal quadratic polynomial design matrix X = [1, z, z^2]
     design = np.column_stack((np.ones(len(x)), z, z * z))
     rng = np.random.default_rng(random_seed)
     coefficients = []
+    # Tikhonov (L2 ridge) regularization matrix lambda*I with unpenalized intercept (penalty[0, 0] = 0):
+    # W_hat = (X^T X + lambda * I_0)^+ X^T Y over bootstrap resamples.
     penalty = np.eye(design.shape[1]) * float(ridge)
     penalty[0, 0] = 0.0
     for _ in range(ensemble_size):

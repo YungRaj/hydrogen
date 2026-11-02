@@ -43,9 +43,9 @@ SCENARIOS = {
 # (v2 used 0.05 MMBtu/kg, about 4x too little feedstock.)
 KG_CH4_PER_KG_H2 = 16.043 / (2 * 2.016)
 MMBTU_CH4_PER_KG_H2 = KG_CH4_PER_KG_H2 * 55.5 / 1055.06
-PSA_CH4_RECOVERY: float = 0.96
-RECYCLE_ENERGY_FRACTION: float = 0.25
-RECYCLE_CAPEX_SCALING: float = 0.12
+PSA_CH4_RECOVERY: float = 0.96  # Industrial pressure-swing adsorption (PSA) unreacted CH4 recovery fraction
+RECYCLE_ENERGY_FRACTION: float = 0.25  # Fractional compression + reheat energy penalty per unit recycle ratio R = (1-X)/X
+RECYCLE_CAPEX_SCALING: float = 0.12  # Fractional PSA + recycle compressor CAPEX increment per unit recycle ratio R
 
 
 def estimate_hydrogen_cost(
@@ -94,6 +94,8 @@ def estimate_hydrogen_cost(
     if specific_energy_kwh_kg_h2 is not None and float(specific_energy_kwh_kg_h2) > 0.0:
         base_energy = float(specific_energy_kwh_kg_h2)
     elif temperature_K is not None and float(temperature_K) > 298.15:
+        # Scale baseline thermal energy relative to a 1073.15 K (800 °C) reference reactor:
+        # 65% endothermic reaction enthalpy ΔH_rxn(T) + 35% sensible feed heating (T - 298.15 K).
         try:
             from pipeline.reactors.carbon_accounting import (
                 pyrolysis_reaction_enthalpy_kJ_mol,
@@ -102,6 +104,7 @@ def estimate_hydrogen_cost(
             dh_t = pyrolysis_reaction_enthalpy_kJ_mol(float(temperature_K))
             dh_ref = pyrolysis_reaction_enthalpy_kJ_mol(1073.15)
         except ImportError:
+            # Linear heat-capacity approximation ΔCp ≈ 0.0155 kJ/(mol·K) above ΔH°_298 = 74.85 kJ/mol
             dh_t = 74.85 + 0.0155 * (float(temperature_K) - 298.15)
             dh_ref = 74.85 + 0.0155 * (1073.15 - 298.15)
         sensible_ratio = max(float(temperature_K) - 298.15, 0.0) / (1073.15 - 298.15)

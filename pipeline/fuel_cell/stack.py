@@ -85,23 +85,23 @@ def model_stack(config: StackConfig) -> StackResult:
     stack_power_kW = stack_power_W / 1000.0
 
     # ── Thermal Management ──────────────────────────────────────────────────
-    # Thermoneutral voltage
-    E_thermo = 1.48  # V (at 80°C)
+    # HHV thermoneutral voltage E_tn = -ΔH_HHV / (2F) = 285830 J/mol / (2 * 96485 C/mol) ≈ 1.481 V
+    E_thermo = 1.48  # V (at 80°C, liquid-water product reference)
     heat_per_cell_W = (E_thermo - config.cell_voltage_V) * cell_current_A
     total_heat_W = heat_per_cell_W * config.n_cells
     total_heat_kW = total_heat_W / 1000.0
 
     # Radiator sizing (simplified)
     delta_T = config.T_cell_K - config.T_ambient_K
-    radiator_area_m2 = total_heat_W / (50.0 * delta_T)  # U ≈ 50 W/(m²·K)
+    radiator_area_m2 = total_heat_W / (50.0 * delta_T)  # U ≈ 50 W/(m²·K) forced-air heat transfer coeff
 
     # ── Balance of Plant Power ──────────────────────────────────────────────
-    # Air compressor power
-    gamma_air = 1.4
-    cp_air = 1005.0  # J/(kg·K)
-    air_stoichiometry = 2.0  # 2× stoichiometric air
-    m_dot_O2 = cell_current_A * config.n_cells / (4 * F_const) * 32e-3  # kg/s O₂
-    m_dot_air = m_dot_O2 / 0.233  # air is 23.3% O₂ by mass
+    # Isentropic air compressor work: W_comp = (m_dot_air * c_p * T_in / η_c) * (PR^((γ-1)/γ) - 1)
+    gamma_air = 1.4  # Diatomic ideal-gas heat capacity ratio c_p / c_v
+    cp_air = 1005.0  # J/(kg·K) dry air specific heat capacity
+    air_stoichiometry = 2.0  # λ_air = 2.0× stoichiometric cathode O₂ supply
+    m_dot_O2 = cell_current_A * config.n_cells / (4 * F_const) * 32e-3  # kg/s O₂ (M_O2 = 32e-3 kg/mol, 4 e⁻/O₂)
+    m_dot_air = m_dot_O2 / 0.233  # dry air is 23.3 wt% O₂ (21 mol% O₂)
     m_dot_air *= air_stoichiometry
 
     PR = config.compressor_pressure_ratio

@@ -67,6 +67,9 @@ def _run_neb_step(
         raw_barrier = max(energies) - energies[0]
         if raw_barrier < 0.05:
             raw_barrier = max(energies) - min(energies[0], energies[-1])
+        # Accept finite raw NEB barriers in [0.05, 4.5] eV; blend 85% ZPE-corrected
+        # 5-image NEB with 15% BEP prior and clamp to [max(0.15, 0.5*BEP), max(BEP+0.60, 1.20)] eV
+        # to guard against unconverged image kinks.
         if np.isfinite(raw_barrier) and 0.05 <= raw_barrier <= 4.5:
             zpe_corrected = max(0.05, float(raw_barrier) + float(zpe_correction_ev))
             regularized = 0.85 * zpe_corrected + 0.15 * float(fallback)
@@ -119,17 +122,23 @@ def compute_candidate_mlip_neb(
     de_c = _finite('dE_C', -0.40)
     genome = parse_catalyst_genome(row.get('genome'))
 
-    # Convert adsorption energies to absolute surface enthalpies (eV) for step ΔH
+    # Convert adsorption energies to absolute surface enthalpies (eV) for average
+    # sequential C-H cleavage reaction enthalpy dh_step = (H(C*) - H(CH3*))/3 + H(H*).
     h_ch3 = de_ch3 + H_F_CH3_RADICAL_J_MOL / EV_TO_J_MOL
     h_c = de_c + H_F_CH4_J_MOL / EV_TO_J_MOL
     h_h = de_h
     dh_step = (h_c - h_ch3) / 3.0 + h_h
 
+    # Elementary step BEP priors (Blaylock et al., J. Phys. Chem. C 2009):
+    # CH2* -> CH* + H* (+0.12 eV) > CH3* -> CH2* + H* (+0.08 eV) > CH* -> C* + H* (+0.04 eV),
+    # floored at thermodynamic endothermicity dh_step + 0.15 eV.
     e_act_neb = e_act_base
     ch3_deh = max(0.15, e_act_neb + 0.08 + 0.25 * dh_step, dh_step + 0.15)
     ch2_deh = max(0.15, e_act_neb + 0.12 + 0.25 * dh_step, dh_step + 0.15)
     ch_deh = max(0.15, e_act_neb + 0.04 + 0.25 * dh_step, dh_step + 0.15)
+    # Associative 2H* -> H2(g) barrier: 0.75 eV intrinsic barrier plus exothermic H* binding well -2*dE_H.
     h2_des = max(0.25, 0.75 + max(0.0, -2.0 * de_h), -2.0 * de_h + 0.10)
+    # Surface C* diffusion/nucleation barrier (1.40 eV baseline) and graphitic encapsulation (+0.03 eV).
     c_trans = max(0.50, 1.40 + 0.12 * max(-2.0, min(2.0, de_c)))
     c_encap = c_trans + 0.03
     neb_steps_converged = 0

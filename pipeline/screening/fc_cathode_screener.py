@@ -161,6 +161,9 @@ def generate_fc_catalyst_list() -> List[Dict]:
 # META ESEN-SM-BASED ORR DESCRIPTOR SCREENING
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# Water-bilayer H-bond stabilization on Pt(111)-like cathodes (eV; Tripković et al.,
+# Electrochim. Acta 2010): OH* (-0.30 eV) and OOH* (-0.25 eV) form H-bonds with water,
+# whereas oxo O* (0.00 eV) experiences negligible H-bond stabilization.
 SOLVATION_CORRECTION_EV: Dict[str, float] = {
     'OH': -0.30,
     'O': 0.00,
@@ -185,15 +188,19 @@ def build_orr_adsorbates(structure, active_idx: list[int]) -> Dict:
     else:
         ads_base = structure.positions.mean(axis=0)
 
+    # OH*: atop M-O height 1.9 A, vertical O-H bond 0.97 A.
     slab_oh = structure.copy()
     oh_pos = ads_base + np.array([0.0, 0.0, 1.9])
     slab_oh.append(Atom('O', position=oh_pos))
     slab_oh.append(Atom('H', position=oh_pos + np.array([0.0, 0.0, 0.97])))
 
+    # O*: atop M-O oxo height 1.7 A.
     slab_o = structure.copy()
     o_pos = ads_base + np.array([0.0, 0.0, 1.7])
     slab_o.append(Atom('O', position=o_pos))
 
+    # OOH*: bent peroxo geometry (M-O1 1.9 A, O1-O2 = [1.25, 0, 0.70] A ~ 1.43 A,
+    # O2-H = [0.35, 0, 0.91] A ~ 0.97 A at <OOH ~ 105 deg).
     slab_ooh = structure.copy()
     o1_pos = ads_base + np.array([0.0, 0.0, 1.9])
     o2_pos = o1_pos + np.array([1.25, 0.0, 0.70])
@@ -261,15 +268,14 @@ def screen_orr_candidate(candidate: Dict, calc, e_h2o: float, e_h2: float) -> Di
             return result
         e_oh = slab_oh.get_potential_energy()
 
-        # Reference: E(H₂O) - 0.5*E(H₂)
-        # Using standard CHE offset + water-bilayer solvation (-0.30 eV for OH*)
+        # CHE free energy: dE_ads + dZPE (0.35 eV) - T*dS (0.07 eV) + dG_solv (-0.30 eV)
         dG_OH = (
             (e_oh - e_clean)
             - (e_h2o - 0.5 * e_h2)
             + 0.35
             - 0.07
             + SOLVATION_CORRECTION_EV['OH']
-        )  # + ZPE - TS + solvation corrections
+        )
 
         # ── O* ──────────────────────────────────────────────────────────────
         slab_o = adsorbates['O']
@@ -283,6 +289,7 @@ def screen_orr_candidate(candidate: Dict, calc, e_h2o: float, e_h2: float) -> Di
             result.update({'error': geometry_reason, 'candidate_disposition': 'validation_required'})
             return result
         e_o = slab_o.get_potential_energy()
+        # CHE free energy: dE_ads + dZPE (0.05 eV) - T*dS (0.00 eV) + dG_solv (0.00 eV)
         dG_O = (e_o - e_clean) - (e_h2o - e_h2) + 0.05 - 0.00 + SOLVATION_CORRECTION_EV['O']
 
         # ── OOH* ────────────────────────────────────────────────────────────
@@ -297,7 +304,7 @@ def screen_orr_candidate(candidate: Dict, calc, e_h2o: float, e_h2: float) -> Di
             result.update({'error': geometry_reason, 'candidate_disposition': 'validation_required'})
             return result
         e_ooh = slab_ooh.get_potential_energy()
-        # Includes water-bilayer solvation (-0.25 eV for OOH*)
+        # CHE free energy: dE_ads + dZPE (0.40 eV) - T*dS (0.10 eV) + dG_solv (-0.25 eV)
         dG_OOH = (e_ooh - e_clean) - (2 * e_h2o - 1.5 * e_h2) + 0.40 - 0.10 - 0.25
 
         # ── ORR Overpotential ───────────────────────────────────────────────

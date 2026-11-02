@@ -132,6 +132,9 @@ def _specific_energy_from_outputs(outputs: dict) -> float:
     """Return specific electrical energy (kWh/kg H2) from outputs or Faraday law."""
     fe_h2 = max(float(outputs['faradaic_efficiency_H2']), 1e-6)
     v_cell = float(outputs['cell_voltage_V'])
+    # Faraday's law for CH4 -> C(s) + 2 H2 (n = 4 e- per 2 mol H2):
+    # E_spec [kWh/kg H2] = V_cell * (4 * F) / (FE_H2 * 3.6e6 J/kWh * 2 * M_H2),
+    # where F = 96485.33212 C/mol and 2 * M_H2 = 0.00403188 kg H2 per 4 moles of electrons.
     return float(
         outputs.get(
             'specific_energy_kWh_kg_H2',

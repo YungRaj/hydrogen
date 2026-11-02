@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 
-K_B_EV_K = 8.617333262145e-5
+K_B_EV_K = 8.617333262145e-5  # Boltzmann constant k_B [eV/K]
 
 
 def exchange_current_density(
@@ -28,6 +28,7 @@ def exchange_current_density(
         raise ValueError('reference current and temperature must be positive')
     if not all(math.isfinite(value) for value in (descriptor_eV, optimum_eV)):
         raise ValueError('descriptor values must be finite')
+    # Sabatier volcano rate: j_0 = j_{0,max} * exp(-|ΔG - ΔG_opt| / (k_B * T))
     return reference_A_cm2 * math.exp(
         -abs(descriptor_eV - optimum_eV) / (K_B_EV_K * temperature_K)
     )
@@ -56,6 +57,8 @@ def butler_volmer_current_density(
         raise ValueError('current, temperature, and electron count are invalid')
     if not 0.0 < symmetry_factor < 1.0:
         raise ValueError('symmetry_factor must lie strictly between zero and one')
+    # Butler-Volmer thermal voltage inverse: n*F / (R*T) [1/V], with F = 96485.33212 C/mol
+    # and R = 8.314462618 J/(mol*K) (Bard & Faulkner, Electrochemical Methods, Eq. 3.3.11).
     factor = electrons * 96485.33212 / (8.314462618 * temperature_K)
     return exchange_current_A_cm2 * (
         math.exp((1.0 - symmetry_factor) * factor * overpotential_V)

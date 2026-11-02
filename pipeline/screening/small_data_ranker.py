@@ -10,16 +10,16 @@ import pandas as pd
 
 from pipeline.search.design_space import encode_population
 
-TREE_ENSEMBLE_SIZE = 256
-MIN_TRAINING_ROWS = 20
-MIN_RANK_CORRELATION = 0.20
-CLASS_BIAS_WEIGHT = 0.25
-CLASS_BIAS_PRIOR_ROWS = 5
-INVALIDITY_PENALTY = 0.75
-ORR_UNCERTAINTY_BONUS = 0.25
-CLASS_SUCCESS_WEIGHT = 0.75
-CLASS_SUCCESS_PRIOR_ROWS = 5
-CENSORED_E_ACT_PENALTY_EV = 5.0
+TREE_ENSEMBLE_SIZE = 256  # Extra-Trees ensemble size balancing variance stability and scan throughput
+MIN_TRAINING_ROWS = 20  # Minimum valid observations required before fitting a tree ranker
+MIN_RANK_CORRELATION = 0.20  # Minimum held-out group Spearman rho to authorize model-guided ranking
+CLASS_BIAS_WEIGHT = 0.25  # Damping factor applied to empirical-Bayes class residual offsets
+CLASS_BIAS_PRIOR_ROWS = 5  # Conjugate shrinkage pseudocount n_0 in w = n / (n + n_0)
+INVALIDITY_PENALTY = 0.75  # Acquisition penalty (eV or V) per unit probability of failed relaxation
+ORR_UNCERTAINTY_BONUS = 0.25  # Upper-confidence-bound exploration bonus multiplier on ensemble std (V)
+CLASS_SUCCESS_WEIGHT = 0.75  # Branch-scheduling priority bonus per unit class hit probability
+CLASS_SUCCESS_PRIOR_ROWS = 5  # Beta-Binomial pseudocount n_0 for smoothing class hit rates
+CENSORED_E_ACT_PENALTY_EV = 5.0  # Ceiling barrier (eV) assigned to right-censored BEP observations
 
 
 APPLICATION_OUTCOMES = {
@@ -380,6 +380,8 @@ def _extract_secondary_targets(
             except (TypeError, ValueError):
                 candidate_val = np.nan
             if np.isfinite(candidate_val):
+                # Negate coking_index = dE_C - 2*dE_H (Nikolla et al. 2008) so higher values
+                # indicate stronger carbon binding relative to H*, plus interfacial C displacement.
                 coking_val = -candidate_val + (c_disp if np.isfinite(c_disp) else 0.0)
         if not np.isfinite(coking_val) and np.isfinite(c_disp):
             # For MoltenMetal (where coking_index is NaN / out_of_scope), use the
@@ -404,6 +406,9 @@ def _extract_secondary_targets(
         if np.isfinite(de_h) and np.isfinite(de_c):
             from pipeline.evidence.pyrolysis_benchmark import _row_h2_mu_eV
 
+            # Endothermic product-release barrier from the catalytic cycle span:
+            # 2 H* -> H2(g) costs (-2*dE_H + mu_H2), and C* removal relative to
+            # gas-phase H2 chemical potential mu_H2(T, P) costs -(dE_C + 2*mu_H2).
             h2_mu = _row_h2_mu_eV(row if isinstance(row, dict) else dict(row))
             dg_c = de_c + 2.0 * h2_mu
             targets["desorption_overbinding_penalty_eV"] = float(
@@ -836,6 +841,7 @@ def class_success_probability(
         valid = screening_metric_eligibility(frame, application)
     if not np.any(valid):
         raise ValueError("class success feedback requires valid outcomes")
+    # Define a catalyst "hit" as falling in the best 20% quintile of valid outcomes.
     threshold = float(np.quantile(values[valid], 0.20))
     hits = valid & (np.nan_to_num(values, nan=np.inf) <= threshold)
     classes = np.asarray(
@@ -844,6 +850,8 @@ def class_success_probability(
             for raw in frame["genome"]
         ]
     )
+    # Beta(2, 8) Laplace-smoothed global rate (2 / (2 * 5) = 0.20 prior matching the
+    # 20% quintile), followed by Beta-Binomial shrinkage with pseudocount n_0 = 5.
     global_rate = float(
         (hits.sum() + 2.0) / (len(hits) + 2 * CLASS_SUCCESS_PRIOR_ROWS)
     )

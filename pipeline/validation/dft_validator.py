@@ -172,6 +172,8 @@ def generate_bulk_scf_input(
     ntyp = len(unique_elements)
     ecutrho = max(float(ecutrho), sssp['ecutrho_Ry'])
 
+    # smearing = 'mv' with degauss = 0.02 Ry (~0.272 eV): Marzari-Vanderbilt
+    # cold smearing (Phys. Rev. Lett. 82, 3296, 1999) for metallic Fermi surfaces.
     return f"""&CONTROL
   calculation = 'scf'
   prefix = '{calc_name}'
@@ -337,6 +339,7 @@ def generate_molecule_input(
     )
     ions = "\n&IONS\n  ion_dynamics = 'bfgs'\n/" if calculation == 'relax' else ''
 
+    # 0.529177210903 Å/Bohr: CODATA Bohr radius a_0 converting cubic cell_size_ang to celldm(1) in Bohr
     return f"""&CONTROL
   calculation = '{calculation}'
   prefix = '{calc_name}'

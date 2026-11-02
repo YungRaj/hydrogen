@@ -845,7 +845,8 @@ def parse_atomic_forces(
         raise RuntimeError(f'expected {expected_atoms} force rows, found {len(rows)}')
     if not rows:
         raise RuntimeError('QE force block contains no parseable atoms')
-    # Quantum ESPRESSO reports forces in Ry/Bohr.
+    # Quantum ESPRESSO reports forces in Ry/Bohr: 1 Ry = 13.605693122994 eV, 1 Bohr (a_0) = 0.529177210903 Å
+    # -> 1 Ry/Bohr ≈ 25.7110 eV/Å.
     ry_bohr_to_ev_ang = 13.605693122994 / 0.529177210903
     return np.asarray(rows, dtype=float) * ry_bohr_to_ev_ang
 
@@ -910,11 +911,14 @@ def partial_hessian(
         raise ValueError('partial Hessian dimensions are inconsistent')
     if not 0.0 <= min_reaction_mode_overlap <= 1.0:
         raise ValueError('minimum reaction-mode overlap must be in [0, 1]')
+    # Central finite-difference force-constant matrix H_ij = -∂F_j/∂x_i ≈ -(F_j(+Δx_i) - F_j(-Δx_i)) / (2 Δx) [eV/Å²],
+    # symmetrized and mass-weighted into dynamical matrix D_ij = H_ij / sqrt(m_i * m_j) [eV/(Å²·amu)].
     hessian = -(plus - minus).reshape(3 * n_atoms, 3 * n_atoms).T / (2 * displacement_A)
     hessian = 0.5 * (hessian + hessian.T)
     weights = np.repeat(np.sqrt(np.asarray(masses_amu, float)), 3)
     eigvals, eigvecs = np.linalg.eigh(hessian / np.outer(weights, weights))
-    # 1 eV/A^2/amu -> (521.47083 cm^-1)^2
+    # Vibrational wavenumber conversion: ν̃ [cm^-1] = (1 / (2π c)) * sqrt(λ * e * N_A / (10^-20 m²/Å² * 10^-3 kg/amu))
+    # where 1 sqrt(eV / (Å²·amu)) = 521.47083 cm^-1. Modes below -50 cm^-1 are counted as true imaginary saddle modes.
     frequencies = np.sign(eigvals) * np.sqrt(np.abs(eigvals)) * 521.47083
     imaginary_indices = np.flatnonzero(frequencies < -50.0)
     reaction_overlap = None

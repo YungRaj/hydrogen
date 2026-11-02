@@ -237,11 +237,13 @@ def run_vqe(
     )
     exact_energy = exact_ground_energy(hamiltonian_terms, n_qubits)
     variational_gap = float(optimal_energy) - exact_energy
+    # Rayleigh-Ritz variational principle: ⟨ψ(θ)|H|ψ(θ)⟩ >= E_0 (allowing 1e-8 Ha floating-point tolerance)
     variational_valid = variational_gap >= -1e-8
     if not variational_valid:
         raise RuntimeError(
             f'VQE energy violates the variational bound by {-variational_gap:.3e} Ha'
         )
+    # Standard quantum-chemistry chemical accuracy threshold: 1 kcal/mol ≈ 1.5936e-3 Ha ≈ 43.36 meV
     chemical_accuracy_Ha = 1.6e-3
     benchmark_passed = variational_valid and variational_gap <= chemical_accuracy_Ha
 

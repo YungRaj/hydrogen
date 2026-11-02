@@ -162,11 +162,15 @@ def _tetrahedral_vectors(direction: np.ndarray, bond_A: float) -> list[np.ndarra
         raise ValueError('breaking-bond direction must be nonzero')
     axis /= norm
     trial = np.array([0.0, 0.0, 1.0])
-    if abs(float(np.dot(axis, trial))) > 0.9:
+    if abs(float(np.dot(axis, trial))) > 0.9:  # Avoid near-collinear cross product
         trial = np.array([1.0, 0.0, 0.0])
     first = np.cross(axis, trial)
     first /= np.linalg.norm(first)
     second = np.cross(axis, first)
+    # Regular tetrahedral (T_d) geometry for CH4:
+    # cos(theta_tet) = -1/3 (theta_tet = 109.47 deg), so axial projection is -1/3
+    # and perpendicular radial projection is sin(theta_tet) = sqrt(1 - (-1/3)^2) = sqrt(8/9),
+    # with the three remaining C-H bonds spaced by 2*pi/3 (120 deg) around the breaking C-H axis.
     radial = math.sqrt(8.0 / 9.0)
     others = [
         -axis / 3.0

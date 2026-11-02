@@ -48,8 +48,8 @@ SCREENING_PROTOCOL_ID = ORR_PROTOCOL.protocol_id
 # ORR REFERENCE ENERGIES
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# Zero-point energy and entropy corrections for ORR intermediates (eV)
-# From standard DFT+CHE literature (Nørskov et al., J. Phys. Chem. B, 2004)
+# Zero-point energy and entropy corrections (-T*dS at 298.15 K) for adsorbed ORR
+# intermediates relative to gas-phase H2/H2O (eV; Nørskov et al., J. Phys. Chem. B 2004).
 ZPE_CORRECTIONS = {
     'OH': 0.35,  # ZPE(OH*) - 0.5*ZPE(H2O)
     'O': 0.05,  # ZPE(O*)
@@ -61,7 +61,8 @@ TS_CORRECTIONS = {
     'OOH': -0.10,
 }
 
-# Elements with known Fenton reactivity (radical generation in acid)
+# Elements with known Fenton reactivity (H2O2 -> *OH radical generation in acid;
+# 0 = inert, 1 = mild, 2 = moderate, 3 = severe membrane degradation catalyst).
 FENTON_RISK = {
     'Fe': 3,
     'Cu': 2,
@@ -75,6 +76,8 @@ FENTON_RISK = {
     'Mo': 0,
 }
 
+# Physical trust domain for CHE adsorption free energies and overpotential; values
+# beyond |dG| <= 4.0 eV or eta <= 3.0 V indicate slab reconstruction or dissociation.
 ORR_MAX_BINDING_ABS_EV = 4.0
 ORR_MAX_REPORTED_OVERPOTENTIAL_V = 3.0
 
@@ -86,18 +89,21 @@ def _adsorbate_geometry_valid(slab, surface_count: int, kind: str) -> tuple[bool
     if len(ads) == 0 or not np.isfinite(ads).all():
         return False, 'adsorbate_nonfinite'
     from scipy.spatial.distance import pdist
+    # 0.65 A minimum interatomic separation guards against atomic overlap/collapse.
     if len(ads) > 1 and float(np.min(pdist(ads))) < 0.65:
         return False, 'adsorbate_embedded_or_collapsed'
     if kind == 'oh' and len(ads) == 2:
         distances = float(np.linalg.norm(ads[1] - ads[0]))
+        # Intact covalent O-H bond window [0.65, 1.25] A around 0.97 A equilibrium.
         if not 0.65 <= distances <= 1.25:
             return False, 'oh_bond_broken'
     if kind == 'ooh' and len(ads) == 3:
         oo = float(np.linalg.norm(ads[1] - ads[0]))
         oh = float(np.linalg.norm(ads[2] - ads[1]))
+        # Intact peroxo O-O window [0.95, 1.80] A (eq. ~1.45 A) and O-H [0.65, 1.25] A.
         if not 0.95 <= oo <= 1.8 or not 0.65 <= oh <= 1.25:
             return False, 'ooh_bond_broken'
-    # An adsorbate buried in the slab is not a meaningful surface state.
+    # An adsorbate buried in the slab (< 0.65 A to any slab atom) is not a surface state.
     if float(np.min(np.linalg.norm(ads[:, None, :] - positions[:surface_count][None, :, :], axis=2))) < 0.65:
         return False, 'adsorbate_embedded'
     return True, ''
@@ -192,7 +198,7 @@ def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> di
         e_clean = structure.get_potential_energy()
         result['e_clean'] = e_clean
 
-        # 2. OH* adsorption
+        # 2. OH* adsorption (initial M-O height 1.9 A, O-H bond length 0.97 A)
         slab_oh = structure.copy()
         oh_pos, ads_direction = screening_adsorption_site(
             structure, active_idx, mat_class, 1.9
@@ -220,7 +226,7 @@ def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> di
         )
         result['dG_OH_eV'] = float(dG_OH)
 
-        # 3. O* adsorption
+        # 3. O* adsorption (initial M-O oxo height 1.7 A)
         slab_o = structure.copy()
         o_pos, _ = screening_adsorption_site(structure, active_idx, mat_class, 1.7)
         slab_o.append(Atom('O', position=o_pos))
@@ -237,7 +243,7 @@ def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> di
         )
         result['dG_O_eV'] = float(dG_O)
 
-        # 4. OOH* adsorption
+        # 4. OOH* adsorption (M-O1 1.9 A, tilted peroxo O1-O2 [1.2, 0, 0.6] A ~ 1.34 A, O2-H 0.97 A)
         slab_ooh = structure.copy()
         o1_pos, ads_direction = screening_adsorption_site(
             structure, active_idx, mat_class, 1.9
@@ -274,7 +280,7 @@ def evaluate_orr_candidate(genome: tuple, calc, e_h2o: float, e_h2: float) -> di
         result['orr_overpotential_V'] = float(eta)
         result['rate_determining_step'] = rds
 
-        # 6. Fenton susceptibility
+        # 6. Fenton susceptibility (10-point stability scale minus element risk sum)
         elements = _extract_elements(genome)
         fenton_score = sum(FENTON_RISK.get(e, 0) for e in elements)
         result['fenton_stability'] = max(0, 10 - fenton_score)
@@ -435,18 +441,20 @@ def compute_pourbaix_stability_margin(
         # MetalFreeCarbon / covalent non-metal frameworks resist anodic metal dissolution
         onset = POURBAIX_CLASS_COORD_SHIFT_V.get(mat_class, 1.25)
     else:
-        # Active site is governed by the primary metal (first extracted metal)
+        # Active site is governed by the primary metal (65% weight) and alloy host mean (35%).
         e0_primary = STANDARD_REDUCTION_POTENTIALS_V[elements[0]]
         e0_mean = float(np.mean([STANDARD_REDUCTION_POTENTIALS_V[el] for el in elements]))
         base_e0 = 0.65 * e0_primary + 0.35 * e0_mean
         coord_shift = POURBAIX_CLASS_COORD_SHIFT_V.get(mat_class, 0.35)
         if mat_class == 'SolidCatalyst' and len(elements) == 1:
             coord_shift = 0.30
+        # Nernst pH shift (RT*ln(10)/F = 0.05916 V/pH at 298.15 K) plus lattice stabilization.
         onset = base_e0 + coord_shift + 0.05916 * float(pH)
     margin = float(onset - U_V_vs_RHE)
     return {
         'pourbaix_dissolution_onset_V': float(onset),
         'pourbaix_dissolution_margin_V': margin,
+        # Allow a 50 mV (-0.05 V) kinetic passivation margin before flagging dissolution.
         'pourbaix_acid_stable': bool(margin >= -0.05),
     }
 
@@ -482,12 +490,14 @@ def compute_grand_canonical_orr_corrections(
     parsed = parse_catalyst_genome(genome) if (genome is not None and not isinstance(genome, tuple)) else genome
     mat_class = str(parsed[0]) if parsed else 'SolidCatalyst'
     hbond_scale = HBOND_CLASS_SCALE.get(mat_class, 1.0)
+    # Helmholtz capacitor electric field E = (U - U_pzc) / d_H (V/A).
     e_field_V_A = (float(U_V_vs_RHE) - float(U_pzc_V)) / max(1.0, float(helmholtz_thickness_A))
 
     def _shift(ads: str) -> float:
         mu = _ADSORBATE_DIPOLE_E_A[ads]
         alpha = _ADSORBATE_ALPHA_E_A2_V[ads]
         solv = hbond_scale * _IMPLICIT_HBOND_EV[ads]
+        # Second-order Stark shift: dG_field = -mu * E - 0.5 * alpha * E^2 (Kelly et al. 2020).
         field_term = -mu * e_field_V_A - 0.5 * alpha * (e_field_V_A ** 2)
         return float(solv + field_term)
 

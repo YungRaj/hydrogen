@@ -159,6 +159,7 @@ def _evaluate_candidate_replica(
         e_clean = structure.get_potential_energy()
         result['e_clean'] = e_clean
 
+        # 1.8 A nominal adsorption height; H* sits 0.3 A closer (1.5 A M-H bond).
         ads_pos, ads_direction = screening_adsorption_site(
             structure, active_idx, mat_class, 1.8
         )
@@ -185,7 +186,9 @@ def _evaluate_candidate_replica(
             slab_h[h_index].position[2] - slab_h.positions[:h_index, 2].max()
         )
 
-        # 3. CH₃* adsorption
+        # 3. CH₃* adsorption: C3v trigonal pyramid with in-plane radius 1.02 A at
+        # 120 deg intervals ([0, 1.02], [-0.88, -0.51], [0.88, -0.51] A) and axial
+        # lift 0.35 A -> C-H bond length sqrt(1.02^2 + 0.35^2) = 1.08 A.
         slab_ch3 = structure.copy()
         c_pos = ads_pos.copy()
         slab_ch3.append(Atom('C', position=c_pos))
@@ -212,13 +215,14 @@ def _evaluate_candidate_replica(
         ]
         result['ch3_min_CH_A'] = float(min(ch_bonds))
         result['ch3_max_CH_A'] = float(max(ch_bonds))
+        # Reject CH3* if any C-H bond collapses (< 0.7 A) or dissociates (> 1.5 A).
         if result['ch3_min_CH_A'] < 0.7 or result['ch3_max_CH_A'] > 1.5:
             result['error'] = 'CH3 adsorbate lost molecular integrity'
             result['candidate_disposition'] = 'validation_required'
             result['needs_dft_validation'] = True
             return result
 
-        # 4. C* adsorption (coking indicator)
+        # 4. C* adsorption (coking indicator; initial M-C distance 1.8 - 0.4 = 1.4 A)
         slab_c = structure.copy()
         c_ads_pos = ads_pos - 0.4 * ads_direction
         slab_c.append(Atom('C', position=c_ads_pos))
@@ -251,7 +255,8 @@ def _evaluate_candidate_replica(
         result['E_act_raw'] = E_act_raw
         result['E_act'] = E_act
 
-        # 7. Coking resistance index (slab descriptor — out of scope for melts)
+        # 7. Coking resistance index: dE_C - 2*dE_H compares C* nucleation energy
+        # against 2H* -> H2 desorption; more positive values resist coking (Nikolla et al. 2008).
         from pipeline.search.scope import slab_coking_index_scope
 
         coking_scope = slab_coking_index_scope(genome)
@@ -291,7 +296,7 @@ def _evaluate_candidate_replica(
             e_bind = _compute_binding_energy(structure, calc, e_clean, genome)
             result['segregation_energy'] = e_bind
 
-        # 9. Rate constant at reference temperature
+        # 9. Rate constant at reference temperature (TST prefactor k_B*T/h ~ 1e13 s^-1)
         T_ref = (
             float(genome[4])
             if mat_class in ('MoltenMetal', 'HEA') and len(genome) > 4
@@ -491,6 +496,8 @@ def _compute_binding_energy(structure, calc, e_clean, genome):
         cavity_struct.calc = calc
         e_empty = cavity_struct.get_potential_energy()
 
+        # Bulk cohesive reference energies (eV/atom); / 10.0 scales the 4-coordinate
+        # cavity extraction energy onto the same [-1, +1] eV range as slab segregation.
         ref_energies = {
             'Fe': -5.0,
             'Co': -4.8,

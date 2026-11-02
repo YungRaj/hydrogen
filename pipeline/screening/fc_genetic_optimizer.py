@@ -20,6 +20,7 @@ from pipeline.screening.fc_screener import FENTON_RISK
 from pipeline.utils import FUEL_CELL_DIR, setup_logger
 
 logger = setup_logger('fc_genetic_optimizer', 'fuel_cell/fc_genetic_optimizer.log')
+# CHE Sabatier volcano advancement ceiling (0.40 V ~ Pt(111) benchmark overpotential).
 ADVANCEMENT_OVERPOTENTIAL_V = 0.4
 
 
@@ -34,6 +35,8 @@ def _fenton_from_genome(genome: tuple) -> float:
     """Compute Fenton stability score from genome elements."""
     elements = _extract_elements_from_genome(genome)
     risk = sum(FENTON_RISK.get(element, 0) for element in elements)
+    # 10 = completely inert to H2O2 -> HO* Fenton radical attack (risk=0, e.g. Pt/Pd);
+    # each Fenton-active element subtracts its FENTON_RISK severity down to a 0 floor.
     return float(max(0, 10 - risk))
 
 
@@ -41,6 +44,7 @@ def _cost_from_genome(genome: tuple) -> float:
     """Compute the minimized abundance-cost objective for a genome."""
     from pipeline.utils import abundance_cost_penalty
 
+    # Negate abundance_cost_penalty (which lies in [-2, 0]) so [0, 2] is minimized.
     return -abundance_cost_penalty(_extract_elements_from_genome(genome))
 
 
@@ -83,6 +87,8 @@ def run_fc_branch_discovery(
             AdvancementCriterion(
                 'orr_overpotential_V', ADVANCEMENT_OVERPOTENTIAL_V, 'min'
             ),
+            # fenton_stability >= 7.0 excludes unmitigated Fe-rich Fenton radical generators;
+            # model_confidence >= 0.5 requires at least moderate OC20/OC25 OOD coverage.
             AdvancementCriterion('fenton_stability', 7.0, 'max'),
             AdvancementCriterion('model_confidence', 0.5, 'max'),
         ),

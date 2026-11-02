@@ -164,6 +164,8 @@ def load_physical_case(path: str | Path, *, candidate_id: str, mode: str,
         if (not _declared(electrolyte.get('identity')) or
                 not _declared(electrolyte.get('source'))):
             failures.append('electrolyte.identity_and_source')
+        # 647.096 K (373.946 C, P_c = 22.064 MPa) is the IAPWS-95 critical
+        # temperature of pure H2O, above which no distinct liquid aqueous phase exists.
         if (case.get('electrolyte_phase') == 'aqueous' and
                 _positive_number(operating.get('temperature_K')) and
                 float(operating['temperature_K']) >= 647.096):

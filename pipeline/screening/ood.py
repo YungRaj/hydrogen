@@ -128,13 +128,13 @@ _TIER2_ELEMENTS = {
     'Yb',  # Rare earths in OC22 oxide surfaces
 }
 
-# Element coverage score
+# Element coverage score: 1.0 = >50k OC20 slabs (Tier 1), 0.6 = 1k-50k slabs or
+# OC22 oxide-only representation (Tier 2), 0.1 = unrepresented in OC20/OC22.
 _ELEMENT_COVERAGE = {}
 for e in _TIER1_ELEMENTS:
     _ELEMENT_COVERAGE[e] = 1.0
 for e in _TIER2_ELEMENTS:
     _ELEMENT_COVERAGE[e] = 0.6
-# Everything else defaults to 0.1 (barely or never seen)
 
 
 def element_coverage_score(elements: List[str]) -> float:
@@ -154,13 +154,9 @@ def element_coverage_score(elements: List[str]) -> float:
     if not scores:
         return 0.5
 
-    # Geometric mean: one bad element tanks the whole score
+    # Geometric mean exp(mean(ln(s_i + 1e-10))): one unrepresented element pulls down
+    # the whole score; 1e-10 guards against log(0).
     return float(np.exp(np.mean(np.log(np.array(scores) + 1e-10))))
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# LAYER 3: DUAL-MODEL DISAGREEMENT (cost = 2× per candidate)
-# ═══════════════════════════════════════════════════════════════════════════════
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -182,12 +178,14 @@ def compute_model_confidence(genome: tuple, elements: List[str]) -> float:
     """
     mat_class = genome[0]
 
-    # Layer 1: class prior
+    # Layer 1: class prior (0.3 fallback for unlisted motif classes)
     cls_conf = CLASS_CONFIDENCE.get(mat_class, 0.3)
 
     # Layer 2: element coverage
     elem_conf = element_coverage_score(elements)
 
+    # 65/35 convex combination: GNN out-of-distribution error is dominated by unseen
+    # local coordination motifs (cls_conf) more than elemental identity (elem_conf).
     confidence = 0.65 * cls_conf + 0.35 * elem_conf
 
     return float(np.clip(confidence, 0.0, 1.0))

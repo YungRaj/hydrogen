@@ -75,23 +75,24 @@ FLUIDIZED_BATCH = 'batch_regen'
 FLUIDIZED_CIRCULATING = 'circulating'
 ALLOWED_FLUIDIZED = frozenset({FLUIDIZED_BATCH, FLUIDIZED_CIRCULATING})
 
-ERGUN_DP_LIMIT_PA = 101325.0
-MMBCR_INTERFACIAL_K0_DEFAULT = 0.01
-MMBCR_INTERFACIAL_K0_MAX = 1.0
+ERGUN_DP_LIMIT_PA = 101325.0  # 1 atm (1.01325 bar) maximum allowable packed-bed pressure drop
+MMBCR_INTERFACIAL_K0_DEFAULT = 0.01  # Baseline melt-bubble interfacial prefactor k0 [m/s]
+MMBCR_INTERFACIAL_K0_MAX = 1.0  # Upper guardrail on k0 [m/s] against unphysical Damköhler numbers
 MMBCR_INTERFACIAL_K0_MAX_KIND = 'guardrail_not_physical_bound'
 MMBCR_FLOTATION_UNCONSTRAINED = None
+# Ni-Bi liquid metal baseline around 1300 K (Upham et al., Science 2017): σ ≈ 0.4 N/m, ρ ≈ 9000 kg/m³
 MMBCR_MELT_SURFACE_TENSION_N_M = 0.4
 MMBCR_MELT_DENSITY_KG_M3 = 9000.0
-MMBCR_MAX_GAS_HOLDUP = 0.3
+MMBCR_MAX_GAS_HOLDUP = 0.3  # Bubbly-to-churn-turbulent regime transition ceiling (ε_g ≈ 0.30)
 MMBCR_BUBBLE_RISE_BASIS = 'mendelson_sqrt(2*sigma/(rho*d_b) + g*d_b/2)'
 MMBCR_RESIDENCE_BASIS = 'column_height_over_bubble_rise_velocity'
 MMBCR_ARTIFACT_RESIDENCE_BASIS = (
     'gas_holdup_times_column_height_over_superficial_velocity'
 )
-G_M_S2 = 9.80665
-R_J_MOL_K = 8.314462618
+G_M_S2 = 9.80665  # Standard gravitational acceleration [m/s²]
+R_J_MOL_K = 8.314462618  # Universal gas constant [J/(mol·K)]
 FLUIDIZED_REMOVAL_SUBSTEPS = 20
-FLUIDIZED_EMULSION_VOIDAGE = 0.45
+FLUIDIZED_EMULSION_VOIDAGE = 0.45  # Minimum-fluidization emulsion void fraction ε_mf for Geldart B/A solids
 
 ANALYTICAL_CLOSURE_SOURCE = 'analytical_hydrodynamic_closure'
 ANALYTICAL_CLOSURE_REACTORS = frozenset({'Fluidized', 'MMBCR'})
@@ -548,6 +549,7 @@ def ch4_feed_density_kg_m3(T_K: float, P_Pa: float) -> float:
     Returns:
         Validated float output for this operation.
     """
+    # Mixture molar mass M_mix [kg/mol]: M_CH4 = 0.01604 kg/mol (95%), M_Ar = 0.03995 kg/mol (5%)
     M = 0.01604 * 0.95 + 0.03995 * 0.05
     return P_Pa * M / (8.314462618 * T_K)
 
@@ -561,6 +563,7 @@ def ch4_viscosity_pa_s(T_K: float) -> float:
     Returns:
         Validated float output for this operation.
     """
+    # Sutherland's law: μ(T) = μ_0 * (T / T_0)^(3/2) * (T_0 + S) / (T + S)
     T0, mu0, S = 273.15, 1.03e-5, 164.0
     return mu0 * (T_K / T0) ** 1.5 * (T0 + S) / (T_K + S)
 
@@ -585,6 +588,7 @@ def ergun_delta_p_pa(
     u = config.gas_velocity_m_s if config.gas_velocity_m_s > 0 else 0.1
     mu = ch4_viscosity_pa_s(T)
     rho = ch4_feed_density_kg_m3(T, P)
+    # Ergun (1952) packed-bed pressure gradient: -dP/dz = Blake-Kozeny viscous (150) + Burke-Plummer inertial (1.75)
     viscous = 150.0 * mu * (1.0 - eps) ** 2 / (eps**3 * d_p**2) * u
     inertial = 1.75 * rho * (1.0 - eps) / (eps**3 * d_p) * u**2
     return float(config.bed_length_m * (viscous + inertial))
@@ -989,7 +993,8 @@ def kunii_levenspiel_bubble_exchange(
     t_k = float(config.T_inlet_K)
     p_pa = max(float(config.P_inlet_Pa), 10000.0)
     d_mol = 2.2e-5 * ((t_k / 298.15) ** 1.75) * (101325.0 / p_pa)
-    # Effective bubble diameter in Geldart B/A bubbling bed [m]
+    # Mori-Wen (1975) correlation for effective bubble diameter at mid-bed height z = H/2 [m]:
+    # d_b = 0.54 * (u_0 - u_mf)^0.4 * (z + 0.02)^0.8 * g^(-0.2), clamped to [5 mm, 80 mm].
     d_b_m = min(
         0.08,
         max(
@@ -1000,8 +1005,13 @@ def kunii_levenspiel_bubble_exchange(
             / (G_M_S2 ** 0.2),
         ),
     )
+    # Davies-Taylor (1950) isolated bubble rise velocity u_br = 0.711 * sqrt(g * d_b) [m/s]
+    # and Davidson-Harrison swarm rise velocity u_b = u_0 - u_mf + u_br [m/s].
     u_br = 0.711 * float(np.sqrt(G_M_S2 * d_b_m))
     u_b = max(u0_m_s - umf_m_s + u_br, 1e-3)
+    # Kunii-Levenspiel (1991) series mass transfer (1/K_be = 1/K_bc + 1/K_ce):
+    # K_bc = 4.5*(u_mf/d_b) + 5.85*(D^0.5 * g^0.25 / d_b^1.25) (Davidson-Harrison convective + diffusive bubble-cloud)
+    # K_ce = 6.77 * sqrt(ε_mf * D * u_br / d_b^3) (Higbie penetration cloud-emulsion).
     k_bc = 4.5 * (umf_m_s / d_b_m) + 5.85 * ((d_mol ** 0.5) * (G_M_S2 ** 0.25)) / (
         d_b_m ** 1.25
     )
@@ -1009,6 +1019,7 @@ def kunii_levenspiel_bubble_exchange(
         np.sqrt(FLUIDIZED_EMULSION_VOIDAGE * d_mol * u_br / (d_b_m ** 3))
     )
     k_be = 1.0 / (1.0 / max(k_bc, 1e-9) + 1.0 / max(k_ce, 1e-9))
+    # Number of interphase transfer units N_be = K_be * H / u_b; unexchanged bubble bypass = δ * exp(-N_be)
     n_be = float(k_be * float(config.bed_height_m) / u_b)
     exchange_eff = float(1.0 - np.exp(-n_be))
     effective_bypass = float(delta * np.exp(-n_be))
@@ -1088,12 +1099,14 @@ def resolve_molten_metal_properties(
         x_prom = at_pct / 100.0
         sigma_h, rho_h = MELT_ELEMENT_PROPERTIES[host]
         sigma_p, rho_p = MELT_ELEMENT_PROPERTIES.get(promoter, (sigma_h, rho_h))
-        # Gibbs surface enrichment of the lower-surface-tension component
+        # Linearized Butler equation surface enrichment (Butler, Proc. R. Soc. A
+        # 1932): the lower-surface-tension metal segregates to the liquid-vapor
+        # interface (35% weight on min(sigma_h, sigma_p) + 65% ideal bulk Vegard mix).
         sigma_mix = float(
             min(sigma_h, sigma_p) * 0.35
             + ((1.0 - x_prom) * sigma_h + x_prom * sigma_p) * 0.65
         )
-        rho_mix = float((1.0 - x_prom) * rho_h + x_prom * rho_p)
+        rho_mix = float((1.0 - x_prom) * rho_h + rho_p * x_prom)
         return (
             sigma_mix,
             rho_mix,
@@ -1103,7 +1116,7 @@ def resolve_molten_metal_properties(
 
 
 def _mmbcr_interfacial_k_m_s(E_act_eV: float, T_K: float, k0_m_s: float) -> float:
-    k_B_eV = 8.617333262e-5
+    k_B_eV = 8.617333262e-5  # Boltzmann constant [eV/K] (CODATA 2018)
     return float(k0_m_s * np.exp(-E_act_eV / max(k_B_eV * T_K, 1e-12)))
 
 
@@ -1124,6 +1137,9 @@ def _mmbcr_flotation_eta(
         return 1.0
     if k_float_1_s <= 0.0:
         return 0.0
+    # Steady-state Langmuir-like unblocked bubble-interface fraction:
+    # eta_float = 1 - theta_C = k_float / (k_float + k_if * a_b), balancing
+    # carbon deposition rate (k_if * a_b) against flotation removal (k_float).
     denom = k_float_1_s + max(k_if_m_s, 0.0) * max(sv_ratio_1_m, 0.0)
     if denom <= 0:
         return 0.0
@@ -1198,7 +1214,7 @@ def _mmbcr_hydrodynamics(config: ReactorConfig) -> Dict:
         'gas_holdup_basis': holdup_basis,
         'residence_time_s': float(tau_total),
         'residence_time_basis': residence_basis,
-        'interfacial_sv_ratio_1_m': 6.0 / d_b,
+        'interfacial_sv_ratio_1_m': 6.0 / d_b,  # Spherical bubble area-to-volume ratio A_b/V_b = (pi*d_b^2)/(pi*d_b^3/6) = 6/d_b [m^-1]
         'melt_surface_tension_N_m': float(sigma_eff),
         'melt_density_kg_m3': float(rho_eff),
         'melt_property_basis': prop_basis,

@@ -36,11 +36,13 @@ def _initial_geometry_error(atoms) -> str | None:
         return 'empty_structure'
     if not np.isfinite(atoms.positions).all() or not np.isfinite(atoms.cell).all():
         return 'non_finite_geometry'
+    # 1e-8 Å³ minimum cell volume rejects degenerate/coplanar periodic unit cells.
     if np.any(atoms.pbc) and (not np.all(atoms.pbc) or abs(atoms.cell.volume) < 1e-8):
         return 'invalid_periodic_cell'
     if len(atoms) > 1:
         distances = np.asarray(atoms.get_all_distances(mic=bool(np.all(atoms.pbc))))
         distances[np.eye(len(atoms), dtype=bool)] = np.inf
+        # 0.35 Å (< half the 0.74 Å H-H covalent bond) catches core-core atomic overlap.
         if float(distances.min()) < 0.35:
             return 'atomic_overlap'
     return None
@@ -131,6 +133,7 @@ def relax_with_record(
             best_force = force
             best_positions = atoms.positions.copy()
 
+    # Stage 1: standard quasi-Newton BFGS with 0.20 Å trust-radius cap per step.
     retain(
         _attempt(
             BFGS(atoms, logfile=None, maxstep=0.20), atoms, fmax, steps, 'bfgs_standard'
@@ -139,6 +142,9 @@ def relax_with_record(
 
     if recovery and not attempts[-1]['converged']:
         atoms.set_positions(initial_positions)
+        # Stage 2: damped FIRE (Bitzek et al., Phys. Rev. Lett. 97, 170201, 2006)
+        # with 0.05 Å maxstep to relieve stiff initial forces down to max(0.25, 3*fmax) eV/Å,
+        # followed by tight-trust-radius (0.08 Å) BFGS refinement.
         precondition = _attempt(
             FIRE(atoms, logfile=None, dt=0.05, dtmax=0.5, maxstep=0.05),
             atoms,
@@ -162,6 +168,8 @@ def relax_with_record(
 
     if recovery and not attempts[-1]['converged']:
         atoms.set_positions(best_positions)
+        # Stage 3: conservative small-step FIRE (maxstep=0.03 Å, downhill_check=True)
+        # for rugged non-convex GNN potential energy surfaces.
         retain(
             _attempt(
                 FIRE(

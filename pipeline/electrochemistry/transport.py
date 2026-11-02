@@ -42,6 +42,8 @@ def limiting_current_A(
     if electrons <= 0 or min(diffusivity_m2_s, concentration_mol_m3,
                               area_m2, boundary_layer_m) <= 0.0:
         raise ValueError('transport inputs must be positive')
+    # Fick's first law planar diffusion-limiting current: I_lim = n * F * D * C_bulk * A / δ,
+    # where F = 96485.33212 C/mol is Faraday's constant.
     return electrons * 96485.33212 * diffusivity_m2_s * concentration_mol_m3 \
         * area_m2 / boundary_layer_m
 
@@ -66,6 +68,8 @@ def concentration_overpotential_V(
     fraction = current_A / limiting_current_A_value
     if not 0.0 <= fraction < 1.0:
         raise ValueError('current must satisfy 0 <= I < I_lim')
+    # Nernstian mass-transfer overpotential: η_conc = (R*T / (n*F)) * ln(1 / (1 - I/I_lim)),
+    # with R = 8.314462618 J/(mol*K) and F = 96485.33212 C/mol.
     return 8.314462618 * temperature_K / (electrons * 96485.33212) * math.log(
         1.0 / (1.0 - fraction)
     )
