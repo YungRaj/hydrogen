@@ -188,11 +188,21 @@ def _candidate_record(
     )
 
 
-def _upsert_region(conn, cfg: ScanConfig, record: tuple) -> None:
+def _serialize_record(
+    record: tuple,
+) -> tuple[str, int, float, tuple, str, str, str]:
+    """Unpack a scan record and serialize its objectives and genome to compact JSON."""
     _, region, global_index, primary, objectives, genome = record
     cid = candidate_id(genome)
     obj_json = json.dumps([float(x) for x in objectives], separators=(",", ":"))
     genome_json = json.dumps(genome, separators=(",", ":"))
+    return region, global_index, primary, objectives, cid, obj_json, genome_json
+
+
+def _upsert_region(conn, cfg: ScanConfig, record: tuple) -> None:
+    region, global_index, primary, _, cid, obj_json, genome_json = _serialize_record(
+        record
+    )
     conn.execute(
         """
         INSERT INTO region_champions VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -207,10 +217,9 @@ def _upsert_region(conn, cfg: ScanConfig, record: tuple) -> None:
 
 
 def _upsert_global(conn, cfg: ScanConfig, record: tuple) -> None:
-    _, _, global_index, primary, objectives, genome = record
-    cid = candidate_id(genome)
-    obj_json = json.dumps([float(x) for x in objectives], separators=(",", ":"))
-    genome_json = json.dumps(genome, separators=(",", ":"))
+    _, global_index, primary, _, cid, obj_json, genome_json = _serialize_record(
+        record
+    )
     conn.execute(
         """
         INSERT INTO global_archive VALUES (?, ?, ?, ?, ?, ?)
@@ -226,11 +235,10 @@ def _upsert_global(conn, cfg: ScanConfig, record: tuple) -> None:
 def _upsert_objective(
     conn, cfg: ScanConfig, record: tuple, objective_index: int, regional: bool
 ) -> None:
-    _, region, global_index, _, objectives, genome = record
-    cid = candidate_id(genome)
+    region, global_index, _, objectives, cid, obj_json, genome_json = _serialize_record(
+        record
+    )
     score = float(objectives[objective_index])
-    obj_json = json.dumps([float(x) for x in objectives], separators=(",", ":"))
-    genome_json = json.dumps(genome, separators=(",", ":"))
     if regional:
         conn.execute(
             """INSERT INTO regional_objective_champions VALUES (?, ?, ?, ?, ?, ?, ?, ?)

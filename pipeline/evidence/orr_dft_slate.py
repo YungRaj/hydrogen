@@ -134,9 +134,9 @@ def build_slate(output: Path = OUTPUT) -> Path:
         'source_sha256': source_hashes,
         'records': records,
     }
-    digest = hashlib.sha256(
-        json.dumps(body, sort_keys=True, separators=(',', ':')).encode()
-    ).hexdigest()
+    from pipeline.io.hashing import canonical_json_sha256
+
+    digest = canonical_json_sha256(body)
     write_atomic_json(output, {'schema_version': 1, **body, 'slate_sha256': digest})
     return output
 
@@ -150,12 +150,12 @@ def verify_slate(path: Path = OUTPUT) -> bool:
     Returns:
         True only when the content digest and every evidence source match.
     """
+    from pipeline.io.hashing import canonical_json_sha256
+
     document = json.loads(path.read_text())
     digest = document.pop('slate_sha256')
     document.pop('schema_version')
-    actual = hashlib.sha256(
-        json.dumps(document, sort_keys=True, separators=(',', ':')).encode()
-    ).hexdigest()
+    actual = canonical_json_sha256(document)
     return digest == actual and all(
         Path(source).is_file() and file_sha256(Path(source)) == expected
         for source, expected in document['source_sha256'].items()

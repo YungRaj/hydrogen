@@ -487,6 +487,58 @@ def _predict_secondary_ensemble(
     return mean, std
 
 
+def _predict_primary_and_encoded(
+    genomes: Sequence[tuple], ranker: Any, uncertainty: bool
+) -> tuple[np.ndarray, np.ndarray, np.ndarray | None]:
+    """Predict primary objective mean/std and pre-encode population if secondary models exist."""
+    n = len(genomes)
+    primary_mean, primary_std = ranker.predict(genomes, uncertainty=uncertainty)
+    primary_mean = np.asarray(primary_mean, dtype=float).reshape(n)
+    primary_std = (
+        np.asarray(primary_std, dtype=float).reshape(n)
+        if uncertainty
+        else np.zeros(n, dtype=float)
+    )
+    secondary_models = getattr(ranker, 'secondary_models', None) or {}
+    encoded = (
+        np.asarray(encode_population(genomes), dtype=np.float32, order='C')
+        if secondary_models
+        else None
+    )
+    return primary_mean, primary_std, encoded
+
+
+def _predict_secondary_with_fallback(
+    genomes: Sequence[tuple],
+    ranker: Any,
+    target_name: str,
+    fallback_fn,
+    primary_std: np.ndarray,
+    *,
+    uncertainty: bool,
+    encoded: np.ndarray | None,
+    gate_application: str | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Predict a secondary objective ensemble or fallback proxy, with optional hull gate."""
+    pred = _predict_secondary_ensemble(
+        genomes, ranker, target_name, uncertainty=uncertainty, encoded=encoded
+    )
+    if pred is not None:
+        mean, std = pred
+    else:
+        mean = fallback_fn()
+        std = (
+            0.5 * primary_std
+            if uncertainty
+            else np.zeros(len(genomes), dtype=float)
+        )
+    if gate_application is not None:
+        for i, genome in enumerate(genomes):
+            gate = operating_stability_and_hull_gate(genome, gate_application)
+            mean[i] += gate['penalty_eV']
+    return mean, std
+
+
 def build_turquoise_objectives(
     genomes: Sequence[tuple],
     ranker: Any,
@@ -509,51 +561,28 @@ def build_turquoise_objectives(
         empty = np.zeros((0, len(TURQUOISE_OBJECTIVES)), dtype=float)
         return empty, empty.copy()
 
-    primary_mean, primary_std = ranker.predict(genomes, uncertainty=uncertainty)
-    primary_mean = np.asarray(primary_mean, dtype=float).reshape(n)
-    primary_std = (
-        np.asarray(primary_std, dtype=float).reshape(n)
-        if uncertainty
-        else np.zeros(n, dtype=float)
+    primary_mean, primary_std, encoded = _predict_primary_and_encoded(
+        genomes, ranker, uncertainty
     )
-
-    secondary_models = getattr(ranker, 'secondary_models', None) or {}
-    encoded = (
-        np.asarray(encode_population(genomes), dtype=np.float32, order='C')
-        if secondary_models
-        else None
-    )
-
-    coking_pred = _predict_secondary_ensemble(
+    coking_mean, coking_std = _predict_secondary_with_fallback(
         genomes,
         ranker,
         'coking_susceptibility_eV',
+        lambda: _coking_susceptibility_proxy(genomes),
+        primary_std,
         uncertainty=uncertainty,
         encoded=encoded,
     )
-    if coking_pred is not None:
-        coking_mean, coking_std = coking_pred
-    else:
-        coking_mean = _coking_susceptibility_proxy(genomes)
-        coking_std = 0.5 * primary_std if uncertainty else np.zeros(n, dtype=float)
-
-    desorp_pred = _predict_secondary_ensemble(
+    desorp_mean, desorp_std = _predict_secondary_with_fallback(
         genomes,
         ranker,
         'desorption_overbinding_penalty_eV',
+        lambda: _desorption_overbinding_proxy(genomes, primary_mean),
+        primary_std,
         uncertainty=uncertainty,
         encoded=encoded,
+        gate_application='turquoise_hydrogen',
     )
-    if desorp_pred is not None:
-        desorp_mean, desorp_std = desorp_pred
-    else:
-        desorp_mean = _desorption_overbinding_proxy(genomes, primary_mean)
-        desorp_std = 0.5 * primary_std if uncertainty else np.zeros(n, dtype=float)
-
-    for i, genome in enumerate(genomes):
-        gate = operating_stability_and_hull_gate(genome, 'turquoise_hydrogen')
-        desorp_mean[i] += gate['penalty_eV']
-
     costs = np.asarray(
         [-abundance_cost_penalty(extract_elements(genome)) for genome in genomes],
         dtype=float,
@@ -593,43 +622,24 @@ def build_orr_objectives(
         empty = np.zeros((0, len(ORR_OBJECTIVES)), dtype=float)
         return empty, empty.copy()
 
-    primary_mean, primary_std = ranker.predict(genomes, uncertainty=uncertainty)
-    primary_mean = np.asarray(primary_mean, dtype=float).reshape(n)
-    primary_std = (
-        np.asarray(primary_std, dtype=float).reshape(n)
-        if uncertainty
-        else np.zeros(n, dtype=float)
+    primary_mean, primary_std, encoded = _predict_primary_and_encoded(
+        genomes, ranker, uncertainty
     )
-
-    secondary_models = getattr(ranker, 'secondary_models', None) or {}
-    encoded = (
-        np.asarray(encode_population(genomes), dtype=np.float32, order='C')
-        if secondary_models
-        else None
-    )
-
     fenton = np.asarray([-_fenton_from_genome(g) for g in genomes], dtype=float)
     fenton_std = np.zeros(n, dtype=float)
-
     costs = np.asarray([_cost_from_genome(g) for g in genomes], dtype=float)
     cost_std = np.zeros(n, dtype=float)
 
-    oxide_pred = _predict_secondary_ensemble(
+    oxide_mean, oxide_std = _predict_secondary_with_fallback(
         genomes,
         ranker,
         'oxide_overbinding_penalty_eV',
+        lambda: _oxide_overbinding_proxy(genomes, primary_mean),
+        primary_std,
         uncertainty=uncertainty,
         encoded=encoded,
+        gate_application='fuel_cell_orr',
     )
-    if oxide_pred is not None:
-        oxide_mean, oxide_std = oxide_pred
-    else:
-        oxide_mean = _oxide_overbinding_proxy(genomes, primary_mean)
-        oxide_std = 0.5 * primary_std if uncertainty else np.zeros(n, dtype=float)
-
-    for i, genome in enumerate(genomes):
-        gate = operating_stability_and_hull_gate(genome, 'fuel_cell_orr')
-        oxide_mean[i] += gate['penalty_eV']
 
     means = np.column_stack([primary_mean, fenton, costs, oxide_mean])
     stds = np.column_stack([primary_std, fenton_std, cost_std, oxide_std])

@@ -93,6 +93,47 @@ ATOMIC_MASSES_QE = {
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+def _prepare_qe_species_and_atoms(
+    elements: List[str],
+    positions: List[Tuple],
+    ecutwfc: float,
+    *,
+    trailing_newline: bool = True,
+) -> tuple[dict, str, float, list[str], str, str]:
+    """Verify SSSP pseudopotentials and format QE ATOMIC_SPECIES and ATOMIC_POSITIONS blocks."""
+    from pipeline.validation.qe_workflows import SSSP_DIR, verify_sssp
+
+    sssp = verify_sssp(elements)
+    if not sssp['valid']:
+        raise RuntimeError(f"SSSP verification failed: {sssp['errors']}")
+    ecutwfc_resolved = max(float(ecutwfc), sssp['ecutwfc_Ry'])
+    unique_elements = sorted(set(elements))
+    suffix = '\n' if trailing_newline else ''
+    species_block = (
+        '\n'.join(
+            f"  {elem}  {ATOMIC_MASSES_QE.get(elem, 50.0):.3f}  "
+            f"{sssp['records'][elem]['filename']}"
+            for elem in unique_elements
+        )
+        + suffix
+    )
+    atoms_block = (
+        '\n'.join(
+            f"  {elem}  {pos[0]:.10f}  {pos[1]:.10f}  {pos[2]:.10f}"
+            for elem, pos in zip(elements, positions)
+        )
+        + suffix
+    )
+    return (
+        sssp,
+        str(SSSP_DIR),
+        ecutwfc_resolved,
+        unique_elements,
+        species_block,
+        atoms_block,
+    )
+
+
 def generate_bulk_scf_input(
     elements: List[str],
     positions_frac: List[Tuple],
@@ -119,32 +160,23 @@ def generate_bulk_scf_input(
         Computed `str` result.
     """
     nat = len(positions_frac)
-    ntyp = len(set(elements))
     kshift = tuple(0 if mesh == 1 else 1 for mesh in kpoints)
-
-    from pipeline.validation.qe_workflows import verify_sssp, SSSP_DIR
-
-    sssp = verify_sssp(elements)
-    if not sssp['valid']:
-        raise RuntimeError(f"SSSP verification failed: {sssp['errors']}")
-    ecutwfc = max(float(ecutwfc), sssp['ecutwfc_Ry'])
+    (
+        sssp,
+        sssp_dir,
+        ecutwfc,
+        unique_elements,
+        species_block,
+        atoms_block,
+    ) = _prepare_qe_species_and_atoms(elements, positions_frac, ecutwfc)
+    ntyp = len(unique_elements)
     ecutrho = max(float(ecutrho), sssp['ecutrho_Ry'])
-    species_block = ""
-    unique_elements = sorted(set(elements))
-    for elem in unique_elements:
-        pseudo = sssp['records'][elem]['filename']
-        mass = ATOMIC_MASSES_QE.get(elem, 50.0)
-        species_block += f"  {elem}  {mass:.3f}  {pseudo}\n"
 
-    atoms_block = ""
-    for elem, pos in zip(elements, positions_frac):
-        atoms_block += f"  {elem}  {pos[0]:.10f}  {pos[1]:.10f}  {pos[2]:.10f}\n"
-
-    input_text = f"""&CONTROL
+    return f"""&CONTROL
   calculation = 'scf'
   prefix = '{calc_name}'
   outdir = './tmp'
-  pseudo_dir = '{SSSP_DIR}'
+  pseudo_dir = '{sssp_dir}'
   tprnfor = .true.
   tstress = .true.
   verbosity = 'high'
@@ -172,7 +204,6 @@ ATOMIC_POSITIONS {{crystal}}
 K_POINTS {{automatic}}
   {kpoints[0]} {kpoints[1]} {kpoints[2]}  {kshift[0]} {kshift[1]} {kshift[2]}
 """
-    return input_text
 
 
 def generate_slab_scf_input(
@@ -197,22 +228,17 @@ def generate_slab_scf_input(
         Computed `str` result.
     """
     nat = len(positions_ang)
-    ntyp = len(set(elements))
     kshift = tuple(0 if mesh == 1 else 1 for mesh in kpoints)
-
-    from pipeline.validation.qe_workflows import verify_sssp, SSSP_DIR
-
-    sssp = verify_sssp(elements)
-    if not sssp['valid']:
-        raise RuntimeError(f"SSSP verification failed: {sssp['errors']}")
-    ecutwfc = max(float(ecutwfc), sssp['ecutwfc_Ry'])
+    (
+        sssp,
+        sssp_dir,
+        ecutwfc,
+        unique_elements,
+        species_block,
+        atoms_block,
+    ) = _prepare_qe_species_and_atoms(elements, positions_ang, ecutwfc)
+    ntyp = len(unique_elements)
     ecutrho = sssp['ecutrho_Ry']
-    species_block = ""
-    unique_elements = sorted(set(elements))
-    for elem in unique_elements:
-        pseudo = sssp['records'][elem]['filename']
-        mass = ATOMIC_MASSES_QE.get(elem, 50.0)
-        species_block += f"  {elem}  {mass:.3f}  {pseudo}\n"
 
     # Quantum ESPRESSO rejects spin-polarized calculations unless at least one
     # species has a non-zero starting magnetization.  Use a conservative seed
@@ -222,20 +248,15 @@ def generate_slab_scf_input(
         f"  starting_magnetization({index}) = 0.05"
         for index, _ in enumerate(unique_elements, start=1)
     )
+    cell_block = "".join(
+        f"  {row[0]:.10f}  {row[1]:.10f}  {row[2]:.10f}\n" for row in cell_params
+    )
 
-    atoms_block = ""
-    for elem, pos in zip(elements, positions_ang):
-        atoms_block += f"  {elem}  {pos[0]:.10f}  {pos[1]:.10f}  {pos[2]:.10f}\n"
-
-    cell_block = ""
-    for row in cell_params:
-        cell_block += f"  {row[0]:.10f}  {row[1]:.10f}  {row[2]:.10f}\n"
-
-    input_text = f"""&CONTROL
+    return f"""&CONTROL
   calculation = 'relax'
   prefix = '{calc_name}'
   outdir = './tmp'
-  pseudo_dir = '{SSSP_DIR}'
+  pseudo_dir = '{sssp_dir}'
   tprnfor = .true.
   forc_conv_thr = 1.0d-3
 /
@@ -268,7 +289,6 @@ ATOMIC_POSITIONS {{angstrom}}
 K_POINTS {{automatic}}
   {kpoints[0]} {kpoints[1]} {kpoints[2]}  {kshift[0]} {kshift[1]} {kshift[2]}
 """
-    return input_text
 
 
 def generate_molecule_input(
@@ -305,21 +325,15 @@ def generate_molecule_input(
     if cell_size_ang <= 0:
         raise ValueError('molecular cell must be positive')
 
-    from pipeline.validation.qe_workflows import verify_sssp, SSSP_DIR
-
-    sssp = verify_sssp(elements)
-    if not sssp['valid']:
-        raise RuntimeError(f"SSSP verification failed: {sssp['errors']}")
-    ecutwfc = max(float(ecutwfc), sssp['ecutwfc_Ry'])
-    unique_elements = sorted(set(elements))
-    species_block = '\n'.join(
-        f"  {element}  {ATOMIC_MASSES_QE.get(element, 50.0):.3f}  "
-        f"{sssp['records'][element]['filename']}"
-        for element in unique_elements
-    )
-    atoms_block = '\n'.join(
-        f"  {element}  {position[0]:.10f}  {position[1]:.10f}  {position[2]:.10f}"
-        for element, position in zip(elements, positions_ang)
+    (
+        sssp,
+        sssp_dir,
+        ecutwfc,
+        unique_elements,
+        species_block,
+        atoms_block,
+    ) = _prepare_qe_species_and_atoms(
+        elements, positions_ang, ecutwfc, trailing_newline=False
     )
     ions = "\n&IONS\n  ion_dynamics = 'bfgs'\n/" if calculation == 'relax' else ''
 
@@ -327,7 +341,7 @@ def generate_molecule_input(
   calculation = '{calculation}'
   prefix = '{calc_name}'
   outdir = './tmp'
-  pseudo_dir = '{SSSP_DIR}'
+  pseudo_dir = '{sssp_dir}'
   tprnfor = .true.
   forc_conv_thr = 1.0d-3
 /

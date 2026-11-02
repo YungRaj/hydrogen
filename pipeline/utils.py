@@ -301,11 +301,6 @@ def print_banner(title: str, width: int = 80):
     print("=" * width)
 
 
-# ─── Genome Hashing & Serialization ─────────────────────────────────────────────
-
-
-
-
 def abundance_cost_penalty(elements: List[str]) -> float:
     """
         Compute a log-scaled cost penalty based on crustal abundance.

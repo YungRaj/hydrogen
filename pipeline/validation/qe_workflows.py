@@ -265,6 +265,29 @@ def verify_sssp(elements, directory=SSSP_DIR, manifest=SSSP_MANIFEST) -> dict:
     }
 
 
+def _prepare_qe_structure_blocks(
+    atoms: Atoms, *, species_prefix: str = ''
+) -> tuple[list[str], dict, str, str, str]:
+    elements = sorted(set(atoms.get_chemical_symbols()))
+    verified = verify_sssp(elements)
+    if not verified['valid']:
+        raise RuntimeError(f'SSSP verification failed: {verified["errors"]}')
+    records = verified['records']
+    species = '\n'.join(
+        f"{species_prefix}{element} 1.0 {records[element]['filename']}"
+        for element in elements
+    )
+    magnetic = {'Fe', 'Co', 'Ni', 'Mn', 'Cr', 'V', 'Gd', 'Ce', 'Eu'}
+    magnetization = '\n'.join(
+        f" starting_magnetization({i})={0.5 if element in magnetic else 0.05}"
+        for i, element in enumerate(elements, 1)
+    )
+    cell = '\n'.join(
+        ' '.join(f'{value:.12f}' for value in row) for row in atoms.cell.array
+    )
+    return elements, verified, species, magnetization, cell
+
+
 def write_qe_neb_input(
     images: list[Atoms],
     path: str,
@@ -292,14 +315,8 @@ def write_qe_neb_input(
         if config.restart_mode == 'from_scratch' and config.precondition_equal_arc
         else [image.copy() for image in images]
     )
-    elements = sorted(set(engine_images[0].get_chemical_symbols()))
-    verified = verify_sssp(elements)
-    if not verified['valid']:
-        raise RuntimeError(f'SSSP verification failed: {verified["errors"]}')
-    records = verified['records']
-    species = '\n'.join(f" {e} 1.0 {records[e]['filename']}" for e in elements)
-    cell = '\n'.join(
-        ' '.join(f'{v:.12f}' for v in row) for row in engine_images[0].cell.array
+    elements, verified, species, magnetization, cell = _prepare_qe_structure_blocks(
+        engine_images[0], species_prefix=' '
     )
     positions = []
     for number, image in enumerate(engine_images):
@@ -316,11 +333,6 @@ def write_qe_neb_input(
             f'{tag}\nATOMIC_POSITIONS angstrom\n'
             + _qe_positions(image, freeze_all=config.freeze_all_atoms)
         )
-    magnetic = {'Fe', 'Co', 'Ni', 'Mn', 'Cr', 'V', 'Gd', 'Ce', 'Eu'}
-    magnetization = '\n'.join(
-        f" starting_magnetization({i})={0.5 if element in magnetic else 0.05}"
-        for i, element in enumerate(elements, 1)
-    )
     spin_constraint = (
         ''
         if config.total_magnetization is None
@@ -411,26 +423,13 @@ def prepare_neb_image_scfs(
         for image in images
     ):
         raise ValueError('NEB images must have identical atom ordering')
-    elements = sorted(set(images[0].get_chemical_symbols()))
-    verified = verify_sssp(elements)
-    if not verified['valid']:
-        raise RuntimeError(f'SSSP verification failed: {verified["errors"]}')
-    records = verified['records']
-    species = '\n'.join(
-        f" {element} 1.0 {records[element]['filename']}" for element in elements
-    )
-    magnetic = {'Fe', 'Co', 'Ni', 'Mn', 'Cr', 'V', 'Gd', 'Ce', 'Eu'}
-    magnetization = '\n'.join(
-        f" starting_magnetization({index})=" f"{0.5 if element in magnetic else 0.05}"
-        for index, element in enumerate(elements, 1)
+    elements, verified, species, magnetization, cell = _prepare_qe_structure_blocks(
+        images[0], species_prefix=' '
     )
     spin_constraint = (
         ''
         if config.total_magnetization is None
         else f'\n tot_magnetization={config.total_magnetization}'
-    )
-    cell = '\n'.join(
-        ' '.join(f'{value:.12f}' for value in row) for row in images[0].cell.array
     )
     root = Path(directory)
     root.mkdir(parents=True, exist_ok=True)
@@ -646,19 +645,7 @@ def write_qe_relax_input(
     Returns:
         Dictionary containing the computed values, status, and supporting metadata.
     """
-    elements = sorted(set(atoms.get_chemical_symbols()))
-    verified = verify_sssp(elements)
-    if not verified['valid']:
-        raise RuntimeError(f'SSSP verification failed: {verified["errors"]}')
-    species = '\n'.join(
-        f"{e} 1.0 {verified['records'][e]['filename']}" for e in elements
-    )
-    magnetic = {'Fe', 'Co', 'Ni', 'Mn', 'Cr', 'V', 'Gd', 'Ce', 'Eu'}
-    mags = '\n'.join(
-        f" starting_magnetization({i})={0.5 if e in magnetic else 0.05}"
-        for i, e in enumerate(elements, 1)
-    )
-    cell = '\n'.join(' '.join(f'{v:.12f}' for v in row) for row in atoms.cell.array)
+    elements, verified, species, mags, cell = _prepare_qe_structure_blocks(atoms)
     positions = _qe_positions(atoms)
     text = f"""&CONTROL
  calculation='relax', prefix='{prefix}', pseudo_dir='{SSSP_DIR}', outdir='./tmp',
@@ -704,22 +691,7 @@ def write_qe_force_input(
     Returns:
         Dictionary containing the computed values, status, and supporting metadata.
     """
-    elements = sorted(set(atoms.get_chemical_symbols()))
-    verified = verify_sssp(elements)
-    if not verified['valid']:
-        raise RuntimeError(f'SSSP verification failed: {verified["errors"]}')
-    species = '\n'.join(
-        f"{element} 1.0 {verified['records'][element]['filename']}"
-        for element in elements
-    )
-    magnetic = {'Fe', 'Co', 'Ni', 'Mn', 'Cr', 'V', 'Gd', 'Ce', 'Eu'}
-    mags = '\n'.join(
-        f" starting_magnetization({i})={0.5 if element in magnetic else 0.05}"
-        for i, element in enumerate(elements, 1)
-    )
-    cell = '\n'.join(
-        ' '.join(f'{value:.12f}' for value in row) for row in atoms.cell.array
-    )
+    elements, verified, species, mags, cell = _prepare_qe_structure_blocks(atoms)
     positions = _qe_positions(atoms, include_constraints=False)
     text = f"""&CONTROL
  calculation='scf', prefix='{prefix}', pseudo_dir='{SSSP_DIR}', outdir='./tmp',

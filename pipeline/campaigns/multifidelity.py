@@ -129,11 +129,12 @@ def _metric(query: Mapping, name: str, default: float = 0.0) -> float:
 
 
 def _mapping_sha256(value: Mapping) -> str:
+    from pipeline.io.hashing import canonical_json_sha256
+
     try:
-        encoded = json.dumps(value, sort_keys=True, separators=(',', ':')).encode()
+        return canonical_json_sha256(value)
     except (TypeError, ValueError) as exc:
         raise ValueError('campaign inputs must be JSON serializable') from exc
-    return hashlib.sha256(encoded).hexdigest()
 
 
 def run_multifidelity_iteration(

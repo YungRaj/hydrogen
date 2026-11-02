@@ -124,8 +124,9 @@ def build_diagnostic(output: Path = OUTPUT) -> Path:
         'censored_binding_strength': dict(censored_binding.most_common()),
         'source_sha256': sources,
     }
-    body = json.dumps(report, sort_keys=True, separators=(',', ':')).encode()
-    report['diagnostic_sha256'] = hashlib.sha256(body).hexdigest()
+    from pipeline.io.hashing import canonical_json_sha256
+
+    report['diagnostic_sha256'] = canonical_json_sha256(report)
     write_atomic_json(output, report)
     return output
 
@@ -139,11 +140,11 @@ def verify_diagnostic(path: Path = OUTPUT) -> bool:
     Returns:
         True only when the diagnostic and all evidence inputs are unchanged.
     """
+    from pipeline.io.hashing import canonical_json_sha256
+
     report = json.loads(path.read_text())
     expected = report.pop('diagnostic_sha256')
-    actual = hashlib.sha256(
-        json.dumps(report, sort_keys=True, separators=(',', ':')).encode()
-    ).hexdigest()
+    actual = canonical_json_sha256(report)
     return expected == actual and all(
         Path(source).is_file() and file_sha256(Path(source)) == digest
         for source, digest in report['source_sha256'].items()

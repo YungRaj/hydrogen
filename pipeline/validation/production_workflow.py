@@ -39,10 +39,7 @@ PYROLYSIS_ELEMENTARY_STEPS = {
 }
 
 
-def _manifest_digest(payload: dict) -> str:
-    return hashlib.sha256(
-        json.dumps(payload, sort_keys=True, separators=(',', ':')).encode()
-    ).hexdigest()
+from pipeline.io.hashing import canonical_json_sha256 as _manifest_digest
 
 
 def _pw_execution(execution: QEExecutionConfig | None) -> QEExecutionConfig | None:
@@ -57,11 +54,12 @@ def _pw_execution(execution: QEExecutionConfig | None) -> QEExecutionConfig | No
     )
 
 
-def qe_output_status(path: str | Path) -> str:
+def qe_output_status(path: str | Path, *, require_ionic: bool = True) -> str:
     """Classify an output without mistaking a partial energy for evidence.
 
     Args:
         path: Filesystem path to the input or output artifact.
+        require_ionic: Whether ionic BFGS convergence is required in addition to SCF.
 
     Returns:
         Computed `str` result.
@@ -72,7 +70,7 @@ def qe_output_status(path: str | Path) -> str:
     text = target.read_text(errors='replace').lower()
     if 'error in routine' in text or 'convergence not achieved' in text:
         return 'failed'
-    if parse_convergence(str(target), require_ionic=True):
+    if parse_convergence(str(target), require_ionic=require_ionic):
         return 'converged' if 'gpu acceleration is active' in text else 'failed'
     return 'incomplete'
 
@@ -86,15 +84,7 @@ def qe_scf_output_status(path: str | Path) -> str:
     Returns:
         Computed `str` result.
     """
-    target = Path(path)
-    if not target.exists() or target.stat().st_size == 0:
-        return 'missing'
-    text = target.read_text(errors='replace').lower()
-    if 'error in routine' in text or 'convergence not achieved' in text:
-        return 'failed'
-    if parse_convergence(str(target)):
-        return 'converged' if 'gpu acceleration is active' in text else 'failed'
-    return 'incomplete'
+    return qe_output_status(path, require_ionic=False)
 
 
 def orr_campaign_status(calc_dir: str | Path, catalyst_name: str) -> dict:

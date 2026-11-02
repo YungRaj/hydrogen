@@ -397,10 +397,10 @@ def dataset_digest(document: dict[str, Any]) -> str:
     Returns:
         Lowercase SHA-256 digest of canonical JSON content.
     """
+    from pipeline.io.hashing import canonical_json_sha256
+
     body = {key: value for key, value in document.items() if key != 'dataset_sha256'}
-    return hashlib.sha256(
-        json.dumps(body, sort_keys=True, separators=(',', ':')).encode()
-    ).hexdigest()
+    return canonical_json_sha256(body)
 
 
 def validate_benchmark(document: dict[str, Any], require_locked: bool = True) -> list[str]:
