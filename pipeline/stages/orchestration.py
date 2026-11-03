@@ -238,12 +238,12 @@ def default_pipeline_components() -> PipelineComponents:
         Computed `PipelineComponents` result.
     """
     from pipeline.stages.candidate_io import load_selected_candidates
-    from pipeline.stages.dft import run_dft_stage  # pyright: ignore[reportUnknownVariableType]
+    from pipeline.stages.dft import run_dft_stage
     from pipeline.stages.discovery import run_discovery_stage
     from pipeline.stages.fuel_cell import run_fuel_cell_stage
     from pipeline.stages.reactor_batch import run_reactor_batch_stage  # pyright: ignore[reportUnknownVariableType]
-    from pipeline.stages.report import run_report_stage  # pyright: ignore[reportUnknownVariableType]
-    from pipeline.stages.vqe import run_vqe_stage  # pyright: ignore[reportUnknownVariableType]
+    from pipeline.stages.report import run_report_stage
+    from pipeline.stages.vqe import run_vqe_stage
     return PipelineComponents(
         discovery=cast(DiscoveryStage, run_discovery_stage),
         reactor_batch=cast(ReactorBatchStage, run_reactor_batch_stage),

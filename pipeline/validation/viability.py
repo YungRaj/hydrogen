@@ -5,9 +5,12 @@ Missing evidence is UNKNOWN and may not be treated as a pass or used to prune a
 branch. Values use fractions rather than percentages unless noted.
 """
 
-from dataclasses import dataclass, asdict
-from typing import Mapping
+from __future__ import annotations
+
+from collections.abc import Mapping, Sequence
+from dataclasses import asdict, dataclass
 import math
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -24,16 +27,16 @@ class TurquoiseHydrogenBounds:
         max_net_energy_kWh_kg_h2: Configured max net energy kWh kg h2 value.
     """
 
-    min_temperature_K: float = 700.0
-    max_temperature_K: float = 1300.0
+    min_temperature_K: float = 700.0  # Lower kinetic floor for methane pyrolysis [K]
+    max_temperature_K: float = 1300.0  # Upper reactor alloy/refractory wall ceiling [K]
     # Legacy field name: gated quantity is an H-atom balance / reported metric,
     # not true branching H2 selectivity from competing C2 pathways.
-    min_h2_selectivity: float = 0.95
+    min_h2_selectivity: float = 0.95  # Minimum H-atom balance to gas-phase H2 [-]
     enforce_h2_selectivity_gate: bool = False
-    min_ch4_conversion: float = 0.70
-    max_deactivation_fraction_per_h: float = 0.01
-    max_coke_fraction: float = 0.05
-    max_net_energy_kWh_kg_h2: float = 15.0
+    min_ch4_conversion: float = 0.70  # Target industrial single-pass CH4 conversion [-]
+    max_deactivation_fraction_per_h: float = 0.01  # Maximum acceptable activity loss rate [h^-1]
+    max_coke_fraction: float = 0.05  # Maximum non-harvestable fouling carbon fraction [-]
+    max_net_energy_kWh_kg_h2: float = 15.0  # Maximum net thermal/electrical input [kWh/kg H2]
     reject_co2_permitted_runs: bool = True
 
 
@@ -49,29 +52,30 @@ class FuelCellBounds:
         min_measured_hours: Configured min measured hours value.
     """
 
-    max_orr_overpotential_V: float = 0.40
-    min_peak_power_W_cm2: float = 1.00
-    min_system_efficiency: float = 0.40
-    max_voltage_degradation_uV_h: float = 10.0
-    min_measured_hours: float = 100.0
+    max_orr_overpotential_V: float = 0.40  # Maximum cathode ORR kinetic overpotential [V]
+    min_peak_power_W_cm2: float = 1.00  # Minimum MEA peak power density [W/cm^2] (US DOE target)
+    min_system_efficiency: float = 0.40  # Minimum net stack/system LHV efficiency [-]
+    max_voltage_degradation_uV_h: float = 10.0  # Maximum voltage decay rate [uV/h]
+    min_measured_hours: float = 100.0  # Minimum accelerated durability test duration [h]
 
 
-def _number(record: Mapping, names):
+def _number(record: Mapping[str, Any], names: Sequence[str]) -> float | None:
     for name in names:
         value = record.get(name)
         if value is not None:
             try:
-                value = float(value)
-                if math.isfinite(value):
-                    return value
+                num = float(value)
+                if math.isfinite(num):
+                    return num
             except (TypeError, ValueError):
                 pass
     return None
 
 
 def evaluate_turquoise(
-    record: Mapping, bounds: TurquoiseHydrogenBounds = TurquoiseHydrogenBounds()
-) -> dict:
+    record: Mapping[str, Any],
+    bounds: TurquoiseHydrogenBounds = TurquoiseHydrogenBounds(),
+) -> dict[str, Any]:
     """Evaluate measured turquoise-hydrogen performance against viability bounds.
 
     Args:
@@ -81,14 +85,22 @@ def evaluate_turquoise(
     Returns:
         A dictionary containing evaluate turquoise outputs, status, and supporting metadata.
     """
-    checks = {
+    checks: dict[str, tuple[float | None, float | None, float | None]] = {
         'temperature': (
             _number(record, ('temperature_K', 'T_K', 'temperature')),
             bounds.min_temperature_K,
             bounds.max_temperature_K,
         ),
         'ch4_conversion': (
-            _number(record, ('CH4_conversion', 'ch4_conversion')),
+            _number(
+                record,
+                (
+                    'CH4_conversion',
+                    'ch4_conversion',
+                    'single_pass_CH4_conversion',
+                    'cycle_averaged_CH4_conversion',
+                ),
+            ),
             bounds.min_ch4_conversion,
             None,
         ),
@@ -98,12 +110,12 @@ def evaluate_turquoise(
             bounds.max_deactivation_fraction_per_h,
         ),
         'coke': (
-            _number(record, ('coke_fraction', 'coke_deposition_fraction')),
+            _number(record, ('coke_fraction', 'coke_deposition_fraction', 'coke_selectivity')),
             None,
             bounds.max_coke_fraction,
         ),
         'net_energy': (
-            _number(record, ('net_energy_kWh_kg_h2',)),
+            _number(record, ('net_energy_kWh_kg_h2', 'specific_energy_kWh_kg_H2')),
             None,
             bounds.max_net_energy_kWh_kg_h2,
         ),
@@ -123,8 +135,9 @@ def evaluate_turquoise(
 
 
 def evaluate_fuel_cell(
-    record: Mapping, bounds: FuelCellBounds = FuelCellBounds()
-) -> dict:
+    record: Mapping[str, Any],
+    bounds: FuelCellBounds = FuelCellBounds(),
+) -> dict[str, Any]:
     """Evaluate measured fuel-cell performance against viability bounds.
 
     Args:
@@ -134,7 +147,7 @@ def evaluate_fuel_cell(
     Returns:
         A dictionary containing evaluate fuel cell outputs, status, and supporting metadata.
     """
-    checks = {
+    checks: dict[str, tuple[float | None, float | None, float | None]] = {
         'orr_overpotential': (
             _number(record, ('orr_overpotential_V', 'orr_overpotential')),
             None,
@@ -156,7 +169,7 @@ def evaluate_fuel_cell(
             bounds.max_voltage_degradation_uV_h,
         ),
         'measured_hours': (
-            _number(record, ('measured_hours',)),
+            _number(record, ('measured_hours', 'durability_hours')),
             bounds.min_measured_hours,
             None,
         ),
@@ -165,8 +178,13 @@ def evaluate_fuel_cell(
     return _evaluate(checks, asdict(bounds))
 
 
-def _evaluate(checks, bounds):
-    failed, missing, observed = [], [], {}
+def _evaluate(
+    checks: Mapping[str, tuple[float | None, float | None, float | None]],
+    bounds: dict[str, Any],
+) -> dict[str, Any]:
+    failed: list[str] = []
+    missing: list[str] = []
+    observed: dict[str, float] = {}
     for name, (value, minimum, maximum) in checks.items():
         if value is None:
             missing.append(name)

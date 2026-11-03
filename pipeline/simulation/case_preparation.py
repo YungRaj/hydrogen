@@ -5,13 +5,14 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from typing import Any
 
-from pipeline.simulation.result_contract import mode_preflight
 from pipeline.reactors.modes import reactor_types_for_mode
 from pipeline.simulation.physical_case import case_template, load_physical_case
+from pipeline.simulation.result_contract import mode_preflight
 
 
-def prepare_manifest(manifest_path: str | Path, *, create: bool = False) -> dict:
+def prepare_manifest(manifest_path: str | Path, *, create: bool = False) -> dict[str, Any]:
     """Prepare case directories and summarize their solver readiness.
 
     Args:
@@ -24,7 +25,7 @@ def prepare_manifest(manifest_path: str | Path, *, create: bool = False) -> dict
     manifest_file = Path(manifest_path).expanduser().resolve()
     manifest = json.loads(manifest_file.read_text())
     entries = manifest.get('cases', [])
-    results = []
+    results: list[dict[str, Any]] = []
     for entry in entries:
         candidate = str(entry['candidate_id'])
         mode = str(entry['mode'])
@@ -40,7 +41,7 @@ def prepare_manifest(manifest_path: str | Path, *, create: bool = False) -> dict
                 candidate_id=candidate, mode=mode, reactor_type=reactor,
                 temperature_K=temperature,
                 electrolyte_phase=entry.get('electrolyte_phase')), indent=2) + '\n')
-        failures = []
+        failures: list[str] = []
         preflight = mode_preflight(mode)
         if preflight['missing']:
             failures.append('missing_solvers:' + ','.join(preflight['missing']))
@@ -57,8 +58,8 @@ def prepare_manifest(manifest_path: str | Path, *, create: bool = False) -> dict
         })
     return {
         'total': len(results),
-        'ready': sum(row['ready'] for row in results),
-        'not_ready': sum(not row['ready'] for row in results),
+        'ready': sum(bool(row['ready']) for row in results),
+        'not_ready': sum(not bool(row['ready']) for row in results),
         'cases': results,
     }
 
@@ -77,6 +78,7 @@ def main() -> None:
     if args.output:
         Path(args.output).write_text(rendered)
     print(rendered, end='')
+    # Exit 0 when all cases are ready; exit 2 when any case fails preflight or validation
     raise SystemExit(0 if report['not_ready'] == 0 else 2)
 
 

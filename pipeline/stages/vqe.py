@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
+from typing import Any, cast
 
+from pipeline.data_models.quantum import VQEResult
 from pipeline.data_models.stages import VQEProducts, VQEState
 from pipeline.stages.contracts import StageOutcome
 
 
-def _candidate_rows(candidates, limit: int):
+def _candidate_rows(candidates: Any, limit: int) -> list[Any]:
     if candidates is None or limit <= 0:
         return []
     if hasattr(candidates, 'head'):
@@ -17,7 +19,7 @@ def _candidate_rows(candidates, limit: int):
     return list(candidates)[:limit]
 
 
-def _candidate_key(row) -> str:
+def _candidate_key(row: Any) -> str:
     """Return the path-safe candidate identity used to locate its FCIDUMP."""
     value = row.get('candidate_id') if hasattr(row, 'get') else None
     if value is None or (isinstance(value, float) and value != value):
@@ -35,11 +37,11 @@ def _default_hamiltonian_root() -> Path:
 
 
 def run_vqe_stage(
-    candidates=None,
+    candidates: Any = None,
     *,
     top_k: int,
     execute_quantum: bool,
-    validator: Callable | None = None,
+    validator: Callable[..., VQEResult] | None = None,
     hamiltonian_root: str | Path | None = None,
 ) -> StageOutcome[VQEState, VQEProducts]:
     """Run candidate VQE validations with an injectable solver boundary.
@@ -62,23 +64,37 @@ def run_vqe_stage(
     Returns:
         Computed `StageOutcome` result.
     """
-    if not isinstance(top_k, int) or top_k < 0:
+    if not isinstance(top_k, int) or top_k < 0:  # pyright: ignore[reportUnnecessaryIsInstance]
         raise ValueError('top_k must be a nonnegative integer')
+    active_validator: Callable[..., VQEResult]
     if validator is None:
-        from pipeline.validation.vqe_transition_state import validate_transition_state
+        from pipeline.validation.vqe_transition_state import (
+            validate_transition_state,  # pyright: ignore[reportUnknownVariableType]
+        )
 
-        validator = validate_transition_state
-    root = (Path(hamiltonian_root) if hamiltonian_root is not None
-            else _default_hamiltonian_root())
+        active_validator = cast(Callable[..., VQEResult], validate_transition_state)
+    else:
+        active_validator = validator
+    root = (
+        Path(hamiltonian_root)
+        if hamiltonian_root is not None
+        else _default_hamiltonian_root()
+    )
+    # Use GPU statevector ('nvidia') when quantum execution is enabled, else CPU ('default')
     target = 'nvidia' if execute_quantum else 'default'
-    ready, missing = [], []
+    ready: list[tuple[str, Path]] = []
+    missing: list[tuple[str, Path]] = []
     for row in _candidate_rows(candidates, top_k):
         key = _candidate_key(row)
         hamiltonian = root / key / 'FCIDUMP'
         (ready if hamiltonian.is_file() else missing).append((key, hamiltonian))
-    results = [
-        validator(key, 'CH_split', target=target,
-                  candidate_hamiltonian=str(hamiltonian))
+    results: list[VQEResult] = [
+        active_validator(
+            key,
+            'CH_split',  # Rate-determining first C-H cleavage transition state active space
+            target=target,
+            candidate_hamiltonian=str(hamiltonian),
+        )
         for key, hamiltonian in ready
     ]
     state: VQEState = {

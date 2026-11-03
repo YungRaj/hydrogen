@@ -191,6 +191,7 @@ def _cached_result(target: Path, *, candidate_id: str, mode: str,
             and value.get('candidate_id') == str(candidate_id)
             and value.get('pathway_mode') == mode
             and value.get('reactor_type') == reactor_type
+            # 1e-6 K floating-point identity tolerance for cached temperature matching
             and abs(float(value.get('temperature_K')) - float(temperature_K)) < 1e-6
             and value.get('input_sha256') == digest)
     except (OSError, TypeError, ValueError, json.JSONDecodeError):

@@ -1276,3 +1276,30 @@ def test_second_pass_assumption_fixes(tmp_path):
         )
     )
     assert molten_high_t['status'] == 'measured_paired_control'
+
+    # 14. Industrial viability gates support production reactor record field aliases
+    from pipeline.validation.viability import evaluate_fuel_cell, evaluate_turquoise
+
+    prod_rx_viable = evaluate_turquoise({
+        'T_K': 1073.15,
+        'single_pass_CH4_conversion': 0.78,
+        'deactivation_rate_per_h': 0.004,
+        'coke_selectivity': 0.02,
+        'specific_energy_kWh_kg_H2': 11.8,
+        'measured_reactor': 1.0,
+    })
+    assert prod_rx_viable['status'] == 'pass'
+    assert prod_rx_viable['observed']['ch4_conversion'] == pytest.approx(0.78)
+    assert prod_rx_viable['observed']['net_energy'] == pytest.approx(11.8)
+
+    fc_viable = evaluate_fuel_cell({
+        'orr_overpotential_V': 0.34,
+        'peak_power_W_cm2': 1.15,
+        'system_efficiency': 0.48,
+        'voltage_degradation_uV_h': 6.5,
+        'durability_hours': 150.0,
+        'measured_mea': 1.0,
+    })
+    assert fc_viable['status'] == 'pass'
+    assert fc_viable['observed']['measured_hours'] == pytest.approx(150.0)
+

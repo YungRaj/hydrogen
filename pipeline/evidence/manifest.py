@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any, cast
 
 from pipeline.io.hashing import file_sha256
 
+# Schema version 2 requires per-record SHA-256 content digests and explicit status gates.
+MANIFEST_SCHEMA_VERSION = 2
 
 EVIDENCE_KEYS = (
     'converged_dft',
@@ -35,7 +38,7 @@ REQUIRED_STATUS = {
 }
 
 
-def verify_evidence_manifest(path: str | Path) -> dict:
+def verify_evidence_manifest(path: str | Path) -> dict[str, Any]:
     """Verify every evidence record against an immutable source artifact.
 
     Args:
@@ -59,7 +62,7 @@ def verify_evidence_manifest(path: str | Path) -> dict:
             'errors': [f'evidence_manifest_invalid:{exc}'],
             'counts': {key: 0 for key in EVIDENCE_KEYS},
         }
-    if payload.get('schema_version') != 2 or not isinstance(
+    if payload.get('schema_version') != MANIFEST_SCHEMA_VERSION or not isinstance(
         payload.get('records'), dict
     ):
         return {
@@ -68,19 +71,25 @@ def verify_evidence_manifest(path: str | Path) -> dict:
             'counts': {key: 0 for key in EVIDENCE_KEYS},
         }
 
-    errors, verified, counts = [], {}, {}
+    errors: list[str] = []
+    verified: dict[str, list[dict[str, Any]]] = {}
+    counts: dict[str, int] = {}
+    records_map = cast(dict[str, Any], payload['records'])
     for key in EVIDENCE_KEYS:
-        records = payload['records'].get(key, [])
-        if not isinstance(records, list):
+        raw_records = records_map.get(key, [])
+        if not isinstance(raw_records, list):
             errors.append(f'{key}:records_not_list')
-            records = []
-        accepted = []
-        seen = set()
-        for index, record in enumerate(records):
+            records: list[Any] = []
+        else:
+            records = cast(list[Any], raw_records)
+        accepted: list[dict[str, Any]] = []
+        seen: set[tuple[str, str, str]] = set()
+        for index, raw_record in enumerate(records):
             label = f'{key}[{index}]'
-            if not isinstance(record, dict):
+            if not isinstance(raw_record, dict):
                 errors.append(f'{label}:not_object')
                 continue
+            record = cast(dict[str, Any], raw_record)
             required = (
                 'candidate_id',
                 'source_path',
@@ -96,15 +105,15 @@ def verify_evidence_manifest(path: str | Path) -> dict:
                 errors.append(f'{label}:status_must_be:{REQUIRED_STATUS[key]}')
                 continue
             identity = (
-                record['candidate_id'],
-                record['source_path'],
-                record['protocol_id'],
+                str(record['candidate_id']),
+                str(record['source_path']),
+                str(record['protocol_id']),
             )
             if identity in seen:
                 errors.append(f'{label}:duplicate')
                 continue
             seen.add(identity)
-            source = Path(record['source_path'])
+            source = Path(str(record['source_path']))
             if not source.is_absolute():
                 source = manifest_path.parent / source
             if not source.is_file():
@@ -113,7 +122,7 @@ def verify_evidence_manifest(path: str | Path) -> dict:
             if file_sha256(source) != str(record['sha256']).lower():
                 errors.append(f'{label}:checksum_mismatch')
                 continue
-            accepted.append(dict(record, resolved_source=str(source.resolve())))
+            accepted.append({**record, 'resolved_source': str(source.resolve())})
         verified[key] = accepted
         counts[key] = len(accepted)
     return {
@@ -121,5 +130,5 @@ def verify_evidence_manifest(path: str | Path) -> dict:
         'errors': errors,
         'counts': counts,
         'verified_records': verified,
-        'schema_version': 2,
+        'schema_version': MANIFEST_SCHEMA_VERSION,
     }

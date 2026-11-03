@@ -1,11 +1,14 @@
 """Fail-closed evidence preflight for a final discovery campaign."""
 
+from __future__ import annotations
+
 import json
 from pathlib import Path
+from typing import Any
 
-from pipeline.search.indexed_space import TOTAL_SIZE
-from pipeline.evidence.prior_art import PriorArtRegistry
 from pipeline.evidence.manifest import verify_evidence_manifest
+from pipeline.evidence.prior_art import PriorArtRegistry
+from pipeline.search.indexed_space import TOTAL_SIZE
 
 
 def campaign_readiness(
@@ -15,7 +18,7 @@ def campaign_readiness(
     evidence_manifest: str | None = None,
     application: str | None = None,
     pyrolysis_mode: str = 'thermocatalytic',
-) -> dict:
+) -> dict[str, Any]:
     """Evaluate whether all required discovery evidence gates have passed.
 
     Args:
@@ -29,8 +32,10 @@ def campaign_readiness(
     Returns:
         A readiness record listing passed and missing scientific gates.
     """
-    failures, warnings = [], []
+    failures: list[str] = []
+    warnings: list[str] = []
     cert_path = Path(coverage_certificate)
+    certificate: dict[str, Any]
     if not cert_path.exists():
         failures.append('coverage_certificate_missing')
         certificate = {}
@@ -41,16 +46,16 @@ def campaign_readiness(
         if require_complete_coverage and not certificate.get('complete', False):
             failures.append('coverage_incomplete')
     registry = PriorArtRegistry(prior_art_db)
-    prior_count = registry.count()
+    prior_count = int(registry.count())
     if prior_count == 0:
         failures.append('prior_art_registry_empty')
-    evidence = {}
+    evidence: dict[str, int] = {}
     if evidence_manifest is not None:
         verification = verify_evidence_manifest(evidence_manifest)
-        evidence = verification['counts']
+        evidence = dict(verification['counts'])
         failures.extend(verification['errors'])
         if verification['valid']:
-            required = {
+            required: tuple[str, ...] = {
                 'turquoise_hydrogen': (
                     'converged_dft',
                     'measured_reactor',
@@ -64,10 +69,11 @@ def campaign_readiness(
                     'time_split_benchmark',
                     'curated_prior_art_source',
                 ),
-            }.get(application, ())
+            }.get(application or '', ())
             if application == 'turquoise_hydrogen' and pyrolysis_mode == 'ntec':
                 required += ('ntec_control_pair',)
             for key in required:
+                # Require at least 1 hash-verified artifact record per mandatory evidence category
                 if int(evidence.get(key, 0) or 0) < 1:
                     failures.append(f'evidence_missing:{key}')
     warnings.append('industrial_viability_requires_reactor_or_stack_measurements')
