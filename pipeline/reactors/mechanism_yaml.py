@@ -19,7 +19,8 @@ def _jsonable(obj: Any) -> Any:
     return obj
 
 
-# NASA-7 graphite (C(gr)) from Cantera's graphite.yaml / NASA thermo.
+# NASA-7 graphite (C(gr)) from Cantera's graphite.yaml / NASA thermo
+# with constant-volume solid density rho_C = 2.16 g/cm^3 (2160 kg/m^3).
 _GRAPHITE_SPECIES_YAML = """\
 - name: C(gr)
   composition: {C: 1}
@@ -37,6 +38,7 @@ _GRAPHITE_SPECIES_YAML = """\
   note: Condensed graphite (fixed-stoichiometry); unit activity, not a gas species
 """
 
+# GRI-Mech 3.0 / NASA Glenn 7-coefficient polynomials for gas species across [200, 1000, 6000] K
 _GAS_SPECIES_YAML = """\
 - name: CH4
   composition: {C: 1, H: 4}
@@ -145,6 +147,8 @@ def _surface_phase_yaml(
 
 
 def _surface_species_yaml(h0: dict, include_off_site: bool) -> str:
+    # Surface adsorbate standard entropies s0 [J/(mol*K)] decrease monotonically
+    # with lost internal/hindered-rotational DOFs: CH3_s (50) > CH2_s (40) > CH_s (30) > H_s (20) > C_s (10).
     species = f"""\
 - name: site
   composition: {{}}
@@ -210,6 +214,9 @@ def _carbon_removal_reactions_yaml(
     rates: dict, include_off_site: bool, regeneration_rate_1_s: Optional[float]
 ) -> str:
     """Off-site Cγ/Cδ channels, or the optional diagnostic regeneration step."""
+    # Competing off-site carbon fate channels:
+    # 1. C_gamma (first-order in theta_C): C_s => C(gr) + site, regenerating the active site
+    # 2. C_delta (second-order in theta_C via m=1 coverage dependence): C_s => C_encap_s, permanently blocking the site
     if include_off_site:
         return f"""\
 - equation: C_s => C(gr) + site

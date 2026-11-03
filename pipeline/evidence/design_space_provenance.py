@@ -6,8 +6,10 @@ not imply that every Cartesian product member has been reported or synthesized.
 
 from __future__ import annotations
 
+from typing import Any, Iterable
 
-SOURCES = {
+
+SOURCES: dict[str, dict[str, str]] = {
     "project_turquoise_review": {
         "kind": "curated_project_review",
         "citation": "docs/TURQUOISE_HYDROGEN.md",
@@ -36,7 +38,7 @@ SOURCES = {
 }
 
 
-def _axes(names, *sources):
+def _axes(names: Iterable[str], *sources: str) -> dict[str, dict[str, Any]]:
     return {
         name: {
             "selection_basis": "project_curated_extrapolation",
@@ -46,7 +48,8 @@ def _axes(names, *sources):
     }
 
 
-DESIGN_AXIS_PROVENANCE = {
+# Map each of the 14 catalyst material classes to its curated design-axis literature sources
+DESIGN_AXIS_PROVENANCE: dict[str, dict[str, dict[str, Any]]] = {
     "MoltenMetal": _axes(
         ("host", "promoter", "promoter_at_pct", "temperature_K"),
         "project_turquoise_review",
@@ -140,7 +143,7 @@ DESIGN_AXIS_PROVENANCE = {
 }
 
 
-def validate_provenance(material_classes) -> dict:
+def validate_provenance(material_classes: Iterable[str]) -> dict[str, Any]:
     """Fail closed if a class, axis, or referenced source lacks provenance.
 
     Args:
@@ -149,14 +152,15 @@ def validate_provenance(material_classes) -> dict:
     Returns:
         Dictionary containing the computed values, status, and supporting metadata.
     """
-    failures = []
-    for material_class in material_classes:
+    classes_list = list(material_classes)
+    failures: list[str] = []
+    for material_class in classes_list:
         axes = DESIGN_AXIS_PROVENANCE.get(material_class)
         if not axes:
             failures.append(f"missing_class:{material_class}")
             continue
         for axis, record in axes.items():
-            source_ids = record.get("source_ids", ())
+            source_ids: list[str] = list(record.get("source_ids", ()))
             if not source_ids:
                 failures.append(f"missing_sources:{material_class}:{axis}")
             for source_id in source_ids:
@@ -164,7 +168,8 @@ def validate_provenance(material_classes) -> dict:
                     failures.append(
                         f"unknown_source:{material_class}:{axis}:{source_id}"
                     )
-    unknown_classes = sorted(set(DESIGN_AXIS_PROVENANCE) - set(material_classes))
+    # Enforce exact bijection between declared material_classes and DESIGN_AXIS_PROVENANCE keys
+    unknown_classes = sorted(set(DESIGN_AXIS_PROVENANCE) - set(classes_list))
     failures.extend(f"unknown_class:{name}" for name in unknown_classes)
     return {
         "valid": not failures,

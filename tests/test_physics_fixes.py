@@ -1242,3 +1242,37 @@ def test_second_pass_assumption_fixes(tmp_path):
     assert pbr_lead['thiele_modulus'] == pytest.approx(1.4)
     assert pbr_lead['ergun_delta_p_bar'] == pytest.approx(0.0125)
     assert mp_scorecard['pbr_b4_diagnostics']['n_pbr_records'] == 1
+
+    # 13. IAPWS-95 aqueous critical point (647.096 K) enforced in electrochemical_evidence
+    from pipeline.electrochemistry.model import (
+        ElectrochemicalConditions,
+        electrochemical_evidence,
+    )
+
+    base_ec_kwargs = {
+        'electrolyte_identity': '1 M KOH',
+        'applied_potential_V': 1.1,
+        'current_density_A_cm2': 0.2,
+        'faradaic_efficiency_H2': 0.90,
+        'methane_conversion': 0.15,
+        'pressure_Pa': 101325.0,
+        'measurement_source': 'bench_test',
+        'paired_control_source': 'bench_control',
+    }
+    aq_supercritical = electrochemical_evidence(
+        ElectrochemicalConditions(
+            electrolyte_phase='aqueous',
+            temperature_K=700.0,
+            **base_ec_kwargs,
+        )
+    )
+    assert aq_supercritical['status'] == 'invalid'
+    assert '647.096' in str(aq_supercritical['reason'])
+    molten_high_t = electrochemical_evidence(
+        ElectrochemicalConditions(
+            electrolyte_phase='molten',
+            temperature_K=900.0,
+            **base_ec_kwargs,
+        )
+    )
+    assert molten_high_t['status'] == 'measured_paired_control'

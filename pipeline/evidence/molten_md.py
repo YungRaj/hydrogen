@@ -62,11 +62,14 @@ def collect_liquid_snapshots(
     calculator = atoms.calc
     system.calc = calculator
     rng = np.random.RandomState(protocol.seed)
+    # Initialize ionic velocities from the 3D Maxwell-Boltzmann distribution at temperature_K
     MaxwellBoltzmannDistribution(
         system,
         temperature_K=protocol.temperature_K,
         rng=rng,
     )
+    # Convert timestep from fs to ASE internal time units (dt * units.fs) and
+    # Langevin damping coefficient gamma from fs^-1 to ASE inverse time (gamma / units.fs).
     dynamics = Langevin(
         system,
         timestep=protocol.timestep_fs * units.fs,

@@ -11,11 +11,14 @@
     "pipeline/stages/reactor.py",
     "pipeline/stages/report.py",
     "pipeline/electrochemistry/cantera_coupling.py",
+    "pipeline/electrochemistry/model.py",
+    "pipeline/evidence/design_space_provenance.py",
     "pipeline/campaigns/full_physics.py",
     "pipeline/campaigns/ledger.py",
     "pipeline/simulation/artifact_store.py",
     "pipeline/transport/closure_provider.py",
-    "pipeline/transport/registry.py"
+    "pipeline/transport/registry.py",
+    "pipeline/validation/reference_benchmarks.py"
   ],
   "exclude": [
     "results",

@@ -12,6 +12,11 @@ from dataclasses import asdict, dataclass
 import json
 import math
 import os
+from typing import Any, cast
+
+# IAPWS-95 critical temperature of pure water (373.946 C, P_c = 22.064 MPa),
+# above which no distinct liquid aqueous electrolyte phase exists.
+WATER_CRITICAL_TEMPERATURE_K = 647.096
 
 
 @dataclass(frozen=True)
@@ -51,15 +56,18 @@ def conditions_from_environment() -> ElectrochemicalConditions:
     """
     try:
         raw = json.loads(os.environ.get('ELECTROCHEMICAL_CONDITIONS_JSON', '{}'))
+        if not isinstance(raw, dict):
+            return ElectrochemicalConditions()
+        raw_dict = cast(dict[str, Any], raw)
         allowed = set(ElectrochemicalConditions.__dataclass_fields__)
         return ElectrochemicalConditions(
-            **{key: value for key, value in raw.items() if key in allowed}
+            **{key: value for key, value in raw_dict.items() if key in allowed}
         )
     except (TypeError, ValueError, json.JSONDecodeError):
         return ElectrochemicalConditions()
 
 
-def electrochemical_evidence(conditions: ElectrochemicalConditions) -> dict:
+def electrochemical_evidence(conditions: ElectrochemicalConditions) -> dict[str, Any]:
     """Validate electrochemical conditions and classify their evidence status.
 
     Args:
@@ -110,26 +118,32 @@ def electrochemical_evidence(conditions: ElectrochemicalConditions) -> dict:
         }
     if missing:
         return {'status': 'unknown', 'missing': missing, 'conditions': values}
-    if (
-        not 0 <= float(conditions.faradaic_efficiency_H2) <= 1
-        or not 0 <= float(conditions.methane_conversion) <= 1
-    ):
+    fe_h2 = float(values['faradaic_efficiency_H2'])
+    ch4_conv = float(values['methane_conversion'])
+    j_a_cm2 = float(values['current_density_A_cm2'])
+    temp_k = float(values['temperature_K'])
+    press_pa = float(values['pressure_Pa'])
+    # Faradaic efficiency FE_H2 and single-pass CH4 conversion X_CH4 are bounded fractions in [0, 1]
+    if not 0 <= fe_h2 <= 1 or not 0 <= ch4_conv <= 1:
         return {
             'status': 'invalid',
             'missing': [],
             'conditions': values,
             'reason': 'efficiency and conversion must lie in [0, 1]',
         }
-    if (
-        float(conditions.current_density_A_cm2) < 0
-        or float(conditions.temperature_K) <= 0
-        or float(conditions.pressure_Pa) <= 0
-    ):
+    if j_a_cm2 < 0 or temp_k <= 0 or press_pa <= 0:
         return {
             'status': 'invalid',
             'missing': [],
             'conditions': values,
             'reason': 'current density must be nonnegative and T/P positive',
+        }
+    if phase == 'aqueous' and temp_k >= WATER_CRITICAL_TEMPERATURE_K:
+        return {
+            'status': 'invalid',
+            'missing': [],
+            'conditions': values,
+            'reason': 'aqueous electrolyte temperature_K must be below 647.096 K',
         }
     return {
         'status': 'measured_paired_control',

@@ -65,6 +65,7 @@ def train_and_publish_transport_model(
     if not refs:
         raise ValueError('at least one artifact reference is required')
     identity = set()
+    # Route validated PhysicsRecords into preassigned training and blind-holdout partitions
     records = {'training': [], 'validation': []}
     for reference in refs:
         if not isinstance(reference, CaseArtifactReference):
@@ -87,6 +88,7 @@ def train_and_publish_transport_model(
                 (reference.pathway_mode, reference.reactor_type)):
             raise ValueError('validated artifact identity differs from its reference')
         records[reference.partition].append(record)
+    # Fit 8-member bootstrap ridge ensemble (default lambda = 1e-8) and publish atomically
     model = model_fitter(
         records['training'], records['validation'], targets=tuple(targets),
         validation_rmse_limits=validation_rmse_limits,

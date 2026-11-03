@@ -13,12 +13,14 @@ import hashlib
 import json
 import math
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from pipeline.data_models.reference_validation import (
     ComputedObservation,
     ReferenceComparison,
+    ReferenceKind,
     ReferenceObservation,
+    SolverFamily,
 )
 
 
@@ -38,17 +40,22 @@ def load_reference_manifest(path: str | Path) -> dict[str, ReferenceObservation]
     Returns:
         References keyed by their stable reference IDs.
     """
-    data = json.loads(Path(path).read_text())
+    raw_data = json.loads(Path(path).read_text())
+    if not isinstance(raw_data, dict):
+        raise ValueError("reference manifest must be a JSON object")
+    data = cast(dict[str, Any], raw_data)
     if data.get("schema_version") != 1:
         raise ValueError("reference manifest schema_version must be 1")
-    records = data.get("references")
-    if not isinstance(records, list) or not records:
+    raw_records = data.get("references")
+    if not isinstance(raw_records, list) or not raw_records:
         raise ValueError("reference manifest must contain references")
+    records = cast(list[Any], raw_records)
 
     references: dict[str, ReferenceObservation] = {}
-    for raw in records:
-        if not isinstance(raw, dict):
+    for item in records:
+        if not isinstance(item, dict):
             raise ValueError("each reference must be an object")
+        raw = cast(dict[str, Any], item)
         reference_id = _required_text(raw, "reference_id")
         if reference_id in references:
             raise ValueError(f"duplicate reference_id: {reference_id}")
@@ -58,9 +65,10 @@ def load_reference_manifest(path: str | Path) -> dict[str, ReferenceObservation]
         solver = raw.get("solver_family")
         if solver not in {"quantum_espresso", "cudaq_vqe"}:
             raise ValueError(f"invalid solver_family for {reference_id}")
-        conditions = raw.get("conditions")
-        if not isinstance(conditions, dict) or not conditions:
+        raw_conditions = raw.get("conditions")
+        if not isinstance(raw_conditions, dict) or not raw_conditions:
             raise ValueError(f"conditions are required for {reference_id}")
+        conditions = cast(dict[str, object], raw_conditions)
         value = float(raw["value"])
         tolerance = float(raw["tolerance"])
         if not math.isfinite(value) or not math.isfinite(tolerance) or tolerance <= 0:
@@ -74,8 +82,8 @@ def load_reference_manifest(path: str | Path) -> dict[str, ReferenceObservation]
             value=value,
             unit=_required_text(raw, "unit"),
             tolerance=tolerance,
-            reference_kind=kind,
-            solver_family=solver,
+            reference_kind=cast(ReferenceKind, kind),
+            solver_family=cast(SolverFamily, solver),
             citation=_required_text(raw, "citation"),
             source_url=_required_text(raw, "source_url"),
             conditions=conditions,
@@ -107,6 +115,7 @@ def computed_observation(record: dict[str, Any]) -> ComputedObservation:
     if values["solver_family"] not in {"quantum_espresso", "cudaq_vqe"}:
         raise ValueError("computed observation has unsupported solver_family")
     digest = values["artifact_sha256"].lower()
+    # 64 lowercase hexadecimal digits = 256-bit SHA-256 content digest
     if len(digest) != 64 or any(
         character not in "0123456789abcdef" for character in digest
     ):
@@ -114,11 +123,11 @@ def computed_observation(record: dict[str, Any]) -> ComputedObservation:
     value = float(record["value"])
     if not math.isfinite(value):
         raise ValueError("computed value must be finite")
-    conditions = record.get("conditions")
-    if not isinstance(conditions, dict) or not conditions:
+    raw_conditions = record.get("conditions")
+    if not isinstance(raw_conditions, dict) or not raw_conditions:
         raise ValueError("computed observation requires physical conditions")
-    calculation_conditions = record.get("calculation_conditions")
-    if not isinstance(calculation_conditions, dict) or not calculation_conditions:
+    raw_calc_conditions = record.get("calculation_conditions")
+    if not isinstance(raw_calc_conditions, dict) or not raw_calc_conditions:
         raise ValueError("computed observation requires calculation conditions")
     return ComputedObservation(
         reference_id=values["reference_id"],
@@ -126,10 +135,10 @@ def computed_observation(record: dict[str, Any]) -> ComputedObservation:
         observable=values["observable"],
         value=value,
         unit=values["unit"],
-        solver_family=values["solver_family"],  # type: ignore[arg-type]
+        solver_family=cast(SolverFamily, values["solver_family"]),
         protocol=values["protocol"],
-        conditions=conditions,
-        calculation_conditions=calculation_conditions,
+        conditions=cast(dict[str, object], raw_conditions),
+        calculation_conditions=cast(dict[str, object], raw_calc_conditions),
         converged=record.get("converged") is True,
         mock=record.get("mock") is True,
         candidate_specific=record.get("candidate_specific") is True,
@@ -181,6 +190,7 @@ def compare_with_reference(
     if reference.solver_family == "cudaq_vqe" and not observed.benchmarked:
         raise ValueError("VQE must first pass its exact-solver numerical benchmark")
 
+    # Absolute deviation |y_obs - y_ref| evaluated against declared reference tolerance
     error = abs(observed.value - reference.value)
     return ReferenceComparison(
         reference_id=reference.reference_id,
@@ -201,6 +211,7 @@ def sha256_file(path: str | Path) -> str:
     """
     digest = hashlib.sha256()
     with Path(path).open("rb") as handle:
+        # Read in 1 MiB (1024 * 1024 B) blocks for bounded-memory SHA-256 hashing
         for block in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()

@@ -48,6 +48,8 @@ FullSimulator: TypeAlias = Callable[[Population, pd.DataFrame], pd.DataFrame]
 class PilotBudget:
     """Hard upper bounds required before a small GPU pilot may start."""
 
+    # Default bounded pilot: 500 calibration + 500 validation MLIP evaluations,
+    # 50 experimental-slate candidates, 14 branch leaves (1 per material class), 24 h (86,400 s) wall clock.
     calibration_candidates: int = 500
     validation_candidates: int = 500
     portfolio_candidates: int = 50
@@ -204,6 +206,7 @@ def run_guided_branch_discovery(
         workflow.protocol_id,
     )
     attempted = {str(value) for value in evidence.get('genome', [])}
+    # Cap calibration refill probes at 3x initial sample budget (bounded by pilot_budget when active)
     refill_limit = max(
         config.initial_fairchem_samples * 3,
         config.initial_fairchem_samples + MIN_TRAINING_ROWS,
@@ -339,6 +342,7 @@ def run_guided_branch_discovery(
 
         evidence = annotate_prior_art(evidence, config.prior_art_db)
     validation_objectives = objectives[validation_indices]
+    # Lexicographic advancement tier weights: advance (3) > validation_required (2) > hold (1) > hard_excluded (-inf)
     status_priority = {
         'advance': 3.0,
         'validation_required': 2.0,

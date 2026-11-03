@@ -28,7 +28,9 @@ from pipeline.validation.qe_workflows import (
 )
 
 
+# 6-stage Norskov CHE ORR sequence: clean slab + 3 intermediates (*OH, *O, *OOH) + gas references (H2, H2O)
 ORR_STAGES = ('clean', 'OH', 'O', 'OOH', 'h2', 'h2o')
+# 6 elementary surface steps for complete methane pyrolysis microkinetics (CH4 -> C_s + 2 H2)
 PYROLYSIS_ELEMENTARY_STEPS = {
     'methane_activation': 'methane_activation_eV',
     'methyl_dehydrogenation': 'ch3_dehydrogenation_eV',
@@ -287,6 +289,8 @@ def prepare_frequency_jobs(
     ):
         raise ValueError('active frequency atom indices are invalid')
     jobs = []
+    # Central finite-difference Hessian requires +/- displacement_A (default 0.01 A)
+    # along each of the 3 * N_active Cartesian degrees of freedom (6 * N_active SCF force evaluations).
     for dof in range(3 * len(active)):
         active_position, axis = divmod(dof, 3)
         atom_index = active[active_position]
@@ -473,6 +477,8 @@ def run_methane_neb(
     final = relaxed_structure(str(root / 'final.relax.out'), root / 'final.relax.in')
     if initial.get_chemical_symbols() != final.get_chemical_symbols():
         raise RuntimeError('relaxed NEB endpoints have different atom ordering')
+    # Construct n_images (default 7: 2 endpoints + 5 interior images) and initialize
+    # via Image Dependent Pair Potential (IDPP, Smidstrup et al., JCP 2014) with Henkelman improved tangent.
     images = [initial] + [initial.copy() for _ in range(n_images - 2)] + [final]
     NEB(images, method='improvedtangent').interpolate(method='idpp')
     input_path = root / 'candidate.neb.in'

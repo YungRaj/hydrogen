@@ -7,6 +7,7 @@ import math
 from typing import Callable
 
 
+# Map multiphysics transport-closure output keys to ReactorConfig attribute names
 _CLOSURE_FIELDS = {
     'Fluidized': {
         'gas_velocity_m_s': 'gas_velocity_m_s',
@@ -100,6 +101,7 @@ def couple_multiphysics_evidence(config, loaded: dict):
     }
     failures = [name for name, value in expected.items() if artifact.get(name) != value]
     try:
+        # 1e-6 K absolute tolerance guards against JSON round-trip drift while enforcing exact T_inlet_K match
         if not math.isclose(
             float(artifact.get('temperature_K')), float(config.T_inlet_K), abs_tol=1e-6
         ):

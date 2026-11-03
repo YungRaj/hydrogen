@@ -83,6 +83,7 @@ def probe_host_resources(results_dir: Path) -> HostResources:
     existing = target
     while not existing.exists() and existing != existing.parent:
         existing = existing.parent
+    # 1_000_000_000 B/GB converts free bytes to SI decimal gigabytes
     free_disk_gb = shutil.disk_usage(existing).free / 1_000_000_000
     writable = False
     try:
@@ -377,12 +378,15 @@ def _scientific_canary_check() -> QualificationCheck:
     from pipeline.reactors.equilibrium import ch4_conversion_from_argon_tracer
     from pipeline.utils import arrhenius_rate, orr_overpotential
 
+    # Canary 1: Arrhenius k(T) = A * exp(-E_a / (k_B * T)) with Eyring prefactor A = 1e13 s^-1
     prefactor = 1.0e13
     cold = arrhenius_rate(prefactor, 0.8, 800.0)
     hot = arrhenius_rate(prefactor, 0.8, 900.0)
     higher_barrier = arrhenius_rate(prefactor, 0.9, 900.0)
     zero_barrier = arrhenius_rate(prefactor, 0.0, 900.0)
+    # Canary 2: Ideal 4e- CHE steps (1.23, 2.46, 3.69 eV) give zero ORR overpotential (eta_ORR = 0 V)
     overpotential, _ = orr_overpotential(1.23, 2.46, 3.69)
+    # Canary 3: Argon internal-standard CH4 conversion X = 1 - (0.45/0.10) / (0.90/0.10) = 0.50
     conversion = ch4_conversion_from_argon_tracer(0.45, 0.10, 0.90, 0.10)
     passed = (
         0.0 < cold < hot < prefactor
