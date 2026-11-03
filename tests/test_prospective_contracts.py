@@ -442,6 +442,58 @@ class ProspectiveContracts(unittest.TestCase):
                 len(class_calibration(str(db2), 'fuel_cell_orr')), 12
             )
 
+    def test_round2_dft_calibrated_campaign_improves_gc_and_interfacial_hit_rates(
+        self,
+    ) -> None:
+        from pipeline.search.adaptive_validation import (
+            evaluate_round2_dft_calibrated_campaign,
+        )
+
+        cal_path = REPO_ROOT / 'results/dft/active_learning_calibration.json'
+        prospective_root = REPO_ROOT / 'results/prospective_search'
+        with tempfile.TemporaryDirectory() as directory:
+            out_path = Path(directory) / 'round2_dft_calibrated_prospective.json'
+            report = evaluate_round2_dft_calibrated_campaign(
+                calibration_path=cal_path,
+                prospective_root=prospective_root,
+                output_path=out_path,
+                random_trials=200,
+            )
+            orr = report['fuel_cell_orr']
+            self.assertEqual(orr['n_batches'], 35)
+            self.assertGreater(
+                orr['policy_hits_gc_acid_stable_top20pct'][
+                    'catalyst_dft_calibrated'
+                ],
+                orr['policy_hits_gc_acid_stable_top20pct'][
+                    'catalyst_uncalibrated'
+                ],
+            )
+            self.assertGreaterEqual(
+                orr['dft_calibrated_hit_lift_vs_uncalibrated'], 20
+            )
+            self.assertGreater(
+                orr['doe_035V_gc_acid_stable_hits']['catalyst_dft_calibrated'],
+                orr['doe_035V_gc_acid_stable_hits']['catalyst_uncalibrated'],
+            )
+            self.assertTrue(orr['acceptance_passed'])
+
+            turq = report['turquoise_hydrogen']
+            self.assertEqual(turq['n_batches'], 10)
+            self.assertGreater(
+                turq['policy_hits_interfacial_calibrated_top20pct'][
+                    'catalyst_dft_calibrated'
+                ],
+                turq['policy_hits_interfacial_calibrated_top20pct'][
+                    'catalyst_uncalibrated'
+                ],
+            )
+            self.assertGreaterEqual(
+                turq['dft_calibrated_hit_lift_vs_uncalibrated'], 20
+            )
+            self.assertTrue(turq['acceptance_passed'])
+            self.assertEqual(len(report['report_sha256']), 64)
+
     def test_pool_deduplicates_canonical_candidate_ids(self) -> None:
         first = ('MoltenMetal', 'In', 'Dy', 0.0, 950)
         duplicate = ('MoltenMetal', 'In', 'In', 0.5, 950)

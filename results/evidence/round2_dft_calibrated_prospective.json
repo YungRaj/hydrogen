@@ -1,0 +1,633 @@
+{
+  "schema_version": 1,
+  "calibration_sha256": "ba3e8c79d149606beef72c5a4ed5f4d698ea1b156d4a33fc8dbc567f67a71c7a",
+  "fuel_cell_orr": {
+    "n_batches": 35,
+    "total_budget_selected": 700,
+    "policy_hits_gc_acid_stable_top20pct": {
+      "catalyst_dft_calibrated": 239,
+      "catalyst_uncalibrated": 217,
+      "uncertainty": 98,
+      "validity": 112
+    },
+    "doe_035V_gc_acid_stable_hits": {
+      "catalyst_dft_calibrated": 11,
+      "catalyst_uncalibrated": 9,
+      "uncertainty": 1,
+      "validity": 6
+    },
+    "dft_calibrated_hit_lift_vs_uncalibrated": 22,
+    "dft_calibrated_doe_hit_lift_vs_uncalibrated": 2,
+    "policy_matched_random_mean_hits": 82.522,
+    "dft_calibrated_enrichment_vs_random": 2.8962,
+    "dft_calibrated_p_value": 0.0004997501249375312,
+    "uncalibrated_p_value": 0.0004997501249375312,
+    "acceptance_passed": true,
+    "batches": [
+      {
+        "batch_id": "prereg-01",
+        "n_eligible": 120,
+        "n_valid": 61,
+        "hit_count": 13,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 5,
+          "catalyst_uncalibrated": 4,
+          "uncertainty": 2,
+          "validity": 5
+        },
+        "random_mean_hits": 2.1205
+      },
+      {
+        "batch_id": "prereg-02",
+        "n_eligible": 120,
+        "n_valid": 76,
+        "hit_count": 16,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 5,
+          "catalyst_uncalibrated": 6,
+          "uncertainty": 2,
+          "validity": 3
+        },
+        "random_mean_hits": 2.628
+      },
+      {
+        "batch_id": "prereg-03",
+        "n_eligible": 120,
+        "n_valid": 73,
+        "hit_count": 15,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 6,
+          "catalyst_uncalibrated": 8,
+          "uncertainty": 4,
+          "validity": 1
+        },
+        "random_mean_hits": 2.521
+      },
+      {
+        "batch_id": "prereg-04",
+        "n_eligible": 120,
+        "n_valid": 71,
+        "hit_count": 15,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 7,
+          "catalyst_uncalibrated": 6,
+          "uncertainty": 3,
+          "validity": 5
+        },
+        "random_mean_hits": 2.504
+      },
+      {
+        "batch_id": "prereg-05",
+        "n_eligible": 120,
+        "n_valid": 59,
+        "hit_count": 12,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 5,
+          "catalyst_uncalibrated": 4,
+          "uncertainty": 2,
+          "validity": 4
+        },
+        "random_mean_hits": 1.9915
+      },
+      {
+        "batch_id": "prereg-06",
+        "n_eligible": 120,
+        "n_valid": 68,
+        "hit_count": 14,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 5,
+          "catalyst_uncalibrated": 4,
+          "uncertainty": 2,
+          "validity": 1
+        },
+        "random_mean_hits": 2.3095
+      },
+      {
+        "batch_id": "prereg-07",
+        "n_eligible": 120,
+        "n_valid": 65,
+        "hit_count": 13,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 7,
+          "catalyst_uncalibrated": 6,
+          "uncertainty": 2,
+          "validity": 3
+        },
+        "random_mean_hits": 2.1605
+      },
+      {
+        "batch_id": "prereg-08",
+        "n_eligible": 120,
+        "n_valid": 69,
+        "hit_count": 14,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 7,
+          "catalyst_uncalibrated": 9,
+          "uncertainty": 3,
+          "validity": 2
+        },
+        "random_mean_hits": 2.333
+      },
+      {
+        "batch_id": "prereg-09",
+        "n_eligible": 120,
+        "n_valid": 64,
+        "hit_count": 13,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 5,
+          "catalyst_uncalibrated": 5,
+          "uncertainty": 1,
+          "validity": 1
+        },
+        "random_mean_hits": 2.1715
+      },
+      {
+        "batch_id": "prereg-10",
+        "n_eligible": 120,
+        "n_valid": 72,
+        "hit_count": 15,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 5,
+          "catalyst_uncalibrated": 6,
+          "uncertainty": 4,
+          "validity": 2
+        },
+        "random_mean_hits": 2.455
+      },
+      {
+        "batch_id": "prereg-11",
+        "n_eligible": 120,
+        "n_valid": 76,
+        "hit_count": 16,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 10,
+          "catalyst_uncalibrated": 9,
+          "uncertainty": 2,
+          "validity": 7
+        },
+        "random_mean_hits": 2.6805
+      },
+      {
+        "batch_id": "prereg-12",
+        "n_eligible": 120,
+        "n_valid": 62,
+        "hit_count": 13,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 7,
+          "catalyst_uncalibrated": 5,
+          "uncertainty": 2,
+          "validity": 5
+        },
+        "random_mean_hits": 2.143
+      },
+      {
+        "batch_id": "prereg-13",
+        "n_eligible": 120,
+        "n_valid": 66,
+        "hit_count": 14,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 7,
+          "catalyst_uncalibrated": 5,
+          "uncertainty": 4,
+          "validity": 2
+        },
+        "random_mean_hits": 2.349
+      },
+      {
+        "batch_id": "prereg-14",
+        "n_eligible": 120,
+        "n_valid": 70,
+        "hit_count": 14,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 6,
+          "catalyst_uncalibrated": 9,
+          "uncertainty": 3,
+          "validity": 2
+        },
+        "random_mean_hits": 2.3215
+      },
+      {
+        "batch_id": "prereg-15",
+        "n_eligible": 120,
+        "n_valid": 68,
+        "hit_count": 14,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 7,
+          "catalyst_uncalibrated": 6,
+          "uncertainty": 1,
+          "validity": 7
+        },
+        "random_mean_hits": 2.326
+      },
+      {
+        "batch_id": "prereg-16",
+        "n_eligible": 120,
+        "n_valid": 63,
+        "hit_count": 13,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 5,
+          "catalyst_uncalibrated": 3,
+          "uncertainty": 3,
+          "validity": 1
+        },
+        "random_mean_hits": 2.144
+      },
+      {
+        "batch_id": "prereg-17",
+        "n_eligible": 120,
+        "n_valid": 72,
+        "hit_count": 15,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 5,
+          "catalyst_uncalibrated": 6,
+          "uncertainty": 3,
+          "validity": 2
+        },
+        "random_mean_hits": 2.524
+      },
+      {
+        "batch_id": "prereg-18",
+        "n_eligible": 120,
+        "n_valid": 63,
+        "hit_count": 13,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 7,
+          "catalyst_uncalibrated": 8,
+          "uncertainty": 4,
+          "validity": 3
+        },
+        "random_mean_hits": 2.171
+      },
+      {
+        "batch_id": "prereg-19",
+        "n_eligible": 120,
+        "n_valid": 72,
+        "hit_count": 15,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 5,
+          "catalyst_uncalibrated": 5,
+          "uncertainty": 3,
+          "validity": 3
+        },
+        "random_mean_hits": 2.509
+      },
+      {
+        "batch_id": "prereg-20",
+        "n_eligible": 120,
+        "n_valid": 62,
+        "hit_count": 13,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 7,
+          "catalyst_uncalibrated": 5,
+          "uncertainty": 3,
+          "validity": 2
+        },
+        "random_mean_hits": 2.192
+      },
+      {
+        "batch_id": "prereg-21",
+        "n_eligible": 120,
+        "n_valid": 67,
+        "hit_count": 14,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 3,
+          "catalyst_uncalibrated": 3,
+          "uncertainty": 4,
+          "validity": 2
+        },
+        "random_mean_hits": 2.342
+      },
+      {
+        "batch_id": "prereg-22",
+        "n_eligible": 120,
+        "n_valid": 69,
+        "hit_count": 14,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 6,
+          "catalyst_uncalibrated": 4,
+          "uncertainty": 3,
+          "validity": 3
+        },
+        "random_mean_hits": 2.337
+      },
+      {
+        "batch_id": "prereg-23",
+        "n_eligible": 120,
+        "n_valid": 82,
+        "hit_count": 17,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 10,
+          "catalyst_uncalibrated": 8,
+          "uncertainty": 3,
+          "validity": 4
+        },
+        "random_mean_hits": 2.8805
+      },
+      {
+        "batch_id": "prereg-24",
+        "n_eligible": 120,
+        "n_valid": 63,
+        "hit_count": 13,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 6,
+          "catalyst_uncalibrated": 5,
+          "uncertainty": 4,
+          "validity": 4
+        },
+        "random_mean_hits": 2.214
+      },
+      {
+        "batch_id": "prereg-25",
+        "n_eligible": 120,
+        "n_valid": 59,
+        "hit_count": 12,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 7,
+          "catalyst_uncalibrated": 5,
+          "uncertainty": 5,
+          "validity": 3
+        },
+        "random_mean_hits": 1.9345
+      },
+      {
+        "batch_id": "prereg-26",
+        "n_eligible": 120,
+        "n_valid": 54,
+        "hit_count": 11,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 4,
+          "catalyst_uncalibrated": 2,
+          "uncertainty": 1,
+          "validity": 3
+        },
+        "random_mean_hits": 1.8555
+      },
+      {
+        "batch_id": "prereg-27",
+        "n_eligible": 120,
+        "n_valid": 74,
+        "hit_count": 15,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 7,
+          "catalyst_uncalibrated": 9,
+          "uncertainty": 3,
+          "validity": 3
+        },
+        "random_mean_hits": 2.4905
+      },
+      {
+        "batch_id": "prereg-28",
+        "n_eligible": 120,
+        "n_valid": 80,
+        "hit_count": 16,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 8,
+          "catalyst_uncalibrated": 6,
+          "uncertainty": 2,
+          "validity": 3
+        },
+        "random_mean_hits": 2.6525
+      },
+      {
+        "batch_id": "prereg-29",
+        "n_eligible": 120,
+        "n_valid": 86,
+        "hit_count": 18,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 12,
+          "catalyst_uncalibrated": 10,
+          "uncertainty": 4,
+          "validity": 4
+        },
+        "random_mean_hits": 3.017
+      },
+      {
+        "batch_id": "prereg-30",
+        "n_eligible": 120,
+        "n_valid": 76,
+        "hit_count": 16,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 10,
+          "catalyst_uncalibrated": 8,
+          "uncertainty": 5,
+          "validity": 5
+        },
+        "random_mean_hits": 2.661
+      },
+      {
+        "batch_id": "prereg-31",
+        "n_eligible": 120,
+        "n_valid": 71,
+        "hit_count": 15,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 9,
+          "catalyst_uncalibrated": 9,
+          "uncertainty": 1,
+          "validity": 4
+        },
+        "random_mean_hits": 2.514
+      },
+      {
+        "batch_id": "prereg-32",
+        "n_eligible": 120,
+        "n_valid": 68,
+        "hit_count": 14,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 7,
+          "catalyst_uncalibrated": 7,
+          "uncertainty": 1,
+          "validity": 3
+        },
+        "random_mean_hits": 2.3595
+      },
+      {
+        "batch_id": "prereg-33",
+        "n_eligible": 120,
+        "n_valid": 66,
+        "hit_count": 14,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 9,
+          "catalyst_uncalibrated": 7,
+          "uncertainty": 3,
+          "validity": 4
+        },
+        "random_mean_hits": 2.3555
+      },
+      {
+        "batch_id": "prereg-34",
+        "n_eligible": 120,
+        "n_valid": 61,
+        "hit_count": 13,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 8,
+          "catalyst_uncalibrated": 6,
+          "uncertainty": 2,
+          "validity": 3
+        },
+        "random_mean_hits": 2.1855
+      },
+      {
+        "batch_id": "prereg-35",
+        "n_eligible": 120,
+        "n_valid": 61,
+        "hit_count": 13,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 10,
+          "catalyst_uncalibrated": 9,
+          "uncertainty": 4,
+          "validity": 3
+        },
+        "random_mean_hits": 2.1685
+      }
+    ]
+  },
+  "turquoise_hydrogen": {
+    "n_batches": 10,
+    "total_budget_selected": 200,
+    "policy_hits_interfacial_calibrated_top20pct": {
+      "catalyst_dft_calibrated": 42,
+      "catalyst_uncalibrated": 16,
+      "uncertainty": 15,
+      "validity": 21
+    },
+    "dft_calibrated_hit_lift_vs_uncalibrated": 26,
+    "policy_matched_random_mean_hits": 19.3325,
+    "dft_calibrated_enrichment_vs_random": 2.1725,
+    "dft_calibrated_p_value": 0.0004997501249375312,
+    "uncalibrated_p_value": 0.8500749625187406,
+    "acceptance_passed": true,
+    "batches": [
+      {
+        "batch_id": "20260930-catalyst-01",
+        "n_eligible": 56,
+        "n_valid": 27,
+        "hit_count": 6,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 4,
+          "catalyst_uncalibrated": 2,
+          "uncertainty": 4,
+          "validity": 4
+        },
+        "random_mean_hits": 2.1385
+      },
+      {
+        "batch_id": "20260930-catalyst-02",
+        "n_eligible": 56,
+        "n_valid": 23,
+        "hit_count": 5,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 5,
+          "catalyst_uncalibrated": 1,
+          "uncertainty": 2,
+          "validity": 2
+        },
+        "random_mean_hits": 1.8245
+      },
+      {
+        "batch_id": "20260930-catalyst-03",
+        "n_eligible": 56,
+        "n_valid": 21,
+        "hit_count": 5,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 5,
+          "catalyst_uncalibrated": 1,
+          "uncertainty": 1,
+          "validity": 2
+        },
+        "random_mean_hits": 1.792
+      },
+      {
+        "batch_id": "20260930-catalyst-04-powered",
+        "n_eligible": 112,
+        "n_valid": 45,
+        "hit_count": 9,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 4,
+          "catalyst_uncalibrated": 2,
+          "uncertainty": 0,
+          "validity": 1
+        },
+        "random_mean_hits": 1.6015
+      },
+      {
+        "batch_id": "20260930-catalyst-05-validity-aware",
+        "n_eligible": 56,
+        "n_valid": 23,
+        "hit_count": 5,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 4,
+          "catalyst_uncalibrated": 2,
+          "uncertainty": 1,
+          "validity": 3
+        },
+        "random_mean_hits": 1.8035
+      },
+      {
+        "batch_id": "20260930-catalyst-06-branch-feedback",
+        "n_eligible": 56,
+        "n_valid": 22,
+        "hit_count": 5,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 4,
+          "catalyst_uncalibrated": 0,
+          "uncertainty": 1,
+          "validity": 2
+        },
+        "random_mean_hits": 1.774
+      },
+      {
+        "batch_id": "20260930-catalyst-07-branch-feedback",
+        "n_eligible": 56,
+        "n_valid": 21,
+        "hit_count": 5,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 3,
+          "catalyst_uncalibrated": 1,
+          "uncertainty": 0,
+          "validity": 0
+        },
+        "random_mean_hits": 1.7885
+      },
+      {
+        "batch_id": "20260930-catalyst-08-bounded-exploration",
+        "n_eligible": 56,
+        "n_valid": 25,
+        "hit_count": 5,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 4,
+          "catalyst_uncalibrated": 3,
+          "uncertainty": 3,
+          "validity": 3
+        },
+        "random_mean_hits": 1.794
+      },
+      {
+        "batch_id": "20260930-catalyst-09-branch-feedback",
+        "n_eligible": 56,
+        "n_valid": 16,
+        "hit_count": 4,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 4,
+          "catalyst_uncalibrated": 1,
+          "uncertainty": 0,
+          "validity": 1
+        },
+        "random_mean_hits": 1.448
+      },
+      {
+        "batch_id": "smoke-relax-v4-20261009",
+        "n_eligible": 36,
+        "n_valid": 28,
+        "hit_count": 6,
+        "policy_hits": {
+          "catalyst_dft_calibrated": 5,
+          "catalyst_uncalibrated": 3,
+          "uncertainty": 3,
+          "validity": 3
+        },
+        "random_mean_hits": 3.368
+      }
+    ]
+  },
+  "report_sha256": "0549933f08fbe2059b35692a1dfcff066c83505eb8dfb5622c2f342aac8864db"
+}

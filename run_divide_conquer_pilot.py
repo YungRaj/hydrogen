@@ -276,6 +276,8 @@ def _select_policies(
     train: pd.DataFrame,
     all_train: pd.DataFrame,
     random_seed: int,
+    *,
+    calibration_artifact: str | Path | None = None,
 ) -> dict:
     """Fit the frozen policy and select equal-budget candidates from one pool."""
     from dataclasses import asdict
@@ -298,7 +300,13 @@ def _select_policies(
             else pemfc_cathode_scope(genome)['status'] == 'candidate'
         )
     ]
-    ranker = fit_tree_ranker(train, app)
+    cal_path = Path(calibration_artifact) if calibration_artifact else None
+    has_cal = bool(cal_path and cal_path.is_file())
+    ranker = fit_tree_ranker(
+        train,
+        app,
+        calibration_artifact=str(cal_path) if has_cal else None,
+    )
     objectives = (
         turquoise_tree_objectives(pool, ranker)
         if app == 'turquoise_hydrogen'
@@ -322,13 +330,47 @@ def _select_policies(
     ]
     candidates = [pool[index] for index in eligible]
     selected_budget = min(len(candidates), budget)
+    primary_eligible = objectives[eligible, 0].copy()
+    if has_cal:
+        if app == 'turquoise_hydrogen':
+            from pipeline.search.adaptive_validation import (
+                pyrolysis_genome_structural_prior_eV,
+            )
+
+            if objectives.shape[1] > 1:
+                # Couple DFT-calibrated barrier with predicted interfacial/coking susceptibility
+                primary_eligible = primary_eligible + 0.15 * np.clip(
+                    objectives[eligible, 1], -1.0, 2.5
+                )
+            structural_priors = np.array(
+                [pyrolysis_genome_structural_prior_eV(g) for g in candidates],
+                dtype=float,
+            )
+            primary_eligible = primary_eligible + structural_priors
+        elif app == 'fuel_cell_orr':
+            from pipeline.screening.fc_screener import (
+                compute_grand_canonical_orr_corrections,
+            )
+
+            pourbaix_penalties = np.array(
+                [
+                    0.0
+                    if compute_grand_canonical_orr_corrections(
+                        0.8, 2.0, 3.8, genome=g
+                    )['pourbaix_acid_stable']
+                    else 0.50
+                    for g in candidates
+                ],
+                dtype=float,
+            )
+            primary_eligible = primary_eligible + pourbaix_penalties
     catalyst_score = (
         turquoise_catalyst_acquisition(
-            objectives[eligible, 0], validity_score[eligible]
+            primary_eligible, validity_score[eligible]
         )
         if app == 'turquoise_hydrogen'
         else orr_catalyst_acquisition(
-            objectives[eligible, 0], uncertainty[eligible], validity_score[eligible]
+            primary_eligible, uncertainty[eligible], validity_score[eligible]
         )
     )
     catalyst_score += CLASS_SUCCESS_WEIGHT * class_success_probability(
@@ -352,6 +394,9 @@ def _select_policies(
                 sorted(candidate_id(ast.literal_eval(raw)) for raw in train.genome)
             ).encode()
         ).hexdigest(),
+        'calibration_artifact_sha256': (
+            _hash(cal_path) if has_cal and cal_path is not None else None
+        ),
         'eligible_ids': [ids[index] for index in eligible],
         'budget': selected_budget,
         'policy_selected_ids': {
