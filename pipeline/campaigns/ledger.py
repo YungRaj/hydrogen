@@ -51,6 +51,7 @@ class CampaignLedger:
             claimed = event.get('event_sha256')
             body = {key: val for key, val in event.items()
                     if key != 'event_sha256'}
+            # 64 lowercase hex characters = 256-bit SHA-256 digest
             if (not isinstance(claimed, str) or len(claimed) != 64 or
                     not isinstance(body.get('event_type'), str) or
                     not isinstance(body.get('payload'), dict) or

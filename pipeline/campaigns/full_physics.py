@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import math
-from typing import Iterable
+from typing import Iterable, Literal
 
 from pipeline.data_models.multifidelity import FullPhysicsSelection
+
+SelectionReason = Literal['fixed_regional_coverage', 'adaptive_priority']
 
 
 @dataclass(frozen=True)
@@ -40,9 +42,17 @@ class FullPhysicsRequest:
         Returns:
             A sortable priority score; larger values receive earlier consideration.
         """
+        # Convex combination (weights sum to 1.0: 0.30 EI + 0.25 sigma + 0.25 disagreement + 0.20 cal_err)
+        # damped by up to 75% (1 - 0.75 * h_unprod) for regions with repeated non-convergent history
         benefit = (0.30 * self.expected_improvement + 0.25 * self.uncertainty +
                    0.25 * self.disagreement + 0.20 * self.calibration_error)
         return benefit * (1.0 - 0.75 * self.unproductive_history)
+
+
+def _ordered_requests(
+    rows: list[FullPhysicsRequest],
+) -> list[FullPhysicsRequest]:
+    return sorted(rows, key=lambda row: (-row.priority(), row.case_id))
 
 
 def schedule_full_physics_cases(
@@ -59,14 +69,14 @@ def schedule_full_physics_cases(
         List of computed or validated records.
     """
     values = list(requests)
-    if not isinstance(total_budget, int) or total_budget < 1:
+    if not isinstance(total_budget, int) or total_budget < 1:  # pyright: ignore[reportUnnecessaryIsInstance]
         raise ValueError('total_budget must be a positive integer')
-    if not isinstance(minimum_per_region, int) or minimum_per_region < 1:
+    if not isinstance(minimum_per_region, int) or minimum_per_region < 1:  # pyright: ignore[reportUnnecessaryIsInstance]
         raise ValueError('minimum_per_region must be a positive integer')
     by_region: dict[str, list[FullPhysicsRequest]] = {}
-    seen = set()
+    seen: set[str] = set()
     for request in values:
-        if not isinstance(request, FullPhysicsRequest):
+        if not isinstance(request, FullPhysicsRequest):  # pyright: ignore[reportUnnecessaryIsInstance]
             raise TypeError('requests must be FullPhysicsRequest values')
         request.validate()
         if request.case_id in seen:
@@ -77,15 +87,14 @@ def schedule_full_physics_cases(
                    for rows in by_region.values())
     if total_budget < required:
         raise ValueError('budget cannot satisfy fixed regional coverage')
-    ordered = lambda rows: sorted(rows, key=lambda row: (-row.priority(), row.case_id))
-    chosen: list[tuple[FullPhysicsRequest, str]] = []
-    selected_ids = set()
+    chosen: list[tuple[FullPhysicsRequest, SelectionReason]] = []
+    selected_ids: set[str] = set()
     for region in sorted(by_region):
-        for request in ordered(by_region[region])[:minimum_per_region]:
+        for request in _ordered_requests(by_region[region])[:minimum_per_region]:
             chosen.append((request, 'fixed_regional_coverage'))
             selected_ids.add(request.case_id)
     remaining = [row for row in values if row.case_id not in selected_ids]
-    for request in ordered(remaining)[:max(0, total_budget - len(chosen))]:
+    for request in _ordered_requests(remaining)[:max(0, total_budget - len(chosen))]:
         chosen.append((request, 'adaptive_priority'))
     return [{
         'case_id': request.case_id,

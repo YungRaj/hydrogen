@@ -42,6 +42,7 @@ def default_campaign_services(
     ledger_path,
     targets,
     validation_rmse_limits,
+    # 8-member bootstrap ensemble with Tikhonov ridge lambda = 1e-8 for calibrated predictive variance
     ensemble_size: int = 8,
     ridge: float = 1e-8,
     random_seed: int = 0,
@@ -81,6 +82,7 @@ def default_campaign_services(
         missing = required.difference(plan)
         if missing:
             raise ValueError(f'case plan lacks production inputs: {sorted(missing)}')
+        # 86,400 s (24 hr) wall-clock timeout and up to 20 Picard MOOSE<->Cantera coupling iterations
         solver_runner(
             mode=plan['pathway_mode'],
             reactor_type=plan['reactor_type'],

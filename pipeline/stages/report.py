@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Callable, Mapping
 
 from pipeline.data_models.stages import ReportProducts, ReportState
@@ -9,7 +10,9 @@ from pipeline.stages.contracts import StageOutcome
 
 
 def run_report_stage(
-    pipeline_state: Mapping, *, generator: Callable | None = None
+    pipeline_state: Mapping[str, object],
+    *,
+    generator: Callable[[dict[str, object]], str | Path] | None = None,
 ) -> StageOutcome[ReportState, ReportProducts]:
     """Generate a report through an injectable renderer boundary.
 
@@ -26,5 +29,5 @@ def run_report_stage(
         generator = generate_full_report
     report_path = generator(dict(pipeline_state))
     state: ReportState = {'report_path': str(report_path)}
-    products: ReportProducts = {'report_path': report_path}
+    products: ReportProducts = {'report_path': Path(report_path)}
     return StageOutcome(state=state, products=products)

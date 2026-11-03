@@ -2,13 +2,16 @@
   "include": [
     "pipeline/data_models",
     "pipeline/orchestrator.py",
+    "pipeline/reactors/eligibility.py",
     "pipeline/reactors/modes.py",
     "pipeline/reactors/pbr.py",
     "pipeline/reactors/scorecard.py",
     "pipeline/stages/contracts.py",
     "pipeline/stages/orchestration.py",
     "pipeline/stages/reactor.py",
+    "pipeline/stages/report.py",
     "pipeline/electrochemistry/cantera_coupling.py",
+    "pipeline/campaigns/full_physics.py",
     "pipeline/campaigns/ledger.py",
     "pipeline/simulation/artifact_store.py"
   ],

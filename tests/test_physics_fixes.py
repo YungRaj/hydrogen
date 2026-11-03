@@ -1162,3 +1162,43 @@ def test_second_pass_assumption_fixes(tmp_path):
         0.562 + molten_anchor['anchor_offset_eV'] + 0.15
     )
 
+    # 11. Report generator surfaces calibrated interfacial scores, PBR/B4 diagnostics, and live LCOH scenarios
+    from pipeline.evidence.report_generator import (
+        _reactor_section,
+        _screening_section,
+        _tea_section,
+    )
+
+    scr_lines = '\n'.join(
+        _screening_section({
+            'branch_ranker_evidence': pd.DataFrame([
+                {
+                    'genome': "('SolidCatalyst', 'Ni', 'Al2O3', 'fcc111', 0.0, (), 0, 0)",
+                    'material_class': 'SolidCatalyst',
+                    'E_act': 0.386,
+                    'E_act_raw': 0.386,
+                    'c_height_above_surface_A': 0.20,
+                    'E_act_censored': False,
+                    'pyrolysis_viable': True,
+                    'valid': True,
+                }
+            ])
+        })
+    )
+    assert 'Interfacial Score (eV)' in scr_lines
+    assert 'Calibrated Score (eV)' in scr_lines
+    assert '1.2500' in scr_lines
+
+    rx_lines = '\n'.join(
+        _reactor_section({'solids_scorecard': scorecard_with_diag}, [pbr_rec])
+    )
+    assert 'Packed-Bed (PBR), B4 Residence-Time, & B2 Cycle Diagnostics' in rx_lines
+    assert '0.720' in rx_lines
+
+    tea_lines = '\n'.join(
+        _tea_section({'best_conversion': 0.65, 'solids_scorecard': scorecard_with_diag})
+    )
+    assert 'Levelized Cost of Hydrogen (LCOH)' in tea_lines
+    assert '| base |' in tea_lines
+
+

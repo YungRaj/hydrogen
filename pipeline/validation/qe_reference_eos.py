@@ -58,6 +58,7 @@ def qe_bulk_input(element: str, lattice_A: float, prefix: str) -> str:
         raise RuntimeError(f"SSSP verification failed: {verified['errors']}")
     pseudo = verified["records"][element]["filename"]
     celldm = lattice_A * BOHR_PER_ANGSTROM
+    # degauss = 0.02 Ry (~0.27 eV) Marzari-Vanderbilt cold smearing; 12x12x12 shifted Monkhorst-Pack k-mesh
     return f"""&CONTROL
  calculation='scf', prefix='{prefix}', pseudo_dir='{SSSP_DIR}', outdir='./tmp',
  disk_io='none', verbosity='high'
@@ -136,6 +137,7 @@ def run_reference_eos(element: str, output_dir: str | Path) -> dict:
     pw = resolve_qe_executable("pw.x")
     execution = QEExecutionConfig.production_default()
     center = REFERENCE_LATTICES[element]
+    # 7-point uniform linear strain grid spanning [-4%, +4%] in 4/3% (0.01333) increments around a_ref
     lattices = [
         center * factor
         for factor in (

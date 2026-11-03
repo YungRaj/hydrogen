@@ -193,15 +193,38 @@ def _screening_section(screening: dict) -> list:
         from pipeline.screening.small_data_ranker import screening_metric_eligibility
 
         ranked = df.loc[screening_metric_eligibility(df, 'turquoise_hydrogen')]
+    if len(ranked) > 0:
+        from pipeline.screening.stage_selection import annotate_interfacial_pyrolysis
+
+        ranked = annotate_interfacial_pyrolysis(ranked)
     if 'E_act' in ranked.columns and len(ranked) > 0:
-        lines += [f"\n**Top 10 Catalysts by Activation Barrier:**\n",
-                  "| Rank | Genome | E_act (eV) | Coking Index | dE_H (eV) |",
-                  "|------|--------|------------|-------------|-----------|"]
+        has_interfacial = 'interfacial_pyrolysis_score_eV' in ranked.columns
+        if has_interfacial:
+            lines += [
+                "\n**Top 10 Catalysts by Activation Barrier:**\n",
+                "| Rank | Genome | E_act (eV) | Interfacial Score (eV) | Calibrated Score (eV) | Coking Index | dE_H (eV) |",
+                "|------|--------|------------|------------------------|-----------------------|-------------|-----------|",
+            ]
+        else:
+            lines += [
+                "\n**Top 10 Catalysts by Activation Barrier:**\n",
+                "| Rank | Genome | E_act (eV) | Coking Index | dE_H (eV) |",
+                "|------|--------|------------|-------------|-----------|",
+            ]
         for rank, (_, row) in enumerate(ranked.nsmallest(10, 'E_act').iterrows(), 1):
             genome_str = str(row.get('genome', ''))[:50]
-            lines.append(
-                f"| {rank} | {genome_str} | {row['E_act']:.4f} | "
-                f"{row.get('coking_index', 'N/A')} | {row.get('dE_H', 'N/A')} |")
+            if has_interfacial:
+                lines.append(
+                    f"| {rank} | {genome_str} | {row['E_act']:.4f} | "
+                    f"{_report_number(row.get('interfacial_pyrolysis_score_eV'), '.4f')} | "
+                    f"{_report_number(row.get('calibrated_interfacial_score_eV'), '.4f')} | "
+                    f"{row.get('coking_index', 'N/A')} | {row.get('dE_H', 'N/A')} |"
+                )
+            else:
+                lines.append(
+                    f"| {rank} | {genome_str} | {row['E_act']:.4f} | "
+                    f"{row.get('coking_index', 'N/A')} | {row.get('dE_H', 'N/A')} |"
+                )
         lines.append("")
     return lines
 
@@ -254,6 +277,24 @@ def _reactor_section(p2: dict, reactor: list) -> list:
             lines.append(
                 f"MMBCR max X = {_report_number(scorecard['mmbcr_max_conversion'], '.1%')} "
                 f"({scorecard.get('mmbcr_note', 'not a solids rank')})\n")
+    pbr_diag = scorecard.get('pbr_b4_diagnostics')
+    if isinstance(pbr_diag, dict) and int(pbr_diag.get('n_completed') or 0) > 0:
+        lines += [
+            "### Packed-Bed (PBR), B4 Residence-Time, & B2 Cycle Diagnostics\n",
+            f"- **Completed solids runs**: {pbr_diag.get('n_completed', 0)} "
+            f"(PBR: {pbr_diag.get('n_pbr_records', 0)})",
+            f"- **Mean PBR overall effectiveness ($\\Omega$)**: "
+            f"{_report_number(pbr_diag.get('mean_pbr_overall_effectiveness_factor'), '.3f')}",
+            f"- **Mean PBR Thiele modulus ($\\phi$)**: "
+            f"{_report_number(pbr_diag.get('mean_pbr_thiele_modulus'), '.3f')}",
+            f"- **Ergun $\\Delta P$ compliance**: "
+            f"{pbr_diag.get('n_ergun_ok', 0)}/{pbr_diag.get('n_ergun_checked', 0)}",
+            f"- **B4 pilot residence-time band ($\\tau \\in [0.1, 10]\\text{{ s}}$)**: "
+            f"{pbr_diag.get('n_b4_within_pilot_band', 0)}/{pbr_diag.get('n_b4_checked', 0)}",
+            f"- **Mean B2 cycle minus single-pass conversion ($\\Delta X$)**: "
+            f"{_report_number(pbr_diag.get('mean_b2_cycle_minus_single_pass_X'), '+.2%')}",
+            "",
+        ]
 
     # Only completed production runs count. Sweeps, mocks, not_applicable,
     # validation_required, and failed records are evidence about the
@@ -385,6 +426,41 @@ TEA_SECTION = [
     "| Carbon co-product credit | $0.10–$0.50/kg |",
     "",
 ]
+
+
+def _tea_section(p2: dict) -> list:
+    """Build the techno-economic section with live LCOH scenarios when conversion is available."""
+    lines = list(TEA_SECTION)
+    conv = _scorecard_value(p2, 'best_conversion', 'headline_solids_conversion')
+    if not isinstance(conv, (int, float)) or conv <= 0:
+        conv = _scorecard_value(
+            p2, 'candidate_champion_conversion', 'candidate_champion_conversion'
+        )
+    if isinstance(conv, (int, float)) and conv > 0:
+        from pipeline.economics.tea import estimate_hydrogen_cost
+
+        sc = p2.get('solids_scorecard') or {}
+        temp_k = float(sc.get('candidate_champion_T_K') or 1073.15)
+        lines += [
+            f"### Levelized Cost of Hydrogen (LCOH) at X = {conv:.1%} (T = {temp_k:.0f} K)\n",
+            "| Scenario | Single-Pass X | Net CH₄ Util. | H₂ Cost ($/kg) | Carbon Credit ($/kg H₂) | DOE < $2/kg |",
+            "|----------|---------------|---------------|----------------|-------------------------|-------------|",
+        ]
+        for scenario in ('optimistic', 'base', 'conservative'):
+            est = estimate_hydrogen_cost(
+                float(conv), scenario, temperature_K=temp_k
+            )
+            lines.append(
+                f"| {scenario} | {est['conversion']:.1%} | "
+                f"{est['net_ch4_utilization']:.1%} | "
+                f"${est['h2_cost_usd_kg']:.2f} | "
+                f"${est['carbon_credit_usd_kg_h2']:.2f} | "
+                f"{'Yes' if est['h2_cost_usd_kg'] < 2.0 else 'No'} |"
+            )
+        lines.append("")
+    return lines
+
+
 PHASE_NAMES = {
     'phase1': 'Fairchem Screening + GA',
     'phase2': 'Reactor Simulation',
@@ -399,12 +475,15 @@ def _timing_section(ps: dict) -> list:
     lines = ["## Pipeline Timing\n", "| Phase | Duration |", "|-------|----------|"]
     for phase_key, phase_name in PHASE_NAMES.items():
         lines.append(f"| {phase_name} | {ps.get(phase_key, {}).get('elapsed_s', 0):.0f}s |")
+    # 3600 s/hr conversion from elapsed seconds to wall-clock hours
     total_s = ps.get('total_elapsed_s', 0)
     lines += [f"| **Total** | **{total_s:.0f}s ({total_s/3600:.1f} hours)** |", ""]
     return lines
 
 
-def generate_full_report(pipeline_state: Dict = None) -> Path:
+def generate_full_report(
+    pipeline_state: dict[str, object] | None = None,
+) -> Path:
     """
         Generate the comprehensive pipeline report.
 
@@ -433,7 +512,7 @@ def generate_full_report(pipeline_state: Dict = None) -> Path:
         + _dft_section(data['dft'])
         + _vqe_section(data['vqe'])
         + _fuel_cell_section(data['fuel_cell'], data['dft'])
-        + TEA_SECTION
+        + _tea_section(p2)
         + _timing_section(ps)
     )
     report_path = REPORTS_DIR / "pipeline_report.md"

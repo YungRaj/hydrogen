@@ -19,6 +19,7 @@ from pipeline.validation.qe_workflows import verify_sssp
 
 
 REFERENCE_ID = "bengaard-ni111-ch4-barrier"
+# 101 kJ/mol = 1.05 eV DFT PW91/PBE CH4 -> CH3* + H* activation barrier on terrace Ni(111) (Bengaard et al., J. Catal. 209, 2002)
 REFERENCE_BARRIER_EV = 1.05
 REFERENCE_DOI = "https://doi.org/10.1006/jcat.2002.3579"
 
@@ -66,6 +67,9 @@ def build_ni111_methane_endpoints(
     ]
     anchor = slab.positions[top_indices[1]].copy()
     top_z = float(anchor[2])
+    # Ideal sp3 tetrahedral CH4 geometry (r_CH = 1.09 A, theta_tet = 109.47 deg):
+    # with one C-H bond pointing along -z, the 3 upper H atoms project at
+    # z = -r_CH * cos(109.47 deg) = r_CH / 3 and xy radius r_CH * sin(109.47 deg) = r_CH * sqrt(8/9)
     bond = 1.09
     radial = bond * np.sqrt(8.0 / 9.0)
     upper_z = bond / 3.0
@@ -84,6 +88,8 @@ def build_ni111_methane_endpoints(
         + [(initial_c + vector).tolist() for vector in initial_vectors],
     )
 
+    # Adsorbed CH3* atop Ni (z_C = top_z + 2.0 A, r_CH = 1.08 A) + co-adsorbed H*
+    # displaced 0.60 * d_NN (d_NN = a / sqrt(2) = 2.49 A) into the adjacent fcc/hcp hollow site at z = top_z + 1.05 A
     final_c = np.array([anchor[0], anchor[1], top_z + 2.0])
     ch_bond = 1.08
     ch_radial = ch_bond * np.sqrt(8.0 / 9.0)
