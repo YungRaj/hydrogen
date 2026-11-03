@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Callable, Optional, cast
+from typing import Any, cast
 
-from pipeline.data_models.stages import DiscoveryProducts, DiscoveryState
 from pipeline.data_models.discovery import AdmissibilitySummary
+from pipeline.data_models.stages import DiscoveryProducts, DiscoveryState, TableLike
 from pipeline.stages.contracts import StageOutcome
 
 
@@ -27,13 +28,13 @@ class DiscoveryServices:
             band). Selection-only; the coverage denominator is untouched.
     """
 
-    estimate_space: Callable
-    build_config: Callable
-    run_search: Callable
-    annotate_evidence: Callable
-    select_reactor: Callable
-    select_validation: Callable
-    select_admissible: Optional[Callable] = None
+    estimate_space: Callable[[], dict[str, int]]
+    build_config: Callable[..., Any]
+    run_search: Callable[[Any], tuple[Sequence[object], Any]]
+    annotate_evidence: Callable[[Any, str], Any]
+    select_reactor: Callable[..., TableLike]
+    select_validation: Callable[..., TableLike]
+    select_admissible: Callable[[Any], tuple[Any, Any]] | None = None
 
 
 def default_discovery_services() -> DiscoveryServices:
@@ -42,26 +43,30 @@ def default_discovery_services() -> DiscoveryServices:
     Returns:
         A `DiscoveryServices` containing the default discovery services result.
     """
-    from pipeline.search.scope import scope_pyrolysis_pool
-    from pipeline.search.design_space import estimate_design_space_size
     from pipeline.screening.genetic_optimizer import (
-        BranchDiscoveryConfig,
-        run_branch_discovery,
+        BranchDiscoveryConfig,  # pyright: ignore[reportUnknownVariableType]
+        run_branch_discovery,  # pyright: ignore[reportUnknownVariableType]
     )
     from pipeline.screening.stage_selection import (
-        annotate_evidence,
-        select_for_pyrolysis_reactor,
-        select_for_validation,
+        annotate_evidence,  # pyright: ignore[reportUnknownVariableType]
+        select_for_pyrolysis_reactor,  # pyright: ignore[reportUnknownVariableType]
+        select_for_validation,  # pyright: ignore[reportUnknownVariableType]
+    )
+    from pipeline.search.design_space import estimate_design_space_size
+    from pipeline.search.scope import (
+        scope_pyrolysis_pool,  # pyright: ignore[reportUnknownVariableType]
     )
 
     return DiscoveryServices(
         estimate_design_space_size,
-        BranchDiscoveryConfig,
-        run_branch_discovery,
-        annotate_evidence,
-        select_for_pyrolysis_reactor,
-        select_for_validation,
-        select_admissible=scope_pyrolysis_pool,
+        cast(Callable[..., Any], BranchDiscoveryConfig),
+        cast(Callable[[Any], tuple[Sequence[object], Any]], run_branch_discovery),
+        cast(Callable[[Any, str], Any], annotate_evidence),
+        cast(Callable[..., TableLike], select_for_pyrolysis_reactor),
+        cast(Callable[..., TableLike], select_for_validation),
+        select_admissible=cast(
+            Callable[[Any], tuple[Any, Any]], scope_pyrolysis_pool
+        ),
     )
 
 
@@ -96,12 +101,14 @@ def run_discovery_stage(
         expected_space_size=sizes['TOTAL'],
     )
     pareto, database = services.run_search(config)
-    from pipeline.screening.small_data_ranker import screening_metric_eligibility
+    from pipeline.screening.small_data_ranker import (
+        screening_metric_eligibility,  # pyright: ignore[reportUnknownVariableType]
+    )
 
     eligibility_columns = {'valid', 'E_act', 'E_act_censored', 'pyrolysis_viable'}
     if eligibility_columns.issubset(database.columns):
-        eligible_metric = screening_metric_eligibility(
-            database, 'turquoise_hydrogen'
+        eligible_metric = cast(
+            Any, screening_metric_eligibility(database, 'turquoise_hydrogen')
         )
         valid = database.loc[eligible_metric].copy()
     else:
@@ -112,14 +119,20 @@ def run_discovery_stage(
     # Admissibility first (ADR 0001), then both slates from the same pool.
     # Validity is applied per route by the selectors (the validation route
     # may rescue invalid rows), so the pool is drawn from the full table.
+    admissibility: AdmissibilitySummary
     if services.select_admissible is not None:
         pool, raw_admissibility = services.select_admissible(database)
         admissibility = cast(AdmissibilitySummary, raw_admissibility)
     else:
         pool = database
-        admissibility: AdmissibilitySummary = {'filter': None}
+        admissibility = {'filter': None}
+    # Ensure at least 1 representative per material class in reactor and DFT slates
     reactor = services.select_reactor(pool, top_k_reactor, 'E_act', min_per_class=1)
     validation = services.select_validation(pool, top_k_dft, 'E_act', min_per_class=1)
+    raw_dispositions = evidence['candidate_disposition'].value_counts().to_dict()
+    dispositions: dict[str, int] = {
+        str(k): int(v) for k, v in cast(dict[Any, Any], raw_dispositions).items()
+    }
     state: DiscoveryState = {
         'pareto_size': len(pareto),
         'total_evaluated': len(database),
@@ -127,9 +140,7 @@ def run_discovery_stage(
         'top_catalysts_count': len(reactor),
         'dft_resolution_count': len(validation),
         'admissibility': admissibility,
-        'candidate_dispositions': evidence['candidate_disposition']
-        .value_counts()
-        .to_dict(),
+        'candidate_dispositions': dispositions,
     }
     if len(valid) > 0:
         state['best_E_act'] = float(valid['E_act'].min())
@@ -140,7 +151,7 @@ def run_discovery_stage(
     products: DiscoveryProducts = {
         'design_space_sizes': sizes,
         'pareto_genomes': pareto,
-        'screening_database': database,
+        'screening_database': cast(TableLike, database),
         'top_catalysts': reactor,
         'dft_candidates': validation,
     }

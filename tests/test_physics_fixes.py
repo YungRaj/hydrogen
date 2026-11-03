@@ -1303,3 +1303,95 @@ def test_second_pass_assumption_fixes(tmp_path):
     assert fc_viable['status'] == 'pass'
     assert fc_viable['observed']['measured_hours'] == pytest.approx(150.0)
 
+    # 15. ReactorBatchState and FuelCellState populate complete telemetry contracts
+    from pipeline.stages.fuel_cell import FuelCellServices, run_fuel_cell_stage
+    from pipeline.stages.reactor_batch import (
+        ReactorBatchServices,
+        run_reactor_batch_stage,
+    )
+
+    rx_candidates = pd.DataFrame([
+        {'candidate_id': 'ni_np_lit', 'E_act': 0.90},
+        {'candidate_id': 'cand_co_ce_01', 'E_act': 0.62},
+    ])
+    rx_services = ReactorBatchServices(
+        prepare_gas_mechanism=lambda: None,
+        simulate_candidate=lambda row, name, temps, rtypes, **kw: {
+            'sweep': [
+                {
+                    'reactor_type': 'PFR',
+                    'catalyst_name': name,
+                    'T_K': 973.15,
+                    'CH4_conversion': 0.26 if name == 'ni_np_lit' else 0.75,
+                    'single_pass_CH4_conversion': 0.26 if name == 'ni_np_lit' else 0.75,
+                    'deactivation_rate_per_h': 0.005,
+                    'coke_selectivity': 0.02,
+                    'specific_energy_kWh_kg_H2': 11.2,
+                    'measured_reactor': 1.0,
+                    'status': 'complete',
+                    'surface_loaded': True,
+                    'exceeds_equilibrium': False,
+                }
+            ]
+        },
+        write_mock_mechanism=lambda *a, **kw: None,
+        run_mock_sweep=lambda *a, **kw: [],
+        build_scorecard=build_solids_scorecard,
+    )
+    rx_outcome = run_reactor_batch_stage(
+        rx_candidates,
+        temperatures=(973.15,),
+        reactor_types=('PFR',),
+        pathway_mode='thermocatalytic_pfr',
+        multiphysics_results_dir=str(tmp_path),
+        allow_mock_inputs=False,
+        judge_catalyst='ni_np_lit',
+        headline_t_min=923.15,
+        headline_t_max=973.15,
+        services=rx_services,
+    )
+    assert rx_outcome.state['best_conversion'] == pytest.approx(0.26)
+    assert rx_outcome.state['candidate_champion_conversion'] == pytest.approx(0.75)
+    assert rx_outcome.state['candidate_champion_catalyst'] == 'cat_1'
+    assert rx_outcome.state['best_h2_cost_usd_kg'] > 0.0
+    assert rx_outcome.state['industrial_viability']['pass'] == 1
+    assert rx_outcome.state['industrial_viability']['fail'] == 1
+
+    fc_cathodes = pd.DataFrame([
+        {
+            'valid': True,
+            'name': 'PtCo_SAA',
+            'orr_overpotential_V': 0.31,
+            'orr_overpotential_gc_V': 0.29,
+            'pourbaix_acid_stable': True,
+            'material_class': 'SAA',
+        }
+    ])
+    fc_services = FuelCellServices(
+        screen_cathodes=lambda: fc_cathodes,
+        sweep_membranes=lambda name, eta, **kw: [
+            {
+                'cathode_catalyst': name,
+                'membrane': 'Nafion_211',
+                'orr_overpotential_V': eta,
+                'peak_power_W_cm2': 1.28,
+                'efficiency_at_peak': 0.51,
+                'peak_voltage_V': 0.68,
+                'peak_current_A_cm2': 1.5,
+            }
+        ],
+        build_stack_config=lambda **kw: kw,
+        model_stack=lambda cfg: {'net_power_kW': 84.5, 'system_efficiency': 0.49},
+    )
+    fc_outcome = run_fuel_cell_stage(
+        top_k_pemfc=1, stack_cells=380, services=fc_services
+    )
+    assert fc_outcome.state['best_catalyst'] == 'PtCo_SAA'
+    assert fc_outcome.state['best_membrane'] == 'Nafion_211'
+    assert fc_outcome.state['best_overpotential_V'] == pytest.approx(0.31)
+    assert fc_outcome.state['best_overpotential_gc_V'] == pytest.approx(0.29)
+    assert fc_outcome.state['pourbaix_acid_stable_count'] == 1
+    assert fc_outcome.state['stack_net_kW'] == pytest.approx(84.5)
+    assert fc_outcome.state['stack_efficiency'] == pytest.approx(0.49)
+
+

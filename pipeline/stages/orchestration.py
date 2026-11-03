@@ -241,7 +241,7 @@ def default_pipeline_components() -> PipelineComponents:
     from pipeline.stages.dft import run_dft_stage
     from pipeline.stages.discovery import run_discovery_stage
     from pipeline.stages.fuel_cell import run_fuel_cell_stage
-    from pipeline.stages.reactor_batch import run_reactor_batch_stage  # pyright: ignore[reportUnknownVariableType]
+    from pipeline.stages.reactor_batch import run_reactor_batch_stage
     from pipeline.stages.report import run_report_stage
     from pipeline.stages.vqe import run_vqe_stage
     return PipelineComponents(
