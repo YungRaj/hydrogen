@@ -310,63 +310,67 @@ def _deploy_fresh_pod_under_cap(
       }
     }
     """
-    for price, _, gpu_type_id in eligible[:6]:
-        print(
-            f'[runpod-ci] Deploying temporary CI pod ({gpu_type_id}, ~${price:.2f}/hr <= ${max_cost_per_hr:.2f}/hr cap)...',
-            flush=True,
-        )
-        try:
-            res = _gql(
-                api_key,
-                mutation,
-                variables={
-                    'input': {
-                        'cloudType': 'SECURE',
-                        'supportPublicIp': True,
-                        'gpuCount': 1,
-                        'volumeInGb': 0,
-                        'containerDiskInGb': 50,
-                        'minVcpuCount': 4,
-                        'minMemoryInGb': 16,
-                        'gpuTypeId': gpu_type_id,
-                        'name': 'hydrogen_ci_ephemeral',
-                        'imageName': 'runpod/pytorch:1.4.0-cu1281-torch280-ubuntu2404',
-                        'ports': '22/tcp',
-                        'volumeMountPath': '/workspace',
-                        'env': [{'key': 'PUBLIC_KEY', 'value': pub_key}],
-                    }
-                },
-            )
-            deployed = res.get('podFindAndDeployOnDemand')
-            if not deployed or not deployed.get('id'):
-                continue
-            pod_id = str(deployed['id'])
-            actual_cost = float(deployed.get('costPerHr') or price)
-            if actual_cost > max_cost_per_hr:
-                print(
-                    f'[runpod-ci] Deployed pod {pod_id} costs ${actual_cost:.2f}/hr > ${max_cost_per_hr:.2f}/hr cap! Terminating immediately.',
-                    flush=True,
-                )
-                _terminate_pod(api_key, pod_id)
-                continue
-            try:
-                ip, port = _wait_for_ssh(api_key, pod_id, ssh_key, timeout_s=210)
-                print(
-                    f'[runpod-ci] Connected to ephemeral CI pod {pod_id} at {ip}:{port} (${actual_cost:.2f}/hr)',
-                    flush=True,
-                )
-                return pod_id, ip, port, 'terminate'
-            except Exception as exc:
-                print(
-                    f'[runpod-ci] Ephemeral pod {pod_id} failed SSH readiness: {exc}',
-                    flush=True,
-                )
-                _terminate_pod(api_key, pod_id)
-        except Exception as exc:
+    for price, _, gpu_type_id in eligible[:12]:
+        for cloud_type in ('SECURE', 'ALL'):
             print(
-                f'[runpod-ci] Could not deploy {gpu_type_id}: {exc}',
+                f'[runpod-ci] Deploying temporary CI pod ({gpu_type_id}, {cloud_type}, ~${price:.2f}/hr <= ${max_cost_per_hr:.2f}/hr cap)...',
                 flush=True,
             )
+            try:
+                res = _gql(
+                    api_key,
+                    mutation,
+                    variables={
+                        'input': {
+                            'cloudType': cloud_type,
+                            'supportPublicIp': True,
+                            'gpuCount': 1,
+                            'volumeInGb': 0,
+                            'containerDiskInGb': 50,
+                            'minVcpuCount': 4,
+                            'minMemoryInGb': 16,
+                            'gpuTypeId': gpu_type_id,
+                            'name': 'hydrogen_ci_ephemeral',
+                            'imageName': 'runpod/pytorch:1.4.0-cu1281-torch280-ubuntu2404',
+                            'ports': '22/tcp',
+                            'volumeMountPath': '/workspace',
+                            'env': [{'key': 'PUBLIC_KEY', 'value': pub_key}],
+                        }
+                    },
+                )
+                deployed = res.get('podFindAndDeployOnDemand')
+                if not deployed or not deployed.get('id'):
+                    continue
+                pod_id = str(deployed['id'])
+                actual_cost = float(deployed.get('costPerHr') or price)
+                if actual_cost > max_cost_per_hr:
+                    print(
+                        f'[runpod-ci] Deployed pod {pod_id} costs ${actual_cost:.2f}/hr > ${max_cost_per_hr:.2f}/hr cap! Terminating immediately.',
+                        flush=True,
+                    )
+                    _terminate_pod(api_key, pod_id)
+                    continue
+                try:
+                    ip, port = _wait_for_ssh(api_key, pod_id, ssh_key, timeout_s=210)
+                    print(
+                        f'[runpod-ci] Connected to ephemeral CI pod {pod_id} at {ip}:{port} (${actual_cost:.2f}/hr)',
+                        flush=True,
+                    )
+                    return pod_id, ip, port, 'terminate'
+                except Exception as exc:
+                    print(
+                        f'[runpod-ci] Ephemeral pod {pod_id} failed SSH readiness: {exc}',
+                        flush=True,
+                    )
+                    _terminate_pod(api_key, pod_id)
+                    break
+            except Exception as exc:
+                print(
+                    f'[runpod-ci] Could not deploy {gpu_type_id} ({cloud_type}): {exc}',
+                    flush=True,
+                )
+                if 'SUPPLY_CONSTRAINT' not in str(exc):
+                    break
 
     raise RuntimeError(
         f'Unable to resume or deploy any pod under ${max_cost_per_hr:.2f}/hr'
@@ -527,10 +531,14 @@ export PIP_DISABLE_PIP_VERSION_CHECK=1
             tar -xzf /workspace/cache/ci_wheels.tar.gz -C /tmp
             pip install -q --no-index --find-links=/tmp/wheels --break-system-packages --root-user-action=ignore pytest pyright ase cantera scikit-learn scipy pandas
         else
-            pip install -q --prefer-binary --break-system-packages --root-user-action=ignore pytest pyright ase cantera scikit-learn scipy pandas
+            pip install -q --prefer-binary --break-system-packages --root-user-action=ignore pytest "pyright[nodejs]" ase cantera scikit-learn scipy pandas
         fi
     fi
-    pyright --version >/dev/null 2>&1 || (rm -rf /root/.cache/pyright-python && pyright --version >/dev/null 2>&1) || true
+    if ! pyright --version >/dev/null 2>&1; then
+        rm -rf /root/.cache/pyright-python
+        pip install -q --prefer-binary --break-system-packages --root-user-action=ignore "pyright[nodejs]"
+        pyright --version >/dev/null 2>&1
+    fi
 ) &
 BOOT_PID=$!
 

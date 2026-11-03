@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import math
+import os
 import shutil
 import subprocess
-import math
 from functools import lru_cache
 from pathlib import Path
 
@@ -74,6 +75,8 @@ def verify_numerics(convergence: dict, reactor_type: str | None = None) -> dict:
         cells = [int(row['cells']) for row in series]
         values = [float(row['observable']) for row in series]
         tolerance = float(tolerance)
+        # Require >= 3 strictly refined grids (N_1 < N_2 < N_3) and relative change
+        # |y_fine - y_med| / max(|y_fine|, 1e-12) <= mesh_tolerance_relative.
         if (
             len(series) >= 3
             and all(b > a > 0 for a, b in zip(cells, cells[1:]))
@@ -96,6 +99,7 @@ def verify_numerics(convergence: dict, reactor_type: str | None = None) -> dict:
             except (KeyError, TypeError, ValueError):
                 continue
     required_balances = REQUIRED_BALANCES.get(reactor_type, set())
+    # 1e-5 (10 ppm) maximum relative global conservation residual |F_out - F_in| / max(|F_in|, 1e-12)
     conservation_ok = (
         bool(residuals)
         and len(residuals) == len(budgets)
@@ -137,6 +141,7 @@ def verify_physical_outputs(
                 failed.append('gas_holdup_fraction')
             if float(outputs['bubble_diameter_mm']) <= 0:
                 failed.append('bubble_diameter')
+            # 1000 mm/m converts bubble diameter from mm to m to verify d_b < D_col
             if physical_case and float(outputs['bubble_diameter_mm']) / 1000 >= float(
                 physical_case['geometry']['column_diameter_m']
             ):
@@ -149,6 +154,7 @@ def verify_physical_outputs(
             voltage = float(outputs['cell_voltage_V'])
             if current < 0 or voltage <= 0:
                 failed.append('electrochemical_current_voltage')
+            # Electrical power density identity: P [W/cm^2] = j [A/cm^2] * V_cell [V] within 1e-6 relative/absolute tolerance
             expected = current * voltage
             actual = float(outputs['electrical_power_density_W_cm2'])
             if actual < 0:

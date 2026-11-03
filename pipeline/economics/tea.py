@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+import math
 
 
 @dataclass(frozen=True)
@@ -212,6 +213,7 @@ def build_multipathway_champion_scorecard(
     from pipeline.fuel_cell.stack import StackConfig, model_stack
     from pipeline.reactors.eligibility import is_usable_result
     from pipeline.reactors.scorecard import (
+        evaluate_pbr_and_b4_diagnostics,
         is_h_parked,
         is_production_reactor_record,
         is_solids_run,
@@ -264,6 +266,8 @@ def build_multipathway_champion_scorecard(
         for rank_idx, (_, row) in enumerate(selected.iterrows(), 1):
             c_disp = row.get('interfacial_carbon_displacement_A')
             i_score = row.get('interfacial_pyrolysis_score_eV')
+            cal_e_act = row.get('calibrated_activation_eV')
+            cal_score = row.get('calibrated_interfacial_score_eV')
             coking = row.get('coking_index')
             discovery_champions.append(
                 {
@@ -272,6 +276,11 @@ def build_multipathway_champion_scorecard(
                     'material_class': str(row.get('material_class', '')),
                     'genome': str(row.get('genome', '')),
                     'E_act_eV': round(float(row['E_act']), 4),
+                    'calibrated_activation_eV': (
+                        None
+                        if cal_e_act is None or pd.isna(cal_e_act)
+                        else round(float(cal_e_act), 4)
+                    ),
                     'interfacial_carbon_displacement_A': (
                         None
                         if c_disp is None or pd.isna(c_disp)
@@ -281,6 +290,11 @@ def build_multipathway_champion_scorecard(
                         None
                         if i_score is None or pd.isna(i_score)
                         else round(float(i_score), 4)
+                    ),
+                    'calibrated_interfacial_score_eV': (
+                        None
+                        if cal_score is None or pd.isna(cal_score)
+                        else round(float(cal_score), 4)
                     ),
                     'coking_index_eV': (
                         None
@@ -374,6 +388,10 @@ def build_multipathway_champion_scorecard(
             if 0.0 < conv <= 1.0
             else None
         )
+        raw_cycle_x = best_rec.get('cycle_averaged_CH4_conversion')
+        raw_eta = best_rec.get('overall_effectiveness_factor')
+        raw_phi = best_rec.get('thiele_modulus')
+        raw_dp = best_rec.get('ergun_delta_p_bar')
         pathway_leaderboard[mode_name] = {
             'status': 'complete',
             'n_usable_records': len(matching),
@@ -381,6 +399,27 @@ def build_multipathway_champion_scorecard(
             'reactor_type': str(best_rec.get('reactor_type', '')),
             'T_K': t_rec,
             'single_pass_CH4_conversion': round(conv, 4),
+            'cycle_averaged_CH4_conversion': (
+                round(float(raw_cycle_x), 4)
+                if isinstance(raw_cycle_x, (int, float))
+                and math.isfinite(float(raw_cycle_x))
+                else None
+            ),
+            'overall_effectiveness_factor': (
+                round(float(raw_eta), 4)
+                if isinstance(raw_eta, (int, float)) and math.isfinite(float(raw_eta))
+                else None
+            ),
+            'thiele_modulus': (
+                round(float(raw_phi), 4)
+                if isinstance(raw_phi, (int, float)) and math.isfinite(float(raw_phi))
+                else None
+            ),
+            'ergun_delta_p_bar': (
+                round(float(raw_dp), 6)
+                if isinstance(raw_dp, (int, float)) and math.isfinite(float(raw_dp))
+                else None
+            ),
             'H2_selectivity': round(float(best_rec.get('H2_selectivity') or 1.0), 4),
             'reactor_evidence_tier': str(
                 best_rec.get('reactor_evidence_tier', 'cantera_1d')
@@ -503,6 +542,7 @@ def build_multipathway_champion_scorecard(
     return {
         'discovery_champions': discovery_champions,
         'pathway_leaderboard': pathway_leaderboard,
+        'pbr_b4_diagnostics': evaluate_pbr_and_b4_diagnostics(reactor_records),
         'pemfc_stack_summary': pemfc_stack_summary,
         'coupled_turquoise_pemfc_tea': coupled_tea,
         'evidence_level': 'screening_multipathway_scorecard',

@@ -206,6 +206,7 @@ def case_template(*, candidate_id: str, mode: str, reactor_type: str,
     if reactor_type not in reactor_types_for_mode(mode):
         raise ValueError(f'{reactor_type} is not routed by mode {mode}')
     sections = {}
+    # 101325.0 Pa = 1 atm standard atmospheric pressure (ISO 2533)
     defaults = {'temperature_K': temperature_K, 'pressure_Pa': 101325.0}
     for section, fields in _REQUIRED[reactor_type].items():
         sections[section] = {
@@ -222,6 +223,7 @@ def case_template(*, candidate_id: str, mode: str, reactor_type: str,
         'feed': {'composition': {'CH4': 1.0}, 'source': 'REPLACE_WITH_SOURCE'},
         'kinetics': {'source': 'REPLACE_WITH_SOURCE'},
         'parameter_sources': sources,
+        # 0.1 = 10% maximum relative RMSE default acceptance threshold on holdout validation
         'calibration': {
             'training_ids': ['REPLACE_TRAIN_ID'],
             'validation_ids': ['REPLACE_HOLDOUT_ID'],
@@ -414,6 +416,8 @@ def verify_ntec_paired_control(
     control_x = float(control_outputs['CH4_conversion'])
     if not (0.0 <= active_x <= 1.0 and 0.0 <= control_x <= 1.0):
         raise ValueError('CH4_conversion values must lie in [0, 1]')
+    # Enhancement ratio X_active / max(X_control, 1e-12) must exceed min_enhancement_ratio
+    # (default 1.05 = +5% relative conversion gain over thermal-only control).
     ratio = active_x / max(control_x, 1e-12)
     net_gain = active_x - control_x
     passed = bool(net_gain > 0.0 and ratio >= float(min_enhancement_ratio))

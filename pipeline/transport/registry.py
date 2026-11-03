@@ -7,6 +7,8 @@ import json
 from pathlib import Path
 import re
 
+from typing import Any, cast
+
 from pipeline.transport.surrogate import TransportSurrogate
 
 
@@ -17,6 +19,7 @@ _SAFE_NAME = re.compile(r'^[A-Za-z0-9_.-]+$')
 def _sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open('rb') as handle:
+        # Read in 1 MiB (1024 * 1024 B) chunks for bounded-memory SHA-256 hashing
         for chunk in iter(lambda: handle.read(1024 * 1024), b''):
             digest.update(chunk)
     return digest.hexdigest()
@@ -50,7 +53,7 @@ class TransportModelRegistry:
             json.dumps(model.to_dict(), indent=2, sort_keys=True) + '\n'
         )
         temporary.replace(target)
-        manifest = {
+        manifest: dict[str, object] = {
             'schema_version': REGISTRY_SCHEMA_VERSION,
             'pathway_mode': model.pathway_mode,
             'reactor_type': model.reactor_type,
@@ -82,9 +85,12 @@ class TransportModelRegistry:
         if not manifest_path.is_file():
             return None
         try:
-            manifest = json.loads(manifest_path.read_text())
+            raw_manifest = json.loads(manifest_path.read_text())
         except (OSError, json.JSONDecodeError) as exc:
             raise ValueError('transport model manifest is unreadable') from exc
+        if not isinstance(raw_manifest, dict):
+            raise ValueError('transport model manifest identity is invalid')
+        manifest = cast(dict[str, Any], raw_manifest)
         if (
             manifest.get('schema_version') != REGISTRY_SCHEMA_VERSION
             or manifest.get('pathway_mode') != mode

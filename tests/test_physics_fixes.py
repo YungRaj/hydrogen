@@ -1201,4 +1201,44 @@ def test_second_pass_assumption_fixes(tmp_path):
     assert 'Levelized Cost of Hydrogen (LCOH)' in tea_lines
     assert '| base |' in tea_lines
 
+    # 12. Multipathway champion scorecard includes calibrated interfacial scores and PBR/B4 diagnostics
+    import json
+    from pipeline.economics.tea import build_multipathway_champion_scorecard
 
+    mp_root = tmp_path / 'mp_results'
+    (mp_root / 'screening').mkdir(parents=True, exist_ok=True)
+    (mp_root / 'reactor').mkdir(parents=True, exist_ok=True)
+    pd.DataFrame([
+        {
+            'candidate_id': 'ni_al2o3_champ',
+            'genome': "('SolidCatalyst', 'Ni', 'Al2O3', 'fcc111', 0.0, (), 0, 0)",
+            'material_class': 'SolidCatalyst',
+            'E_act': 0.386,
+            'E_act_raw': 0.386,
+            'c_height_above_surface_A': 0.20,
+            'coking_index': 1.85,
+            'E_act_censored': False,
+            'pyrolysis_viable': True,
+            'valid': True,
+        }
+    ]).to_csv(mp_root / 'screening' / 'branch_ranker_evidence.csv', index=False)
+    (mp_root / 'reactor' / 'pbr_champ.json').write_text(
+        json.dumps({
+            **pbr_rec,
+            'ergun_delta_p_bar': 0.0125,
+            'H2_selectivity': 0.995,
+        }),
+        encoding='utf-8',
+    )
+    mp_scorecard = build_multipathway_champion_scorecard(str(mp_root))
+    assert len(mp_scorecard['discovery_champions']) == 1
+    champ0 = mp_scorecard['discovery_champions'][0]
+    assert champ0['calibrated_activation_eV'] == pytest.approx(1.05)
+    assert champ0['calibrated_interfacial_score_eV'] == pytest.approx(1.25)
+    pbr_lead = mp_scorecard['pathway_leaderboard']['thermocatalytic_pbr']
+    assert pbr_lead['status'] == 'complete'
+    assert pbr_lead['cycle_averaged_CH4_conversion'] == pytest.approx(0.39)
+    assert pbr_lead['overall_effectiveness_factor'] == pytest.approx(0.72)
+    assert pbr_lead['thiele_modulus'] == pytest.approx(1.4)
+    assert pbr_lead['ergun_delta_p_bar'] == pytest.approx(0.0125)
+    assert mp_scorecard['pbr_b4_diagnostics']['n_pbr_records'] == 1

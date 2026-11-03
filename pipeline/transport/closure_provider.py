@@ -65,6 +65,8 @@ def resolve_reactor_closure(
         }
     try:
         feature_temperature = float(features['operating.temperature_K'])
+        # 1e-6 K absolute tolerance guards against IEEE-754 JSON round-trip drift
+        # while strictly rejecting mismatched operating-temperature sweeps.
         temperature_matches = math.isclose(
             feature_temperature, float(temperature_K), abs_tol=1e-6
         )

@@ -39,6 +39,7 @@ def sha256(path: str | Path) -> str:
     """
     digest = hashlib.sha256()
     with Path(path).open('rb') as handle:
+        # Read in 1 MiB (1024 * 1024 B) blocks for bounded-memory file hashing
         for block in iter(lambda: handle.read(1024 * 1024), b''):
             digest.update(block)
     return digest.hexdigest()
@@ -80,6 +81,8 @@ def require_pristine_case(case: str | Path) -> None:
     )
     numeric_times = []
     for child in root.iterdir():
+        # In OpenFOAM case directories, '0/' holds initial/boundary conditions,
+        # whereas positive numeric directory names (t > 0) are solver-written time steps.
         if not child.is_dir() or child.name == '0':
             continue
         try:
@@ -303,6 +306,8 @@ def validate_solver_coupling(
     tolerance = float(coupling['coupling_tolerance_relative'])
     if not all(math.isfinite(x) for x in (residual, tolerance)) or tolerance < 0:
         raise ValueError('invalid coupling residual or tolerance')
+    # Iterative two-way Picard coupling requires >= 2 outer passes to compute a
+    # relative iterate change ||u^(k) - u^(k-1)|| / ||u^(k)|| <= tolerance.
     if method == 'iterative_two_way' and (iterations < 2 or residual > tolerance):
         raise ValueError('two-way solver coupling is not converged')
     try:

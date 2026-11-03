@@ -59,6 +59,7 @@ def _physical_closure(
         if diameter_mm is not None and diameter_mm <= 0:
             return False
         column_m = features.get('geometry.column_diameter_m')
+        # 1000 mm/m converts bubble diameter from mm to m to verify d_b < D_col
         if (
             diameter_mm is not None
             and column_m is not None
@@ -184,6 +185,8 @@ class TransportSurrogate:
         for name, (value, shape) in arrays.items():
             if value.shape != shape or not np.all(np.isfinite(value)):
                 raise ValueError(f'model {name} has an invalid shape or value')
+        # Diagonal quadratic basis phi(z) = [1, z, z^2] has 1 + 2*d columns;
+        # >= 2 bootstrap members are required for non-degenerate ensemble spread.
         design_size = 1 + 2 * feature_count
         if (
             self.coefficients.ndim != 3
@@ -390,6 +393,8 @@ def fit_transport_surrogate(
         raise ValueError('ensemble_size must be an integer of at least two')
     if not math.isfinite(float(ridge)) or ridge < 0:
         raise ValueError('ridge must be finite and nonnegative')
+    # >= 4 training cases prevent rank-deficient 1D quadratic fits (3 parameters);
+    # >= 2 validation cases provide a non-singular holdout RMSE across distinct regimes.
     if len(train) < 4 or len(holdout) < 2:
         raise ValueError('at least four training and two validation cases are required')
     if {row.case_id for row in train}.intersection(row.case_id for row in holdout):

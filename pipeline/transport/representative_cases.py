@@ -48,6 +48,7 @@ class ParameterRange:
             The physical parameter value corresponding to the unit coordinate.
         """
         if self.scale == 'log':
+            # Log-uniform interpolation: x(u) = exp(ln(x_min) + u * (ln(x_max) - ln(x_min)))
             return float(
                 math.exp(
                     math.log(self.minimum)
@@ -63,6 +64,7 @@ def _case_id(mode: str, reactor: str, features: Mapping[str, float]) -> str:
         sort_keys=True,
         separators=(',', ':'),
     ).encode()
+    # 20 hex chars (80-bit SHA-256 prefix) give collision-free compact case IDs
     return hashlib.sha256(payload).hexdigest()[:20]
 
 
@@ -105,6 +107,7 @@ def design_representative_cases(
     rng = np.random.default_rng(random_seed)
     columns = {}
     for name in names:
+        # Latin-hypercube strata u_j = (j + U_j) / N for j in {0, ..., N-1}, U_j ~ U(0, 1)
         strata = (np.arange(sample_count) + rng.random(sample_count)) / sample_count
         columns[name] = strata[rng.permutation(sample_count)]
     feature_rows = [

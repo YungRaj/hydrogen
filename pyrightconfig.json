@@ -13,7 +13,9 @@
     "pipeline/electrochemistry/cantera_coupling.py",
     "pipeline/campaigns/full_physics.py",
     "pipeline/campaigns/ledger.py",
-    "pipeline/simulation/artifact_store.py"
+    "pipeline/simulation/artifact_store.py",
+    "pipeline/transport/closure_provider.py",
+    "pipeline/transport/registry.py"
   ],
   "exclude": [
     "results",
