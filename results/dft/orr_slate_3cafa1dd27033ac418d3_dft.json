@@ -1,0 +1,19 @@
+{
+  "catalyst_name": "orr_slate_3cafa1dd27033ac418d3",
+  "candidate_id": "3cafa1dd27033ac418d3",
+  "material_class": "COF",
+  "genome": "('COF', 'Co', 'Imine', 'N2P2', 6.0)",
+  "evidence_level": "screening_dft",
+  "returncode": 0,
+  "execution": {
+    "mpi_ranks": 2,
+    "omp_threads": 2,
+    "kpoint_pools": 1,
+    "image_groups": 1,
+    "require_gpu": true
+  },
+  "dft_energy_Ry": -350.55383845,
+  "dft_energy_eV": -4769.527949038315,
+  "converged": true,
+  "max_force_Ry_bohr": 0.0
+}

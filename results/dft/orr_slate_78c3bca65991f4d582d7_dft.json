@@ -1,0 +1,22 @@
+{
+  "catalyst_name": "orr_slate_78c3bca65991f4d582d7",
+  "candidate_id": "78c3bca65991f4d582d7",
+  "material_class": "HEA",
+  "genome": "('HEA', ('Co', 'Re', 'Ir', 'Pt', 'Ce'), 'fcc', '100', 900)",
+  "evidence_level": "screening_dft",
+  "returncode": 0,
+  "execution": {
+    "mpi_ranks": 2,
+    "omp_threads": 2,
+    "kpoint_pools": 1,
+    "image_groups": 1,
+    "require_gpu": true
+  },
+  "dft_energy_Ry": -1065.114739,
+  "dft_energy_eV": -14491.62428573441,
+  "converged": true,
+  "max_force_Ry_bohr": null,
+  "wall_time_s": 138.1,
+  "provenance_pod": "nbexneesgdgjt2",
+  "provenance_task": "task-1484"
+}

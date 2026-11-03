@@ -1,0 +1,19 @@
+{
+  "catalyst_name": "campaign_eb64b3aa6d3913c21f5d",
+  "candidate_id": "eb64b3aa6d3913c21f5d",
+  "material_class": "MAXPhase",
+  "genome": "('MAXPhase', 'Ta', 'Al', 'C', 1, 'Ti', 'basal_0001')",
+  "evidence_level": "screening_dft",
+  "returncode": 0,
+  "execution": {
+    "mpi_ranks": 2,
+    "omp_threads": 2,
+    "kpoint_pools": 1,
+    "image_groups": 1,
+    "require_gpu": true
+  },
+  "dft_energy_Ry": -318.77122562,
+  "dft_energy_eV": -4337.103472226402,
+  "converged": true,
+  "max_force_Ry_bohr": 0.0
+}

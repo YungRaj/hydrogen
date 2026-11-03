@@ -1,0 +1,1844 @@
+{
+  "schema_version": 1,
+  "n_validation_samples": 58,
+  "prior_rows": 5.0,
+  "class_bias_eV": {
+    "COF": 0.003514,
+    "DAC": 0.23055,
+    "HEA": 0.243114,
+    "MAXPhase": 0.144783,
+    "MOF": 0.006905,
+    "MXene": 0.040556,
+    "MetalFreeCarbon": 0.245467,
+    "Perovskite": 0.354957,
+    "SAA": 0.282967,
+    "SAC": 0.436467,
+    "SolidCatalyst": 0.400217,
+    "Spinel": 0.297467,
+    "MoltenMetal": 0.228733
+  },
+  "class_bias_delta_eV": {
+    "COF": 0.003514,
+    "DAC": 0.23055,
+    "HEA": 0.243114,
+    "MAXPhase": 0.144783,
+    "MOF": 0.006905,
+    "MXene": 0.040556,
+    "MetalFreeCarbon": 0.245467,
+    "Perovskite": 0.354957,
+    "SAA": 0.282967,
+    "SAC": 0.436467,
+    "SolidCatalyst": 0.400217,
+    "Spinel": 0.297467,
+    "MoltenMetal": 0.228733
+  },
+  "region_bias_eV": {
+    "COF|Co|Imine|N2P2": 0.02349,
+    "COF|Pt|Boroxine|O4": -0.012362,
+    "DAC|Fe|Pr|N8": 0.076598,
+    "DAC|Mo|Pr|N2S2N2": 0.057153,
+    "DAC|Pt|Sn|N8": 0.076597,
+    "HEA|Al-Ce-Cu-Ge-V-Zn|fcc_bcc_dual": 0.246914,
+    "HEA|Ce-Co-Ir-La-Ru-Sb|amorphous": 0.137791,
+    "HEA|Ce-Co-Ir-Pt-Re|fcc": 0.075668,
+    "HEA|Co-Hf-Ni-Re|fcc_bcc_dual": 0.104758,
+    "MAXPhase|Nb|P": 0.510669,
+    "MAXPhase|Ti|In": 0.261782,
+    "MOF|Au|Oxalate|N3P": 0.03496,
+    "MOF|Mn|Imidazolate|O4": -0.013095,
+    "MXene|W|CN": 0.081112,
+    "MetalFreeCarbon|oxidized|0.01": -0.033334,
+    "Perovskite|Ba|Rh": 0.398012,
+    "Perovskite|Ba|Sb": 0.373568,
+    "Perovskite|Ce|Sn": 0.939459,
+    "Perovskite|Gd|Zn": 0.349191,
+    "Perovskite|Na|Fe": 0.338426,
+    "Perovskite|Na|Ta": 0.38184,
+    "SAA|Ag|Au": 0.10353,
+    "SAA|Ir|In": 0.124357,
+    "SAA|Pd|Ag": 0.144799,
+    "SAA|Pd|Au": 0.112849,
+    "SAA|Pd|Co": 0.124356,
+    "SAA|Pd|Ga": 0.11259,
+    "SAA|Pt|Ag": 0.135449,
+    "SAA|Pt|Co": 0.053384,
+    "SAA|Pt|Ga": 0.056718,
+    "SAC|Ce|N3B|N-mesoporous_carbon": 0.047029,
+    "SAC|Co|N2S2|Phosphorene": -0.001027,
+    "SAC|Cu|C4|Phosphorene": 0.021743,
+    "SAC|Cu|S4|Phosphorene": 0.023503,
+    "SAC|Fe|N3S|MoS2_sheet": 0.047029,
+    "SAC|Pd|N3C|Phosphorene": -0.001027,
+    "SAC|Sb|O4|Phosphorene": 0.033507,
+    "SolidCatalyst|Au|MoO3|bcc211": 0.081298,
+    "SolidCatalyst|Au|NiP|fcc110": 0.100041,
+    "SolidCatalyst|Co|Graphite|fcc100": 0.076429,
+    "Spinel|Cu|Cu": 0.025307,
+    "Spinel|Fe|Cu": 0.024675,
+    "Spinel|Fe|Ni": 0.013521,
+    "Spinel|Ni|Co": -0.025804,
+    "Spinel|Zn|Co": 0.00694,
+    "DAC|Zn|Al|N3BN3": 0.4611,
+    "HEA|Ag-Fe-Ir-Zn-Zr|bcc": 0.373414,
+    "HEA|Fe-Ir-Nb-Sc-Zn|hcp": 0.396447,
+    "MAXPhase|Ta|Al": 0.289566,
+    "MetalFreeCarbon|pyrrolic|0.04": 0.490934,
+    "MoltenMetal|Te|Ti": 0.457466,
+    "SAA|Pd|In": 0.565934,
+    "SAC|Zn|N4_pyridine|N-graphene": 0.872934,
+    "SolidCatalyst|Ce|Graphene|bcc211": 0.800434,
+    "Spinel|Mg|Co": 0.594934
+  },
+  "applications": {
+    "turquoise_hydrogen": {
+      "n_validation_samples": 10,
+      "class_bias_eV": {
+        "DAC": 0.23055,
+        "HEA": 0.243114,
+        "MAXPhase": 0.144783,
+        "MetalFreeCarbon": 0.245467,
+        "MoltenMetal": 0.228733,
+        "SAA": 0.282967,
+        "SAC": 0.436467,
+        "SolidCatalyst": 0.400217,
+        "Spinel": 0.297467
+      },
+      "class_bias_delta_eV": {
+        "DAC": 0.23055,
+        "HEA": 0.243114,
+        "MAXPhase": 0.144783,
+        "MetalFreeCarbon": 0.245467,
+        "MoltenMetal": 0.228733,
+        "SAA": 0.282967,
+        "SAC": 0.436467,
+        "SolidCatalyst": 0.400217,
+        "Spinel": 0.297467
+      },
+      "region_bias_eV": {
+        "DAC|Zn|Al|N3BN3": 0.4611,
+        "HEA|Ag-Fe-Ir-Zn-Zr|bcc": 0.373414,
+        "HEA|Fe-Ir-Nb-Sc-Zn|hcp": 0.396447,
+        "MAXPhase|Ta|Al": 0.289566,
+        "MetalFreeCarbon|pyrrolic|0.04": 0.490934,
+        "MoltenMetal|Te|Ti": 0.457466,
+        "SAA|Pd|In": 0.565934,
+        "SAC|Zn|N4_pyridine|N-graphene": 0.872934,
+        "SolidCatalyst|Ce|Graphene|bcc211": 0.800434,
+        "Spinel|Mg|Co": 0.594934
+      },
+      "class_calibration_stats": {
+        "DAC": {
+          "n": 1,
+          "mae": 1.3832999999999998,
+          "bias": 1.3832999999999998,
+          "productivity": 0.0,
+          "best_observed": 2.2529
+        },
+        "HEA": {
+          "n": 2,
+          "mae": 0.8509,
+          "bias": 0.8509,
+          "productivity": 0.5,
+          "best_observed": 0.901
+        },
+        "MAXPhase": {
+          "n": 1,
+          "mae": 0.8687,
+          "bias": 0.8687,
+          "productivity": 1.0,
+          "best_observed": 0.8833
+        },
+        "MetalFreeCarbon": {
+          "n": 1,
+          "mae": 1.4727999999999999,
+          "bias": 1.4727999999999999,
+          "productivity": 0.0,
+          "best_observed": 2.7196
+        },
+        "MoltenMetal": {
+          "n": 1,
+          "mae": 1.3723999999999998,
+          "bias": 1.3723999999999998,
+          "productivity": 0.0,
+          "best_observed": 1.9863
+        },
+        "SAA": {
+          "n": 1,
+          "mae": 1.6978,
+          "bias": 1.6978,
+          "productivity": 0.0,
+          "best_observed": 3.8574
+        },
+        "SAC": {
+          "n": 1,
+          "mae": 2.6188000000000002,
+          "bias": 2.6188000000000002,
+          "productivity": 0.0,
+          "best_observed": 2.9828
+        },
+        "SolidCatalyst": {
+          "n": 1,
+          "mae": 2.4013,
+          "bias": 2.4013,
+          "productivity": 0.0,
+          "best_observed": 2.5274
+        },
+        "Spinel": {
+          "n": 1,
+          "mae": 1.7848000000000002,
+          "bias": 1.7848000000000002,
+          "productivity": 0.0,
+          "best_observed": 2.4129
+        }
+      },
+      "regional_calibration_stats": {
+        "DAC|Zn|Al|N3BN3": {
+          "n": 1,
+          "mae": 1.3832999999999998,
+          "bias": 1.3832999999999998,
+          "productivity": 0.0,
+          "best_observed": 2.2529
+        },
+        "HEA|Ag-Fe-Ir-Zn-Zr|bcc": {
+          "n": 1,
+          "mae": 0.7818,
+          "bias": 0.7818,
+          "productivity": 1.0,
+          "best_observed": 0.901
+        },
+        "HEA|Fe-Ir-Nb-Sc-Zn|hcp": {
+          "n": 1,
+          "mae": 0.9199999999999999,
+          "bias": 0.9199999999999999,
+          "productivity": 0.0,
+          "best_observed": 1.2368
+        },
+        "MAXPhase|Ta|Al": {
+          "n": 1,
+          "mae": 0.8687,
+          "bias": 0.8687,
+          "productivity": 1.0,
+          "best_observed": 0.8833
+        },
+        "MetalFreeCarbon|pyrrolic|0.04": {
+          "n": 1,
+          "mae": 1.4727999999999999,
+          "bias": 1.4727999999999999,
+          "productivity": 0.0,
+          "best_observed": 2.7196
+        },
+        "MoltenMetal|Te|Ti": {
+          "n": 1,
+          "mae": 1.3723999999999998,
+          "bias": 1.3723999999999998,
+          "productivity": 0.0,
+          "best_observed": 1.9863
+        },
+        "SAA|Pd|In": {
+          "n": 1,
+          "mae": 1.6978,
+          "bias": 1.6978,
+          "productivity": 0.0,
+          "best_observed": 3.8574
+        },
+        "SAC|Zn|N4_pyridine|N-graphene": {
+          "n": 1,
+          "mae": 2.6188000000000002,
+          "bias": 2.6188000000000002,
+          "productivity": 0.0,
+          "best_observed": 2.9828
+        },
+        "SolidCatalyst|Ce|Graphene|bcc211": {
+          "n": 1,
+          "mae": 2.4013,
+          "bias": 2.4013,
+          "productivity": 0.0,
+          "best_observed": 2.5274
+        },
+        "Spinel|Mg|Co": {
+          "n": 1,
+          "mae": 1.7848000000000002,
+          "bias": 1.7848000000000002,
+          "productivity": 0.0,
+          "best_observed": 2.4129
+        }
+      }
+    },
+    "fuel_cell_orr": {
+      "n_validation_samples": 48,
+      "class_bias_eV": {
+        "COF": 0.003514,
+        "DAC": 0.048542,
+        "HEA": 0.102751,
+        "MAXPhase": 0.243932,
+        "MOF": 0.006905,
+        "MXene": 0.040556,
+        "MetalFreeCarbon": -0.016667,
+        "Perovskite": 0.354957,
+        "SAA": 0.083801,
+        "SAC": 0.018973,
+        "SolidCatalyst": 0.059485,
+        "Spinel": 0.006696
+      },
+      "class_bias_delta_eV": {
+        "COF": 0.003514,
+        "DAC": 0.048542,
+        "HEA": 0.102751,
+        "MAXPhase": 0.243932,
+        "MOF": 0.006905,
+        "MXene": 0.040556,
+        "MetalFreeCarbon": -0.016667,
+        "Perovskite": 0.354957,
+        "SAA": 0.083801,
+        "SAC": 0.018973,
+        "SolidCatalyst": 0.059485,
+        "Spinel": 0.006696
+      },
+      "region_bias_eV": {
+        "COF|Co|Imine|N2P2": 0.02349,
+        "COF|Pt|Boroxine|O4": -0.012362,
+        "DAC|Fe|Pr|N8": 0.076598,
+        "DAC|Mo|Pr|N2S2N2": 0.057153,
+        "DAC|Pt|Sn|N8": 0.076597,
+        "HEA|Al-Ce-Cu-Ge-V-Zn|fcc_bcc_dual": 0.246914,
+        "HEA|Ce-Co-Ir-La-Ru-Sb|amorphous": 0.137791,
+        "HEA|Ce-Co-Ir-Pt-Re|fcc": 0.075668,
+        "HEA|Co-Hf-Ni-Re|fcc_bcc_dual": 0.104758,
+        "MAXPhase|Nb|P": 0.510669,
+        "MAXPhase|Ti|In": 0.261782,
+        "MOF|Au|Oxalate|N3P": 0.03496,
+        "MOF|Mn|Imidazolate|O4": -0.013095,
+        "MXene|W|CN": 0.081112,
+        "MetalFreeCarbon|oxidized|0.01": -0.033334,
+        "Perovskite|Ba|Rh": 0.398012,
+        "Perovskite|Ba|Sb": 0.373568,
+        "Perovskite|Ce|Sn": 0.939459,
+        "Perovskite|Gd|Zn": 0.349191,
+        "Perovskite|Na|Fe": 0.338426,
+        "Perovskite|Na|Ta": 0.38184,
+        "SAA|Ag|Au": 0.10353,
+        "SAA|Ir|In": 0.124357,
+        "SAA|Pd|Ag": 0.144799,
+        "SAA|Pd|Au": 0.112849,
+        "SAA|Pd|Co": 0.124356,
+        "SAA|Pd|Ga": 0.11259,
+        "SAA|Pt|Ag": 0.135449,
+        "SAA|Pt|Co": 0.053384,
+        "SAA|Pt|Ga": 0.056718,
+        "SAC|Ce|N3B|N-mesoporous_carbon": 0.047029,
+        "SAC|Co|N2S2|Phosphorene": -0.001027,
+        "SAC|Cu|C4|Phosphorene": 0.021743,
+        "SAC|Cu|S4|Phosphorene": 0.023503,
+        "SAC|Fe|N3S|MoS2_sheet": 0.047029,
+        "SAC|Pd|N3C|Phosphorene": -0.001027,
+        "SAC|Sb|O4|Phosphorene": 0.033507,
+        "SolidCatalyst|Au|MoO3|bcc211": 0.081298,
+        "SolidCatalyst|Au|NiP|fcc110": 0.100041,
+        "SolidCatalyst|Co|Graphite|fcc100": 0.076429,
+        "Spinel|Cu|Cu": 0.025307,
+        "Spinel|Fe|Cu": 0.024675,
+        "Spinel|Fe|Ni": 0.013521,
+        "Spinel|Ni|Co": -0.025804,
+        "Spinel|Zn|Co": 0.00694
+      },
+      "class_calibration_stats": {
+        "COF": {
+          "n": 2,
+          "mae": 0.10755499999999998,
+          "bias": 0.012298999999999977,
+          "productivity": 0.5,
+          "best_observed": 0.342209
+        },
+        "DAC": {
+          "n": 3,
+          "mae": 0.12944433333333324,
+          "bias": 0.12944433333333324,
+          "productivity": 0.0,
+          "best_observed": 0.420581
+        },
+        "HEA": {
+          "n": 4,
+          "mae": 0.31244025000000003,
+          "bias": 0.23119025000000004,
+          "productivity": 0.0,
+          "best_observed": 0.193069
+        },
+        "MAXPhase": {
+          "n": 2,
+          "mae": 0.8537620000000001,
+          "bias": 0.8537620000000001,
+          "productivity": 0.0,
+          "best_observed": 0.447949
+        },
+        "MOF": {
+          "n": 2,
+          "mae": 0.1441665,
+          "bias": 0.024166500000000007,
+          "productivity": 0.0,
+          "best_observed": 0.284613
+        },
+        "MXene": {
+          "n": 1,
+          "mae": 0.24333399999999994,
+          "bias": 0.24333399999999994,
+          "productivity": 0.0,
+          "best_observed": 1.666153
+        },
+        "MetalFreeCarbon": {
+          "n": 1,
+          "mae": 0.1,
+          "bias": -0.1,
+          "productivity": 1.0,
+          "best_observed": 0.172376
+        },
+        "Perovskite": {
+          "n": 6,
+          "mae": 0.6953488333333334,
+          "bias": 0.6507541666666666,
+          "productivity": 0.0,
+          "best_observed": 0.090948
+        },
+        "SAA": {
+          "n": 12,
+          "mae": 0.17621874999999998,
+          "bias": 0.11871874999999997,
+          "productivity": 0.3333333333333333,
+          "best_observed": 0.205863
+        },
+        "SAC": {
+          "n": 7,
+          "mae": 0.10109642857142857,
+          "bias": 0.032525000000000005,
+          "productivity": 0.42857142857142855,
+          "best_observed": 0.281737
+        },
+        "SolidCatalyst": {
+          "n": 3,
+          "mae": 0.15862666666666667,
+          "bias": 0.15862666666666667,
+          "productivity": 0.3333333333333333,
+          "best_observed": 0.243388
+        },
+        "Spinel": {
+          "n": 5,
+          "mae": 0.0913914,
+          "bias": 0.013391400000000008,
+          "productivity": 0.2,
+          "best_observed": 0.156061
+        }
+      },
+      "regional_calibration_stats": {
+        "COF|Co|Imine|N2P2": {
+          "n": 1,
+          "mae": 0.11985399999999996,
+          "bias": 0.11985399999999996,
+          "productivity": 0.0,
+          "best_observed": 0.430677
+        },
+        "COF|Pt|Boroxine|O4": {
+          "n": 1,
+          "mae": 0.09525600000000001,
+          "bias": -0.09525600000000001,
+          "productivity": 1.0,
+          "best_observed": 0.342209
+        },
+        "DAC|Fe|Pr|N8": {
+          "n": 1,
+          "mae": 0.16833300000000007,
+          "bias": 0.16833300000000007,
+          "productivity": 0.0,
+          "best_observed": 1.940695
+        },
+        "DAC|Mo|Pr|N2S2N2": {
+          "n": 1,
+          "mae": 0.051666999999999685,
+          "bias": 0.051666999999999685,
+          "productivity": 0.0,
+          "best_observed": 2.436485
+        },
+        "DAC|Pt|Sn|N8": {
+          "n": 1,
+          "mae": 0.16833299999999995,
+          "bias": 0.16833299999999995,
+          "productivity": 0.0,
+          "best_observed": 0.420581
+        },
+        "HEA|Al-Ce-Cu-Ge-V-Zn|fcc_bcc_dual": {
+          "n": 1,
+          "mae": 0.8649800000000001,
+          "bias": 0.8649800000000001,
+          "productivity": 0.0,
+          "best_observed": 3.86498
+        },
+        "HEA|Ce-Co-Ir-La-Ru-Sb|amorphous": {
+          "n": 1,
+          "mae": 0.21024000000000004,
+          "bias": 0.21024000000000004,
+          "productivity": 0.0,
+          "best_observed": 0.259321
+        },
+        "HEA|Ce-Co-Ir-Pt-Re|fcc": {
+          "n": 1,
+          "mae": 0.16250000000000003,
+          "bias": -0.16250000000000003,
+          "productivity": 0.0,
+          "best_observed": 0.193069
+        },
+        "HEA|Co-Hf-Ni-Re|fcc_bcc_dual": {
+          "n": 1,
+          "mae": 0.012041000000000024,
+          "bias": 0.012041000000000024,
+          "productivity": 0.0,
+          "best_observed": 0.299451
+        },
+        "MAXPhase|Nb|P": {
+          "n": 1,
+          "mae": 1.6004230000000002,
+          "bias": 1.6004230000000002,
+          "productivity": 0.0,
+          "best_observed": 4.600423
+        },
+        "MAXPhase|Ti|In": {
+          "n": 1,
+          "mae": 0.107101,
+          "bias": 0.107101,
+          "productivity": 0.0,
+          "best_observed": 0.447949
+        },
+        "MOF|Au|Oxalate|N3P": {
+          "n": 1,
+          "mae": 0.168333,
+          "bias": 0.168333,
+          "productivity": 0.0,
+          "best_observed": 0.440691
+        },
+        "MOF|Mn|Imidazolate|O4": {
+          "n": 1,
+          "mae": 0.12,
+          "bias": -0.12,
+          "productivity": 0.0,
+          "best_observed": 0.284613
+        },
+        "MXene|W|CN": {
+          "n": 1,
+          "mae": 0.24333399999999994,
+          "bias": 0.24333399999999994,
+          "productivity": 0.0,
+          "best_observed": 1.666153
+        },
+        "MetalFreeCarbon|oxidized|0.01": {
+          "n": 1,
+          "mae": 0.1,
+          "bias": -0.1,
+          "productivity": 1.0,
+          "best_observed": 0.172376
+        },
+        "Perovskite|Ba|Rh": {
+          "n": 1,
+          "mae": 0.258333,
+          "bias": 0.258333,
+          "productivity": 0.0,
+          "best_observed": 0.621853
+        },
+        "Perovskite|Ba|Sb": {
+          "n": 1,
+          "mae": 0.11166600000000002,
+          "bias": 0.11166600000000002,
+          "productivity": 0.0,
+          "best_observed": 0.354082
+        },
+        "Perovskite|Ce|Sn": {
+          "n": 1,
+          "mae": 3.507014,
+          "bias": 3.507014,
+          "productivity": 0.0,
+          "best_observed": 6.507014
+        },
+        "Perovskite|Gd|Zn": {
+          "n": 1,
+          "mae": 0.03459699999999999,
+          "bias": -0.03459699999999999,
+          "productivity": 0.0,
+          "best_observed": 0.090948
+        },
+        "Perovskite|Na|Fe": {
+          "n": 1,
+          "mae": 0.09918700000000003,
+          "bias": -0.09918700000000003,
+          "productivity": 0.0,
+          "best_observed": 0.260754
+        },
+        "Perovskite|Na|Ta": {
+          "n": 1,
+          "mae": 0.16129600000000005,
+          "bias": 0.16129600000000005,
+          "productivity": 0.0,
+          "best_observed": 0.556729
+        },
+        "SAA|Ag|Au": {
+          "n": 1,
+          "mae": 0.118372,
+          "bias": 0.118372,
+          "productivity": 1.0,
+          "best_observed": 0.348847
+        },
+        "SAA|Ir|In": {
+          "n": 1,
+          "mae": 0.24333399999999994,
+          "bias": 0.24333399999999994,
+          "productivity": 0.0,
+          "best_observed": 0.659835
+        },
+        "SAA|Pd|Ag": {
+          "n": 2,
+          "mae": 0.21349199999999996,
+          "bias": 0.21349199999999996,
+          "productivity": 0.0,
+          "best_observed": 0.593985
+        },
+        "SAA|Pd|Au": {
+          "n": 2,
+          "mae": 0.10166649999999999,
+          "bias": 0.10166649999999999,
+          "productivity": 0.0,
+          "best_observed": 0.36916
+        },
+        "SAA|Pd|Co": {
+          "n": 1,
+          "mae": 0.2433329999999998,
+          "bias": 0.2433329999999998,
+          "productivity": 0.0,
+          "best_observed": 2.15962
+        },
+        "SAA|Pd|Ga": {
+          "n": 1,
+          "mae": 0.172732,
+          "bias": 0.172732,
+          "productivity": 1.0,
+          "best_observed": 0.205863
+        },
+        "SAA|Pt|Ag": {
+          "n": 2,
+          "mae": 0.1807685,
+          "bias": 0.1807685,
+          "productivity": 0.0,
+          "best_observed": 0.494092
+        },
+        "SAA|Pt|Co": {
+          "n": 1,
+          "mae": 0.18250000000000002,
+          "bias": -0.18250000000000002,
+          "productivity": 1.0,
+          "best_observed": 0.2069
+        },
+        "SAA|Pt|Ga": {
+          "n": 1,
+          "mae": 0.16250000000000003,
+          "bias": -0.16250000000000003,
+          "productivity": 1.0,
+          "best_observed": 0.264738
+        },
+        "SAC|Ce|N3B|N-mesoporous_carbon": {
+          "n": 1,
+          "mae": 0.16833399999999998,
+          "bias": 0.16833399999999998,
+          "productivity": 0.0,
+          "best_observed": 0.500806
+        },
+        "SAC|Co|N2S2|Phosphorene": {
+          "n": 1,
+          "mae": 0.12,
+          "bias": -0.12,
+          "productivity": 0.0,
+          "best_observed": 0.35203
+        },
+        "SAC|Cu|C4|Phosphorene": {
+          "n": 1,
+          "mae": 0.016623,
+          "bias": 0.016623,
+          "productivity": 1.0,
+          "best_observed": 0.347835
+        },
+        "SAC|Cu|S4|Phosphorene": {
+          "n": 1,
+          "mae": 0.027178000000000035,
+          "bias": 0.027178000000000035,
+          "productivity": 1.0,
+          "best_observed": 0.345368
+        },
+        "SAC|Fe|N3S|MoS2_sheet": {
+          "n": 1,
+          "mae": 0.168333,
+          "bias": 0.168333,
+          "productivity": 0.0,
+          "best_observed": 0.558218
+        },
+        "SAC|Pd|N3C|Phosphorene": {
+          "n": 1,
+          "mae": 0.12,
+          "bias": -0.12,
+          "productivity": 1.0,
+          "best_observed": 0.281737
+        },
+        "SAC|Sb|O4|Phosphorene": {
+          "n": 1,
+          "mae": 0.08720699999999998,
+          "bias": 0.08720699999999998,
+          "productivity": 0.0,
+          "best_observed": 0.515809
+        },
+        "SolidCatalyst|Au|MoO3|bcc211": {
+          "n": 1,
+          "mae": 0.13088,
+          "bias": 0.13088,
+          "productivity": 0.0,
+          "best_observed": 0.417691
+        },
+        "SolidCatalyst|Au|NiP|fcc110": {
+          "n": 1,
+          "mae": 0.24333300000000002,
+          "bias": 0.24333300000000002,
+          "productivity": 1.0,
+          "best_observed": 0.349075
+        },
+        "SolidCatalyst|Co|Graphite|fcc100": {
+          "n": 1,
+          "mae": 0.10166699999999998,
+          "bias": 0.10166699999999998,
+          "productivity": 0.0,
+          "best_observed": 0.243388
+        },
+        "Spinel|Cu|Cu": {
+          "n": 1,
+          "mae": 0.11166600000000004,
+          "bias": 0.11166600000000004,
+          "productivity": 0.0,
+          "best_observed": 0.553482
+        },
+        "Spinel|Fe|Cu": {
+          "n": 1,
+          "mae": 0.107875,
+          "bias": 0.107875,
+          "productivity": 0.0,
+          "best_observed": 0.464863
+        },
+        "Spinel|Fe|Ni": {
+          "n": 1,
+          "mae": 0.04095299999999999,
+          "bias": 0.04095299999999999,
+          "productivity": 0.0,
+          "best_observed": 0.257986
+        },
+        "Spinel|Ni|Co": {
+          "n": 1,
+          "mae": 0.19499999999999998,
+          "bias": -0.19499999999999998,
+          "productivity": 1.0,
+          "best_observed": 0.159087
+        },
+        "Spinel|Zn|Co": {
+          "n": 1,
+          "mae": 0.001462999999999992,
+          "bias": 0.001462999999999992,
+          "productivity": 0.0,
+          "best_observed": 0.156061
+        }
+      }
+    }
+  },
+  "observations": [
+    {
+      "application": "turquoise_hydrogen",
+      "candidate_id": "eb64b3aa6d3913c21f5d",
+      "material_class": "MAXPhase",
+      "region": "MAXPhase|Ta|Al",
+      "genome": "('MAXPhase', 'Ta', 'Al', 'C', 1, 'Ti', 'basal_0001')",
+      "predicted_eV": 0.0146,
+      "observed_eV": 0.8833,
+      "residual_eV": 0.8687,
+      "fidelity": "screening_dft",
+      "productive": true,
+      "provenance": {
+        "source_id": "qe_pyrolysis_dft:eb64b3aa6d3913c21f5d",
+        "qe_total_energy_eV": -4337.1035,
+        "calibrated_activation_eV": 0.6786,
+        "interfacial_carbon_displacement_A": 0.2047
+      }
+    },
+    {
+      "application": "turquoise_hydrogen",
+      "candidate_id": "d4403c08f769fc70a3a4",
+      "material_class": "HEA",
+      "region": "HEA|Ag-Fe-Ir-Zn-Zr|bcc",
+      "genome": "('HEA', ('Fe', 'Zn', 'Zr', 'Ag', 'Ir'), 'bcc', '111', 800)",
+      "predicted_eV": 0.1192,
+      "observed_eV": 0.901,
+      "residual_eV": 0.7818,
+      "fidelity": "screening_dft",
+      "productive": true,
+      "provenance": {
+        "source_id": "qe_pyrolysis_dft:d4403c08f769fc70a3a4",
+        "qe_total_energy_eV": -14011.3803,
+        "calibrated_activation_eV": 0.7832,
+        "interfacial_carbon_displacement_A": 0.1177
+      }
+    },
+    {
+      "application": "turquoise_hydrogen",
+      "candidate_id": "000971115da8ddd8cf8f",
+      "material_class": "SolidCatalyst",
+      "region": "SolidCatalyst|Ce|Graphene|bcc211",
+      "genome": "('SolidCatalyst', 'Ce', 'Graphene', 'bcc211', 0.06842105263157894, ('Br', 'Mg'), 1, 0)",
+      "predicted_eV": 0.1261,
+      "observed_eV": 2.5274,
+      "residual_eV": 2.4013,
+      "fidelity": "screening_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_pyrolysis_dft:000971115da8ddd8cf8f",
+        "qe_total_energy_eV": -20312.3886,
+        "calibrated_activation_eV": 0.7901,
+        "interfacial_carbon_displacement_A": 1.7373
+      }
+    },
+    {
+      "application": "turquoise_hydrogen",
+      "candidate_id": "b1bd7298e14db77a573c",
+      "material_class": "SAC",
+      "region": "SAC|Zn|N4_pyridine|N-graphene",
+      "genome": "('SAC', 'Zn', 'N4_pyridine', 'N-graphene', 'none')",
+      "predicted_eV": 0.364,
+      "observed_eV": 2.9828,
+      "residual_eV": 2.6188,
+      "fidelity": "screening_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_pyrolysis_dft:b1bd7298e14db77a573c",
+        "qe_total_energy_eV": -6808.7526,
+        "calibrated_activation_eV": 1.028,
+        "interfacial_carbon_displacement_A": 1.9548
+      }
+    },
+    {
+      "application": "turquoise_hydrogen",
+      "candidate_id": "54757bb17c1b638462d9",
+      "material_class": "MoltenMetal",
+      "region": "MoltenMetal|Te|Ti",
+      "genome": "('MoltenMetal', 'Te', 'Ti', 0.1, 750)",
+      "predicted_eV": 0.6139,
+      "observed_eV": 1.9863,
+      "residual_eV": 1.3724,
+      "fidelity": "screening_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_pyrolysis_dft:54757bb17c1b638462d9",
+        "qe_total_energy_eV": -2701.3045,
+        "calibrated_activation_eV": 1.7919,
+        "interfacial_carbon_displacement_A": 0.1945
+      }
+    },
+    {
+      "application": "turquoise_hydrogen",
+      "candidate_id": "c9bf4b755ab0023fffba",
+      "material_class": "Spinel",
+      "region": "Spinel|Mg|Co",
+      "genome": "('Spinel', 'Mg', 'Co', 'Ce', 'nanoparticle', 'N-graphene')",
+      "predicted_eV": 0.6281,
+      "observed_eV": 2.4129,
+      "residual_eV": 1.7848,
+      "fidelity": "screening_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_pyrolysis_dft:c9bf4b755ab0023fffba",
+        "qe_total_energy_eV": -5355.4418,
+        "calibrated_activation_eV": 1.2921,
+        "interfacial_carbon_displacement_A": 1.1208
+      }
+    },
+    {
+      "application": "turquoise_hydrogen",
+      "candidate_id": "0433514342912e4613e1",
+      "material_class": "DAC",
+      "region": "DAC|Zn|Al|N3BN3",
+      "genome": "('DAC', 'Zn', 'Al', 'N3BN3', 'N-graphene')",
+      "predicted_eV": 0.8696,
+      "observed_eV": 2.2529,
+      "residual_eV": 1.3833,
+      "fidelity": "screening_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_pyrolysis_dft:0433514342912e4613e1",
+        "qe_total_energy_eV": -6808.7526,
+        "calibrated_activation_eV": 1.5336,
+        "interfacial_carbon_displacement_A": 0.7193
+      }
+    },
+    {
+      "application": "turquoise_hydrogen",
+      "candidate_id": "5ed9c863d22330991eb6",
+      "material_class": "MetalFreeCarbon",
+      "region": "MetalFreeCarbon|pyrrolic|0.04",
+      "genome": "('MetalFreeCarbon', 'pyrrolic', 0.04, 'none', 'graphene', 'B')",
+      "predicted_eV": 1.2468,
+      "observed_eV": 2.7196,
+      "residual_eV": 1.4728,
+      "fidelity": "screening_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_pyrolysis_dft:5ed9c863d22330991eb6",
+        "qe_total_energy_eV": -612.2665,
+        "calibrated_activation_eV": 1.9108,
+        "interfacial_carbon_displacement_A": 0.8088
+      }
+    },
+    {
+      "application": "turquoise_hydrogen",
+      "candidate_id": "8796cf31edc4797d83ec",
+      "material_class": "SAA",
+      "region": "SAA|Pd|In",
+      "genome": "('SAA', 'Pd', 'In', '110', 100)",
+      "predicted_eV": 2.1596,
+      "observed_eV": 3.8574,
+      "residual_eV": 1.6978,
+      "fidelity": "screening_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_pyrolysis_dft:8796cf31edc4797d83ec",
+        "qe_total_energy_eV": -10830.3409,
+        "calibrated_activation_eV": 2.8236,
+        "interfacial_carbon_displacement_A": 1.0338
+      }
+    },
+    {
+      "application": "turquoise_hydrogen",
+      "candidate_id": "0021a267d0b5a6e984a9",
+      "material_class": "HEA",
+      "region": "HEA|Fe-Ir-Nb-Sc-Zn|hcp",
+      "genome": "('HEA', ('Fe', 'Zn', 'Nb', 'Ir', 'Sc'), 'hcp', '111', 800)",
+      "predicted_eV": 0.3168,
+      "observed_eV": 1.2368,
+      "residual_eV": 0.92,
+      "fidelity": "screening_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_pyrolysis_dft:0021a267d0b5a6e984a9",
+        "qe_total_energy_eV": -14552.0392,
+        "calibrated_activation_eV": 0.9808,
+        "interfacial_carbon_displacement_A": 0.256
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "3cafa1dd27033ac418d3",
+      "material_class": "COF",
+      "region": "COF|Co|Imine|N2P2",
+      "genome": "('COF', 'Co', 'Imine', 'N2P2', 6.0)",
+      "predicted_eV": 0.310823,
+      "observed_eV": 0.430677,
+      "residual_eV": 0.119854,
+      "fidelity": "qe_gc_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_gc_dft:3cafa1dd27033ac418d3",
+        "qe_total_energy_eV": -4769.5279,
+        "pourbaix_acid_stable": true,
+        "dissolution_potential_V": 0.773,
+        "selection_group": "class_champion"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "7fba4d6b4f15772edf2d",
+      "material_class": "DAC",
+      "region": "DAC|Pt|Sn|N8",
+      "genome": "('DAC', 'Pt', 'Sn', 'N8', 'BN_sheet')",
+      "predicted_eV": 0.252248,
+      "observed_eV": 0.420581,
+      "residual_eV": 0.168333,
+      "fidelity": "qe_gc_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_gc_dft:7fba4d6b4f15772edf2d",
+        "qe_total_energy_eV": -3394.408,
+        "pourbaix_acid_stable": true,
+        "dissolution_potential_V": 2.0059,
+        "selection_group": "class_champion"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "1371fd2696264ba0a3d2",
+      "material_class": "HEA",
+      "region": "HEA|Ce-Co-Ir-La-Ru-Sb|amorphous",
+      "genome": "('HEA', ('Co', 'Ru', 'Ir', 'Sb', 'La', 'Ce'), 'amorphous', '100', 1100)",
+      "predicted_eV": 0.049081,
+      "observed_eV": 0.259321,
+      "residual_eV": 0.21024,
+      "fidelity": "qe_gc_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_gc_dft:1371fd2696264ba0a3d2",
+        "qe_total_energy_eV": -13782.6492,
+        "pourbaix_acid_stable": false,
+        "dissolution_potential_V": 0.1851,
+        "selection_group": "class_champion"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "518e823e05a53fe97416",
+      "material_class": "MAXPhase",
+      "region": "MAXPhase|Ti|In",
+      "genome": "('MAXPhase', 'Ti', 'In', 'N', 2, 'Cr', 'edge_1120')",
+      "predicted_eV": 0.340848,
+      "observed_eV": 0.447949,
+      "residual_eV": 0.107101,
+      "fidelity": "qe_gc_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_gc_dft:518e823e05a53fe97416",
+        "qe_total_energy_eV": -6245.9388,
+        "pourbaix_acid_stable": false,
+        "dissolution_potential_V": -0.4254,
+        "selection_group": "class_champion"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "56c74d76175883fef1fb",
+      "material_class": "MOF",
+      "region": "MOF|Au|Oxalate|N3P",
+      "genome": "('MOF', 'Au', 'Oxalate', 'N3P', 16.0)",
+      "predicted_eV": 0.272358,
+      "observed_eV": 0.440691,
+      "residual_eV": 0.168333,
+      "fidelity": "qe_gc_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_gc_dft:56c74d76175883fef1fb",
+        "qe_total_energy_eV": -4442.8167,
+        "pourbaix_acid_stable": true,
+        "dissolution_potential_V": 2.52,
+        "selection_group": "class_champion"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "3fb051c06f48d5784c5f",
+      "material_class": "MXene",
+      "region": "MXene|W|CN",
+      "genome": "('MXene', 'W', 'CN', 3, 'S', 'Fe')",
+      "predicted_eV": 1.422819,
+      "observed_eV": 1.666153,
+      "residual_eV": 0.243334,
+      "fidelity": "qe_gc_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_gc_dft:3fb051c06f48d5784c5f",
+        "qe_total_energy_eV": -7162.4424,
+        "pourbaix_acid_stable": true,
+        "dissolution_potential_V": 0.7748,
+        "selection_group": "class_champion"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "87d86cdaf36fda7c6831",
+      "material_class": "MetalFreeCarbon",
+      "region": "MetalFreeCarbon|oxidized|0.01",
+      "genome": "('MetalFreeCarbon', 'oxidized', 0.01, 'edge_armchair', 'graphene', 'F')",
+      "predicted_eV": 0.272376,
+      "observed_eV": 0.172376,
+      "residual_eV": -0.1,
+      "fidelity": "qe_gc_dft",
+      "productive": true,
+      "provenance": {
+        "source_id": "qe_gc_dft:87d86cdaf36fda7c6831",
+        "qe_total_energy_eV": -1091.5944,
+        "pourbaix_acid_stable": true,
+        "dissolution_potential_V": 1.25,
+        "selection_group": "class_champion"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "46aa11fb6311a1ce2249",
+      "material_class": "Perovskite",
+      "region": "Perovskite|Gd|Zn",
+      "genome": "('Perovskite', 'Gd', 'Zn', 'Mn', 0.15, 'none')",
+      "predicted_eV": 0.125545,
+      "observed_eV": 0.090948,
+      "residual_eV": -0.034597,
+      "fidelity": "qe_gc_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_gc_dft:46aa11fb6311a1ce2249",
+        "qe_total_energy_eV": -19010.9201,
+        "pourbaix_acid_stable": false,
+        "dissolution_potential_V": 0.2632,
+        "selection_group": "class_champion"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "ab7e183d66b2e49921ed",
+      "material_class": "SAA",
+      "region": "SAA|Pd|Ga",
+      "genome": "('SAA', 'Pd', 'Ga', '111', 5000)",
+      "predicted_eV": 0.033131,
+      "observed_eV": 0.205863,
+      "residual_eV": 0.172732,
+      "fidelity": "qe_gc_dft",
+      "productive": true,
+      "provenance": {
+        "source_id": "qe_gc_dft:ab7e183d66b2e49921ed",
+        "qe_total_energy_eV": -14454.3628,
+        "pourbaix_acid_stable": true,
+        "dissolution_potential_V": 1.2123,
+        "selection_group": "class_champion"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "cdf618516215d8767394",
+      "material_class": "SAC",
+      "region": "SAC|Cu|S4|Phosphorene",
+      "genome": "('SAC', 'Cu', 'S4', 'Phosphorene', 'pyridine')",
+      "predicted_eV": 0.31819,
+      "observed_eV": 0.345368,
+      "residual_eV": 0.027178,
+      "fidelity": "qe_gc_dft",
+      "productive": true,
+      "provenance": {
+        "source_id": "qe_gc_dft:cdf618516215d8767394",
+        "qe_total_energy_eV": -3429.4083,
+        "pourbaix_acid_stable": true,
+        "dissolution_potential_V": 1.39,
+        "selection_group": "class_champion"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "c5ad001debb359e04c33",
+      "material_class": "SolidCatalyst",
+      "region": "SolidCatalyst|Au|NiP|fcc110",
+      "genome": "('SolidCatalyst', 'Au', 'NiP', 'fcc110', 0.05789473684210525, ('Mn', 'Cu'), 2, 0)",
+      "predicted_eV": 0.105742,
+      "observed_eV": 0.349075,
+      "residual_eV": 0.243333,
+      "fidelity": "qe_gc_dft",
+      "productive": true,
+      "provenance": {
+        "source_id": "qe_gc_dft:c5ad001debb359e04c33",
+        "qe_total_energy_eV": -14082.4407,
+        "pourbaix_acid_stable": true,
+        "dissolution_potential_V": 1.4668,
+        "selection_group": "class_champion"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "68ac3d4c5e69f37e7bf6",
+      "material_class": "Spinel",
+      "region": "Spinel|Zn|Co",
+      "genome": "('Spinel', 'Zn', 'Co', 'Zr', 'mesoporous', 'graphene_oxide')",
+      "predicted_eV": 0.154598,
+      "observed_eV": 0.156061,
+      "residual_eV": 0.001463,
+      "fidelity": "qe_gc_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_gc_dft:68ac3d4c5e69f37e7bf6",
+        "qe_total_energy_eV": -6215.8432,
+        "pourbaix_acid_stable": false,
+        "dissolution_potential_V": 0.3136,
+        "selection_group": "class_champion"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "730c6d4349990c81e975",
+      "material_class": "SAA",
+      "region": "SAA|Ag|Au",
+      "genome": "('SAA', 'Ag', 'Au', '100', 1000)",
+      "predicted_eV": 0.230475,
+      "observed_eV": 0.348847,
+      "residual_eV": 0.118372,
+      "fidelity": "qe_gc_dft",
+      "productive": true,
+      "provenance": {
+        "source_id": "qe_gc_dft:730c6d4349990c81e975",
+        "qe_total_energy_eV": -15290.493,
+        "pourbaix_acid_stable": true,
+        "dissolution_potential_V": 1.476,
+        "selection_group": "guided_top"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "06d7172dc944ea7d38c7",
+      "material_class": "Perovskite",
+      "region": "Perovskite|Ba|Sb",
+      "genome": "('Perovskite', 'Ba', 'Sb', 'Co', 0.0, 'B_vacancy')",
+      "predicted_eV": 0.242416,
+      "observed_eV": 0.354082,
+      "residual_eV": 0.111666,
+      "fidelity": "qe_gc_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_gc_dft:06d7172dc944ea7d38c7",
+        "qe_total_energy_eV": -14951.328,
+        "pourbaix_acid_stable": true,
+        "dissolution_potential_V": 1.2264,
+        "selection_group": "guided_top"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "3ab787b3c8004744ae8e",
+      "material_class": "SAA",
+      "region": "SAA|Pd|Au",
+      "genome": "('SAA', 'Pd', 'Au', '100', 5000)",
+      "predicted_eV": 0.267494,
+      "observed_eV": 0.36916,
+      "residual_eV": 0.101666,
+      "fidelity": "qe_gc_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_gc_dft:3ab787b3c8004744ae8e",
+        "qe_total_energy_eV": -14364.9967,
+        "pourbaix_acid_stable": true,
+        "dissolution_potential_V": 1.5709,
+        "selection_group": "guided_top"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "f353706418ed8a755f1f",
+      "material_class": "SAA",
+      "region": "SAA|Pd|Au",
+      "genome": "('SAA', 'Pd', 'Au', '100', 2000)",
+      "predicted_eV": 0.281389,
+      "observed_eV": 0.383056,
+      "residual_eV": 0.101667,
+      "fidelity": "qe_gc_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_gc_dft:f353706418ed8a755f1f",
+        "qe_total_energy_eV": -14364.9967,
+        "pourbaix_acid_stable": true,
+        "dissolution_potential_V": 1.5709,
+        "selection_group": "guided_top"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "383a5786185703639bcd",
+      "material_class": "SAC",
+      "region": "SAC|Cu|C4|Phosphorene",
+      "genome": "('SAC', 'Cu', 'C4', 'Phosphorene', 'pyridine')",
+      "predicted_eV": 0.331212,
+      "observed_eV": 0.347835,
+      "residual_eV": 0.016623,
+      "fidelity": "qe_gc_dft",
+      "productive": true,
+      "provenance": {
+        "source_id": "qe_gc_dft:383a5786185703639bcd",
+        "qe_total_energy_eV": -3429.4083,
+        "pourbaix_acid_stable": true,
+        "dissolution_potential_V": 1.39,
+        "selection_group": "guided_top"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "4605d672ccdbce8db71c",
+      "material_class": "SAC",
+      "region": "SAC|Ce|N3B|N-mesoporous_carbon",
+      "genome": "('SAC', 'Ce', 'N3B', 'N-mesoporous_carbon', 'O2')",
+      "predicted_eV": 0.332472,
+      "observed_eV": 0.500806,
+      "residual_eV": 0.168334,
+      "fidelity": "qe_gc_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_gc_dft:4605d672ccdbce8db71c",
+        "qe_total_energy_eV": -7154.7849,
+        "pourbaix_acid_stable": false,
+        "dissolution_potential_V": -1.286,
+        "selection_group": "guided_top"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "ead9f66386a12a72e2aa",
+      "material_class": "SAA",
+      "region": "SAA|Pd|Ag",
+      "genome": "('SAA', 'Pd', 'Ag', '111', 500)",
+      "predicted_eV": 0.350652,
+      "observed_eV": 0.593985,
+      "residual_eV": 0.243333,
+      "fidelity": "qe_gc_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_gc_dft:ead9f66386a12a72e2aa",
+        "qe_total_energy_eV": -14709.5794,
+        "pourbaix_acid_stable": true,
+        "dissolution_potential_V": 1.4449,
+        "selection_group": "guided_top"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "dbc15731f8fdb0f99d43",
+      "material_class": "Spinel",
+      "region": "Spinel|Ni|Co",
+      "genome": "('Spinel', 'Ni', 'Co', 'W', 'nanoparticle', 'N-CNT')",
+      "predicted_eV": 0.354087,
+      "observed_eV": 0.159087,
+      "residual_eV": -0.195,
+      "fidelity": "qe_gc_dft",
+      "productive": true,
+      "provenance": {
+        "source_id": "qe_gc_dft:dbc15731f8fdb0f99d43",
+        "qe_total_energy_eV": -7061.8843,
+        "pourbaix_acid_stable": true,
+        "dissolution_potential_V": 0.8568,
+        "selection_group": "guided_top"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "a8fcab58c4ea5ad84ca2",
+      "material_class": "Perovskite",
+      "region": "Perovskite|Na|Fe",
+      "genome": "('Perovskite', 'Na', 'Fe', 'In', 0.25, 'none')",
+      "predicted_eV": 0.359941,
+      "observed_eV": 0.260754,
+      "residual_eV": -0.099187,
+      "fidelity": "qe_gc_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_gc_dft:a8fcab58c4ea5ad84ca2",
+        "qe_total_energy_eV": -8310.3672,
+        "pourbaix_acid_stable": false,
+        "dissolution_potential_V": 0.6779,
+        "selection_group": "guided_top"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "bb928f4c40ee143d7174",
+      "material_class": "SAA",
+      "region": "SAA|Pt|Ag",
+      "genome": "('SAA', 'Pt', 'Ag', '211', 100)",
+      "predicted_eV": 0.361086,
+      "observed_eV": 0.604419,
+      "residual_eV": 0.243333,
+      "fidelity": "qe_gc_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_gc_dft:bb928f4c40ee143d7174",
+        "qe_total_energy_eV": -13552.4114,
+        "pourbaix_acid_stable": true,
+        "dissolution_potential_V": 1.6701,
+        "selection_group": "guided_top"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "4f112dec256800b8f5d7",
+      "material_class": "Perovskite",
+      "region": "Perovskite|Ba|Rh",
+      "genome": "('Perovskite', 'Ba', 'Rh', 'Al', 0.5, 'B_vacancy')",
+      "predicted_eV": 0.36352,
+      "observed_eV": 0.621853,
+      "residual_eV": 0.258333,
+      "fidelity": "qe_gc_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_gc_dft:4f112dec256800b8f5d7",
+        "qe_total_energy_eV": -9982.9956,
+        "pourbaix_acid_stable": true,
+        "dissolution_potential_V": 1.4321,
+        "selection_group": "guided_top"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "7a83fee91102006b288b",
+      "material_class": "SAA",
+      "region": "SAA|Pt|Ag",
+      "genome": "('SAA', 'Pt', 'Ag', '111', 1000)",
+      "predicted_eV": 0.375888,
+      "observed_eV": 0.494092,
+      "residual_eV": 0.118204,
+      "fidelity": "qe_gc_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_gc_dft:7a83fee91102006b288b",
+        "qe_total_energy_eV": -13552.4114,
+        "pourbaix_acid_stable": true,
+        "dissolution_potential_V": 1.6701,
+        "selection_group": "guided_top"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "c77b56fa00cdc515e3b7",
+      "material_class": "SAA",
+      "region": "SAA|Pt|Co",
+      "genome": "('SAA', 'Pt', 'Co', '100', 500)",
+      "predicted_eV": 0.3894,
+      "observed_eV": 0.2069,
+      "residual_eV": -0.1825,
+      "fidelity": "qe_gc_dft",
+      "productive": true,
+      "provenance": {
+        "source_id": "qe_gc_dft:c77b56fa00cdc515e3b7",
+        "qe_total_energy_eV": -13855.5211,
+        "pourbaix_acid_stable": true,
+        "dissolution_potential_V": 1.4816,
+        "selection_group": "guided_top"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "86d4a6562ed06d12f482",
+      "material_class": "SAC",
+      "region": "SAC|Fe|N3S|MoS2_sheet",
+      "genome": "('SAC', 'Fe', 'N3S', 'MoS2_sheet', 'CO')",
+      "predicted_eV": 0.389885,
+      "observed_eV": 0.558218,
+      "residual_eV": 0.168333,
+      "fidelity": "qe_gc_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_gc_dft:86d4a6562ed06d12f482",
+        "qe_total_energy_eV": -5324.0395,
+        "pourbaix_acid_stable": false,
+        "dissolution_potential_V": 0.61,
+        "selection_group": "guided_top"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "6b2e65d5cbfdbcddcddd",
+      "material_class": "Perovskite",
+      "region": "Perovskite|Na|Ta",
+      "genome": "('Perovskite', 'Na', 'Ta', 'Ni', 0.3, 'none')",
+      "predicted_eV": 0.395433,
+      "observed_eV": 0.556729,
+      "residual_eV": 0.161296,
+      "fidelity": "qe_gc_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_gc_dft:6b2e65d5cbfdbcddcddd",
+        "qe_total_energy_eV": -8459.986,
+        "pourbaix_acid_stable": false,
+        "dissolution_potential_V": 0.56,
+        "selection_group": "guided_top"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "cae35c09006e266f2371",
+      "material_class": "SAC",
+      "region": "SAC|Pd|N3C|Phosphorene",
+      "genome": "('SAC', 'Pd', 'N3C', 'Phosphorene', 'none')",
+      "predicted_eV": 0.401737,
+      "observed_eV": 0.281737,
+      "residual_eV": -0.12,
+      "fidelity": "qe_gc_dft",
+      "productive": true,
+      "provenance": {
+        "source_id": "qe_gc_dft:cae35c09006e266f2371",
+        "qe_total_energy_eV": -3973.6853,
+        "pourbaix_acid_stable": true,
+        "dissolution_potential_V": 1.965,
+        "selection_group": "guided_top"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "d59d0d0dd2725f5a414b",
+      "material_class": "SAA",
+      "region": "SAA|Ir|In",
+      "genome": "('SAA', 'Ir', 'In', '110', 10000)",
+      "predicted_eV": 0.416501,
+      "observed_eV": 0.659835,
+      "residual_eV": 0.243334,
+      "fidelity": "qe_gc_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_gc_dft:d59d0d0dd2725f5a414b",
+        "qe_total_energy_eV": -8884.045,
+        "pourbaix_acid_stable": true,
+        "dissolution_potential_V": 1.4446,
+        "selection_group": "guided_top"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "a0427c41d176ccfdf6bd",
+      "material_class": "SAA",
+      "region": "SAA|Pd|Ag",
+      "genome": "('SAA', 'Pd', 'Ag', '211', 100)",
+      "predicted_eV": 0.420974,
+      "observed_eV": 0.604625,
+      "residual_eV": 0.183651,
+      "fidelity": "qe_gc_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_gc_dft:a0427c41d176ccfdf6bd",
+        "qe_total_energy_eV": -14709.5794,
+        "pourbaix_acid_stable": true,
+        "dissolution_potential_V": 1.4449,
+        "selection_group": "guided_top"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "101159f93bd9c6d9f6f8",
+      "material_class": "SAA",
+      "region": "SAA|Pt|Ga",
+      "genome": "('SAA', 'Pt', 'Ga', '211', 2000)",
+      "predicted_eV": 0.427238,
+      "observed_eV": 0.264738,
+      "residual_eV": -0.1625,
+      "fidelity": "qe_gc_dft",
+      "productive": true,
+      "provenance": {
+        "source_id": "qe_gc_dft:101159f93bd9c6d9f6f8",
+        "qe_total_energy_eV": -13297.8651,
+        "pourbaix_acid_stable": true,
+        "dissolution_potential_V": 1.4375,
+        "selection_group": "guided_top"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "3a597e8baaee3ebe72d3",
+      "material_class": "Spinel",
+      "region": "Spinel|Fe|Ni",
+      "genome": "('Spinel', 'Fe', 'Ni', 'Y', 'nanosheet', 'carbon_black')",
+      "predicted_eV": 0.217033,
+      "observed_eV": 0.257986,
+      "residual_eV": 0.040953,
+      "fidelity": "qe_gc_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_gc_dft:3a597e8baaee3ebe72d3",
+        "qe_total_energy_eV": -6674.9465,
+        "pourbaix_acid_stable": false,
+        "dissolution_potential_V": 0.456,
+        "selection_group": "uncertainty_control"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "7ec3c045b95ab35fc877",
+      "material_class": "SolidCatalyst",
+      "region": "SolidCatalyst|Au|MoO3|bcc211",
+      "genome": "('SolidCatalyst', 'Au', 'MoO3', 'bcc211', 0.1, ('N', 'Ta'), 2, 0)",
+      "predicted_eV": 0.286811,
+      "observed_eV": 0.417691,
+      "residual_eV": 0.13088,
+      "fidelity": "qe_gc_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_gc_dft:7ec3c045b95ab35fc877",
+        "qe_total_energy_eV": -11481.453,
+        "pourbaix_acid_stable": true,
+        "dissolution_potential_V": 1.549,
+        "selection_group": "uncertainty_control"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "562943661cfb72e7e072",
+      "material_class": "HEA",
+      "region": "HEA|Co-Hf-Ni-Re|fcc_bcc_dual",
+      "genome": "('HEA', ('Co', 'Ni', 'Hf', 'Re'), 'fcc_bcc_dual', '100', 1200)",
+      "predicted_eV": 0.28741,
+      "observed_eV": 0.299451,
+      "residual_eV": 0.012041,
+      "fidelity": "qe_gc_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_gc_dft:562943661cfb72e7e072",
+        "qe_total_energy_eV": -12858.7464,
+        "pourbaix_acid_stable": false,
+        "dissolution_potential_V": 0.2139,
+        "selection_group": "uncertainty_control"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "78c3bca65991f4d582d7",
+      "material_class": "HEA",
+      "region": "HEA|Ce-Co-Ir-Pt-Re|fcc",
+      "genome": "('HEA', ('Co', 'Re', 'Ir', 'Pt', 'Ce'), 'fcc', '100', 900)",
+      "predicted_eV": 0.355569,
+      "observed_eV": 0.193069,
+      "residual_eV": -0.1625,
+      "fidelity": "qe_gc_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_gc_dft:78c3bca65991f4d582d7",
+        "qe_total_energy_eV": -14491.6243,
+        "pourbaix_acid_stable": false,
+        "dissolution_potential_V": 0.3721,
+        "selection_group": "uncertainty_control"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "ccd90970bc3389aec1f9",
+      "material_class": "MOF",
+      "region": "MOF|Mn|Imidazolate|O4",
+      "genome": "('MOF', 'Mn', 'Imidazolate', 'O4', 16.0)",
+      "predicted_eV": 0.404613,
+      "observed_eV": 0.284613,
+      "residual_eV": -0.12,
+      "fidelity": "qe_gc_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_gc_dft:ccd90970bc3389aec1f9",
+        "qe_total_energy_eV": -3953.051,
+        "pourbaix_acid_stable": false,
+        "dissolution_potential_V": -0.185,
+        "selection_group": "uncertainty_control"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "36706ae55f59ec4f8504",
+      "material_class": "SolidCatalyst",
+      "region": "SolidCatalyst|Co|Graphite|fcc100",
+      "genome": "('SolidCatalyst', 'Co', 'Graphite', 'fcc100', -0.05789473684210527, ('Cu', 'Sc'), 3, 0)",
+      "predicted_eV": 0.141721,
+      "observed_eV": 0.243388,
+      "residual_eV": 0.101667,
+      "fidelity": "qe_gc_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_gc_dft:36706ae55f59ec4f8504",
+        "qe_total_energy_eV": -15082.113,
+        "pourbaix_acid_stable": false,
+        "dissolution_potential_V": -0.015,
+        "selection_group": "validity_control"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "ef9803d8396fe9b5c300",
+      "material_class": "Spinel",
+      "region": "Spinel|Fe|Cu",
+      "genome": "('Spinel', 'Fe', 'Cu', 'Nb', 'nanosheet', 'carbon_black')",
+      "predicted_eV": 0.356988,
+      "observed_eV": 0.464863,
+      "residual_eV": 0.107875,
+      "fidelity": "qe_gc_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_gc_dft:ef9803d8396fe9b5c300",
+        "qe_total_energy_eV": -8188.1449,
+        "pourbaix_acid_stable": false,
+        "dissolution_potential_V": 0.674,
+        "selection_group": "validity_control"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "2f38d51ba986c94ba69a",
+      "material_class": "SAC",
+      "region": "SAC|Sb|O4|Phosphorene",
+      "genome": "('SAC', 'Sb', 'O4', 'Phosphorene', 'O2')",
+      "predicted_eV": 0.428602,
+      "observed_eV": 0.515809,
+      "residual_eV": 0.087207,
+      "fidelity": "qe_gc_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_gc_dft:2f38d51ba986c94ba69a",
+        "qe_total_energy_eV": -3589.3135,
+        "pourbaix_acid_stable": true,
+        "dissolution_potential_V": 1.262,
+        "selection_group": "validity_control"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "7e36da26795823ef060e",
+      "material_class": "COF",
+      "region": "COF|Pt|Boroxine|O4",
+      "genome": "('COF', 'Pt', 'Boroxine', 'O4', 10.0)",
+      "predicted_eV": 0.437465,
+      "observed_eV": 0.342209,
+      "residual_eV": -0.095256,
+      "fidelity": "qe_gc_dft",
+      "productive": true,
+      "provenance": {
+        "source_id": "qe_gc_dft:7e36da26795823ef060e",
+        "qe_total_energy_eV": -3944.1991,
+        "pourbaix_acid_stable": true,
+        "dissolution_potential_V": 2.238,
+        "selection_group": "validity_control"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "cef5b9bdd5a3145b4e70",
+      "material_class": "Spinel",
+      "region": "Spinel|Cu|Cu",
+      "genome": "('Spinel', 'Cu', 'Cu', 'Ce', 'nanoparticle', 'graphene_oxide')",
+      "predicted_eV": 0.441816,
+      "observed_eV": 0.553482,
+      "residual_eV": 0.111666,
+      "fidelity": "qe_gc_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_gc_dft:cef5b9bdd5a3145b4e70",
+        "qe_total_energy_eV": -10272.1201,
+        "pourbaix_acid_stable": true,
+        "dissolution_potential_V": 1.1278,
+        "selection_group": "validity_control"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "d6eb6a966d4dcb7708c7",
+      "material_class": "SAC",
+      "region": "SAC|Co|N2S2|Phosphorene",
+      "genome": "('SAC', 'Co', 'N2S2', 'Phosphorene', 'none')",
+      "predicted_eV": 0.47203,
+      "observed_eV": 0.35203,
+      "residual_eV": -0.12,
+      "fidelity": "qe_gc_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_gc_dft:d6eb6a966d4dcb7708c7",
+        "qe_total_energy_eV": -4905.8751,
+        "pourbaix_acid_stable": true,
+        "dissolution_potential_V": 0.773,
+        "selection_group": "validity_control"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "2e7fa45b0e15035b8384",
+      "material_class": "Perovskite",
+      "region": "Perovskite|Ce|Sn",
+      "genome": "('Perovskite', 'Ce', 'Sn', 'Nb', 0.05, 'none')",
+      "predicted_eV": 3.0,
+      "observed_eV": 6.507014,
+      "residual_eV": 3.507014,
+      "fidelity": "qe_gc_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_gc_dft:2e7fa45b0e15035b8384",
+        "qe_total_energy_eV": -13887.6237,
+        "pourbaix_acid_stable": false,
+        "dissolution_potential_V": -0.8354,
+        "selection_group": "coverage_control"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "a0c3c0f2b2c0410501ef",
+      "material_class": "MAXPhase",
+      "region": "MAXPhase|Nb|P",
+      "genome": "('MAXPhase', 'Nb', 'P', 'N', 2, 'Fe', 'edge_1010')",
+      "predicted_eV": 3.0,
+      "observed_eV": 4.600423,
+      "residual_eV": 1.600423,
+      "fidelity": "qe_gc_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_gc_dft:a0c3c0f2b2c0410501ef",
+        "qe_total_energy_eV": -9490.6029,
+        "pourbaix_acid_stable": false,
+        "dissolution_potential_V": -0.0345,
+        "selection_group": "coverage_control"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "51600ffb259aca92e11c",
+      "material_class": "SAA",
+      "region": "SAA|Pd|Co",
+      "genome": "('SAA', 'Pd', 'Co', '111', 1000)",
+      "predicted_eV": 1.916287,
+      "observed_eV": 2.15962,
+      "residual_eV": 0.243333,
+      "fidelity": "qe_gc_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_gc_dft:51600ffb259aca92e11c",
+        "qe_total_energy_eV": -15011.6944,
+        "pourbaix_acid_stable": true,
+        "dissolution_potential_V": 1.2564,
+        "selection_group": "coverage_control"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "9d534bdb73c262d40580",
+      "material_class": "DAC",
+      "region": "DAC|Fe|Pr|N8",
+      "genome": "('DAC', 'Fe', 'Pr', 'N8', 'Phosphorene')",
+      "predicted_eV": 1.772362,
+      "observed_eV": 1.940695,
+      "residual_eV": 0.168333,
+      "fidelity": "qe_gc_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_gc_dft:9d534bdb73c262d40580",
+        "qe_total_energy_eV": -5009.1603,
+        "pourbaix_acid_stable": false,
+        "dissolution_potential_V": 0.61,
+        "selection_group": "coverage_control"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "0cc10f36dedb70353ccb",
+      "material_class": "HEA",
+      "region": "HEA|Al-Ce-Cu-Ge-V-Zn|fcc_bcc_dual",
+      "genome": "('HEA', ('V', 'Cu', 'Zn', 'Al', 'Ge', 'Ce'), 'fcc_bcc_dual', '111', 1100)",
+      "predicted_eV": 3.0,
+      "observed_eV": 3.86498,
+      "residual_eV": 0.86498,
+      "fidelity": "qe_gc_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_gc_dft:0cc10f36dedb70353ccb",
+        "qe_total_energy_eV": -12621.5145,
+        "pourbaix_acid_stable": false,
+        "dissolution_potential_V": -0.574,
+        "selection_group": "coverage_control"
+      }
+    },
+    {
+      "application": "fuel_cell_orr",
+      "candidate_id": "84b174c8d9a033265616",
+      "material_class": "DAC",
+      "region": "DAC|Mo|Pr|N2S2N2",
+      "genome": "('DAC', 'Mo', 'Pr', 'N2S2N2', 'N-graphene')",
+      "predicted_eV": 2.384818,
+      "observed_eV": 2.436485,
+      "residual_eV": 0.051667,
+      "fidelity": "qe_gc_dft",
+      "productive": false,
+      "provenance": {
+        "source_id": "qe_gc_dft:84b174c8d9a033265616",
+        "qe_total_energy_eV": -2394.0969,
+        "pourbaix_acid_stable": true,
+        "dissolution_potential_V": 0.85,
+        "selection_group": "coverage_control"
+      }
+    }
+  ],
+  "calibration_sha256": "ba3e8c79d149606beef72c5a4ed5f4d698ea1b156d4a33fc8dbc567f67a71c7a"
+}

@@ -15,7 +15,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
 import run_divide_conquer_pilot as campaign
-from pipeline.evidence.orr_dft_slate import verify_slate
+from pipeline.evidence.orr_dft_slate import (
+    summarize_orr_slate_dft_validation,
+    verify_slate,
+)
 from pipeline.evidence.orr_quality_diagnostic import verify_diagnostic
 from pipeline.evidence.pyrolysis_benchmark import (
     analyze_interfacial_pyrolysis_benchmark,
@@ -359,6 +362,85 @@ class ProspectiveContracts(unittest.TestCase):
             document['records'][0]['predicted_overpotential_V'] += 0.1
             altered.write_text(json.dumps(document))
             self.assertFalse(verify_slate(altered))
+
+    def test_confirmatory_orr_dft_summary_aggregates_qe_and_gc_shifts(self) -> None:
+        from pipeline.validation.dft_validator import (
+            ATOMIC_MASSES_QE,
+            _FCC_EQUIVALENT_LATTICE_BOHR,
+        )
+
+        for elem in ('Ba', 'Ce', 'Gd', 'Ge', 'Hf', 'Ir', 'Nb', 'Pr', 'Re', 'Rh', 'Ru', 'Sc', 'Sm', 'Ta', 'Te'):
+            self.assertIn(elem, ATOMIC_MASSES_QE)
+            self.assertIn(elem, _FCC_EQUIVALENT_LATTICE_BOHR)
+
+        source = REPO_ROOT / 'results/dft/orr_confirmatory_slate.json'
+        dft_dir = REPO_ROOT / 'results/dft'
+        with tempfile.TemporaryDirectory() as directory:
+            out_path = Path(directory) / 'orr_confirmatory_dft_summary.json'
+            summary = summarize_orr_slate_dft_validation(
+                slate_path=source,
+                dft_dir=dft_dir,
+                output_path=out_path,
+            )
+            self.assertEqual(summary['n_slate_candidates'], 50)
+            self.assertGreaterEqual(summary['n_qe_converged'], 48)
+            self.assertGreaterEqual(summary['qe_convergence_rate'], 0.96)
+            self.assertGreater(
+                summary['policy_enrichment']['enrichment_ratio'], 2.0
+            )
+            self.assertEqual(
+                summary['role_summary']['class_champion']['n_qe_converged'], 12
+            )
+
+    def test_active_learning_dft_calibration_closes_loop_for_both_campaigns(
+        self,
+    ) -> None:
+        from pipeline.search.adaptive_validation import (
+            build_active_learning_calibration_artifact,
+            class_calibration,
+            seed_validation_from_artifact,
+        )
+
+        orr_summary = REPO_ROOT / 'results/dft/orr_confirmatory_dft_summary.json'
+        pyro_scorecard = REPO_ROOT / 'results/multipathway_champion_scorecard.json'
+        with tempfile.TemporaryDirectory() as directory:
+            out_cal = Path(directory) / 'active_learning_calibration.json'
+            ev_cal = Path(directory) / 'active_learning_dft_calibration.json'
+            db_path = Path(directory) / 'validation.sqlite'
+            payload = build_active_learning_calibration_artifact(
+                orr_summary_path=orr_summary,
+                pyrolysis_scorecard_path=pyro_scorecard,
+                output_path=out_cal,
+                evidence_output_path=ev_cal,
+                database=db_path,
+            )
+            self.assertEqual(payload['n_validation_samples'], 58)
+            self.assertEqual(
+                payload['applications']['turquoise_hydrogen'][
+                    'n_validation_samples'
+                ],
+                10,
+            )
+            self.assertEqual(
+                payload['applications']['fuel_cell_orr']['n_validation_samples'],
+                48,
+            )
+            self.assertEqual(len(payload['calibration_sha256']), 64)
+            db2 = Path(directory) / 'replay.sqlite'
+            n_turq = seed_validation_from_artifact(
+                str(db2), 'turquoise_hydrogen', out_cal
+            )
+            n_orr = seed_validation_from_artifact(
+                str(db2), 'fuel_cell_orr', out_cal
+            )
+            self.assertEqual(n_turq, 10)
+            self.assertEqual(n_orr, 48)
+            self.assertEqual(
+                len(class_calibration(str(db2), 'turquoise_hydrogen')), 9
+            )
+            self.assertEqual(
+                len(class_calibration(str(db2), 'fuel_cell_orr')), 12
+            )
 
     def test_pool_deduplicates_canonical_candidate_ids(self) -> None:
         first = ('MoltenMetal', 'In', 'Dy', 0.0, 950)

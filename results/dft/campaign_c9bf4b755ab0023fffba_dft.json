@@ -1,0 +1,19 @@
+{
+  "catalyst_name": "campaign_c9bf4b755ab0023fffba",
+  "candidate_id": "c9bf4b755ab0023fffba",
+  "material_class": "Spinel",
+  "genome": "('Spinel', 'Mg', 'Co', 'Ce', 'nanoparticle', 'N-graphene')",
+  "evidence_level": "screening_dft",
+  "returncode": 0,
+  "execution": {
+    "mpi_ranks": 2,
+    "omp_threads": 2,
+    "kpoint_pools": 1,
+    "image_groups": 1,
+    "require_gpu": true
+  },
+  "dft_energy_Ry": -393.61770898,
+  "dft_energy_eV": -5355.441756157839,
+  "converged": true,
+  "max_force_Ry_bohr": 0.0
+}

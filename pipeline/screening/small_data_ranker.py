@@ -321,7 +321,13 @@ class TreeRanker:
             )
         else:
             calibrated_classes = set()
-        delta_map = payload.get("class_bias_delta_eV")
+        app_payload = payload
+        apps_map = payload.get("applications")
+        if isinstance(apps_map, dict) and isinstance(
+            apps_map.get(self.application), dict
+        ):
+            app_payload = apps_map[self.application]
+        delta_map = app_payload.get("class_bias_delta_eV")
         if isinstance(delta_map, dict):
             for material_class, delta in delta_map.items():
                 if str(material_class) in calibrated_classes:
@@ -334,7 +340,7 @@ class TreeRanker:
                     current = self.class_bias.get(str(material_class), 0.0)
                     self.class_bias[str(material_class)] = float(current + val)
                     calibrated_classes.add(str(material_class))
-        bias_map = payload.get("class_bias_eV")
+        bias_map = app_payload.get("class_bias_eV")
         if isinstance(bias_map, dict):
             for material_class, target_bias in bias_map.items():
                 if str(material_class) in calibrated_classes:
@@ -345,7 +351,7 @@ class TreeRanker:
                     continue
                 if np.isfinite(val):
                     self.class_bias[str(material_class)] = val
-        region_map = payload.get("region_bias_eV")
+        region_map = app_payload.get("region_bias_eV")
         if isinstance(region_map, dict):
             for region, target_bias in region_map.items():
                 if str(region) in self.region_bias:

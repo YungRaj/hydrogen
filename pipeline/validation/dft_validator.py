@@ -85,6 +85,15 @@ ATOMIC_MASSES_QE = {
     'Nb': 92.906,
     'Te': 127.60,
     'Ge': 72.63,
+    'Sc': 44.956,
+    'Ba': 137.327,
+    'Pr': 140.908,
+    'Sm': 150.36,
+    'Gd': 157.25,
+    'Hf': 178.49,
+    'Ta': 180.948,
+    'Re': 186.207,
+    'Ir': 192.217,
 }
 
 
@@ -645,6 +654,21 @@ _FCC_EQUIVALENT_LATTICE_BOHR = {
     'Zr': 8.57,
     'Y': 9.62,
     'La': 10.03,
+    'Ru': 7.16,
+    'Rh': 7.19,
+    'Ir': 7.26,
+    'Re': 7.35,
+    'Ta': 7.85,
+    'Nb': 7.85,
+    'Ge': 8.16,
+    'Hf': 8.51,
+    'Sc': 8.80,
+    'Te': 9.60,
+    'Gd': 9.65,
+    'Sm': 9.69,
+    'Ce': 9.75,
+    'Pr': 9.78,
+    'Ba': 10.50,
 }
 # Fractional coordinates of the four fcc sites in the simple-cubic
 # conventional cell (ibrav=1). These are NOT valid in the ibrav=2 primitive

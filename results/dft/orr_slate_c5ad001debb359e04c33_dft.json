@@ -1,0 +1,22 @@
+{
+  "catalyst_name": "orr_slate_c5ad001debb359e04c33",
+  "candidate_id": "c5ad001debb359e04c33",
+  "material_class": "SolidCatalyst",
+  "genome": "('SolidCatalyst', 'Au', 'NiP', 'fcc110', 0.05789473684210525, ('Mn', 'Cu'), 2, 0)",
+  "evidence_level": "screening_dft",
+  "returncode": 0,
+  "execution": {
+    "mpi_ranks": 2,
+    "omp_threads": 2,
+    "kpoint_pools": 1,
+    "image_groups": 1,
+    "require_gpu": true
+  },
+  "dft_energy_Ry": -1035.040298,
+  "dft_energy_eV": -14082.440665064487,
+  "converged": true,
+  "max_force_Ry_bohr": null,
+  "wall_time_s": 45.2,
+  "provenance_pod": "nbexneesgdgjt2",
+  "provenance_task": "task-1484"
+}

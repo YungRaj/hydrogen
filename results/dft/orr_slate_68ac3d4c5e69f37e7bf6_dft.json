@@ -1,0 +1,22 @@
+{
+  "catalyst_name": "orr_slate_68ac3d4c5e69f37e7bf6",
+  "candidate_id": "68ac3d4c5e69f37e7bf6",
+  "material_class": "Spinel",
+  "genome": "('Spinel', 'Zn', 'Co', 'Zr', 'mesoporous', 'graphene_oxide')",
+  "evidence_level": "screening_dft",
+  "returncode": 0,
+  "execution": {
+    "mpi_ranks": 2,
+    "omp_threads": 2,
+    "kpoint_pools": 1,
+    "image_groups": 1,
+    "require_gpu": true
+  },
+  "dft_energy_Ry": -456.856046,
+  "dft_energy_eV": -6215.8431567296975,
+  "converged": true,
+  "max_force_Ry_bohr": null,
+  "wall_time_s": 68.5,
+  "provenance_pod": "nbexneesgdgjt2",
+  "provenance_task": "task-1484"
+}

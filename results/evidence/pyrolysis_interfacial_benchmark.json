@@ -1,0 +1,241 @@
+{
+  "acceptance_passed": true,
+  "auc_improvement": 0.42361111111111105,
+  "conditions_scored": 24,
+  "current_E_act": {
+    "auc": 0.5486111111111112,
+    "ci95_high": 0.8,
+    "ci95_low": 0.2916666666666667
+  },
+  "dataset_sha256": "21b5ff63a600262c3d704f7ae655349b1622e02eb195eeb425fdd06fdd7c5af4",
+  "interfacial_carbon_displacement": {
+    "auc": 0.9930555555555556,
+    "ci95_high": 1.0,
+    "ci95_low": 0.958041958041958
+  },
+  "interfacial_pyrolysis_score": {
+    "auc": 0.9722222222222222,
+    "ci95_high": 1.0,
+    "ci95_low": 0.8928571428571429
+  },
+  "records": [
+    {
+      "E_act_eV": 0.790635628700236,
+      "condition_id": "upham-2017-ni17bi83-1273k",
+      "genome": "('MoltenMetal', 'Bi', 'Ni', 17.0, 1273.15)",
+      "interfacial_carbon_displacement_A": 0.864458969024217,
+      "interfacial_pyrolysis_score_eV": 1.655094597724453,
+      "label": "active",
+      "source_family": "10.1126/science.aao5023:ni_bi_alloy"
+    },
+    {
+      "E_act_eV": 0.11926752567289216,
+      "condition_id": "upham-2017-bi-1273k",
+      "genome": "('MoltenMetal', 'Bi', 'None', 0.0, 1273.15)",
+      "interfacial_carbon_displacement_A": 2.152252877588677,
+      "interfacial_pyrolysis_score_eV": 2.2715204032615692,
+      "label": "poor_or_poisoning",
+      "source_family": "10.1126/science.aao5023:pure_bi"
+    },
+    {
+      "E_act_eV": 1.429309563636773,
+      "condition_id": "palmer-2019-cu45bi55-1273k",
+      "genome": "('MoltenMetal', 'Bi', 'Cu', 45.0, 1273.15)",
+      "interfacial_carbon_displacement_A": 0.05912988800896883,
+      "interfacial_pyrolysis_score_eV": 1.4884394516457418,
+      "label": "active",
+      "source_family": "10.1021/acscatal.9b01833:cu_bi_alloy"
+    },
+    {
+      "E_act_eV": 0.11926752567289216,
+      "condition_id": "palmer-2019-bi-1273k",
+      "genome": "('MoltenMetal', 'Bi', 'None', 0.0, 1273.15)",
+      "interfacial_carbon_displacement_A": 2.152252877588677,
+      "interfacial_pyrolysis_score_eV": 2.2715204032615692,
+      "label": "poor_or_poisoning",
+      "source_family": "10.1021/acscatal.9b01833:pure_bi"
+    },
+    {
+      "E_act_eV": -5.3590297460556195,
+      "condition_id": "zeng-2020-te-1173k",
+      "genome": "('MoltenMetal', 'Te', 'None', 0.0, 1173.0)",
+      "interfacial_carbon_displacement_A": 0.29444388089179085,
+      "interfacial_pyrolysis_score_eV": 0.29444388089179085,
+      "label": "active",
+      "source_family": "10.1021/acscatal.0c00805:pure_te"
+    },
+    {
+      "E_act_eV": 1.0317564630508524,
+      "condition_id": "msheik-2022-sn-1273k",
+      "genome": "('MoltenMetal', 'Sn', 'None', 0.0, 1273.15)",
+      "interfacial_carbon_displacement_A": 1.8111365712830902,
+      "interfacial_pyrolysis_score_eV": 2.842893034333943,
+      "label": "poor_or_poisoning",
+      "source_family": "10.1016/j.energy.2022.124943:pure_sn"
+    },
+    {
+      "E_act_eV": 1.053339676857005,
+      "condition_id": "plevan-2015-sn-1173k",
+      "genome": "('MoltenMetal', 'Sn', 'None', 0.0, 1173.15)",
+      "interfacial_carbon_displacement_A": 2.0008919958002935,
+      "interfacial_pyrolysis_score_eV": 3.0542316726572984,
+      "label": "poor_or_poisoning",
+      "source_family": "10.1016/j.ijhydene.2015.04.062:pure_sn"
+    },
+    {
+      "E_act_eV": 1.4169157266616854,
+      "condition_id": "zaghloul-2021-ni096sn904-1223k",
+      "genome": "('MoltenMetal', 'Sn', 'Ni', 9.62, 1223.15)",
+      "interfacial_carbon_displacement_A": 0.6620140520600202,
+      "interfacial_pyrolysis_score_eV": 2.0789297787217054,
+      "label": "active",
+      "source_family": "10.1002/ceat.202100210:ni_sn_alloy"
+    },
+    {
+      "E_act_eV": 1.1008466196060214,
+      "condition_id": "zaghloul-2021-sn-1223k",
+      "genome": "('MoltenMetal', 'Sn', 'None', 0.0, 1223.15)",
+      "interfacial_carbon_displacement_A": 1.8066547145139864,
+      "interfacial_pyrolysis_score_eV": 2.907501334120008,
+      "label": "poor_or_poisoning",
+      "source_family": "10.1002/ceat.202100210:pure_sn"
+    },
+    {
+      "E_act_eV": 1.307206397056578,
+      "condition_id": "wi-2024-ga-1221k",
+      "genome": "('MoltenMetal', 'Ga', 'None', 0.0, 1221.15)",
+      "interfacial_carbon_displacement_A": 0.494677618332782,
+      "interfacial_pyrolysis_score_eV": 1.8018840153893598,
+      "label": "active",
+      "source_family": "10.1007/s40831-024-00962-8:pure_ga"
+    },
+    {
+      "E_act_eV": 1.0317564630508524,
+      "condition_id": "wi-2024-sn-1273k",
+      "genome": "('MoltenMetal', 'Sn', 'None', 0.0, 1273.15)",
+      "interfacial_carbon_displacement_A": 1.8111365712830902,
+      "interfacial_pyrolysis_score_eV": 2.842893034333943,
+      "label": "poor_or_poisoning",
+      "source_family": "10.1007/s40831-024-00962-8:pure_sn"
+    },
+    {
+      "E_act_eV": 1.0888978719711686,
+      "condition_id": "baltrusaitis-2023-ni33sn67-1273k",
+      "genome": "('MoltenMetal', 'Sn', 'Ni', 33.0, 1273.15)",
+      "interfacial_carbon_displacement_A": 1.3817326674604375,
+      "interfacial_pyrolysis_score_eV": 2.470630539431606,
+      "label": "poor_or_poisoning",
+      "source_family": "10.1021/acscatal.3c02955:liquid_ni_sn"
+    },
+    {
+      "E_act_eV": 1.008185410499554,
+      "condition_id": "kim-2025-zn45bi55-1023k",
+      "genome": "('MoltenMetal', 'Bi', 'Zn', 45.0, 1023.15)",
+      "interfacial_carbon_displacement_A": 0.6479323849089603,
+      "interfacial_pyrolysis_score_eV": 1.6561177954085142,
+      "label": "active",
+      "source_family": "10.1016/j.cej.2025.161304:zn_bi_alloy"
+    },
+    {
+      "E_act_eV": -0.1282458639145238,
+      "condition_id": "kim-2025-bi-1023k",
+      "genome": "('MoltenMetal', 'Bi', 'None', 0.0, 1023.15)",
+      "interfacial_carbon_displacement_A": 2.1945816812791095,
+      "interfacial_pyrolysis_score_eV": 2.1945816812791095,
+      "label": "poor_or_poisoning",
+      "source_family": "10.1016/j.cej.2025.161304:pure_bi"
+    },
+    {
+      "E_act_eV": 0.520201325416531,
+      "condition_id": "song-2026-ga11bi89-1073k",
+      "genome": "('MoltenMetal', 'Bi', 'Ga', 11.0, 1073.15)",
+      "interfacial_carbon_displacement_A": 1.4847016756469897,
+      "interfacial_pyrolysis_score_eV": 2.0049030010635205,
+      "label": "active",
+      "source_family": "10.1016/j.cej.2026.177345:ga_bi_alloy"
+    },
+    {
+      "E_act_eV": 0.38123720645905224,
+      "condition_id": "rahimi-2019-ni27bi73-1273k",
+      "genome": "('MoltenMetal', 'Bi', 'Ni', 27.0, 1273.15)",
+      "interfacial_carbon_displacement_A": 1.2128799985284018,
+      "interfacial_pyrolysis_score_eV": 1.594117204987454,
+      "label": "active",
+      "source_family": "10.1016/j.carbon.2019.05.041:ni_bi_alloy"
+    },
+    {
+      "E_act_eV": 0.38123720645905224,
+      "condition_id": "son-2025-ni27bi73-1273k",
+      "genome": "('MoltenMetal', 'Bi', 'Ni', 27.0, 1273.15)",
+      "interfacial_carbon_displacement_A": 1.2128799985284018,
+      "interfacial_pyrolysis_score_eV": 1.594117204987454,
+      "label": "active",
+      "source_family": "10.1016/j.apcatb.2024.125009:ni_bi_alloy"
+    },
+    {
+      "E_act_eV": 0.4038738489150626,
+      "condition_id": "chen-2025-ni27bi73-1123k",
+      "genome": "('MoltenMetal', 'Bi', 'Ni', 27.0, 1123.15)",
+      "interfacial_carbon_displacement_A": 1.123905509370703,
+      "interfacial_pyrolysis_score_eV": 1.5277793582857657,
+      "label": "active",
+      "source_family": "10.1021/acscatal.5c02867:ni_bi_alloy"
+    },
+    {
+      "E_act_eV": 0.38123720645905224,
+      "condition_id": "liu-2026-ni27bi73-1273k",
+      "genome": "('MoltenMetal', 'Bi', 'Ni', 27.0, 1273.15)",
+      "interfacial_carbon_displacement_A": 1.2128799985284018,
+      "interfacial_pyrolysis_score_eV": 1.594117204987454,
+      "label": "active",
+      "source_family": "10.1039/d6sc05383a:ni_bi_alloy"
+    },
+    {
+      "E_act_eV": 1.6198214769363393,
+      "condition_id": "wang-2008-mg-973k",
+      "genome": "('MoltenMetal', 'Mg', 'None', 0.0, 973.15)",
+      "interfacial_carbon_displacement_A": 1.0766487451692435,
+      "interfacial_pyrolysis_score_eV": 2.6964702221055825,
+      "label": "active",
+      "source_family": "10.1016/j.molcata.2007.12.018:pure_mg"
+    },
+    {
+      "E_act_eV": 1.749155335426344,
+      "condition_id": "serban-2003-pb-1023k",
+      "genome": "('MoltenMetal', 'Pb', 'None', 0.0, 1023.15)",
+      "interfacial_carbon_displacement_A": 1.788057213387718,
+      "interfacial_pyrolysis_score_eV": 3.537212548814062,
+      "label": "poor_or_poisoning",
+      "source_family": "10.1021/ef020271q:pure_pb"
+    },
+    {
+      "E_act_eV": 1.0983954095840556,
+      "condition_id": "geissler-2016-sn-1203k",
+      "genome": "('MoltenMetal', 'Sn', 'None', 0.0, 1203.15)",
+      "interfacial_carbon_displacement_A": 1.8436261933237283,
+      "interfacial_pyrolysis_score_eV": 2.9420216029077837,
+      "label": "poor_or_poisoning",
+      "source_family": "10.1016/j.cej.2016.04.066:pure_sn"
+    },
+    {
+      "E_act_eV": 1.053339676857005,
+      "condition_id": "neuschitzer-2023-sn-1173k",
+      "genome": "('MoltenMetal', 'Sn', 'None', 0.0, 1173.15)",
+      "interfacial_carbon_displacement_A": 2.0008919958002935,
+      "interfacial_pyrolysis_score_eV": 3.0542316726572984,
+      "label": "poor_or_poisoning",
+      "source_family": "10.3390/en16207058:pure_sn"
+    },
+    {
+      "E_act_eV": 1.1008466196060214,
+      "condition_id": "busillo-2024-sn-1223k",
+      "genome": "('MoltenMetal', 'Sn', 'None', 0.0, 1223.15)",
+      "interfacial_carbon_displacement_A": 1.8066547145139864,
+      "interfacial_pyrolysis_score_eV": 2.907501334120008,
+      "label": "poor_or_poisoning",
+      "source_family": "10.1007/s11705-024-2437-x:pure_sn"
+    }
+  ],
+  "schema_version": 1,
+  "unscored_conditions": []
+}

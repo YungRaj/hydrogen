@@ -1,0 +1,22 @@
+{
+  "catalyst_name": "orr_slate_4605d672ccdbce8db71c",
+  "candidate_id": "4605d672ccdbce8db71c",
+  "material_class": "SAC",
+  "genome": "('SAC', 'Ce', 'N3B', 'N-mesoporous_carbon', 'O2')",
+  "evidence_level": "screening_dft",
+  "returncode": 0,
+  "execution": {
+    "mpi_ranks": 2,
+    "omp_threads": 2,
+    "kpoint_pools": 1,
+    "image_groups": 1,
+    "require_gpu": true
+  },
+  "dft_energy_Ry": -525.86699,
+  "dft_energy_eV": -7154.784889044383,
+  "converged": true,
+  "max_force_Ry_bohr": null,
+  "wall_time_s": 898.0,
+  "provenance_pod": "nbexneesgdgjt2",
+  "provenance_task": "task-1484"
+}

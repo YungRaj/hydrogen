@@ -1,0 +1,22 @@
+{
+  "catalyst_name": "orr_slate_f656e4671f0a8153c927",
+  "candidate_id": "f656e4671f0a8153c927",
+  "material_class": "DAC",
+  "genome": "('DAC', 'Sm', 'Ru', 'N3BN3', 'N-CNT')",
+  "evidence_level": "screening_dft",
+  "returncode": 1,
+  "execution": {
+    "mpi_ranks": 2,
+    "omp_threads": 2,
+    "kpoint_pools": 1,
+    "image_groups": 1,
+    "require_gpu": true
+  },
+  "dft_energy_Ry": -642.757947,
+  "dft_energy_eV": -8745.167380336097,
+  "converged": false,
+  "max_force_Ry_bohr": null,
+  "wall_time_s": 968.3,
+  "provenance_pod": "nbexneesgdgjt2",
+  "provenance_task": "task-1484"
+}

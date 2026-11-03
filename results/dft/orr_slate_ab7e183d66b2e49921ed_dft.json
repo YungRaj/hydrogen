@@ -1,0 +1,22 @@
+{
+  "catalyst_name": "orr_slate_ab7e183d66b2e49921ed",
+  "candidate_id": "ab7e183d66b2e49921ed",
+  "material_class": "SAA",
+  "genome": "('SAA', 'Pd', 'Ga', '111', 5000)",
+  "evidence_level": "screening_dft",
+  "returncode": 0,
+  "execution": {
+    "mpi_ranks": 2,
+    "omp_threads": 2,
+    "kpoint_pools": 1,
+    "image_groups": 1,
+    "require_gpu": true
+  },
+  "dft_energy_Ry": -1062.376069,
+  "dft_energy_eV": -14454.362777659382,
+  "converged": true,
+  "max_force_Ry_bohr": null,
+  "wall_time_s": 29.0,
+  "provenance_pod": "nbexneesgdgjt2",
+  "provenance_task": "task-1484"
+}

@@ -164,6 +164,162 @@ def verify_slate(path: Path = OUTPUT) -> bool:
     )
 
 
+SUMMARY_OUTPUT = Path('results/dft/orr_confirmatory_dft_summary.json')
+# DOE high-activity ORR cathode screening threshold (eta_ORR <= 0.35 V vs. RHE)
+DOE_ORR_OVERPOTENTIAL_TARGET_V = 0.35
+
+
+def summarize_orr_slate_dft_validation(
+    slate_path: Path = OUTPUT,
+    dft_dir: Path = Path('results/dft'),
+    output_path: Path = SUMMARY_OUTPUT,
+) -> dict[str, Any]:
+    """Aggregate QE pw.x DFT validation, GC-DFT shifts, and policy enrichment for the locked ORR slate.
+
+    Args:
+        slate_path: Path to the checksum-locked 50-candidate ORR confirmatory slate.
+        dft_dir: Directory containing per-candidate QE ``*_dft.json`` outputs.
+        output_path: Destination path for the canonical summary artifact.
+
+    Returns:
+        JSON-serializable summary dictionary written to ``output_path``.
+    """
+    if not verify_slate(slate_path):
+        raise RuntimeError(f'ORR DFT slate failed checksum verification: {slate_path}')
+    from pipeline.io.hashing import canonical_json_sha256
+    from pipeline.screening.fc_screener import (
+        compute_grand_canonical_orr_corrections,
+    )
+
+    slate = json.loads(slate_path.read_text(encoding='utf-8'))
+    validated_records: list[dict[str, Any]] = []
+    by_role: dict[str, list[dict[str, Any]]] = defaultdict(list)
+
+    for row in slate['records']:
+        cid = str(row['candidate_id'])
+        genome = ast.literal_eval(str(row['genome']))
+        dft_path = dft_dir / f'orr_slate_{cid}_dft.json'
+        if not dft_path.is_file():
+            alt_path = dft_dir / f'campaign_{cid}_dft.json'
+            if alt_path.is_file():
+                dft_path = alt_path
+        dft_rec: dict[str, Any] = (
+            json.loads(dft_path.read_text(encoding='utf-8'))
+            if dft_path.is_file()
+            else {}
+        )
+        dg_oh = float(row['dG_OH_eV'])
+        dg_o = float(row['dG_O_eV'])
+        dg_ooh = float(row['dG_OOH_eV'])
+        gc_corr = compute_grand_canonical_orr_corrections(
+            dg_oh,
+            dg_o,
+            dg_ooh,
+            genome=genome,
+        )
+        acid_stable = bool(gc_corr['pourbaix_acid_stable'])
+        eta_che = float(row['predicted_overpotential_V'])
+        eta_gc = float(gc_corr['orr_overpotential_gc_V'])
+        qe_conv = bool(dft_rec.get('converged', False))
+        dft_e_ry = dft_rec.get('dft_energy_Ry')
+        dft_e_ev = dft_rec.get('dft_energy_eV')
+        max_f = dft_rec.get('max_force_Ry_bohr')
+        enriched = {
+            **row,
+            'orr_overpotential_gc_V': round(eta_gc, 6),
+            'gc_field_shift_OH_eV': round(float(gc_corr['dG_OH_gc_eV']) - dg_oh, 6),
+            'pourbaix_dissolution_onset_V': round(
+                float(gc_corr['pourbaix_dissolution_onset_V']), 4
+            ),
+            'pourbaix_dissolution_margin_V': round(
+                float(gc_corr['pourbaix_dissolution_margin_V']), 4
+            ),
+            'pourbaix_acid_stable': acid_stable,
+            'qe_converged': qe_conv,
+            'qe_dft_energy_Ry': (
+                round(float(dft_e_ry), 6) if isinstance(dft_e_ry, (int, float)) else None
+            ),
+            'qe_dft_energy_eV': (
+                round(float(dft_e_ev), 4) if isinstance(dft_e_ev, (int, float)) else None
+            ),
+            'qe_max_force_Ry_bohr': (
+                round(float(max_f), 6) if isinstance(max_f, (int, float)) else None
+            ),
+            'doe_target_hit': eta_che <= DOE_ORR_OVERPOTENTIAL_TARGET_V,
+            'doe_target_hit_gc': eta_gc <= DOE_ORR_OVERPOTENTIAL_TARGET_V,
+        }
+        validated_records.append(enriched)
+        by_role[str(row['selection_role'])].append(enriched)
+
+    role_summary: dict[str, dict[str, Any]] = {}
+    for role, items in sorted(by_role.items()):
+        etas = [float(x['predicted_overpotential_V']) for x in items]
+        etas_gc = [float(x['orr_overpotential_gc_V']) for x in items]
+        role_summary[role] = {
+            'count': len(items),
+            'n_qe_converged': sum(1 for x in items if x['qe_converged']),
+            'n_pourbaix_acid_stable': sum(1 for x in items if x['pourbaix_acid_stable']),
+            'mean_overpotential_V': round(sum(etas) / len(etas), 4),
+            'min_overpotential_V': round(min(etas), 4),
+            'mean_overpotential_gc_V': round(sum(etas_gc) / len(etas_gc), 4),
+            'min_overpotential_gc_V': round(min(etas_gc), 4),
+            'doe_target_hits_le_0_35V': sum(1 for x in items if x['doe_target_hit']),
+            'doe_target_hits_gc_le_0_35V': sum(
+                1 for x in items if x['doe_target_hit_gc']
+            ),
+        }
+
+    guided_pool = [
+        x
+        for x in validated_records
+        if x['selection_role'] in ('class_champion', 'guided_top')
+    ]
+    control_pool = [
+        x
+        for x in validated_records
+        if x['selection_role']
+        in ('uncertainty_control', 'validity_control', 'coverage_control')
+    ]
+    guided_hit_rate = (
+        sum(1 for x in guided_pool if x['doe_target_hit']) / len(guided_pool)
+        if guided_pool
+        else 0.0
+    )
+    control_hit_rate = (
+        sum(1 for x in control_pool if x['doe_target_hit']) / len(control_pool)
+        if control_pool
+        else 0.0
+    )
+    n_conv = sum(1 for x in validated_records if x['qe_converged'])
+    body: dict[str, Any] = {
+        'application': 'fuel_cell_orr',
+        'slate_sha256': slate['slate_sha256'],
+        'n_slate_candidates': len(validated_records),
+        'n_qe_converged': n_conv,
+        'qe_convergence_rate': round(n_conv / max(len(validated_records), 1), 4),
+        'n_pourbaix_acid_stable': sum(
+            1 for x in validated_records if x['pourbaix_acid_stable']
+        ),
+        'role_summary': role_summary,
+        'policy_enrichment': {
+            'guided_and_champion_count': len(guided_pool),
+            'control_count': len(control_pool),
+            'guided_doe_hit_rate': round(guided_hit_rate, 4),
+            'control_doe_hit_rate': round(control_hit_rate, 4),
+            'enrichment_ratio': (
+                round(guided_hit_rate / control_hit_rate, 4)
+                if control_hit_rate > 0
+                else None
+            ),
+        },
+        'records': validated_records,
+    }
+    digest = canonical_json_sha256(body)
+    payload = {'schema_version': 1, **body, 'summary_sha256': digest}
+    write_atomic_json(output_path, payload)
+    return payload
+
+
 if __name__ == '__main__':
     artifact = build_slate()
     if not verify_slate(artifact):

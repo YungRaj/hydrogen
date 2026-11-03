@@ -1,0 +1,19 @@
+{
+  "catalyst_name": "orr_slate_518e823e05a53fe97416",
+  "candidate_id": "518e823e05a53fe97416",
+  "material_class": "MAXPhase",
+  "genome": "('MAXPhase', 'Ti', 'In', 'N', 2, 'Cr', 'edge_1120')",
+  "evidence_level": "screening_dft",
+  "returncode": 0,
+  "execution": {
+    "mpi_ranks": 2,
+    "omp_threads": 2,
+    "kpoint_pools": 1,
+    "image_groups": 1,
+    "require_gpu": true
+  },
+  "dft_energy_Ry": -459.06803331,
+  "dft_energy_eV": -6245.938783792247,
+  "converged": true,
+  "max_force_Ry_bohr": 0.0
+}

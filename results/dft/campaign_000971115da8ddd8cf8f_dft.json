@@ -1,0 +1,19 @@
+{
+  "catalyst_name": "campaign_000971115da8ddd8cf8f",
+  "candidate_id": "000971115da8ddd8cf8f",
+  "material_class": "SolidCatalyst",
+  "genome": "('SolidCatalyst', 'Ce', 'Graphene', 'bcc211', 0.06842105263157894, ('Br', 'Mg'), 1, 0)",
+  "evidence_level": "screening_dft",
+  "returncode": 0,
+  "execution": {
+    "mpi_ranks": 2,
+    "omp_threads": 2,
+    "kpoint_pools": 1,
+    "image_groups": 1,
+    "require_gpu": true
+  },
+  "dft_energy_Ry": -1492.93302683,
+  "dft_energy_eV": -20312.388616231547,
+  "converged": true,
+  "max_force_Ry_bohr": 0.0
+}

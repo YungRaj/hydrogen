@@ -1,0 +1,22 @@
+{
+  "catalyst_name": "orr_slate_3a597e8baaee3ebe72d3",
+  "candidate_id": "3a597e8baaee3ebe72d3",
+  "material_class": "Spinel",
+  "genome": "('Spinel', 'Fe', 'Ni', 'Y', 'nanosheet', 'carbon_black')",
+  "evidence_level": "screening_dft",
+  "returncode": 0,
+  "execution": {
+    "mpi_ranks": 2,
+    "omp_threads": 2,
+    "kpoint_pools": 1,
+    "image_groups": 1,
+    "require_gpu": true
+  },
+  "dft_energy_Ry": -490.599518,
+  "dft_energy_eV": -6674.94648955734,
+  "converged": true,
+  "max_force_Ry_bohr": null,
+  "wall_time_s": 30.3,
+  "provenance_pod": "nbexneesgdgjt2",
+  "provenance_task": "task-1484"
+}

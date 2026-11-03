@@ -1,0 +1,22 @@
+{
+  "catalyst_name": "orr_slate_cae35c09006e266f2371",
+  "candidate_id": "cae35c09006e266f2371",
+  "material_class": "SAC",
+  "genome": "('SAC', 'Pd', 'N3C', 'Phosphorene', 'none')",
+  "evidence_level": "screening_dft",
+  "returncode": 0,
+  "execution": {
+    "mpi_ranks": 2,
+    "omp_threads": 2,
+    "kpoint_pools": 1,
+    "image_groups": 1,
+    "require_gpu": true
+  },
+  "dft_energy_Ry": -292.06048,
+  "dft_energy_eV": -3973.6852623295295,
+  "converged": true,
+  "max_force_Ry_bohr": null,
+  "wall_time_s": 10.7,
+  "provenance_pod": "nbexneesgdgjt2",
+  "provenance_task": "task-1484"
+}

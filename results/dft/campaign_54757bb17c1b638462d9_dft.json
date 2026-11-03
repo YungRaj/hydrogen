@@ -1,0 +1,19 @@
+{
+  "catalyst_name": "campaign_54757bb17c1b638462d9",
+  "candidate_id": "54757bb17c1b638462d9",
+  "material_class": "MoltenMetal",
+  "genome": "('MoltenMetal', 'Te', 'Ti', 0.1, 750)",
+  "evidence_level": "screening_dft",
+  "returncode": 0,
+  "execution": {
+    "mpi_ranks": 2,
+    "omp_threads": 2,
+    "kpoint_pools": 1,
+    "image_groups": 1,
+    "require_gpu": true
+  },
+  "dft_energy_Ry": -198.54222027,
+  "dft_energy_eV": -2701.304520951499,
+  "converged": true,
+  "max_force_Ry_bohr": 0.0
+}

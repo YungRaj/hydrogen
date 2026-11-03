@@ -17,7 +17,7 @@ from pipeline.screening.branch_discovery import (
     run_guided_branch_discovery,
 )
 from pipeline.screening.fc_screener import FENTON_RISK
-from pipeline.utils import FUEL_CELL_DIR, setup_logger
+from pipeline.utils import DFT_DIR, FUEL_CELL_DIR, setup_logger
 
 logger = setup_logger('fc_genetic_optimizer', 'fuel_cell/fc_genetic_optimizer.log')
 # CHE Sabatier volcano advancement ceiling (0.40 V ~ Pt(111) benchmark overpotential).
@@ -29,6 +29,9 @@ class FCBranchDiscoveryConfig(_BranchDiscoveryConfig):
     """Configure fuel-cell ORR catalyst-guided branch discovery."""
 
     exhaustive_db: str = str(FUEL_CELL_DIR / 'indexed_scan.sqlite')
+    calibration_artifact: Optional[str] = str(
+        DFT_DIR / 'active_learning_calibration.json'
+    )
 
 
 def _fenton_from_genome(genome: tuple) -> float:

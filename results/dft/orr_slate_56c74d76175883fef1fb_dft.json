@@ -1,0 +1,22 @@
+{
+  "catalyst_name": "orr_slate_56c74d76175883fef1fb",
+  "candidate_id": "56c74d76175883fef1fb",
+  "material_class": "MOF",
+  "genome": "('MOF', 'Au', 'Oxalate', 'N3P', 16.0)",
+  "evidence_level": "screening_dft",
+  "returncode": 0,
+  "execution": {
+    "mpi_ranks": 2,
+    "omp_threads": 2,
+    "kpoint_pools": 1,
+    "image_groups": 1,
+    "require_gpu": true
+  },
+  "dft_energy_Ry": -326.541003,
+  "dft_energy_eV": -4442.816673314329,
+  "converged": true,
+  "max_force_Ry_bohr": null,
+  "wall_time_s": 30.4,
+  "provenance_pod": "nbexneesgdgjt2",
+  "provenance_task": "task-1484"
+}

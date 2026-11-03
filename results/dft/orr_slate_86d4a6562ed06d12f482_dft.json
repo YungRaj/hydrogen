@@ -1,0 +1,22 @@
+{
+  "catalyst_name": "orr_slate_86d4a6562ed06d12f482",
+  "candidate_id": "86d4a6562ed06d12f482",
+  "material_class": "SAC",
+  "genome": "('SAC', 'Fe', 'N3S', 'MoS2_sheet', 'CO')",
+  "evidence_level": "screening_dft",
+  "returncode": 0,
+  "execution": {
+    "mpi_ranks": 2,
+    "omp_threads": 2,
+    "kpoint_pools": 1,
+    "image_groups": 1,
+    "require_gpu": true
+  },
+  "dft_energy_Ry": -391.309686,
+  "dft_energy_eV": -5324.039498464921,
+  "converged": true,
+  "max_force_Ry_bohr": null,
+  "wall_time_s": 65.4,
+  "provenance_pod": "nbexneesgdgjt2",
+  "provenance_task": "task-1484"
+}

@@ -1,0 +1,22 @@
+{
+  "catalyst_name": "orr_slate_36706ae55f59ec4f8504",
+  "candidate_id": "36706ae55f59ec4f8504",
+  "material_class": "SolidCatalyst",
+  "genome": "('SolidCatalyst', 'Co', 'Graphite', 'fcc100', -0.05789473684210527, ('Cu', 'Sc'), 3, 0)",
+  "evidence_level": "screening_dft",
+  "returncode": 0,
+  "execution": {
+    "mpi_ranks": 2,
+    "omp_threads": 2,
+    "kpoint_pools": 1,
+    "image_groups": 1,
+    "require_gpu": true
+  },
+  "dft_energy_Ry": -1108.514863,
+  "dft_energy_eV": -15082.113041997116,
+  "converged": true,
+  "max_force_Ry_bohr": null,
+  "wall_time_s": 43.6,
+  "provenance_pod": "nbexneesgdgjt2",
+  "provenance_task": "task-1484"
+}

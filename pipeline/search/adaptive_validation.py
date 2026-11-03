@@ -769,3 +769,238 @@ def persist_experimental_slate(
                     time.time(),
                 ),
             )
+
+
+def build_active_learning_calibration_artifact(
+    orr_summary_path: str | Path = Path(
+        'results/dft/orr_confirmatory_dft_summary.json'
+    ),
+    pyrolysis_scorecard_path: str | Path = Path(
+        'results/multipathway_champion_scorecard.json'
+    ),
+    output_path: str | Path = Path(
+        'results/dft/active_learning_calibration.json'
+    ),
+    evidence_output_path: str | Path | None = Path(
+        'results/evidence/active_learning_dft_calibration.json'
+    ),
+    *,
+    database: str | Path | None = None,
+    prior_rows: float = 5.0,
+) -> dict[str, Any]:
+    """Ingest QE DFT + grand-canonical/interfacial residuals into active-learning calibration.
+
+    Args:
+        orr_summary_path: Path to the 50-candidate ORR confirmatory QE DFT summary JSON.
+        pyrolysis_scorecard_path: Path to the multipathway champion scorecard JSON.
+        output_path: Primary calibration JSON path consumed by branch discovery.
+        evidence_output_path: Optional evidence mirror path with SHA-256 provenance.
+        database: Optional persistent SQLite database path to seed.
+        prior_rows: Empirical-Bayes shrinkage pseudocount (matches TreeRanker).
+
+    Returns:
+        Persisted active-learning calibration dictionary.
+    """
+    orr_path = Path(orr_summary_path)
+    pyro_path = Path(pyrolysis_scorecard_path)
+    observations: list[dict[str, Any]] = []
+
+    if pyro_path.is_file():
+        pyro_doc = json.loads(pyro_path.read_text(encoding='utf-8'))
+        for champ in pyro_doc.get('discovery_champions', []):
+            if not isinstance(champ, Mapping) or not champ.get('qe_dft_converged'):
+                continue
+            raw_genome = champ.get('genome', champ.get('catalyst'))
+            try:
+                genome = (
+                    ast.literal_eval(raw_genome)
+                    if isinstance(raw_genome, str)
+                    else tuple(raw_genome)
+                )
+                pred_e = float(
+                    champ.get('E_act_eV', champ.get('raw_activation_eV'))
+                )
+                obs_e = float(
+                    champ.get(
+                        'calibrated_interfacial_score_eV',
+                        champ.get('calibrated_activation_eV', pred_e),
+                    )
+                )
+            except (KeyError, TypeError, ValueError, SyntaxError):
+                continue
+            if not (np.isfinite(pred_e) and np.isfinite(obs_e)):
+                continue
+            cid = str(champ.get('candidate_id') or candidate_id(genome))
+            prov = {
+                'source_id': f'qe_pyrolysis_dft:{cid}',
+                'qe_total_energy_eV': float(champ.get('qe_dft_energy_eV', 0.0)),
+                'calibrated_activation_eV': float(
+                    champ.get('calibrated_activation_eV', obs_e)
+                ),
+                'interfacial_carbon_displacement_A': float(
+                    champ.get('interfacial_carbon_displacement_A', 0.0)
+                ),
+            }
+            observations.append(
+                {
+                    'application': 'turquoise_hydrogen',
+                    'candidate_id': cid,
+                    'material_class': str(genome[0]),
+                    'region': '|'.join(discovery_region(genome)),
+                    'genome': repr(genome),
+                    'predicted_eV': round(pred_e, 6),
+                    'observed_eV': round(obs_e, 6),
+                    'residual_eV': round(obs_e - pred_e, 6),
+                    'fidelity': 'screening_dft',
+                    'productive': bool(obs_e <= 1.0),
+                    'provenance': prov,
+                }
+            )
+
+    if orr_path.is_file():
+        orr_doc = json.loads(orr_path.read_text(encoding='utf-8'))
+        for rec in orr_doc.get('records', []):
+            if not isinstance(rec, Mapping) or not rec.get('qe_converged'):
+                continue
+            raw_genome = rec.get('genome')
+            try:
+                genome = (
+                    ast.literal_eval(raw_genome)
+                    if isinstance(raw_genome, str)
+                    else tuple(raw_genome)
+                )
+                pred_v = float(
+                    rec.get(
+                        'predicted_overpotential_V',
+                        rec.get('che_overpotential_V'),
+                    )
+                )
+                obs_v = float(
+                    rec.get(
+                        'orr_overpotential_gc_V',
+                        rec.get('gc_overpotential_V'),
+                    )
+                )
+            except (KeyError, TypeError, ValueError, SyntaxError):
+                continue
+            if not (np.isfinite(pred_v) and np.isfinite(obs_v)):
+                continue
+            cid = str(rec.get('candidate_id') or candidate_id(genome))
+            acid_stable = bool(rec.get('pourbaix_acid_stable', False))
+            prov = {
+                'source_id': f'qe_gc_dft:{cid}',
+                'qe_total_energy_eV': float(
+                    rec.get(
+                        'qe_dft_energy_eV',
+                        rec.get('qe_total_energy_eV', 0.0),
+                    )
+                ),
+                'pourbaix_acid_stable': acid_stable,
+                'dissolution_potential_V': float(
+                    rec.get(
+                        'pourbaix_dissolution_onset_V',
+                        rec.get('dissolution_potential_V', 0.0),
+                    )
+                ),
+                'selection_group': str(
+                    rec.get('selection_role', rec.get('selection_group', ''))
+                ),
+            }
+            observations.append(
+                {
+                    'application': 'fuel_cell_orr',
+                    'candidate_id': cid,
+                    'material_class': str(genome[0]),
+                    'region': '|'.join(discovery_region(genome)),
+                    'genome': repr(genome),
+                    'predicted_eV': round(pred_v, 6),
+                    'observed_eV': round(obs_v, 6),
+                    'residual_eV': round(obs_v - pred_v, 6),
+                    'fidelity': 'qe_gc_dft',
+                    'productive': bool(obs_v <= 0.35 and acid_stable),
+                    'provenance': prov,
+                }
+            )
+
+    def _compute_app_maps(db_file: str, app_name: str) -> dict[str, Any]:
+        cls_stats = class_calibration(db_file, app_name)
+        reg_stats = regional_calibration(db_file, app_name)
+        cls_bias: dict[str, float] = {}
+        for m_cls, stats in sorted(cls_stats.items()):
+            n = int(stats.get('n', 0))
+            bias = float(stats.get('bias', 0.0))
+            if n > 0 and np.isfinite(bias):
+                weight = n / (n + prior_rows)
+                cls_bias[str(m_cls)] = round(float(weight * bias), 6)
+        reg_bias: dict[str, float] = {}
+        for reg, stats in sorted(reg_stats.items()):
+            n = int(stats.get('n', 0))
+            bias = float(stats.get('bias', 0.0))
+            if n > 0 and np.isfinite(bias):
+                m_cls = str(reg).split('|', 1)[0]
+                base = cls_bias.get(m_cls, 0.0)
+                weight = n / (n + prior_rows)
+                reg_bias[str(reg)] = round(float(base + weight * bias), 6)
+        return {
+            'n_validation_samples': sum(int(s['n']) for s in cls_stats.values()),
+            'class_bias_eV': dict(cls_bias),
+            'class_bias_delta_eV': dict(cls_bias),
+            'region_bias_eV': dict(reg_bias),
+            'class_calibration_stats': cls_stats,
+            'regional_calibration_stats': reg_stats,
+        }
+
+    with tempfile.TemporaryDirectory() as tmp:
+        db_target = str(database) if database else str(Path(tmp) / 'al_cal.sqlite')
+        for obs in observations:
+            genome = ast.literal_eval(obs['genome'])
+            record_validation(
+                db_target,
+                obs['application'],
+                genome,
+                obs['predicted_eV'],
+                obs['observed_eV'],
+                obs['fidelity'],
+                obs['productive'],
+                obs['provenance'],
+            )
+        turq_maps = _compute_app_maps(db_target, 'turquoise_hydrogen')
+        orr_maps = _compute_app_maps(db_target, 'fuel_cell_orr')
+
+    combined_class_bias = {
+        **orr_maps['class_bias_eV'],
+        **turq_maps['class_bias_eV'],
+    }
+    combined_region_bias = {
+        **orr_maps['region_bias_eV'],
+        **turq_maps['region_bias_eV'],
+    }
+    digest_body = {
+        'schema_version': 1,
+        'n_validation_samples': len(observations),
+        'prior_rows': float(prior_rows),
+        'class_bias_eV': combined_class_bias,
+        'class_bias_delta_eV': combined_class_bias,
+        'region_bias_eV': combined_region_bias,
+        'applications': {
+            'turquoise_hydrogen': turq_maps,
+            'fuel_cell_orr': orr_maps,
+        },
+        'observations': observations,
+    }
+    digest_sha = hashlib.sha256(
+        json.dumps(digest_body, sort_keys=True, separators=(',', ':')).encode()
+    ).hexdigest()
+    payload = {
+        **digest_body,
+        'calibration_sha256': digest_sha,
+    }
+
+    for dest in (output_path, evidence_output_path):
+        if dest is None:
+            continue
+        target = Path(dest)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(payload, indent=2) + '\n', encoding='utf-8')
+    return payload
+

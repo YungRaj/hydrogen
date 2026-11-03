@@ -1,0 +1,22 @@
+{
+  "catalyst_name": "orr_slate_d6eb6a966d4dcb7708c7",
+  "candidate_id": "d6eb6a966d4dcb7708c7",
+  "material_class": "SAC",
+  "genome": "('SAC', 'Co', 'N2S2', 'Phosphorene', 'none')",
+  "evidence_level": "screening_dft",
+  "returncode": 0,
+  "execution": {
+    "mpi_ranks": 2,
+    "omp_threads": 2,
+    "kpoint_pools": 1,
+    "image_groups": 1,
+    "require_gpu": true
+  },
+  "dft_energy_Ry": -360.575168,
+  "dft_energy_eV": -4905.875084124234,
+  "converged": true,
+  "max_force_Ry_bohr": null,
+  "wall_time_s": 33.8,
+  "provenance_pod": "nbexneesgdgjt2",
+  "provenance_task": "task-1484"
+}

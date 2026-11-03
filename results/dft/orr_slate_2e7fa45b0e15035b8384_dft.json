@@ -1,0 +1,22 @@
+{
+  "catalyst_name": "orr_slate_2e7fa45b0e15035b8384",
+  "candidate_id": "2e7fa45b0e15035b8384",
+  "material_class": "Perovskite",
+  "genome": "('Perovskite', 'Ce', 'Sn', 'Nb', 0.05, 'none')",
+  "evidence_level": "screening_dft",
+  "returncode": 0,
+  "execution": {
+    "mpi_ranks": 2,
+    "omp_threads": 2,
+    "kpoint_pools": 1,
+    "image_groups": 1,
+    "require_gpu": true
+  },
+  "dft_energy_Ry": -1020.721519,
+  "dft_energy_eV": -13887.623749237322,
+  "converged": true,
+  "max_force_Ry_bohr": null,
+  "wall_time_s": 547.9,
+  "provenance_pod": "nbexneesgdgjt2",
+  "provenance_task": "task-1484"
+}

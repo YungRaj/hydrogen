@@ -1,0 +1,22 @@
+{
+  "catalyst_name": "orr_slate_87d86cdaf36fda7c6831",
+  "candidate_id": "87d86cdaf36fda7c6831",
+  "material_class": "MetalFreeCarbon",
+  "genome": "('MetalFreeCarbon', 'oxidized', 0.01, 'edge_armchair', 'graphene', 'F')",
+  "evidence_level": "screening_dft",
+  "returncode": 0,
+  "execution": {
+    "mpi_ranks": 2,
+    "omp_threads": 2,
+    "kpoint_pools": 1,
+    "image_groups": 1,
+    "require_gpu": true
+  },
+  "dft_energy_Ry": -80.230712,
+  "dft_energy_eV": -1091.5944437901735,
+  "converged": true,
+  "max_force_Ry_bohr": null,
+  "wall_time_s": 15.3,
+  "provenance_pod": "nbexneesgdgjt2",
+  "provenance_task": "task-1484"
+}

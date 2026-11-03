@@ -1,0 +1,19 @@
+{
+  "catalyst_name": "campaign_b1bd7298e14db77a573c",
+  "candidate_id": "b1bd7298e14db77a573c",
+  "material_class": "SAC",
+  "genome": "('SAC', 'Zn', 'N4_pyridine', 'N-graphene', 'none')",
+  "evidence_level": "screening_dft",
+  "returncode": 0,
+  "execution": {
+    "mpi_ranks": 2,
+    "omp_threads": 2,
+    "kpoint_pools": 1,
+    "image_groups": 1,
+    "require_gpu": true
+  },
+  "dft_energy_Ry": -500.43408538,
+  "dft_energy_eV": -6808.752593966458,
+  "converged": true,
+  "max_force_Ry_bohr": 0.0
+}

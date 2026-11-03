@@ -1,0 +1,19 @@
+{
+  "catalyst_name": "campaign_8796cf31edc4797d83ec",
+  "candidate_id": "8796cf31edc4797d83ec",
+  "material_class": "SAA",
+  "genome": "('SAA', 'Pd', 'In', '110', 100)",
+  "evidence_level": "screening_dft",
+  "returncode": 0,
+  "execution": {
+    "mpi_ranks": 2,
+    "omp_threads": 2,
+    "kpoint_pools": 1,
+    "image_groups": 1,
+    "require_gpu": true
+  },
+  "dft_energy_Ry": -796.01537106,
+  "dft_energy_eV": -10830.340859828559,
+  "converged": true,
+  "max_force_Ry_bohr": 0.0
+}

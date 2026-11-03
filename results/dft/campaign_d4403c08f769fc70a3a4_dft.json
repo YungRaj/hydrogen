@@ -1,0 +1,19 @@
+{
+  "catalyst_name": "campaign_d4403c08f769fc70a3a4",
+  "candidate_id": "d4403c08f769fc70a3a4",
+  "material_class": "HEA",
+  "genome": "('HEA', ('Fe', 'Zn', 'Zr', 'Ag', 'Ir'), 'bcc', '111', 800)",
+  "evidence_level": "screening_dft",
+  "returncode": 0,
+  "execution": {
+    "mpi_ranks": 2,
+    "omp_threads": 2,
+    "kpoint_pools": 1,
+    "image_groups": 1,
+    "require_gpu": true
+  },
+  "dft_energy_Ry": -1029.81746014,
+  "dft_energy_eV": -14011.380335365946,
+  "converged": true,
+  "max_force_Ry_bohr": 0.0
+}

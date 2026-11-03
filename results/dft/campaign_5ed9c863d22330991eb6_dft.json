@@ -1,0 +1,19 @@
+{
+  "catalyst_name": "campaign_5ed9c863d22330991eb6",
+  "candidate_id": "5ed9c863d22330991eb6",
+  "material_class": "MetalFreeCarbon",
+  "genome": "('MetalFreeCarbon', 'pyrrolic', 0.04, 'none', 'graphene', 'B')",
+  "evidence_level": "screening_dft",
+  "returncode": 0,
+  "execution": {
+    "mpi_ranks": 2,
+    "omp_threads": 2,
+    "kpoint_pools": 1,
+    "image_groups": 1,
+    "require_gpu": true
+  },
+  "dft_energy_Ry": -45.00075459,
+  "dft_energy_eV": -612.2664572547036,
+  "converged": true,
+  "max_force_Ry_bohr": 0.0
+}

@@ -1,0 +1,22 @@
+{
+  "catalyst_name": "orr_slate_84b174c8d9a033265616",
+  "candidate_id": "84b174c8d9a033265616",
+  "material_class": "DAC",
+  "genome": "('DAC', 'Mo', 'Pr', 'N2S2N2', 'N-graphene')",
+  "evidence_level": "screening_dft",
+  "returncode": 0,
+  "execution": {
+    "mpi_ranks": 2,
+    "omp_threads": 2,
+    "kpoint_pools": 1,
+    "image_groups": 1,
+    "require_gpu": true
+  },
+  "dft_energy_Ry": -175.962873,
+  "dft_energy_eV": -2394.096853799505,
+  "converged": true,
+  "max_force_Ry_bohr": null,
+  "wall_time_s": 12.5,
+  "provenance_pod": "nbexneesgdgjt2",
+  "provenance_task": "task-1484"
+}

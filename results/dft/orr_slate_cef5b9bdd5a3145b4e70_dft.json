@@ -1,0 +1,22 @@
+{
+  "catalyst_name": "orr_slate_cef5b9bdd5a3145b4e70",
+  "candidate_id": "cef5b9bdd5a3145b4e70",
+  "material_class": "Spinel",
+  "genome": "('Spinel', 'Cu', 'Cu', 'Ce', 'nanoparticle', 'graphene_oxide')",
+  "evidence_level": "screening_dft",
+  "returncode": 0,
+  "execution": {
+    "mpi_ranks": 2,
+    "omp_threads": 2,
+    "kpoint_pools": 1,
+    "image_groups": 1,
+    "require_gpu": true
+  },
+  "dft_energy_Ry": -754.986901,
+  "dft_energy_eV": -10272.120086750194,
+  "converged": true,
+  "max_force_Ry_bohr": null,
+  "wall_time_s": 162.8,
+  "provenance_pod": "nbexneesgdgjt2",
+  "provenance_task": "task-1484"
+}

@@ -1,0 +1,22 @@
+{
+  "catalyst_name": "orr_slate_eab03d20ac5cb0fc79d3",
+  "candidate_id": "eab03d20ac5cb0fc79d3",
+  "material_class": "MOF",
+  "genome": "('MOF', 'Ce', 'HITP', 'O4', 18.0)",
+  "evidence_level": "screening_dft",
+  "returncode": 1,
+  "execution": {
+    "mpi_ranks": 2,
+    "omp_threads": 2,
+    "kpoint_pools": 1,
+    "image_groups": 1,
+    "require_gpu": true
+  },
+  "dft_energy_Ry": -561.19993,
+  "dft_energy_eV": -7635.514025912746,
+  "converged": false,
+  "max_force_Ry_bohr": null,
+  "wall_time_s": 767.2,
+  "provenance_pod": "nbexneesgdgjt2",
+  "provenance_task": "task-1484"
+}
