@@ -538,6 +538,48 @@ class TestMultiObjectiveUncertaintyAndPareto(unittest.TestCase):
                 encoding="utf-8",
             )
 
+            (root / "dft").mkdir(parents=True, exist_ok=True)
+            (root / "dft" / "campaign_cat_hea_1_dft.json").write_text(
+                json.dumps({
+                    "candidate_id": "cat_hea_1",
+                    "converged": True,
+                    "dft_energy_Ry": -1029.81746014,
+                    "dft_energy_eV": -14011.3803,
+                    "max_force_Ry_bohr": 0.0,
+                }),
+                encoding="utf-8",
+            )
+            (root / "dft" / "orr_confirmatory_dft_summary.json").write_text(
+                json.dumps({
+                    "application": "fuel_cell_orr",
+                    "records": [
+                        {
+                            "candidate_id": "ab7e183d66b2e49921ed",
+                            "material_class": "SAA",
+                            "genome": "('SAA', 'Pd', 'Ga', '111', 25)",
+                            "predicted_overpotential_V": 0.0331,
+                            "orr_overpotential_gc_V": 0.2059,
+                            "pourbaix_acid_stable": True,
+                            "pourbaix_dissolution_margin_V": 0.4123,
+                            "qe_converged": True,
+                            "qe_dft_energy_Ry": -812.4412,
+                        },
+                        {
+                            "candidate_id": "dbc15731f8fdb0f99d43",
+                            "material_class": "Spinel",
+                            "genome": "('Spinel', 'Ni', 'Co', 'W', 'nanoparticle', 'N-CNT')",
+                            "predicted_overpotential_V": 0.3541,
+                            "orr_overpotential_gc_V": 0.1591,
+                            "pourbaix_acid_stable": True,
+                            "pourbaix_dissolution_margin_V": 0.0568,
+                            "qe_converged": True,
+                            "qe_dft_energy_Ry": -410.1125,
+                        },
+                    ],
+                }),
+                encoding="utf-8",
+            )
+
             scorecard = build_multipathway_champion_scorecard(str(root))
             self.assertEqual(
                 scorecard["evidence_level"], "screening_multipathway_scorecard"
@@ -548,7 +590,14 @@ class TestMultiObjectiveUncertaintyAndPareto(unittest.TestCase):
                 0.4588,
                 places=4,
             )
+            self.assertTrue(scorecard["discovery_champions"][0]["qe_dft_converged"])
+            self.assertAlmostEqual(
+                float(scorecard["discovery_champions"][0]["qe_dft_energy_Ry"]),
+                -1029.81746014,
+                places=5,
+            )
             leaderboard = scorecard["pathway_leaderboard"]
+            cal_leaderboard = scorecard["dft_calibrated_pathway_leaderboard"]
             for mode_name in (
                 "thermocatalytic_pfr",
                 "thermocatalytic_fluidized",
@@ -563,12 +612,52 @@ class TestMultiObjectiveUncertaintyAndPareto(unittest.TestCase):
                     float(leaderboard[mode_name]["single_pass_CH4_conversion"]), 0.0
                 )
                 self.assertIsNotNone(leaderboard[mode_name]["tea_base_h2_usd_kg"])
+                self.assertIn(mode_name, cal_leaderboard)
+                self.assertEqual(cal_leaderboard[mode_name]["status"], "complete")
+                self.assertGreater(
+                    float(
+                        cal_leaderboard[mode_name][
+                            "dft_calibrated_single_pass_CH4_conversion"
+                        ]
+                    ),
+                    0.0,
+                )
+                self.assertLessEqual(
+                    float(
+                        cal_leaderboard[mode_name][
+                            "dft_calibrated_single_pass_CH4_conversion"
+                        ]
+                    ),
+                    float(leaderboard[mode_name]["single_pass_CH4_conversion"]),
+                )
+                self.assertIsNotNone(
+                    cal_leaderboard[mode_name]["dft_calibrated_tea_base_h2_usd_kg"]
+                )
             pemfc = scorecard["pemfc_stack_summary"]
             self.assertEqual(pemfc["status"], "complete")
             self.assertGreater(float(pemfc["stack_net_power_kW"]), 0.0)
             self.assertEqual(len(scorecard["coupled_turquoise_pemfc_tea"]), 6)
 
+            cal_pemfc = scorecard["dft_calibrated_pemfc_stack_summary"]
+            self.assertEqual(cal_pemfc["status"], "complete")
+            self.assertEqual(cal_pemfc["n_qe_converged_acid_stable_cathodes"], 2)
+            self.assertEqual(cal_pemfc["champion_cathode"], "dbc15731f8fdb0f99d43")
+            self.assertIsNotNone(cal_pemfc["pgm_free_champion"])
+            self.assertEqual(
+                cal_pemfc["pgm_free_champion"]["cathode_catalyst"],
+                "dbc15731f8fdb0f99d43",
+            )
+            self.assertIsNotNone(cal_pemfc["low_pgm_champion"])
+            self.assertEqual(
+                cal_pemfc["low_pgm_champion"]["cathode_catalyst"],
+                "ab7e183d66b2e49921ed",
+            )
+            self.assertEqual(
+                len(scorecard["dft_calibrated_coupled_turquoise_pemfc_tea"]), 6
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

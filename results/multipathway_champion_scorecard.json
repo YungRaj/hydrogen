@@ -3,45 +3,278 @@
     "electrochemical": {
       "h2_cost_base_usd_kg": 68.494,
       "h2_cost_optimistic_usd_kg": 40.245,
-      "pemfc_fuel_cost_base_usd_kwh_e": 6.2318,
-      "pemfc_fuel_cost_optimistic_usd_kwh_e": 3.6616
+      "pemfc_fuel_cost_base_usd_kwh_e": 4.8812,
+      "pemfc_fuel_cost_optimistic_usd_kwh_e": 2.8681
     },
     "mmbcr": {
       "h2_cost_base_usd_kg": 1.721,
       "h2_cost_optimistic_usd_kg": 0.486,
-      "pemfc_fuel_cost_base_usd_kwh_e": 0.1566,
-      "pemfc_fuel_cost_optimistic_usd_kwh_e": 0.0442
+      "pemfc_fuel_cost_base_usd_kwh_e": 0.1226,
+      "pemfc_fuel_cost_optimistic_usd_kwh_e": 0.0346
     },
     "ntec": {
       "h2_cost_base_usd_kg": 13.799,
       "h2_cost_optimistic_usd_kg": 7.962,
-      "pemfc_fuel_cost_base_usd_kwh_e": 1.2555,
-      "pemfc_fuel_cost_optimistic_usd_kwh_e": 0.7244
+      "pemfc_fuel_cost_base_usd_kwh_e": 0.9834,
+      "pemfc_fuel_cost_optimistic_usd_kwh_e": 0.5674
     },
     "thermocatalytic": {
       "h2_cost_base_usd_kg": 1.002,
       "h2_cost_optimistic_usd_kg": 0.097,
-      "pemfc_fuel_cost_base_usd_kwh_e": 0.0912,
-      "pemfc_fuel_cost_optimistic_usd_kwh_e": 0.0088
+      "pemfc_fuel_cost_base_usd_kwh_e": 0.0714,
+      "pemfc_fuel_cost_optimistic_usd_kwh_e": 0.0069
     },
     "thermocatalytic_fluidized": {
       "h2_cost_base_usd_kg": 1.243,
       "h2_cost_optimistic_usd_kg": 0.228,
-      "pemfc_fuel_cost_base_usd_kwh_e": 0.1131,
-      "pemfc_fuel_cost_optimistic_usd_kwh_e": 0.0207
+      "pemfc_fuel_cost_base_usd_kwh_e": 0.0886,
+      "pemfc_fuel_cost_optimistic_usd_kwh_e": 0.0162
     },
     "thermocatalytic_pbr": {
       "h2_cost_base_usd_kg": 1.002,
       "h2_cost_optimistic_usd_kg": 0.097,
-      "pemfc_fuel_cost_base_usd_kwh_e": 0.0912,
-      "pemfc_fuel_cost_optimistic_usd_kwh_e": 0.0088
+      "pemfc_fuel_cost_base_usd_kwh_e": 0.0714,
+      "pemfc_fuel_cost_optimistic_usd_kwh_e": 0.0069
     },
     "thermocatalytic_pfr": {
       "h2_cost_base_usd_kg": 1.005,
       "h2_cost_optimistic_usd_kg": 0.099,
-      "pemfc_fuel_cost_base_usd_kwh_e": 0.0914,
-      "pemfc_fuel_cost_optimistic_usd_kwh_e": 0.009
+      "pemfc_fuel_cost_base_usd_kwh_e": 0.0716,
+      "pemfc_fuel_cost_optimistic_usd_kwh_e": 0.0071
     }
+  },
+  "dft_calibrated_coupled_turquoise_pemfc_tea": {
+    "electrochemical": {
+      "dft_calibrated_h2_cost_base_usd_kg": 1122.075,
+      "dft_calibrated_h2_cost_conservative_usd_kg": 2284.594,
+      "dft_calibrated_h2_cost_optimistic_usd_kg": 666.203,
+      "dft_calibrated_pemfc_fuel_cost_base_usd_kwh_e": 79.9658,
+      "dft_calibrated_pemfc_fuel_cost_optimistic_usd_kwh_e": 47.4776
+    },
+    "mmbcr": {
+      "dft_calibrated_h2_cost_base_usd_kg": 9.216,
+      "dft_calibrated_h2_cost_conservative_usd_kg": 24.994,
+      "dft_calibrated_h2_cost_optimistic_usd_kg": 4.543,
+      "dft_calibrated_pemfc_fuel_cost_base_usd_kwh_e": 0.6568,
+      "dft_calibrated_pemfc_fuel_cost_optimistic_usd_kwh_e": 0.3238
+    },
+    "thermocatalytic": {
+      "dft_calibrated_h2_cost_base_usd_kg": 1.403,
+      "dft_calibrated_h2_cost_conservative_usd_kg": 4.895,
+      "dft_calibrated_h2_cost_optimistic_usd_kg": 0.314,
+      "dft_calibrated_pemfc_fuel_cost_base_usd_kwh_e": 0.1,
+      "dft_calibrated_pemfc_fuel_cost_optimistic_usd_kwh_e": 0.0224
+    },
+    "thermocatalytic_fluidized": {
+      "dft_calibrated_h2_cost_base_usd_kg": 3.931,
+      "dft_calibrated_h2_cost_conservative_usd_kg": 11.398,
+      "dft_calibrated_h2_cost_optimistic_usd_kg": 1.682,
+      "dft_calibrated_pemfc_fuel_cost_base_usd_kwh_e": 0.2801,
+      "dft_calibrated_pemfc_fuel_cost_optimistic_usd_kwh_e": 0.1199
+    },
+    "thermocatalytic_pbr": {
+      "dft_calibrated_h2_cost_base_usd_kg": 1.403,
+      "dft_calibrated_h2_cost_conservative_usd_kg": 4.895,
+      "dft_calibrated_h2_cost_optimistic_usd_kg": 0.314,
+      "dft_calibrated_pemfc_fuel_cost_base_usd_kwh_e": 0.1,
+      "dft_calibrated_pemfc_fuel_cost_optimistic_usd_kwh_e": 0.0224
+    },
+    "thermocatalytic_pfr": {
+      "dft_calibrated_h2_cost_base_usd_kg": 1.463,
+      "dft_calibrated_h2_cost_conservative_usd_kg": 5.049,
+      "dft_calibrated_h2_cost_optimistic_usd_kg": 0.347,
+      "dft_calibrated_pemfc_fuel_cost_base_usd_kwh_e": 0.1043,
+      "dft_calibrated_pemfc_fuel_cost_optimistic_usd_kwh_e": 0.0247
+    }
+  },
+  "dft_calibrated_pathway_leaderboard": {
+    "electrochemical": {
+      "H2_selectivity": 1.0,
+      "T_K": 823.15,
+      "arrhenius_rate_scaling": 0.0842,
+      "champion_catalyst": "eb64b3aa6d3913c21f5d",
+      "dft_barrier_shift_eV": 0.1755,
+      "dft_calibrated_energy_input_kwh_kg_h2_base": 14974.577,
+      "dft_calibrated_overall_effectiveness_factor": null,
+      "dft_calibrated_single_pass_CH4_conversion": 0.0004,
+      "dft_calibrated_tea_base_h2_usd_kg": 1122.075,
+      "dft_calibrated_tea_conservative_h2_usd_kg": 2284.594,
+      "dft_calibrated_tea_optimistic_h2_usd_kg": 666.203,
+      "dft_calibrated_thiele_modulus": null,
+      "ergun_delta_p_bar": null,
+      "kinetics_status": "qe_dft_calibrated_bep",
+      "material_class": "MAXPhase",
+      "n_usable_records": 24,
+      "reactor_type": "Electrochemical",
+      "status": "complete",
+      "uncalibrated_single_pass_CH4_conversion": 0.0048
+    },
+    "mmbcr": {
+      "H2_selectivity": 0.8132,
+      "T_K": 1300.0,
+      "arrhenius_rate_scaling": 0.1,
+      "champion_catalyst": "54757bb17c1b638462d9",
+      "dft_barrier_shift_eV": 0.2579,
+      "dft_calibrated_energy_input_kwh_kg_h2_base": 93.366,
+      "dft_calibrated_overall_effectiveness_factor": null,
+      "dft_calibrated_single_pass_CH4_conversion": 0.0273,
+      "dft_calibrated_tea_base_h2_usd_kg": 9.216,
+      "dft_calibrated_tea_conservative_h2_usd_kg": 24.994,
+      "dft_calibrated_tea_optimistic_h2_usd_kg": 4.543,
+      "dft_calibrated_thiele_modulus": null,
+      "ergun_delta_p_bar": null,
+      "kinetics_status": "qe_dft_calibrated_bep",
+      "material_class": "MoltenMetal",
+      "n_usable_records": 36,
+      "reactor_type": "MMBCR",
+      "status": "complete",
+      "uncalibrated_single_pass_CH4_conversion": 0.2417
+    },
+    "ntec": {
+      "H2_selectivity": 1.0,
+      "T_K": 423.15,
+      "arrhenius_rate_scaling": 0.0,
+      "champion_catalyst": "00014a7eeba8246b1b9c",
+      "dft_barrier_shift_eV": 0.4002,
+      "dft_calibrated_energy_input_kwh_kg_h2_base": null,
+      "dft_calibrated_overall_effectiveness_factor": null,
+      "dft_calibrated_single_pass_CH4_conversion": 0.0,
+      "dft_calibrated_tea_base_h2_usd_kg": null,
+      "dft_calibrated_tea_conservative_h2_usd_kg": null,
+      "dft_calibrated_tea_optimistic_h2_usd_kg": null,
+      "dft_calibrated_thiele_modulus": null,
+      "ergun_delta_p_bar": null,
+      "kinetics_status": "qe_dft_calibrated_bep",
+      "material_class": "SolidCatalyst",
+      "n_usable_records": 28,
+      "reactor_type": "NTEC",
+      "status": "complete",
+      "uncalibrated_single_pass_CH4_conversion": 0.0057
+    },
+    "thermocatalytic": {
+      "H2_selectivity": 1.0,
+      "T_K": 1300.0,
+      "arrhenius_rate_scaling": 0.1142,
+      "champion_catalyst": "f78c667155715fb12ba3",
+      "dft_barrier_shift_eV": 0.2431,
+      "dft_calibrated_energy_input_kwh_kg_h2_base": 13.563,
+      "dft_calibrated_overall_effectiveness_factor": 0.9969,
+      "dft_calibrated_single_pass_CH4_conversion": 0.3627,
+      "dft_calibrated_tea_base_h2_usd_kg": 1.403,
+      "dft_calibrated_tea_conservative_h2_usd_kg": 4.895,
+      "dft_calibrated_tea_optimistic_h2_usd_kg": 0.314,
+      "dft_calibrated_thiele_modulus": 0.097,
+      "ergun_delta_p_bar": 0.91325,
+      "kinetics_status": "qe_dft_calibrated_bep",
+      "material_class": "HEA",
+      "n_usable_records": 199,
+      "reactor_type": "PBR",
+      "status": "complete",
+      "uncalibrated_single_pass_CH4_conversion": 0.98
+    },
+    "thermocatalytic_fluidized": {
+      "H2_selectivity": 1.0,
+      "T_K": 1300.0,
+      "arrhenius_rate_scaling": 0.1142,
+      "champion_catalyst": "f78c667155715fb12ba3",
+      "dft_barrier_shift_eV": 0.2431,
+      "dft_calibrated_energy_input_kwh_kg_h2_base": 39.385,
+      "dft_calibrated_overall_effectiveness_factor": null,
+      "dft_calibrated_single_pass_CH4_conversion": 0.0729,
+      "dft_calibrated_tea_base_h2_usd_kg": 3.931,
+      "dft_calibrated_tea_conservative_h2_usd_kg": 11.398,
+      "dft_calibrated_tea_optimistic_h2_usd_kg": 1.682,
+      "dft_calibrated_thiele_modulus": null,
+      "ergun_delta_p_bar": 0.398827,
+      "kinetics_status": "qe_dft_calibrated_bep",
+      "material_class": "HEA",
+      "n_usable_records": 63,
+      "reactor_type": "Fluidized",
+      "status": "complete",
+      "uncalibrated_single_pass_CH4_conversion": 0.4845
+    },
+    "thermocatalytic_pbr": {
+      "H2_selectivity": 1.0,
+      "T_K": 1300.0,
+      "arrhenius_rate_scaling": 0.1142,
+      "champion_catalyst": "f78c667155715fb12ba3",
+      "dft_barrier_shift_eV": 0.2431,
+      "dft_calibrated_energy_input_kwh_kg_h2_base": 13.563,
+      "dft_calibrated_overall_effectiveness_factor": 0.9969,
+      "dft_calibrated_single_pass_CH4_conversion": 0.3627,
+      "dft_calibrated_tea_base_h2_usd_kg": 1.403,
+      "dft_calibrated_tea_conservative_h2_usd_kg": 4.895,
+      "dft_calibrated_tea_optimistic_h2_usd_kg": 0.314,
+      "dft_calibrated_thiele_modulus": 0.097,
+      "ergun_delta_p_bar": 0.91325,
+      "kinetics_status": "qe_dft_calibrated_bep",
+      "material_class": "HEA",
+      "n_usable_records": 83,
+      "reactor_type": "PBR",
+      "status": "complete",
+      "uncalibrated_single_pass_CH4_conversion": 0.98
+    },
+    "thermocatalytic_pfr": {
+      "H2_selectivity": 1.0,
+      "T_K": 1300.0,
+      "arrhenius_rate_scaling": 0.1142,
+      "champion_catalyst": "f78c667155715fb12ba3",
+      "dft_barrier_shift_eV": 0.2431,
+      "dft_calibrated_energy_input_kwh_kg_h2_base": 14.177,
+      "dft_calibrated_overall_effectiveness_factor": null,
+      "dft_calibrated_single_pass_CH4_conversion": 0.3314,
+      "dft_calibrated_tea_base_h2_usd_kg": 1.463,
+      "dft_calibrated_tea_conservative_h2_usd_kg": 5.049,
+      "dft_calibrated_tea_optimistic_h2_usd_kg": 0.347,
+      "dft_calibrated_thiele_modulus": null,
+      "ergun_delta_p_bar": 0.398827,
+      "kinetics_status": "qe_dft_calibrated_bep",
+      "material_class": "HEA",
+      "n_usable_records": 53,
+      "reactor_type": "PFR",
+      "status": "complete",
+      "uncalibrated_single_pass_CH4_conversion": 0.9706
+    }
+  },
+  "dft_calibrated_pemfc_stack_summary": {
+    "cell_efficiency_at_peak": 0.4495,
+    "champion_cathode": "dbc15731f8fdb0f99d43",
+    "champion_genome": "('Spinel', 'Ni', 'Co', 'W', 'nanoparticle', 'N-CNT')",
+    "champion_material_class": "Spinel",
+    "champion_membrane": "AquivionE87",
+    "low_pgm_champion": {
+      "cathode_catalyst": "ab7e183d66b2e49921ed",
+      "cell_efficiency_at_peak": 0.4621,
+      "genome": "('SAA', 'Pd', 'Ga', '111', 5000)",
+      "material_class": "SAA",
+      "orr_overpotential_gc_V": 0.2059,
+      "peak_power_W_cm2": 2.316,
+      "pourbaix_dissolution_margin_V": 0.4123
+    },
+    "n_qe_converged_acid_stable_cathodes": 30,
+    "orr_overpotential_che_V": 0.3541,
+    "orr_overpotential_gc_V": 0.1591,
+    "orr_tafel_slope_mV_dec": 105.0,
+    "peak_power_W_cm2": 2.2532,
+    "pgm_free_champion": {
+      "cathode_catalyst": "dbc15731f8fdb0f99d43",
+      "cell_efficiency_at_peak": 0.4495,
+      "genome": "('Spinel', 'Ni', 'Co', 'W', 'nanoparticle', 'N-CNT')",
+      "material_class": "Spinel",
+      "orr_overpotential_gc_V": 0.1591,
+      "peak_power_W_cm2": 2.2532,
+      "pourbaix_dissolution_margin_V": 0.0568
+    },
+    "pourbaix_dissolution_margin_V": 0.0568,
+    "qe_dft_energy_Ry": -519.038923,
+    "rated_power_at_0p6V_W_cm2": 2.0822,
+    "stack_cells": 400,
+    "stack_cost_usd_per_kW": 30.81,
+    "stack_gravimetric_W_kg": 2732.2,
+    "stack_net_power_kW": 253.22,
+    "stack_system_efficiency": 0.421,
+    "stack_volumetric_W_L": 4122.4,
+    "status": "complete"
   },
   "discovery_champions": [
     {
@@ -54,11 +287,11 @@
       "interfacial_carbon_displacement_A": 0.2047,
       "interfacial_pyrolysis_score_eV": 0.2193,
       "material_class": "MAXPhase",
-      "rank": 1,
       "qe_dft_converged": true,
       "qe_dft_energy_Ry": -318.77122562,
       "qe_dft_energy_eV": -4337.1035,
-      "qe_max_force_Ry_bohr": 0.0
+      "qe_max_force_Ry_bohr": 0.0,
+      "rank": 1
     },
     {
       "E_act_eV": 0.1192,
@@ -70,11 +303,11 @@
       "interfacial_carbon_displacement_A": 0.1177,
       "interfacial_pyrolysis_score_eV": 0.237,
       "material_class": "HEA",
-      "rank": 2,
       "qe_dft_converged": true,
       "qe_dft_energy_Ry": -1029.81746014,
       "qe_dft_energy_eV": -14011.3803,
-      "qe_max_force_Ry_bohr": 0.0
+      "qe_max_force_Ry_bohr": 0.0,
+      "rank": 2
     },
     {
       "E_act_eV": 0.1261,
@@ -86,11 +319,11 @@
       "interfacial_carbon_displacement_A": 1.7373,
       "interfacial_pyrolysis_score_eV": 1.8634,
       "material_class": "SolidCatalyst",
-      "rank": 3,
       "qe_dft_converged": true,
       "qe_dft_energy_Ry": -1492.93302683,
       "qe_dft_energy_eV": -20312.3886,
-      "qe_max_force_Ry_bohr": 0.0
+      "qe_max_force_Ry_bohr": 0.0,
+      "rank": 3
     },
     {
       "E_act_eV": 0.364,
@@ -102,11 +335,11 @@
       "interfacial_carbon_displacement_A": 1.9548,
       "interfacial_pyrolysis_score_eV": 2.3188,
       "material_class": "SAC",
-      "rank": 4,
       "qe_dft_converged": true,
       "qe_dft_energy_Ry": -500.43408538,
       "qe_dft_energy_eV": -6808.7526,
-      "qe_max_force_Ry_bohr": 0.0
+      "qe_max_force_Ry_bohr": 0.0,
+      "rank": 4
     },
     {
       "E_act_eV": 0.6139,
@@ -118,11 +351,11 @@
       "interfacial_carbon_displacement_A": 0.1945,
       "interfacial_pyrolysis_score_eV": 0.8084,
       "material_class": "MoltenMetal",
-      "rank": 5,
       "qe_dft_converged": true,
       "qe_dft_energy_Ry": -198.54222027,
       "qe_dft_energy_eV": -2701.3045,
-      "qe_max_force_Ry_bohr": 0.0
+      "qe_max_force_Ry_bohr": 0.0,
+      "rank": 5
     },
     {
       "E_act_eV": 0.6281,
@@ -134,11 +367,11 @@
       "interfacial_carbon_displacement_A": 1.1208,
       "interfacial_pyrolysis_score_eV": 1.7489,
       "material_class": "Spinel",
-      "rank": 6,
       "qe_dft_converged": true,
       "qe_dft_energy_Ry": -393.61770898,
       "qe_dft_energy_eV": -5355.4418,
-      "qe_max_force_Ry_bohr": 0.0
+      "qe_max_force_Ry_bohr": 0.0,
+      "rank": 6
     },
     {
       "E_act_eV": 0.8696,
@@ -150,11 +383,11 @@
       "interfacial_carbon_displacement_A": 0.7193,
       "interfacial_pyrolysis_score_eV": 1.5889,
       "material_class": "DAC",
-      "rank": 7,
       "qe_dft_converged": true,
       "qe_dft_energy_Ry": -500.43408538,
       "qe_dft_energy_eV": -6808.7526,
-      "qe_max_force_Ry_bohr": 0.0
+      "qe_max_force_Ry_bohr": 0.0,
+      "rank": 7
     },
     {
       "E_act_eV": 1.2468,
@@ -166,11 +399,11 @@
       "interfacial_carbon_displacement_A": 0.8088,
       "interfacial_pyrolysis_score_eV": 2.0556,
       "material_class": "MetalFreeCarbon",
-      "rank": 8,
       "qe_dft_converged": true,
       "qe_dft_energy_Ry": -45.00075459,
       "qe_dft_energy_eV": -612.2665,
-      "qe_max_force_Ry_bohr": 0.0
+      "qe_max_force_Ry_bohr": 0.0,
+      "rank": 8
     },
     {
       "E_act_eV": 2.1596,
@@ -182,11 +415,11 @@
       "interfacial_carbon_displacement_A": 1.0338,
       "interfacial_pyrolysis_score_eV": 3.1934,
       "material_class": "SAA",
-      "rank": 9,
       "qe_dft_converged": true,
       "qe_dft_energy_Ry": -796.01537106,
       "qe_dft_energy_eV": -10830.3409,
-      "qe_max_force_Ry_bohr": 0.0
+      "qe_max_force_Ry_bohr": 0.0,
+      "rank": 9
     },
     {
       "E_act_eV": 0.3168,
@@ -198,11 +431,11 @@
       "interfacial_carbon_displacement_A": 0.256,
       "interfacial_pyrolysis_score_eV": 0.5728,
       "material_class": "HEA",
-      "rank": 10,
       "qe_dft_converged": true,
       "qe_dft_energy_Ry": -1069.55515319,
       "qe_dft_energy_eV": -14552.0392,
-      "qe_max_force_Ry_bohr": 0.0
+      "qe_max_force_Ry_bohr": 0.0,
+      "rank": 10
     }
   ],
   "evidence_level": "screening_multipathway_scorecard",
@@ -354,18 +587,18 @@
     "n_plugging_or_overloaded_flagged": 4
   },
   "pemfc_stack_summary": {
-    "cell_efficiency_at_peak": 0.3585,
-    "champion_cathode": "0b8c1b55b88de7699474",
+    "cell_efficiency_at_peak": 0.4495,
+    "champion_cathode": "dbc15731f8fdb0f99d43",
     "champion_membrane": "AquivionE87",
-    "n_single_cell_simulations": 180,
-    "orr_overpotential_V": 0.2966,
-    "peak_power_W_cm2": 1.3477,
+    "n_single_cell_simulations": 210,
+    "orr_overpotential_V": 0.1591,
+    "peak_power_W_cm2": 2.2532,
     "stack_cells": 400,
-    "stack_cost_usd_per_kW": 49.63,
-    "stack_gravimetric_W_kg": 1605.0,
-    "stack_net_power_kW": 148.75,
-    "stack_system_efficiency": 0.3298,
-    "stack_volumetric_W_L": 2421.7,
+    "stack_cost_usd_per_kW": 30.81,
+    "stack_gravimetric_W_kg": 2732.2,
+    "stack_net_power_kW": 253.22,
+    "stack_system_efficiency": 0.421,
+    "stack_volumetric_W_L": 4122.4,
     "status": "complete"
   }
 }
