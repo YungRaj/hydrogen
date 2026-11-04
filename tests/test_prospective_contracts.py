@@ -414,12 +414,12 @@ class ProspectiveContracts(unittest.TestCase):
                 evidence_output_path=ev_cal,
                 database=db_path,
             )
-            self.assertEqual(payload['n_validation_samples'], 58)
+            self.assertEqual(payload['n_validation_samples'], 59)
             self.assertEqual(
                 payload['applications']['turquoise_hydrogen'][
                     'n_validation_samples'
                 ],
-                10,
+                11,
             )
             self.assertEqual(
                 payload['applications']['fuel_cell_orr']['n_validation_samples'],
@@ -433,10 +433,10 @@ class ProspectiveContracts(unittest.TestCase):
             n_orr = seed_validation_from_artifact(
                 str(db2), 'fuel_cell_orr', out_cal
             )
-            self.assertEqual(n_turq, 10)
+            self.assertEqual(n_turq, 11)
             self.assertEqual(n_orr, 48)
             self.assertEqual(
-                len(class_calibration(str(db2), 'turquoise_hydrogen')), 9
+                len(class_calibration(str(db2), 'turquoise_hydrogen')), 10
             )
             self.assertEqual(
                 len(class_calibration(str(db2), 'fuel_cell_orr')), 12

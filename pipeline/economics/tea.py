@@ -184,7 +184,7 @@ def build_multipathway_champion_scorecard(
     results_root: str = 'results',
     *,
     stack_cells: int = 400,
-    top_k_catalysts: int = 10,
+    top_k_catalysts: int = 11,
 ) -> dict:
     """Build an end-to-end 6-pathway champion portfolio and TEA scorecard.
 
@@ -473,6 +473,18 @@ def build_multipathway_champion_scorecard(
         )
         # Effective barrier shift includes the QE AL class bias and 0.15 eV/A interfacial coking drag
         effective_barrier_shift_ev = max(0.0, delta_e_dft + 0.15 * c_disp_a)
+        if str(rec.get('reactor_type', '')) == 'NTEC':
+            mp_out = (
+                rec.get('multiphysics_screening', {}).get('outputs', {})
+                if isinstance(rec.get('multiphysics_screening'), dict)
+                else {}
+            )
+            raw_fe = mp_out.get('field_rate_enhancement')
+            if isinstance(raw_fe, (int, float)) and float(raw_fe) > 1.0:
+                stark_offset_ev = 0.5 * K_B_EV_K * t_eff * math.log(float(raw_fe))
+                effective_barrier_shift_ev = max(
+                    0.0, effective_barrier_shift_ev - stark_offset_ev
+                )
         rate_scale = math.exp(-effective_barrier_shift_ev / (K_B_EV_K * t_eff))
         x_raw = min(max(float(single_pass_x(rec)), 0.0), 0.9999)
         da_raw = -math.log(max(1.0 - x_raw, 1e-6))
@@ -507,7 +519,10 @@ def build_multipathway_champion_scorecard(
             'material_class': mat_cls,
             'dft_barrier_shift_eV': round(effective_barrier_shift_ev, 4),
             'arrhenius_rate_scaling': round(rate_scale, 4),
-            'dft_calibrated_single_pass_CH4_conversion': round(x_cal, 4),
+            'dft_calibrated_single_pass_CH4_conversion': (
+                round(x_cal, 4) if x_cal >= 1e-4 else round(x_cal, 6)
+            ),
+            '_x_cal_exact': x_cal,
             'dft_calibrated_overall_effectiveness_factor': cal_eta_out,
             'dft_calibrated_thiele_modulus': cal_phi_out,
         }
@@ -624,7 +639,7 @@ def build_multipathway_champion_scorecard(
         best_cal_rec, best_cal_metrics = max(
             scored_cal,
             key=lambda item: (
-                item[1]['dft_calibrated_single_pass_CH4_conversion'],
+                item[1]['_x_cal_exact'],
                 -float(item[0].get('T_K') or 0.0),
             ),
         )

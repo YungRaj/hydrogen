@@ -63,9 +63,9 @@ MOF, COF, MXene, and Perovskite still earn PEMFC reserved slots (they are in-sco
 
 ### What this is not
 
-- Not a slab-coking rule. `coking_index = ΔE_C − 2ΔE_H` stays defined for any class with a slab, including MetalHydride. That index is not the filament vs encapsulating branch (B6).
+- Not a slab-coking rule. `coking_index = ΔE_C − 2ΔE_H` stays defined for any class with a slab, including MetalHydride. That index is not the filament vs encapsulating branch (`baker1972_helveg2004_ermakova2000_takenaka2003_off_site_carbon_nucleation`).
 - Not a claim that residual metal, MOF-derived carbon, TiC, or exsolved Ni is inactive. Those need their own genomes.
-- Not a grant of the Baker/Helveg filament path. SAC remaining a pyrolysis **candidate** means the encoded single-atom phase can exist at application T. It does not mean Cα can dissolve, diffuse, and nucleate graphite at a separate face [24–26, 33]. That physics is B6 and is nanoparticle-only.
+- Not a grant of the Baker/Helveg filament path. SAC remaining a pyrolysis **candidate** means the encoded single-atom phase can exist at application T. It does not mean Cα can dissolve, diffuse, and nucleate graphite at a separate face [24–26, 33]. That physics is `baker1972_helveg2004_ermakova2000_takenaka2003_off_site_carbon_nucleation` and is nanoparticle-only.
 
 ## References
 

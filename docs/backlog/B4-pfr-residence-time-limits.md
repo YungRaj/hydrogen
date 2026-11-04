@@ -1,11 +1,11 @@
-# B4 — Practical limits on lengthening the PFR
+# Ergun (1952) / Froment & Bischoff (2011) Packed-Bed Pressure-Drop & Residence Envelope (`ergun1952_packed_bed_pressure_drop_pilot_residence`)
 
 **Acceptance**
 
-- Any increase in PFR τ (`L`, `ε`, `u`, `d_p`) is bounded by Ergun ΔP, stoichiometric coking/plugging, and heat duty — not by “make it an MMBCR.”
+- Any increase in PFR/PBR τ (`L`, `ε`, `u`, `d_p`) is bounded by Ergun ΔP (`< 2.0 bar`), stoichiometric coking/plugging, and heat duty — not by “make it an MMBCR.”
 - Do not claim a long overloaded bed is a good catalyst: high inventory + low WHSV sits on X_eq or mass transfer [3].
-- Pilot TCD residence times of 2–12 s [11] are the comparison band (we are at 4 s).
-- Continuous operation still requires B2 outfeed. Lengthening τ without B6 still saturates at the monolayer identity `X ≈ n_sites / n_CH4`.
+- Pilot TCD residence times of 2–12 s [11] are the comparison band (production default is 4 s; calibrated supported-Ni filament closure uses 2.0 s at $\text{WHSV} = 60,000\ \text{mL}/(\text{g}_{\text{cat}}\cdot\text{h})$).
+- Continuous operation requires between-pass outfeed ([`muradov2005_zero_co2_solids_outfeed_regeneration`](B2-solids-outfeed-clearing.md)) and intra-pass off-site filament nucleation ([`baker1972_helveg2004_ermakova2000_takenaka2003_off_site_carbon_nucleation`](B6-off-site-carbon-nucleation.md)). Lengthening τ on an ungated catalyst still saturates at the monolayer identity `X ≈ n_sites / n_CH4`.
 
 **Why**
 

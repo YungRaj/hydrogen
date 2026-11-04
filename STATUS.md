@@ -63,8 +63,7 @@
   of 4/4 and 3/4 for pyrolysis and 4/4 and 4/4 for ORR. There were no
   `atomic_overlap` failures; the sole DAC rejection was an out-of-bounds
   adsorption energy caught by the physical validity guard.
-- **Phase 2:** B5 remains closed pending B6. Solids conversion has no authority
-  to rank catalysts, choose DFT work, or choose the experimental handoff slate.
+- **Phase 2 solids ranking authority (`alves2021_xu2021_supported_ni_filament_ranking_authority`):** With Lander bulk-diffusion coupling ($L = 17.5\ \text{nm}$, $A_\gamma = 8.10\times 10^{11}\ \text{s}^{-1}$), $\text{WHSV} = 60,000\ \text{mL}/(\text{g}_{\text{cat}}\cdot\text{h})$, and Amin 2011 encapsulating carbon kinetics, the supported-$\text{Ni(111)/SiO}_2$ reference (`ni111_sio2_bengaard2002_ref`) closes all five off-site carbon nucleation criteria (`baker1972_helveg2004_ermakova2000_takenaka2003_off_site_carbon_nucleation`, `results/evidence/supported_ni_filament_closure.json`).
 - **Ni(111) NEB workflow check:** the corrected 11-image staged path was tested
   against Bengaard's 1.05 eV reference. Both endpoints and plain NEB converged,
   but climbing exhausted 1,000 steps at 0.557 eV/A with a discontinuous path.
@@ -91,8 +90,6 @@
   required calibrated and held-out evidence is present.
 - **Preservation:** tag `orr-confirmatory-v1` identifies the confirmed ORR
   result and its checksum-locked DFT slate.
-- **Supported nanoparticles:** the opt-in genome records diameter and loading for
-  B6 studies and now varies slab capillary/loading strain, dispersion, and
-  sub-5 nm step-edge vacancy morphology with `diameter_nm` and `loading_wt_pct`;
-  experimental calibration is still required before treating them as validated
-  physical controls.
+- **Supported nanoparticles (`SupportedNanoparticle`):** the genome records diameter and loading for
+  off-site carbon nucleation (`baker1972_helveg2004_ermakova2000_takenaka2003_off_site_carbon_nucleation`) studies and varies slab capillary/loading strain, dispersion, and
+  sub-5 nm step-edge vacancy morphology with `diameter_nm` and `loading_wt_pct` (Snoeck 1997 / Reshetenko 2003 / Ashok 2007).

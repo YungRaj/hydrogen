@@ -714,6 +714,29 @@ class TestMultiObjectiveUncertaintyAndPareto(unittest.TestCase):
         )
         self.assertTrue(direct_gate["solids_ranking_authority_accepted"])
 
+        mp_path = Path("results/multipathway_champion_scorecard.json")
+        self.assertTrue(mp_path.is_file())
+        mp_doc = json.loads(mp_path.read_text(encoding="utf-8"))
+        champ_classes = {
+            c.get("material_class") for c in mp_doc.get("discovery_champions", [])
+        }
+        self.assertIn("SupportedNanoparticle", champ_classes)
+        self.assertEqual(len(mp_doc.get("discovery_champions", [])), 11)
+        cal_coupled = mp_doc.get("dft_calibrated_coupled_turquoise_pemfc_tea", {})
+        for mode_key in (
+            "thermocatalytic_pfr",
+            "thermocatalytic_pbr",
+            "thermocatalytic_fluidized",
+            "thermocatalytic",
+            "mmbcr",
+            "ntec",
+            "electrochemical",
+        ):
+            self.assertIn(mode_key, cal_coupled)
+            self.assertIsNotNone(
+                cal_coupled[mode_key].get("dft_calibrated_h2_cost_base_usd_kg")
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

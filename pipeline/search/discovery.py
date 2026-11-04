@@ -79,6 +79,11 @@ def canonicalize_genome(genome: tuple) -> tuple:
         g[5] = "None"
     elif g[0] == "MXene" and g[5] == g[1]:
         g[5] = "None"
+    elif g[0] == "SupportedNanoparticle" and len(g) >= 9:
+        if isinstance(g[6], (tuple, list)):
+            g[6] = tuple(sorted(str(x) for x in g[6]))
+        g[4] = round(float(g[4]), 4)
+        g[5] = round(float(g[5]), 4)
     return tuple(g)
 
 
@@ -106,7 +111,7 @@ def discovery_region(genome: tuple) -> Tuple[str, ...]:
     """
     g = canonicalize_genome(genome)
     cls = g[0]
-    if cls == "SolidCatalyst":
+    if cls in ("SolidCatalyst", "SupportedNanoparticle"):
         return cls, str(g[1]), str(g[2]), str(g[3])
     if cls == "MoltenMetal":
         return cls, str(g[1]), str(g[2])
@@ -355,6 +360,21 @@ def _format_genome_tuple_label(genome: tuple) -> str:
             alloy = f"{m1}{ratio}{m2}{100 - int(ratio)}" if isinstance(ratio, (int, float)) and m2 != m1 else m1
             return f"{alloy}({facet})/{support} Supported Alloy Catalyst (Stamenkovic 2007 / Greeley 2009)"
     if cls == 'SupportedNanoparticle' and len(genome) >= 6:
+        if len(genome) >= 9 and isinstance(genome[4], (int, float)):
+            metal, support, facet = str(genome[1]), str(genome[2]), str(genome[3])
+            d_nm, load_wt = float(genome[4]), float(genome[5])
+            dopants = (
+                tuple(str(d) for d in genome[6] if str(d) not in ('None', 'none', ''))
+                if isinstance(genome[6], (tuple, list))
+                else ()
+            )
+            n_sub = int(genome[7]) if isinstance(genome[7], (int, float)) else 0
+            dop_prefix = f"{','.join(dopants)}-doped " if (dopants and n_sub > 0) else ""
+            return (
+                f"{dop_prefix}{metal}({facet})/{support} (d={d_nm:.1f} nm, {load_wt:.1f} wt%) "
+                f"Supported Bimetallic Nanoparticle "
+                f"(Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy)"
+            )
         m1, m2 = str(genome[1]), str(genome[2])
         counts = genome[3] if isinstance(genome[3], (tuple, list)) and len(genome[3]) == 2 else (1, 0)
         support, facet = str(genome[4]), str(genome[5])

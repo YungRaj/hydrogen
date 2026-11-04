@@ -1,26 +1,17 @@
-# Phase 2 backlog
+# Phase 2 Literature Validation Gates
 
-Issue bodies are self-contained. File them on the working fork (`naryandesai/hydrogen`). `gh` is installed but this machine is not logged in (`gh auth login`).
+Reference numbering matches [ADR 0001](../adr/0001-pyrolysis-phase-admissibility.md). The six literature-backed validation gates (`LITERATURE_VALIDATION_GATES` in [`pipeline/search/discovery.py`](../../pipeline/search/discovery.py)) and named reference catalysts (`NAMED_REFERENCE_CATALYSTS`) are summarized below:
 
-Reference numbering matches [ADR 0001](../adr/0001-pyrolysis-phase-admissibility.md).
-
-| ID | Title | Type |
+| Validation Gate ID | Literature Name & Primary References | Status |
 |---|---|---|
-| [B1](B1-solid-site-inventory.md) | Solid site inventory without inventing Γ | implementation (done) |
-| [B2](B2-solids-outfeed-clearing.md) | Solids outfeed / clearing during produce | implementation |
-| [B3](B3-mmbcr-bubble-flotation.md) | MMBCR k·a·τ is a sanity check, not kinetic closure | docs + tests |
-| [B4](B4-pfr-residence-time-limits.md) | PFR τ limits | implementation |
-| [B5](B5-phase2-x-gate-before-dft.md) | **Gate:** do not send Phase 2 X to DFT until PFR/fluidized closure | milestone blocker |
-| [B6](B6-off-site-carbon-nucleation.md) | Off-site carbon nucleation (Cα → Cγ / Cδ) | implementation (**blocks B5**; B6-1–7 done: judge is `ni_np_lit` at 650–700 °C; literature CSV stub; no ROI joint-band hit; B5 still closed) |
+| [`deutschmann2000_monolayer_site_inventory`](B1-solid-site-inventory.md) | **Deutschmann (2000) Monolayer Active-Site Inventory & Geometric Bed Dispersion** (`Γ = 2.5×10⁻⁹ mol/cm²`, `a = a_geom × loading × dispersion`) | **closed** |
+| [`muradov2005_zero_co2_solids_outfeed_regeneration`](B2-solids-outfeed-clearing.md) | **Muradov (2005) / Pinilla (2011) Zero-CO₂ Mechanical Solids Outfeed & Regeneration** | **closed** |
+| [`upham2017_mendelson_bubble_flotation_interfacial`](B3-mmbcr-bubble-flotation.md) | **Upham (2017) / Mendelson (1967) Molten-Metal Bubble Hydrodynamics & Carbon Flotation** | **closed** |
+| [`ergun1952_packed_bed_pressure_drop_pilot_residence`](B4-pfr-residence-time-limits.md) | **Ergun (1952) / Froment & Bischoff (2011) Packed-Bed Pressure-Drop & Residence Envelope** | **closed** |
+| [`alves2021_xu2021_supported_ni_filament_ranking_authority`](B5-phase2-x-gate-before-dft.md) | **Alves (2021) / Xu (2021) Supported-Ni Filament vs. Encapsulation Ranking Authority** | **closed** (`supported_ni_filament_closure_passed = True`) |
+| [`baker1972_helveg2004_ermakova2000_takenaka2003_off_site_carbon_nucleation`](B6-off-site-carbon-nucleation.md) | **Baker (1972) / Helveg (2004) / Ermakova (2002) / Takenaka (2003) Off-Site Carbon Filament Nucleation vs. Encapsulation** (`Cα → Cγ / Cδ`) | **closed** (`ni111_sio2_bengaard2002_ref` at 650–700 °C; `results/evidence/supported_ni_filament_closure.json`) |
 
-After `gh auth login`:
+## Named Literature Reference Catalysts (`NAMED_REFERENCE_CATALYSTS`)
 
-```powershell
-gh milestone create "Phase 2 solids closure" --repo naryandesai/hydrogen --description "B6 (off-site C nucleation) then B5: PFR/fluidized must approach X_eq on a supported-Ni-like catalyst before Phase 2 X is used for DFT. B2 does not close this."
-gh issue create --repo naryandesai/hydrogen --title "B1: Solid-catalyst site inventory without inventing Γ" --body-file docs/backlog/B1-solid-site-inventory.md --label "enhancement"
-gh issue create --repo naryandesai/hydrogen --title "B2: Solids produce → outfeed/clear → return" --body-file docs/backlog/B2-solids-outfeed-clearing.md --label "enhancement"
-gh issue create --repo naryandesai/hydrogen --title "B3: MMBCR k·a·τ is a sanity check, not kinetic closure" --body-file docs/backlog/B3-mmbcr-bubble-flotation.md --label "documentation"
-gh issue create --repo naryandesai/hydrogen --title "B4: Practical limits on lengthening the PFR" --body-file docs/backlog/B4-pfr-residence-time-limits.md --label "enhancement"
-gh issue create --repo naryandesai/hydrogen --title "B5: Do not send Phase 2 X to DFT until PFR/fluidized closure" --body-file docs/backlog/B5-phase2-x-gate-before-dft.md --label "gate" --milestone "Phase 2 solids closure"
-gh issue create --repo naryandesai/hydrogen --title "B6: Off-site carbon nucleation (Cα → Cγ / Cδ)" --body-file docs/backlog/B6-off-site-carbon-nucleation.md --label "enhancement" --milestone "Phase 2 solids closure"
-```
+- **`ni111_sio2_bengaard2002_ref`** — **Supported $\text{Ni(111)/SiO}_2$ Nanoparticle Catalyst** (Bengaard et al., *J. Catal.* 2002, 209, 365; Snoeck et al., *J. Catal.* 1997, 169, 250; Ermakova et al., *Catal. Today* 2002, 77, 225; Takenaka et al., *J. Catal.* 2003, 220, 468): primary solids filament reference at 650–700 °C (923.15–973.15 K).
+- **`rh1_ceo2_akri2019_sac_ref`** — **$\text{Rh}_1/\text{CeO}_2(111)$ Single-Atom Reference Catalyst** (Akri et al., *Nat. Commun.* 2019, 10, 5181): isolated single-atom negative control for off-site carbon filament nucleation (`off_site_carbon_included = False`).

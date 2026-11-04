@@ -1,0 +1,19 @@
+{
+  "catalyst_name": "campaign_768cb0559591faec06ba",
+  "candidate_id": "768cb0559591faec06ba",
+  "material_class": "SupportedNanoparticle",
+  "genome": "('SupportedNanoparticle', 'Ni', 'MgAl2O4', 'fcc211', 12.0, 25.0, ('Cu', 'Fe'), 2, 1)",
+  "evidence_level": "screening_dft",
+  "returncode": 0,
+  "execution": {
+    "mpi_ranks": 2,
+    "omp_threads": 2,
+    "kpoint_pools": 1,
+    "image_groups": 1,
+    "require_gpu": true
+  },
+  "dft_energy_Ry": -1184.62841925,
+  "dft_energy_eV": -16117.69086882,
+  "converged": true,
+  "max_force_Ry_bohr": 0.0
+}

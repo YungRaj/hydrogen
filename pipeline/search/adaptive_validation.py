@@ -1033,7 +1033,7 @@ def pyrolysis_genome_structural_prior_eV(genome: Sequence[Any]) -> float:
         )
         if metals & {'Fe', 'Co', 'Ni', 'Ru', 'Rh', 'Pd', 'Pt'}:
             prior -= 0.35
-    elif m_cls == 'SolidCatalyst':
+    elif m_cls in {'SolidCatalyst', 'SupportedNanoparticle'}:
         metal = str(genome[1]) if len(genome) > 1 else ''
         facet = str(genome[3]) if len(genome) > 3 else ''
         if metal in {'Pd', 'Rh', 'Pt', 'Ni', 'Fe'} and facet.startswith('fcc'):
