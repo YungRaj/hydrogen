@@ -1,11 +1,11 @@
-"""B6-7 joint-band search: same row in both Ermakova yield and TOS lifetime.
+"""Ermakova-Takenaka joint-band search: same row in both Ermakova filament yield and Takenaka TOS lifetime.
 
-Exhausts the B6-6 star / 2-D records plus an optional A_γ × θ* × s0 cube
+Exhausts the Baker-Helveg-Ermakova-Takenaka star / 2-D records plus an optional A_γ × θ* × s0 cube
 at 923.15 / 973.15 K. A hit is one complete, non-overshooting row whose
 filament yield is in 8–10 gC/(gNi·h) AND whose encapsulation lifetime is
 in 4–50 h. No new physics is added to force an overlap.
 
-Writes results/sweeps/b67_joint_band.json.
+Writes results/sweeps/ni111_sio2_ermakova_takenaka_joint_band.json.
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 import math
 from pathlib import Path
-from typing import Optional
+from typing import Any, Mapping, Optional
 
 from pipeline.utils import SWEEPS_DIR, repo_relative
 from pipeline.reactors.sweeps.carbon_criteria import (
@@ -26,7 +26,7 @@ from pipeline.reactors.sweeps.carbon_criteria import (
     load_runs,
 )
 
-JOINT_SWEEP = 'ni_np_b67_joint'
+JOINT_SWEEP = 'ni111_sio2_ermakova_takenaka_joint'
 # Band widths W_Y = 10.0 - 8.0 = 2.0 g_C/(g_Ni*h) and W_tau = 50.0 - 4.0 = 46.0 h
 # used to normalize distances in the dimensionless Euclidean miss metric.
 YIELD_WIDTH = NI_FILAMENT_YIELD_BAND[1] - NI_FILAMENT_YIELD_BAND[0]
@@ -59,7 +59,7 @@ def _normalized_miss(record: dict) -> Optional[float]:
     return math.hypot(y / YIELD_WIDTH, t / LIFE_WIDTH)
 
 
-def search_joint_band(payloads: dict) -> dict:
+def search_joint_band(payloads: Mapping[str, Any]) -> dict[str, Any]:
     """Search completed sweep records for simultaneous yield and lifetime hits.
 
     Args:
@@ -141,7 +141,7 @@ def search_joint_band(payloads: dict) -> dict:
 
 
 def load_joint_payloads(sweeps_dir: Optional[Path] = None) -> dict:
-    """Load all sweep payloads used by the joint-band search.
+    """Load all sweep payloads used by the Ermakova-Takenaka joint-band search.
 
     Args:
         sweeps_dir: Input controlling sweeps dir.
@@ -158,7 +158,7 @@ def load_joint_payloads(sweeps_dir: Optional[Path] = None) -> dict:
 
 
 def write_summary(summary: dict, path: Optional[Path] = None) -> Path:
-    """Persist a B6-6 criteria summary as JSON.
+    """Persist an Ermakova-Takenaka joint-band summary as JSON.
 
     Args:
         summary: Input controlling summary.
@@ -167,19 +167,23 @@ def write_summary(summary: dict, path: Optional[Path] = None) -> Path:
     Returns:
         Validated Path output for this operation.
     """
-    out = Path(path) if path is not None else SWEEPS_DIR / 'b67_joint_band.json'
+    out = (
+        Path(path)
+        if path is not None
+        else SWEEPS_DIR / 'ni111_sio2_ermakova_takenaka_joint_band.json'
+    )
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(summary, indent=2) + '\n', encoding='utf-8')
     return out
 
 
 def print_table(summary: dict) -> None:
-    """Print a compact human-readable B6-6 criteria summary.
+    """Print a compact human-readable Ermakova-Takenaka joint-band summary.
 
     Args:
         summary: Input controlling summary.
     """
-    print('B6-7 joint band')
+    print('Ermakova-Takenaka joint band')
     print(f"declaration: {summary['declaration']}")
     print(
         f"scorable {summary['n_scorable']}: "

@@ -524,7 +524,7 @@ def test_vqe_stage_never_uses_placeholder_names(tmp_path):
                       validator=lambda *a, **k: {})
 
 
-def test_b2_b3_b4_reactor_contracts(tmp_path):
+def test_muradov_upham_ergun_reactor_contracts(tmp_path):
     pytest.importorskip('cantera')
     from pipeline.reactors.mechanisms import write_full_mechanism
     from pipeline.reactors.models import (
@@ -535,20 +535,20 @@ def test_b2_b3_b4_reactor_contracts(tmp_path):
     )
     from pipeline.reactors.reactor_core import _validate_carbon_policy
 
-    # B3: validator enforces 0 < k0 <= 1 m/s
+    # Upham (2017) / Chen (2023): validator enforces 0 < k0 <= 1 m/s
     with pytest.raises(ValueError, match='mmbcr_interfacial_k0_m_s'):
         _validate_carbon_policy(ReactorConfig(mmbcr_interfacial_k0_m_s=0.0))
     with pytest.raises(ValueError, match='mmbcr_interfacial_k0_m_s'):
         _validate_carbon_policy(ReactorConfig(mmbcr_interfacial_k0_m_s=1.5))
 
-    path = write_full_mechanism('b2_b3_b4_cat', E_act_CH4=0.84, output_dir=tmp_path)
+    path = write_full_mechanism('muradov_upham_ergun_cat', E_act_CH4=0.84, output_dir=tmp_path)
 
-    # B3: MMBCR is bounded by X_eq and kinetics-limited at Chen-scale E_a (~0.84 eV)
+    # Upham (2017) / Chen (2023): MMBCR is bounded by X_eq and kinetics-limited at Chen-scale E_a (~0.84 eV)
     mmbcr_res = simulate_mmbcr(
         ReactorConfig(
             reactor_type='MMBCR',
             mechanism_file=str(path),
-            catalyst_name='b2_b3_b4_cat',
+            catalyst_name='muradov_upham_ergun_cat',
             T_inlet_K=1300.0,
             catalyst_E_act_eV=0.84,
         )
@@ -556,13 +556,13 @@ def test_b2_b3_b4_reactor_contracts(tmp_path):
     assert 0.0 < mmbcr_res['CH4_conversion'] < mmbcr_res['X_eq_table']
     assert mmbcr_res['CH4_conversion'] < 0.5 * mmbcr_res['X_eq_table']
 
-    # B2 & B4: PFR reports both single-pass and cycle-averaged conversion,
+    # Muradov (2005) & Ergun (1952): PFR reports both single-pass and cycle-averaged conversion,
     # pilot residence-time band (2-12 s), and endothermic heat duty.
     pfr_res = simulate_pfr(
         ReactorConfig(
             reactor_type='PFR',
             mechanism_file=str(path),
-            catalyst_name='b2_b3_b4_cat',
+            catalyst_name='muradov_upham_ergun_cat',
             T_inlet_K=973.15,
             max_regen_cycles=2,
             regen_coverage_threshold=0.0,
@@ -579,7 +579,7 @@ def test_b2_b3_b4_reactor_contracts(tmp_path):
         ReactorConfig(
             reactor_type='Fluidized',
             mechanism_file=str(path),
-            catalyst_name='b2_b3_b4_cat',
+            catalyst_name='muradov_upham_ergun_cat',
             T_inlet_K=973.15,
         )
     )
@@ -713,14 +713,14 @@ def test_sota_scorecard_solvation_and_campaign_preset(tmp_path):
     assert args.min_validation_per_class == 4
 
 
-def test_b2_b3_b4_reactor_guardrails_and_diagnostics(tmp_path):
+def test_muradov_upham_ergun_reactor_guardrails_and_diagnostics(tmp_path):
     from pipeline.reactors.reactor_core import (
         ReactorConfig,
         _validate_carbon_policy,
         _validate_reactor_config,
     )
 
-    # B4: PFR residence time bound and max_residence_time_s validation
+    # Ergun (1952) & Froment (2011): PFR residence time bound and max_residence_time_s validation
     with pytest.raises(ValueError, match='max_residence_time_s must be positive'):
         _validate_reactor_config(
             ReactorConfig(reactor_type='PFR', max_residence_time_s=0.0)
@@ -736,7 +736,7 @@ def test_b2_b3_b4_reactor_guardrails_and_diagnostics(tmp_path):
             )
         )
 
-    # B3: MMBCR interfacial k0 guardrail
+    # Upham (2017) & Chen (2023): MMBCR interfacial k0 guardrail
     with pytest.raises(ValueError, match='mmbcr_interfacial_k0_m_s'):
         _validate_carbon_policy(
             ReactorConfig(reactor_type='MMBCR', mmbcr_interfacial_k0_m_s=2.5)
@@ -746,13 +746,13 @@ def test_b2_b3_b4_reactor_guardrails_and_diagnostics(tmp_path):
     from pipeline.reactors.mechanisms import write_full_mechanism
     from pipeline.reactors.models import simulate_fluidized_bed, simulate_pfr
 
-    mech_path = write_full_mechanism('b2_b4_diag_cat', E_act_CH4=0.88, output_dir=tmp_path)
+    mech_path = write_full_mechanism('muradov_ergun_diag_cat', E_act_CH4=0.88, output_dir=tmp_path)
 
     pfr_res = simulate_pfr(
         ReactorConfig(
             reactor_type='PFR',
             mechanism_file=str(mech_path),
-            catalyst_name='b2_b4_diag_cat',
+            catalyst_name='muradov_ergun_diag_cat',
             T_inlet_K=973.15,
             bed_length_m=0.5,
             bed_porosity=0.4,
@@ -761,22 +761,22 @@ def test_b2_b3_b4_reactor_guardrails_and_diagnostics(tmp_path):
     )
     assert 'overloaded_bed_warning' in pfr_res
     assert 'plugging_risk' in pfr_res
-    assert 'b2_carbon_policy_summary' in pfr_res
-    assert 'regen_mechanism=' in pfr_res['b2_carbon_policy_summary']
+    assert 'carbon_outfeed_policy_summary' in pfr_res
+    assert 'regen_mechanism=' in pfr_res['carbon_outfeed_policy_summary']
 
     fb_res = simulate_fluidized_bed(
         ReactorConfig(
             reactor_type='Fluidized',
             mechanism_file=str(mech_path),
-            catalyst_name='b2_b4_diag_cat',
+            catalyst_name='muradov_ergun_diag_cat',
             T_inlet_K=973.15,
             gas_velocity_m_s=0.08,
             u_mf_m_s=0.02,
         )
     )
     assert fb_res['circulating_outfeed_active'] is True
-    assert 'b2_carbon_policy_summary' in fb_res
-    assert 'circulating_outfeed=True' in fb_res['b2_carbon_policy_summary']
+    assert 'carbon_outfeed_policy_summary' in fb_res
+    assert 'circulating_outfeed=True' in fb_res['carbon_outfeed_policy_summary']
 
 
 def test_assumption_audit_fixes(tmp_path):
@@ -965,7 +965,7 @@ def test_second_pass_assumption_fixes(tmp_path):
         _policy_metadata,
         adiabatic_temperature_drop_k,
     )
-    from pipeline.reactors.scorecard import evaluate_b5_closure_gate
+    from pipeline.reactors.scorecard import evaluate_supported_ni_filament_closure_gate
     from pipeline.reactors.sweeps.activation import ABLATION_RESPONSE
     from pipeline.screening.fc_cathode_screener import (
         SOLVATION_CORRECTION_EV,
@@ -985,14 +985,14 @@ def test_second_pass_assumption_fixes(tmp_path):
         0.95, 0.50
     )
 
-    # 2. PBR effectiveness fouling with theta_c and B5 closure gate PBR support
+    # 2. PBR effectiveness fouling with theta_c and supported-Ni filament closure gate PBR support
     cfg_pbr = ReactorConfig(reactor_type='PBR', catalyst_particle_mm=2.0)
     clean_eff = pbr_pellet_effectiveness(cfg_pbr, 1073.15, 150000.0, 0.25, 0.40, theta_c=0.0)
     fouled_eff = pbr_pellet_effectiveness(cfg_pbr, 1073.15, 150000.0, 0.25, 0.40, theta_c=0.75)
     assert fouled_eff['thiele_modulus'] < clean_eff['thiele_modulus']
     assert 'PBR' in ABLATION_RESPONSE
-    b5_gate = evaluate_b5_closure_gate({})
-    assert 'pbr_roi_conversion' in b5_gate and 'pbr_conversion_ok' in b5_gate
+    filament_gate = evaluate_supported_ni_filament_closure_gate({})
+    assert 'pbr_roi_conversion' in filament_gate and 'pbr_conversion_ok' in filament_gate
 
     # 3. MMBCR _policy_metadata preserves composition-resolved melt properties
     from pipeline.reactors.mechanisms import CandidateKinetics, write_full_mechanism
@@ -1090,13 +1090,15 @@ def test_second_pass_assumption_fixes(tmp_path):
     tea_low_t = estimate_hydrogen_cost(0.80, 'base', temperature_K=973.15)
     assert tea_high_t['energy_input_kwh_kg_h2'] > tea_low_t['energy_input_kwh_kg_h2']
 
-    # 10. PBR/B4/B2 sweep diagnostics and class-anchored DFT pyrolysis calibration
+    # 10. PBR / Ergun residence / Muradov regenerated-cycle sweep diagnostics and class-anchored DFT pyrolysis calibration
     from pipeline.evidence.pyrolysis_benchmark import (
         calibrated_interfacial_pyrolysis_score_eV,
         class_dft_barrier_offset_eV,
     )
     from pipeline.reactors.scorecard import build_solids_scorecard
-    from pipeline.reactors.sweeps.carbon_criteria import evaluate_pbr_and_b4_diagnostics
+    from pipeline.reactors.sweeps.carbon_criteria import (
+        evaluate_pbr_and_ergun_residence_diagnostics,
+    )
     from pipeline.screening.stage_selection import annotate_interfacial_pyrolysis
 
     pbr_rec = {
@@ -1115,16 +1117,16 @@ def test_second_pass_assumption_fixes(tmp_path):
         'single_pass_CH4_conversion': 0.42,
         'cycle_averaged_CH4_conversion': 0.39,
     }
-    diag = evaluate_pbr_and_b4_diagnostics([pbr_rec])
+    diag = evaluate_pbr_and_ergun_residence_diagnostics([pbr_rec])
     assert diag['n_pbr_records'] == 1
     assert diag['mean_pbr_overall_effectiveness_factor'] == pytest.approx(0.72)
-    assert diag['n_b4_within_pilot_band'] == 1
-    assert diag['mean_b2_cycle_minus_single_pass_X'] == pytest.approx(-0.03)
+    assert diag['n_within_pilot_residence_band'] == 1
+    assert diag['mean_regenerated_cycle_minus_single_pass_X'] == pytest.approx(-0.03)
     scorecard_with_diag = build_solids_scorecard(
         [pbr_rec], judge_catalyst='Ni_Al2O3_ref', headline_t_min=923.15
     )
-    assert scorecard_with_diag['pbr_b4_diagnostics']['n_pbr_records'] == 1
-    assert scorecard_with_diag['pbr_b4_diagnostics'][
+    assert scorecard_with_diag['pbr_ergun_residence_diagnostics']['n_pbr_records'] == 1
+    assert scorecard_with_diag['pbr_ergun_residence_diagnostics'][
         'mean_pbr_overall_effectiveness_factor'
     ] == pytest.approx(0.72)
 
@@ -1162,7 +1164,7 @@ def test_second_pass_assumption_fixes(tmp_path):
         0.562 + molten_anchor['anchor_offset_eV'] + 0.15
     )
 
-    # 11. Report generator surfaces calibrated interfacial scores, PBR/B4 diagnostics, and live LCOH scenarios
+    # 11. Report generator surfaces calibrated interfacial scores, PBR / Ergun residence diagnostics, and live LCOH scenarios
     from pipeline.evidence.report_generator import (
         _reactor_section,
         _screening_section,
@@ -1192,7 +1194,10 @@ def test_second_pass_assumption_fixes(tmp_path):
     rx_lines = '\n'.join(
         _reactor_section({'solids_scorecard': scorecard_with_diag}, [pbr_rec])
     )
-    assert 'Packed-Bed (PBR), B4 Residence-Time, & B2 Cycle Diagnostics' in rx_lines
+    assert (
+        'Packed-Bed (PBR), Ergun Pilot Residence-Time, & Regenerated-Cycle Diagnostics'
+        in rx_lines
+    )
     assert '0.720' in rx_lines
 
     tea_lines = '\n'.join(
@@ -1201,7 +1206,7 @@ def test_second_pass_assumption_fixes(tmp_path):
     assert 'Levelized Cost of Hydrogen (LCOH)' in tea_lines
     assert '| base |' in tea_lines
 
-    # 12. Multipathway champion scorecard includes calibrated interfacial scores and PBR/B4 diagnostics
+    # 12. Multipathway champion scorecard includes calibrated interfacial scores and PBR / Ergun residence diagnostics
     import json
     from pipeline.economics.tea import build_multipathway_champion_scorecard
 
@@ -1241,7 +1246,7 @@ def test_second_pass_assumption_fixes(tmp_path):
     assert pbr_lead['overall_effectiveness_factor'] == pytest.approx(0.72)
     assert pbr_lead['thiele_modulus'] == pytest.approx(1.4)
     assert pbr_lead['ergun_delta_p_bar'] == pytest.approx(0.0125)
-    assert mp_scorecard['pbr_b4_diagnostics']['n_pbr_records'] == 1
+    assert mp_scorecard['pbr_ergun_residence_diagnostics']['n_pbr_records'] == 1
 
     # 13. IAPWS-95 aqueous critical point (647.096 K) enforced in electrochemical_evidence
     from pipeline.electrochemistry.model import (
@@ -1311,7 +1316,7 @@ def test_second_pass_assumption_fixes(tmp_path):
     )
 
     rx_candidates = pd.DataFrame([
-        {'candidate_id': 'ni_np_lit', 'E_act': 0.90},
+        {'candidate_id': 'ni111_sio2_bengaard2002_ref', 'E_act': 0.90},
         {'candidate_id': 'cand_co_ce_01', 'E_act': 0.62},
     ])
     rx_services = ReactorBatchServices(
@@ -1322,8 +1327,8 @@ def test_second_pass_assumption_fixes(tmp_path):
                     'reactor_type': 'PFR',
                     'catalyst_name': name,
                     'T_K': 973.15,
-                    'CH4_conversion': 0.26 if name == 'ni_np_lit' else 0.75,
-                    'single_pass_CH4_conversion': 0.26 if name == 'ni_np_lit' else 0.75,
+                    'CH4_conversion': 0.26 if name == 'ni111_sio2_bengaard2002_ref' else 0.75,
+                    'single_pass_CH4_conversion': 0.26 if name == 'ni111_sio2_bengaard2002_ref' else 0.75,
                     'deactivation_rate_per_h': 0.005,
                     'coke_selectivity': 0.02,
                     'specific_energy_kWh_kg_H2': 11.2,
@@ -1345,7 +1350,7 @@ def test_second_pass_assumption_fixes(tmp_path):
         pathway_mode='thermocatalytic_pfr',
         multiphysics_results_dir=str(tmp_path),
         allow_mock_inputs=False,
-        judge_catalyst='ni_np_lit',
+        judge_catalyst='ni111_sio2_bengaard2002_ref',
         headline_t_min=923.15,
         headline_t_max=973.15,
         services=rx_services,

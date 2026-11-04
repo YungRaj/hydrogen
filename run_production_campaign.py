@@ -412,7 +412,7 @@ def _run_phase2_reactors(
         }
         # Same meaning as the orchestrator: the judge's single-pass solids X in
         # the headline band. A raw max across catalysts has no ranking
-        # authority before B5 closure.
+        # authority before Alves-Xu supported-Ni filament closure.
         pipeline_state['phase2']['best_conversion'] = scorecard.get(
             'headline_solids_conversion'
         )

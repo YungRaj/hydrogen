@@ -24,8 +24,8 @@ logger = setup_logger('yaml_sweep', 'reactor/yaml_sweep.log')
 ALLOWED_REACTORS = ('PFR', 'PBR', 'Fluidized', 'MMBCR')
 # catalyst.kinetics keys (kinetics-only sweeps). Adsorption energies use the
 # screener's conventions (dE_H vs 1/2 H2, dE_CH3 vs CH3 radical, dE_C vs
-# CH4 - 2 H2); the writer puts them on Cantera's absolute scale. The three
-# B6 keys are only written for gated (Ni/Fe/Co nanoparticle) genomes.
+# CH4 - 2 H2); the writer puts them on Cantera's absolute scale. The
+# Baker-Helveg off-site carbon keys are only written for gated (Ni/Fe/Co nanoparticle) genomes.
 KINETICS_KEYS = (
     'E_act', 'dE_H', 'dE_CH3', 'dE_C',
     'carbon_transfer_eV', 'carbon_encapsulation_eV',
@@ -84,8 +84,8 @@ class SweepJob:
     screening_csv: Optional[str] = None
     screening_index: Optional[int] = None
     kinetics: dict = field(default_factory=dict)
-    # Explicit class / genome for kinetics-only sweeps (B6 gate, reactor
-    # applicability). Screening sweeps take both from the CSV row.
+    # Explicit class / genome for kinetics-only sweeps (Baker-Helveg off-site carbon gate,
+    # reactor applicability). Screening sweeps take both from the CSV row.
     material_class: Optional[str] = None
     genome: Optional[str] = None
     # `sweep:` block: key -> list of values. Empty when the spec is a single
@@ -304,7 +304,7 @@ def parse_sweep(yaml_path: Path) -> SweepJob:
     if screening is None and material_class is None:
         raise ValueError(
             'kinetics-only sweeps need catalyst.material_class (reactor '
-            'applicability and the B6 gate depend on it)')
+            'applicability and the Baker-Helveg off-site carbon gate depend on it)')
 
     conditions = _require_mapping(root.get('conditions'), 'conditions')
     if 'temperatures_K' in conditions:
@@ -634,6 +634,9 @@ def _record(cell: SweepCell, point: GridPoint, policy: dict, pathway_mode: str,
         'single_pass_CH4_conversion': result.get('single_pass_CH4_conversion'),
         'cycle_averaged_CH4_conversion': result.get('cycle_averaged_CH4_conversion'),
         'emulsion_CH4_conversion': result.get('emulsion_CH4_conversion'),
+        'kunii_levenspiel_coupled_CH4_conversion': result.get(
+            'kunii_levenspiel_coupled_CH4_conversion'
+        ),
         'active_sv_1_m': result.get('active_sv_1_m'),
         'WHSV_h-1': result.get('WHSV_h-1'),
         'WHSV_mass_kg_feed_per_kg_cat_h': result.get('WHSV_mass_kg_feed_per_kg_cat_h'),
@@ -644,7 +647,7 @@ def _record(cell: SweepCell, point: GridPoint, policy: dict, pathway_mode: str,
         ),
         'overloaded_bed_warning': result.get('overloaded_bed_warning'),
         'plugging_risk': result.get('plugging_risk'),
-        'b2_carbon_policy_summary': result.get('b2_carbon_policy_summary'),
+        'carbon_outfeed_policy_summary': result.get('carbon_outfeed_policy_summary'),
         'ergun_delta_p_bar': result.get('ergun_delta_p_bar'),
         'coupled_ergun_delta_p_bar': result.get('coupled_ergun_delta_p_bar'),
         'ergun_ok': result.get('ergun_ok'),
@@ -657,7 +660,7 @@ def _record(cell: SweepCell, point: GridPoint, policy: dict, pathway_mode: str,
         'can_exclude_candidate': result.get('can_exclude_candidate'),
         'surface_loaded': result.get('surface_loaded'),
         'graphite_loaded': result.get('graphite_loaded'),
-        # B5/B6 closure accounting (PFR, PBR, and Fluidized emulsion); None elsewhere.
+        # Baker-Helveg-Ermakova-Takenaka off-site carbon closure accounting (PFR, PBR, and Fluidized emulsion); None elsewhere.
         'site_inventory_bound_X': result.get('site_inventory_bound_X'),
         'site_inventory_bound_basis': result.get('site_inventory_bound_basis'),
         'X_eq_table': result.get('X_eq_table'),
@@ -673,8 +676,12 @@ def _record(cell: SweepCell, point: GridPoint, policy: dict, pathway_mode: str,
         'exit_theta_C_encap': result.get('exit_theta_C_encap'),
         'filament_yield_gC_per_gMetal_h': result.get(
             'filament_yield_gC_per_gMetal_h'),
+        'bulk_metal_mass_g_per_m3_bed': result.get('bulk_metal_mass_g_per_m3_bed'),
+        'bulk_filament_yield_gC_per_gMetal_bulk_h': result.get(
+            'bulk_filament_yield_gC_per_gMetal_bulk_h'
+        ),
         'filament_yield_within_band': result.get('filament_yield_within_band'),
-        # B6-6 encapsulation onset and lifetime.
+        # Takenaka encapsulation onset and lifetime.
         'encapsulation_onset': result.get('encapsulation_onset'),
         'c_delta_competitive': result.get('c_delta_competitive'),
         'encapsulation_lifetime_h': result.get('encapsulation_lifetime_h'),

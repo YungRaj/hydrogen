@@ -10,8 +10,14 @@ import sys
 import json
 import logging
 import tempfile
-import numpy as np
-import pandas as pd
+try:
+    import numpy as np
+except ImportError:  # pragma: no cover
+    np = None  # type: ignore[assignment]
+try:
+    import pandas as pd
+except ImportError:  # pragma: no cover
+    pd = None  # type: ignore[assignment]
 from pathlib import Path
 from typing import List, Tuple, Optional
 

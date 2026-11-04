@@ -1,4 +1,4 @@
-"""B5/B6 off-site carbon accounting and Cantera surface state helpers."""
+"""Baker-Helveg-Ermakova-Takenaka off-site carbon accounting and Cantera surface state helpers."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ METAL_MOLAR_MASS_G_MOL = {'Ni': 58.6934, 'Fe': 55.845, 'Co': 58.9332}
 NI_FILAMENT_YIELD_BAND_G_C_PER_G_NI_H = (8.0, 10.0)
 # Same TOS literature: the catalyst dies (encapsulated) after 4-50 h.
 NI_TOS_LIFETIME_BAND_H = (4.0, 50.0)
-# B6-6 encapsulation-onset markers:
+# Baker (1972) / Helveg (2004) / Takenaka (2003) encapsulation-onset markers:
 # ENCAP_ONSET_THETA = 0.10 (10% irreversible C_δ site blockage triggers onset warning),
 # ENCAP_ONSET_RATIO = 10.0 (filament-to-encapsulating selectivity C_γ/C_δ < 10 signals competitive deactivation),
 # ENCAP_DEAD_THETA = 0.50 (50% C_δ site blockage defines end-of-life time-on-stream τ_TOS).
@@ -198,8 +198,8 @@ def _apply_continuous_carbon_removal(surf, rate_1_s: float, dt: float) -> float:
 def _reset_surface_carbon(surf) -> None:
     """Mechanical / consumable regen: clear adsorbates and restore free sites.
 
-    Encapsulating carbon (``C_encap_s``, B6 Cδ) is time-on-stream death and
-    is never cleared.
+    Encapsulating carbon (``C_encap_s``, Baker-Helveg Cδ) is time-on-stream
+    death and is never cleared.
     """
     if surf is None or 'C_s' not in surf.species_names:
         return
@@ -253,7 +253,7 @@ def _off_site_carbon_metrics(
     basis: str = 'Gamma*A_stage / (c_CH4*eps*V_stage), PFR parcel',
     mechanism_metadata_fn=None,
 ) -> Dict:
-    """Per-pass carbon accounting for the B5/B6 closure criterion."""
+    """Per-pass carbon accounting for the Alves-Xu / Baker-Helveg closure criterion."""
     x_bound = n_sites_mol / n_ch4_fed_mol if n_ch4_fed_mol > 0 else None
     x_eq = _tabulated_x_eq(config.T_inlet_K)
     x_eq_tp = _local_tp_x_eq(config.T_inlet_K, config.P_inlet_Pa, ch4_initial)

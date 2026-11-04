@@ -27,7 +27,7 @@ This file is **not** a Cantera mechanism. Generated mechanism YAML uses
 `name`, `catalyst`, `conditions`, and `cells`.
 
 The stored example is [`sweeps/headline_cat9_1300K.yaml`](../sweeps/headline_cat9_1300K.yaml)
-— `cat_9` at 1300 K, production fractional cell vs 1×1 envelope.
+— `rh1_ceo2_akri2019_sac_ref` (`Rh₁/CeO₂(111)` Single-Atom Catalyst Control, Akri 2019) at 1300 K, production fractional cell vs 1×1 envelope.
 
 There is no `test` key and no pass/fail threshold in the sweep file.
 
@@ -64,7 +64,7 @@ A 1.5 m melt column. Gas rises as bubbles. There is **no site lattice** and no `
 
 The ODE is `dX/dt = k(E_act, T) · a_bubble · (X_eq − X)`, with `a_bubble = 6 / d_bubble` and residence `τ = H / u_b` (Mendelson bubble rise; ~7.3 s for the default column). For a large `k · a · τ` the conversion **is** `X_eq` by construction; the default column is Da-limited (~23% at 1300 K on a 0.43 eV melt). That number is not a catalyst rank and does not use the cell’s loading or dispersion. The table leaves *a*, WHSV, and ΔP blank.
 
-**MMBCR only runs for `MoltenMetal` catalysts.** For any solids class (SAC, SolidCatalyst, HEA, …) the cell is reported as `not_applicable` with the reason, not dropped and not zero. `cat_9` is a SAC, so its MMBCR cells are `not_applicable`.
+**MMBCR only runs for `MoltenMetal` catalysts.** For any solids class (SAC, SolidCatalyst, HEA, …) the cell is reported as `not_applicable` with the reason, not dropped and not zero. `rh1_ceo2_akri2019_sac_ref` is a SAC, so its MMBCR cells are `not_applicable`.
 
 Use MMBCR as the melt contrast, not as a third solids score.
 
@@ -83,7 +83,7 @@ Fluidized and MMBCR hydrodynamics are external-solver quantities upstream. When 
 | `name` | Output folder name under `results/sweeps/`. |
 | `catalyst.name` | Cantera surface suffix (`mechanism_<name>.yaml`). |
 | `catalyst.screening` **or** `catalyst.kinetics` | Where the barriers / adsorption energies come from. |
-| `catalyst.material_class` (+ `genome`) | Required with `kinetics`. Reactor applicability (MMBCR = `MoltenMetal` only) and the B6 nanoparticle gate depend on it. Taken from the CSV row with `screening`. |
+| `catalyst.material_class` (+ `genome`) | Required with `kinetics`. Reactor applicability (MMBCR = `MoltenMetal` only) and the Baker (1972) & Helveg (2004) nanoparticle off-site carbon gate depend on it. Taken from the CSV row with `screening`. |
 | `conditions.temperatures_K` | Which T points to run. |
 | `conditions.reactors` | Which of the three reactor archetypes to run (see above). |
 | `cells[]` inventory | Particle size, loading, and dispersion for that cell. |
@@ -103,12 +103,12 @@ Omitting `policy` entirely uses those same four defaults. You do not need the bl
 
 | Locked quantity | Value / rule |
 |---|---|
-| Site density Γ | `2.5e-9 mol/cm²` (monolayer). Extra sites come from particle S/V, loading, and dispersion only. |
+| Site density Γ | `2.5e-9 mol/cm²` (Deutschmann 2000 monolayer gate). Extra sites come from particle S/V, loading, and dispersion only. |
 | Loading / dispersion ceiling | Each ≤ 1. Do not invent BET. |
 | Pressure, feed | 1 bar, `CH4:0.95, Ar:0.05`. |
 | Bed geometry / velocity | `ReactorConfig` defaults (0.5 m PFR bed, 0.05 m/s, …). |
 | MMBCR interfacial k₀ / flotation | Melt-side defaults. Not a DFT barrier. |
-| `C_s => C(gr) + site` | Not a sweep key. Writer emits Cγ/Cδ only for nanoparticle Ni/Fe/Co. SAC/`cat_9` YAML still ends at `C_s`. |
+| `C_s => C(gr) + site` | Not a sweep key. Writer emits Cγ/Cδ only for nanoparticle Ni/Fe/Co. SAC/`rh1_ceo2_akri2019_sac_ref` YAML still ends at `C_s`. |
 
 ## Options and ranges
 
@@ -119,19 +119,19 @@ Use **one** source. Screening wins for the row; explicit `kinetics` is for a fil
 | Option | Allowed values | Notes |
 |---|---|---|
 | `screening.csv` | Path relative to the repo root | Typical: `results/screening/ga_full_database.csv`. |
-| `screening.index` | Integer ≥ 0 | 0-based pandas index after `read_csv`. `cat_9` is `index: 9`. |
+| `screening.index` | Integer ≥ 0 | 0-based pandas index after `read_csv`. `rh1_ceo2_akri2019_sac_ref` is `index: 9`. |
 | `kinetics.E_act` | Finite **eV > 0** | Methane activation barrier. Required if there is no screening row. |
 | `kinetics.dE_H`, `.dE_CH3`, `.dE_C` | Finite eV, optional | Adsorption energies in the **screener's conventions**: `dE_H` vs ½H₂, `dE_CH3` vs the CH₃ radical, `dE_C` vs CH₄ − 2H₂. The writer adds the reference formation enthalpies to put them on Cantera's absolute scale. **Not** barriers. Do not treat `\|dE_H\|` as H₂ desorption. |
 | `kinetics.carbon_transfer_eV` | Finite eV, optional (default 1.50) | Cγ barrier. Template midpoint of Baker *J. Catal.* **1972**, *26*, 51–62 (33 kcal/mol = 1.43 eV) and Abild-Pedersen *Phys. Rev. B* **2006**, *73*, 115419 (1.42 / 1.55 eV). Only written for gated genomes. |
 | `kinetics.carbon_encapsulation_eV` | Finite eV, optional (default 1.53) | Cδ barrier. Amin, Epling & Croiset, *Ind. Eng. Chem. Res.* **2011**, *50*, 12460–12470 (147–149 kJ/mol). Only written for gated genomes. |
-| `kinetics.encapsulation_crossover_coverage` | (0, 1], optional (default 0.5) | θ\*: the C_s coverage where Cδ (∝ θ_C²) overtakes Cγ (∝ θ_C). Declared, not measured; a B6-6 sweep variable. |
+| `kinetics.encapsulation_crossover_coverage` | (0, 1], optional (default 0.5) | θ\*: the C_s coverage where Cδ (∝ θ_C²) overtakes Cγ (∝ θ_C). Declared, not measured; a Baker (1972) & Helveg (2004) sweep variable. |
 | `kinetics.carbon_transfer_prefactor_1_s` | > 0, optional (default 1e13) | `A_γ`. 1e13 is a single-hop TST label; the real channel is a transport + precipitation lump (`D₀/L²`, particle-size dependent). Decides whether the Alves encapsulation regime is reachable. Cδ inherits `A_γ/θ*`. Do not set this together with `carbon_transfer_particle_nm`. |
 | `kinetics.carbon_transfer_particle_nm` | > 0 nm, optional | Derives `A_γ = D₀ / L²`. Mutually exclusive with an explicit `carbon_transfer_prefactor_1_s`. |
 | `kinetics.carbon_diffusion_prefactor_m2_s` | > 0, optional (default 2.48e-4) | `D₀` for the particle-nm derivation. Default is Lander 1952 C-in-Ni (*J. Appl. Phys.* **23**, 1305; ln *D* = 0.909 − 20200/*T*, so *D*₀ = 2.48 cm²/s = 2.48×10⁻⁴ m²/s). Ignored unless `carbon_transfer_particle_nm` is set. |
 | `kinetics.ch4_sticking_coefficient` | (0, 1], optional (default 0.01) | CH₄ dissociative sticking prefactor `s0`. Sets the carbon arrival rate. Written into the YAML as `sticking-coefficient: {A: s0, …}` and into the sidecar. |
 | `kinetics.provenance` | Mapping key → free text, optional | Recorded into the sidecar `sources` as `sweep_yaml: <text>`. Use it: a kinetics-only sweep is a literature cell and should say where each number came from. |
-| `material_class` | One of the 14 classes, or `MoltenMetal` | **Required with `kinetics`**; ignored with `screening` (the row wins). Decides which reactors apply and whether the B6 Cγ/Cδ channels are written. |
-| `genome` | Genome tuple as a string, optional | e.g. `"('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)"`. Only the B6 gate reads it (metal must be Ni/Fe/Co on an extended particle). Omit for SAC / melts. |
+| `material_class` | One of the 14 classes, or `MoltenMetal` | **Required with `kinetics`**; ignored with `screening` (the row wins). Decides which reactors apply and whether the Baker (1972) & Helveg (2004) Cγ/Cδ channels are written. |
+| `genome` | Genome tuple as a string, optional | e.g. `"('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)"`. Only the Baker (1972) & Helveg (2004) off-site carbon gate reads it (metal must be Ni/Fe/Co on an extended particle). Omit for SAC / melts. |
 
 ### Conditions
 
@@ -179,7 +179,7 @@ Each entry in `cells` is one inventory point. `a = a_geom(d_p) × loading × dis
 
 A 1×1 envelope cell (`loading: 1`, `dispersion: 1`) is the geometric upper bound at the same `d_p`. Envelope / fractional = `1 / (0.5 × 0.3)` = **6.67×** by identity. That ratio is not a catalyst finding.
 
-B1 coarse archive levels (if you are repeating that grid, not inventing new ones): particles `2.0, 0.5, 0.2, 0.1` mm; loadings `1.0, 0.5, 0.2`; dispersions `1.0, 0.3, 0.1`. ROI refine: particles `0.25 … 0.08` mm; loadings `1.0, 0.7, 0.5`; dispersions `1.0, 0.5, 0.3`.
+Deutschmann (2000) monolayer site-inventory coarse archive levels (if you are repeating that grid, not inventing new ones): particles `2.0, 0.5, 0.2, 0.1` mm; loadings `1.0, 0.5, 0.2`; dispersions `1.0, 0.3, 0.1`. ROI refine: particles `0.25 … 0.08` mm; loadings `1.0, 0.7, 0.5`; dispersions `1.0, 0.5, 0.3`.
 
 ## Template
 
@@ -188,7 +188,7 @@ name: my_sweep
 description: Optional note. Printed with the results table.
 
 catalyst:
-  name: cat_9
+  name: rh1_ceo2_akri2019_sac_ref
   screening:
     csv: results/screening/ga_full_database.csv
     index: 9
@@ -233,7 +233,7 @@ cells:
 | `dP_bar` | Ergun ΔP; blank for MMBCR |
 | `status` | `complete`, `not_applicable (reason)`, `validation_required`, or `failed (error)`. Only `complete` rows are catalyst evidence. `[X > X_eq]` is appended when the run overshoots tabulated equilibrium (Cγ is irreversible into a graphite sink; flagged, never clipped). |
 
-When any row has the B6 channels active the table adds six columns (PFR and Fluidized emulsion):
+When any row has the Baker (1972) & Helveg (2004) off-site carbon channels active the table adds six columns (PFR and Fluidized emulsion):
 
 | Field | Meaning |
 |---|---|
@@ -246,6 +246,7 @@ When any row has the B6 channels active the table adds six columns (PFR and Flui
 
 The JSON also records `pathway_mode`, `material_class`, `closure_source`, `residence_time_s`, `can_exclude_candidate`, `site_inventory_bound_X`, `X_eq_table`, `exceeds_equilibrium`, `carbon_turnovers_per_site`, `off_site_carbon_active`, `c_gamma_to_c_delta_ratio`, `exit_theta_C`, `exit_theta_C_encap`, `filament_yield_gC_per_gMetal_h`, `filament_yield_within_band`, `encapsulation_onset`, `c_delta_competitive`, `encapsulation_lifetime_h`, `lifetime_within_tos_band`, `outfeed_carbon_mol_per_pass`, `regen_cycles_completed`, and the swept `sweep` map per row.
 
-## B6-5 and B6-6 sweep files
+## Baker (1972) & Helveg (2004) / Ermakova (2000) & Takenaka (2003) sweep files
 
-`sweeps/ni_np_b65_closure.yaml` (zero regen; the B5/B6 closure question) and `sweeps/ni_np_b65_production.yaml` (3 mechanical cycles; scorecard-comparable) are **PFR only**. B6-6 star + 2-D files (`sweeps/ni_np_b66_eact.yaml`, `ni_np_b66_agamma.yaml`, `ni_np_b66_theta.yaml`, `ni_np_b66_sticking.yaml`, `ni_np_b66_agamma_theta.yaml`) run PFR and circulating Fluidized, both cells, `max_regen_cycles` [0, 3]. Score them with `python -m pipeline.reactors.sweeps.carbon_criteria`. B6-7: `sweeps/ni_np_b67_joint.yaml` is the A_γ × θ\* × s0 cube at 923/973 K (`python -m pipeline.reactors.sweeps.joint_band`). The named solids judge is `ni_np_lit` at 923.15–973.15 K; `cat_9` at 1300 K is the SAC control. Judge literature (paper vs recorded vs mapping) is in [B6](backlog/B6-off-site-carbon-nucleation.md) and ADR 0001 refs [35]–[38]. MMBCR is `not_applicable` for a SolidCatalyst. Mechanical regen never clears `C_encap_s`. B5 stays closed.
+`sweeps/ni_np_b65_closure.yaml` (zero regen; the Alves 2021 / Xu 2021 & Baker 1972 / Helveg 2004 closure question) and `sweeps/ni_np_b65_production.yaml` (3 mechanical cycles; scorecard-comparable) are **PFR only**. Baker (1972) & Helveg (2004) star + 2-D files (`sweeps/ni_np_b66_eact.yaml`, `ni_np_b66_agamma.yaml`, `ni_np_b66_theta.yaml`, `ni_np_b66_sticking.yaml`, `ni_np_b66_agamma_theta.yaml`) run PFR and circulating Fluidized, both cells, `max_regen_cycles` [0, 3]. Score them with `python -m pipeline.reactors.sweeps.carbon_criteria`. Ermakova (2000) & Takenaka (2003) joint calibration: `sweeps/ni_np_b67_joint.yaml` is the A_γ × θ\* × s0 cube at 923/973 K (`python -m pipeline.reactors.sweeps.joint_band`). The named solids judge is `ni111_sio2_bengaard2002_ref` at 923.15–973.15 K; `rh1_ceo2_akri2019_sac_ref` at 1300 K is the SAC control. MMBCR is `not_applicable` for a SolidCatalyst. Mechanical regen never clears `C_encap_s`.
+

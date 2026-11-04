@@ -655,6 +655,64 @@ class TestMultiObjectiveUncertaintyAndPareto(unittest.TestCase):
             self.assertEqual(
                 len(scorecard["dft_calibrated_coupled_turquoise_pemfc_tea"]), 6
             )
+            self.assertIn("literature_validation_gates", scorecard)
+            self.assertIn("named_reference_catalysts", scorecard)
+            self.assertIn(
+                "literature_catalyst_name", scorecard["discovery_champions"][0]
+            )
+            self.assertIn(
+                "FeZnNbIrSc-hcp(111) High-Entropy Alloy",
+                scorecard["discovery_champions"][0]["literature_catalyst_name"],
+            )
+
+    def test_literature_backed_catalyst_names_and_supported_ni_filament_closure(self):
+        from pipeline.reactors.scorecard import (
+            LITERATURE_VALIDATION_GATES,
+            NAMED_REFERENCE_CATALYSTS,
+            NI_JUDGE_CATALYST,
+            SOLIDS_RANKING_AUTHORITY_ACCEPTED,
+            evaluate_supported_ni_filament_closure,
+            evaluate_supported_ni_filament_closure_gate,
+        )
+        from pipeline.search.discovery import (
+            CANDIDATE_CLASS_LITERATURE_ARCHETYPES,
+            format_literature_catalyst_label,
+        )
+
+        self.assertEqual(NI_JUDGE_CATALYST, "ni111_sio2_bengaard2002_ref")
+        self.assertFalse(SOLIDS_RANKING_AUTHORITY_ACCEPTED)
+        self.assertEqual(len(LITERATURE_VALIDATION_GATES), 6)
+        self.assertIn("ni111_sio2_bengaard2002_ref", NAMED_REFERENCE_CATALYSTS)
+        self.assertIn("rh1_ceo2_akri2019_sac_ref", NAMED_REFERENCE_CATALYSTS)
+        self.assertGreaterEqual(len(CANDIDATE_CLASS_LITERATURE_ARCHETYPES), 15)
+
+        ni_label = format_literature_catalyst_label("ni111_sio2_bengaard2002_ref")
+        self.assertIn("Bengaard 2002", ni_label)
+        sac_label = format_literature_catalyst_label("rh1_ceo2_akri2019_sac_ref")
+        self.assertIn("Akri 2019", sac_label)
+        hea_label = format_literature_catalyst_label(
+            "cat_1",
+            genome="('HEA', ('Fe', 'Zn', 'Nb', 'Ir', 'Sc'), 'hcp', '111', 800)",
+        )
+        self.assertIn("FeZnNbIrSc-hcp(111) High-Entropy Alloy", hea_label)
+        self.assertIn("Miracle & Senkov 2017", hea_label)
+
+        closure = evaluate_supported_ni_filament_closure()
+        gate = closure["supported_ni_filament_closure_gate"]
+        self.assertTrue(gate["solids_ranking_authority_accepted"])
+        self.assertTrue(gate["baker_helveg_carbon_criteria_ok"])
+        self.assertTrue(gate["ermakova_takenaka_joint_roi_ok"])
+        self.assertTrue(closure["ranking_authority"])
+        self.assertGreaterEqual(float(gate["pfr_roi_conversion"]), 0.50)
+        self.assertGreaterEqual(float(gate["pbr_roi_conversion"]), 0.50)
+        self.assertGreaterEqual(float(gate["fluidized_roi_conversion"]), 0.50)
+
+        direct_gate = evaluate_supported_ni_filament_closure_gate(
+            closure["calibrated_solids_scorecard"],
+            baker_helveg_criteria_summary=closure["baker_helveg_criteria_summary"],
+            ermakova_takenaka_joint_summary=closure["ermakova_takenaka_joint_summary"],
+        )
+        self.assertTrue(direct_gate["solids_ranking_authority_accepted"])
 
 
 if __name__ == "__main__":

@@ -24,7 +24,7 @@ from pipeline.reactors.reactor_core import (
 def simulate_mmbcr(
     config: ReactorConfig, *, cantera_available: bool, mock_result
 ) -> ReactorResult:
-    """Melt ODE to tabulated X_eq with bubble-area flotation (B3).
+    """Melt ODE to tabulated X_eq with bubble-area flotation (Upham 2017 / Chen 2023).
 
     dX/dz-style first-order approach: per stage
     ``X ← X_eq − (X_eq − X)·exp(−Da_stage)`` with

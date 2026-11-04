@@ -46,7 +46,7 @@ def _integrate_fluidized_pass(
     ch4_initial: float = 0.95,
     ar_initial: float = 0.05,
 ) -> float:
-    """Advance emulsion residence with C_s removal *during* integrate (B2).
+    """Advance emulsion residence with C_s removal *during* integrate (Muradov 2005; Parkinson 2019).
 
     Basis: 1 m³ of emulsion. Gas volume is ε_mf; solids area is
     ``sv_ratio`` (area per emulsion volume). Pairing per-emulsion-volume
@@ -170,9 +170,9 @@ def simulate_fluidized_bed(
     emulsion_conv = _ch4_extent(gas, ch4_initial, ar_initial)
     exit_theta_c = _coverage(surf, 'C_s')
 
-    # B5/B6 carbon accounting on the emulsion basis (1 m³ emulsion: gas
-    # volume ε_mf, area sv_ratio), before the bubble bypass is mixed in.
-    # Carbon taken off by the circulating outfeed is B2 solids product,
+    # Baker-Helveg-Abild-Pedersen off-site carbon accounting on the emulsion basis
+    # (1 m³ emulsion: gas volume ε_mf, area sv_ratio), before the bubble bypass is mixed in.
+    # Carbon taken off by the circulating outfeed is Muradov-Parkinson solids product,
     # not Cγ, and is subtracted from the filament balance.
     gamma_mol_m2 = float(config.site_density_mol_cm2) * 1e4
     n_sites_mol = gamma_mol_m2 * sv_ratio
@@ -208,7 +208,7 @@ def simulate_fluidized_bed(
     kl_metrics = kunii_levenspiel_bubble_exchange(config, delta, u0, umf)
 
     circulating_outfeed_active = bool(circulating and removal_rate > 0.0)
-    b2_carbon_policy_summary = (
+    carbon_outfeed_policy_summary = (
         f"fluidized_mode={config.fluidized_mode};"
         f"circulating_outfeed={circulating_outfeed_active};"
         f"removal_rate_1_s={removal_rate:.3f};"
@@ -245,7 +245,7 @@ def simulate_fluidized_bed(
             (1.0 - delta) * np.mean(per_cycle) if per_cycle else final_conv
         ),
         'circulating_outfeed_active': circulating_outfeed_active,
-        'b2_carbon_policy_summary': b2_carbon_policy_summary,
+        'carbon_outfeed_policy_summary': carbon_outfeed_policy_summary,
         'bypass_basis': 'ar_tracer_molar_mix',
         'CH4_mole_fraction_drop': _mole_fraction_drop(gas, ch4_initial),
         'conversion_basis': 'argon_tracer',

@@ -303,12 +303,14 @@ C_DELTA_PROVENANCE = (
 )
 # Coverage θ* where second-order encapsulation rate r_δ ∝ (A_γ/θ*) θ_C² equals first-order filament rate r_γ ∝ A_γ θ_C at equal barrier
 DEFAULT_ENCAPSULATION_CROSSOVER_COVERAGE = 0.5
-THETA_STAR_PROVENANCE = 'declared_not_measured: swept in B6-6'
+THETA_STAR_PROVENANCE = (
+    'declared_not_measured: swept in Baker-Helveg-Takenaka off-site carbon calibration'
+)
 C_DELTA_FORM = 'coverage_dependent_theta_C_squared'
 OFF_SITE_PREEXPONENTIAL_1_S = 1.0e13  # Eyring TST vibrational frequency factor k_B T / h ≈ 10^13 s^-1
 C_GAMMA_PREFACTOR_PROVENANCE = (
     'template_default: single-hop TST 1e13/s; transport+precipitation lump '
-    'is D0/L^2 and particle-size dependent; swept in B6-6'
+    'is D0/L^2 and particle-size dependent; swept in Baker-Helveg-Takenaka calibration'
 )
 # Bulk carbon interstitial diffusivity prefactor in Ni: D0 = 2.48 cm²/s = 2.48e-4 m²/s (Lander et al., J. Appl. Phys. 1952)
 CARBON_DIFFUSION_PREFACTOR_M2_S = 2.48e-4
@@ -319,7 +321,7 @@ CARBON_DIFFUSION_PREFACTOR_PROVENANCE = (
 DEFAULT_CH4_STICKING_COEFFICIENT = 0.01
 CH4_STICKING_PROVENANCE = (
     'template_default: s0 = 0.01 (methane_pox_on_pt order of magnitude); '
-    'swept in B6-6'
+    'swept in Bengaard (2002) sticking calibration'
 )
 SURFACE_TST_PREFACTOR_1_S = 1.0e13  # Unimolecular surface TST attempt frequency [s^-1]
 H2_DESORPTION_PREFACTOR_1_S = 5.0e13  # Associative H2 desorption prefactor [s^-1] (rotational/translational entropy gain)
@@ -600,7 +602,7 @@ def write_full_mechanism(
         E_act_CH4: Legacy CH4 activation barrier (eV); ignored if ``kinetics``.
         E_act_H_desorb: Legacy H2 desorption barrier (eV).
         E_act_C_diffuse: Legacy carbon transfer barrier (eV).
-        site_density: Site density (mol/cm^2); must equal the B1 monolayer lock.
+        site_density: Site density (mol/cm^2); must equal the Deutschmann (2000) monolayer lock.
         T_ref: Reference temperature written into the phase states (K).
         include_surface_sites: Write the Langmuir surface phase.
         kinetics: Typed candidate kinetics with provenance.
@@ -634,7 +636,7 @@ def write_full_mechanism(
     if off_site_carbon is True and not allowed:
         raise ValueError(
             'off-site carbon is nanoparticle Ni/Fe/Co only '
-            '(SolidCatalyst / HEA / SAA host); not SAC/DAC/cat_9'
+            '(SolidCatalyst / HEA / SAA host); not SAC/DAC/rh1_ceo2_akri2019_sac_ref'
         )
     include_off_site = include_surface_sites and (
         allowed if off_site_carbon is None else bool(off_site_carbon) and allowed
@@ -643,7 +645,7 @@ def write_full_mechanism(
     site_density = float(values['site_density_mol_cm2'])
     if abs(site_density - MONOLAYER_SITE_DENSITY_MOL_CM2) > 1e-15:
         raise ValueError(
-            f'site_density={site_density} mol/cm^2; B1 locks Γ at '
+            f'site_density={site_density} mol/cm^2; Deutschmann (2000) monolayer gate locks Γ at '
             f'{MONOLAYER_SITE_DENSITY_MOL_CM2} mol/cm^2 '
             '(raise particle S/V, loading, or dispersion instead)'
         )

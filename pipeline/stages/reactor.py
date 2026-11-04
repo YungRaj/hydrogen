@@ -145,7 +145,7 @@ def simulate_candidate(
     except (TypeError, ValueError):
         dE_H = 0.0
     # Turquoise carbon policy for every production sweep: no CO2, circulating
-    # fluidized solids, bounded mechanical regen. See docs/backlog/B2.
+    # fluidized solids, bounded mechanical regen (Muradov & Veziroglu 2005; Parkinson et al. 2019).
     carbon_policy: CarbonPolicyConfig = {
         'co2_permitted': False,
         'fluidized_mode': 'circulating',

@@ -241,7 +241,7 @@ def generate_solid_catalyst_genome() -> tuple:
 
 
 def generate_supported_nanoparticle_genome() -> tuple:
-    """Generate a partial supported-particle genome for B6 studies.
+    """Generate a partial supported-particle genome for Baker-Helveg off-site carbon studies.
 
     Layout: class, metal, support, facet, particle diameter (nm), loading
     (wt%), dopants, substitution count, vacancy count.  This is opt-in so

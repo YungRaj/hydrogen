@@ -25,7 +25,9 @@ def load_reactor_reference(candidate_id: str) -> Any | None:
     Returns:
         The matching reference screening row, or ``None`` if not tracked.
     """
-    if candidate_id != 'ni_np_lit':
+    from pipeline.reactors.scorecard import NI_JUDGE_CATALYST
+
+    if candidate_id != NI_JUDGE_CATALYST:
         return None
     import pandas as pd  # pyright: ignore[reportUnknownVariableType]
 

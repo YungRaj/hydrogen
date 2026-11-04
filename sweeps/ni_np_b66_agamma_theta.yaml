@@ -1,14 +1,14 @@
-name: ni_np_b66_agamma_theta
+name: ni111_sio2_baker_helveg_agamma_theta_star
 description: >
-  B6-6 2-D sweep, A_gamma x theta* at the 650-700 C ROI only (923.15 and
-  973.15 K). Same A_gamma list as ni_np_b66_agamma (decades 1e6-1e13 plus
-  half-decades 1e8-1e10) and the same theta* list as ni_np_b66_theta
-  (0.2, 0.35, 0.5, 0.65, 0.8). E_act 1.0 and s0 0.01 held at the B6-5
+  Baker (1972) / Helveg (2004) / Takenaka (2003) 2-D sweep, A_gamma x theta* at the 650-700 C ROI only (923.15 and
+  973.15 K). Same A_gamma list as ni111_sio2_baker_helveg_agamma (decades 1e6-1e13 plus
+  half-decades 1e8-1e10) and the same theta* list as ni111_sio2_takenaka_theta_star
+  (0.2, 0.35, 0.5, 0.65, 0.8). E_act 1.0 and s0 0.01 held at the Bengaard (2002)
   base point. PFR and circulating Fluidized, both cells, zero regen and
   mechanical x3. Particle-nm derivation is documented on the A_gamma
   star file; this grid stays explicit A_gamma x theta*.
 catalyst:
-  name: ni_np_lit
+  name: ni111_sio2_bengaard2002_ref
   material_class: SolidCatalyst
   genome: "('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)"
   kinetics:
@@ -26,7 +26,7 @@ catalyst:
       dE_C: screener mapping; Abild-Pedersen PRB 2006 73 115419 terrace vs graphene + 0.8 eV CH4-2H2
       carbon_transfer_eV: template default
       carbon_encapsulation_eV: template default
-      ch4_sticking_coefficient: template default; B6-5 base point
+      ch4_sticking_coefficient: template default; Bengaard 2002 base point
 sweep:
   kinetics:
     carbon_transfer_prefactor_1_s:

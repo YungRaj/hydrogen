@@ -40,7 +40,7 @@ def test_existing_reference_keeps_its_name_and_does_not_mutate_candidates():
     candidates = pd.DataFrame(
         [
             {'candidate_id': 'ordinary', 'E_act': 0.8},
-            {'candidate_id': 'ni_np_lit', 'E_act': 1.0},
+            {'candidate_id': 'ni111_sio2_bengaard2002_ref', 'E_act': 1.0},
         ]
     )
     original = candidates.copy(deep=True)
@@ -81,13 +81,13 @@ def test_existing_reference_keeps_its_name_and_does_not_mutate_candidates():
         pathway_mode='thermocatalytic_pfr',
         multiphysics_results_dir='',
         allow_mock_inputs=False,
-        judge_catalyst='ni_np_lit',
+        judge_catalyst='ni111_sio2_bengaard2002_ref',
         headline_t_min=923.15,
         headline_t_max=973.15,
         services=services,
     )
-    assert names == ['cat_0', 'ni_np_lit']
-    assert result.state['solids_scorecard']['judge_catalyst'] == 'ni_np_lit'
+    assert names == ['cat_0', 'ni111_sio2_bengaard2002_ref']
+    assert result.state['solids_scorecard']['judge_catalyst'] == 'ni111_sio2_bengaard2002_ref'
     assert result.state['best_conversion'] == 0.15
     pd.testing.assert_frame_equal(candidates, original)
 
@@ -95,7 +95,7 @@ def test_existing_reference_keeps_its_name_and_does_not_mutate_candidates():
 def test_default_campaign_loads_ni_reference_and_produces_a_real_headline():
     """Reproduce the documented Ni reference through the real Cantera path.
 
-    These are regression targets for the B6-5 literature-parameterized model,
+    These are regression targets for the Bengaard (2002) / Baker (1972) literature-parameterized model,
     not claims that the reduced mechanism has been experimentally calibrated.
     The explicit evidence-tier assertions keep that distinction fail-closed.
     """
@@ -128,7 +128,7 @@ def test_default_campaign_loads_ni_reference_and_produces_a_real_headline():
                 services=services,
             )
         card = result.state['solids_scorecard']
-        assert card['judge_catalyst'] == 'ni_np_lit'
+        assert card['judge_catalyst'] == 'ni111_sio2_bengaard2002_ref'
         assert card['headline']['PFR']['T_K'] == 973.15
         assert 0 < result.state['best_conversion'] < 1
         rows = result.products['reactor_results']
@@ -136,7 +136,7 @@ def test_default_campaign_loads_ni_reference_and_produces_a_real_headline():
         assert all(row['status'] == 'complete' and not row.get('mock') for row in rows)
         assert candidates.empty
 
-        # Documented B6-5 production-cell results.  A tight but non-bitwise
+        # Documented Bengaard (2002) / Alves (2021) production-cell results. A tight but non-bitwise
         # tolerance catches unit, phase, prefactor, or reactor-wiring changes
         # while allowing harmless integrator/platform roundoff.
         reference = {
@@ -192,7 +192,7 @@ def test_default_campaign_loads_ni_reference_and_produces_a_real_headline():
             # Exercise the actual packed-bed/surface path and its axial
             # solution, not merely successful Cantera YAML loading.
             assert row['surface_loaded'] is True
-            assert row['surface_name'] == 'ni_np_lit_surface'
+            assert row['surface_name'] == 'ni111_sio2_bengaard2002_ref_surface'
             assert row['bed_or_interface'] == 'fixed_packed_bed'
             assert (
                 row['cantera_reactor_model'] == 'staged_lagrangian_ideal_gas_reactors'
@@ -264,7 +264,7 @@ def test_pbr_campaign_simulates_coupled_ergun_and_pellet_effectiveness():
                 services=services,
             )
         card = result.state['solids_scorecard']
-        assert card['judge_catalyst'] == 'ni_np_lit'
+        assert card['judge_catalyst'] == 'ni111_sio2_bengaard2002_ref'
         assert card['headline']['PBR']['T_K'] == 973.15
         rows = result.products['reactor_results']
         assert len(rows) == len(config.reactor_temperatures)
@@ -328,7 +328,7 @@ def test_reference_is_only_added_to_enabled_solids_campaigns():
     def unexpected_reference_load(name):
         raise AssertionError('this campaign must not load the solids reference')
 
-    for reactor_type, judge in (('MMBCR', 'ni_np_lit'), ('PFR', None)):
+    for reactor_type, judge in (('MMBCR', 'ni111_sio2_bengaard2002_ref'), ('PFR', None)):
         services = replace(
             default_reactor_batch_services(),
             prepare_gas_mechanism=lambda: None,
@@ -398,7 +398,7 @@ def _exercise_isolated_sweep(tmp_path: Path, swept: bool, ct) -> None:
             )
             source = tmp_path / f'{name}.yaml'
             source.write_text(
-                f'name: {name}\ncatalyst:\n  name: ni_np_lit\n'
+                f'name: {name}\ncatalyst:\n  name: ni111_sio2_bengaard2002_ref\n'
                 '  material_class: SolidCatalyst\n'
                 '  genome: "(\'SolidCatalyst\', \'Ni\', \'SiO2\', \'fcc111\', 0.0, (), 1, 0)"\n'
                 '  kinetics:\n'

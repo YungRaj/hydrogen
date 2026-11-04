@@ -158,16 +158,24 @@ def validate_pilot_budget(config: BranchDiscoveryConfig) -> None:
 THERMAL_STEERING_COLUMNS = ('full_simulation_score', 'full_simulation_status')
 
 
-def _gate_thermal_steering(simulation: pd.DataFrame) -> pd.DataFrame:
-    """Keep thermal PFR scores diagnostic-only until B5 closure is accepted.
+def _gate_thermal_steering(
+    simulation: pd.DataFrame,
+    *,
+    supported_ni_filament_closure_gate: Optional[dict[str, object]] = None,
+) -> pd.DataFrame:
+    """Keep thermal PFR scores diagnostic-only until supported-Ni(111)/SiO2 filament closure is accepted.
 
-    Before ``B5_ACCEPTED`` the score/status columns are renamed so they are
+    Before ``SOLIDS_RANKING_AUTHORITY_ACCEPTED`` the score/status columns are renamed so they are
     recorded with the evidence but cannot steer class feedback (which then
     falls back to screening ``E_act``).
     """
-    from pipeline.reactors.scorecard import B5_ACCEPTED
+    from pipeline.reactors.scorecard import SOLIDS_RANKING_AUTHORITY_ACCEPTED
 
-    if B5_ACCEPTED:
+    if SOLIDS_RANKING_AUTHORITY_ACCEPTED or bool(
+        (supported_ni_filament_closure_gate or {}).get(
+            'solids_ranking_authority_accepted'
+        )
+    ):
         return simulation
     return simulation.rename(columns={
         column: column.replace('full_simulation_', 'thermal_diagnostic_')

@@ -222,13 +222,19 @@ def build_multipathway_champion_scorecard(
     from pipeline.fuel_cell.stack import StackConfig, model_stack
     from pipeline.reactors.eligibility import is_usable_result
     from pipeline.reactors.scorecard import (
-        evaluate_pbr_and_b4_diagnostics,
+        NI_JUDGE_CATALYST,
+        evaluate_pbr_and_ergun_residence_diagnostics,
+        evaluate_supported_ni_filament_closure,
         is_h_parked,
         is_production_reactor_record,
         is_solids_run,
         single_pass_x,
     )
     from pipeline.screening.stage_selection import select_for_pyrolysis_reactor
+    from pipeline.search.discovery import (
+        LITERATURE_VALIDATION_GATES,
+        format_literature_catalyst_label,
+    )
     from pipeline.search.scope import scope_pyrolysis_pool
 
     root = Path(results_root)
@@ -327,6 +333,11 @@ def build_multipathway_champion_scorecard(
             champ_entry: dict = {
                 'rank': rank_idx,
                 'candidate_id': cid_str,
+                'literature_catalyst_name': format_literature_catalyst_label(
+                    cid_str,
+                    material_class=str(row.get('material_class', '')),
+                    genome=str(row.get('genome', '')),
+                ),
                 'material_class': str(row.get('material_class', '')),
                 'genome': str(row.get('genome', '')),
                 'E_act_eV': round(float(row['E_act']), 4),
@@ -417,24 +428,24 @@ def build_multipathway_champion_scorecard(
             is_solids_run(r)
             and r.get('reactor_type') == 'PFR'
             and not is_h_parked(r)
-            and r.get('catalyst_name') != 'ni_np_lit'
+            and r.get('catalyst_name') != NI_JUDGE_CATALYST
         ),
         'thermocatalytic_pbr': lambda r: (
             is_solids_run(r)
             and r.get('reactor_type') == 'PBR'
             and not is_h_parked(r)
-            and r.get('catalyst_name') != 'ni_np_lit'
+            and r.get('catalyst_name') != NI_JUDGE_CATALYST
         ),
         'thermocatalytic_fluidized': lambda r: (
             is_solids_run(r)
             and r.get('reactor_type') == 'Fluidized'
             and not is_h_parked(r)
-            and r.get('catalyst_name') != 'ni_np_lit'
+            and r.get('catalyst_name') != NI_JUDGE_CATALYST
         ),
         'thermocatalytic': lambda r: (
             is_solids_run(r)
             and not is_h_parked(r)
-            and r.get('catalyst_name') != 'ni_np_lit'
+            and r.get('catalyst_name') != NI_JUDGE_CATALYST
         ),
         'mmbcr': lambda r: r.get('reactor_type') == 'MMBCR',
         'ntec': lambda r: r.get('reactor_type') == 'NTEC',
@@ -543,10 +554,18 @@ def build_multipathway_champion_scorecard(
         raw_eta = best_rec.get('overall_effectiveness_factor')
         raw_phi = best_rec.get('thiele_modulus')
         raw_dp = best_rec.get('ergun_delta_p_bar')
+        best_cat_id = str(best_rec.get('catalyst_name', ''))
+        best_cat_meta = candidate_Lookup.get(best_cat_id, {})
         pathway_leaderboard[mode_name] = {
             'status': 'complete',
             'n_usable_records': len(matching),
-            'champion_catalyst': str(best_rec.get('catalyst_name', '')),
+            'champion_catalyst': best_cat_id,
+            'champion_catalyst_literature_name': format_literature_catalyst_label(
+                best_cat_id,
+                material_class=best_rec.get('material_class')
+                or best_cat_meta.get('material_class'),
+                genome=best_rec.get('genome') or best_cat_meta.get('genome'),
+            ),
             'reactor_type': str(best_rec.get('reactor_type', '')),
             'T_K': t_rec,
             'single_pass_CH4_conversion': round(conv, 4),
@@ -638,10 +657,17 @@ def build_multipathway_champion_scorecard(
             else None
         )
         cal_dp = best_cal_rec.get('ergun_delta_p_bar')
+        best_cal_cat_id = str(best_cal_rec.get('catalyst_name', ''))
+        best_cal_meta = candidate_Lookup.get(best_cal_cat_id, {})
         dft_calibrated_pathway_leaderboard[mode_name] = {
             'status': 'complete',
             'n_usable_records': len(matching),
-            'champion_catalyst': str(best_cal_rec.get('catalyst_name', '')),
+            'champion_catalyst': best_cal_cat_id,
+            'champion_catalyst_literature_name': format_literature_catalyst_label(
+                best_cal_cat_id,
+                material_class=best_cal_metrics['material_class'],
+                genome=best_cal_rec.get('genome') or best_cal_meta.get('genome'),
+            ),
             'material_class': best_cal_metrics['material_class'],
             'reactor_type': str(best_cal_rec.get('reactor_type', '')),
             'T_K': cal_t_rec,
@@ -740,10 +766,18 @@ def build_multipathway_champion_scorecard(
             )
         )
         sys_eff = float(stack_res.get('system_efficiency', 0.50))
+        best_cath_id = str(best_cell.get('cathode_catalyst', ''))
+        best_cath_meta = candidate_Lookup.get(best_cath_id, {})
         pemfc_stack_summary = {
             'status': 'complete',
             'n_single_cell_simulations': len(dedup_pemfc),
-            'champion_cathode': str(best_cell.get('cathode_catalyst', '')),
+            'champion_cathode': best_cath_id,
+            'champion_cathode_literature_name': format_literature_catalyst_label(
+                best_cath_id,
+                material_class=best_cell.get('material_class')
+                or best_cath_meta.get('material_class'),
+                genome=best_cell.get('genome') or best_cath_meta.get('genome'),
+            ),
             'champion_membrane': str(best_cell.get('membrane', '')),
             'peak_power_W_cm2': round(float(best_cell.get('peak_power_W_cm2', 0.0)), 4),
             'orr_overpotential_V': round(
@@ -871,10 +905,16 @@ def build_multipathway_champion_scorecard(
                     )
                 )
                 gc_sys_eff = float(gc_stack.get('system_efficiency', 0.50))
+                gc_cath_id = str(best_gc.get('cathode_catalyst', ''))
                 dft_calibrated_pemfc_stack_summary = {
                     'status': 'complete',
                     'n_qe_converged_acid_stable_cathodes': len(simulated_gc_cells),
-                    'champion_cathode': str(best_gc.get('cathode_catalyst', '')),
+                    'champion_cathode': gc_cath_id,
+                    'champion_cathode_literature_name': format_literature_catalyst_label(
+                        gc_cath_id,
+                        material_class=best_gc.get('material_class'),
+                        genome=best_gc.get('genome'),
+                    ),
                     'champion_material_class': str(best_gc.get('material_class', '')),
                     'champion_genome': str(best_gc.get('genome', '')),
                     'champion_membrane': str(best_gc.get('membrane', 'AquivionE87')),
@@ -915,6 +955,11 @@ def build_multipathway_champion_scorecard(
                             'cathode_catalyst': str(
                                 best_pgm_free.get('cathode_catalyst', '')
                             ),
+                            'cathode_catalyst_literature_name': format_literature_catalyst_label(
+                                best_pgm_free.get('cathode_catalyst', ''),
+                                material_class=best_pgm_free.get('material_class'),
+                                genome=best_pgm_free.get('genome'),
+                            ),
                             'material_class': str(
                                 best_pgm_free.get('material_class', '')
                             ),
@@ -939,6 +984,11 @@ def build_multipathway_champion_scorecard(
                         {
                             'cathode_catalyst': str(
                                 best_low_pgm.get('cathode_catalyst', '')
+                            ),
+                            'cathode_catalyst_literature_name': format_literature_catalyst_label(
+                                best_low_pgm.get('cathode_catalyst', ''),
+                                material_class=best_low_pgm.get('material_class'),
+                                genome=best_low_pgm.get('genome'),
                             ),
                             'material_class': str(
                                 best_low_pgm.get('material_class', '')
@@ -991,11 +1041,25 @@ def build_multipathway_champion_scorecard(
                     ),
                 }
 
+    supported_ni_closure_summary: dict | None = None
+    try:
+        supported_ni_closure_summary = evaluate_supported_ni_filament_closure()
+    except Exception:
+        pass
+
+    from pipeline.search.discovery import NAMED_REFERENCE_CATALYSTS
+
     return {
         'discovery_champions': discovery_champions,
         'pathway_leaderboard': pathway_leaderboard,
         'dft_calibrated_pathway_leaderboard': dft_calibrated_pathway_leaderboard,
-        'pbr_b4_diagnostics': evaluate_pbr_and_b4_diagnostics(reactor_records),
+        'pbr_ergun_residence_diagnostics': evaluate_pbr_and_ergun_residence_diagnostics(
+            reactor_records
+        ),
+        'supported_ni_filament_closure_summary': supported_ni_closure_summary,
+        'validation_gate_registry': dict(LITERATURE_VALIDATION_GATES),
+        'literature_validation_gates': dict(LITERATURE_VALIDATION_GATES),
+        'named_reference_catalysts': dict(NAMED_REFERENCE_CATALYSTS),
         'pemfc_stack_summary': pemfc_stack_summary,
         'dft_calibrated_pemfc_stack_summary': dft_calibrated_pemfc_stack_summary,
         'coupled_turquoise_pemfc_tea': coupled_tea,

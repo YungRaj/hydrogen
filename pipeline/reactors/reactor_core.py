@@ -214,7 +214,7 @@ def _validate_carbon_policy(config: ReactorConfig) -> None:
         )
     if abs(config.site_density_mol_cm2 - MONOLAYER_SITE_DENSITY_MOL_CM2) > 1e-15:
         raise ValueError(
-            f'site_density_mol_cm2={config.site_density_mol_cm2}; B1 locks Γ at '
+            f'site_density_mol_cm2={config.site_density_mol_cm2}; Deutschmann (2000) monolayer gate locks Γ at '
             f'{MONOLAYER_SITE_DENSITY_MOL_CM2} mol/cm^2'
         )
     if not (0.0 < config.metal_loading <= 1.0):
@@ -232,7 +232,7 @@ def _validate_carbon_policy(config: ReactorConfig) -> None:
             f'mmbcr_interfacial_k0_m_s={config.mmbcr_interfacial_k0_m_s} '
             f'must be in (0, {MMBCR_INTERFACIAL_K0_MAX}]; '
             f'{MMBCR_INTERFACIAL_K0_MAX} m/s is a guardrail against inventing '
-            'Da, not a physical bound like loading <= 1 (B3)'
+            'Da, not a physical bound like loading <= 1 (Upham 2017 / Chen 2023)'
         )
     if (
         config.mmbcr_carbon_removal_rate_1_s is not None
@@ -379,7 +379,7 @@ def _policy_metadata(config: ReactorConfig) -> dict[str, object]:
         'mmbcr_interfacial_k0_m_s': float(config.mmbcr_interfacial_k0_m_s),
         'mmbcr_interfacial_k0_basis': (
             'calibrated melt-side prefactor; not DFT or Upham-fitted k; '
-            'B3; Upham 2017; Chen 2023; Abdollahi 2024'
+            'Upham 2017; Chen 2023; Abdollahi 2024'
         ),
         'mmbcr_interfacial_k0_max_m_s': MMBCR_INTERFACIAL_K0_MAX,
         'mmbcr_interfacial_k0_max_kind': MMBCR_INTERFACIAL_K0_MAX_KIND,
@@ -461,10 +461,10 @@ CLASS_SITE_UTILIZATION_FACTOR: dict[str, float] = {
 def class_site_utilization_factor(material_class: Optional[str]) -> float:
     """Return the active-site density ratio vs a close-packed FCC(111) monolayer.
 
-    Keeps the Cantera phase site density locked at 2.5e-9 mol/cm^2 (B1) while
-    scaling effective catalytic site area for single-atom, dual-atom, framework,
-    oxide, and metal-free classes whose physical site density is lower than a
-    bulk metallic surface.
+    Keeps the Cantera phase site density locked at 2.5e-9 mol/cm^2 per
+    Deutschmann (2000) while scaling effective catalytic site area for
+    single-atom, dual-atom, framework, oxide, and metal-free classes whose
+    physical site density is lower than a bulk metallic surface.
 
     Args:
         material_class: Catalyst material class name or ``None``.
@@ -571,7 +571,7 @@ def ch4_viscosity_pa_s(T_K: float) -> float:
 def ergun_delta_p_pa(
     config: ReactorConfig, T_K: float = None, P_Pa: float = None
 ) -> float:
-    """Packed-bed Ergun ΔP over bed_length_m (B4). Not used for MMBCR.
+    """Packed-bed Ergun ΔP over bed_length_m (Ergun 1952 / Froment 2011). Not used for MMBCR.
 
     Args:
         config: Input controlling config.
@@ -646,7 +646,7 @@ def solids_inventory_fields(
 
 
 def inventory_grid_cells(particle_mm=None, loadings=None, dispersions=None):
-    """Quantized (d_p, loading, dispersion) grid. Defaults to the coarse B1-2 set.
+    """Quantized (d_p, loading, dispersion) grid. Defaults to the coarse Deutschmann (2000) inventory set.
 
     Args:
         particle_mm: Input controlling particle mm.
@@ -867,7 +867,7 @@ def off_site_carbon_metrics(
     removed_surface_carbon_mol: float = 0.0,
     basis: str = 'Gamma*A_stage / (c_CH4*eps*V_stage), PFR parcel',
 ) -> dict[str, object]:
-    """Compute per-pass B5/B6 off-site carbon closure and filament yield metrics.
+    """Compute per-pass Alves-Xu / Baker-Helveg off-site carbon closure and filament yield metrics.
 
     Args:
         config: Reactor configuration for the evaluated bed.

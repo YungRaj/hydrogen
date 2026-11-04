@@ -25,7 +25,7 @@ def test_supported_nanoparticle_uses_validated_surface_builder():
     assert slab.info['loading_wt_pct'] == 10.0
 
 
-def test_supported_nanoparticle_enters_b6_gate_for_ni_fe_co():
+def test_supported_nanoparticle_enters_baker_helveg_off_site_carbon_gate_for_ni_fe_co():
     assert off_site_carbon_allowed(
         ('SupportedNanoparticle', 'Ni', 'SiO2', 'fcc111', 5.0, 10.0, (), 1, 0)
     )

@@ -313,7 +313,6 @@ def test_discovery_reactor_and_solver_artifacts_have_named_contracts():
         PourbaixStabilityRecord,
     )
     from pipeline.data_models.reactors import (
-        B5ClosureGateResult,
         CarbonPolicyConfig,
         MlipNebValidationRecord,
         PBRPelletEffectivenessMetrics,
@@ -321,13 +320,14 @@ def test_discovery_reactor_and_solver_artifacts_have_named_contracts():
         ReactorResult,
         SolidsMetricRow,
         SolidsScorecard,
+        SupportedNiFilamentClosureGateResult,
     )
     from pipeline.data_models.stages import CandidateSelection
     from pipeline.electrochemistry.cantera_coupling import run_coupling_step
     from pipeline.reactors.pbr import pbr_pellet_effectiveness, simulate_pbr
     from pipeline.reactors.scorecard import (
         build_solids_scorecard,
-        evaluate_b5_closure_gate,
+        evaluate_supported_ni_filament_closure_gate,
         metric_row,
     )
     from pipeline.screening.fc_screener import (
@@ -344,7 +344,10 @@ def test_discovery_reactor_and_solver_artifacts_have_named_contracts():
     )
     assert get_type_hints(metric_row)['return'] is SolidsMetricRow
     assert get_type_hints(build_solids_scorecard)['return'] is SolidsScorecard
-    assert get_type_hints(evaluate_b5_closure_gate)['return'] is B5ClosureGateResult
+    assert (
+        get_type_hints(evaluate_supported_ni_filament_closure_gate)['return']
+        is SupportedNiFilamentClosureGateResult
+    )
     assert (
         get_type_hints(pbr_pellet_effectiveness)['return']
         is PBRPelletEffectivenessMetrics

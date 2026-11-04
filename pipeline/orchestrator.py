@@ -62,7 +62,9 @@ class PipelineConfig:
     reactor_temperatures: tuple[float, ...] | None = None
     reactor_types: tuple[ReactorTypeName, ...] | None = None
     multiphysics_results_dir: Optional[str] = None
-    # Named solids judge. B6-7: literature Ni cell (ni_np_lit), not cat_9.
+    # Named solids judge: literature Ni(111)/SiO2 nanoparticle cell
+    # (ni111_sio2_bengaard2002_ref, Bengaard 2002 / Ermakova 2000 / Takenaka 2003),
+    # not the Rh1/CeO2(111) single-atom control (rh1_ceo2_akri2019_sac_ref).
     # None = best non-H-parked solids at the headline T band.
     solids_judge_catalyst: Optional[str] = NI_JUDGE_CATALYST
     # Ni judge headline is the 650–700 °C filament ROI. 1300 K is the ADR

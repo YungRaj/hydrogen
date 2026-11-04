@@ -1,7 +1,7 @@
-"""B1 solids-inventory sweep on the general staged-sweep harness.
+"""Deutschmann (2000) monolayer solids-inventory sweep on the general staged-sweep harness.
 
 Coarse (gridded) and targeted (ROI) results live under
-`results/sweeps/inventory_b1/`. The coarse JSON is write-once.
+`results/sweeps/inventory_deutschmann2000/`. The coarse JSON is write-once.
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ from pipeline.reactors.sweeps.staged import (
 
 logger = setup_logger('inventory_sweep', 'reactor/inventory_sweep.log')
 
-SWEEP_NAME = 'inventory_b1'
+SWEEP_NAME = 'inventory_deutschmann2000'
 PROBE_INDEX = 9
 CONTROL_INDEX = 40
 SOLIDS_TYPES = ('PFR', 'PBR', 'Fluidized')
@@ -47,8 +47,8 @@ SOLIDS_TYPES = ('PFR', 'PBR', 'Fluidized')
 # plus intermediate 1100.0 K point in the targeted ROI refinement stage.
 COARSE_TEMPERATURES = (773.15, 1300.0)
 TARGETED_TEMPERATURES = (773.15, 1100.0, 1300.0)
-LEGACY_COARSE = 'inventory_sweep_b1_2.json'
-LEGACY_TARGETED = 'inventory_sweep_b1_2_roi.json'
+LEGACY_COARSE = 'inventory_sweep_deutschmann2000_coarse.json'
+LEGACY_TARGETED = 'inventory_sweep_deutschmann2000_roi.json'
 
 
 def inventory_spec() -> SweepSpec:
@@ -110,9 +110,9 @@ def _write_mech(idx: int, row) -> Path:
 
     Uses the same ``CandidateKinetics`` path as the headline YAML sweep and
     the orchestrator, so the inventory probe carries the row's adsorbate
-    thermochemistry (dE_H, dE_CH3, dE_C) and B6 class gate. The template
-    path (``E_act_CH4=``) has default enthalpies and gave a different
-    catalyst under the same name.
+    thermochemistry (dE_H, dE_CH3, dE_C) and Baker-Helveg off-site carbon class
+    gate. The template path (``E_act_CH4=``) has default enthalpies and gave a
+    different catalyst under the same name.
     """
     kinetics = CandidateKinetics.from_screening_row(row, candidate_id=f'cat_{idx}')
     return write_full_mechanism(f'inv_cat_{idx}', kinetics=kinetics)

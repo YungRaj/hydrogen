@@ -41,7 +41,7 @@ def test_physical_pfr_result_is_scored():
     assert outcome['full_simulation_off_site_carbon_active'] is True
 
 
-def test_thermal_scores_do_not_steer_before_b5_closure(monkeypatch):
+def test_thermal_scores_do_not_steer_before_supported_ni_filament_closure(monkeypatch):
     import pipeline.reactors.scorecard as scorecard
     from pipeline.screening.branch_discovery import _gate_thermal_steering
 
@@ -51,33 +51,33 @@ def test_thermal_scores_do_not_steer_before_b5_closure(monkeypatch):
         'full_simulation_status': ['complete'],
         'full_simulation_exceeds_equilibrium': [False],
     })
-    monkeypatch.setattr(scorecard, 'B5_ACCEPTED', False)
+    monkeypatch.setattr(scorecard, 'SOLIDS_RANKING_AUTHORITY_ACCEPTED', False)
     closed = _gate_thermal_steering(simulation)
     assert not {'full_simulation_score', 'full_simulation_status'} & set(closed.columns)
     assert closed['thermal_diagnostic_score'].tolist() == [0.1]
     assert 'full_simulation_exceeds_equilibrium' in closed.columns
-    monkeypatch.setattr(scorecard, 'B5_ACCEPTED', True)
+    monkeypatch.setattr(scorecard, 'SOLIDS_RANKING_AUTHORITY_ACCEPTED', True)
     accepted = _gate_thermal_steering(simulation)
     assert accepted['full_simulation_score'].tolist() == [0.1]
 
 
-def test_b5_closure_is_not_accepted_without_evidence():
+def test_supported_ni_filament_closure_is_not_accepted_without_evidence():
     from pipeline.reactors.scorecard import (
-        B5_ACCEPTED,
         NI_JUDGE_CATALYST,
-        evaluate_b5_closure_gate,
+        SOLIDS_RANKING_AUTHORITY_ACCEPTED,
+        evaluate_supported_ni_filament_closure_gate,
     )
 
-    assert B5_ACCEPTED is False
-    incomplete = evaluate_b5_closure_gate({
+    assert SOLIDS_RANKING_AUTHORITY_ACCEPTED is False
+    incomplete = evaluate_supported_ni_filament_closure_gate({
         'judge_catalyst': NI_JUDGE_CATALYST,
         'headline': {
             'PFR': {'single_pass_CH4_conversion': 0.1456},
             'Fluidized': {'single_pass_CH4_conversion': 0.1694},
         },
     })
-    assert incomplete['b5_accepted'] is False
-    complete = evaluate_b5_closure_gate(
+    assert incomplete['solids_ranking_authority_accepted'] is False
+    complete = evaluate_supported_ni_filament_closure_gate(
         {
             'judge_catalyst': NI_JUDGE_CATALYST,
             'headline': {
@@ -85,15 +85,15 @@ def test_b5_closure_is_not_accepted_without_evidence():
                 'Fluidized': {'single_pass_CH4_conversion': 0.58, 'exceeds_equilibrium': False},
             },
         },
-        b66_summary={
+        baker_helveg_criteria_summary={
             'criteria': {
                 k: {'pass': True}
                 for k in ('flat', 'linearity', 'encapsulation_onset', 'lifetime', 'yield')
             }
         },
-        joint_summary={'declaration': 'simultaneous_hit', 'n_both_roi': 1},
+        ermakova_takenaka_joint_summary={'declaration': 'simultaneous_hit', 'n_both_roi': 1},
     )
-    assert complete['b5_accepted'] is True
+    assert complete['solids_ranking_authority_accepted'] is True
 
 
 def test_tea_feedstock_uses_methane_stoichiometry():
@@ -202,11 +202,11 @@ def test_campaign_reactor_judge_reference_is_scorecard_only():
     args = SimpleNamespace(mode='thermocatalytic_pfr', multiphysics_results_dir=None)
     records = []
     campaign._simulate_judge_reference(args, fake_simulate, records)
-    assert calls == ['ni_np_lit']
-    assert records == [{'catalyst_name': 'ni_np_lit', 'T_K': 923.15}]
+    assert calls == ['ni111_sio2_bengaard2002_ref']
+    assert records == [{'catalyst_name': 'ni111_sio2_bengaard2002_ref', 'T_K': 923.15}]
     # Idempotent: an existing judge sweep is not simulated twice.
     campaign._simulate_judge_reference(args, fake_simulate, records)
-    assert calls == ['ni_np_lit']
+    assert calls == ['ni111_sio2_bengaard2002_ref']
 
 
 def test_campaign_and_orchestrator_share_temperatures_judge_and_selectors():
@@ -264,7 +264,7 @@ def test_pbr_wired_into_campaign_and_cantera_simulation(tmp_path, monkeypatch):
     )
     pbr_records = []
     campaign._simulate_judge_reference(pbr_args, fake_simulate, pbr_records)
-    assert seen_reactors == [('ni_np_lit', ('PBR',))]
+    assert seen_reactors == [('ni111_sio2_bengaard2002_ref', ('PBR',))]
 
     monkeypatch.setattr(reactor_mechanisms, 'MECHANISMS_DIR', tmp_path)
     monkeypatch.setattr(reactor_models, 'save_json', lambda *args, **kwargs: None)

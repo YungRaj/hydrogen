@@ -418,7 +418,7 @@ def simulate_pbr(
     plugging_risk = bool(
         max_theta_c >= config.regen_coverage_threshold or not coupled_ergun_ok
     )
-    b2_carbon_policy_summary = (
+    carbon_outfeed_policy_summary = (
         f"regen_mechanism={config.regen_mechanism};"
         f"regen_cycles={cycles_completed};"
         f"max_theta_C={max_theta_c:.3f};"
@@ -456,7 +456,7 @@ def simulate_pbr(
             'pilot_residence_time_band_s': list(PFR_PILOT_TAU_BAND_S),
             'overloaded_bed_warning': overloaded_bed_warning,
             'plugging_risk': plugging_risk,
-            'b2_carbon_policy_summary': b2_carbon_policy_summary,
+            'carbon_outfeed_policy_summary': carbon_outfeed_policy_summary,
             'produce_time_s': float(produce_time_s),
             'CH4_conversion': float(final_conv),
             'single_pass_CH4_conversion': float(

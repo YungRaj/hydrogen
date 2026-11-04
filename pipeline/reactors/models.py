@@ -20,8 +20,9 @@ candidate-specific but explicitly uncalibrated MOOSE+Cantera screening case
 at an assumed representative operating point (never candidate-excluding).
 
 Solid carbon is never a gas-phase species. Surface C_s blocks sites on solid
-paths until removed by a named policy or a gated off-site channel (B6).
-Oxidative regen requires co2_permitted. Γ is a monolayer and is locked (B1).
+paths until removed by a named policy or a gated Baker-Helveg off-site channel.
+Oxidative regen requires co2_permitted. Γ is a monolayer and is locked per
+Deutschmann (2000).
 
 Reactor routing is owned by ``pipeline.reactors.modes``: a reactor
 type must belong to the selected pathway mode, and MMBCR is applicable only

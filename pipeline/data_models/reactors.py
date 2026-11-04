@@ -199,6 +199,7 @@ SolidsMetricRow = TypedDict(
     'SolidsMetricRow',
     {
         'catalyst_name': str | None,
+        'literature_catalyst_name': str | None,
         'reactor_type': ReactorTypeName | None,
         'T_K': float | None,
         'single_pass_CH4_conversion': float,
@@ -277,13 +278,33 @@ class PyrolysisValidationArtifact(_PyrolysisValidationOptional):
     resolved_kinetics_eV: ResolvedKineticsBarriers
 
 
+class SupportedNiFilamentClosureGateResult(TypedDict):
+    """Pass/fail evidence summary for the supported-Ni(111)/SiO2 filament closure & solids ranking authority gate."""
+
+    solids_ranking_authority_accepted: bool
+    judge_ok: bool
+    pfr_roi_conversion: float
+    pbr_roi_conversion: float
+    fluidized_roi_conversion: float
+    pfr_conversion_ok: bool
+    pbr_conversion_ok: bool
+    fluidized_conversion_ok: bool
+    baker_helveg_carbon_criteria_ok: bool
+    ermakova_takenaka_joint_roi_ok: bool
+
+
 class _SolidsScorecardOptional(TypedDict, total=False):
+    judge_catalyst_literature_name: str | None
+    headline_catalyst_literature_name: str | None
     candidate_champion_conversion: float | None
     candidate_champion_catalyst: str | None
+    candidate_champion_literature_name: str | None
     candidate_champion_reactor: str | None
     candidate_champion_T_K: float | None
     candidate_champion_kinetics_status: str | None
-    pbr_b4_diagnostics: dict[str, object]
+    pbr_ergun_residence_diagnostics: dict[str, object]
+    supported_ni_filament_closure_gate: SupportedNiFilamentClosureGateResult | None
+    validation_gate_registry: dict[str, dict[str, object]]
 
 
 class SolidsScorecard(_SolidsScorecardOptional):
@@ -310,18 +331,4 @@ class SolidsScorecard(_SolidsScorecardOptional):
     n_ntec_records: int
     n_electrochemical_records: int
 
-
-class B5ClosureGateResult(TypedDict):
-    """Pass/fail evidence summary for the B5 solids ranking authority gate."""
-
-    b5_accepted: bool
-    judge_ok: bool
-    pfr_roi_conversion: float
-    pbr_roi_conversion: float
-    fluidized_roi_conversion: float
-    pfr_conversion_ok: bool
-    pbr_conversion_ok: bool
-    fluidized_conversion_ok: bool
-    b66_criteria_ok: bool
-    b67_joint_roi_ok: bool
 

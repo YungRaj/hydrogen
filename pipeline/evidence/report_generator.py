@@ -254,8 +254,13 @@ def _reactor_section(p2: dict, reactor: list) -> list:
         or {}
     )
     if scorecard.get('headline'):
-        judge = (scorecard.get('judge_catalyst') or scorecard.get('headline_catalyst')
-                 or 'best non-H-parked solids')
+        judge = (
+            scorecard.get('judge_catalyst_literature_name')
+            or scorecard.get('headline_catalyst_literature_name')
+            or scorecard.get('judge_catalyst')
+            or scorecard.get('headline_catalyst')
+            or 'best non-H-parked solids'
+        )
         lines += [
             f"Solids judged on **{judge}** (single-pass X, `a`, WHSV, ΔP). "
             "MMBCR X_eq and 0.01 eV H-parked cats are not ranks.\n",
@@ -263,13 +268,18 @@ def _reactor_section(p2: dict, reactor: list) -> list:
             "|---------|----------|-------|---------------|---------|------------|----------|",
         ]
         for rt, row in scorecard['headline'].items():
-            lines.append(f"| {rt} | {row.get('catalyst_name', '?')} | {row.get('T_K', '?')} | "
+            cat_label = row.get('literature_catalyst_name') or row.get('catalyst_name', '?')
+            lines.append(f"| {rt} | {cat_label} | {row.get('T_K', '?')} | "
                          + _solids_columns(row, row.get('single_pass_CH4_conversion')))
         lines.append("")
         if scorecard.get('candidate_champion_conversion') is not None:
+            champ_label = (
+                scorecard.get('candidate_champion_literature_name')
+                or scorecard.get('candidate_champion_catalyst', '?')
+            )
             lines.append(
                 f"Top candidate solids X = {_report_number(scorecard['candidate_champion_conversion'], '.2%')} "
-                f"on **{scorecard.get('candidate_champion_catalyst', '?')}** "
+                f"on **{champ_label}** "
                 f"({scorecard.get('candidate_champion_reactor', '?')} @ "
                 f"{scorecard.get('candidate_champion_T_K', '?')} K)\n"
             )
@@ -277,10 +287,10 @@ def _reactor_section(p2: dict, reactor: list) -> list:
             lines.append(
                 f"MMBCR max X = {_report_number(scorecard['mmbcr_max_conversion'], '.1%')} "
                 f"({scorecard.get('mmbcr_note', 'not a solids rank')})\n")
-    pbr_diag = scorecard.get('pbr_b4_diagnostics')
+    pbr_diag = scorecard.get('pbr_ergun_residence_diagnostics')
     if isinstance(pbr_diag, dict) and int(pbr_diag.get('n_completed') or 0) > 0:
         lines += [
-            "### Packed-Bed (PBR), B4 Residence-Time, & B2 Cycle Diagnostics\n",
+            "### Packed-Bed (PBR), Ergun Pilot Residence-Time, & Regenerated-Cycle Diagnostics\n",
             f"- **Completed solids runs**: {pbr_diag.get('n_completed', 0)} "
             f"(PBR: {pbr_diag.get('n_pbr_records', 0)})",
             f"- **Mean PBR overall effectiveness ($\\Omega$)**: "
@@ -289,10 +299,10 @@ def _reactor_section(p2: dict, reactor: list) -> list:
             f"{_report_number(pbr_diag.get('mean_pbr_thiele_modulus'), '.3f')}",
             f"- **Ergun $\\Delta P$ compliance**: "
             f"{pbr_diag.get('n_ergun_ok', 0)}/{pbr_diag.get('n_ergun_checked', 0)}",
-            f"- **B4 pilot residence-time band ($\\tau \\in [0.1, 10]\\text{{ s}}$)**: "
-            f"{pbr_diag.get('n_b4_within_pilot_band', 0)}/{pbr_diag.get('n_b4_checked', 0)}",
-            f"- **Mean B2 cycle minus single-pass conversion ($\\Delta X$)**: "
-            f"{_report_number(pbr_diag.get('mean_b2_cycle_minus_single_pass_X'), '+.2%')}",
+            f"- **Ergun & Froment pilot residence-time band ($\\tau \\in [0.1, 10]\\text{{ s}}$)**: "
+            f"{pbr_diag.get('n_within_pilot_residence_band', 0)}/{pbr_diag.get('n_pilot_residence_checked', 0)}",
+            f"- **Mean Muradov regenerated-cycle minus single-pass conversion ($\\Delta X$)**: "
+            f"{_report_number(pbr_diag.get('mean_regenerated_cycle_minus_single_pass_X'), '+.2%')}",
             "",
         ]
 

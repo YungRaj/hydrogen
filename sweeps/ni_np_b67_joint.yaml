@@ -1,14 +1,14 @@
-name: ni_np_b67_joint
+name: ni111_sio2_ermakova_takenaka_joint
 description: >
-  B6-7 joint-band cube: A_gamma × theta* × s0 at 923.15 and 973.15 K
+  Ermakova (2000) / Takenaka (2003) joint-band cube: A_gamma × theta* × s0 at 923.15 and 973.15 K
   (the 650–700 °C filament ROI). Same literature Ni(111)/SiO2 cell as
-  B6-5/B6-6. Exhausts the (A_γ, θ*, s0) combinations that the B6-6 star
-  and 2-D did not cross. A hit is one scorable row in both the Ermakova
+  ni111_sio2_alves_xu_closure. Exhausts the (A_γ, θ*, s0) combinations across the star
+  and 2-D sweeps. A hit is one scorable row in both the Ermakova
   8–10 gC/(gNi·h) band and the 4–50 h TOS band. No new physics. PFR and
   circulating Fluidized, both cells, regen 0 and 3. Scored by
-  pipeline/process/b67_joint_band.py.
+  pipeline/reactors/sweeps/joint_band.py.
 catalyst:
-  name: ni_np_lit
+  name: ni111_sio2_bengaard2002_ref
   material_class: SolidCatalyst
   genome: "('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)"
   kinetics:
@@ -30,7 +30,7 @@ sweep:
     carbon_transfer_prefactor_1_s:
       [1.0e6, 1.0e7, 1.0e8, 3.0e8, 1.0e9, 3.0e9, 1.0e10, 1.0e11, 1.0e12, 1.0e13]
     encapsulation_crossover_coverage: [0.2, 0.35, 0.5, 0.65, 0.8]
-    ch4_sticking_coefficient: [0.001, 0.003, 0.01, 0.03, 0.1]
+    ch4_sticking_coefficient: [0.00018, 0.00045, 0.00075, 0.001, 0.003, 0.01, 0.03, 0.1]
   policy:
     max_regen_cycles: [0, 3]
 conditions:

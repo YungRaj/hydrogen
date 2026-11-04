@@ -2430,7 +2430,7 @@ def test_off_site_carbon_gated_to_nanoparticle_metals():
 
 def test_surface_thermo_references_and_tst_prefactors():
     """Writer puts adsorption energies on Cantera's absolute scale and uses
-    TST prefactors for bimolecular surface steps (B6-5 corrections)."""
+    TST prefactors for bimolecular surface steps (Baker 1972 / Helveg 2004 / Abild-Pedersen 2006)."""
     import json
     from pipeline.reactors.mechanisms import (
         EV_TO_J_MOL,
@@ -2528,13 +2528,13 @@ def test_mechanical_regen_never_clears_encapsulating_carbon():
     assert cov['C_s'] == 0.0 and cov['H_s'] == 0.0
 
 
-def test_yaml_sweep_kinetics_keys_for_b6():
+def test_yaml_sweep_kinetics_keys_for_baker_helveg_off_site_carbon():
     import tempfile
     from pathlib import Path
     from pipeline.reactors.sweeps.runner import parse_sweep, _load_kinetics_row
 
     body = """
-name: b6_keys
+name: baker_helveg_keys
 catalyst:
   name: ni_keys
   material_class: SolidCatalyst
@@ -2560,7 +2560,7 @@ cells:
     metal_dispersion: 0.3
 """
     with tempfile.TemporaryDirectory() as tmp:
-        p = Path(tmp) / 'b6.yaml'
+        p = Path(tmp) / 'baker_helveg.yaml'
         p.write_text(body, encoding='utf-8')
         job = parse_sweep(p)
         assert job.kinetics['carbon_transfer_prefactor_1_s'] == 1e9
@@ -2590,7 +2590,7 @@ def test_yaml_sweep_block_cartesian_and_rejects():
     from pipeline.reactors.sweeps.runner import grid_points, parse_sweep
 
     body = """
-name: b66_grid
+name: baker_helveg_grid
 catalyst:
   name: ni_grid
   material_class: SolidCatalyst
@@ -2737,7 +2737,7 @@ def test_encapsulation_lifetime_on_pfr_and_fluidized():
 
 
 def test_circulating_removal_updates_integrated_state_and_conserves_carbon():
-    """B2 outfeed must change the ReactorSurface, not only Interface.coverages."""
+    """Muradov (2005) solids outfeed must change the ReactorSurface, not only Interface.coverages."""
     try:
         import cantera  # noqa: F401
     except ImportError:
@@ -2779,7 +2779,7 @@ def test_circulating_removal_updates_integrated_state_and_conserves_carbon():
     assert high['CH4_conversion'] > mid['CH4_conversion'] + 1e-6
 
 
-def test_b66_criteria_on_synthetic_payload():
+def test_baker_helveg_criteria_on_synthetic_payload():
     from pipeline.reactors.sweeps.carbon_criteria import (
         d_lnX_d_Eact,
         evaluate_criteria,
@@ -2851,11 +2851,11 @@ def test_b66_criteria_on_synthetic_payload():
     empty = {'records': []}
     summary = evaluate_criteria(
         {
-            'ni_np_b66_eact': {'records': eact},
-            'ni_np_b66_agamma': {'records': agamma},
-            'ni_np_b66_theta': empty,
-            'ni_np_b66_sticking': empty,
-            'ni_np_b66_agamma_theta': empty,
+            'ni111_sio2_baker_helveg_eact': {'records': eact},
+            'ni111_sio2_baker_helveg_agamma': {'records': agamma},
+            'ni111_sio2_baker_helveg_theta': empty,
+            'ni111_sio2_baker_helveg_sticking': empty,
+            'ni111_sio2_baker_helveg_agamma_theta': empty,
         }
     )
     crit = summary['criteria']
@@ -2876,7 +2876,7 @@ def test_b66_criteria_on_synthetic_payload():
     assert crit['lifetime']['example']['T_K'] == 923.15
 
 
-def test_b67_joint_band_declares_no_simultaneous_hit():
+def test_ermakova_takenaka_joint_band_declares_no_simultaneous_hit():
     from pipeline.reactors.sweeps.joint_band import search_joint_band
 
     def rec(**kwargs):
@@ -2915,7 +2915,7 @@ def test_b67_joint_band_declares_no_simultaneous_hit():
     )
     summary = search_joint_band(
         {
-            'ni_np_b66_agamma': {'records': [yield_only, life_only, overshoot]},
+            'ni111_sio2_baker_helveg_agamma': {'records': [yield_only, life_only, overshoot]},
         }
     )
     assert summary['declaration'] == 'no_simultaneous_hit_in_filament_ROI'
@@ -3003,10 +3003,10 @@ def test_scorecard_excludes_equilibrium_overshoot_from_every_rank():
 
     card = build_solids_scorecard(
         [
-            row('ni_np_lit', 1300.0, 0.9997, overshoot=True),
-            row('ni_np_lit', 1300.0, 0.0065),
+            row('ni111_sio2_bengaard2002_ref', 1300.0, 0.9997, overshoot=True),
+            row('ni111_sio2_bengaard2002_ref', 1300.0, 0.0065),
         ],
-        judge_catalyst='ni_np_lit',
+        judge_catalyst='ni111_sio2_bengaard2002_ref',
     )
     assert abs(card['headline']['PFR']['single_pass_CH4_conversion'] - 0.0065) < 1e-12
     assert card['headline']['PFR']['exceeds_equilibrium'] is False
@@ -3027,7 +3027,7 @@ def test_usable_result_baseline_shared_across_consumers():
     def solids(X, **kwargs):
         row = {
             'reactor_type': 'PFR',
-            'catalyst_name': 'ni_np_lit',
+            'catalyst_name': 'ni111_sio2_bengaard2002_ref',
             'T_K': 1300.0,
             'CH4_conversion': X,
             'single_pass_CH4_conversion': X,
@@ -3068,7 +3068,7 @@ def test_usable_result_baseline_shared_across_consumers():
     assert estimate['estimates']['base']['h2_cost_usd_kg'] > 0
 
     card = build_solids_scorecard(
-        [overshoot, carbon_fail, ok], judge_catalyst='ni_np_lit'
+        [overshoot, carbon_fail, ok], judge_catalyst='ni111_sio2_bengaard2002_ref'
     )
     assert abs(card['headline']['PFR']['single_pass_CH4_conversion'] - 0.20) < 1e-12
     assert card['ranking_authority'] is False
@@ -3101,10 +3101,12 @@ def test_ni_literature_screening_row_is_not_fairchem():
     frame = pd.read_csv(path)
     assert len(frame) == 1
     row = frame.iloc[0]
-    assert str(row['candidate_id']) == 'ni_np_lit'
+    assert str(row['candidate_id']) == 'ni111_sio2_bengaard2002_ref'
     assert bool(row['fairchem_evaluated']) is False
     assert 'literature' in str(row['screening_protocol'])
-    kinetics = CandidateKinetics.from_screening_row(row, candidate_id='ni_np_lit')
+    kinetics = CandidateKinetics.from_screening_row(
+        row, candidate_id='ni111_sio2_bengaard2002_ref'
+    )
     assert abs(kinetics.methane_activation_eV - 1.00) < 1e-12
     assert abs(kinetics.h_adsorption_eV - (-0.50)) < 1e-12
     assert abs(kinetics.ch3_adsorption_eV - (-1.95)) < 1e-12
@@ -3240,8 +3242,8 @@ def test_yaml_sweep_parses_headline_example():
     from pipeline.reactors.sweeps.runner import parse_sweep
 
     job = parse_sweep(BASE_DIR / 'sweeps' / 'headline_cat9_1300K.yaml')
-    assert job.name == 'headline_cat9_1300K'
-    assert job.catalyst_name == 'cat_9'
+    assert job.name == 'headline_rh1_ceo2_akri2019_sac_ref_1300K'
+    assert job.catalyst_name == 'rh1_ceo2_akri2019_sac_ref'
     assert job.screening_index == 9
     assert job.temperatures_K == [1300.0]
     assert job.reactor_types == ['PFR', 'Fluidized', 'MMBCR']
@@ -3300,7 +3302,7 @@ cells:
         else:
             raise AssertionError('loading > 1 must fail closed')
         # Kinetics-only sweeps must declare the class: reactor applicability
-        # and the B6 gate depend on it, and upstream refuses a reactor
+        # and the Baker (1972) & Helveg (2004) off-site carbon gate depend on it, and upstream refuses a reactor
         # without one.
         no_class = spec.replace('  material_class: SolidCatalyst\n', '')
         no_class = no_class.replace('metal_loading: 1.5', 'metal_loading: 0.5')
@@ -3325,7 +3327,7 @@ def test_yaml_sweep_splits_reactors_by_pathway_mode():
     }
 
 
-def test_solids_scorecard_judges_cat_9_not_h_parked():
+def test_solids_scorecard_judges_rh1_ceo2_akri2019_sac_ref_not_h_parked():
     from pipeline.reactors.scorecard import build_solids_scorecard, is_h_parked
 
     h_parked = {
@@ -3344,7 +3346,7 @@ def test_solids_scorecard_judges_cat_9_not_h_parked():
     }
     judge = {
         'reactor_type': 'PFR',
-        'catalyst_name': 'cat_9',
+        'catalyst_name': 'rh1_ceo2_akri2019_sac_ref',
         'T_K': 1300.0,
         'CH4_conversion': 0.0102,
         'single_pass_CH4_conversion': 0.0102,
@@ -3367,7 +3369,7 @@ def test_solids_scorecard_judges_cat_9_not_h_parked():
     )
     melt = {
         'reactor_type': 'MMBCR',
-        'catalyst_name': 'cat_9',
+        'catalyst_name': 'rh1_ceo2_akri2019_sac_ref',
         'T_K': 1300.0,
         'CH4_conversion': 0.985,
         'catalyst_E_act_eV': 0.43,
@@ -3376,10 +3378,10 @@ def test_solids_scorecard_judges_cat_9_not_h_parked():
     assert is_h_parked(h_parked)
     assert not is_h_parked(judge)
     card = build_solids_scorecard(
-        [h_parked, judge, fluid, melt], judge_catalyst='cat_9'
+        [h_parked, judge, fluid, melt], judge_catalyst='rh1_ceo2_akri2019_sac_ref'
     )
-    assert card['judge_catalyst'] == 'cat_9'
-    assert card['judge_catalyst_requested'] == 'cat_9'
+    assert card['judge_catalyst'] == 'rh1_ceo2_akri2019_sac_ref'
+    assert card['judge_catalyst_requested'] == 'rh1_ceo2_akri2019_sac_ref'
     assert abs(card['headline_solids_conversion'] - 0.0102) < 1e-9
     assert card['headline']['PFR']['WHSV_h-1'] == 900.0
     assert card['headline']['Fluidized']['single_pass_CH4_conversion'] == 0.0122
@@ -3510,13 +3512,13 @@ def test_site_density_locked_to_monolayer():
     try:
         write_full_mechanism('test_gamma_lock', E_act_CH4=0.9, site_density=1e-6)
     except ValueError as exc:
-        assert 'B1 locks' in str(exc)
+        assert 'Deutschmann (2000) monolayer gate locks' in str(exc)
     else:
         raise AssertionError('raised site_density must fail closed')
     try:
         _validate_carbon_policy(ReactorConfig(site_density_mol_cm2=1e-6))
     except ValueError as exc:
-        assert 'B1 locks' in str(exc)
+        assert 'Deutschmann (2000) monolayer gate locks' in str(exc)
     else:
         raise AssertionError('ReactorConfig site_density override must fail closed')
 
@@ -3925,7 +3927,10 @@ if __name__ == '__main__':
         "Mechanical regen never clears C_encap_s",
         test_mechanical_regen_never_clears_encapsulating_carbon,
     )
-    test("YAML sweep B6 kinetics keys", test_yaml_sweep_kinetics_keys_for_b6)
+    test(
+        "YAML sweep Baker & Helveg kinetics keys",
+        test_yaml_sweep_kinetics_keys_for_baker_helveg_off_site_carbon,
+    )
     test(
         "YAML sweep block cartesian and rejects",
         test_yaml_sweep_block_cartesian_and_rejects,
@@ -3943,10 +3948,13 @@ if __name__ == '__main__':
         "Circulating removal updates ReactorSurface and conserves C",
         test_circulating_removal_updates_integrated_state_and_conserves_carbon,
     )
-    test("B6-6 criteria on synthetic payload", test_b66_criteria_on_synthetic_payload)
     test(
-        "B6-7 joint band declares no simultaneous hit",
-        test_b67_joint_band_declares_no_simultaneous_hit,
+        "Baker & Helveg criteria on synthetic payload",
+        test_baker_helveg_criteria_on_synthetic_payload,
+    )
+    test(
+        "Ermakova & Takenaka joint band declares no simultaneous hit",
+        test_ermakova_takenaka_joint_band_declares_no_simultaneous_hit,
     )
     test(
         "Ni judge headline is filament ROI not 1300 K",
@@ -3977,7 +3985,7 @@ if __name__ == '__main__':
     )
     test(
         "Solids scorecard takes named judge as argument",
-        test_solids_scorecard_judges_cat_9_not_h_parked,
+        test_solids_scorecard_judges_rh1_ceo2_akri2019_sac_ref_not_h_parked,
     )
     test("Solids run requires loaded surface", test_solids_run_requires_loaded_surface)
     test(

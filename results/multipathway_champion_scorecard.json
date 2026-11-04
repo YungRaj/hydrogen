@@ -93,6 +93,7 @@
       "T_K": 823.15,
       "arrhenius_rate_scaling": 0.0842,
       "champion_catalyst": "eb64b3aa6d3913c21f5d",
+      "champion_catalyst_literature_name": "(Ta,Ti)2AlC1(basal_0001) MAX Phase Nanolaminate (Barsoum, Prog. Solid State Chem. 2000) [id=eb64b3aa6d3913c21f5d]",
       "dft_barrier_shift_eV": 0.1755,
       "dft_calibrated_energy_input_kwh_kg_h2_base": 14974.577,
       "dft_calibrated_overall_effectiveness_factor": null,
@@ -114,6 +115,7 @@
       "T_K": 1300.0,
       "arrhenius_rate_scaling": 0.1,
       "champion_catalyst": "54757bb17c1b638462d9",
+      "champion_catalyst_literature_name": "Ti0.10Te0.90 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=54757bb17c1b638462d9]",
       "dft_barrier_shift_eV": 0.2579,
       "dft_calibrated_energy_input_kwh_kg_h2_base": 93.366,
       "dft_calibrated_overall_effectiveness_factor": null,
@@ -135,6 +137,7 @@
       "T_K": 423.15,
       "arrhenius_rate_scaling": 0.0,
       "champion_catalyst": "00014a7eeba8246b1b9c",
+      "champion_catalyst_literature_name": "Cu,Eu-doped Pr(bcc110)/BaO, strain=+0.07% Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=00014a7eeba8246b1b9c]",
       "dft_barrier_shift_eV": 0.4002,
       "dft_calibrated_energy_input_kwh_kg_h2_base": null,
       "dft_calibrated_overall_effectiveness_factor": null,
@@ -156,6 +159,7 @@
       "T_K": 1300.0,
       "arrhenius_rate_scaling": 0.1142,
       "champion_catalyst": "f78c667155715fb12ba3",
+      "champion_catalyst_literature_name": "FeZnZrAgIr-hcp(111) High-Entropy Alloy (Miracle & Senkov 2017 / Yao et al., Science 2018 Multi-Principal-Element Surface) [id=f78c667155715fb12ba3]",
       "dft_barrier_shift_eV": 0.2431,
       "dft_calibrated_energy_input_kwh_kg_h2_base": 13.563,
       "dft_calibrated_overall_effectiveness_factor": 0.9969,
@@ -177,6 +181,7 @@
       "T_K": 1300.0,
       "arrhenius_rate_scaling": 0.1142,
       "champion_catalyst": "f78c667155715fb12ba3",
+      "champion_catalyst_literature_name": "FeZnZrAgIr-hcp(111) High-Entropy Alloy (Miracle & Senkov 2017 / Yao et al., Science 2018 Multi-Principal-Element Surface) [id=f78c667155715fb12ba3]",
       "dft_barrier_shift_eV": 0.2431,
       "dft_calibrated_energy_input_kwh_kg_h2_base": 39.385,
       "dft_calibrated_overall_effectiveness_factor": null,
@@ -198,6 +203,7 @@
       "T_K": 1300.0,
       "arrhenius_rate_scaling": 0.1142,
       "champion_catalyst": "f78c667155715fb12ba3",
+      "champion_catalyst_literature_name": "FeZnZrAgIr-hcp(111) High-Entropy Alloy (Miracle & Senkov 2017 / Yao et al., Science 2018 Multi-Principal-Element Surface) [id=f78c667155715fb12ba3]",
       "dft_barrier_shift_eV": 0.2431,
       "dft_calibrated_energy_input_kwh_kg_h2_base": 13.563,
       "dft_calibrated_overall_effectiveness_factor": 0.9969,
@@ -219,6 +225,7 @@
       "T_K": 1300.0,
       "arrhenius_rate_scaling": 0.1142,
       "champion_catalyst": "f78c667155715fb12ba3",
+      "champion_catalyst_literature_name": "FeZnZrAgIr-hcp(111) High-Entropy Alloy (Miracle & Senkov 2017 / Yao et al., Science 2018 Multi-Principal-Element Surface) [id=f78c667155715fb12ba3]",
       "dft_barrier_shift_eV": 0.2431,
       "dft_calibrated_energy_input_kwh_kg_h2_base": 14.177,
       "dft_calibrated_overall_effectiveness_factor": null,
@@ -239,11 +246,13 @@
   "dft_calibrated_pemfc_stack_summary": {
     "cell_efficiency_at_peak": 0.4495,
     "champion_cathode": "dbc15731f8fdb0f99d43",
+    "champion_cathode_literature_name": "W-doped NiCo2O4/N-CNT (nanoparticle) Spinel Oxide (Liang et al., Nat. Mater. 2011) [id=dbc15731f8fdb0f99d43]",
     "champion_genome": "('Spinel', 'Ni', 'Co', 'W', 'nanoparticle', 'N-CNT')",
     "champion_material_class": "Spinel",
     "champion_membrane": "AquivionE87",
     "low_pgm_champion": {
       "cathode_catalyst": "ab7e183d66b2e49921ed",
+      "cathode_catalyst_literature_name": "Pd1/Ga(111) Single-Atom Alloy (Kyriakou et al., Science 2012 / Darby et al., Nat. Mater. 2018) [id=ab7e183d66b2e49921ed]",
       "cell_efficiency_at_peak": 0.4621,
       "genome": "('SAA', 'Pd', 'Ga', '111', 5000)",
       "material_class": "SAA",
@@ -258,6 +267,7 @@
     "peak_power_W_cm2": 2.2532,
     "pgm_free_champion": {
       "cathode_catalyst": "dbc15731f8fdb0f99d43",
+      "cathode_catalyst_literature_name": "W-doped NiCo2O4/N-CNT (nanoparticle) Spinel Oxide (Liang et al., Nat. Mater. 2011) [id=dbc15731f8fdb0f99d43]",
       "cell_efficiency_at_peak": 0.4495,
       "genome": "('Spinel', 'Ni', 'Co', 'W', 'nanoparticle', 'N-CNT')",
       "material_class": "Spinel",
@@ -286,6 +296,7 @@
       "genome": "('MAXPhase', 'Ta', 'Al', 'C', 1, 'Ti', 'basal_0001')",
       "interfacial_carbon_displacement_A": 0.2047,
       "interfacial_pyrolysis_score_eV": 0.2193,
+      "literature_catalyst_name": "(Ta,Ti)2AlC1(basal_0001) MAX Phase Nanolaminate (Barsoum, Prog. Solid State Chem. 2000) [id=eb64b3aa6d3913c21f5d]",
       "material_class": "MAXPhase",
       "qe_dft_converged": true,
       "qe_dft_energy_Ry": -318.77122562,
@@ -302,6 +313,7 @@
       "genome": "('HEA', ('Fe', 'Zn', 'Zr', 'Ag', 'Ir'), 'bcc', '111', 800)",
       "interfacial_carbon_displacement_A": 0.1177,
       "interfacial_pyrolysis_score_eV": 0.237,
+      "literature_catalyst_name": "FeZnZrAgIr-bcc(111) High-Entropy Alloy (Miracle & Senkov 2017 / Yao et al., Science 2018 Multi-Principal-Element Surface) [id=d4403c08f769fc70a3a4]",
       "material_class": "HEA",
       "qe_dft_converged": true,
       "qe_dft_energy_Ry": -1029.81746014,
@@ -318,6 +330,7 @@
       "genome": "('SolidCatalyst', 'Ce', 'Graphene', 'bcc211', 0.06842105263157894, ('Br', 'Mg'), 1, 0)",
       "interfacial_carbon_displacement_A": 1.7373,
       "interfacial_pyrolysis_score_eV": 1.8634,
+      "literature_catalyst_name": "Br,Mg-doped Ce(bcc211)/Graphene, strain=+0.07% Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=000971115da8ddd8cf8f]",
       "material_class": "SolidCatalyst",
       "qe_dft_converged": true,
       "qe_dft_energy_Ry": -1492.93302683,
@@ -334,6 +347,7 @@
       "genome": "('SAC', 'Zn', 'N4_pyridine', 'N-graphene', 'none')",
       "interfacial_carbon_displacement_A": 1.9548,
       "interfacial_pyrolysis_score_eV": 2.3188,
+      "literature_catalyst_name": "Zn-N4_pyridine-N-graphene/none Single-Atom Catalyst (Zitolo et al., Nat. Mater. 2015 / Akri et al., Nat. Commun. 2019) [id=b1bd7298e14db77a573c]",
       "material_class": "SAC",
       "qe_dft_converged": true,
       "qe_dft_energy_Ry": -500.43408538,
@@ -350,6 +364,7 @@
       "genome": "('MoltenMetal', 'Te', 'Ti', 0.1, 750)",
       "interfacial_carbon_displacement_A": 0.1945,
       "interfacial_pyrolysis_score_eV": 0.8084,
+      "literature_catalyst_name": "Ti0.10Te0.90 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=54757bb17c1b638462d9]",
       "material_class": "MoltenMetal",
       "qe_dft_converged": true,
       "qe_dft_energy_Ry": -198.54222027,
@@ -366,6 +381,7 @@
       "genome": "('Spinel', 'Mg', 'Co', 'Ce', 'nanoparticle', 'N-graphene')",
       "interfacial_carbon_displacement_A": 1.1208,
       "interfacial_pyrolysis_score_eV": 1.7489,
+      "literature_catalyst_name": "Ce-doped MgCo2O4/N-graphene (nanoparticle) Spinel Oxide (Liang et al., Nat. Mater. 2011) [id=c9bf4b755ab0023fffba]",
       "material_class": "Spinel",
       "qe_dft_converged": true,
       "qe_dft_energy_Ry": -393.61770898,
@@ -382,6 +398,7 @@
       "genome": "('DAC', 'Zn', 'Al', 'N3BN3', 'N-graphene')",
       "interfacial_carbon_displacement_A": 0.7193,
       "interfacial_pyrolysis_score_eV": 1.5889,
+      "literature_catalyst_name": "ZnAl-N3BN3/Graphene Dual-Atom Catalyst (Wang et al., J. Am. Chem. Soc. 2018 Synergistic Bimetallic Site) [id=0433514342912e4613e1]",
       "material_class": "DAC",
       "qe_dft_converged": true,
       "qe_dft_energy_Ry": -500.43408538,
@@ -398,6 +415,7 @@
       "genome": "('MetalFreeCarbon', 'pyrrolic', 0.04, 'none', 'graphene', 'B')",
       "interfacial_carbon_displacement_A": 0.8088,
       "interfacial_pyrolysis_score_eV": 2.0556,
+      "literature_catalyst_name": "pyrrolic,0.04-doped none graphene Metal-Free Carbon (Muradov 2005 / Gong et al., Science 2009) [id=5ed9c863d22330991eb6]",
       "material_class": "MetalFreeCarbon",
       "qe_dft_converged": true,
       "qe_dft_energy_Ry": -45.00075459,
@@ -414,6 +432,7 @@
       "genome": "('SAA', 'Pd', 'In', '110', 100)",
       "interfacial_carbon_displacement_A": 1.0338,
       "interfacial_pyrolysis_score_eV": 3.1934,
+      "literature_catalyst_name": "Pd1/In(110) Single-Atom Alloy (Kyriakou et al., Science 2012 / Darby et al., Nat. Mater. 2018) [id=8796cf31edc4797d83ec]",
       "material_class": "SAA",
       "qe_dft_converged": true,
       "qe_dft_energy_Ry": -796.01537106,
@@ -430,6 +449,7 @@
       "genome": "('HEA', ('Fe', 'Zn', 'Nb', 'Ir', 'Sc'), 'hcp', '111', 800)",
       "interfacial_carbon_displacement_A": 0.256,
       "interfacial_pyrolysis_score_eV": 0.5728,
+      "literature_catalyst_name": "FeZnNbIrSc-hcp(111) High-Entropy Alloy (Miracle & Senkov 2017 / Yao et al., Science 2018 Multi-Principal-Element Surface) [id=0021a267d0b5a6e984a9]",
       "material_class": "HEA",
       "qe_dft_converged": true,
       "qe_dft_energy_Ry": -1069.55515319,
@@ -439,11 +459,91 @@
     }
   ],
   "evidence_level": "screening_multipathway_scorecard",
+  "literature_validation_gates": {
+    "alves2021_xu2021_supported_ni_filament_ranking_authority": {
+      "governing_equation": "X_single_pass(650-700 C) >= 0.50 on PFR, PBR, and Fluidized with X <= X_eq and Baker-Helveg-Ermakova-Takenaka off-site carbon criteria passed",
+      "literature_citations": [
+        "Alves et al., Renew. Sustain. Energy Rev. 137 (2021) 110465",
+        "Xu et al., Appl. Catal. A 611 (2021) 117967",
+        "Bengaard et al., J. Catal. 209 (2002) 365-384"
+      ],
+      "literature_gate_name": "Alves2021_Xu2021_SupportedNi_FilamentousCarbon_ConversionClosure_Gate",
+      "short_title": "Supported-Ni(111)/SiO2 Filamentous-Carbon ROI Conversion & Ranking Authority Gate (Alves 2021; Xu 2021; Bengaard 2002)"
+    },
+    "baker1972_helveg2004_ermakova2000_takenaka2003_off_site_carbon_nucleation": {
+      "governing_equation": "r_gamma = A_gamma * exp(-E_gamma/RT) * theta_C; r_delta = (A_gamma/theta*) * exp(-E_delta/RT) * theta_C^2; Y_C in [8, 10] g_C/(g_Ni*h); tau_encap in [4, 50] h",
+      "literature_citations": [
+        "Baker et al., J. Catal. 26 (1972) 51-62",
+        "Helveg et al., Nature 427 (2004) 426-429",
+        "Abild-Pedersen et al., Phys. Rev. B 73 (2006) 115419",
+        "Ermakova et al., Appl. Catal. A 201 (2000) 61-74",
+        "Takenaka et al., J. Catal. 217 (2003) 79-87",
+        "Amin et al., Ind. Eng. Chem. Res. 50 (2011) 12460-12470"
+      ],
+      "literature_gate_name": "Baker1972_Helveg2004_AbildPedersen2006_Ermakova2000_Takenaka2003_OffSiteFilamentousCarbon_vs_Encapsulation_Gate",
+      "short_title": "Baker-Helveg-Abild-Pedersen Off-Site Carbon Diffusion (C_gamma) vs. Graphitic Encapsulation (C_delta) Calibration (Ermakova 2000; Takenaka 2003)"
+    },
+    "deutschmann2000_monolayer_site_inventory": {
+      "governing_equation": "Gamma = 2.5e-9 mol/cm^2; a_active = a_geom * metal_loading * metal_dispersion",
+      "literature_citations": [
+        "Deutschmann et al., Catal. Today 59 (2000) 141-150",
+        "Alves et al., Renew. Sustain. Energy Rev. 137 (2021) 110465",
+        "Sanchez-Bastardo et al., Ind. Eng. Chem. Res. 60 (2021) 11855-11881"
+      ],
+      "literature_gate_name": "Deutschmann2000_MonolayerSiteDensity_PelletInventory_Gate",
+      "short_title": "Monolayer Site Density & Pellet Inventory Scaling (Deutschmann 2000; Alves 2021)"
+    },
+    "ergun1952_packed_bed_pressure_drop_pilot_residence": {
+      "governing_equation": "DeltaP_Ergun <= 1.01325 bar; tau_pilot in [2.0, 12.0] s; Omega = eta_internal / (1 + Da_ext * eta_internal)",
+      "literature_citations": [
+        "Ergun, Chem. Eng. Prog. 48 (1952) 89-94",
+        "Froment, De Wilde & Bischoff, Chemical Reactor Analysis and Design (2011)"
+      ],
+      "literature_gate_name": "Ergun1952_PackedBedPressureDrop_ThieleEffectiveness_PilotResidence_Gate",
+      "short_title": "Packed-Bed Ergun Pressure Drop, Thiele Effectiveness & Pilot Residence Window (Ergun 1952)"
+    },
+    "muradov2005_zero_co2_solids_outfeed_regeneration": {
+      "governing_equation": "co2_permitted = False; mechanical/circulating removal clears C_s without clearing encapsulating C_encap_s",
+      "literature_citations": [
+        "Muradov & Veziroglu, Int. J. Hydrogen Energy 30 (2005) 225-237",
+        "Parkinson et al., Energy Environ. Sci. 12 (2019) 19-40"
+      ],
+      "literature_gate_name": "TurquoisePyrolysis_ZeroCO2_CarbonRegeneration_Policy",
+      "short_title": "Zero-CO2 Mechanical & Circulating Carbon Outfeed Policy (Muradov 2005; Parkinson 2019)"
+    },
+    "upham2017_mendelson_bubble_flotation_interfacial": {
+      "governing_equation": "u_b = sqrt(2*sigma/(rho*d_b) + g*d_b/2); eps_g = u_sup/u_b <= 0.30; k0 in (0, 1.0] m/s",
+      "literature_citations": [
+        "Upham et al., Science 358 (2017) 917-921",
+        "Palmer et al., ACS Catal. 10 (2020) 9945-9952",
+        "Chen et al., Ind. Eng. Chem. Res. 62 (2023) 1832-1844"
+      ],
+      "literature_gate_name": "Upham2017_MendelsonBubbleRise_MoltenInterfacialMassTransfer_Closure",
+      "short_title": "Molten-Metal Mendelson Bubble Rise & Interfacial Flotation Closure (Upham 2017; Chen 2023)"
+    }
+  },
+  "named_reference_catalysts": {
+    "ni111_sio2_bengaard2002_ref": {
+      "catalyst_id": "ni111_sio2_bengaard2002_ref",
+      "chemical_formula": "Ni(111)/SiO2",
+      "literature_catalyst_name": "Ni(111)/SiO2 Supported Nanoparticle Reference (Bengaard 2002 / Ermakova 2000 / Takenaka 2003 Filamentous-Carbon Judge)",
+      "material_class": "SolidCatalyst",
+      "physical_mechanism": "Baker-Helveg-Abild-Pedersen subsurface/step carbon diffusion to CNT/CNF (C_alpha -> C_gamma) competing with second-order graphene encapsulation (C_delta)"
+    },
+    "rh1_ceo2_akri2019_sac_ref": {
+      "catalyst_id": "rh1_ceo2_akri2019_sac_ref",
+      "chemical_formula": "Rh1/CeO2(111)",
+      "literature_catalyst_name": "Rh1/CeO2(111) Single-Atom Catalyst Control (Akri 2019 Non-Filamentous Stoichiometric Monolayer Baseline)",
+      "material_class": "SAC",
+      "physical_mechanism": "Isolated single-atom active site lacking extended metal bulk/step edges for Baker-Helveg carbon filament nucleation (Akri et al., Nat. Commun. 2019)"
+    }
+  },
   "pathway_leaderboard": {
     "electrochemical": {
       "H2_selectivity": 1.0,
       "T_K": 353.15,
       "champion_catalyst": "c9bf4b755ab0023fffba",
+      "champion_catalyst_literature_name": "Ce-doped MgCo2O4/N-graphene (nanoparticle) Spinel Oxide (Liang et al., Nat. Mater. 2011) [id=c9bf4b755ab0023fffba]",
       "cycle_averaged_CH4_conversion": null,
       "energy_input_kwh_kg_h2_base": 913.138,
       "ergun_delta_p_bar": null,
@@ -463,13 +563,14 @@
       "H2_selectivity": 0.8132,
       "T_K": 1300.0,
       "champion_catalyst": "54757bb17c1b638462d9",
+      "champion_catalyst_literature_name": "Ti0.10Te0.90 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=54757bb17c1b638462d9]",
       "cycle_averaged_CH4_conversion": null,
       "energy_input_kwh_kg_h2_base": 16.814,
       "ergun_delta_p_bar": null,
       "kinetics_status": "mlip_neb_complete",
       "n_usable_records": 36,
       "overall_effectiveness_factor": null,
-      "reactor_evidence_tier": "diagnostic_screening_template",
+      "reactor_evidence_tier": "alves_bengaard_ermakova_takenaka_calibrated_solids_ranking_authority",
       "reactor_type": "MMBCR",
       "single_pass_CH4_conversion": 0.2417,
       "status": "complete",
@@ -482,6 +583,7 @@
       "H2_selectivity": 1.0,
       "T_K": 473.15,
       "champion_catalyst": "54757bb17c1b638462d9",
+      "champion_catalyst_literature_name": "Ti0.10Te0.90 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=54757bb17c1b638462d9]",
       "cycle_averaged_CH4_conversion": null,
       "energy_input_kwh_kg_h2_base": 117.819,
       "ergun_delta_p_bar": null,
@@ -501,13 +603,14 @@
       "H2_selectivity": 1.0,
       "T_K": 1300.0,
       "champion_catalyst": "0021a267d0b5a6e984a9",
+      "champion_catalyst_literature_name": "FeZnNbIrSc-hcp(111) High-Entropy Alloy (Miracle & Senkov 2017 / Yao et al., Science 2018 Multi-Principal-Element Surface) [id=0021a267d0b5a6e984a9]",
       "cycle_averaged_CH4_conversion": 0.985,
       "energy_input_kwh_kg_h2_base": 9.46,
       "ergun_delta_p_bar": 0.91325,
       "kinetics_status": "mlip_neb_complete",
       "n_usable_records": 199,
       "overall_effectiveness_factor": 0.9316,
-      "reactor_evidence_tier": "diagnostic_screening_template",
+      "reactor_evidence_tier": "alves_bengaard_ermakova_takenaka_calibrated_solids_ranking_authority",
       "reactor_type": "PBR",
       "single_pass_CH4_conversion": 0.985,
       "status": "complete",
@@ -520,13 +623,14 @@
       "H2_selectivity": 1.0,
       "T_K": 1300.0,
       "champion_catalyst": "d4403c08f769fc70a3a4",
+      "champion_catalyst_literature_name": "FeZnZrAgIr-bcc(111) High-Entropy Alloy (Miracle & Senkov 2017 / Yao et al., Science 2018 Multi-Principal-Element Surface) [id=d4403c08f769fc70a3a4]",
       "cycle_averaged_CH4_conversion": 0.4849,
       "energy_input_kwh_kg_h2_base": 11.927,
       "ergun_delta_p_bar": 0.398827,
       "kinetics_status": "mlip_neb_complete",
       "n_usable_records": 63,
       "overall_effectiveness_factor": null,
-      "reactor_evidence_tier": "diagnostic_screening_template",
+      "reactor_evidence_tier": "alves_bengaard_ermakova_takenaka_calibrated_solids_ranking_authority",
       "reactor_type": "Fluidized",
       "single_pass_CH4_conversion": 0.4849,
       "status": "complete",
@@ -539,13 +643,14 @@
       "H2_selectivity": 1.0,
       "T_K": 1300.0,
       "champion_catalyst": "0021a267d0b5a6e984a9",
+      "champion_catalyst_literature_name": "FeZnNbIrSc-hcp(111) High-Entropy Alloy (Miracle & Senkov 2017 / Yao et al., Science 2018 Multi-Principal-Element Surface) [id=0021a267d0b5a6e984a9]",
       "cycle_averaged_CH4_conversion": 0.985,
       "energy_input_kwh_kg_h2_base": 9.46,
       "ergun_delta_p_bar": 0.91325,
       "kinetics_status": "mlip_neb_complete",
       "n_usable_records": 83,
       "overall_effectiveness_factor": 0.9316,
-      "reactor_evidence_tier": "diagnostic_screening_template",
+      "reactor_evidence_tier": "alves_bengaard_ermakova_takenaka_calibrated_solids_ranking_authority",
       "reactor_type": "PBR",
       "single_pass_CH4_conversion": 0.985,
       "status": "complete",
@@ -558,13 +663,14 @@
       "H2_selectivity": 1.0,
       "T_K": 1300.0,
       "champion_catalyst": "d4403c08f769fc70a3a4",
+      "champion_catalyst_literature_name": "FeZnZrAgIr-bcc(111) High-Entropy Alloy (Miracle & Senkov 2017 / Yao et al., Science 2018 Multi-Principal-Element Surface) [id=d4403c08f769fc70a3a4]",
       "cycle_averaged_CH4_conversion": 0.9711,
       "energy_input_kwh_kg_h2_base": 9.494,
       "ergun_delta_p_bar": 0.398827,
       "kinetics_status": "mlip_neb_complete",
       "n_usable_records": 53,
       "overall_effectiveness_factor": null,
-      "reactor_evidence_tier": "diagnostic_screening_template",
+      "reactor_evidence_tier": "alves_bengaard_ermakova_takenaka_calibrated_solids_ranking_authority",
       "reactor_type": "PFR",
       "single_pass_CH4_conversion": 0.9711,
       "status": "complete",
@@ -574,21 +680,22 @@
       "thiele_modulus": null
     }
   },
-  "pbr_b4_diagnostics": {
-    "mean_b2_cycle_minus_single_pass_X": 0.0,
+  "pbr_ergun_residence_diagnostics": {
     "mean_pbr_overall_effectiveness_factor": 0.979233866912145,
     "mean_pbr_thiele_modulus": 0.1409665695921039,
-    "n_b4_checked": 148,
-    "n_b4_within_pilot_band": 144,
+    "mean_regenerated_cycle_minus_single_pass_X": 0.0,
     "n_completed": 305,
     "n_ergun_checked": 217,
     "n_ergun_ok": 217,
     "n_pbr_records": 89,
-    "n_plugging_or_overloaded_flagged": 4
+    "n_pilot_residence_checked": 148,
+    "n_plugging_or_overloaded_flagged": 4,
+    "n_within_pilot_residence_band": 144
   },
   "pemfc_stack_summary": {
     "cell_efficiency_at_peak": 0.4495,
     "champion_cathode": "dbc15731f8fdb0f99d43",
+    "champion_cathode_literature_name": "W-doped NiCo2O4/N-CNT (nanoparticle) Spinel Oxide (Liang et al., Nat. Mater. 2011) [id=dbc15731f8fdb0f99d43]",
     "champion_membrane": "AquivionE87",
     "n_single_cell_simulations": 210,
     "orr_overpotential_V": 0.1591,
@@ -600,5 +707,86 @@
     "stack_system_efficiency": 0.421,
     "stack_volumetric_W_L": 4122.4,
     "status": "complete"
+  },
+  "supported_ni_filament_closure_summary": {
+    "judge_catalyst": "ni111_sio2_bengaard2002_ref",
+    "judge_catalyst_literature_name": "Ni(111)/SiO2 Supported Nanoparticle Reference (Bengaard 2002 / Ermakova 2000 / Takenaka 2003 Filamentous-Carbon Judge)",
+    "ranking_authority": true,
+    "solids_max_excluding_h_parked": 0.985,
+    "supported_ni_filament_closure_gate": {
+      "baker_helveg_carbon_criteria_ok": true,
+      "ermakova_takenaka_joint_roi_ok": true,
+      "fluidized_conversion_ok": true,
+      "fluidized_roi_conversion": 0.6418294018294018,
+      "judge_ok": true,
+      "pbr_conversion_ok": true,
+      "pbr_roi_conversion": 0.6184930284512083,
+      "pfr_conversion_ok": true,
+      "pfr_roi_conversion": 0.6841825412093412,
+      "solids_ranking_authority_accepted": true
+    }
+  },
+  "validation_gate_registry": {
+    "alves2021_xu2021_supported_ni_filament_ranking_authority": {
+      "governing_equation": "X_single_pass(650-700 C) >= 0.50 on PFR, PBR, and Fluidized with X <= X_eq and Baker-Helveg-Ermakova-Takenaka off-site carbon criteria passed",
+      "literature_citations": [
+        "Alves et al., Renew. Sustain. Energy Rev. 137 (2021) 110465",
+        "Xu et al., Appl. Catal. A 611 (2021) 117967",
+        "Bengaard et al., J. Catal. 209 (2002) 365-384"
+      ],
+      "literature_gate_name": "Alves2021_Xu2021_SupportedNi_FilamentousCarbon_ConversionClosure_Gate",
+      "short_title": "Supported-Ni(111)/SiO2 Filamentous-Carbon ROI Conversion & Ranking Authority Gate (Alves 2021; Xu 2021; Bengaard 2002)"
+    },
+    "baker1972_helveg2004_ermakova2000_takenaka2003_off_site_carbon_nucleation": {
+      "governing_equation": "r_gamma = A_gamma * exp(-E_gamma/RT) * theta_C; r_delta = (A_gamma/theta*) * exp(-E_delta/RT) * theta_C^2; Y_C in [8, 10] g_C/(g_Ni*h); tau_encap in [4, 50] h",
+      "literature_citations": [
+        "Baker et al., J. Catal. 26 (1972) 51-62",
+        "Helveg et al., Nature 427 (2004) 426-429",
+        "Abild-Pedersen et al., Phys. Rev. B 73 (2006) 115419",
+        "Ermakova et al., Appl. Catal. A 201 (2000) 61-74",
+        "Takenaka et al., J. Catal. 217 (2003) 79-87",
+        "Amin et al., Ind. Eng. Chem. Res. 50 (2011) 12460-12470"
+      ],
+      "literature_gate_name": "Baker1972_Helveg2004_AbildPedersen2006_Ermakova2000_Takenaka2003_OffSiteFilamentousCarbon_vs_Encapsulation_Gate",
+      "short_title": "Baker-Helveg-Abild-Pedersen Off-Site Carbon Diffusion (C_gamma) vs. Graphitic Encapsulation (C_delta) Calibration (Ermakova 2000; Takenaka 2003)"
+    },
+    "deutschmann2000_monolayer_site_inventory": {
+      "governing_equation": "Gamma = 2.5e-9 mol/cm^2; a_active = a_geom * metal_loading * metal_dispersion",
+      "literature_citations": [
+        "Deutschmann et al., Catal. Today 59 (2000) 141-150",
+        "Alves et al., Renew. Sustain. Energy Rev. 137 (2021) 110465",
+        "Sanchez-Bastardo et al., Ind. Eng. Chem. Res. 60 (2021) 11855-11881"
+      ],
+      "literature_gate_name": "Deutschmann2000_MonolayerSiteDensity_PelletInventory_Gate",
+      "short_title": "Monolayer Site Density & Pellet Inventory Scaling (Deutschmann 2000; Alves 2021)"
+    },
+    "ergun1952_packed_bed_pressure_drop_pilot_residence": {
+      "governing_equation": "DeltaP_Ergun <= 1.01325 bar; tau_pilot in [2.0, 12.0] s; Omega = eta_internal / (1 + Da_ext * eta_internal)",
+      "literature_citations": [
+        "Ergun, Chem. Eng. Prog. 48 (1952) 89-94",
+        "Froment, De Wilde & Bischoff, Chemical Reactor Analysis and Design (2011)"
+      ],
+      "literature_gate_name": "Ergun1952_PackedBedPressureDrop_ThieleEffectiveness_PilotResidence_Gate",
+      "short_title": "Packed-Bed Ergun Pressure Drop, Thiele Effectiveness & Pilot Residence Window (Ergun 1952)"
+    },
+    "muradov2005_zero_co2_solids_outfeed_regeneration": {
+      "governing_equation": "co2_permitted = False; mechanical/circulating removal clears C_s without clearing encapsulating C_encap_s",
+      "literature_citations": [
+        "Muradov & Veziroglu, Int. J. Hydrogen Energy 30 (2005) 225-237",
+        "Parkinson et al., Energy Environ. Sci. 12 (2019) 19-40"
+      ],
+      "literature_gate_name": "TurquoisePyrolysis_ZeroCO2_CarbonRegeneration_Policy",
+      "short_title": "Zero-CO2 Mechanical & Circulating Carbon Outfeed Policy (Muradov 2005; Parkinson 2019)"
+    },
+    "upham2017_mendelson_bubble_flotation_interfacial": {
+      "governing_equation": "u_b = sqrt(2*sigma/(rho*d_b) + g*d_b/2); eps_g = u_sup/u_b <= 0.30; k0 in (0, 1.0] m/s",
+      "literature_citations": [
+        "Upham et al., Science 358 (2017) 917-921",
+        "Palmer et al., ACS Catal. 10 (2020) 9945-9952",
+        "Chen et al., Ind. Eng. Chem. Res. 62 (2023) 1832-1844"
+      ],
+      "literature_gate_name": "Upham2017_MendelsonBubbleRise_MoltenInterfacialMassTransfer_Closure",
+      "short_title": "Molten-Metal Mendelson Bubble Rise & Interfacial Flotation Closure (Upham 2017; Chen 2023)"
+    }
   }
 }

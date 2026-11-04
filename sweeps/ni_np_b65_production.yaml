@@ -1,16 +1,16 @@
-# B6-5 production-policy companion: same Ni cell, turquoise production
+# Alves (2021) / Xu (2021) production-policy companion: same Ni cell, turquoise production
 # policy (3 mechanical regen cycles). Scorecard-comparable to every other
 # solids run; regen and Cgamma are confounded here by design, so use
-# ni_np_b65_closure.yaml for the B5/B6 closure question.
-name: ni_np_b65_production
+# ni111_sio2_alves_xu_closure for the Alves-Xu / Baker-Helveg closure question.
+name: ni111_sio2_alves_xu_production
 description: >
-  B6-5 production-policy run of the literature Ni(111)/SiO2 nanoparticle
-  cell: PFR, mechanical regen up to 3 cycles, circulating policy. Same
-  kinetics and cells as ni_np_b65_closure; differs only in max_regen_cycles.
-  Mechanical regen never clears encapsulating C_encap_s. PFR only.
+  Alves (2021) / Xu (2021) production-policy run of the literature Ni(111)/SiO2 nanoparticle
+  cell: PFR/PBR, mechanical regen up to 3 cycles, circulating policy. Same
+  kinetics and cells as ni111_sio2_alves_xu_closure; differs only in max_regen_cycles.
+  Mechanical regen never clears encapsulating C_encap_s.
 
 catalyst:
-  name: ni_np_lit
+  name: ni111_sio2_bengaard2002_ref
   material_class: SolidCatalyst
   genome: "('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)"
   kinetics:
@@ -29,8 +29,8 @@ catalyst:
       dE_C: screener mapping; Abild-Pedersen PRB 2006 73 115419 terrace vs graphene + 0.8 eV CH4-2H2
       carbon_transfer_eV: template default
       carbon_encapsulation_eV: template default
-      encapsulation_crossover_coverage: declared; swept in B6-6
-      carbon_transfer_prefactor_1_s: template default (single-hop TST); swept in B6-6
+      encapsulation_crossover_coverage: declared; swept in Takenaka theta_star calibration
+      carbon_transfer_prefactor_1_s: template default (single-hop TST); swept in Baker-Helveg A_gamma calibration
 
 conditions:
   temperatures_K: [773.15, 900, 923.15, 948.15, 973.15, 1100, 1300]

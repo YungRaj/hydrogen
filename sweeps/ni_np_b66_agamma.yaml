@@ -1,9 +1,9 @@
-name: ni_np_b66_agamma
+name: ni111_sio2_baker_helveg_agamma
 description: >
-  B6-6 star sweep, A_gamma axis. Literature Ni(111)/SiO2 nanoparticle cell
-  (ni_np_b65_closure) with E_act 1.0, theta* 0.5, s0 0.01 held at the B6-5
+  Baker (1972) / Helveg (2004) star sweep, A_gamma axis. Literature Ni(111)/SiO2 nanoparticle cell
+  (ni111_sio2_alves_xu_closure) with E_act 1.0, theta* 0.5, s0 0.01 held at the Bengaard (2002)
   base point. A_gamma every decade 1e6-1e13 plus half-decades 1e8-1e10
-  (the B6-5 encapsulation switch lives near 1e9). Full ADR band, PFR and
+  (the Baker-Helveg encapsulation switch lives near 1e9). Full ADR band, PFR and
   circulating Fluidized, both cells, zero regen and mechanical x3.
   Particle-size derivation is supported but not cartesian-swept: A_gamma =
   D0/L^2 with D0 = 2.48e-4 m^2/s (Lander 1952 C-in-Ni). On that scale
@@ -11,7 +11,7 @@ description: >
   carbon_transfer_particle_nm instead of carbon_transfer_prefactor_1_s
   (mutually exclusive) to write a derived point; do not list both.
 catalyst:
-  name: ni_np_lit
+  name: ni111_sio2_bengaard2002_ref
   material_class: SolidCatalyst
   genome: "('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)"
   kinetics:
@@ -30,8 +30,8 @@ catalyst:
       dE_C: screener mapping; Abild-Pedersen PRB 2006 73 115419 terrace vs graphene + 0.8 eV CH4-2H2
       carbon_transfer_eV: template default
       carbon_encapsulation_eV: template default
-      encapsulation_crossover_coverage: declared; B6-5 base point
-      ch4_sticking_coefficient: template default; B6-5 base point
+      encapsulation_crossover_coverage: declared; Bengaard 2002 base point
+      ch4_sticking_coefficient: template default; Bengaard 2002 base point
 sweep:
   kinetics:
     carbon_transfer_prefactor_1_s:

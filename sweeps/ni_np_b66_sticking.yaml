@@ -1,12 +1,12 @@
-name: ni_np_b66_sticking
+name: ni111_sio2_bengaard_sticking
 description: >
-  B6-6 star sweep, CH4 sticking-coefficient axis. Literature Ni(111)/SiO2
-  nanoparticle cell (ni_np_b65_closure) with E_act 1.0, A_gamma 1e13,
-  theta* 0.5 held at the B6-5 base point and s0 swept 1e-3-1e-1 (template
-  0.01 is the B6-5 arrival-rate residual). Full ADR band, PFR and
+  Bengaard (2002) star sweep, CH4 sticking-coefficient axis. Literature Ni(111)/SiO2
+  nanoparticle cell (ni111_sio2_alves_xu_closure) with E_act 1.0, A_gamma 1e13,
+  theta* 0.5 held at the Bengaard (2002) base point and s0 swept 1e-3-1e-1 (template
+  0.01 is the Bengaard 2002 arrival-rate residual). Full ADR band, PFR and
   circulating Fluidized, both cells, zero regen and mechanical x3.
 catalyst:
-  name: ni_np_lit
+  name: ni111_sio2_bengaard2002_ref
   material_class: SolidCatalyst
   genome: "('SolidCatalyst', 'Ni', 'SiO2', 'fcc111', 0.0, (), 1, 0)"
   kinetics:
@@ -25,8 +25,8 @@ catalyst:
       dE_C: screener mapping; Abild-Pedersen PRB 2006 73 115419 terrace vs graphene + 0.8 eV CH4-2H2
       carbon_transfer_eV: template default
       carbon_encapsulation_eV: template default
-      encapsulation_crossover_coverage: declared; B6-5 base point
-      carbon_transfer_prefactor_1_s: template default (single-hop TST); B6-5 base point
+      encapsulation_crossover_coverage: declared; Bengaard 2002 base point
+      carbon_transfer_prefactor_1_s: template default (single-hop TST); Bengaard 2002 base point
 sweep:
   kinetics:
     ch4_sticking_coefficient: [1.0e-3, 3.0e-3, 1.0e-2, 3.0e-2, 1.0e-1]

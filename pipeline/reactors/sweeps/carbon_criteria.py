@@ -1,9 +1,9 @@
-"""B6-6 acceptance criteria over the five Ni star / 2-D sweep run.json files.
+"""Baker-Helveg-Ermakova-Takenaka off-site carbon acceptance criteria over the five Ni(111)/SiO2 star / 2-D sweep run.json files.
 
-Reads results/sweeps/ni_np_b66_*/run.json and writes
-results/sweeps/b66_summary.json. Prints a short table.
+Reads results/sweeps/ni111_sio2_*/run.json and writes
+results/sweeps/ni111_sio2_off_site_carbon_criteria_summary.json. Prints a short table.
 
-The five gates are the user-approved set. 1300 K rows with X > X_eq are
+The five gates are the literature-calibrated set. 1300 K rows with X > X_eq are
 flagged and never counted as successes.
 """
 
@@ -12,17 +12,17 @@ from __future__ import annotations
 import json
 import math
 from pathlib import Path
-from typing import Any, Callable, Iterable, Optional
+from typing import Any, Callable, Iterable, Mapping, Optional
 
 from pipeline.utils import SWEEPS_DIR, repo_relative
 from pipeline.reactors.eligibility import is_usable_result
 
 SWEEP_NAMES = (
-    'ni_np_b66_eact',
-    'ni_np_b66_agamma',
-    'ni_np_b66_theta',
-    'ni_np_b66_sticking',
-    'ni_np_b66_agamma_theta',
+    'ni111_sio2_bengaard_eact',
+    'ni111_sio2_baker_helveg_agamma',
+    'ni111_sio2_takenaka_theta_star',
+    'ni111_sio2_bengaard_sticking',
+    'ni111_sio2_baker_helveg_agamma_theta_star',
 )
 
 # Literature base kinetics for supported Ni(111)/SiO2 nanoparticle catalyst:
@@ -37,7 +37,7 @@ BASE_KINETICS = {
     'ch4_sticking_coefficient': 0.01,
 }
 
-# B6-6 five-gate acceptance thresholds:
+# Five-gate Baker-Helveg / Ermakova / Takenaka off-site carbon acceptance thresholds:
 # 1. Flat gate: |d ln X / d E_act| >= 5.0 eV^-1 (~0.45 * e / (k_B T) at 923 K, ensuring kinetically sensitive regime)
 # 2. Linearity gate: |t_prod - t_large| / mean > 0.20 (20% relative difference in per-site turnovers across cells)
 # 3. Encapsulation onset: exit graphene coverage theta_encap >= 0.10 ML, or filament-to-encap ratio C_gamma / C_delta < 10
@@ -263,7 +263,7 @@ def first_where(
     return ranked[0] if ranked else None
 
 
-def _all_records(payloads: dict) -> list:
+def _all_records(payloads: Mapping[str, Any]) -> list:
     records = []
     for name, payload in payloads.items():
         for rec in payload.get('records') or []:
@@ -446,7 +446,7 @@ def _lifetime_and_yield_gates(records: list) -> tuple[dict, dict]:
     return lifetime, yield_crit
 
 
-def _sweep_counts(payloads: dict) -> dict:
+def _sweep_counts(payloads: Mapping[str, Any]) -> dict:
     counts = {}
     for name in SWEEP_NAMES:
         rows = (payloads.get(name) or {}).get('records') or []
@@ -460,11 +460,11 @@ def _sweep_counts(payloads: dict) -> dict:
     return counts
 
 
-from pipeline.reactors.scorecard import evaluate_pbr_and_b4_diagnostics
+from pipeline.reactors.scorecard import evaluate_pbr_and_ergun_residence_diagnostics
 
 
-def evaluate_criteria(payloads: dict) -> dict:
-    """Score the five B6-6 gates on already-loaded run payloads.
+def evaluate_criteria(payloads: Mapping[str, Any]) -> dict[str, Any]:
+    """Score the five Baker-Helveg-Ermakova-Takenaka off-site carbon gates on already-loaded run payloads.
 
     Args:
         payloads: Mapping from sweep name to loaded run.json payload dictionary.
@@ -493,14 +493,14 @@ def evaluate_criteria(payloads: dict) -> dict:
             'and are not scored as successes'
         ),
         'criteria': {c['name']: c for c in criteria},
-        'pbr_b4_diagnostics': evaluate_pbr_and_b4_diagnostics(records),
+        'pbr_ergun_residence_diagnostics': evaluate_pbr_and_ergun_residence_diagnostics(records),
         'n_pass': sum(1 for c in criteria if c['pass']),
         'n_fail': sum(1 for c in criteria if not c['pass']),
     }
 
 
 def load_runs(sweeps_dir: Optional[Path] = None) -> dict:
-    """Load the B6-6 sweep payloads required by the criteria evaluator.
+    """Load the Baker-Helveg-Ermakova-Takenaka sweep payloads required by the criteria evaluator.
 
     Args:
         sweeps_dir: Input controlling sweeps dir.
@@ -518,17 +518,20 @@ def load_runs(sweeps_dir: Optional[Path] = None) -> dict:
             continue
         payloads[name] = json.loads(path.read_text(encoding='utf-8'))
     if missing:
-        raise FileNotFoundError('missing B6-6 run.json file(s): ' + ', '.join(missing))
+        raise FileNotFoundError(
+            'missing Baker-Helveg-Ermakova-Takenaka off-site carbon run.json file(s): '
+            + ', '.join(missing)
+        )
     return payloads
 
 
 def print_table(summary: dict) -> None:
-    """Print a compact human-readable B6-6 criteria summary.
+    """Print a compact human-readable Baker-Helveg-Ermakova-Takenaka criteria summary.
 
     Args:
         summary: Input controlling summary.
     """
-    print('B6-6 criteria')
+    print('Baker-Helveg-Ermakova-Takenaka off-site carbon criteria')
     print(
         f"flagged X>X_eq rows: {summary['n_flagged_X_gt_Xeq']} "
         '(not scored as successes)'
@@ -574,7 +577,7 @@ def print_table(summary: dict) -> None:
 
 
 def write_summary(summary: dict, path: Optional[Path] = None) -> Path:
-    """Persist a B6-6 criteria summary as JSON.
+    """Persist a Baker-Helveg-Ermakova-Takenaka off-site carbon criteria summary as JSON.
 
     Args:
         summary: Input controlling summary.
@@ -583,7 +586,11 @@ def write_summary(summary: dict, path: Optional[Path] = None) -> Path:
     Returns:
         Validated Path output for this operation.
     """
-    out = Path(path) if path is not None else SWEEPS_DIR / 'b66_summary.json'
+    out = (
+        Path(path)
+        if path is not None
+        else SWEEPS_DIR / 'ni111_sio2_off_site_carbon_criteria_summary.json'
+    )
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(summary, indent=2) + '\n', encoding='utf-8')
     return out
