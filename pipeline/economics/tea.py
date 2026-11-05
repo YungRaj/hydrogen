@@ -393,6 +393,14 @@ def build_multipathway_champion_scorecard(
                             if isinstance(f_max, (int, float))
                             else None
                         )
+                        neb_conv = dft_rec.get('neb_converged')
+                        neb_fwd = dft_rec.get('neb_forward_barrier_eV')
+                        if neb_conv is not None:
+                            champ_entry['qe_neb_converged'] = bool(neb_conv)
+                        if isinstance(neb_fwd, (int, float)) and math.isfinite(
+                            float(neb_fwd)
+                        ):
+                            champ_entry['qe_neb_barrier_eV'] = round(float(neb_fwd), 4)
                 except Exception:
                     pass
             discovery_champions.append(champ_entry)
@@ -452,6 +460,46 @@ def build_multipathway_champion_scorecard(
         'electrochemical': lambda r: r.get('reactor_type') == 'Electrochemical',
     }
 
+    def _resolve_candidate_neb_evidence(cat_name: str, cat_meta: dict) -> tuple[bool, float | None]:
+        """Return (neb_converged, neb_forward_barrier_eV) for a catalyst if present."""
+        if not cat_name:
+            return False, None
+        neb_conv = bool(
+            cat_meta.get('qe_neb_converged') or cat_meta.get('neb_converged')
+        )
+        raw_bar = (
+            cat_meta.get('qe_neb_barrier_eV')
+            if cat_meta.get('qe_neb_barrier_eV') is not None
+            else cat_meta.get('neb_forward_barrier_eV')
+        )
+        if neb_conv and isinstance(raw_bar, (int, float)) and float(raw_bar) > 0.0:
+            return True, float(raw_bar)
+        for dft_candidate_path in (
+            root / 'dft' / f'campaign_{cat_name}_dft.json',
+            root / 'dft' / f'{cat_name}_dft.json',
+        ):
+            if dft_candidate_path.is_file():
+                try:
+                    d_rec = json.loads(dft_candidate_path.read_text(encoding='utf-8'))
+                    if isinstance(d_rec, dict):
+                        c_flag = bool(
+                            d_rec.get('neb_converged') or d_rec.get('qe_neb_converged')
+                        )
+                        b_val = (
+                            d_rec.get('neb_forward_barrier_eV')
+                            if d_rec.get('neb_forward_barrier_eV') is not None
+                            else d_rec.get('qe_neb_barrier_eV')
+                        )
+                        if (
+                            c_flag
+                            and isinstance(b_val, (int, float))
+                            and float(b_val) > 0.0
+                        ):
+                            return True, float(b_val)
+                except Exception:
+                    pass
+        return False, None
+
     def _compute_dft_calibrated_reactor_metrics(rec: dict) -> dict:
         cat_name = str(rec.get('catalyst_name', '')).strip()
         cat_meta = candidate_Lookup.get(cat_name, {})
@@ -462,16 +510,33 @@ def build_multipathway_champion_scorecard(
         )
         t_val = float(rec.get('T_K') or 1100.0)
         t_eff = max(t_val, 300.0)
-        # Class-level QE active-learning barrier correction (plus interfacial carbon penalty)
-        default_bias = 0.228733 if mat_cls == 'MoltenMetal' else 0.243114
-        delta_e_dft = float(al_turq_class_bias.get(mat_cls, default_bias))
+        neb_conv, neb_barrier_ev = _resolve_candidate_neb_evidence(cat_name, cat_meta)
+        if neb_conv and neb_barrier_ev is not None:
+            raw_e_act = (
+                rec.get('catalyst_E_act_eV')
+                or cat_meta.get('E_act_eV')
+                or cat_meta.get('E_act')
+                or 0.0
+            )
+            e_act_bep = (
+                float(raw_e_act)
+                if isinstance(raw_e_act, (int, float)) and math.isfinite(float(raw_e_act))
+                else 0.0
+            )
+            delta_e_dft = max(0.0, float(neb_barrier_ev) - e_act_bep)
+            kinetics_status = 'dft_neb_complete'
+        else:
+            # Class-level QE active-learning barrier correction (plus interfacial carbon penalty)
+            default_bias = 0.228733 if mat_cls == 'MoltenMetal' else 0.243114
+            delta_e_dft = float(al_turq_class_bias.get(mat_cls, default_bias))
+            kinetics_status = 'qe_dft_calibrated_bep'
         c_disp_val = cat_meta.get('interfacial_carbon_displacement_A')
         c_disp_a = (
             float(c_disp_val)
             if isinstance(c_disp_val, (int, float)) and math.isfinite(float(c_disp_val))
             else 0.0
         )
-        # Effective barrier shift includes the QE AL class bias and 0.15 eV/A interfacial coking drag
+        # Effective barrier shift includes the QE AL class bias (or direct NEB shift) and 0.15 eV/A interfacial coking drag
         effective_barrier_shift_ev = max(0.0, delta_e_dft + 0.15 * c_disp_a)
         if str(rec.get('reactor_type', '')) == 'NTEC':
             mp_out = (
@@ -525,6 +590,7 @@ def build_multipathway_champion_scorecard(
             '_x_cal_exact': x_cal,
             'dft_calibrated_overall_effectiveness_factor': cal_eta_out,
             'dft_calibrated_thiele_modulus': cal_phi_out,
+            'kinetics_status': kinetics_status,
         }
 
     pathway_leaderboard: dict[str, dict] = {}
@@ -706,7 +772,9 @@ def build_multipathway_champion_scorecard(
             'H2_selectivity': round(
                 float(best_cal_rec.get('H2_selectivity') or 1.0), 4
             ),
-            'kinetics_status': 'qe_dft_calibrated_bep',
+            'kinetics_status': best_cal_metrics.get(
+                'kinetics_status', 'qe_dft_calibrated_bep'
+            ),
             'dft_calibrated_tea_base_h2_usd_kg': (
                 cal_tea_range['estimates']['base']['h2_cost_usd_kg']
                 if cal_tea_range

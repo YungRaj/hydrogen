@@ -1,13 +1,8 @@
 """Thermocatalytic packed-bed plug-flow reactor model."""
 
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import numpy as np
-
-try:
-    import cantera as ct
-except ImportError:  # The facade selects the explicit mock path first.
-    ct = None
 
 from pipeline.data_models.reactors import ReactorResult
 from pipeline.reactors.reactor_core import (
@@ -32,6 +27,46 @@ from pipeline.reactors.reactor_core import (
     logger,
     solids_inventory_fields,
 )
+
+
+def _run_pfr_pass(
+    gas: object,
+    surf: object,
+    *,
+    n_stages: int,
+    t_inlet_k: float,
+    ch4_initial: float,
+    ar_initial: float,
+    stage_gas_volume: float,
+    stage_surface_area: float,
+    tau_stage: float,
+) -> Tuple[List[float], List[float], List[Optional[float]], Optional[np.ndarray], float]:
+    """Advance one full Lagrangian PFR pass across all axial stages without nonlocal state."""
+    conversion_profile: List[float] = [0.0]
+    temperature_profile: List[float] = [float(t_inlet_k)]
+    theta_c_tos: List[Optional[float]] = [_coverage(surf, 'C_s')]
+    pass_start_cov = (
+        np.array(getattr(surf, 'coverages'), dtype=float)
+        if surf is not None
+        else None
+    )
+    pass_produce_time_s = 0.0
+    for _ in range(n_stages):
+        _advance_reactor_stage(
+            gas, surf, stage_gas_volume, stage_surface_area, tau_stage
+        )
+        _clamp_gas_to_equilibrium(gas, ch4_initial, ar_initial)
+        pass_produce_time_s += tau_stage
+        conversion_profile.append(_ch4_extent(gas, ch4_initial, ar_initial))
+        temperature_profile.append(float(getattr(gas, 'T', t_inlet_k)))
+        theta_c_tos.append(_coverage(surf, 'C_s'))
+    return (
+        conversion_profile,
+        temperature_profile,
+        theta_c_tos,
+        pass_start_cov,
+        pass_produce_time_s,
+    )
 
 
 def simulate_pfr(
@@ -77,48 +112,39 @@ def simulate_pfr(
     tau_stage = tau_total / n_stages
 
     z_positions = np.linspace(0, config.bed_length_m, n_stages + 1)
-    conversion_profile = [0.0]
-    temperature_profile = [config.T_inlet_K]
-    theta_C_tos = [_coverage(surf, 'C_s')]
-
     cycles_completed = 0
     per_cycle_conversion: List[float] = []
     produce_time_s = 0.0
-    pass_start_cov: List[Optional[np.ndarray]] = [None]
-
-    def _advance_bed():
-        nonlocal produce_time_s
-        conversion_profile.clear()
-        conversion_profile.append(0.0)
-        temperature_profile.clear()
-        temperature_profile.append(config.T_inlet_K)
-        theta_C_tos.clear()
-        theta_C_tos.append(_coverage(surf, 'C_s'))
-        pass_start_cov[0] = (
-            np.array(surf.coverages, dtype=float) if surf is not None else None
-        )
-        for _ in range(n_stages):
-            _advance_reactor_stage(
-                gas, surf, stage_gas_volume, stage_surface_area, tau_stage
-            )
-            _clamp_gas_to_equilibrium(gas, ch4_initial, ar_initial)
-            produce_time_s += tau_stage
-            conversion_profile.append(_ch4_extent(gas, ch4_initial, ar_initial))
-            temperature_profile.append(float(gas.T))
-            theta_C_tos.append(_coverage(surf, 'C_s'))
 
     # One produce pass (always). Optional discrete regen cycles if configured.
     gas.TPX = config.T_inlet_K, config.P_inlet_Pa, config.inlet_composition
     if surf is not None:
         _reset_surface_carbon(surf)
-    _advance_bed()
+    (
+        conversion_profile,
+        temperature_profile,
+        theta_C_tos,
+        pass_start_cov,
+        pass_dt,
+    ) = _run_pfr_pass(
+        gas,
+        surf,
+        n_stages=n_stages,
+        t_inlet_k=config.T_inlet_K,
+        ch4_initial=ch4_initial,
+        ar_initial=ar_initial,
+        stage_gas_volume=stage_gas_volume,
+        stage_surface_area=stage_surface_area,
+        tau_stage=tau_stage,
+    )
+    produce_time_s += pass_dt
     per_cycle_conversion.append(conversion_profile[-1])
 
     while (
         config.max_regen_cycles > 0
         and cycles_completed < config.max_regen_cycles
         and theta_C_tos
-        and max(theta_C_tos) >= config.regen_coverage_threshold
+        and max(float(v or 0.0) for v in theta_C_tos) >= config.regen_coverage_threshold
     ):
         if config.regen_mechanism == REGEN_OXIDATIVE and not config.co2_permitted:
             raise RuntimeError('oxidative regen blocked (co2_permitted=False)')
@@ -130,7 +156,24 @@ def simulate_pfr(
         _reset_surface_carbon(surf)
         gas.TPX = config.T_inlet_K, config.P_inlet_Pa, config.inlet_composition
         cycles_completed += 1
-        _advance_bed()
+        (
+            conversion_profile,
+            temperature_profile,
+            theta_C_tos,
+            pass_start_cov,
+            pass_dt,
+        ) = _run_pfr_pass(
+            gas,
+            surf,
+            n_stages=n_stages,
+            t_inlet_k=config.T_inlet_K,
+            ch4_initial=ch4_initial,
+            ar_initial=ar_initial,
+            stage_gas_volume=stage_gas_volume,
+            stage_surface_area=stage_surface_area,
+            tau_stage=tau_stage,
+        )
+        produce_time_s += pass_dt
         per_cycle_conversion.append(conversion_profile[-1])
 
     final_conv = conversion_profile[-1]
@@ -153,7 +196,7 @@ def simulate_pfr(
         n_ch4_fed_mol=n_ch4_fed_mol,
         n_parcel_in_mol=n_parcel_in_mol,
         pass_time_s=tau_total,
-        cov_start=pass_start_cov[0],
+        cov_start=pass_start_cov,
     )
 
     inv_fields = solids_inventory_fields(config, geometric_sv_pfr(config))

@@ -2,11 +2,6 @@
 
 import numpy as np
 
-try:
-    import cantera as ct
-except ImportError:  # The facade selects the explicit mock path first.
-    ct = None
-
 from pipeline.data_models.reactors import ReactorResult
 from pipeline.reactors.reactor_core import (
     FLUIDIZED_CIRCULATING,

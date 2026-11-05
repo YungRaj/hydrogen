@@ -8,6 +8,8 @@ import numpy as np
 import numpy.typing as npt
 
 from pipeline.data_models.reactors import (
+    CanteraGasPhase,
+    CanteraSurfacePhase,
     PBRPelletEffectivenessMetrics,
     ReactorResult,
 )
@@ -174,6 +176,134 @@ def _stage_ergun_gradient_pa_m(
     return float(viscous + inertial)
 
 
+def _run_pbr_pass(
+    config: ReactorConfig,
+    gas: CanteraGasPhase,
+    surf: CanteraSurfacePhase | None,
+    *,
+    n_stages: int,
+    eps_0: float,
+    d_p_m: float,
+    ch4_initial: float,
+    ar_initial: float,
+    u_sup_inlet: float,
+    stage_bed_volume: float,
+    stage_length: float,
+) -> tuple[
+    list[float],
+    list[float],
+    list[float],
+    list[float],
+    list[float],
+    list[float],
+    list[float],
+    npt.NDArray[np.float64] | None,
+    float,
+]:
+    """Advance one full PBR pass across all differential catalyst-weight stages without nonlocal state."""
+    conversion_profile: list[float] = [0.0]
+    temperature_profile: list[float] = [float(config.T_inlet_K)]
+    pressure_profile: list[float] = [float(config.P_inlet_Pa)]
+    bed_voidage_profile: list[float] = [eps_0]
+    thiele_profile: list[float] = []
+    effectiveness_profile: list[float] = []
+    theta_c_tos: list[float] = [float(surface_coverage(surf, 'C_s') or 0.0)]
+    pass_start_cov: npt.NDArray[np.float64] | None = (
+        np.array(getattr(surf, 'coverages'), dtype=np.float64)
+        if surf is not None
+        else None
+    )
+
+    p_local = float(config.P_inlet_Pa)
+    tau_total_pass_s = 0.0
+    sv_geom_0 = 6.0 * (1.0 - eps_0) / d_p_m
+    sv_active_0 = active_sv(sv_geom_0, config)
+    c_inlet_mol_m3 = float(config.P_inlet_Pa) / (R_J_MOL_K * float(config.T_inlet_K))
+    carbon_molar_vol_m3_mol = 0.012011 / SOLID_CARBON_DENSITY_KG_M3
+    gamma_mol_m2_stage = float(config.site_density_mol_cm2) * 1e4
+
+    for _ in range(n_stages):
+        x_prev = conversion_profile[-1]
+        t_local = float(getattr(gas, 'T', config.T_inlet_K))
+        theta_c_curr = float(surface_coverage(surf, 'C_s') or 0.0)
+
+        # Dynamic voidage reduction from surface/deposited carbon holdup
+        # using physical graphite density (2160 kg/m³)
+        c_surf_vol_frac = (
+            gamma_mol_m2_stage
+            * sv_active_0
+            * max(theta_c_curr, 0.0)
+            * carbon_molar_vol_m3_mol
+        )
+        c_dep_vol_frac = (
+            c_inlet_mol_m3
+            * eps_0
+            * ch4_initial
+            * max(x_prev, 0.0)
+            * carbon_molar_vol_m3_mol
+        )
+        c_holdup_vol_frac = min(
+            0.5 * eps_0,
+            c_surf_vol_frac + c_dep_vol_frac + 0.04 * max(theta_c_curr, 0.0),
+        )
+        eps_local = max(MIN_PACKED_BED_POROSITY, eps_0 - c_holdup_vol_frac)
+
+        # Gas velocity expansion from CH4 -> C(s) + 2 H2 and decompression
+        molar_expansion = 1.0 + ch4_initial * max(x_prev, 0.0)
+        u_local = (
+            u_sup_inlet
+            * (config.P_inlet_Pa / max(p_local, MIN_STAGE_PRESSURE_PA))
+            * (t_local / config.T_inlet_K)
+            * molar_expansion
+        )
+
+        # Pellet Thiele modulus and overall effectiveness factor Ω_i
+        pellet = pbr_pellet_effectiveness(
+            config, t_local, p_local, u_local, eps_local, theta_c=theta_c_curr
+        )
+        omega_i = pellet['overall_effectiveness_factor']
+        thiele_profile.append(pellet['thiele_modulus'])
+        effectiveness_profile.append(omega_i)
+
+        # Stage geometric and effective active catalyst surface area fixed to
+        # initial catalyst loading (carbon holdup plugs pores, never adds catalyst)
+        stage_gas_vol = stage_bed_volume * eps_local
+        stage_eff_area = omega_i * sv_active_0 * stage_bed_volume
+        tau_stage = stage_length * eps_local / max(u_local, 1e-6)
+
+        setattr(gas, 'TP', (t_local, p_local))
+        advance_reactor_stage(
+            gas, surf, stage_gas_vol, stage_eff_area, tau_stage
+        )
+        clamp_gas_to_equilibrium(gas, ch4_initial, ar_initial)
+
+        # Differential Ergun pressure drop across stage dz
+        dp_dz = _stage_ergun_gradient_pa_m(
+            t_local, p_local, u_local, eps_local, d_p_m
+        )
+        p_local = max(MIN_STAGE_PRESSURE_PA, p_local - dp_dz * stage_length)
+        setattr(gas, 'TP', (float(getattr(gas, 'T', t_local)), p_local))
+
+        tau_total_pass_s += tau_stage
+        conversion_profile.append(float(ch4_extent(gas, ch4_initial, ar_initial)))
+        temperature_profile.append(float(getattr(gas, 'T', t_local)))
+        pressure_profile.append(p_local)
+        bed_voidage_profile.append(eps_local)
+        theta_c_tos.append(float(surface_coverage(surf, 'C_s') or 0.0))
+
+    return (
+        conversion_profile,
+        temperature_profile,
+        pressure_profile,
+        bed_voidage_profile,
+        thiele_profile,
+        effectiveness_profile,
+        theta_c_tos,
+        pass_start_cov,
+        tau_total_pass_s,
+    )
+
+
 def simulate_pbr(
     config: ReactorConfig,
     *,
@@ -236,126 +366,41 @@ def simulate_pbr(
 
     z_positions = np.linspace(0.0, config.bed_length_m, n_stages + 1)
     w_positions = np.linspace(0.0, total_catalyst_weight_kg, n_stages + 1)
-    conversion_profile: list[float] = [0.0]
-    temperature_profile: list[float] = [float(config.T_inlet_K)]
-    pressure_profile: list[float] = [float(config.P_inlet_Pa)]
-    bed_voidage_profile: list[float] = [eps_0]
-    thiele_profile: list[float] = []
-    effectiveness_profile: list[float] = []
-    theta_C_tos: list[float] = [float(surface_coverage(surf, 'C_s') or 0.0)]
-
     cycles_completed = 0
     per_cycle_conversion: list[float] = []
     produce_time_s = 0.0
-    tau_total_pass_s = 0.0
-    pass_start_cov: list[npt.NDArray[np.float64] | None] = [None]
     inlet_pellet_metrics = pbr_pellet_effectiveness(
         config, config.T_inlet_K, config.P_inlet_Pa, u_sup_inlet, eps_0
     )
-
-    def _advance_bed() -> None:
-        nonlocal produce_time_s, tau_total_pass_s
-        conversion_profile.clear()
-        conversion_profile.append(0.0)
-        temperature_profile.clear()
-        temperature_profile.append(float(config.T_inlet_K))
-        pressure_profile.clear()
-        pressure_profile.append(float(config.P_inlet_Pa))
-        bed_voidage_profile.clear()
-        bed_voidage_profile.append(eps_0)
-        thiele_profile.clear()
-        effectiveness_profile.clear()
-        theta_C_tos.clear()
-        theta_C_tos.append(float(surface_coverage(surf, 'C_s') or 0.0))
-        pass_start_cov[0] = (
-            np.array(surf.coverages, dtype=np.float64)
-            if surf is not None
-            else None
-        )
-
-        p_local = float(config.P_inlet_Pa)
-        tau_total_pass_s = 0.0
-        sv_geom_0 = 6.0 * (1.0 - eps_0) / d_p_m
-        sv_active_0 = active_sv(sv_geom_0, config)
-        c_inlet_mol_m3 = float(config.P_inlet_Pa) / (R_J_MOL_K * float(config.T_inlet_K))
-        carbon_molar_vol_m3_mol = 0.012011 / SOLID_CARBON_DENSITY_KG_M3
-        gamma_mol_m2_stage = float(config.site_density_mol_cm2) * 1e4
-
-        for _ in range(n_stages):
-            x_prev = conversion_profile[-1]
-            t_local = float(gas.T)
-            theta_c_curr = float(surface_coverage(surf, 'C_s') or 0.0)
-
-            # Dynamic voidage reduction from surface/deposited carbon holdup
-            # using physical graphite density (2160 kg/m³)
-            c_surf_vol_frac = (
-                gamma_mol_m2_stage
-                * sv_active_0
-                * max(theta_c_curr, 0.0)
-                * carbon_molar_vol_m3_mol
-            )
-            c_dep_vol_frac = (
-                c_inlet_mol_m3
-                * eps_0
-                * ch4_initial
-                * max(x_prev, 0.0)
-                * carbon_molar_vol_m3_mol
-            )
-            c_holdup_vol_frac = min(
-                0.5 * eps_0,
-                c_surf_vol_frac + c_dep_vol_frac + 0.04 * max(theta_c_curr, 0.0),
-            )
-            eps_local = max(MIN_PACKED_BED_POROSITY, eps_0 - c_holdup_vol_frac)
-
-            # Gas velocity expansion from CH4 -> C(s) + 2 H2 and decompression
-            molar_expansion = 1.0 + ch4_initial * max(x_prev, 0.0)
-            u_local = (
-                u_sup_inlet
-                * (config.P_inlet_Pa / max(p_local, MIN_STAGE_PRESSURE_PA))
-                * (t_local / config.T_inlet_K)
-                * molar_expansion
-            )
-
-            # Pellet Thiele modulus and overall effectiveness factor Ω_i
-            pellet = pbr_pellet_effectiveness(
-                config, t_local, p_local, u_local, eps_local, theta_c=theta_c_curr
-            )
-            omega_i = pellet['overall_effectiveness_factor']
-            thiele_profile.append(pellet['thiele_modulus'])
-            effectiveness_profile.append(omega_i)
-
-            # Stage geometric and effective active catalyst surface area fixed to
-            # initial catalyst loading (carbon holdup plugs pores, never adds catalyst)
-            stage_gas_vol = stage_bed_volume * eps_local
-            stage_eff_area = omega_i * sv_active_0 * stage_bed_volume
-            tau_stage = stage_length * eps_local / max(u_local, 1e-6)
-
-            gas.TP = t_local, p_local
-            advance_reactor_stage(
-                gas, surf, stage_gas_vol, stage_eff_area, tau_stage
-            )
-            clamp_gas_to_equilibrium(gas, ch4_initial, ar_initial)
-
-            # Differential Ergun pressure drop across stage dz
-            dp_dz = _stage_ergun_gradient_pa_m(
-                t_local, p_local, u_local, eps_local, d_p_m
-            )
-            p_local = max(MIN_STAGE_PRESSURE_PA, p_local - dp_dz * stage_length)
-            gas.TP = float(gas.T), p_local
-
-            produce_time_s += tau_stage
-            tau_total_pass_s += tau_stage
-            conversion_profile.append(float(ch4_extent(gas, ch4_initial, ar_initial)))
-            temperature_profile.append(float(gas.T))
-            pressure_profile.append(p_local)
-            bed_voidage_profile.append(eps_local)
-            theta_C_tos.append(float(surface_coverage(surf, 'C_s') or 0.0))
 
     # Initial produce pass, followed by optional discrete non-oxidative regen cycles
     gas.TPX = config.T_inlet_K, config.P_inlet_Pa, config.inlet_composition
     if surf is not None:
         reset_surface_carbon(surf)
-    _advance_bed()
+    (
+        conversion_profile,
+        temperature_profile,
+        pressure_profile,
+        bed_voidage_profile,
+        thiele_profile,
+        effectiveness_profile,
+        theta_C_tos,
+        pass_start_cov,
+        tau_total_pass_s,
+    ) = _run_pbr_pass(
+        config,
+        gas,
+        surf,
+        n_stages=n_stages,
+        eps_0=eps_0,
+        d_p_m=d_p_m,
+        ch4_initial=ch4_initial,
+        ar_initial=ar_initial,
+        u_sup_inlet=u_sup_inlet,
+        stage_bed_volume=stage_bed_volume,
+        stage_length=stage_length,
+    )
+    produce_time_s += tau_total_pass_s
     per_cycle_conversion.append(conversion_profile[-1])
 
     while (
@@ -373,7 +418,30 @@ def simulate_pbr(
         reset_surface_carbon(surf)
         gas.TPX = config.T_inlet_K, config.P_inlet_Pa, config.inlet_composition
         cycles_completed += 1
-        _advance_bed()
+        (
+            conversion_profile,
+            temperature_profile,
+            pressure_profile,
+            bed_voidage_profile,
+            thiele_profile,
+            effectiveness_profile,
+            theta_C_tos,
+            pass_start_cov,
+            tau_total_pass_s,
+        ) = _run_pbr_pass(
+            config,
+            gas,
+            surf,
+            n_stages=n_stages,
+            eps_0=eps_0,
+            d_p_m=d_p_m,
+            ch4_initial=ch4_initial,
+            ar_initial=ar_initial,
+            u_sup_inlet=u_sup_inlet,
+            stage_bed_volume=stage_bed_volume,
+            stage_length=stage_length,
+        )
+        produce_time_s += tau_total_pass_s
         per_cycle_conversion.append(conversion_profile[-1])
 
     final_conv = conversion_profile[-1]
@@ -399,7 +467,7 @@ def simulate_pbr(
         n_ch4_fed_mol=n_ch4_fed_mol,
         n_parcel_in_mol=n_parcel_in_mol,
         pass_time_s=tau_total_pass_s,
-        cov_start=pass_start_cov[0],
+        cov_start=pass_start_cov,
         basis='Gamma*A_stage / (c_CH4*eps*V_stage), PBR differential catalyst-weight parcel',
     )
 

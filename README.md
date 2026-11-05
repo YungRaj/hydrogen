@@ -1665,13 +1665,7 @@ Solids inventory defaults (`deutschmann2000_monolayer_site_inventory`): `d_p = 0
 
 The default orchestrator includes 923.15 and 973.15 K alongside the broad screening temperatures. Explicit `PipelineConfig.reactor_temperatures` are preserved, including in quick mode. In solids campaigns, the reactor batch loads the tracked `ni111_sio2_bengaard2002_ref` row (`sweeps/ni_np_lit_screening_row.csv`) when the named reference is missing and retains its identifier in results. This reference is added only to the reactor batch; discovery and DFT candidate selections are unchanged. Set `solids_judge_catalyst=None` to disable automatic reference loading.
 
-**Known Phase 2 cleanups.** Surface and graphite load are fail-closed: a `catalyst_name` that does not match the YAML surface, or a missing graphite phase, raises unless `gas_only=True`. Results record `surface_loaded` / `graphite_loaded`; `is_solids_run` requires `surface_loaded is True` (legacy JSON without the field is excluded). Still open:
-
-- `simulate_pfr` (~113 lines) mutates three nonlocals inside a produce/regen closure. Split into a small class or two functions.
-- Unused imports in `reactors/models.py` (and siblings). Run a linter; do not treat silence as review.
-- `test_pipeline.py` hand-rolled `test()` catches `Exception` and prints a checkmark. Inherited from upstream; pytest fixtures / parametrize / selective running are Ilhan's call. `SystemExit` / `KeyboardInterrupt` would escape it.
-- `_tabulated_x_eq` imports `reactors/equilibrium.py` lazily to keep the
-  equilibrium table independent from reactor-core initialization.
+**Phase 2 implementation notes.** Surface and graphite load are fail-closed: a `catalyst_name` that does not match the YAML surface, or a missing graphite phase, raises unless `gas_only=True`. Results record `surface_loaded` / `graphite_loaded`; `is_solids_run` requires `surface_loaded is True` (legacy JSON without the field is excluded). Both `simulate_pfr` (`pipeline/reactors/pfr.py`) and `simulate_pbr` (`pipeline/reactors/pbr.py`) advance each axial pass via top-level stateless pass helpers (`_run_pfr_pass`, `_run_pbr_pass`) without nested `nonlocal` state mutations, and `_tabulated_x_eq` imports `reactors/equilibrium.py` lazily to keep the equilibrium table independent from reactor-core initialization.
 
 Fidelity boundaries use evidence-aware admission. A converged, finite,
 uncensored atomistic row may enter quantitative Cantera screening. An
@@ -1765,9 +1759,12 @@ After a campaign completes, key outputs include:
 | `results/screening/turquoise_hydrogen_coverage_certificate.json` | Certified methane-catalyst coverage status |
 | `results/fuel_cell/coverage_certificate.json` | Certified fuel-cell catalyst coverage status |
 | `results/screening/ga_full_database.csv` | Historical filename containing evaluated eSen calibration/validation rows; not the full 21.1B population |
+| `results/multipathway_champion_scorecard.json` | Unified 11-champion discovery portfolio, 7-pathway QE-DFT-calibrated reactor leaderboard, supported-Ni closure, and coupled PEMFC TEA scorecard |
+| `results/evidence/supported_ni_filament_closure.json` | Calibrated supported-$\text{Ni(111)/SiO}_2$ filament diffusion-precipitation reference closure across all 5 literature gates |
+| `results/dft/active_learning_calibration.json` | 59-sample active-learning QE DFT class and region bias calibration across all 15 catalyst classes |
 | `results/reports/pipeline_report.md` | Auto-generated comprehensive report |
 | `results/reports/pipeline_state.json` | Machine-readable pipeline state with timing and metrics |
-| `results/reactor/*.json` | PFR or pathway-specific reactor records, including incomplete evidence states |
+| `results/reactor/*.json` | PFR, PBR, Fluidized, MMBCR, NTEC, and Electrochemical reactor records, including incomplete evidence states |
 | `results/multiphysics/<candidate>/<mode>/*.json` | Accepted OpenFOAM/MOOSE/Cantera artifacts |
 | `results/dft/*/` | QE input/output files per catalyst |
 | `results/fuel_cell/` | Cathode screening + PEMFC polarization data |
@@ -1781,7 +1778,7 @@ After a campaign completes, key outputs include:
   title  = {Turquoise Hydrogen: Autonomous Multi-Scale Catalyst Discovery Pipeline},
   year   = {2026},
   url    = {https://github.com/YungRaj/hydrogen},
-  note   = {21.1B design space, 14 material classes, 6-phase pipeline}
+  note   = {21.1B design space, 15 material classes, 6-phase pipeline}
 }
 ```
 

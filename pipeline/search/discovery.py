@@ -570,14 +570,20 @@ def format_literature_catalyst_label(
             except (ValueError, SyntaxError):
                 pass
         _populate_candidate_genome_cache()
+        clean_id = text.removeprefix('campaign_').removeprefix('orr_slate_')
         if text in _CANDIDATE_GENOME_CACHE:
             return (
                 f"{_format_genome_tuple_label(_CANDIDATE_GENOME_CACHE[text])} "
                 f"[id={text}]"
             )
+        if clean_id in _CANDIDATE_GENOME_CACHE:
+            return (
+                f"{_format_genome_tuple_label(_CANDIDATE_GENOME_CACHE[clean_id])} "
+                f"[id={clean_id}]"
+            )
         if material_class and str(material_class) in CANDIDATE_CLASS_LITERATURE_ARCHETYPES:
             arch = CANDIDATE_CLASS_LITERATURE_ARCHETYPES[str(material_class)]
-            return f"{arch['archetype_name']} ({arch['primary_citations']}) [id={text}]"
+            return f"{arch['archetype_name']} ({arch['primary_citations']}) [id={clean_id}]"
         return text
     if isinstance(genome_or_id, (tuple, list)):
         return _format_genome_tuple_label(

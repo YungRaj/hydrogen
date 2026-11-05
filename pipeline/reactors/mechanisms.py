@@ -24,7 +24,6 @@ from pipeline.reactors.mechanism_yaml import (
     _GRAPHITE_SPECIES_YAML,
     _carbon_removal_reactions_yaml,
     _gas_graphite_phases_yaml,
-    _jsonable,
     _surface_phase_yaml,
     _surface_reactions_yaml,
     _surface_species_yaml,

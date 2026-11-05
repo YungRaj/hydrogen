@@ -563,6 +563,9 @@ def validate_catalyst(
                     'resumed_existing_output': True,
                 }
             )
+            neb_output_file = calc_dir / f"{catalyst_name}.neb.out"
+            if neb_output_file.is_file() and neb_output_file.stat().st_size:
+                result.update(parse_champion_neb_barrier(str(neb_output_file)))
             if not existing_converged:
                 result['error'] = 'existing_output_incomplete_or_failed'
             save_json(result, f"{catalyst_name}_dft.json", subdir="dft")
@@ -618,6 +621,10 @@ def validate_catalyst(
             logger.warning(f"  ✗ Did not converge or no energy found")
     else:
         logger.warning(f"  No output file found: {output_file}")
+
+    neb_output_file = calc_dir / f"{catalyst_name}.neb.out"
+    if neb_output_file.is_file() and neb_output_file.stat().st_size:
+        result.update(parse_champion_neb_barrier(str(neb_output_file)))
 
     save_json(result, f"{catalyst_name}_dft.json", subdir="dft")
     return result
@@ -746,8 +753,175 @@ def _generate_cluster_input(genome: tuple, name: str) -> str:
     return _generate_motif_scf_input([metal] + raw_elems, name)
 
 
+def _extract_genome_motif_elements(genome: tuple) -> List[str]:
+    """Extract ordered active/host elements from a catalyst genome for slab/NEB models."""
+    mat_class = str(genome[0])
+    if mat_class == 'MoltenMetal':
+        host = str(genome[1])
+        promoter = str(genome[2])
+        elems = [promoter, host] if promoter and promoter != 'None' else [host]
+    elif mat_class == 'SolidCatalyst':
+        host = str(genome[1])
+        dopants = [str(d) for d in (genome[5] or []) if d and str(d) != 'None']
+        elems = dopants + [host]
+    elif mat_class in ('SAC', 'DAC', 'MOF', 'COF'):
+        from pipeline.screening.surface_screener import generate_porphyrin_cluster
+
+        if mat_class == 'SAC':
+            metal, coord = str(genome[1]), str(genome[2])
+        else:
+            metal, coord = str(genome[1]), str(genome[3])
+        cluster = generate_porphyrin_cluster(metal, coord)
+        elems = [metal] + [atom.symbol for atom in cluster if atom.symbol != 'X']
+    else:
+        from pipeline.screening.surface_screener import generate_structure
+
+        structure, active_idx, _ = generate_structure(genome)
+        raw_elems = [a.symbol for a in structure if a.symbol != 'X']
+        active_elems = [
+            structure[i].symbol
+            for i in (active_idx or [])
+            if 0 <= i < len(structure) and structure[i].symbol != 'X'
+        ]
+        elems = active_elems + raw_elems
+    seen = list(dict.fromkeys(e for e in elems if e and e != 'X'))
+    return seen if seen else ['Ni']
+
+
+def build_champion_neb_slab(genome: tuple):
+    """Build a periodic 2x2x2 surface slab and active site index for CH4 -> CH3* + H* NEB.
+
+    Args:
+        genome: Encoded catalyst composition and structural configuration.
+
+    Returns:
+        Tuple `(slab, active_index)` where `slab` is an ASE `Atoms` surface model
+        with bottom-layer `FixAtoms` constraints and `active_index` is the top-layer
+        catalytic site index.
+    """
+    from ase.build import fcc111
+    from ase.constraints import FixAtoms
+
+    motif_elems = _extract_genome_motif_elements(genome)
+    host_elem = (
+        str(genome[1])
+        if str(genome[0]) in ('MoltenMetal', 'SolidCatalyst')
+        and str(genome[1]) in _FCC_EQUIVALENT_LATTICE_BOHR
+        else motif_elems[0]
+    )
+    celldm_bohr = _FCC_EQUIVALENT_LATTICE_BOHR.get(host_elem, 7.0)
+    a_ang = celldm_bohr * 0.529177210903
+    slab = fcc111(host_elem, size=(2, 2, 2), a=a_ang, vacuum=6.0, periodic=True)
+    top_indices = [i for i, atom in enumerate(slab) if atom.tag == 1]
+    bottom_indices = [i for i, atom in enumerate(slab) if atom.tag > 1]
+    if not top_indices:
+        top_indices = list(range(len(slab) // 2, len(slab)))
+        bottom_indices = list(range(0, len(slab) // 2))
+    # Populate top surface sites with the candidate's active motif elements, placing
+    # the primary active site at the final top-layer index.
+    ordered_top = list(reversed(top_indices))
+    for k, idx in enumerate(ordered_top):
+        slab[idx].symbol = motif_elems[k % len(motif_elems)]
+    if bottom_indices:
+        slab.set_constraint(FixAtoms(indices=bottom_indices))
+    active_index = ordered_top[0]
+    return slab, active_index
+
+
+def generate_champion_neb_input(
+    catalyst_name: str,
+    genome: tuple,
+    *,
+    n_images: int = 7,
+    path_config=None,
+    output_dir: Optional[Path] = None,
+) -> dict:
+    """Generate a candidate-specific Quantum ESPRESSO `neb.x` input for CH4 -> CH3* + H*.
+
+    Args:
+        catalyst_name: Identifier for the champion catalyst.
+        genome: Encoded catalyst composition and structural configuration.
+        n_images: Number of NEB images along the dissociation pathway (>= 5).
+        path_config: Optional `NEBPathConfig` override.
+        output_dir: Optional directory override; defaults to `DFT_DIR / catalyst_name`.
+
+    Returns:
+        Dictionary containing the written `.neb.in` path, image count, active site index,
+        motif elements, and verified SSSP metadata.
+    """
+    from pipeline.validation.neb_path import NEBPathConfig, methane_dissociation_images
+    from pipeline.validation.qe_workflows import write_qe_neb_input
+
+    calc_dir = Path(output_dir) if output_dir is not None else (DFT_DIR / catalyst_name)
+    calc_dir.mkdir(parents=True, exist_ok=True)
+    slab, active_index = build_champion_neb_slab(genome)
+    images = methane_dissociation_images(
+        slab, active_index=active_index, n_images=n_images
+    )
+    cfg = path_config if path_config is not None else NEBPathConfig()
+    neb_input_path = calc_dir / f"{catalyst_name}.neb.in"
+    meta = write_qe_neb_input(
+        images,
+        str(neb_input_path),
+        prefix=f"{catalyst_name}_neb",
+        path_config=cfg,
+    )
+    return {
+        **meta,
+        'catalyst_name': catalyst_name,
+        'active_index': active_index,
+        'elements': sorted(set(images[0].get_chemical_symbols())),
+    }
+
+
+def parse_champion_neb_barrier(neb_output_file: str) -> dict:
+    """Parse a QE `neb.x` output file and classify candidate kinetics status.
+
+    Only a cleanly converged `neb.x` output (`JOB DONE` and
+    `neb: convergence achieved`) with a finite positive forward barrier
+    promotes `kinetics_status` to `'dft_neb_complete'`.
+
+    Args:
+        neb_output_file: Path to the QE `neb.x` output file.
+
+    Returns:
+        Dictionary with `neb_converged`, `neb_forward_barrier_eV`,
+        `neb_reverse_barrier_eV`, `neb_path_metric`, and `kinetics_status`.
+    """
+    from pipeline.validation.qe_workflows import parse_neb_result
+
+    if not os.path.exists(neb_output_file):
+        return {
+            'neb_converged': False,
+            'neb_forward_barrier_eV': None,
+            'neb_reverse_barrier_eV': None,
+            'neb_path_metric': None,
+            'kinetics_status': 'qe_dft_calibrated_bep',
+        }
+    parsed = parse_neb_result(str(neb_output_file))
+    conv = bool(parsed.get('converged', False))
+    fwd = parsed.get('forward_barrier_eV')
+    rev = parsed.get('reverse_barrier_eV')
+    metric = parsed.get('path_metric')
+    valid_barrier = (
+        conv
+        and isinstance(fwd, (int, float))
+        and float(fwd) > 0.0
+    )
+    return {
+        'neb_converged': conv,
+        'neb_forward_barrier_eV': float(fwd) if isinstance(fwd, (int, float)) else None,
+        'neb_reverse_barrier_eV': float(rev) if isinstance(rev, (int, float)) else None,
+        'neb_path_metric': float(metric) if isinstance(metric, (int, float)) else None,
+        'kinetics_status': (
+            'dft_neb_complete' if valid_barrier else 'qe_dft_calibrated_bep'
+        ),
+    }
+
+
 if __name__ == '__main__':
     # Test: generate input for a Ni-Bi molten metal catalyst
     genome = ('MoltenMetal', 'Bi', 'Ni', 10.0, 1000)
     result = validate_catalyst("NiBi_10pct", genome, run_dft=False)
     print(json.dumps(result, indent=2, default=str))
+

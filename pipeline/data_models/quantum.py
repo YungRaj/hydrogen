@@ -39,6 +39,11 @@ class _DFTResultOptional(TypedDict, total=False):
     dft_energy_eV: float | None
     max_force_Ry_bohr: float | None
     converged: bool
+    neb_converged: bool
+    neb_forward_barrier_eV: float | None
+    neb_reverse_barrier_eV: float | None
+    neb_path_metric: float | None
+    kinetics_status: str
     returncode: int
     execution: SolverExecution
     resumed_existing_output: bool

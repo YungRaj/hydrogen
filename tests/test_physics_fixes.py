@@ -1400,3 +1400,139 @@ def test_second_pass_assumption_fixes(tmp_path):
     assert fc_outcome.state['stack_efficiency'] == pytest.approx(0.49)
 
 
+def test_literature_report_scorecard_and_champion_neb_calibration(tmp_path):
+    """Verify literature-backed catalyst labels in report_generator, 7-pathway scorecard rendering, and QE NEB barrier calibration."""
+    import json
+    from pipeline.economics.tea import build_multipathway_champion_scorecard
+    from pipeline.evidence.report_generator import (
+        _catalyst_label,
+        _dft_section,
+        _tea_section,
+    )
+    from pipeline.validation.dft_validator import (
+        build_champion_neb_slab,
+        generate_champion_neb_input,
+        parse_champion_neb_barrier,
+    )
+
+    pd = pytest.importorskip('pandas')
+
+    # 1. Literature catalyst label resolution handles campaign_ and orr_slate_ prefixes
+    lbl = _catalyst_label(
+        'campaign_cand_08da71e8eb47',
+        material_class='MoltenMetal',
+        genome="('MoltenMetal', 'Bi', 'Ni', 25.0, 1073.15)",
+    )
+    assert 'Liquid Metal' in lbl and 'Bi' in lbl and 'Ni' in lbl
+
+    dft_lines = '\n'.join(
+        _dft_section([
+            {
+                'catalyst_name': 'campaign_cand_08da71e8eb47',
+                'material_class': 'MoltenMetal',
+                'genome': "('MoltenMetal', 'Bi', 'Ni', 25.0, 1073.15)",
+                'dft_energy_Ry': -128.45,
+                'dft_energy_eV': -1747.65,
+                'converged': True,
+                'max_force_Ry_bohr': 0.0004,
+            }
+        ])
+    )
+    assert 'Liquid Metal' in dft_lines and 'Bi' in dft_lines
+
+    # 2. Candidate-specific QE NEB slab builder, input writer, and barrier parser
+    genome_mm = ('MoltenMetal', 'Bi', 'Ni', 25.0, 1073.15)
+    slab, active_idx = build_champion_neb_slab(genome_mm)
+    assert len(slab) == 8
+    assert 0 <= active_idx < len(slab)
+    assert slab[active_idx].symbol == 'Ni'
+
+    neb_meta = generate_champion_neb_input(
+        'champ_nibi', genome_mm, n_images=5, output_dir=tmp_path
+    )
+    neb_in_file = tmp_path / 'champ_nibi.neb.in'
+    assert neb_in_file.is_file()
+    assert neb_meta['n_images'] == 5
+    neb_in_text = neb_in_file.read_text(encoding='utf-8')
+    assert 'BEGIN_PATH_INPUT' in neb_in_text
+    assert 'num_of_images=5' in neb_in_text
+
+    fake_neb_out = tmp_path / 'champ_nibi.neb.out'
+    fake_neb_out.write_text(
+        '     activation energy (->) =   0.9850 eV\n'
+        '     activation energy (<-) =   0.6120 eV\n'
+        '     path length            =   2.4500 bohr\n'
+        '     neb: convergence achieved in 18 iterations\n'
+        '   JOB DONE.\n',
+        encoding='utf-8',
+    )
+    neb_parsed = parse_champion_neb_barrier(str(fake_neb_out))
+    assert neb_parsed['neb_converged'] is True
+    assert neb_parsed['neb_forward_barrier_eV'] == pytest.approx(0.985)
+    assert neb_parsed['neb_reverse_barrier_eV'] == pytest.approx(0.612)
+    assert neb_parsed['kinetics_status'] == 'dft_neb_complete'
+
+    # 3. Multipathway scorecard upgrades kinetics_status to dft_neb_complete when converged NEB barrier exists
+    mp_root = tmp_path / 'mp_neb_results'
+    (mp_root / 'screening').mkdir(parents=True, exist_ok=True)
+    (mp_root / 'reactor').mkdir(parents=True, exist_ok=True)
+    (mp_root / 'dft').mkdir(parents=True, exist_ok=True)
+
+    pd.DataFrame([
+        {
+            'candidate_id': 'cand_neb_01',
+            'genome': "('MoltenMetal', 'Bi', 'Ni', 25.0, 1073.15)",
+            'material_class': 'MoltenMetal',
+            'E_act': 0.75,
+            'E_act_raw': 0.75,
+            'c_height_above_surface_A': 0.10,
+            'coking_index': 1.90,
+            'E_act_censored': False,
+            'pyrolysis_viable': True,
+            'valid': True,
+        }
+    ]).to_csv(mp_root / 'screening' / 'branch_ranker_evidence.csv', index=False)
+
+    (mp_root / 'dft' / 'campaign_cand_neb_01_dft.json').write_text(
+        json.dumps({
+            'catalyst_name': 'campaign_cand_neb_01',
+            'candidate_id': 'cand_neb_01',
+            'material_class': 'MoltenMetal',
+            'converged': True,
+            'dft_energy_Ry': -210.5,
+            'dft_energy_eV': -2864.0,
+            'neb_converged': True,
+            'neb_forward_barrier_eV': 0.985,
+            'kinetics_status': 'dft_neb_complete',
+        }),
+        encoding='utf-8',
+    )
+
+    (mp_root / 'reactor' / 'mmbcr_neb.json').write_text(
+        json.dumps({
+            'status': 'complete',
+            'reactor_type': 'MMBCR',
+            'catalyst_name': 'cand_neb_01',
+            'material_class': 'MoltenMetal',
+            'T_K': 1173.15,
+            'CH4_conversion': 0.82,
+            'single_pass_CH4_conversion': 0.82,
+            'H2_selectivity': 0.998,
+            'surface_loaded': True,
+            'exceeds_equilibrium': False,
+        }),
+        encoding='utf-8',
+    )
+
+    mp_scorecard = build_multipathway_champion_scorecard(str(mp_root))
+    assert mp_scorecard['discovery_champions'][0]['qe_neb_converged'] is True
+    assert mp_scorecard['discovery_champions'][0]['qe_neb_barrier_eV'] == pytest.approx(0.985)
+    mmbcr_cal = mp_scorecard['dft_calibrated_pathway_leaderboard']['mmbcr']
+    assert mmbcr_cal['status'] == 'complete'
+    assert mmbcr_cal['kinetics_status'] == 'dft_neb_complete'
+    # Barrier shift = (0.985 - 0.75) + 0.15 * 0.10 = 0.250 eV
+    assert mmbcr_cal['dft_barrier_shift_eV'] == pytest.approx(0.25, abs=1e-3)
+
+    tea_md = '\n'.join(_tea_section({'best_conversion': 0.82}, mp_scorecard))
+    assert 'Multi-Pathway Discovery Champions & QE-DFT-Calibrated Leaderboard' in tea_md
+    assert 'dft_neb_complete' in tea_md

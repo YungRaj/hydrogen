@@ -29,6 +29,7 @@ type must belong to the selected pathway mode, and MMBCR is applicable only
 to MoltenMetal candidates.
 """
 
+import importlib.util
 import json
 import sys
 from pathlib import Path
@@ -36,12 +37,7 @@ from typing import Dict, List, Mapping, Optional
 
 import numpy as np
 
-try:
-    import cantera as ct
-
-    HAS_CANTERA = True
-except ImportError:
-    HAS_CANTERA = False
+HAS_CANTERA = importlib.util.find_spec('cantera') is not None
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from pipeline.utils import (
@@ -66,30 +62,66 @@ from pipeline.reactors.reactor_core import (
     ANALYTICAL_CLOSURE_BASIS,
     ANALYTICAL_CLOSURE_REACTORS,
     ANALYTICAL_CLOSURE_SOURCE,
-    DEFAULT_METAL_DISPERSION,
-    DEFAULT_METAL_LOADING,
-    DEFAULT_SOLIDS_PARTICLE_MM,
-    DIAGNOSTIC_MATERIAL_CLASS,
-    INVENTORY_METAL_DISPERSION,
-    INVENTORY_METAL_LOADING,
-    INVENTORY_PARTICLE_MM,
-    SINGLE_REACTOR_MODE,
+    DEFAULT_METAL_DISPERSION as DEFAULT_METAL_DISPERSION,
+    DEFAULT_METAL_LOADING as DEFAULT_METAL_LOADING,
+    DEFAULT_SOLIDS_PARTICLE_MM as DEFAULT_SOLIDS_PARTICLE_MM,
+    DIAGNOSTIC_MATERIAL_CLASS as DIAGNOSTIC_MATERIAL_CLASS,
+    INVENTORY_METAL_DISPERSION as INVENTORY_METAL_DISPERSION,
+    INVENTORY_METAL_LOADING as INVENTORY_METAL_LOADING,
+    INVENTORY_PARTICLE_MM as INVENTORY_PARTICLE_MM,
+    SINGLE_REACTOR_MODE as SINGLE_REACTOR_MODE,
     ReactorConfig,
-    active_sv,
+    active_sv as active_sv,
     ergun_delta_p_pa,
-    geometric_sv_pfr,
-    inventory_grid_cells,
-    inventory_roi_grid_cells,
+    geometric_sv_pfr as geometric_sv_pfr,
+    inventory_grid_cells as inventory_grid_cells,
+    inventory_roi_grid_cells as inventory_roi_grid_cells,
     reciprocal_residence_h,
     _kinetics_evidence,
     _load_status_fields,
     _mmbcr_hydrodynamics,
     _policy_metadata,
-    _reset_surface_carbon,
+    _reset_surface_carbon as _reset_surface_carbon,
     _validate_carbon_policy,
     _validate_reactor_config,
     kinetics_fields,
 )
+
+__all__ = [
+    'ANALYTICAL_CLOSURE_BASIS',
+    'ANALYTICAL_CLOSURE_REACTORS',
+    'ANALYTICAL_CLOSURE_SOURCE',
+    'CarbonPolicyConfig',
+    'DEFAULT_METAL_DISPERSION',
+    'DEFAULT_METAL_LOADING',
+    'DEFAULT_MODE',
+    'DEFAULT_SOLIDS_PARTICLE_MM',
+    'DIAGNOSTIC_MATERIAL_CLASS',
+    'HAS_CANTERA',
+    'INVENTORY_METAL_DISPERSION',
+    'INVENTORY_METAL_LOADING',
+    'INVENTORY_PARTICLE_MM',
+    'REACTOR_MODELS',
+    'ReactorConfig',
+    'ReactorModel',
+    'ReactorResult',
+    'SCREENING_REACTORS',
+    'SINGLE_REACTOR_MODE',
+    '_reset_surface_carbon',
+    'active_sv',
+    'ergun_delta_p_pa',
+    'geometric_sv_pfr',
+    'inventory_grid_cells',
+    'inventory_roi_grid_cells',
+    'kinetics_fields',
+    'reciprocal_residence_h',
+    'run_reactor_sweep',
+    'simulate_fluidized_bed',
+    'simulate_mmbcr',
+    'simulate_pbr',
+    'simulate_pfr',
+    'simulate_reactor',
+]
 
 logger = setup_logger('reactor_models', 'reactor/reactor_simulation.log')
 
