@@ -1,0 +1,138 @@
+{
+  "energy_Ha": -148.72994945764742,
+  "energy_eV": -4047.1481010383172,
+  "optimal_params": [
+    1.5724071200214202,
+    -1.5708836232884733,
+    -0.0012059792950864085,
+    -1.5681550648812077,
+    0.0004068122062076118,
+    0.00040819198907309287,
+    1.9189339169088113,
+    -0.0006439492978072287,
+    -1.5712814004358044,
+    0.027465816313272527,
+    -0.023291981156399317,
+    1.5698677563936891,
+    -0.14934095827943109,
+    0.2001491753717804,
+    -0.08822631659440044,
+    1.9564230138176355,
+    -0.0002982236841304997,
+    0.9475522953387446,
+    0.00040981127465406506,
+    -0.013664726078420604,
+    0.09618807560743867,
+    0.18910777310981072,
+    -0.06745032993045492,
+    0.020425973190201206
+  ],
+  "n_qubits": 4,
+  "n_layers": 3,
+  "n_params": 24,
+  "max_iter": 3000,
+  "target": "qpp-cpu",
+  "evidence_level": "candidate_specific_vqe_benchmarked",
+  "catalyst_specific_hamiltonian": true,
+  "benchmarked": true,
+  "exact_ground_energy_Ha": -148.72995692031705,
+  "variational_gap_Ha": 7.462669628921503e-06,
+  "variational_bound_valid": true,
+  "benchmark_tolerance_Ha": 0.0016,
+  "catalyst_name": "87d86cdaf36fda7c6831",
+  "reaction_type": "ORR",
+  "hamiltonian": {
+    "schema_version": 1,
+    "candidate_id": "87d86cdaf36fda7c6831",
+    "geometry_id": "87d86cdaf36fda7c6831_ORR_ts",
+    "geometry_path": "geometry.xyz",
+    "geometry_sha256": "78a122c79ec912042e52c9f719db0fa62895a870044877a368057d64baa85271",
+    "electronic_structure_protocol": "PySCF-RHF-CASCI(2,2)/STO-3G",
+    "basis": "sto-3g",
+    "active_orbitals": 2,
+    "active_electrons": 2,
+    "charge": 0,
+    "multiplicity": 1,
+    "frozen_orbitals": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "integral_source": "pyscf_casci_active_space",
+    "fcidump_sha256": "c89470da4d29c2b0d293efdae0a25e030a6001bff499771dcc409e976ac32bad",
+    "fermion_to_qubit_mapping": "Jordan-Wigner",
+    "n_qubits": 4,
+    "pauli_terms": [
+      [
+        -148.22538044454828,
+        "IIII"
+      ],
+      [
+        -0.05111489758842999,
+        "IIIZ"
+      ],
+      [
+        -0.05111489758843002,
+        "IIZI"
+      ],
+      [
+        0.15867203831139803,
+        "IIZZ"
+      ],
+      [
+        0.08200847917138906,
+        "IZII"
+      ],
+      [
+        0.09544595637267492,
+        "IZIZ"
+      ],
+      [
+        0.14424738417388766,
+        "IZZI"
+      ],
+      [
+        -0.04880142780121275,
+        "XXYY"
+      ],
+      [
+        0.04880142780121275,
+        "XYYX"
+      ],
+      [
+        0.04880142780121275,
+        "YXXY"
+      ],
+      [
+        -0.04880142780121275,
+        "YYXX"
+      ],
+      [
+        0.08200847917138906,
+        "ZIII"
+      ],
+      [
+        0.14424738417388766,
+        "ZIIZ"
+      ],
+      [
+        0.09544595637267492,
+        "ZIZI"
+      ],
+      [
+        0.14627844545037116,
+        "ZZII"
+      ]
+    ],
+    "catalyst_specific_hamiltonian": true,
+    "evidence_level": "candidate_specific_integrals"
+  },
+  "candidate_id": "87d86cdaf36fda7c6831",
+  "material_class": "MetalFreeCarbon",
+  "genome": "('MetalFreeCarbon', 'oxidized', 0.01, 'edge_armchair', 'graphene', 'O')"
+}

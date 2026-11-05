@@ -1,0 +1,182 @@
+{
+  "energy_Ha": -39.69808183161713,
+  "energy_eV": -1080.2398379449724,
+  "optimal_params": [
+    3.1406937504550214,
+    -0.0026421046374226088,
+    -0.0014635179831395655,
+    -0.002107622921834181,
+    0.08669481749622064,
+    0.21244349580192742,
+    1.9244778373815243,
+    0.4016430452092011,
+    -0.0013834762953381773,
+    0.0064198208963557775,
+    -0.010196214823718028,
+    -0.0004356424740968984,
+    -0.44631255203402287,
+    -0.05101267812699161,
+    0.18946100521951006,
+    -0.38874085789202395,
+    -0.00016812756290575444,
+    -0.3151859822865119,
+    -0.0008700917857268559,
+    0.0018574994438602418,
+    -0.0933083983964236,
+    -0.00566752328965174,
+    -0.5690312598407372,
+    -0.6817739582292088
+  ],
+  "n_qubits": 4,
+  "n_layers": 3,
+  "n_params": 24,
+  "max_iter": 3000,
+  "target": "qpp-cpu",
+  "evidence_level": "candidate_specific_vqe_benchmarked",
+  "catalyst_specific_hamiltonian": true,
+  "benchmarked": true,
+  "exact_ground_energy_Ha": -39.69809097114415,
+  "variational_gap_Ha": 9.139527016088778e-06,
+  "variational_bound_valid": true,
+  "benchmark_tolerance_Ha": 0.0016,
+  "catalyst_name": "000971115da8ddd8cf8f",
+  "reaction_type": "CH_split",
+  "hamiltonian": {
+    "schema_version": 1,
+    "candidate_id": "000971115da8ddd8cf8f",
+    "geometry_id": "000971115da8ddd8cf8f_CH_split_ts",
+    "geometry_path": "geometry.xyz",
+    "geometry_sha256": "e0862b79ae73707e5b027d3c7a697a5eff0cd5773b1c296b174c71601108e3a7",
+    "electronic_structure_protocol": "PySCF-RHF-CASCI(2,2)/STO-3G",
+    "basis": "sto-3g",
+    "active_orbitals": 2,
+    "active_electrons": 2,
+    "charge": 0,
+    "multiplicity": 1,
+    "frozen_orbitals": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "integral_source": "pyscf_casci_active_space",
+    "fcidump_sha256": "ada2da043ad81720b0f52a4559edab9114c0cd122b5df23cf019951186606406",
+    "fermion_to_qubit_mapping": "Jordan-Wigner",
+    "n_qubits": 4,
+    "pauli_terms": [
+      [
+        -38.96428839798229,
+        "IIII"
+      ],
+      [
+        -0.14494905891436832,
+        "IIIZ"
+      ],
+      [
+        -0.14494905891436832,
+        "IIZI"
+      ],
+      [
+        0.15444043694771548,
+        "IIZZ"
+      ],
+      [
+        -0.007451531788187728,
+        "IXIX"
+      ],
+      [
+        0.0034483418170053208,
+        "IXZX"
+      ],
+      [
+        -0.007451531788187728,
+        "IYIY"
+      ],
+      [
+        0.0034483418170053208,
+        "IYZY"
+      ],
+      [
+        0.11366456602953473,
+        "IZII"
+      ],
+      [
+        0.09906090416310498,
+        "IZIZ"
+      ],
+      [
+        0.14139327842836957,
+        "IZZI"
+      ],
+      [
+        -0.004003196587774813,
+        "XIXI"
+      ],
+      [
+        -0.0423323742652646,
+        "XXYY"
+      ],
+      [
+        0.0423323742652646,
+        "XYYX"
+      ],
+      [
+        0.0034483418170053208,
+        "XZXI"
+      ],
+      [
+        -0.007451531788187728,
+        "XZXZ"
+      ],
+      [
+        -0.004003196587774813,
+        "YIYI"
+      ],
+      [
+        0.0423323742652646,
+        "YXXY"
+      ],
+      [
+        -0.0423323742652646,
+        "YYXX"
+      ],
+      [
+        0.0034483418170053208,
+        "YZYI"
+      ],
+      [
+        -0.007451531788187728,
+        "YZYZ"
+      ],
+      [
+        0.11366456602953473,
+        "ZIII"
+      ],
+      [
+        0.14139327842836957,
+        "ZIIZ"
+      ],
+      [
+        0.09906090416310498,
+        "ZIZI"
+      ],
+      [
+        -0.004003196587774813,
+        "ZXZX"
+      ],
+      [
+        -0.004003196587774813,
+        "ZYZY"
+      ],
+      [
+        0.13691830404935745,
+        "ZZII"
+      ]
+    ],
+    "catalyst_specific_hamiltonian": true,
+    "evidence_level": "candidate_specific_integrals"
+  },
+  "candidate_id": "000971115da8ddd8cf8f",
+  "material_class": "SolidCatalyst",
+  "genome": "('SolidCatalyst', 'Ce', 'Graphene', 'bcc211', 0.06842105263157894, ('Br', 'Mg'), 1, 0)"
+}

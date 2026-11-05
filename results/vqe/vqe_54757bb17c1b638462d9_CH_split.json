@@ -1,0 +1,182 @@
+{
+  "energy_Ha": -39.696085210225554,
+  "energy_eV": -1080.1855071090993,
+  "optimal_params": [
+    3.1411605012611004,
+    0.0004776629956676316,
+    -0.0011523922957857437,
+    0.0002212742875925525,
+    -0.06714375144766202,
+    -0.24762222166440337,
+    1.7413148170308945,
+    -0.055779670730612955,
+    -0.00014783868013152197,
+    0.004672877954475616,
+    -0.0059579519232489,
+    0.00028562177977850523,
+    -0.7230618102573917,
+    -0.045683572581676546,
+    0.05396668591539756,
+    -0.49104683350036843,
+    -2.1717317520005984e-05,
+    -0.32229871817382755,
+    -0.0002569433764811347,
+    0.0004265901316062427,
+    -0.2787680079361949,
+    -0.0045101518336146925,
+    -0.42114359042755917,
+    -1.2718387218031064
+  ],
+  "n_qubits": 4,
+  "n_layers": 3,
+  "n_params": 24,
+  "max_iter": 3000,
+  "target": "qpp-cpu",
+  "evidence_level": "candidate_specific_vqe_benchmarked",
+  "catalyst_specific_hamiltonian": true,
+  "benchmarked": true,
+  "exact_ground_energy_Ha": -39.69609013564695,
+  "variational_gap_Ha": 4.925421393409124e-06,
+  "variational_bound_valid": true,
+  "benchmark_tolerance_Ha": 0.0016,
+  "catalyst_name": "54757bb17c1b638462d9",
+  "reaction_type": "CH_split",
+  "hamiltonian": {
+    "schema_version": 1,
+    "candidate_id": "54757bb17c1b638462d9",
+    "geometry_id": "54757bb17c1b638462d9_CH_split_ts",
+    "geometry_path": "geometry.xyz",
+    "geometry_sha256": "b81e046184486b1f1777a83552f475aa2e276cffbb2fa7fba6047b36989083fc",
+    "electronic_structure_protocol": "PySCF-RHF-CASCI(2,2)/STO-3G",
+    "basis": "sto-3g",
+    "active_orbitals": 2,
+    "active_electrons": 2,
+    "charge": 0,
+    "multiplicity": 1,
+    "frozen_orbitals": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "integral_source": "pyscf_casci_active_space",
+    "fcidump_sha256": "9665184796f6ebbc10e3ab5be92605197f3eafe35c2b9ba72695f6c1aa967b7f",
+    "fermion_to_qubit_mapping": "Jordan-Wigner",
+    "n_qubits": 4,
+    "pauli_terms": [
+      [
+        -38.969476059360076,
+        "IIII"
+      ],
+      [
+        -0.14215237406299705,
+        "IIIZ"
+      ],
+      [
+        -0.14215237406299705,
+        "IIZI"
+      ],
+      [
+        0.15409695784566607,
+        "IIZZ"
+      ],
+      [
+        -0.0074052313296149525,
+        "IXIX"
+      ],
+      [
+        0.0033170946755628596,
+        "IXZX"
+      ],
+      [
+        -0.0074052313296149525,
+        "IYIY"
+      ],
+      [
+        0.0033170946755628596,
+        "IYZY"
+      ],
+      [
+        0.11288037741108506,
+        "IZII"
+      ],
+      [
+        0.09867253954594196,
+        "IZIZ"
+      ],
+      [
+        0.14121828632797553,
+        "IZZI"
+      ],
+      [
+        -0.004088140002508412,
+        "XIXI"
+      ],
+      [
+        -0.04254574678203357,
+        "XXYY"
+      ],
+      [
+        0.04254574678203357,
+        "XYYX"
+      ],
+      [
+        0.0033170946755628596,
+        "XZXI"
+      ],
+      [
+        -0.0074052313296149525,
+        "XZXZ"
+      ],
+      [
+        -0.004088140002508412,
+        "YIYI"
+      ],
+      [
+        0.04254574678203357,
+        "YXXY"
+      ],
+      [
+        -0.04254574678203357,
+        "YYXX"
+      ],
+      [
+        0.0033170946755628596,
+        "YZYI"
+      ],
+      [
+        -0.0074052313296149525,
+        "YZYZ"
+      ],
+      [
+        0.11288037741108506,
+        "ZIII"
+      ],
+      [
+        0.14121828632797553,
+        "ZIIZ"
+      ],
+      [
+        0.09867253954594196,
+        "ZIZI"
+      ],
+      [
+        -0.004088140002508412,
+        "ZXZX"
+      ],
+      [
+        -0.004088140002508412,
+        "ZYZY"
+      ],
+      [
+        0.13679095183916556,
+        "ZZII"
+      ]
+    ],
+    "catalyst_specific_hamiltonian": true,
+    "evidence_level": "candidate_specific_integrals"
+  },
+  "candidate_id": "54757bb17c1b638462d9",
+  "material_class": "MoltenMetal",
+  "genome": "('MoltenMetal', 'Te', 'Ti', 0.1, 750)"
+}

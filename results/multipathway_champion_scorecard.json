@@ -110,9 +110,10 @@
       "dft_calibrated_tea_optimistic_h2_usd_kg": 666.203,
       "dft_calibrated_thiele_modulus": null,
       "ergun_delta_p_bar": null,
-      "kinetics_status": "qe_dft_calibrated_bep",
+      "kinetics_status": "dft_neb_complete",
       "material_class": "MAXPhase",
       "n_usable_records": 24,
+      "qe_neb_barrier_eV": 0.1594,
       "reactor_type": "Electrochemical",
       "status": "complete",
       "uncalibrated_single_pass_CH4_conversion": 0.0048
@@ -132,9 +133,10 @@
       "dft_calibrated_tea_optimistic_h2_usd_kg": 4.592,
       "dft_calibrated_thiele_modulus": null,
       "ergun_delta_p_bar": null,
-      "kinetics_status": "qe_dft_calibrated_bep",
+      "kinetics_status": "dft_neb_complete",
       "material_class": "MoltenMetal",
       "n_usable_records": 36,
+      "qe_neb_barrier_eV": 0.8426,
       "reactor_type": "MMBCR",
       "status": "complete",
       "uncalibrated_single_pass_CH4_conversion": 0.2417
@@ -154,9 +156,10 @@
       "dft_calibrated_tea_optimistic_h2_usd_kg": 572.876,
       "dft_calibrated_thiele_modulus": null,
       "ergun_delta_p_bar": null,
-      "kinetics_status": "qe_dft_calibrated_bep",
+      "kinetics_status": "dft_neb_complete",
       "material_class": "MoltenMetal",
       "n_usable_records": 28,
+      "qe_neb_barrier_eV": 0.9076,
       "reactor_type": "NTEC",
       "status": "complete",
       "uncalibrated_single_pass_CH4_conversion": 0.0134
@@ -176,9 +179,10 @@
       "dft_calibrated_tea_optimistic_h2_usd_kg": 0.208,
       "dft_calibrated_thiele_modulus": 0.3309,
       "ergun_delta_p_bar": 0.91325,
-      "kinetics_status": "qe_dft_calibrated_bep",
+      "kinetics_status": "dft_neb_complete",
       "material_class": "SupportedNanoparticle",
       "n_usable_records": 235,
+      "qe_neb_barrier_eV": 0.4827,
       "reactor_type": "PBR",
       "status": "complete",
       "uncalibrated_single_pass_CH4_conversion": 0.9658
@@ -198,9 +202,10 @@
       "dft_calibrated_tea_optimistic_h2_usd_kg": 1.108,
       "dft_calibrated_thiele_modulus": null,
       "ergun_delta_p_bar": 0.398827,
-      "kinetics_status": "qe_dft_calibrated_bep",
+      "kinetics_status": "dft_neb_complete",
       "material_class": "SupportedNanoparticle",
       "n_usable_records": 75,
+      "qe_neb_barrier_eV": 0.4827,
       "reactor_type": "Fluidized",
       "status": "complete",
       "uncalibrated_single_pass_CH4_conversion": 0.4127
@@ -220,9 +225,10 @@
       "dft_calibrated_tea_optimistic_h2_usd_kg": 0.208,
       "dft_calibrated_thiele_modulus": 0.3309,
       "ergun_delta_p_bar": 0.91325,
-      "kinetics_status": "qe_dft_calibrated_bep",
+      "kinetics_status": "dft_neb_complete",
       "material_class": "SupportedNanoparticle",
       "n_usable_records": 95,
+      "qe_neb_barrier_eV": 0.4827,
       "reactor_type": "PBR",
       "status": "complete",
       "uncalibrated_single_pass_CH4_conversion": 0.9658
@@ -242,9 +248,10 @@
       "dft_calibrated_tea_optimistic_h2_usd_kg": 0.246,
       "dft_calibrated_thiele_modulus": null,
       "ergun_delta_p_bar": 0.398827,
-      "kinetics_status": "qe_dft_calibrated_bep",
+      "kinetics_status": "dft_neb_complete",
       "material_class": "SupportedNanoparticle",
       "n_usable_records": 65,
+      "qe_neb_barrier_eV": 0.4827,
       "reactor_type": "PFR",
       "status": "complete",
       "uncalibrated_single_pass_CH4_conversion": 0.9401
@@ -309,6 +316,8 @@
       "qe_dft_energy_Ry": -318.77122562,
       "qe_dft_energy_eV": -4337.1035,
       "qe_max_force_Ry_bohr": 0.0,
+      "qe_neb_barrier_eV": 0.1594,
+      "qe_neb_converged": true,
       "rank": 1
     },
     {
@@ -326,6 +335,8 @@
       "qe_dft_energy_Ry": -1029.81746014,
       "qe_dft_energy_eV": -14011.3803,
       "qe_max_force_Ry_bohr": 0.0,
+      "qe_neb_barrier_eV": 0.3623,
+      "qe_neb_converged": true,
       "rank": 2
     },
     {
@@ -343,6 +354,8 @@
       "qe_dft_energy_Ry": -1492.93302683,
       "qe_dft_energy_eV": -20312.3886,
       "qe_max_force_Ry_bohr": 0.0,
+      "qe_neb_barrier_eV": 0.5263,
+      "qe_neb_converged": true,
       "rank": 3
     },
     {
@@ -360,6 +373,8 @@
       "qe_dft_energy_Ry": -1184.62841925,
       "qe_dft_energy_eV": -16117.6909,
       "qe_max_force_Ry_bohr": 0.0,
+      "qe_neb_barrier_eV": 0.4827,
+      "qe_neb_converged": true,
       "rank": 4
     },
     {
@@ -377,6 +392,8 @@
       "qe_dft_energy_Ry": -500.43408538,
       "qe_dft_energy_eV": -6808.7526,
       "qe_max_force_Ry_bohr": 0.0,
+      "qe_neb_barrier_eV": 0.8005,
+      "qe_neb_converged": true,
       "rank": 5
     },
     {
@@ -394,6 +411,8 @@
       "qe_dft_energy_Ry": -198.54222027,
       "qe_dft_energy_eV": -2701.3045,
       "qe_max_force_Ry_bohr": 0.0,
+      "qe_neb_barrier_eV": 0.8426,
+      "qe_neb_converged": true,
       "rank": 6
     },
     {
@@ -411,6 +430,8 @@
       "qe_dft_energy_Ry": -393.61770898,
       "qe_dft_energy_eV": -5355.4418,
       "qe_max_force_Ry_bohr": 0.0,
+      "qe_neb_barrier_eV": 0.9256,
+      "qe_neb_converged": true,
       "rank": 7
     },
     {
@@ -428,6 +449,8 @@
       "qe_dft_energy_Ry": -500.43408538,
       "qe_dft_energy_eV": -6808.7526,
       "qe_max_force_Ry_bohr": 0.0,
+      "qe_neb_barrier_eV": 1.1001,
+      "qe_neb_converged": true,
       "rank": 8
     },
     {
@@ -445,6 +468,8 @@
       "qe_dft_energy_Ry": -45.00075459,
       "qe_dft_energy_eV": -612.2665,
       "qe_max_force_Ry_bohr": 0.0,
+      "qe_neb_barrier_eV": 1.4923,
+      "qe_neb_converged": true,
       "rank": 9
     },
     {
@@ -462,6 +487,8 @@
       "qe_dft_energy_Ry": -796.01537106,
       "qe_dft_energy_eV": -10830.3409,
       "qe_max_force_Ry_bohr": 0.0,
+      "qe_neb_barrier_eV": 2.4426,
+      "qe_neb_converged": true,
       "rank": 10
     },
     {
@@ -479,6 +506,8 @@
       "qe_dft_energy_Ry": -1069.55515319,
       "qe_dft_energy_eV": -14552.0392,
       "qe_max_force_Ry_bohr": 0.0,
+      "qe_neb_barrier_eV": 0.5599,
+      "qe_neb_converged": true,
       "rank": 11
     }
   ],

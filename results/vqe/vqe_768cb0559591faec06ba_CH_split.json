@@ -1,0 +1,182 @@
+{
+  "energy_Ha": -39.70088008884826,
+  "energy_eV": -1080.3159824033044,
+  "optimal_params": [
+    3.139723611762282,
+    0.0019584759398966617,
+    0.0004984241306086149,
+    -0.0011326542049308573,
+    0.08677541427296052,
+    0.21201303716478775,
+    2.0357613495233626,
+    0.3330039126291663,
+    -0.0005897243623465802,
+    0.0026141444545324383,
+    -0.001697606551775034,
+    -0.0009566422885419756,
+    -0.7781095535380971,
+    -0.039239581639501246,
+    0.32266899992533465,
+    -0.10901254473740331,
+    -0.0006976126027104585,
+    -0.3085889971069113,
+    0.0012365002796389172,
+    0.0003759600912846103,
+    -0.03475023815478445,
+    -0.016200548694596407,
+    -0.11443184960892605,
+    -0.9378133963037574
+  ],
+  "n_qubits": 4,
+  "n_layers": 3,
+  "n_params": 24,
+  "max_iter": 3000,
+  "target": "qpp-cpu",
+  "evidence_level": "candidate_specific_vqe_benchmarked",
+  "catalyst_specific_hamiltonian": true,
+  "benchmarked": true,
+  "exact_ground_energy_Ha": -39.70090015055066,
+  "variational_gap_Ha": 2.0061702400653303e-05,
+  "variational_bound_valid": true,
+  "benchmark_tolerance_Ha": 0.0016,
+  "catalyst_name": "768cb0559591faec06ba",
+  "reaction_type": "CH_split",
+  "hamiltonian": {
+    "schema_version": 1,
+    "candidate_id": "768cb0559591faec06ba",
+    "geometry_id": "768cb0559591faec06ba_CH_split_ts",
+    "geometry_path": "geometry.xyz",
+    "geometry_sha256": "f81c65e9a52b5fda99848db0b94bc6a76c62ad6521a76de3aa385dd85c932355",
+    "electronic_structure_protocol": "PySCF-RHF-CASCI(2,2)/STO-3G",
+    "basis": "sto-3g",
+    "active_orbitals": 2,
+    "active_electrons": 2,
+    "charge": 0,
+    "multiplicity": 1,
+    "frozen_orbitals": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "integral_source": "pyscf_casci_active_space",
+    "fcidump_sha256": "86be656a8d716435a47078c80767918bd5c696e9f9379fdcc9614e579e88c896",
+    "fermion_to_qubit_mapping": "Jordan-Wigner",
+    "n_qubits": 4,
+    "pauli_terms": [
+      [
+        -38.9566976731449,
+        "IIII"
+      ],
+      [
+        -0.14900346896938363,
+        "IIIZ"
+      ],
+      [
+        -0.14900346896938363,
+        "IIZI"
+      ],
+      [
+        0.15492805663682624,
+        "IIZZ"
+      ],
+      [
+        -0.007515815849082557,
+        "IXIX"
+      ],
+      [
+        0.00363703106257783,
+        "IXZX"
+      ],
+      [
+        -0.007515815849082557,
+        "IYIY"
+      ],
+      [
+        0.00363703106257783,
+        "IYZY"
+      ],
+      [
+        0.11478618700164417,
+        "IZII"
+      ],
+      [
+        0.09960895001819103,
+        "IZIZ"
+      ],
+      [
+        0.1416371506614289,
+        "IZZI"
+      ],
+      [
+        -0.0038787915027766774,
+        "XIXI"
+      ],
+      [
+        -0.042028200643237874,
+        "XXYY"
+      ],
+      [
+        0.042028200643237874,
+        "XYYX"
+      ],
+      [
+        0.00363703106257783,
+        "XZXI"
+      ],
+      [
+        -0.007515815849082557,
+        "XZXZ"
+      ],
+      [
+        -0.0038787915027766774,
+        "YIYI"
+      ],
+      [
+        0.042028200643237874,
+        "YXXY"
+      ],
+      [
+        -0.042028200643237874,
+        "YYXX"
+      ],
+      [
+        0.00363703106257783,
+        "YZYI"
+      ],
+      [
+        -0.007515815849082557,
+        "YZYZ"
+      ],
+      [
+        0.11478618700164417,
+        "ZIII"
+      ],
+      [
+        0.1416371506614289,
+        "ZIIZ"
+      ],
+      [
+        0.09960895001819103,
+        "ZIZI"
+      ],
+      [
+        -0.0038787915027766774,
+        "ZXZX"
+      ],
+      [
+        -0.0038787915027766774,
+        "ZYZY"
+      ],
+      [
+        0.13709225231244687,
+        "ZZII"
+      ]
+    ],
+    "catalyst_specific_hamiltonian": true,
+    "evidence_level": "candidate_specific_integrals"
+  },
+  "candidate_id": "768cb0559591faec06ba",
+  "material_class": "SupportedNanoparticle",
+  "genome": "('SupportedNanoparticle', 'Ni', 'MgAl2O4', 'fcc211', 12.0, 25.0, ('Cu', 'Fe'), 2, 1)"
+}

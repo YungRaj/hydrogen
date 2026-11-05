@@ -8,7 +8,7 @@ the family implementations and the compatibility router in ``models``.
 from dataclasses import dataclass
 from pathlib import Path
 import json
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 import numpy as np
 
@@ -700,7 +700,7 @@ def off_site_carbon_metrics(
     n_ch4_fed_mol: float,
     n_parcel_in_mol: float,
     pass_time_s: float,
-    cov_start: Optional[np.ndarray],
+    cov_start: Optional[np.ndarray[Any, Any]],
     removed_surface_carbon_mol: float = 0.0,
     basis: str = 'Gamma*A_stage / (c_CH4*eps*V_stage), PFR parcel',
 ) -> dict[str, object]:
@@ -1059,6 +1059,7 @@ def _mmbcr_hydrodynamics(config: ReactorConfig) -> Dict:
 
 
 _INFRASTRUCTURE_EXPORTS = {
+    'Any',
     'Dict',
     'Optional',
     'Path',

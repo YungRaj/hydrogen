@@ -1,0 +1,182 @@
+{
+  "energy_Ha": -39.688770945241835,
+  "energy_eV": -1079.9864758195217,
+  "optimal_params": [
+    3.1409923566182165,
+    -0.0001262715504490982,
+    0.0005792586085394311,
+    -6.89328939627197e-05,
+    0.010034859944840066,
+    -0.19008892688576035,
+    1.7665869274612418,
+    -0.12298352872916121,
+    0.0001732516125234092,
+    0.0018167741733906462,
+    -0.0018337063448278105,
+    -0.00014147563891745446,
+    0.10496698178790584,
+    -0.4178661903240558,
+    -0.3507350801819034,
+    -0.06148549210639695,
+    0.00028432640624872027,
+    -0.3427292751865249,
+    0.0005328709600676138,
+    -4.395572464512411e-05,
+    -0.9611401736540877,
+    0.0023797613527648614,
+    0.07233018270796512,
+    0.019117016130030185
+  ],
+  "n_qubits": 4,
+  "n_layers": 3,
+  "n_params": 24,
+  "max_iter": 3000,
+  "target": "qpp-cpu",
+  "evidence_level": "candidate_specific_vqe_benchmarked",
+  "catalyst_specific_hamiltonian": true,
+  "benchmarked": true,
+  "exact_ground_energy_Ha": -39.6887817395732,
+  "variational_gap_Ha": 1.0794331366525967e-05,
+  "variational_bound_valid": true,
+  "benchmark_tolerance_Ha": 0.0016,
+  "catalyst_name": "eb64b3aa6d3913c21f5d",
+  "reaction_type": "CH_split",
+  "hamiltonian": {
+    "schema_version": 1,
+    "candidate_id": "eb64b3aa6d3913c21f5d",
+    "geometry_id": "eb64b3aa6d3913c21f5d_CH_split_ts",
+    "geometry_path": "geometry.xyz",
+    "geometry_sha256": "d2b80c12e6a3a509996724da563724c7121fd1c2b1d37b7b02a40aee5bf8062a",
+    "electronic_structure_protocol": "PySCF-RHF-CASCI(2,2)/STO-3G",
+    "basis": "sto-3g",
+    "active_orbitals": 2,
+    "active_electrons": 2,
+    "charge": 0,
+    "multiplicity": 1,
+    "frozen_orbitals": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "integral_source": "pyscf_casci_active_space",
+    "fcidump_sha256": "67a636077f611bf351b684ce379ff74155fc6bfb345272af76f3aa86a0208302",
+    "fermion_to_qubit_mapping": "Jordan-Wigner",
+    "n_qubits": 4,
+    "pauli_terms": [
+      [
+        -38.98707698394387,
+        "IIII"
+      ],
+      [
+        -0.1324964502521399,
+        "IIIZ"
+      ],
+      [
+        -0.1324964502521399,
+        "IIZI"
+      ],
+      [
+        0.15286564054545929,
+        "IIZZ"
+      ],
+      [
+        -0.007234123001941435,
+        "IXIX"
+      ],
+      [
+        0.0028574789646702925,
+        "IXZX"
+      ],
+      [
+        -0.007234123001941435,
+        "IYIY"
+      ],
+      [
+        0.0028574789646702925,
+        "IYZY"
+      ],
+      [
+        0.1101026707395916,
+        "IZII"
+      ],
+      [
+        0.09726470018581149,
+        "IZIZ"
+      ],
+      [
+        0.1405701597213636,
+        "IZZI"
+      ],
+      [
+        -0.004376651502859733,
+        "XIXI"
+      ],
+      [
+        -0.04330545953555213,
+        "XXYY"
+      ],
+      [
+        0.04330545953555213,
+        "XYYX"
+      ],
+      [
+        0.0028574789646702925,
+        "XZXI"
+      ],
+      [
+        -0.007234123001941435,
+        "XZXZ"
+      ],
+      [
+        -0.004376651502859733,
+        "YIYI"
+      ],
+      [
+        0.04330545953555213,
+        "YXXY"
+      ],
+      [
+        -0.04330545953555213,
+        "YYXX"
+      ],
+      [
+        0.0028574789646702925,
+        "YZYI"
+      ],
+      [
+        -0.007234123001941435,
+        "YZYZ"
+      ],
+      [
+        0.11010267073959162,
+        "ZIII"
+      ],
+      [
+        0.1405701597213636,
+        "ZIIZ"
+      ],
+      [
+        0.09726470018581149,
+        "ZIZI"
+      ],
+      [
+        -0.004376651502859733,
+        "ZXZX"
+      ],
+      [
+        -0.004376651502859733,
+        "ZYZY"
+      ],
+      [
+        0.13630297199566338,
+        "ZZII"
+      ]
+    ],
+    "catalyst_specific_hamiltonian": true,
+    "evidence_level": "candidate_specific_integrals"
+  },
+  "candidate_id": "eb64b3aa6d3913c21f5d",
+  "material_class": "MAXPhase",
+  "genome": "('MAXPhase', 'Ta', 'Al', 'C', 1, 'Ti', 'basal_0001')"
+}

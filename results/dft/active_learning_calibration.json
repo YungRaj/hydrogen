@@ -37,7 +37,7 @@
   "region_bias_eV": {
     "COF|Co|Imine|N2P2": 0.02349,
     "COF|Pt|Boroxine|O4": -0.012362,
-    "DAC|Fe|Pr|N8": 0.076597,
+    "DAC|Fe|Pr|N8": 0.076598,
     "DAC|Mo|Pr|N2S2N2": 0.057153,
     "DAC|Pt|Sn|N8": 0.076597,
     "HEA|Al-Ce-Cu-Ge-V-Zn|fcc_bcc_dual": 0.246914,
@@ -71,7 +71,7 @@
     "SAC|Cu|S4|Phosphorene": 0.023503,
     "SAC|Fe|N3S|MoS2_sheet": 0.047029,
     "SAC|Pd|N3C|Phosphorene": -0.001027,
-    "SAC|Sb|O4|Phosphorene": 0.033508,
+    "SAC|Sb|O4|Phosphorene": 0.033507,
     "SolidCatalyst|Au|MoO3|bcc211": 0.081298,
     "SolidCatalyst|Au|NiP|fcc110": 0.100041,
     "SolidCatalyst|Co|Graphite|fcc100": 0.076429,
@@ -135,8 +135,8 @@
       "class_calibration_stats": {
         "DAC": {
           "n": 1,
-          "mae": 1.3833,
-          "bias": 1.3833,
+          "mae": 1.3832999999999998,
+          "bias": 1.3832999999999998,
           "productivity": 0.0,
           "best_observed": 2.2529
         },
@@ -156,15 +156,15 @@
         },
         "MetalFreeCarbon": {
           "n": 1,
-          "mae": 1.4728,
-          "bias": 1.4728,
+          "mae": 1.4727999999999999,
+          "bias": 1.4727999999999999,
           "productivity": 0.0,
           "best_observed": 2.7196
         },
         "MoltenMetal": {
           "n": 1,
-          "mae": 1.3724,
-          "bias": 1.3724,
+          "mae": 1.3723999999999998,
+          "bias": 1.3723999999999998,
           "productivity": 0.0,
           "best_observed": 1.9863
         },
@@ -177,8 +177,8 @@
         },
         "SAC": {
           "n": 1,
-          "mae": 2.6188,
-          "bias": 2.6188,
+          "mae": 2.6188000000000002,
+          "bias": 2.6188000000000002,
           "productivity": 0.0,
           "best_observed": 2.9828
         },
@@ -191,15 +191,15 @@
         },
         "Spinel": {
           "n": 1,
-          "mae": 1.7848,
-          "bias": 1.7848,
+          "mae": 1.7848000000000002,
+          "bias": 1.7848000000000002,
           "productivity": 0.0,
           "best_observed": 2.4129
         },
         "SupportedNanoparticle": {
           "n": 1,
-          "mae": 0.8482,
-          "bias": 0.8482,
+          "mae": 0.8482000000000001,
+          "bias": 0.8482000000000001,
           "productivity": 0.0,
           "best_observed": 1.1895
         }
@@ -207,8 +207,8 @@
       "regional_calibration_stats": {
         "DAC|Zn|Al|N3BN3": {
           "n": 1,
-          "mae": 1.3833,
-          "bias": 1.3833,
+          "mae": 1.3832999999999998,
+          "bias": 1.3832999999999998,
           "productivity": 0.0,
           "best_observed": 2.2529
         },
@@ -221,8 +221,8 @@
         },
         "HEA|Fe-Ir-Nb-Sc-Zn|hcp": {
           "n": 1,
-          "mae": 0.92,
-          "bias": 0.92,
+          "mae": 0.9199999999999999,
+          "bias": 0.9199999999999999,
           "productivity": 0.0,
           "best_observed": 1.2368
         },
@@ -235,15 +235,15 @@
         },
         "MetalFreeCarbon|pyrrolic|0.04": {
           "n": 1,
-          "mae": 1.4728,
-          "bias": 1.4728,
+          "mae": 1.4727999999999999,
+          "bias": 1.4727999999999999,
           "productivity": 0.0,
           "best_observed": 2.7196
         },
         "MoltenMetal|Te|Ti": {
           "n": 1,
-          "mae": 1.3724,
-          "bias": 1.3724,
+          "mae": 1.3723999999999998,
+          "bias": 1.3723999999999998,
           "productivity": 0.0,
           "best_observed": 1.9863
         },
@@ -256,8 +256,8 @@
         },
         "SAC|Zn|N4_pyridine|N-graphene": {
           "n": 1,
-          "mae": 2.6188,
-          "bias": 2.6188,
+          "mae": 2.6188000000000002,
+          "bias": 2.6188000000000002,
           "productivity": 0.0,
           "best_observed": 2.9828
         },
@@ -270,15 +270,15 @@
         },
         "Spinel|Mg|Co": {
           "n": 1,
-          "mae": 1.7848,
-          "bias": 1.7848,
+          "mae": 1.7848000000000002,
+          "bias": 1.7848000000000002,
           "productivity": 0.0,
           "best_observed": 2.4129
         },
         "SupportedNanoparticle|Ni|MgAl2O4|fcc211": {
           "n": 1,
-          "mae": 0.8482,
-          "bias": 0.8482,
+          "mae": 0.8482000000000001,
+          "bias": 0.8482000000000001,
           "productivity": 0.0,
           "best_observed": 1.1895
         }
@@ -317,7 +317,7 @@
       "region_bias_eV": {
         "COF|Co|Imine|N2P2": 0.02349,
         "COF|Pt|Boroxine|O4": -0.012362,
-        "DAC|Fe|Pr|N8": 0.076597,
+        "DAC|Fe|Pr|N8": 0.076598,
         "DAC|Mo|Pr|N2S2N2": 0.057153,
         "DAC|Pt|Sn|N8": 0.076597,
         "HEA|Al-Ce-Cu-Ge-V-Zn|fcc_bcc_dual": 0.246914,
@@ -351,7 +351,7 @@
         "SAC|Cu|S4|Phosphorene": 0.023503,
         "SAC|Fe|N3S|MoS2_sheet": 0.047029,
         "SAC|Pd|N3C|Phosphorene": -0.001027,
-        "SAC|Sb|O4|Phosphorene": 0.033508,
+        "SAC|Sb|O4|Phosphorene": 0.033507,
         "SolidCatalyst|Au|MoO3|bcc211": 0.081298,
         "SolidCatalyst|Au|NiP|fcc110": 0.100041,
         "SolidCatalyst|Co|Graphite|fcc100": 0.076429,
@@ -364,29 +364,29 @@
       "class_calibration_stats": {
         "COF": {
           "n": 2,
-          "mae": 0.107555,
-          "bias": 0.012299000000000004,
+          "mae": 0.10755499999999998,
+          "bias": 0.012298999999999977,
           "productivity": 0.5,
           "best_observed": 0.342209
         },
         "DAC": {
           "n": 3,
-          "mae": 0.12944433333333336,
-          "bias": 0.12944433333333336,
+          "mae": 0.12944433333333324,
+          "bias": 0.12944433333333324,
           "productivity": 0.0,
           "best_observed": 0.420581
         },
         "HEA": {
           "n": 4,
-          "mae": 0.31244025,
-          "bias": 0.23119024999999999,
+          "mae": 0.31244025000000003,
+          "bias": 0.23119025000000004,
           "productivity": 0.0,
           "best_observed": 0.193069
         },
         "MAXPhase": {
           "n": 2,
-          "mae": 0.8537619999999999,
-          "bias": 0.8537619999999999,
+          "mae": 0.8537620000000001,
+          "bias": 0.8537620000000001,
           "productivity": 0.0,
           "best_observed": 0.447949
         },
@@ -399,8 +399,8 @@
         },
         "MXene": {
           "n": 1,
-          "mae": 0.243334,
-          "bias": 0.243334,
+          "mae": 0.24333399999999994,
+          "bias": 0.24333399999999994,
           "productivity": 0.0,
           "best_observed": 1.666153
         },
@@ -420,8 +420,8 @@
         },
         "SAA": {
           "n": 12,
-          "mae": 0.17621875,
-          "bias": 0.11871875,
+          "mae": 0.17621874999999998,
+          "bias": 0.11871874999999997,
           "productivity": 0.3333333333333333,
           "best_observed": 0.205863
         },
@@ -442,7 +442,7 @@
         "Spinel": {
           "n": 5,
           "mae": 0.0913914,
-          "bias": 0.013391400000000001,
+          "bias": 0.013391400000000008,
           "productivity": 0.2,
           "best_observed": 0.156061
         }
@@ -450,71 +450,71 @@
       "regional_calibration_stats": {
         "COF|Co|Imine|N2P2": {
           "n": 1,
-          "mae": 0.119854,
-          "bias": 0.119854,
+          "mae": 0.11985399999999996,
+          "bias": 0.11985399999999996,
           "productivity": 0.0,
           "best_observed": 0.430677
         },
         "COF|Pt|Boroxine|O4": {
           "n": 1,
-          "mae": 0.095256,
-          "bias": -0.095256,
+          "mae": 0.09525600000000001,
+          "bias": -0.09525600000000001,
           "productivity": 1.0,
           "best_observed": 0.342209
         },
         "DAC|Fe|Pr|N8": {
           "n": 1,
-          "mae": 0.168333,
-          "bias": 0.168333,
+          "mae": 0.16833300000000007,
+          "bias": 0.16833300000000007,
           "productivity": 0.0,
           "best_observed": 1.940695
         },
         "DAC|Mo|Pr|N2S2N2": {
           "n": 1,
-          "mae": 0.051667,
-          "bias": 0.051667,
+          "mae": 0.051666999999999685,
+          "bias": 0.051666999999999685,
           "productivity": 0.0,
           "best_observed": 2.436485
         },
         "DAC|Pt|Sn|N8": {
           "n": 1,
-          "mae": 0.168333,
-          "bias": 0.168333,
+          "mae": 0.16833299999999995,
+          "bias": 0.16833299999999995,
           "productivity": 0.0,
           "best_observed": 0.420581
         },
         "HEA|Al-Ce-Cu-Ge-V-Zn|fcc_bcc_dual": {
           "n": 1,
-          "mae": 0.86498,
-          "bias": 0.86498,
+          "mae": 0.8649800000000001,
+          "bias": 0.8649800000000001,
           "productivity": 0.0,
           "best_observed": 3.86498
         },
         "HEA|Ce-Co-Ir-La-Ru-Sb|amorphous": {
           "n": 1,
-          "mae": 0.21024,
-          "bias": 0.21024,
+          "mae": 0.21024000000000004,
+          "bias": 0.21024000000000004,
           "productivity": 0.0,
           "best_observed": 0.259321
         },
         "HEA|Ce-Co-Ir-Pt-Re|fcc": {
           "n": 1,
-          "mae": 0.1625,
-          "bias": -0.1625,
+          "mae": 0.16250000000000003,
+          "bias": -0.16250000000000003,
           "productivity": 0.0,
           "best_observed": 0.193069
         },
         "HEA|Co-Hf-Ni-Re|fcc_bcc_dual": {
           "n": 1,
-          "mae": 0.012041,
-          "bias": 0.012041,
+          "mae": 0.012041000000000024,
+          "bias": 0.012041000000000024,
           "productivity": 0.0,
           "best_observed": 0.299451
         },
         "MAXPhase|Nb|P": {
           "n": 1,
-          "mae": 1.600423,
-          "bias": 1.600423,
+          "mae": 1.6004230000000002,
+          "bias": 1.6004230000000002,
           "productivity": 0.0,
           "best_observed": 4.600423
         },
@@ -541,8 +541,8 @@
         },
         "MXene|W|CN": {
           "n": 1,
-          "mae": 0.243334,
-          "bias": 0.243334,
+          "mae": 0.24333399999999994,
+          "bias": 0.24333399999999994,
           "productivity": 0.0,
           "best_observed": 1.666153
         },
@@ -562,8 +562,8 @@
         },
         "Perovskite|Ba|Sb": {
           "n": 1,
-          "mae": 0.111666,
-          "bias": 0.111666,
+          "mae": 0.11166600000000002,
+          "bias": 0.11166600000000002,
           "productivity": 0.0,
           "best_observed": 0.354082
         },
@@ -576,22 +576,22 @@
         },
         "Perovskite|Gd|Zn": {
           "n": 1,
-          "mae": 0.034597,
-          "bias": -0.034597,
+          "mae": 0.03459699999999999,
+          "bias": -0.03459699999999999,
           "productivity": 0.0,
           "best_observed": 0.090948
         },
         "Perovskite|Na|Fe": {
           "n": 1,
-          "mae": 0.099187,
-          "bias": -0.099187,
+          "mae": 0.09918700000000003,
+          "bias": -0.09918700000000003,
           "productivity": 0.0,
           "best_observed": 0.260754
         },
         "Perovskite|Na|Ta": {
           "n": 1,
-          "mae": 0.161296,
-          "bias": 0.161296,
+          "mae": 0.16129600000000005,
+          "bias": 0.16129600000000005,
           "productivity": 0.0,
           "best_observed": 0.556729
         },
@@ -604,15 +604,15 @@
         },
         "SAA|Ir|In": {
           "n": 1,
-          "mae": 0.243334,
-          "bias": 0.243334,
+          "mae": 0.24333399999999994,
+          "bias": 0.24333399999999994,
           "productivity": 0.0,
           "best_observed": 0.659835
         },
         "SAA|Pd|Ag": {
           "n": 2,
-          "mae": 0.21349200000000002,
-          "bias": 0.21349200000000002,
+          "mae": 0.21349199999999996,
+          "bias": 0.21349199999999996,
           "productivity": 0.0,
           "best_observed": 0.593985
         },
@@ -625,8 +625,8 @@
         },
         "SAA|Pd|Co": {
           "n": 1,
-          "mae": 0.243333,
-          "bias": 0.243333,
+          "mae": 0.2433329999999998,
+          "bias": 0.2433329999999998,
           "productivity": 0.0,
           "best_observed": 2.15962
         },
@@ -646,22 +646,22 @@
         },
         "SAA|Pt|Co": {
           "n": 1,
-          "mae": 0.1825,
-          "bias": -0.1825,
+          "mae": 0.18250000000000002,
+          "bias": -0.18250000000000002,
           "productivity": 1.0,
           "best_observed": 0.2069
         },
         "SAA|Pt|Ga": {
           "n": 1,
-          "mae": 0.1625,
-          "bias": -0.1625,
+          "mae": 0.16250000000000003,
+          "bias": -0.16250000000000003,
           "productivity": 1.0,
           "best_observed": 0.264738
         },
         "SAC|Ce|N3B|N-mesoporous_carbon": {
           "n": 1,
-          "mae": 0.168334,
-          "bias": 0.168334,
+          "mae": 0.16833399999999998,
+          "bias": 0.16833399999999998,
           "productivity": 0.0,
           "best_observed": 0.500806
         },
@@ -681,8 +681,8 @@
         },
         "SAC|Cu|S4|Phosphorene": {
           "n": 1,
-          "mae": 0.027178,
-          "bias": 0.027178,
+          "mae": 0.027178000000000035,
+          "bias": 0.027178000000000035,
           "productivity": 1.0,
           "best_observed": 0.345368
         },
@@ -702,8 +702,8 @@
         },
         "SAC|Sb|O4|Phosphorene": {
           "n": 1,
-          "mae": 0.087207,
-          "bias": 0.087207,
+          "mae": 0.08720699999999998,
+          "bias": 0.08720699999999998,
           "productivity": 0.0,
           "best_observed": 0.515809
         },
@@ -716,22 +716,22 @@
         },
         "SolidCatalyst|Au|NiP|fcc110": {
           "n": 1,
-          "mae": 0.243333,
-          "bias": 0.243333,
+          "mae": 0.24333300000000002,
+          "bias": 0.24333300000000002,
           "productivity": 1.0,
           "best_observed": 0.349075
         },
         "SolidCatalyst|Co|Graphite|fcc100": {
           "n": 1,
-          "mae": 0.101667,
-          "bias": 0.101667,
+          "mae": 0.10166699999999998,
+          "bias": 0.10166699999999998,
           "productivity": 0.0,
           "best_observed": 0.243388
         },
         "Spinel|Cu|Cu": {
           "n": 1,
-          "mae": 0.111666,
-          "bias": 0.111666,
+          "mae": 0.11166600000000004,
+          "bias": 0.11166600000000004,
           "productivity": 0.0,
           "best_observed": 0.553482
         },
@@ -744,22 +744,22 @@
         },
         "Spinel|Fe|Ni": {
           "n": 1,
-          "mae": 0.040953,
-          "bias": 0.040953,
+          "mae": 0.04095299999999999,
+          "bias": 0.04095299999999999,
           "productivity": 0.0,
           "best_observed": 0.257986
         },
         "Spinel|Ni|Co": {
           "n": 1,
-          "mae": 0.195,
-          "bias": -0.195,
+          "mae": 0.19499999999999998,
+          "bias": -0.19499999999999998,
           "productivity": 1.0,
           "best_observed": 0.159087
         },
         "Spinel|Zn|Co": {
           "n": 1,
-          "mae": 0.001463,
-          "bias": 0.001463,
+          "mae": 0.001462999999999992,
+          "bias": 0.001462999999999992,
           "productivity": 0.0,
           "best_observed": 0.156061
         }
@@ -1878,5 +1878,5 @@
       }
     }
   ],
-  "calibration_sha256": "ddf5168543af6a7bc06d8b5ff80066ef6614a2cc3c69fc29794c2c830fff13dd"
+  "calibration_sha256": "6fc922a2fca66382b43062e2868057e4c6467d26ddbbfde6614af2e848aebf61"
 }

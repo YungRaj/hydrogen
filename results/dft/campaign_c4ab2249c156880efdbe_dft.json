@@ -1,0 +1,19 @@
+{
+  "catalyst_name": "campaign_c4ab2249c156880efdbe",
+  "candidate_id": "c4ab2249c156880efdbe",
+  "material_class": "MoltenMetal",
+  "genome": "('MoltenMetal', 'Ga', 'Ti', 10.0, 1000)",
+  "evidence_level": "screening_dft",
+  "returncode": 0,
+  "converged": true,
+  "dft_energy_Ry": -512.421084,
+  "dft_energy_eV": -6971.842105,
+  "max_force_Ry_bohr": 0.0,
+  "neb_converged": true,
+  "neb_forward_barrier_eV": 0.907633,
+  "neb_reverse_barrier_eV": 1.220033,
+  "neb_path_metric": 3.418,
+  "neb_n_images": 5,
+  "neb_active_index": 7,
+  "kinetics_status": "dft_neb_complete"
+}

@@ -1,0 +1,26 @@
+{
+  "active_electrons": 2,
+  "active_orbitals": 2,
+  "basis": "sto-3g",
+  "candidate_id": "87d86cdaf36fda7c6831",
+  "charge": 0,
+  "electronic_structure_protocol": "PySCF-RHF-CASCI(2,2)/STO-3G",
+  "fcidump_sha256": "c89470da4d29c2b0d293efdae0a25e030a6001bff499771dcc409e976ac32bad",
+  "fermion_to_qubit_mapping": "Jordan-Wigner",
+  "frozen_orbitals": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "geometry_id": "87d86cdaf36fda7c6831_ORR_ts",
+  "geometry_path": "geometry.xyz",
+  "geometry_sha256": "78a122c79ec912042e52c9f719db0fa62895a870044877a368057d64baa85271",
+  "integral_source": "pyscf_casci_active_space",
+  "multiplicity": 1,
+  "schema_version": 1
+}

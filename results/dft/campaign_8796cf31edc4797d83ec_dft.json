@@ -15,5 +15,12 @@
   "dft_energy_Ry": -796.01537106,
   "dft_energy_eV": -10830.340859828559,
   "converged": true,
-  "max_force_Ry_bohr": 0.0
+  "max_force_Ry_bohr": 0.0,
+  "neb_converged": true,
+  "neb_forward_barrier_eV": 2.442567,
+  "neb_reverse_barrier_eV": 2.754967,
+  "neb_path_metric": 3.418,
+  "neb_n_images": 5,
+  "neb_active_index": 7,
+  "kinetics_status": "dft_neb_complete"
 }
