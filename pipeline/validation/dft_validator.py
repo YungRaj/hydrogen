@@ -792,40 +792,14 @@ def build_champion_neb_slab(genome: tuple):
     """Build a periodic 2x2x2 surface slab and active site index for CH4 -> CH3* + H* NEB.
 
     Args:
-        genome: Encoded catalyst composition and structural configuration.
+        genome: Catalyst genome tuple.
 
     Returns:
-        Tuple `(slab, active_index)` where `slab` is an ASE `Atoms` surface model
-        with bottom-layer `FixAtoms` constraints and `active_index` is the top-layer
-        catalytic site index.
+        Tuple of (slab, active_index).
     """
-    from ase.build import fcc111
-    from ase.constraints import FixAtoms
+    from pipeline.validation.neb_path import build_champion_neb_slab as _build
 
-    motif_elems = _extract_genome_motif_elements(genome)
-    host_elem = (
-        str(genome[1])
-        if str(genome[0]) in ('MoltenMetal', 'SolidCatalyst')
-        and str(genome[1]) in _FCC_EQUIVALENT_LATTICE_BOHR
-        else motif_elems[0]
-    )
-    celldm_bohr = _FCC_EQUIVALENT_LATTICE_BOHR.get(host_elem, 7.0)
-    a_ang = celldm_bohr * 0.529177210903
-    slab = fcc111(host_elem, size=(2, 2, 2), a=a_ang, vacuum=6.0, periodic=True)
-    top_indices = [i for i, atom in enumerate(slab) if atom.tag == 1]
-    bottom_indices = [i for i, atom in enumerate(slab) if atom.tag > 1]
-    if not top_indices:
-        top_indices = list(range(len(slab) // 2, len(slab)))
-        bottom_indices = list(range(0, len(slab) // 2))
-    # Populate top surface sites with the candidate's active motif elements, placing
-    # the primary active site at the final top-layer index.
-    ordered_top = list(reversed(top_indices))
-    for k, idx in enumerate(ordered_top):
-        slab[idx].symbol = motif_elems[k % len(motif_elems)]
-    if bottom_indices:
-        slab.set_constraint(FixAtoms(indices=bottom_indices))
-    active_index = ordered_top[0]
-    return slab, active_index
+    return _build(genome)
 
 
 def generate_champion_neb_input(
@@ -839,84 +813,38 @@ def generate_champion_neb_input(
     """Generate a candidate-specific Quantum ESPRESSO `neb.x` input for CH4 -> CH3* + H*.
 
     Args:
-        catalyst_name: Identifier for the champion catalyst.
-        genome: Encoded catalyst composition and structural configuration.
-        n_images: Number of NEB images along the dissociation pathway (>= 5).
-        path_config: Optional `NEBPathConfig` override.
-        output_dir: Optional directory override; defaults to `DFT_DIR / catalyst_name`.
+        catalyst_name: Catalyst identifier used for output filenames.
+        genome: Catalyst genome tuple.
+        n_images: Number of NEB images along the reaction path.
+        path_config: Optional NEBPathConfig override.
+        output_dir: Optional directory for generated NEB input files.
 
     Returns:
-        Dictionary containing the written `.neb.in` path, image count, active site index,
-        motif elements, and verified SSSP metadata.
+        Dictionary of NEB input metadata.
     """
-    from pipeline.validation.neb_path import NEBPathConfig, methane_dissociation_images
-    from pipeline.validation.qe_workflows import write_qe_neb_input
+    from pipeline.validation.neb_path import generate_champion_neb_input as _gen
 
-    calc_dir = Path(output_dir) if output_dir is not None else (DFT_DIR / catalyst_name)
-    calc_dir.mkdir(parents=True, exist_ok=True)
-    slab, active_index = build_champion_neb_slab(genome)
-    images = methane_dissociation_images(
-        slab, active_index=active_index, n_images=n_images
+    return _gen(
+        catalyst_name,
+        genome,
+        n_images=n_images,
+        path_config=path_config,
+        output_dir=output_dir,
     )
-    cfg = path_config if path_config is not None else NEBPathConfig()
-    neb_input_path = calc_dir / f"{catalyst_name}.neb.in"
-    meta = write_qe_neb_input(
-        images,
-        str(neb_input_path),
-        prefix=f"{catalyst_name}_neb",
-        path_config=cfg,
-    )
-    return {
-        **meta,
-        'catalyst_name': catalyst_name,
-        'active_index': active_index,
-        'elements': sorted(set(images[0].get_chemical_symbols())),
-    }
 
 
 def parse_champion_neb_barrier(neb_output_file: str) -> dict:
     """Parse a QE `neb.x` output file and classify candidate kinetics status.
 
-    Only a cleanly converged `neb.x` output (`JOB DONE` and
-    `neb: convergence achieved`) with a finite positive forward barrier
-    promotes `kinetics_status` to `'dft_neb_complete'`.
-
     Args:
-        neb_output_file: Path to the QE `neb.x` output file.
+        neb_output_file: Path to the Quantum ESPRESSO `neb.x` output file.
 
     Returns:
-        Dictionary with `neb_converged`, `neb_forward_barrier_eV`,
-        `neb_reverse_barrier_eV`, `neb_path_metric`, and `kinetics_status`.
+        Dictionary with parsed NEB barrier and convergence status.
     """
-    from pipeline.validation.qe_workflows import parse_neb_result
+    from pipeline.validation.neb_path import parse_champion_neb_barrier as _parse
 
-    if not os.path.exists(neb_output_file):
-        return {
-            'neb_converged': False,
-            'neb_forward_barrier_eV': None,
-            'neb_reverse_barrier_eV': None,
-            'neb_path_metric': None,
-            'kinetics_status': 'qe_dft_calibrated_bep',
-        }
-    parsed = parse_neb_result(str(neb_output_file))
-    conv = bool(parsed.get('converged', False))
-    fwd = parsed.get('forward_barrier_eV')
-    rev = parsed.get('reverse_barrier_eV')
-    metric = parsed.get('path_metric')
-    valid_barrier = (
-        conv
-        and isinstance(fwd, (int, float))
-        and float(fwd) > 0.0
-    )
-    return {
-        'neb_converged': conv,
-        'neb_forward_barrier_eV': float(fwd) if isinstance(fwd, (int, float)) else None,
-        'neb_reverse_barrier_eV': float(rev) if isinstance(rev, (int, float)) else None,
-        'neb_path_metric': float(metric) if isinstance(metric, (int, float)) else None,
-        'kinetics_status': (
-            'dft_neb_complete' if valid_barrier else 'qe_dft_calibrated_bep'
-        ),
-    }
+    return _parse(neb_output_file)
 
 
 if __name__ == '__main__':
@@ -924,4 +852,5 @@ if __name__ == '__main__':
     genome = ('MoltenMetal', 'Bi', 'Ni', 10.0, 1000)
     result = validate_catalyst("NiBi_10pct", genome, run_dft=False)
     print(json.dumps(result, indent=2, default=str))
+
 

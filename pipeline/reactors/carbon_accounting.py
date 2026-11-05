@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 import numpy as np
+
+from pipeline.data_models.reactors import (
+    CanteraGasPhase,
+    CanteraSurfacePhase,
+    LoadStatusFields,
+)
 
 try:
     import cantera as ct
@@ -114,7 +120,9 @@ def pyrolysis_reaction_enthalpy_kJ_mol(T_K: float = 298.15) -> float:
 
 
 
-def _load_gas_and_surface(config):
+def _load_gas_and_surface(
+    config: Any,
+) -> tuple[CanteraGasPhase, object | None, CanteraSurfacePhase | None]:
     gas = ct.Solution(config.mechanism_file, 'gas')
     if 'C_graphite' in gas.species_names:
         raise RuntimeError(
@@ -150,7 +158,9 @@ def _load_gas_and_surface(config):
     return gas, graphite, surf
 
 
-def _load_status_fields(config, graphite, surf) -> dict:
+def _load_status_fields(
+    config: Any, graphite: object | None, surf: object | None
+) -> LoadStatusFields:
     return {
         'gas_only': bool(config.gas_only),
         'surface_loaded': surf is not None,
@@ -159,19 +169,19 @@ def _load_status_fields(config, graphite, surf) -> dict:
     }
 
 
-def _species_x(gas, name: str) -> float:
+def _species_x(gas: CanteraGasPhase, name: str) -> float:
     if name not in gas.species_names:
         return 0.0
     return float(gas.X[gas.species_index(name)])
 
 
-def _coverage(surf, name: str) -> float:
+def _coverage(surf: Optional[CanteraSurfacePhase], name: str) -> float:
     if surf is None or name not in surf.species_names:
         return 0.0
     return float(surf.coverages[surf.species_index(name)])
 
 
-def _apply_continuous_carbon_removal(surf, rate_1_s: float, dt: float) -> float:
+def _apply_continuous_carbon_removal(surf: Optional[CanteraSurfacePhase], rate_1_s: float, dt: float) -> float:
     """Transport-style continuous removal of C_s → free sites.
 
     Returns approximate coverage of C removed (not moles).
@@ -195,7 +205,7 @@ def _apply_continuous_carbon_removal(surf, rate_1_s: float, dt: float) -> float:
     return float(removed)
 
 
-def _reset_surface_carbon(surf) -> None:
+def _reset_surface_carbon(surf: Optional[CanteraSurfacePhase]) -> None:
     """Mechanical / consumable regen: clear adsorbates and restore free sites.
 
     Encapsulating carbon (``C_encap_s``, Baker-Helveg Cδ) is time-on-stream
@@ -447,7 +457,7 @@ def _h2_atom_balance_metric(
     return float(np.clip(h_in_h2 / max(h_in_ch4 * final_conv, 1e-10), 0, 1))
 
 
-def _ch4_extent(gas, x_ch4_feed: float, x_ar_feed: float) -> float:
+def _ch4_extent(gas: CanteraGasPhase, x_ch4_feed: float, x_ar_feed: float) -> float:
     from pipeline.reactors.equilibrium import ch4_conversion_from_argon_tracer
 
     return ch4_conversion_from_argon_tracer(
@@ -456,7 +466,7 @@ def _ch4_extent(gas, x_ch4_feed: float, x_ar_feed: float) -> float:
 
 
 def _clamp_gas_to_equilibrium(
-    gas, x_ch4_feed: float, x_ar_feed: float
+    gas: CanteraGasPhase, x_ch4_feed: float, x_ar_feed: float
 ) -> None:
     """Prevent irreversible C_s => C(gr) + site sink from pulling X past X_eq(T, P)."""
     if x_ch4_feed <= 0.0 or x_ar_feed <= 0.0:
@@ -511,7 +521,11 @@ def _disable_reactor_energy(reactor) -> str:
 
 
 def _advance_reactor_stage(
-    gas, surf, volume_m3: float, surface_area_m2: float, dt: float
+    gas: CanteraGasPhase,
+    surf: Optional[CanteraSurfacePhase],
+    volume_m3: float,
+    surface_area_m2: float,
+    dt: float,
 ) -> None:
     """Advance an isothermal gas+surface stage, falling back to substepped tight tolerances on stiff CVODES failure."""
     gas_t, gas_p = float(gas.T), float(gas.P)
@@ -554,7 +568,7 @@ def _advance_reactor_stage(
         _step_stage(sub_dt, tight=True)
 
 
-def _mole_fraction_drop(gas, x_ch4_feed: float) -> float:
+def _mole_fraction_drop(gas: CanteraGasPhase, x_ch4_feed: float) -> float:
     if x_ch4_feed <= 0:
         return 0.0
     return float(max(0.0, 1.0 - _species_x(gas, 'CH4') / x_ch4_feed))

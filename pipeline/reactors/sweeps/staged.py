@@ -302,21 +302,3 @@ def propose_roi(coarse_payload: dict, spec: SweepSpec) -> dict:
         'n_kept_coarse_cells': len(kept),
         'reason': '; '.join(notes),
     }
-
-
-def import_existing_stage(
-    name: str, stage: str, source: Path, overwrite: bool = False
-) -> Path:
-    """Copy an already-run JSON into the write-once archive without resimulating.
-
-    Args:
-        name: Input controlling name.
-        stage: Input controlling stage.
-        source: Input controlling source.
-        overwrite: Input controlling overwrite.
-
-    Returns:
-        Validated Path output for this operation.
-    """
-    payload = json.loads(Path(source).read_text(encoding='utf-8'))
-    return write_stage(name, stage, payload, overwrite=overwrite)

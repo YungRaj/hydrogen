@@ -9,7 +9,6 @@ from pipeline.data_models.core import (
     CandidateId,
     ConvergenceStatus,
     EvidenceLevel,
-    FidelityLevel,
     JsonValue,
 )
 
@@ -17,6 +16,5 @@ __all__ = [
     "CandidateId",
     "ConvergenceStatus",
     "EvidenceLevel",
-    "FidelityLevel",
     "JsonValue",
 ]

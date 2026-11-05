@@ -29,15 +29,6 @@ class EvidenceLevel(StringEnum):
     EXPERIMENTAL = "experimental"
 
 
-class FidelityLevel(StringEnum):
-    """Computational fidelity used to produce a result."""
-
-    SCREENING = "screening"
-    REDUCED_PHYSICS = "reduced_physics"
-    FULL_PHYSICS = "full_physics"
-    EXPERIMENTAL = "experimental"
-
-
 class ConvergenceStatus(StringEnum):
     """Explicit convergence state; absence is never interpreted as success."""
 
