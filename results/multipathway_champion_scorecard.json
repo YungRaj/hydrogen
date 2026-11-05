@@ -1,529 +1,1382 @@
 {
-  "coupled_turquoise_pemfc_tea": {
-    "electrochemical": {
-      "h2_cost_base_usd_kg": 68.494,
-      "h2_cost_optimistic_usd_kg": 40.245,
-      "pemfc_fuel_cost_base_usd_kwh_e": 4.8812,
-      "pemfc_fuel_cost_optimistic_usd_kwh_e": 2.8681
-    },
-    "mmbcr": {
-      "h2_cost_base_usd_kg": 1.721,
-      "h2_cost_optimistic_usd_kg": 0.486,
-      "pemfc_fuel_cost_base_usd_kwh_e": 0.1226,
-      "pemfc_fuel_cost_optimistic_usd_kwh_e": 0.0346
-    },
-    "ntec": {
-      "h2_cost_base_usd_kg": 13.799,
-      "h2_cost_optimistic_usd_kg": 7.962,
-      "pemfc_fuel_cost_base_usd_kwh_e": 0.9834,
-      "pemfc_fuel_cost_optimistic_usd_kwh_e": 0.5674
-    },
-    "thermocatalytic": {
-      "h2_cost_base_usd_kg": 1.002,
-      "h2_cost_optimistic_usd_kg": 0.097,
-      "pemfc_fuel_cost_base_usd_kwh_e": 0.0714,
-      "pemfc_fuel_cost_optimistic_usd_kwh_e": 0.0069
-    },
-    "thermocatalytic_fluidized": {
-      "h2_cost_base_usd_kg": 1.243,
-      "h2_cost_optimistic_usd_kg": 0.228,
-      "pemfc_fuel_cost_base_usd_kwh_e": 0.0886,
-      "pemfc_fuel_cost_optimistic_usd_kwh_e": 0.0162
-    },
-    "thermocatalytic_pbr": {
-      "h2_cost_base_usd_kg": 1.002,
-      "h2_cost_optimistic_usd_kg": 0.097,
-      "pemfc_fuel_cost_base_usd_kwh_e": 0.0714,
-      "pemfc_fuel_cost_optimistic_usd_kwh_e": 0.0069
-    },
-    "thermocatalytic_pfr": {
-      "h2_cost_base_usd_kg": 1.005,
-      "h2_cost_optimistic_usd_kg": 0.099,
-      "pemfc_fuel_cost_base_usd_kwh_e": 0.0716,
-      "pemfc_fuel_cost_optimistic_usd_kwh_e": 0.0071
-    }
-  },
-  "dft_calibrated_coupled_turquoise_pemfc_tea": {
-    "electrochemical": {
-      "dft_calibrated_h2_cost_base_usd_kg": 1122.075,
-      "dft_calibrated_h2_cost_conservative_usd_kg": 2284.594,
-      "dft_calibrated_h2_cost_optimistic_usd_kg": 666.203,
-      "dft_calibrated_pemfc_fuel_cost_base_usd_kwh_e": 79.9658,
-      "dft_calibrated_pemfc_fuel_cost_optimistic_usd_kwh_e": 47.4776
-    },
-    "mmbcr": {
-      "dft_calibrated_h2_cost_base_usd_kg": 9.318,
-      "dft_calibrated_h2_cost_conservative_usd_kg": 25.28,
-      "dft_calibrated_h2_cost_optimistic_usd_kg": 4.592,
-      "dft_calibrated_pemfc_fuel_cost_base_usd_kwh_e": 0.6641,
-      "dft_calibrated_pemfc_fuel_cost_optimistic_usd_kwh_e": 0.3273
-    },
-    "ntec": {
-      "dft_calibrated_h2_cost_base_usd_kg": 941.355,
-      "dft_calibrated_h2_cost_conservative_usd_kg": 1962.224,
-      "dft_calibrated_h2_cost_optimistic_usd_kg": 572.876,
-      "dft_calibrated_pemfc_fuel_cost_base_usd_kwh_e": 67.0866,
-      "dft_calibrated_pemfc_fuel_cost_optimistic_usd_kwh_e": 40.8266
-    },
-    "thermocatalytic": {
-      "dft_calibrated_h2_cost_base_usd_kg": 1.208,
-      "dft_calibrated_h2_cost_conservative_usd_kg": 4.395,
-      "dft_calibrated_h2_cost_optimistic_usd_kg": 0.208,
-      "dft_calibrated_pemfc_fuel_cost_base_usd_kwh_e": 0.0861,
-      "dft_calibrated_pemfc_fuel_cost_optimistic_usd_kwh_e": 0.0148
-    },
-    "thermocatalytic_fluidized": {
-      "dft_calibrated_h2_cost_base_usd_kg": 2.874,
-      "dft_calibrated_h2_cost_conservative_usd_kg": 8.686,
-      "dft_calibrated_h2_cost_optimistic_usd_kg": 1.108,
-      "dft_calibrated_pemfc_fuel_cost_base_usd_kwh_e": 0.2048,
-      "dft_calibrated_pemfc_fuel_cost_optimistic_usd_kwh_e": 0.079
-    },
-    "thermocatalytic_pbr": {
-      "dft_calibrated_h2_cost_base_usd_kg": 1.208,
-      "dft_calibrated_h2_cost_conservative_usd_kg": 4.395,
-      "dft_calibrated_h2_cost_optimistic_usd_kg": 0.208,
-      "dft_calibrated_pemfc_fuel_cost_base_usd_kwh_e": 0.0861,
-      "dft_calibrated_pemfc_fuel_cost_optimistic_usd_kwh_e": 0.0148
-    },
-    "thermocatalytic_pfr": {
-      "dft_calibrated_h2_cost_base_usd_kg": 1.278,
-      "dft_calibrated_h2_cost_conservative_usd_kg": 4.576,
-      "dft_calibrated_h2_cost_optimistic_usd_kg": 0.246,
-      "dft_calibrated_pemfc_fuel_cost_base_usd_kwh_e": 0.0911,
-      "dft_calibrated_pemfc_fuel_cost_optimistic_usd_kwh_e": 0.0175
-    }
-  },
-  "dft_calibrated_pathway_leaderboard": {
-    "electrochemical": {
-      "H2_selectivity": 1.0,
-      "T_K": 823.15,
-      "arrhenius_rate_scaling": 0.0842,
-      "champion_catalyst": "eb64b3aa6d3913c21f5d",
-      "champion_catalyst_literature_name": "(Ta,Ti)2AlC1(basal_0001) MAX Phase Nanolaminate (Barsoum, Prog. Solid State Chem. 2000) [id=eb64b3aa6d3913c21f5d]",
-      "dft_barrier_shift_eV": 0.1755,
-      "dft_calibrated_energy_input_kwh_kg_h2_base": 14974.577,
-      "dft_calibrated_overall_effectiveness_factor": null,
-      "dft_calibrated_single_pass_CH4_conversion": 0.0004,
-      "dft_calibrated_tea_base_h2_usd_kg": 1122.075,
-      "dft_calibrated_tea_conservative_h2_usd_kg": 2284.594,
-      "dft_calibrated_tea_optimistic_h2_usd_kg": 666.203,
-      "dft_calibrated_thiele_modulus": null,
-      "ergun_delta_p_bar": null,
-      "kinetics_status": "dft_neb_complete",
-      "material_class": "MAXPhase",
-      "n_usable_records": 24,
-      "qe_neb_barrier_eV": 0.1594,
-      "reactor_type": "Electrochemical",
-      "status": "complete",
-      "uncalibrated_single_pass_CH4_conversion": 0.0048
-    },
-    "mmbcr": {
-      "H2_selectivity": 0.8132,
-      "T_K": 1300.0,
-      "arrhenius_rate_scaling": 0.1,
-      "champion_catalyst": "54757bb17c1b638462d9",
-      "champion_catalyst_literature_name": "Ti0.10Te0.90 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=54757bb17c1b638462d9]",
-      "dft_barrier_shift_eV": 0.2579,
-      "dft_calibrated_energy_input_kwh_kg_h2_base": 95.057,
-      "dft_calibrated_overall_effectiveness_factor": null,
-      "dft_calibrated_single_pass_CH4_conversion": 0.0273,
-      "dft_calibrated_tea_base_h2_usd_kg": 9.318,
-      "dft_calibrated_tea_conservative_h2_usd_kg": 25.28,
-      "dft_calibrated_tea_optimistic_h2_usd_kg": 4.592,
-      "dft_calibrated_thiele_modulus": null,
-      "ergun_delta_p_bar": null,
-      "kinetics_status": "dft_neb_complete",
-      "material_class": "MoltenMetal",
-      "n_usable_records": 36,
-      "qe_neb_barrier_eV": 0.8426,
-      "reactor_type": "MMBCR",
-      "status": "complete",
-      "uncalibrated_single_pass_CH4_conversion": 0.2417
-    },
-    "ntec": {
-      "H2_selectivity": 1.0,
-      "T_K": 473.15,
-      "arrhenius_rate_scaling": 0.0167,
-      "champion_catalyst": "c4ab2249c156880efdbe",
-      "champion_catalyst_literature_name": "Ti0.10Ga0.90 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=c4ab2249c156880efdbe]",
-      "dft_barrier_shift_eV": 0.167,
-      "dft_calibrated_energy_input_kwh_kg_h2_base": 8241.633,
-      "dft_calibrated_overall_effectiveness_factor": null,
-      "dft_calibrated_single_pass_CH4_conversion": 0.0002,
-      "dft_calibrated_tea_base_h2_usd_kg": 941.355,
-      "dft_calibrated_tea_conservative_h2_usd_kg": 1962.224,
-      "dft_calibrated_tea_optimistic_h2_usd_kg": 572.876,
-      "dft_calibrated_thiele_modulus": null,
-      "ergun_delta_p_bar": null,
-      "kinetics_status": "dft_neb_complete",
-      "material_class": "MoltenMetal",
-      "n_usable_records": 28,
-      "qe_neb_barrier_eV": 0.9076,
-      "reactor_type": "NTEC",
-      "status": "complete",
-      "uncalibrated_single_pass_CH4_conversion": 0.0134
-    },
-    "thermocatalytic": {
-      "H2_selectivity": 1.0,
-      "T_K": 1300.0,
-      "arrhenius_rate_scaling": 0.2212,
-      "champion_catalyst": "768cb0559591faec06ba",
-      "champion_catalyst_literature_name": "Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba]",
-      "dft_barrier_shift_eV": 0.169,
-      "dft_calibrated_energy_input_kwh_kg_h2_base": 11.648,
-      "dft_calibrated_overall_effectiveness_factor": 0.965,
-      "dft_calibrated_single_pass_CH4_conversion": 0.5388,
-      "dft_calibrated_tea_base_h2_usd_kg": 1.208,
-      "dft_calibrated_tea_conservative_h2_usd_kg": 4.395,
-      "dft_calibrated_tea_optimistic_h2_usd_kg": 0.208,
-      "dft_calibrated_thiele_modulus": 0.3309,
-      "ergun_delta_p_bar": 0.91325,
-      "kinetics_status": "dft_neb_complete",
-      "material_class": "SupportedNanoparticle",
-      "n_usable_records": 235,
-      "qe_neb_barrier_eV": 0.4827,
-      "reactor_type": "PBR",
-      "status": "complete",
-      "uncalibrated_single_pass_CH4_conversion": 0.9658
-    },
-    "thermocatalytic_fluidized": {
-      "H2_selectivity": 1.0,
-      "T_K": 1300.0,
-      "arrhenius_rate_scaling": 0.2212,
-      "champion_catalyst": "768cb0559591faec06ba",
-      "champion_catalyst_literature_name": "Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba]",
-      "dft_barrier_shift_eV": 0.169,
-      "dft_calibrated_energy_input_kwh_kg_h2_base": 28.786,
-      "dft_calibrated_overall_effectiveness_factor": null,
-      "dft_calibrated_single_pass_CH4_conversion": 0.1111,
-      "dft_calibrated_tea_base_h2_usd_kg": 2.874,
-      "dft_calibrated_tea_conservative_h2_usd_kg": 8.686,
-      "dft_calibrated_tea_optimistic_h2_usd_kg": 1.108,
-      "dft_calibrated_thiele_modulus": null,
-      "ergun_delta_p_bar": 0.398827,
-      "kinetics_status": "dft_neb_complete",
-      "material_class": "SupportedNanoparticle",
-      "n_usable_records": 75,
-      "qe_neb_barrier_eV": 0.4827,
-      "reactor_type": "Fluidized",
-      "status": "complete",
-      "uncalibrated_single_pass_CH4_conversion": 0.4127
-    },
-    "thermocatalytic_pbr": {
-      "H2_selectivity": 1.0,
-      "T_K": 1300.0,
-      "arrhenius_rate_scaling": 0.2212,
-      "champion_catalyst": "768cb0559591faec06ba",
-      "champion_catalyst_literature_name": "Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba]",
-      "dft_barrier_shift_eV": 0.169,
-      "dft_calibrated_energy_input_kwh_kg_h2_base": 11.648,
-      "dft_calibrated_overall_effectiveness_factor": 0.965,
-      "dft_calibrated_single_pass_CH4_conversion": 0.5388,
-      "dft_calibrated_tea_base_h2_usd_kg": 1.208,
-      "dft_calibrated_tea_conservative_h2_usd_kg": 4.395,
-      "dft_calibrated_tea_optimistic_h2_usd_kg": 0.208,
-      "dft_calibrated_thiele_modulus": 0.3309,
-      "ergun_delta_p_bar": 0.91325,
-      "kinetics_status": "dft_neb_complete",
-      "material_class": "SupportedNanoparticle",
-      "n_usable_records": 95,
-      "qe_neb_barrier_eV": 0.4827,
-      "reactor_type": "PBR",
-      "status": "complete",
-      "uncalibrated_single_pass_CH4_conversion": 0.9658
-    },
-    "thermocatalytic_pfr": {
-      "H2_selectivity": 1.0,
-      "T_K": 1300.0,
-      "arrhenius_rate_scaling": 0.2212,
-      "champion_catalyst": "768cb0559591faec06ba",
-      "champion_catalyst_literature_name": "Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba]",
-      "dft_barrier_shift_eV": 0.169,
-      "dft_calibrated_energy_input_kwh_kg_h2_base": 12.371,
-      "dft_calibrated_overall_effectiveness_factor": null,
-      "dft_calibrated_single_pass_CH4_conversion": 0.4635,
-      "dft_calibrated_tea_base_h2_usd_kg": 1.278,
-      "dft_calibrated_tea_conservative_h2_usd_kg": 4.576,
-      "dft_calibrated_tea_optimistic_h2_usd_kg": 0.246,
-      "dft_calibrated_thiele_modulus": null,
-      "ergun_delta_p_bar": 0.398827,
-      "kinetics_status": "dft_neb_complete",
-      "material_class": "SupportedNanoparticle",
-      "n_usable_records": 65,
-      "qe_neb_barrier_eV": 0.4827,
-      "reactor_type": "PFR",
-      "status": "complete",
-      "uncalibrated_single_pass_CH4_conversion": 0.9401
-    }
-  },
-  "dft_calibrated_pemfc_stack_summary": {
-    "cell_efficiency_at_peak": 0.4495,
-    "champion_cathode": "dbc15731f8fdb0f99d43",
-    "champion_cathode_literature_name": "W-doped NiCo2O4/N-CNT (nanoparticle) Spinel Oxide (Liang et al., Nat. Mater. 2011) [id=dbc15731f8fdb0f99d43]",
-    "champion_genome": "('Spinel', 'Ni', 'Co', 'W', 'nanoparticle', 'N-CNT')",
-    "champion_material_class": "Spinel",
-    "champion_membrane": "AquivionE87",
-    "low_pgm_champion": {
-      "cathode_catalyst": "ab7e183d66b2e49921ed",
-      "cathode_catalyst_literature_name": "Pd1/Ga(111) Single-Atom Alloy (Kyriakou et al., Science 2012 / Darby et al., Nat. Mater. 2018) [id=ab7e183d66b2e49921ed]",
-      "cell_efficiency_at_peak": 0.4621,
-      "genome": "('SAA', 'Pd', 'Ga', '111', 5000)",
-      "material_class": "SAA",
-      "orr_overpotential_gc_V": 0.2059,
-      "peak_power_W_cm2": 2.316,
-      "pourbaix_dissolution_margin_V": 0.4123
-    },
-    "n_qe_converged_acid_stable_cathodes": 30,
-    "orr_overpotential_che_V": 0.3541,
-    "orr_overpotential_gc_V": 0.1591,
-    "orr_tafel_slope_mV_dec": 105.0,
-    "peak_power_W_cm2": 2.2532,
-    "pgm_free_champion": {
-      "cathode_catalyst": "dbc15731f8fdb0f99d43",
-      "cathode_catalyst_literature_name": "W-doped NiCo2O4/N-CNT (nanoparticle) Spinel Oxide (Liang et al., Nat. Mater. 2011) [id=dbc15731f8fdb0f99d43]",
-      "cell_efficiency_at_peak": 0.4495,
-      "genome": "('Spinel', 'Ni', 'Co', 'W', 'nanoparticle', 'N-CNT')",
-      "material_class": "Spinel",
-      "orr_overpotential_gc_V": 0.1591,
-      "peak_power_W_cm2": 2.2532,
-      "pourbaix_dissolution_margin_V": 0.0568
-    },
-    "pourbaix_dissolution_margin_V": 0.0568,
-    "qe_dft_energy_Ry": -519.038923,
-    "rated_power_at_0p6V_W_cm2": 2.0822,
-    "stack_cells": 400,
-    "stack_cost_usd_per_kW": 30.81,
-    "stack_gravimetric_W_kg": 2732.2,
-    "stack_net_power_kW": 253.22,
-    "stack_system_efficiency": 0.421,
-    "stack_volumetric_W_L": 4122.4,
-    "status": "complete"
-  },
   "discovery_champions": [
     {
-      "E_act_eV": 0.0146,
-      "calibrated_activation_eV": 0.6786,
-      "calibrated_interfacial_score_eV": 0.8833,
-      "candidate_id": "eb64b3aa6d3913c21f5d",
-      "coking_index_eV": 3.017,
-      "genome": "('MAXPhase', 'Ta', 'Al', 'C', 1, 'Ti', 'basal_0001')",
-      "interfacial_carbon_displacement_A": 0.2047,
-      "interfacial_pyrolysis_score_eV": 0.2193,
-      "literature_catalyst_name": "(Ta,Ti)2AlC1(basal_0001) MAX Phase Nanolaminate (Barsoum, Prog. Solid State Chem. 2000) [id=eb64b3aa6d3913c21f5d]",
-      "material_class": "MAXPhase",
+      "rank": 1,
+      "candidate_id": "b6702ffe2074faa4fa50",
+      "literature_catalyst_name": "Pt1/Ni(110) Single-Atom Alloy (Kyriakou et al., Science 2012 / Darby et al., Nat. Mater. 2018) [id=b6702ffe2074faa4fa50]",
+      "material_class": "SAA",
+      "genome": "('SAA', 'Pt', 'Ni', '110', 2000)",
+      "E_act_eV": 0.2753,
+      "calibrated_activation_eV": 0.9393,
+      "interfacial_carbon_displacement_A": 0.2415,
+      "interfacial_pyrolysis_score_eV": 0.5169,
+      "calibrated_interfacial_score_eV": 1.1809,
+      "coking_index_eV": 2.4792,
       "qe_dft_converged": true,
-      "qe_dft_energy_Ry": -318.77122562,
-      "qe_dft_energy_eV": -4337.1035,
+      "qe_dft_energy_Ry": -842.18462915,
+      "qe_dft_energy_eV": -11458.5056,
       "qe_max_force_Ry_bohr": 0.0,
-      "qe_neb_barrier_eV": 0.1594,
       "qe_neb_converged": true,
-      "rank": 1
+      "qe_neb_barrier_eV": 0.4618
     },
     {
-      "E_act_eV": 0.1192,
-      "calibrated_activation_eV": 0.7832,
-      "calibrated_interfacial_score_eV": 0.901,
-      "candidate_id": "d4403c08f769fc70a3a4",
-      "coking_index_eV": 1.4392,
-      "genome": "('HEA', ('Fe', 'Zn', 'Zr', 'Ag', 'Ir'), 'bcc', '111', 800)",
-      "interfacial_carbon_displacement_A": 0.1177,
-      "interfacial_pyrolysis_score_eV": 0.237,
-      "literature_catalyst_name": "FeZnZrAgIr-bcc(111) High-Entropy Alloy (Miracle & Senkov 2017 / Yao et al., Science 2018 Multi-Principal-Element Surface) [id=d4403c08f769fc70a3a4]",
-      "material_class": "HEA",
-      "qe_dft_converged": true,
-      "qe_dft_energy_Ry": -1029.81746014,
-      "qe_dft_energy_eV": -14011.3803,
-      "qe_max_force_Ry_bohr": 0.0,
-      "qe_neb_barrier_eV": 0.3623,
-      "qe_neb_converged": true,
-      "rank": 2
-    },
-    {
-      "E_act_eV": 0.1261,
-      "calibrated_activation_eV": 0.7901,
-      "calibrated_interfacial_score_eV": 2.5274,
-      "candidate_id": "000971115da8ddd8cf8f",
-      "coking_index_eV": 2.1314,
-      "genome": "('SolidCatalyst', 'Ce', 'Graphene', 'bcc211', 0.06842105263157894, ('Br', 'Mg'), 1, 0)",
-      "interfacial_carbon_displacement_A": 1.7373,
-      "interfacial_pyrolysis_score_eV": 1.8634,
-      "literature_catalyst_name": "Br,Mg-doped Ce(bcc211)/Graphene, strain=+0.07% Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=000971115da8ddd8cf8f]",
-      "material_class": "SolidCatalyst",
-      "qe_dft_converged": true,
-      "qe_dft_energy_Ry": -1492.93302683,
-      "qe_dft_energy_eV": -20312.3886,
-      "qe_max_force_Ry_bohr": 0.0,
-      "qe_neb_barrier_eV": 0.5263,
-      "qe_neb_converged": true,
-      "rank": 3
-    },
-    {
-      "E_act_eV": 0.3413,
-      "calibrated_activation_eV": 1.0053,
-      "calibrated_interfacial_score_eV": 1.1895,
+      "rank": 2,
       "candidate_id": "768cb0559591faec06ba",
-      "coking_index_eV": 0.7676,
-      "genome": "('SupportedNanoparticle', 'Ni', 'MgAl2O4', 'fcc211', 12.0, 25.0, ('Cu', 'Fe'), 2, 1)",
-      "interfacial_carbon_displacement_A": 0.1842,
-      "interfacial_pyrolysis_score_eV": 0.5255,
       "literature_catalyst_name": "Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba]",
       "material_class": "SupportedNanoparticle",
+      "genome": "('SupportedNanoparticle', 'Ni', 'MgAl2O4', 'fcc211', 12.0, 25.0, ('Cu', 'Fe'), 2, 1)",
+      "E_act_eV": 0.3413,
+      "calibrated_activation_eV": 1.0053,
+      "interfacial_carbon_displacement_A": 0.1842,
+      "interfacial_pyrolysis_score_eV": 0.5255,
+      "calibrated_interfacial_score_eV": 1.1895,
+      "coking_index_eV": 0.7676,
       "qe_dft_converged": true,
       "qe_dft_energy_Ry": -1184.62841925,
       "qe_dft_energy_eV": -16117.6909,
       "qe_max_force_Ry_bohr": 0.0,
-      "qe_neb_barrier_eV": 0.4827,
       "qe_neb_converged": true,
-      "rank": 4
+      "qe_neb_barrier_eV": 0.4827
     },
     {
-      "E_act_eV": 0.364,
-      "calibrated_activation_eV": 1.028,
-      "calibrated_interfacial_score_eV": 2.9828,
-      "candidate_id": "b1bd7298e14db77a573c",
-      "coking_index_eV": 8.359,
-      "genome": "('SAC', 'Zn', 'N4_pyridine', 'N-graphene', 'none')",
-      "interfacial_carbon_displacement_A": 1.9548,
-      "interfacial_pyrolysis_score_eV": 2.3188,
-      "literature_catalyst_name": "Zn-N4_pyridine-N-graphene/none Single-Atom Catalyst (Zitolo et al., Nat. Mater. 2015 / Akri et al., Nat. Commun. 2019) [id=b1bd7298e14db77a573c]",
-      "material_class": "SAC",
+      "rank": 3,
+      "candidate_id": "be45ea11e23945dbbda5",
+      "literature_catalyst_name": "La,Y-doped Ni(fcc211)/CeZrO2, strain=+0.09% Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=be45ea11e23945dbbda5]",
+      "material_class": "SolidCatalyst",
+      "genome": "('SolidCatalyst', 'Ni', 'CeZrO2', 'fcc211', 0.08947368421052632, ('La', 'Y'), 1, 0)",
+      "E_act_eV": 0.4655,
+      "calibrated_activation_eV": 1.1295,
+      "interfacial_carbon_displacement_A": 0.3128,
+      "interfacial_pyrolysis_score_eV": 0.7784,
+      "calibrated_interfacial_score_eV": 1.4424,
+      "coking_index_eV": 2.1318,
       "qe_dft_converged": true,
-      "qe_dft_energy_Ry": -500.43408538,
-      "qe_dft_energy_eV": -6808.7526,
+      "qe_dft_energy_Ry": -1318.44291054,
+      "qe_dft_energy_eV": -17938.3296,
       "qe_max_force_Ry_bohr": 0.0,
-      "qe_neb_barrier_eV": 0.8005,
       "qe_neb_converged": true,
-      "rank": 5
+      "qe_neb_barrier_eV": 0.6542
     },
     {
-      "E_act_eV": 0.6139,
-      "calibrated_activation_eV": 1.7919,
-      "calibrated_interfacial_score_eV": 1.9863,
-      "candidate_id": "54757bb17c1b638462d9",
-      "coking_index_eV": null,
-      "genome": "('MoltenMetal', 'Te', 'Ti', 0.1, 750)",
-      "interfacial_carbon_displacement_A": 0.1945,
-      "interfacial_pyrolysis_score_eV": 0.8084,
-      "literature_catalyst_name": "Ti0.10Te0.90 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=54757bb17c1b638462d9]",
-      "material_class": "MoltenMetal",
+      "rank": 4,
+      "candidate_id": "3def15c30d9a9b799254",
+      "literature_catalyst_name": "(Co,Ni)3AlC2(basal_0001) MAX Phase Nanolaminate (Barsoum, Prog. Solid State Chem. 2000) [id=3def15c30d9a9b799254]",
+      "material_class": "MAXPhase",
+      "genome": "('MAXPhase', 'Co', 'Al', 'C', 2, 'Ni', 'basal_0001')",
+      "E_act_eV": 0.4989,
+      "calibrated_activation_eV": 1.1629,
+      "interfacial_carbon_displacement_A": 0.1584,
+      "interfacial_pyrolysis_score_eV": 0.6573,
+      "calibrated_interfacial_score_eV": 1.3213,
+      "coking_index_eV": 2.9312,
       "qe_dft_converged": true,
-      "qe_dft_energy_Ry": -198.54222027,
-      "qe_dft_energy_eV": -2701.3045,
+      "qe_dft_energy_Ry": -428.91648201,
+      "qe_dft_energy_eV": -5835.706,
       "qe_max_force_Ry_bohr": 0.0,
-      "qe_neb_barrier_eV": 0.8426,
       "qe_neb_converged": true,
-      "rank": 6
+      "qe_neb_barrier_eV": 0.6915
     },
     {
-      "E_act_eV": 0.6281,
-      "calibrated_activation_eV": 1.2921,
-      "calibrated_interfacial_score_eV": 2.4129,
+      "rank": 5,
+      "candidate_id": "e40b9a32452d7b1e6f1f",
+      "literature_catalyst_name": "FeNbRuSiGe-fcc_bcc_dual(211) High-Entropy Alloy (Miracle & Senkov 2017 / Yao et al., Science 2018 Multi-Principal-Element Surface) [id=e40b9a32452d7b1e6f1f]",
+      "material_class": "HEA",
+      "genome": "('HEA', ('Fe', 'Nb', 'Ru', 'Si', 'Ge'), 'fcc_bcc_dual', '211', 800)",
+      "E_act_eV": 0.4742,
+      "calibrated_activation_eV": 1.1382,
+      "interfacial_carbon_displacement_A": 0.4219,
+      "interfacial_pyrolysis_score_eV": 0.8961,
+      "calibrated_interfacial_score_eV": 1.5601,
+      "coking_index_eV": 2.3348,
+      "qe_dft_converged": true,
+      "qe_dft_energy_Ry": -1124.73819204,
+      "qe_dft_energy_eV": -15302.8427,
+      "qe_max_force_Ry_bohr": 0.0,
+      "qe_neb_converged": true,
+      "qe_neb_barrier_eV": 0.6684
+    },
+    {
+      "rank": 6,
       "candidate_id": "c9bf4b755ab0023fffba",
-      "coking_index_eV": 1.9931,
-      "genome": "('Spinel', 'Mg', 'Co', 'Ce', 'nanoparticle', 'N-graphene')",
-      "interfacial_carbon_displacement_A": 1.1208,
-      "interfacial_pyrolysis_score_eV": 1.7489,
       "literature_catalyst_name": "Ce-doped MgCo2O4/N-graphene (nanoparticle) Spinel Oxide (Liang et al., Nat. Mater. 2011) [id=c9bf4b755ab0023fffba]",
       "material_class": "Spinel",
+      "genome": "('Spinel', 'Mg', 'Co', 'Ce', 'nanoparticle', 'N-graphene')",
+      "E_act_eV": 0.6281,
+      "calibrated_activation_eV": 1.2921,
+      "interfacial_carbon_displacement_A": 1.1208,
+      "interfacial_pyrolysis_score_eV": 1.7489,
+      "calibrated_interfacial_score_eV": 2.4129,
+      "coking_index_eV": 1.9931,
       "qe_dft_converged": true,
       "qe_dft_energy_Ry": -393.61770898,
       "qe_dft_energy_eV": -5355.4418,
       "qe_max_force_Ry_bohr": 0.0,
-      "qe_neb_barrier_eV": 0.9256,
       "qe_neb_converged": true,
-      "rank": 7
+      "qe_neb_barrier_eV": 0.9256
     },
     {
-      "E_act_eV": 0.8696,
-      "calibrated_activation_eV": 1.5336,
-      "calibrated_interfacial_score_eV": 2.2529,
-      "candidate_id": "0433514342912e4613e1",
-      "coking_index_eV": 2.1788,
-      "genome": "('DAC', 'Zn', 'Al', 'N3BN3', 'N-graphene')",
-      "interfacial_carbon_displacement_A": 0.7193,
-      "interfacial_pyrolysis_score_eV": 1.5889,
-      "literature_catalyst_name": "ZnAl-N3BN3/Graphene Dual-Atom Catalyst (Wang et al., J. Am. Chem. Soc. 2018 Synergistic Bimetallic Site) [id=0433514342912e4613e1]",
+      "rank": 7,
+      "candidate_id": "25810913ec6523464e81",
+      "literature_catalyst_name": "CrY-N8/Graphene Dual-Atom Catalyst (Wang et al., J. Am. Chem. Soc. 2018 Synergistic Bimetallic Site) [id=25810913ec6523464e81]",
       "material_class": "DAC",
+      "genome": "('DAC', 'Cr', 'Y', 'N8', 'N-CNT')",
+      "E_act_eV": 0.7474,
+      "calibrated_activation_eV": 1.4114,
+      "interfacial_carbon_displacement_A": 0.3862,
+      "interfacial_pyrolysis_score_eV": 1.1337,
+      "calibrated_interfacial_score_eV": 1.7977,
+      "coking_index_eV": 3.6694,
       "qe_dft_converged": true,
-      "qe_dft_energy_Ry": -500.43408538,
-      "qe_dft_energy_eV": -6808.7526,
+      "qe_dft_energy_Ry": -564.82910472,
+      "qe_dft_energy_eV": -7684.8915,
       "qe_max_force_Ry_bohr": 0.0,
-      "qe_neb_barrier_eV": 1.1001,
       "qe_neb_converged": true,
-      "rank": 8
+      "qe_neb_barrier_eV": 0.9418
     },
     {
-      "E_act_eV": 1.2468,
-      "calibrated_activation_eV": 1.9108,
-      "calibrated_interfacial_score_eV": 2.7196,
+      "rank": 8,
+      "candidate_id": "c4ab2249c156880efdbe",
+      "literature_catalyst_name": "Ga99.9Ti0.1 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=c4ab2249c156880efdbe]",
+      "material_class": "MoltenMetal",
+      "genome": "('MoltenMetal', 'Ga', 'Ti', 0.1, 600)",
+      "E_act_eV": 0.8215,
+      "calibrated_activation_eV": 1.9994,
+      "interfacial_carbon_displacement_A": 0.195,
+      "interfacial_pyrolysis_score_eV": 1.0165,
+      "calibrated_interfacial_score_eV": 2.1945,
+      "coking_index_eV": null,
+      "qe_dft_converged": true,
+      "qe_dft_energy_Ry": -512.421084,
+      "qe_dft_energy_eV": -6971.8421,
+      "qe_max_force_Ry_bohr": 0.0,
+      "qe_neb_converged": true,
+      "qe_neb_barrier_eV": 0.9076
+    },
+    {
+      "rank": 9,
+      "candidate_id": "f58366bf5dfcdc4578f3",
+      "literature_catalyst_name": "Ta-N4-N-graphene/none Single-Atom Catalyst (Zitolo et al., Nat. Mater. 2015 / Akri et al., Nat. Commun. 2019) [id=f58366bf5dfcdc4578f3]",
+      "material_class": "SAC",
+      "genome": "('SAC', 'Ta', 'N4', 'N-graphene', 'none')",
+      "E_act_eV": 0.8274,
+      "calibrated_activation_eV": 1.4914,
+      "interfacial_carbon_displacement_A": 0.125,
+      "interfacial_pyrolysis_score_eV": 0.9524,
+      "calibrated_interfacial_score_eV": 1.6164,
+      "coking_index_eV": 5.3052,
+      "qe_dft_converged": true,
+      "qe_dft_energy_Ry": -518.39204185,
+      "qe_dft_energy_eV": -7053.083,
+      "qe_max_force_Ry_bohr": 0.0,
+      "qe_neb_converged": true,
+      "qe_neb_barrier_eV": 1.0185
+    },
+    {
+      "rank": 10,
       "candidate_id": "5ed9c863d22330991eb6",
-      "coking_index_eV": 6.6712,
-      "genome": "('MetalFreeCarbon', 'pyrrolic', 0.04, 'none', 'graphene', 'B')",
-      "interfacial_carbon_displacement_A": 0.8088,
-      "interfacial_pyrolysis_score_eV": 2.0556,
       "literature_catalyst_name": "pyrrolic,0.04-doped none graphene Metal-Free Carbon (Muradov 2005 / Gong et al., Science 2009) [id=5ed9c863d22330991eb6]",
       "material_class": "MetalFreeCarbon",
+      "genome": "('MetalFreeCarbon', 'pyrrolic', 0.04, 'none', 'graphene', 'B')",
+      "E_act_eV": 1.2468,
+      "calibrated_activation_eV": 1.9108,
+      "interfacial_carbon_displacement_A": 0.8088,
+      "interfacial_pyrolysis_score_eV": 2.0556,
+      "calibrated_interfacial_score_eV": 2.7196,
+      "coking_index_eV": 6.6712,
       "qe_dft_converged": true,
       "qe_dft_energy_Ry": -45.00075459,
       "qe_dft_energy_eV": -612.2665,
       "qe_max_force_Ry_bohr": 0.0,
-      "qe_neb_barrier_eV": 1.4923,
       "qe_neb_converged": true,
-      "rank": 9
+      "qe_neb_barrier_eV": 1.4923
     },
     {
-      "E_act_eV": 2.1596,
-      "calibrated_activation_eV": 2.8236,
-      "calibrated_interfacial_score_eV": 3.8574,
-      "candidate_id": "8796cf31edc4797d83ec",
-      "coking_index_eV": 2.823,
-      "genome": "('SAA', 'Pd', 'In', '110', 100)",
-      "interfacial_carbon_displacement_A": 1.0338,
-      "interfacial_pyrolysis_score_eV": 3.1934,
-      "literature_catalyst_name": "Pd1/In(110) Single-Atom Alloy (Kyriakou et al., Science 2012 / Darby et al., Nat. Mater. 2018) [id=8796cf31edc4797d83ec]",
-      "material_class": "SAA",
+      "rank": 11,
+      "candidate_id": "f7e94c08fb1675631eb9",
+      "literature_catalyst_name": "Ce-doped NiCo2O4/N-graphene (nanoparticle) Spinel Oxide (Liang et al., Nat. Mater. 2011) [id=f7e94c08fb1675631eb9]",
+      "material_class": "Spinel",
+      "genome": "('Spinel', 'Ni', 'Co', 'Ce', 'nanoparticle', 'N-graphene')",
+      "E_act_eV": 1.2189,
+      "calibrated_activation_eV": 1.8829,
+      "interfacial_carbon_displacement_A": 1.1184,
+      "interfacial_pyrolysis_score_eV": 2.3373,
+      "calibrated_interfacial_score_eV": 3.0013,
+      "coking_index_eV": 2.6695,
       "qe_dft_converged": true,
-      "qe_dft_energy_Ry": -796.01537106,
-      "qe_dft_energy_eV": -10830.3409,
+      "qe_dft_energy_Ry": -416.82941028,
+      "qe_dft_energy_eV": -5671.253,
       "qe_max_force_Ry_bohr": 0.0,
-      "qe_neb_barrier_eV": 2.4426,
       "qe_neb_converged": true,
-      "rank": 10
-    },
-    {
-      "E_act_eV": 0.3168,
-      "calibrated_activation_eV": 0.9808,
-      "calibrated_interfacial_score_eV": 1.2368,
-      "candidate_id": "0021a267d0b5a6e984a9",
-      "coking_index_eV": 1.8692,
-      "genome": "('HEA', ('Fe', 'Zn', 'Nb', 'Ir', 'Sc'), 'hcp', '111', 800)",
-      "interfacial_carbon_displacement_A": 0.256,
-      "interfacial_pyrolysis_score_eV": 0.5728,
-      "literature_catalyst_name": "FeZnNbIrSc-hcp(111) High-Entropy Alloy (Miracle & Senkov 2017 / Yao et al., Science 2018 Multi-Principal-Element Surface) [id=0021a267d0b5a6e984a9]",
-      "material_class": "HEA",
-      "qe_dft_converged": true,
-      "qe_dft_energy_Ry": -1069.55515319,
-      "qe_dft_energy_eV": -14552.0392,
-      "qe_max_force_Ry_bohr": 0.0,
-      "qe_neb_barrier_eV": 0.5599,
-      "qe_neb_converged": true,
-      "rank": 11
+      "qe_neb_barrier_eV": 1.4218
     }
   ],
-  "evidence_level": "screening_multipathway_scorecard",
-  "literature_validation_gates": {
+  "pathway_leaderboard": {
+    "thermocatalytic_pfr": {
+      "status": "complete",
+      "n_usable_records": 28,
+      "champion_catalyst": "768cb0559591faec06ba",
+      "champion_catalyst_literature_name": "Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba]",
+      "reactor_type": "PFR",
+      "T_K": 1300.0,
+      "single_pass_CH4_conversion": 0.9401,
+      "cycle_averaged_CH4_conversion": 0.9401,
+      "overall_effectiveness_factor": null,
+      "thiele_modulus": null,
+      "ergun_delta_p_bar": 0.398827,
+      "H2_selectivity": 1.0,
+      "reactor_evidence_tier": "diagnostic_screening_template",
+      "kinetics_status": "mlip_neb_complete",
+      "tea_base_h2_usd_kg": 1.013,
+      "tea_optimistic_h2_usd_kg": 0.103,
+      "tea_conservative_h2_usd_kg": 3.89,
+      "energy_input_kwh_kg_h2_base": 9.574
+    },
+    "thermocatalytic_pbr": {
+      "status": "complete",
+      "n_usable_records": 48,
+      "champion_catalyst": "768cb0559591faec06ba",
+      "champion_catalyst_literature_name": "Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba]",
+      "reactor_type": "PBR",
+      "T_K": 1300.0,
+      "single_pass_CH4_conversion": 0.9658,
+      "cycle_averaged_CH4_conversion": 0.9658,
+      "overall_effectiveness_factor": 0.9316,
+      "thiele_modulus": 0.7034,
+      "ergun_delta_p_bar": 0.91325,
+      "H2_selectivity": 1.0,
+      "reactor_evidence_tier": "diagnostic_screening_template",
+      "kinetics_status": "mlip_neb_complete",
+      "tea_base_h2_usd_kg": 1.006,
+      "tea_optimistic_h2_usd_kg": 0.099,
+      "tea_conservative_h2_usd_kg": 3.873,
+      "energy_input_kwh_kg_h2_base": 9.507
+    },
+    "thermocatalytic_fluidized": {
+      "status": "complete",
+      "n_usable_records": 33,
+      "champion_catalyst": "768cb0559591faec06ba",
+      "champion_catalyst_literature_name": "Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba]",
+      "reactor_type": "Fluidized",
+      "T_K": 1300.0,
+      "single_pass_CH4_conversion": 0.4127,
+      "cycle_averaged_CH4_conversion": 0.4127,
+      "overall_effectiveness_factor": null,
+      "thiele_modulus": null,
+      "ergun_delta_p_bar": 0.398827,
+      "H2_selectivity": 1.0,
+      "reactor_evidence_tier": "diagnostic_screening_template",
+      "kinetics_status": "mlip_neb_complete",
+      "tea_base_h2_usd_kg": 1.326,
+      "tea_optimistic_h2_usd_kg": 0.273,
+      "tea_conservative_h2_usd_kg": 4.697,
+      "energy_input_kwh_kg_h2_base": 12.777
+    },
+    "thermocatalytic": {
+      "status": "complete",
+      "n_usable_records": 109,
+      "champion_catalyst": "768cb0559591faec06ba",
+      "champion_catalyst_literature_name": "Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba]",
+      "reactor_type": "PBR",
+      "T_K": 1300.0,
+      "single_pass_CH4_conversion": 0.9658,
+      "cycle_averaged_CH4_conversion": 0.9658,
+      "overall_effectiveness_factor": 0.9316,
+      "thiele_modulus": 0.7034,
+      "ergun_delta_p_bar": 0.91325,
+      "H2_selectivity": 1.0,
+      "reactor_evidence_tier": "diagnostic_screening_template",
+      "kinetics_status": "mlip_neb_complete",
+      "tea_base_h2_usd_kg": 1.006,
+      "tea_optimistic_h2_usd_kg": 0.099,
+      "tea_conservative_h2_usd_kg": 3.873,
+      "energy_input_kwh_kg_h2_base": 9.507
+    },
+    "mmbcr": {
+      "status": "complete",
+      "n_usable_records": 12,
+      "champion_catalyst": "c4ab2249c156880efdbe",
+      "champion_catalyst_literature_name": "Ga99.9Ti0.1 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=c4ab2249c156880efdbe]",
+      "reactor_type": "MMBCR",
+      "T_K": 1300.0,
+      "single_pass_CH4_conversion": 0.0335,
+      "cycle_averaged_CH4_conversion": null,
+      "overall_effectiveness_factor": null,
+      "thiele_modulus": null,
+      "ergun_delta_p_bar": null,
+      "H2_selectivity": 0.9692,
+      "reactor_evidence_tier": "diagnostic_screening_template",
+      "kinetics_status": "mlip_neb_complete",
+      "tea_base_h2_usd_kg": 7.66,
+      "tea_optimistic_h2_usd_kg": 3.7,
+      "tea_conservative_h2_usd_kg": 20.989,
+      "energy_input_kwh_kg_h2_base": 77.464
+    },
+    "ntec": {
+      "status": "complete",
+      "n_usable_records": 22,
+      "champion_catalyst": "c4ab2249c156880efdbe",
+      "champion_catalyst_literature_name": "Ga99.9Ti0.1 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=c4ab2249c156880efdbe]",
+      "reactor_type": "NTEC",
+      "T_K": 473.15,
+      "single_pass_CH4_conversion": 0.0134,
+      "cycle_averaged_CH4_conversion": null,
+      "overall_effectiveness_factor": null,
+      "thiele_modulus": null,
+      "ergun_delta_p_bar": null,
+      "H2_selectivity": 1.0,
+      "reactor_evidence_tier": "uncalibrated_multiphysics_screening",
+      "kinetics_status": "screening_bep",
+      "tea_base_h2_usd_kg": 14.66,
+      "tea_optimistic_h2_usd_kg": 8.478,
+      "tea_conservative_h2_usd_kg": 31.86,
+      "energy_input_kwh_kg_h2_base": 127.703
+    },
+    "electrochemical": {
+      "status": "complete",
+      "n_usable_records": 21,
+      "champion_catalyst": "c9bf4b755ab0023fffba",
+      "champion_catalyst_literature_name": "Ce-doped MgCo2O4/N-graphene (nanoparticle) Spinel Oxide (Liang et al., Nat. Mater. 2011) [id=c9bf4b755ab0023fffba]",
+      "reactor_type": "Electrochemical",
+      "T_K": 353.15,
+      "single_pass_CH4_conversion": 0.0067,
+      "cycle_averaged_CH4_conversion": null,
+      "overall_effectiveness_factor": null,
+      "thiele_modulus": null,
+      "ergun_delta_p_bar": null,
+      "H2_selectivity": 1.0,
+      "reactor_evidence_tier": "uncalibrated_multiphysics_screening",
+      "kinetics_status": "screening_bep",
+      "tea_base_h2_usd_kg": 68.494,
+      "tea_optimistic_h2_usd_kg": 40.245,
+      "tea_conservative_h2_usd_kg": 140.702,
+      "energy_input_kwh_kg_h2_base": 913.138
+    }
+  },
+  "dft_calibrated_pathway_leaderboard": {
+    "thermocatalytic_pfr": {
+      "status": "complete",
+      "n_usable_records": 28,
+      "champion_catalyst": "768cb0559591faec06ba",
+      "champion_catalyst_literature_name": "Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba]",
+      "material_class": "SupportedNanoparticle",
+      "reactor_type": "PFR",
+      "T_K": 1300.0,
+      "uncalibrated_single_pass_CH4_conversion": 0.9401,
+      "dft_barrier_shift_eV": 0.1691,
+      "arrhenius_rate_scaling": 0.2211,
+      "dft_calibrated_single_pass_CH4_conversion": 0.4632,
+      "dft_calibrated_overall_effectiveness_factor": null,
+      "dft_calibrated_thiele_modulus": null,
+      "ergun_delta_p_bar": 0.398827,
+      "H2_selectivity": 1.0,
+      "kinetics_status": "dft_neb_complete",
+      "dft_calibrated_tea_base_h2_usd_kg": 1.265,
+      "dft_calibrated_tea_optimistic_h2_usd_kg": 0.24,
+      "dft_calibrated_tea_conservative_h2_usd_kg": 4.54,
+      "dft_calibrated_energy_input_kwh_kg_h2_base": 12.154
+    },
+    "thermocatalytic_pbr": {
+      "status": "complete",
+      "n_usable_records": 48,
+      "champion_catalyst": "768cb0559591faec06ba",
+      "champion_catalyst_literature_name": "Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba]",
+      "material_class": "SupportedNanoparticle",
+      "reactor_type": "PBR",
+      "T_K": 1300.0,
+      "uncalibrated_single_pass_CH4_conversion": 0.9658,
+      "dft_barrier_shift_eV": 0.1691,
+      "arrhenius_rate_scaling": 0.2211,
+      "dft_calibrated_single_pass_CH4_conversion": 0.5487,
+      "dft_calibrated_overall_effectiveness_factor": 0.9928,
+      "dft_calibrated_thiele_modulus": 0.3308,
+      "ergun_delta_p_bar": 0.91325,
+      "H2_selectivity": 1.0,
+      "kinetics_status": "dft_neb_complete",
+      "dft_calibrated_tea_base_h2_usd_kg": 1.188,
+      "dft_calibrated_tea_optimistic_h2_usd_kg": 0.198,
+      "dft_calibrated_tea_conservative_h2_usd_kg": 4.34,
+      "dft_calibrated_energy_input_kwh_kg_h2_base": 11.361
+    },
+    "thermocatalytic_fluidized": {
+      "status": "complete",
+      "n_usable_records": 33,
+      "champion_catalyst": "768cb0559591faec06ba",
+      "champion_catalyst_literature_name": "Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba]",
+      "material_class": "SupportedNanoparticle",
+      "reactor_type": "Fluidized",
+      "T_K": 1300.0,
+      "uncalibrated_single_pass_CH4_conversion": 0.4127,
+      "dft_barrier_shift_eV": 0.1691,
+      "arrhenius_rate_scaling": 0.2211,
+      "dft_calibrated_single_pass_CH4_conversion": 0.111,
+      "dft_calibrated_overall_effectiveness_factor": null,
+      "dft_calibrated_thiele_modulus": null,
+      "ergun_delta_p_bar": 0.398827,
+      "H2_selectivity": 1.0,
+      "kinetics_status": "dft_neb_complete",
+      "dft_calibrated_tea_base_h2_usd_kg": 2.845,
+      "dft_calibrated_tea_optimistic_h2_usd_kg": 1.095,
+      "dft_calibrated_tea_conservative_h2_usd_kg": 8.605,
+      "dft_calibrated_energy_input_kwh_kg_h2_base": 28.292
+    },
+    "thermocatalytic": {
+      "status": "complete",
+      "n_usable_records": 109,
+      "champion_catalyst": "768cb0559591faec06ba",
+      "champion_catalyst_literature_name": "Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba]",
+      "material_class": "SupportedNanoparticle",
+      "reactor_type": "PBR",
+      "T_K": 1300.0,
+      "uncalibrated_single_pass_CH4_conversion": 0.9658,
+      "dft_barrier_shift_eV": 0.1691,
+      "arrhenius_rate_scaling": 0.2211,
+      "dft_calibrated_single_pass_CH4_conversion": 0.5487,
+      "dft_calibrated_overall_effectiveness_factor": 0.9928,
+      "dft_calibrated_thiele_modulus": 0.3308,
+      "ergun_delta_p_bar": 0.91325,
+      "H2_selectivity": 1.0,
+      "kinetics_status": "dft_neb_complete",
+      "dft_calibrated_tea_base_h2_usd_kg": 1.188,
+      "dft_calibrated_tea_optimistic_h2_usd_kg": 0.198,
+      "dft_calibrated_tea_conservative_h2_usd_kg": 4.34,
+      "dft_calibrated_energy_input_kwh_kg_h2_base": 11.361
+    },
+    "mmbcr": {
+      "status": "complete",
+      "n_usable_records": 12,
+      "champion_catalyst": "c4ab2249c156880efdbe",
+      "champion_catalyst_literature_name": "Ga99.9Ti0.1 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=c4ab2249c156880efdbe]",
+      "material_class": "MoltenMetal",
+      "reactor_type": "MMBCR",
+      "T_K": 1300.0,
+      "uncalibrated_single_pass_CH4_conversion": 0.0335,
+      "dft_barrier_shift_eV": 0.1154,
+      "arrhenius_rate_scaling": 0.357,
+      "dft_calibrated_single_pass_CH4_conversion": 0.0121,
+      "dft_calibrated_overall_effectiveness_factor": null,
+      "dft_calibrated_thiele_modulus": null,
+      "ergun_delta_p_bar": null,
+      "H2_selectivity": 0.9692,
+      "kinetics_status": "dft_neb_complete",
+      "dft_calibrated_tea_base_h2_usd_kg": 19.83,
+      "dft_calibrated_tea_optimistic_h2_usd_kg": 10.287,
+      "dft_calibrated_tea_conservative_h2_usd_kg": 52.297,
+      "dft_calibrated_energy_input_kwh_kg_h2_base": 201.773
+    },
+    "ntec": {
+      "status": "complete",
+      "n_usable_records": 22,
+      "champion_catalyst": "c4ab2249c156880efdbe",
+      "champion_catalyst_literature_name": "Ga99.9Ti0.1 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=c4ab2249c156880efdbe]",
+      "material_class": "MoltenMetal",
+      "reactor_type": "NTEC",
+      "T_K": 473.15,
+      "uncalibrated_single_pass_CH4_conversion": 0.0134,
+      "dft_barrier_shift_eV": 0.0536,
+      "arrhenius_rate_scaling": 0.2687,
+      "dft_calibrated_single_pass_CH4_conversion": 0.0036,
+      "dft_calibrated_overall_effectiveness_factor": null,
+      "dft_calibrated_thiele_modulus": null,
+      "ergun_delta_p_bar": null,
+      "H2_selectivity": 1.0,
+      "kinetics_status": "dft_neb_complete",
+      "dft_calibrated_tea_base_h2_usd_kg": 52.902,
+      "dft_calibrated_tea_optimistic_h2_usd_kg": 31.769,
+      "dft_calibrated_tea_conservative_h2_usd_kg": 111.52,
+      "dft_calibrated_energy_input_kwh_kg_h2_base": 462.536
+    },
+    "electrochemical": {
+      "status": "complete",
+      "n_usable_records": 21,
+      "champion_catalyst": "c4ab2249c156880efdbe",
+      "champion_catalyst_literature_name": "Ga99.9Ti0.1 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=c4ab2249c156880efdbe]",
+      "material_class": "MoltenMetal",
+      "reactor_type": "Electrochemical",
+      "T_K": 823.15,
+      "uncalibrated_single_pass_CH4_conversion": 0.0048,
+      "dft_barrier_shift_eV": 0.1153,
+      "arrhenius_rate_scaling": 0.2873,
+      "dft_calibrated_single_pass_CH4_conversion": 0.0014,
+      "dft_calibrated_overall_effectiveness_factor": null,
+      "dft_calibrated_thiele_modulus": null,
+      "ergun_delta_p_bar": null,
+      "H2_selectivity": 1.0,
+      "kinetics_status": "dft_neb_complete",
+      "dft_calibrated_tea_base_h2_usd_kg": 321.607,
+      "dft_calibrated_tea_optimistic_h2_usd_kg": 190.625,
+      "dft_calibrated_tea_conservative_h2_usd_kg": 655.752,
+      "dft_calibrated_energy_input_kwh_kg_h2_base": 4291.27
+    }
+  },
+  "pbr_ergun_residence_diagnostics": {
+    "n_completed": 323,
+    "n_pbr_records": 95,
+    "mean_pbr_overall_effectiveness_factor": 0.97822050123181,
+    "mean_pbr_thiele_modulus": 0.16088307231801044,
+    "n_ergun_checked": 235,
+    "n_ergun_ok": 235,
+    "n_pilot_residence_checked": 160,
+    "n_within_pilot_residence_band": 155,
+    "n_plugging_or_overloaded_flagged": 5,
+    "mean_regenerated_cycle_minus_single_pass_X": 0.0
+  },
+  "supported_ni_filament_closure_summary": {
+    "schema_version": "1.0",
+    "milestone": "ALVES_BENGAARD_ERMAKOVA_TAKENAKA_SUPPORTED_NI_FILAMENT_CLOSURE",
+    "judge_catalyst": "ni111_sio2_bengaard2002_ref",
+    "judge_catalyst_literature_name": "Ni(111)/SiO2 Supported Nanoparticle Reference (Bengaard 2002 / Ermakova 2000 / Takenaka 2003 Filamentous-Carbon Judge)",
+    "roi_temperature_band_K": [
+      923.15,
+      973.15
+    ],
+    "supported_ni_filament_closure_gate": {
+      "solids_ranking_authority_accepted": true,
+      "judge_ok": true,
+      "pfr_roi_conversion": 0.6841825412093412,
+      "pbr_roi_conversion": 0.6184930284512083,
+      "fluidized_roi_conversion": 0.6418294018294018,
+      "pfr_conversion_ok": true,
+      "pbr_conversion_ok": true,
+      "fluidized_conversion_ok": true,
+      "baker_helveg_carbon_criteria_ok": true,
+      "ermakova_takenaka_joint_roi_ok": true
+    },
+    "ranking_authority": true,
+    "solids_max_excluding_h_parked": 0.985,
+    "baker_helveg_criteria_summary": {
+      "schema_version": 1,
+      "sweeps": {
+        "ni111_sio2_bengaard_eact": {
+          "n_records": 5,
+          "n_complete": 5,
+          "n_overshoot": 1
+        },
+        "ni111_sio2_baker_helveg_agamma": {
+          "n_records": 4,
+          "n_complete": 4,
+          "n_overshoot": 0
+        },
+        "ni111_sio2_takenaka_theta_star": {
+          "n_records": 1,
+          "n_complete": 1,
+          "n_overshoot": 0
+        },
+        "ni111_sio2_bengaard_sticking": {
+          "n_records": 1,
+          "n_complete": 1,
+          "n_overshoot": 0
+        },
+        "ni111_sio2_baker_helveg_agamma_theta_star": {
+          "n_records": 1,
+          "n_complete": 1,
+          "n_overshoot": 0
+        }
+      },
+      "n_flagged_X_gt_Xeq": 1,
+      "flagged_X_gt_Xeq_note": "X > X_eq rows (typically 1300 K with fast C_gamma) are flagged and are not scored as successes",
+      "criteria": {
+        "flat": {
+          "name": "flat",
+          "description": "|d ln X / d E_act| at production PFR 923 K regen 0, central difference from E_act 0.9 and 1.1",
+          "value": 8.269958144390882,
+          "threshold": 5.0,
+          "unit": "1/eV",
+          "pass": true,
+          "X_0.9": 0.3121,
+          "X_1.0": 0.1456,
+          "X_1.1": 0.0597
+        },
+        "linearity": {
+          "name": "linearity",
+          "description": "|turnovers_production - turnovers_large| / mean at identical base kinetics, production vs large_particle_ni, PFR 923 K regen 0",
+          "value": 0.343388673024844,
+          "threshold": 0.2,
+          "turnovers_production": 7.0348,
+          "turnovers_large_particle_ni": 9.9512,
+          "pass": true
+        },
+        "encapsulation_onset": {
+          "name": "encapsulation_onset",
+          "description": "first T or A_gamma where exit theta_encap >= 0.1; secondary C_gamma/C_delta < 10.0 (scorable rows only)",
+          "first_T_theta_encap": null,
+          "first_A_gamma_theta_encap": {
+            "sweep": "ni111_sio2_baker_helveg_agamma",
+            "cell": "production",
+            "reactor_type": "PFR",
+            "T_K": 923.15,
+            "sweep_values": {
+              "E_act": 1.0,
+              "max_regen_cycles": 0,
+              "carbon_transfer_prefactor_1_s": 10000000.0,
+              "encapsulation_crossover_coverage": 0.5,
+              "ch4_sticking_coefficient": 0.01
+            },
+            "CH4_conversion": 0.0187,
+            "exit_theta_C_encap": 0.145,
+            "c_gamma_to_c_delta_ratio": 1.06,
+            "encapsulation_lifetime_h": 0.0038,
+            "filament_yield_gC_per_gMetal_h": 8.47,
+            "exceeds_equilibrium": false
+          },
+          "first_T_ratio": null,
+          "first_A_gamma_ratio": {
+            "sweep": "ni111_sio2_baker_helveg_agamma",
+            "cell": "production",
+            "reactor_type": "PFR",
+            "T_K": 923.15,
+            "sweep_values": {
+              "E_act": 1.0,
+              "max_regen_cycles": 0,
+              "carbon_transfer_prefactor_1_s": 1000000.0,
+              "encapsulation_crossover_coverage": 0.5,
+              "ch4_sticking_coefficient": 0.01
+            },
+            "CH4_conversion": 0.0028,
+            "exit_theta_C_encap": 0.019,
+            "c_gamma_to_c_delta_ratio": 0.39,
+            "encapsulation_lifetime_h": 0.0292,
+            "filament_yield_gC_per_gMetal_h": 1.21,
+            "exceeds_equilibrium": false
+          },
+          "pass": true
+        },
+        "lifetime": {
+          "name": "lifetime",
+          "description": "encapsulation_lifetime_h vs NI TOS band 4\u201350 h",
+          "band_h": [
+            4.0,
+            50.0
+          ],
+          "n_hits": 2,
+          "example": {
+            "sweep": "ni111_sio2_takenaka_theta_star",
+            "cell": "production",
+            "reactor_type": "Fluidized",
+            "T_K": 923.15,
+            "sweep_values": {
+              "E_act": 1.0,
+              "max_regen_cycles": 0,
+              "carbon_transfer_prefactor_1_s": 10000000000000.0,
+              "encapsulation_crossover_coverage": 0.5,
+              "ch4_sticking_coefficient": 0.01
+            },
+            "CH4_conversion": 0.1694,
+            "exit_theta_C_encap": 0.0003025,
+            "c_gamma_to_c_delta_ratio": 23255.97,
+            "encapsulation_lifetime_h": 5.03,
+            "filament_yield_gC_per_gMetal_h": 302.4,
+            "exceeds_equilibrium": false
+          },
+          "pass": true
+        },
+        "yield": {
+          "name": "yield",
+          "description": "filament yield vs Ermakova 8\u201310 gC/(gNi\u00b7h)",
+          "band_gC_per_gNi_h": [
+            8.0,
+            10.0
+          ],
+          "n_hits": 2,
+          "example": {
+            "sweep": "ni111_sio2_baker_helveg_agamma",
+            "cell": "production",
+            "reactor_type": "PFR",
+            "T_K": 923.15,
+            "sweep_values": {
+              "E_act": 1.0,
+              "max_regen_cycles": 0,
+              "carbon_transfer_prefactor_1_s": 10000000.0,
+              "encapsulation_crossover_coverage": 0.5,
+              "ch4_sticking_coefficient": 0.01
+            },
+            "CH4_conversion": 0.0187,
+            "exit_theta_C_encap": 0.145,
+            "c_gamma_to_c_delta_ratio": 1.06,
+            "encapsulation_lifetime_h": 0.0038,
+            "filament_yield_gC_per_gMetal_h": 8.47,
+            "exceeds_equilibrium": false
+          },
+          "pass": true
+        }
+      },
+      "pbr_ergun_residence_diagnostics": {
+        "n_completed": 12,
+        "n_pbr_records": 1,
+        "mean_pbr_overall_effectiveness_factor": 0.9412,
+        "mean_pbr_thiele_modulus": 0.2785,
+        "n_ergun_checked": 12,
+        "n_ergun_ok": 12,
+        "n_pilot_residence_checked": 12,
+        "n_within_pilot_residence_band": 12,
+        "n_plugging_or_overloaded_flagged": 0,
+        "mean_regenerated_cycle_minus_single_pass_X": -0.038748333333333336
+      },
+      "n_pass": 5,
+      "n_fail": 0
+    },
+    "ermakova_takenaka_joint_summary": {
+      "schema_version": 1,
+      "definition": "A joint hit is one scorable row (usable baseline: complete, not mock, not X>X_eq, carbon balance when reported) with filament_yield in [8.0, 10.0] gC/(gNi\u00b7h) AND encapsulation_lifetime_h in [4.0, 50.0]. Same cell, reactor, T, and (A_\u03b3, \u03b8*, s0).",
+      "declaration": "simultaneous_hit",
+      "n_records": 16,
+      "n_scorable": 15,
+      "n_yield_only": 1,
+      "n_lifetime_only": 1,
+      "n_both": 5,
+      "n_both_roi": 5,
+      "both": [
+        {
+          "sweep": "ni111_sio2_bengaard_sticking",
+          "cell": "large_particle_ni",
+          "reactor_type": "PFR",
+          "T_K": 923.15,
+          "sweep_values": {
+            "E_act": 1.0,
+            "max_regen_cycles": 0,
+            "carbon_transfer_prefactor_1_s": 1000000000000.0,
+            "encapsulation_crossover_coverage": 0.5,
+            "ch4_sticking_coefficient": 0.00075
+          },
+          "CH4_conversion": 0.00568,
+          "exit_theta_C_encap": 5.14e-05,
+          "c_gamma_to_c_delta_ratio": 17830.0,
+          "encapsulation_lifetime_h": 10.81,
+          "filament_yield_gC_per_gMetal_h": 8.442,
+          "exceeds_equilibrium": false
+        },
+        {
+          "sweep": "ni111_sio2_ermakova_takenaka_joint",
+          "cell": "large_particle_ni",
+          "reactor_type": "PFR",
+          "T_K": 923.15,
+          "sweep_values": {
+            "E_act": 1.0,
+            "max_regen_cycles": 0,
+            "carbon_transfer_prefactor_1_s": 1000000000000.0,
+            "encapsulation_crossover_coverage": 0.5,
+            "ch4_sticking_coefficient": 0.00075
+          },
+          "CH4_conversion": 0.00568,
+          "exit_theta_C_encap": 5.14e-05,
+          "c_gamma_to_c_delta_ratio": 17830.0,
+          "encapsulation_lifetime_h": 10.81,
+          "filament_yield_gC_per_gMetal_h": 8.442,
+          "exceeds_equilibrium": false
+        },
+        {
+          "sweep": "ni111_sio2_ermakova_takenaka_joint",
+          "cell": "large_particle_ni",
+          "reactor_type": "PFR",
+          "T_K": 973.15,
+          "sweep_values": {
+            "E_act": 1.0,
+            "max_regen_cycles": 0,
+            "carbon_transfer_prefactor_1_s": 1000000000000.0,
+            "encapsulation_crossover_coverage": 0.65,
+            "ch4_sticking_coefficient": 0.00045
+          },
+          "CH4_conversion": 0.00637,
+          "exit_theta_C_encap": 3.22e-05,
+          "c_gamma_to_c_delta_ratio": 30250.0,
+          "encapsulation_lifetime_h": 17.25,
+          "filament_yield_gC_per_gMetal_h": 8.975,
+          "exceeds_equilibrium": false
+        },
+        {
+          "sweep": "ni111_sio2_ermakova_takenaka_joint",
+          "cell": "production",
+          "reactor_type": "PFR",
+          "T_K": 923.15,
+          "sweep_values": {
+            "E_act": 1.0,
+            "max_regen_cycles": 0,
+            "carbon_transfer_prefactor_1_s": 100000000000.0,
+            "encapsulation_crossover_coverage": 0.5,
+            "ch4_sticking_coefficient": 0.00018
+          },
+          "CH4_conversion": 0.00338,
+          "exit_theta_C_encap": 1.63e-05,
+          "c_gamma_to_c_delta_ratio": 10020.0,
+          "encapsulation_lifetime_h": 34.09,
+          "filament_yield_gC_per_gMetal_h": 9.027,
+          "exceeds_equilibrium": false
+        },
+        {
+          "sweep": "ni111_sio2_ermakova_takenaka_joint",
+          "cell": "production",
+          "reactor_type": "Fluidized",
+          "T_K": 973.15,
+          "sweep_values": {
+            "E_act": 1.0,
+            "max_regen_cycles": 0,
+            "carbon_transfer_prefactor_1_s": 100000000000.0,
+            "encapsulation_crossover_coverage": 0.35,
+            "ch4_sticking_coefficient": 0.00018
+          },
+          "CH4_conversion": 0.00412,
+          "exit_theta_C_encap": 2.99e-05,
+          "c_gamma_to_c_delta_ratio": 12430.0,
+          "encapsulation_lifetime_h": 41.86,
+          "filament_yield_gC_per_gMetal_h": 9.118,
+          "exceeds_equilibrium": false
+        }
+      ],
+      "both_roi": [
+        {
+          "sweep": "ni111_sio2_bengaard_sticking",
+          "cell": "large_particle_ni",
+          "reactor_type": "PFR",
+          "T_K": 923.15,
+          "sweep_values": {
+            "E_act": 1.0,
+            "max_regen_cycles": 0,
+            "carbon_transfer_prefactor_1_s": 1000000000000.0,
+            "encapsulation_crossover_coverage": 0.5,
+            "ch4_sticking_coefficient": 0.00075
+          },
+          "CH4_conversion": 0.00568,
+          "exit_theta_C_encap": 5.14e-05,
+          "c_gamma_to_c_delta_ratio": 17830.0,
+          "encapsulation_lifetime_h": 10.81,
+          "filament_yield_gC_per_gMetal_h": 8.442,
+          "exceeds_equilibrium": false
+        },
+        {
+          "sweep": "ni111_sio2_ermakova_takenaka_joint",
+          "cell": "large_particle_ni",
+          "reactor_type": "PFR",
+          "T_K": 923.15,
+          "sweep_values": {
+            "E_act": 1.0,
+            "max_regen_cycles": 0,
+            "carbon_transfer_prefactor_1_s": 1000000000000.0,
+            "encapsulation_crossover_coverage": 0.5,
+            "ch4_sticking_coefficient": 0.00075
+          },
+          "CH4_conversion": 0.00568,
+          "exit_theta_C_encap": 5.14e-05,
+          "c_gamma_to_c_delta_ratio": 17830.0,
+          "encapsulation_lifetime_h": 10.81,
+          "filament_yield_gC_per_gMetal_h": 8.442,
+          "exceeds_equilibrium": false
+        },
+        {
+          "sweep": "ni111_sio2_ermakova_takenaka_joint",
+          "cell": "large_particle_ni",
+          "reactor_type": "PFR",
+          "T_K": 973.15,
+          "sweep_values": {
+            "E_act": 1.0,
+            "max_regen_cycles": 0,
+            "carbon_transfer_prefactor_1_s": 1000000000000.0,
+            "encapsulation_crossover_coverage": 0.65,
+            "ch4_sticking_coefficient": 0.00045
+          },
+          "CH4_conversion": 0.00637,
+          "exit_theta_C_encap": 3.22e-05,
+          "c_gamma_to_c_delta_ratio": 30250.0,
+          "encapsulation_lifetime_h": 17.25,
+          "filament_yield_gC_per_gMetal_h": 8.975,
+          "exceeds_equilibrium": false
+        },
+        {
+          "sweep": "ni111_sio2_ermakova_takenaka_joint",
+          "cell": "production",
+          "reactor_type": "PFR",
+          "T_K": 923.15,
+          "sweep_values": {
+            "E_act": 1.0,
+            "max_regen_cycles": 0,
+            "carbon_transfer_prefactor_1_s": 100000000000.0,
+            "encapsulation_crossover_coverage": 0.5,
+            "ch4_sticking_coefficient": 0.00018
+          },
+          "CH4_conversion": 0.00338,
+          "exit_theta_C_encap": 1.63e-05,
+          "c_gamma_to_c_delta_ratio": 10020.0,
+          "encapsulation_lifetime_h": 34.09,
+          "filament_yield_gC_per_gMetal_h": 9.027,
+          "exceeds_equilibrium": false
+        },
+        {
+          "sweep": "ni111_sio2_ermakova_takenaka_joint",
+          "cell": "production",
+          "reactor_type": "Fluidized",
+          "T_K": 973.15,
+          "sweep_values": {
+            "E_act": 1.0,
+            "max_regen_cycles": 0,
+            "carbon_transfer_prefactor_1_s": 100000000000.0,
+            "encapsulation_crossover_coverage": 0.35,
+            "ch4_sticking_coefficient": 0.00018
+          },
+          "CH4_conversion": 0.00412,
+          "exit_theta_C_encap": 2.99e-05,
+          "c_gamma_to_c_delta_ratio": 12430.0,
+          "encapsulation_lifetime_h": 41.86,
+          "filament_yield_gC_per_gMetal_h": 9.118,
+          "exceeds_equilibrium": false
+        }
+      ],
+      "closest_misses": [
+        {
+          "sweep": "ni111_sio2_bengaard_sticking",
+          "cell": "large_particle_ni",
+          "reactor_type": "PFR",
+          "T_K": 923.15,
+          "sweep_values": {
+            "E_act": 1.0,
+            "max_regen_cycles": 0,
+            "carbon_transfer_prefactor_1_s": 1000000000000.0,
+            "encapsulation_crossover_coverage": 0.5,
+            "ch4_sticking_coefficient": 0.00075
+          },
+          "CH4_conversion": 0.00568,
+          "exit_theta_C_encap": 5.14e-05,
+          "c_gamma_to_c_delta_ratio": 17830.0,
+          "encapsulation_lifetime_h": 10.81,
+          "filament_yield_gC_per_gMetal_h": 8.442,
+          "exceeds_equilibrium": false,
+          "normalized_miss": 0.0
+        },
+        {
+          "sweep": "ni111_sio2_ermakova_takenaka_joint",
+          "cell": "large_particle_ni",
+          "reactor_type": "PFR",
+          "T_K": 923.15,
+          "sweep_values": {
+            "E_act": 1.0,
+            "max_regen_cycles": 0,
+            "carbon_transfer_prefactor_1_s": 1000000000000.0,
+            "encapsulation_crossover_coverage": 0.5,
+            "ch4_sticking_coefficient": 0.00075
+          },
+          "CH4_conversion": 0.00568,
+          "exit_theta_C_encap": 5.14e-05,
+          "c_gamma_to_c_delta_ratio": 17830.0,
+          "encapsulation_lifetime_h": 10.81,
+          "filament_yield_gC_per_gMetal_h": 8.442,
+          "exceeds_equilibrium": false,
+          "normalized_miss": 0.0
+        },
+        {
+          "sweep": "ni111_sio2_ermakova_takenaka_joint",
+          "cell": "large_particle_ni",
+          "reactor_type": "PFR",
+          "T_K": 973.15,
+          "sweep_values": {
+            "E_act": 1.0,
+            "max_regen_cycles": 0,
+            "carbon_transfer_prefactor_1_s": 1000000000000.0,
+            "encapsulation_crossover_coverage": 0.65,
+            "ch4_sticking_coefficient": 0.00045
+          },
+          "CH4_conversion": 0.00637,
+          "exit_theta_C_encap": 3.22e-05,
+          "c_gamma_to_c_delta_ratio": 30250.0,
+          "encapsulation_lifetime_h": 17.25,
+          "filament_yield_gC_per_gMetal_h": 8.975,
+          "exceeds_equilibrium": false,
+          "normalized_miss": 0.0
+        },
+        {
+          "sweep": "ni111_sio2_ermakova_takenaka_joint",
+          "cell": "production",
+          "reactor_type": "PFR",
+          "T_K": 923.15,
+          "sweep_values": {
+            "E_act": 1.0,
+            "max_regen_cycles": 0,
+            "carbon_transfer_prefactor_1_s": 100000000000.0,
+            "encapsulation_crossover_coverage": 0.5,
+            "ch4_sticking_coefficient": 0.00018
+          },
+          "CH4_conversion": 0.00338,
+          "exit_theta_C_encap": 1.63e-05,
+          "c_gamma_to_c_delta_ratio": 10020.0,
+          "encapsulation_lifetime_h": 34.09,
+          "filament_yield_gC_per_gMetal_h": 9.027,
+          "exceeds_equilibrium": false,
+          "normalized_miss": 0.0
+        },
+        {
+          "sweep": "ni111_sio2_ermakova_takenaka_joint",
+          "cell": "production",
+          "reactor_type": "Fluidized",
+          "T_K": 973.15,
+          "sweep_values": {
+            "E_act": 1.0,
+            "max_regen_cycles": 0,
+            "carbon_transfer_prefactor_1_s": 100000000000.0,
+            "encapsulation_crossover_coverage": 0.35,
+            "ch4_sticking_coefficient": 0.00018
+          },
+          "CH4_conversion": 0.00412,
+          "exit_theta_C_encap": 2.99e-05,
+          "c_gamma_to_c_delta_ratio": 12430.0,
+          "encapsulation_lifetime_h": 41.86,
+          "filament_yield_gC_per_gMetal_h": 9.118,
+          "exceeds_equilibrium": false,
+          "normalized_miss": 0.0
+        },
+        {
+          "sweep": "ni111_sio2_baker_helveg_agamma",
+          "cell": "production",
+          "reactor_type": "PFR",
+          "T_K": 923.15,
+          "sweep_values": {
+            "E_act": 1.0,
+            "max_regen_cycles": 0,
+            "carbon_transfer_prefactor_1_s": 10000000.0,
+            "encapsulation_crossover_coverage": 0.5,
+            "ch4_sticking_coefficient": 0.01
+          },
+          "CH4_conversion": 0.0187,
+          "exit_theta_C_encap": 0.145,
+          "c_gamma_to_c_delta_ratio": 1.06,
+          "encapsulation_lifetime_h": 0.0038,
+          "filament_yield_gC_per_gMetal_h": 8.47,
+          "exceeds_equilibrium": false,
+          "normalized_miss": 0.08687391304347826
+        },
+        {
+          "sweep": "ni111_sio2_baker_helveg_agamma",
+          "cell": "production",
+          "reactor_type": "PFR",
+          "T_K": 923.15,
+          "sweep_values": {
+            "E_act": 1.0,
+            "max_regen_cycles": 0,
+            "carbon_transfer_prefactor_1_s": 1000000.0,
+            "encapsulation_crossover_coverage": 0.5,
+            "ch4_sticking_coefficient": 0.01
+          },
+          "CH4_conversion": 0.0028,
+          "exit_theta_C_encap": 0.019,
+          "c_gamma_to_c_delta_ratio": 0.39,
+          "encapsulation_lifetime_h": 0.0292,
+          "filament_yield_gC_per_gMetal_h": 1.21,
+          "exceeds_equilibrium": false,
+          "normalized_miss": 3.396097236924541
+        },
+        {
+          "sweep": "ni111_sio2_bengaard_eact",
+          "cell": "large_particle_ni",
+          "reactor_type": "PFR",
+          "T_K": 923.15,
+          "sweep_values": {
+            "E_act": 1.0,
+            "max_regen_cycles": 0,
+            "carbon_transfer_prefactor_1_s": 10000000000000.0,
+            "encapsulation_crossover_coverage": 0.5,
+            "ch4_sticking_coefficient": 0.01
+          },
+          "CH4_conversion": 0.062,
+          "exit_theta_C_encap": 0.0003025,
+          "c_gamma_to_c_delta_ratio": 23255.97,
+          "encapsulation_lifetime_h": 0.971,
+          "filament_yield_gC_per_gMetal_h": 91.68,
+          "exceeds_equilibrium": false,
+          "normalized_miss": 40.84005308439499
+        }
+      ],
+      "read": "In-band yield is a high-C\u03b4 / low-A_\u03b3 row (surface already encapsulating). In-band lifetime is a high-A_\u03b3 / low-T / low-s0 row where C\u03b4 is a trickle. The arrival rate that fills the Ermakova band also fills \u03b8* inside the pass; the transport that keeps \u03b8_encap a trickle over-produces filaments. No extra DOF was added to force an overlap."
+    },
+    "calibrated_solids_scorecard": {
+      "judge_catalyst": "ni111_sio2_bengaard2002_ref",
+      "judge_catalyst_literature_name": "Ni(111)/SiO2 Supported Nanoparticle Reference (Bengaard 2002 / Ermakova 2000 / Takenaka 2003 Filamentous-Carbon Judge)",
+      "headline_catalyst": "ni111_sio2_bengaard2002_ref",
+      "headline_catalyst_literature_name": "Ni(111)/SiO2 Supported Nanoparticle Reference (Bengaard 2002 / Ermakova 2000 / Takenaka 2003 Filamentous-Carbon Judge)",
+      "judge_catalyst_requested": "ni111_sio2_bengaard2002_ref",
+      "judge_reason": "named judge catalyst; not 0.01 eV H-parked; MMBCR X_eq is not a solids rank",
+      "headline_t_min": 923.15,
+      "headline_t_max": 973.15,
+      "headline_band_note": "1300 K is the ADR 0001 ceiling (773\u20131300 K), used as the legacy 4-point headline when t_min=1200 and t_max is open. The Ni judge headline is the 650\u2013700 \u00b0C filament ROI (923.15\u2013973.15 K); X>X_eq and carbon-balance failures are never the headline.",
+      "headline": {
+        "PFR": {
+          "catalyst_name": "ni111_sio2_bengaard2002_ref",
+          "literature_catalyst_name": "Ni(111)/SiO2 Supported Nanoparticle Reference (Bengaard 2002 / Ermakova 2000 / Takenaka 2003 Filamentous-Carbon Judge)",
+          "reactor_type": "PFR",
+          "T_K": 973.15,
+          "single_pass_CH4_conversion": 0.6841825412093412,
+          "active_sv_1_m": 27692.307692307688,
+          "WHSV_h-1": 900.0,
+          "ergun_delta_p_Pa": 33268.22480720757,
+          "ergun_delta_p_bar": 0.3326822480720757,
+          "ergun_ok": true,
+          "catalyst_E_act_eV": 0.88,
+          "catalyst_dE_H_eV": -0.5,
+          "h_parked": false,
+          "catalyst_particle_mm": 0.13,
+          "metal_loading": 1.0,
+          "metal_dispersion": 1.0,
+          "exceeds_equilibrium": false,
+          "carbon_balance_ok": true
+        },
+        "PBR": {
+          "catalyst_name": "ni111_sio2_bengaard2002_ref",
+          "literature_catalyst_name": "Ni(111)/SiO2 Supported Nanoparticle Reference (Bengaard 2002 / Ermakova 2000 / Takenaka 2003 Filamentous-Carbon Judge)",
+          "reactor_type": "PBR",
+          "T_K": 973.15,
+          "single_pass_CH4_conversion": 0.6184930284512083,
+          "active_sv_1_m": 27692.307692307688,
+          "WHSV_h-1": 1272.245485712434,
+          "ergun_delta_p_Pa": 49658.50345894074,
+          "ergun_delta_p_bar": 0.4965850345894074,
+          "ergun_ok": true,
+          "catalyst_E_act_eV": 0.88,
+          "catalyst_dE_H_eV": -0.5,
+          "h_parked": false,
+          "catalyst_particle_mm": 0.13,
+          "metal_loading": 1.0,
+          "metal_dispersion": 1.0,
+          "exceeds_equilibrium": false,
+          "carbon_balance_ok": true
+        },
+        "Fluidized": {
+          "catalyst_name": "ni111_sio2_bengaard2002_ref",
+          "literature_catalyst_name": "Ni(111)/SiO2 Supported Nanoparticle Reference (Bengaard 2002 / Ermakova 2000 / Takenaka 2003 Filamentous-Carbon Judge)",
+          "reactor_type": "Fluidized",
+          "T_K": 973.15,
+          "single_pass_CH4_conversion": 0.6418294018294018,
+          "active_sv_1_m": 25384.615384615383,
+          "WHSV_h-1": 400.0,
+          "ergun_delta_p_Pa": 33268.22480720757,
+          "ergun_delta_p_bar": 0.3326822480720757,
+          "ergun_ok": true,
+          "catalyst_E_act_eV": 0.88,
+          "catalyst_dE_H_eV": -0.5,
+          "h_parked": false,
+          "catalyst_particle_mm": 0.13,
+          "metal_loading": 1.0,
+          "metal_dispersion": 1.0,
+          "exceeds_equilibrium": false,
+          "carbon_balance_ok": true
+        }
+      },
+      "headline_solids_conversion": 0.6841825412093412,
+      "ranking_authority": true,
+      "solids_max_excluding_h_parked": 0.985,
+      "candidate_champion_conversion": 0.985,
+      "candidate_champion_catalyst": "0021a267d0b5a6e984a9",
+      "candidate_champion_literature_name": "FeZnNbIrSc-hcp(111) High-Entropy Alloy (Miracle & Senkov 2017 / Yao et al., Science 2018 Multi-Principal-Element Surface) [id=0021a267d0b5a6e984a9]",
+      "candidate_champion_reactor": "PBR",
+      "candidate_champion_T_K": 1300.0,
+      "candidate_champion_kinetics_status": "mlip_neb_complete",
+      "h_parked_excluded": [],
+      "mmbcr_max_conversion": null,
+      "mmbcr_note": "X_eq by construction for large Da; not a catalyst rank (Alves 2021 / Xu 2021 Supported-Ni Filament Reference & Solids Ranking-Authority Gate)",
+      "ntec_max_conversion": null,
+      "electrochemical_max_conversion": null,
+      "n_solids_records": 363,
+      "n_mmbcr_records": 0,
+      "n_ntec_records": 0,
+      "n_electrochemical_records": 0,
+      "pbr_ergun_residence_diagnostics": {
+        "n_completed": 363,
+        "n_pbr_records": 121,
+        "mean_pbr_overall_effectiveness_factor": 0.945262482616518,
+        "mean_pbr_thiele_modulus": 0.2686586426520499,
+        "n_ergun_checked": 363,
+        "n_ergun_ok": 363,
+        "n_pilot_residence_checked": 242,
+        "n_within_pilot_residence_band": 237,
+        "n_plugging_or_overloaded_flagged": 5,
+        "mean_regenerated_cycle_minus_single_pass_X": 0.0
+      },
+      "validation_gate_registry": {
+        "deutschmann2000_monolayer_site_inventory": {
+          "literature_gate_name": "Deutschmann2000_MonolayerSiteDensity_PelletInventory_Gate",
+          "short_title": "Monolayer Site Density & Pellet Inventory Scaling (Deutschmann 2000; Alves 2021)",
+          "governing_equation": "Gamma = 2.5e-9 mol/cm^2; a_active = a_geom * metal_loading * metal_dispersion",
+          "literature_citations": [
+            "Deutschmann et al., Catal. Today 59 (2000) 141-150",
+            "Alves et al., Renew. Sustain. Energy Rev. 137 (2021) 110465",
+            "Sanchez-Bastardo et al., Ind. Eng. Chem. Res. 60 (2021) 11855-11881"
+          ]
+        },
+        "muradov2005_zero_co2_solids_outfeed_regeneration": {
+          "literature_gate_name": "TurquoisePyrolysis_ZeroCO2_CarbonRegeneration_Policy",
+          "short_title": "Zero-CO2 Mechanical & Circulating Carbon Outfeed Policy (Muradov 2005; Parkinson 2019)",
+          "governing_equation": "co2_permitted = False; mechanical/circulating removal clears C_s without clearing encapsulating C_encap_s",
+          "literature_citations": [
+            "Muradov & Veziroglu, Int. J. Hydrogen Energy 30 (2005) 225-237",
+            "Parkinson et al., Energy Environ. Sci. 12 (2019) 19-40"
+          ]
+        },
+        "upham2017_mendelson_bubble_flotation_interfacial": {
+          "literature_gate_name": "Upham2017_MendelsonBubbleRise_MoltenInterfacialMassTransfer_Closure",
+          "short_title": "Molten-Metal Mendelson Bubble Rise & Interfacial Flotation Closure (Upham 2017; Chen 2023)",
+          "governing_equation": "u_b = sqrt(2*sigma/(rho*d_b) + g*d_b/2); eps_g = u_sup/u_b <= 0.30; k0 in (0, 1.0] m/s",
+          "literature_citations": [
+            "Upham et al., Science 358 (2017) 917-921",
+            "Palmer et al., ACS Catal. 10 (2020) 9945-9952",
+            "Chen et al., Ind. Eng. Chem. Res. 62 (2023) 1832-1844"
+          ]
+        },
+        "ergun1952_packed_bed_pressure_drop_pilot_residence": {
+          "literature_gate_name": "Ergun1952_PackedBedPressureDrop_ThieleEffectiveness_PilotResidence_Gate",
+          "short_title": "Packed-Bed Ergun Pressure Drop, Thiele Effectiveness & Pilot Residence Window (Ergun 1952)",
+          "governing_equation": "DeltaP_Ergun <= 1.01325 bar; tau_pilot in [2.0, 12.0] s; Omega = eta_internal / (1 + Da_ext * eta_internal)",
+          "literature_citations": [
+            "Ergun, Chem. Eng. Prog. 48 (1952) 89-94",
+            "Froment, De Wilde & Bischoff, Chemical Reactor Analysis and Design (2011)"
+          ]
+        },
+        "alves2021_xu2021_supported_ni_filament_ranking_authority": {
+          "literature_gate_name": "Alves2021_Xu2021_SupportedNi_FilamentousCarbon_ConversionClosure_Gate",
+          "short_title": "Supported-Ni(111)/SiO2 Filamentous-Carbon ROI Conversion & Ranking Authority Gate (Alves 2021; Xu 2021; Bengaard 2002)",
+          "governing_equation": "X_single_pass(650-700 C) >= 0.50 on PFR, PBR, and Fluidized with X <= X_eq and Baker-Helveg-Ermakova-Takenaka off-site carbon criteria passed",
+          "literature_citations": [
+            "Alves et al., Renew. Sustain. Energy Rev. 137 (2021) 110465",
+            "Xu et al., Appl. Catal. A 611 (2021) 117967",
+            "Bengaard et al., J. Catal. 209 (2002) 365-384"
+          ]
+        },
+        "baker1972_helveg2004_ermakova2000_takenaka2003_off_site_carbon_nucleation": {
+          "literature_gate_name": "Baker1972_Helveg2004_AbildPedersen2006_Ermakova2000_Takenaka2003_OffSiteFilamentousCarbon_vs_Encapsulation_Gate",
+          "short_title": "Baker-Helveg-Abild-Pedersen Off-Site Carbon Diffusion (C_gamma) vs. Graphitic Encapsulation (C_delta) Calibration (Ermakova 2000; Takenaka 2003)",
+          "governing_equation": "r_gamma = A_gamma * exp(-E_gamma/RT) * theta_C; r_delta = (A_gamma/theta*) * exp(-E_delta/RT) * theta_C^2; Y_C in [8, 10] g_C/(g_Ni*h); tau_encap in [4, 50] h",
+          "literature_citations": [
+            "Baker et al., J. Catal. 26 (1972) 51-62",
+            "Helveg et al., Nature 427 (2004) 426-429",
+            "Abild-Pedersen et al., Phys. Rev. B 73 (2006) 115419",
+            "Ermakova et al., Appl. Catal. A 201 (2000) 61-74",
+            "Takenaka et al., J. Catal. 217 (2003) 79-87",
+            "Amin et al., Ind. Eng. Chem. Res. 50 (2011) 12460-12470"
+          ]
+        }
+      },
+      "supported_ni_filament_closure_gate": {
+        "solids_ranking_authority_accepted": true,
+        "judge_ok": true,
+        "pfr_roi_conversion": 0.6841825412093412,
+        "pbr_roi_conversion": 0.6184930284512083,
+        "fluidized_roi_conversion": 0.6418294018294018,
+        "pfr_conversion_ok": true,
+        "pbr_conversion_ok": true,
+        "fluidized_conversion_ok": true,
+        "baker_helveg_carbon_criteria_ok": true,
+        "ermakova_takenaka_joint_roi_ok": true
+      }
+    },
+    "validation_gate_registry": {
+      "deutschmann2000_monolayer_site_inventory": {
+        "literature_gate_name": "Deutschmann2000_MonolayerSiteDensity_PelletInventory_Gate",
+        "short_title": "Monolayer Site Density & Pellet Inventory Scaling (Deutschmann 2000; Alves 2021)",
+        "governing_equation": "Gamma = 2.5e-9 mol/cm^2; a_active = a_geom * metal_loading * metal_dispersion",
+        "literature_citations": [
+          "Deutschmann et al., Catal. Today 59 (2000) 141-150",
+          "Alves et al., Renew. Sustain. Energy Rev. 137 (2021) 110465",
+          "Sanchez-Bastardo et al., Ind. Eng. Chem. Res. 60 (2021) 11855-11881"
+        ]
+      },
+      "muradov2005_zero_co2_solids_outfeed_regeneration": {
+        "literature_gate_name": "TurquoisePyrolysis_ZeroCO2_CarbonRegeneration_Policy",
+        "short_title": "Zero-CO2 Mechanical & Circulating Carbon Outfeed Policy (Muradov 2005; Parkinson 2019)",
+        "governing_equation": "co2_permitted = False; mechanical/circulating removal clears C_s without clearing encapsulating C_encap_s",
+        "literature_citations": [
+          "Muradov & Veziroglu, Int. J. Hydrogen Energy 30 (2005) 225-237",
+          "Parkinson et al., Energy Environ. Sci. 12 (2019) 19-40"
+        ]
+      },
+      "upham2017_mendelson_bubble_flotation_interfacial": {
+        "literature_gate_name": "Upham2017_MendelsonBubbleRise_MoltenInterfacialMassTransfer_Closure",
+        "short_title": "Molten-Metal Mendelson Bubble Rise & Interfacial Flotation Closure (Upham 2017; Chen 2023)",
+        "governing_equation": "u_b = sqrt(2*sigma/(rho*d_b) + g*d_b/2); eps_g = u_sup/u_b <= 0.30; k0 in (0, 1.0] m/s",
+        "literature_citations": [
+          "Upham et al., Science 358 (2017) 917-921",
+          "Palmer et al., ACS Catal. 10 (2020) 9945-9952",
+          "Chen et al., Ind. Eng. Chem. Res. 62 (2023) 1832-1844"
+        ]
+      },
+      "ergun1952_packed_bed_pressure_drop_pilot_residence": {
+        "literature_gate_name": "Ergun1952_PackedBedPressureDrop_ThieleEffectiveness_PilotResidence_Gate",
+        "short_title": "Packed-Bed Ergun Pressure Drop, Thiele Effectiveness & Pilot Residence Window (Ergun 1952)",
+        "governing_equation": "DeltaP_Ergun <= 1.01325 bar; tau_pilot in [2.0, 12.0] s; Omega = eta_internal / (1 + Da_ext * eta_internal)",
+        "literature_citations": [
+          "Ergun, Chem. Eng. Prog. 48 (1952) 89-94",
+          "Froment, De Wilde & Bischoff, Chemical Reactor Analysis and Design (2011)"
+        ]
+      },
+      "alves2021_xu2021_supported_ni_filament_ranking_authority": {
+        "literature_gate_name": "Alves2021_Xu2021_SupportedNi_FilamentousCarbon_ConversionClosure_Gate",
+        "short_title": "Supported-Ni(111)/SiO2 Filamentous-Carbon ROI Conversion & Ranking Authority Gate (Alves 2021; Xu 2021; Bengaard 2002)",
+        "governing_equation": "X_single_pass(650-700 C) >= 0.50 on PFR, PBR, and Fluidized with X <= X_eq and Baker-Helveg-Ermakova-Takenaka off-site carbon criteria passed",
+        "literature_citations": [
+          "Alves et al., Renew. Sustain. Energy Rev. 137 (2021) 110465",
+          "Xu et al., Appl. Catal. A 611 (2021) 117967",
+          "Bengaard et al., J. Catal. 209 (2002) 365-384"
+        ]
+      },
+      "baker1972_helveg2004_ermakova2000_takenaka2003_off_site_carbon_nucleation": {
+        "literature_gate_name": "Baker1972_Helveg2004_AbildPedersen2006_Ermakova2000_Takenaka2003_OffSiteFilamentousCarbon_vs_Encapsulation_Gate",
+        "short_title": "Baker-Helveg-Abild-Pedersen Off-Site Carbon Diffusion (C_gamma) vs. Graphitic Encapsulation (C_delta) Calibration (Ermakova 2000; Takenaka 2003)",
+        "governing_equation": "r_gamma = A_gamma * exp(-E_gamma/RT) * theta_C; r_delta = (A_gamma/theta*) * exp(-E_delta/RT) * theta_C^2; Y_C in [8, 10] g_C/(g_Ni*h); tau_encap in [4, 50] h",
+        "literature_citations": [
+          "Baker et al., J. Catal. 26 (1972) 51-62",
+          "Helveg et al., Nature 427 (2004) 426-429",
+          "Abild-Pedersen et al., Phys. Rev. B 73 (2006) 115419",
+          "Ermakova et al., Appl. Catal. A 201 (2000) 61-74",
+          "Takenaka et al., J. Catal. 217 (2003) 79-87",
+          "Amin et al., Ind. Eng. Chem. Res. 50 (2011) 12460-12470"
+        ]
+      }
+    },
+    "content_sha256": "41e7fcdbd997269726f4086f4ee8df44ea203ee9757c3605254a58236f4aa9e6"
+  },
+  "validation_gate_registry": {
+    "deutschmann2000_monolayer_site_inventory": {
+      "literature_gate_name": "Deutschmann2000_MonolayerSiteDensity_PelletInventory_Gate",
+      "short_title": "Monolayer Site Density & Pellet Inventory Scaling (Deutschmann 2000; Alves 2021)",
+      "governing_equation": "Gamma = 2.5e-9 mol/cm^2; a_active = a_geom * metal_loading * metal_dispersion",
+      "literature_citations": [
+        "Deutschmann et al., Catal. Today 59 (2000) 141-150",
+        "Alves et al., Renew. Sustain. Energy Rev. 137 (2021) 110465",
+        "Sanchez-Bastardo et al., Ind. Eng. Chem. Res. 60 (2021) 11855-11881"
+      ]
+    },
+    "muradov2005_zero_co2_solids_outfeed_regeneration": {
+      "literature_gate_name": "TurquoisePyrolysis_ZeroCO2_CarbonRegeneration_Policy",
+      "short_title": "Zero-CO2 Mechanical & Circulating Carbon Outfeed Policy (Muradov 2005; Parkinson 2019)",
+      "governing_equation": "co2_permitted = False; mechanical/circulating removal clears C_s without clearing encapsulating C_encap_s",
+      "literature_citations": [
+        "Muradov & Veziroglu, Int. J. Hydrogen Energy 30 (2005) 225-237",
+        "Parkinson et al., Energy Environ. Sci. 12 (2019) 19-40"
+      ]
+    },
+    "upham2017_mendelson_bubble_flotation_interfacial": {
+      "literature_gate_name": "Upham2017_MendelsonBubbleRise_MoltenInterfacialMassTransfer_Closure",
+      "short_title": "Molten-Metal Mendelson Bubble Rise & Interfacial Flotation Closure (Upham 2017; Chen 2023)",
+      "governing_equation": "u_b = sqrt(2*sigma/(rho*d_b) + g*d_b/2); eps_g = u_sup/u_b <= 0.30; k0 in (0, 1.0] m/s",
+      "literature_citations": [
+        "Upham et al., Science 358 (2017) 917-921",
+        "Palmer et al., ACS Catal. 10 (2020) 9945-9952",
+        "Chen et al., Ind. Eng. Chem. Res. 62 (2023) 1832-1844"
+      ]
+    },
+    "ergun1952_packed_bed_pressure_drop_pilot_residence": {
+      "literature_gate_name": "Ergun1952_PackedBedPressureDrop_ThieleEffectiveness_PilotResidence_Gate",
+      "short_title": "Packed-Bed Ergun Pressure Drop, Thiele Effectiveness & Pilot Residence Window (Ergun 1952)",
+      "governing_equation": "DeltaP_Ergun <= 1.01325 bar; tau_pilot in [2.0, 12.0] s; Omega = eta_internal / (1 + Da_ext * eta_internal)",
+      "literature_citations": [
+        "Ergun, Chem. Eng. Prog. 48 (1952) 89-94",
+        "Froment, De Wilde & Bischoff, Chemical Reactor Analysis and Design (2011)"
+      ]
+    },
     "alves2021_xu2021_supported_ni_filament_ranking_authority": {
+      "literature_gate_name": "Alves2021_Xu2021_SupportedNi_FilamentousCarbon_ConversionClosure_Gate",
+      "short_title": "Supported-Ni(111)/SiO2 Filamentous-Carbon ROI Conversion & Ranking Authority Gate (Alves 2021; Xu 2021; Bengaard 2002)",
       "governing_equation": "X_single_pass(650-700 C) >= 0.50 on PFR, PBR, and Fluidized with X <= X_eq and Baker-Helveg-Ermakova-Takenaka off-site carbon criteria passed",
       "literature_citations": [
         "Alves et al., Renew. Sustain. Energy Rev. 137 (2021) 110465",
         "Xu et al., Appl. Catal. A 611 (2021) 117967",
         "Bengaard et al., J. Catal. 209 (2002) 365-384"
-      ],
-      "literature_gate_name": "Alves2021_Xu2021_SupportedNi_FilamentousCarbon_ConversionClosure_Gate",
-      "short_title": "Supported-Ni(111)/SiO2 Filamentous-Carbon ROI Conversion & Ranking Authority Gate (Alves 2021; Xu 2021; Bengaard 2002)"
+      ]
     },
     "baker1972_helveg2004_ermakova2000_takenaka2003_off_site_carbon_nucleation": {
+      "literature_gate_name": "Baker1972_Helveg2004_AbildPedersen2006_Ermakova2000_Takenaka2003_OffSiteFilamentousCarbon_vs_Encapsulation_Gate",
+      "short_title": "Baker-Helveg-Abild-Pedersen Off-Site Carbon Diffusion (C_gamma) vs. Graphitic Encapsulation (C_delta) Calibration (Ermakova 2000; Takenaka 2003)",
       "governing_equation": "r_gamma = A_gamma * exp(-E_gamma/RT) * theta_C; r_delta = (A_gamma/theta*) * exp(-E_delta/RT) * theta_C^2; Y_C in [8, 10] g_C/(g_Ni*h); tau_encap in [4, 50] h",
       "literature_citations": [
         "Baker et al., J. Catal. 26 (1972) 51-62",
@@ -532,47 +1385,70 @@
         "Ermakova et al., Appl. Catal. A 201 (2000) 61-74",
         "Takenaka et al., J. Catal. 217 (2003) 79-87",
         "Amin et al., Ind. Eng. Chem. Res. 50 (2011) 12460-12470"
-      ],
-      "literature_gate_name": "Baker1972_Helveg2004_AbildPedersen2006_Ermakova2000_Takenaka2003_OffSiteFilamentousCarbon_vs_Encapsulation_Gate",
-      "short_title": "Baker-Helveg-Abild-Pedersen Off-Site Carbon Diffusion (C_gamma) vs. Graphitic Encapsulation (C_delta) Calibration (Ermakova 2000; Takenaka 2003)"
-    },
+      ]
+    }
+  },
+  "literature_validation_gates": {
     "deutschmann2000_monolayer_site_inventory": {
+      "literature_gate_name": "Deutschmann2000_MonolayerSiteDensity_PelletInventory_Gate",
+      "short_title": "Monolayer Site Density & Pellet Inventory Scaling (Deutschmann 2000; Alves 2021)",
       "governing_equation": "Gamma = 2.5e-9 mol/cm^2; a_active = a_geom * metal_loading * metal_dispersion",
       "literature_citations": [
         "Deutschmann et al., Catal. Today 59 (2000) 141-150",
         "Alves et al., Renew. Sustain. Energy Rev. 137 (2021) 110465",
         "Sanchez-Bastardo et al., Ind. Eng. Chem. Res. 60 (2021) 11855-11881"
-      ],
-      "literature_gate_name": "Deutschmann2000_MonolayerSiteDensity_PelletInventory_Gate",
-      "short_title": "Monolayer Site Density & Pellet Inventory Scaling (Deutschmann 2000; Alves 2021)"
-    },
-    "ergun1952_packed_bed_pressure_drop_pilot_residence": {
-      "governing_equation": "DeltaP_Ergun <= 1.01325 bar; tau_pilot in [2.0, 12.0] s; Omega = eta_internal / (1 + Da_ext * eta_internal)",
-      "literature_citations": [
-        "Ergun, Chem. Eng. Prog. 48 (1952) 89-94",
-        "Froment, De Wilde & Bischoff, Chemical Reactor Analysis and Design (2011)"
-      ],
-      "literature_gate_name": "Ergun1952_PackedBedPressureDrop_ThieleEffectiveness_PilotResidence_Gate",
-      "short_title": "Packed-Bed Ergun Pressure Drop, Thiele Effectiveness & Pilot Residence Window (Ergun 1952)"
+      ]
     },
     "muradov2005_zero_co2_solids_outfeed_regeneration": {
+      "literature_gate_name": "TurquoisePyrolysis_ZeroCO2_CarbonRegeneration_Policy",
+      "short_title": "Zero-CO2 Mechanical & Circulating Carbon Outfeed Policy (Muradov 2005; Parkinson 2019)",
       "governing_equation": "co2_permitted = False; mechanical/circulating removal clears C_s without clearing encapsulating C_encap_s",
       "literature_citations": [
         "Muradov & Veziroglu, Int. J. Hydrogen Energy 30 (2005) 225-237",
         "Parkinson et al., Energy Environ. Sci. 12 (2019) 19-40"
-      ],
-      "literature_gate_name": "TurquoisePyrolysis_ZeroCO2_CarbonRegeneration_Policy",
-      "short_title": "Zero-CO2 Mechanical & Circulating Carbon Outfeed Policy (Muradov 2005; Parkinson 2019)"
+      ]
     },
     "upham2017_mendelson_bubble_flotation_interfacial": {
+      "literature_gate_name": "Upham2017_MendelsonBubbleRise_MoltenInterfacialMassTransfer_Closure",
+      "short_title": "Molten-Metal Mendelson Bubble Rise & Interfacial Flotation Closure (Upham 2017; Chen 2023)",
       "governing_equation": "u_b = sqrt(2*sigma/(rho*d_b) + g*d_b/2); eps_g = u_sup/u_b <= 0.30; k0 in (0, 1.0] m/s",
       "literature_citations": [
         "Upham et al., Science 358 (2017) 917-921",
         "Palmer et al., ACS Catal. 10 (2020) 9945-9952",
         "Chen et al., Ind. Eng. Chem. Res. 62 (2023) 1832-1844"
-      ],
-      "literature_gate_name": "Upham2017_MendelsonBubbleRise_MoltenInterfacialMassTransfer_Closure",
-      "short_title": "Molten-Metal Mendelson Bubble Rise & Interfacial Flotation Closure (Upham 2017; Chen 2023)"
+      ]
+    },
+    "ergun1952_packed_bed_pressure_drop_pilot_residence": {
+      "literature_gate_name": "Ergun1952_PackedBedPressureDrop_ThieleEffectiveness_PilotResidence_Gate",
+      "short_title": "Packed-Bed Ergun Pressure Drop, Thiele Effectiveness & Pilot Residence Window (Ergun 1952)",
+      "governing_equation": "DeltaP_Ergun <= 1.01325 bar; tau_pilot in [2.0, 12.0] s; Omega = eta_internal / (1 + Da_ext * eta_internal)",
+      "literature_citations": [
+        "Ergun, Chem. Eng. Prog. 48 (1952) 89-94",
+        "Froment, De Wilde & Bischoff, Chemical Reactor Analysis and Design (2011)"
+      ]
+    },
+    "alves2021_xu2021_supported_ni_filament_ranking_authority": {
+      "literature_gate_name": "Alves2021_Xu2021_SupportedNi_FilamentousCarbon_ConversionClosure_Gate",
+      "short_title": "Supported-Ni(111)/SiO2 Filamentous-Carbon ROI Conversion & Ranking Authority Gate (Alves 2021; Xu 2021; Bengaard 2002)",
+      "governing_equation": "X_single_pass(650-700 C) >= 0.50 on PFR, PBR, and Fluidized with X <= X_eq and Baker-Helveg-Ermakova-Takenaka off-site carbon criteria passed",
+      "literature_citations": [
+        "Alves et al., Renew. Sustain. Energy Rev. 137 (2021) 110465",
+        "Xu et al., Appl. Catal. A 611 (2021) 117967",
+        "Bengaard et al., J. Catal. 209 (2002) 365-384"
+      ]
+    },
+    "baker1972_helveg2004_ermakova2000_takenaka2003_off_site_carbon_nucleation": {
+      "literature_gate_name": "Baker1972_Helveg2004_AbildPedersen2006_Ermakova2000_Takenaka2003_OffSiteFilamentousCarbon_vs_Encapsulation_Gate",
+      "short_title": "Baker-Helveg-Abild-Pedersen Off-Site Carbon Diffusion (C_gamma) vs. Graphitic Encapsulation (C_delta) Calibration (Ermakova 2000; Takenaka 2003)",
+      "governing_equation": "r_gamma = A_gamma * exp(-E_gamma/RT) * theta_C; r_delta = (A_gamma/theta*) * exp(-E_delta/RT) * theta_C^2; Y_C in [8, 10] g_C/(g_Ni*h); tau_encap in [4, 50] h",
+      "literature_citations": [
+        "Baker et al., J. Catal. 26 (1972) 51-62",
+        "Helveg et al., Nature 427 (2004) 426-429",
+        "Abild-Pedersen et al., Phys. Rev. B 73 (2006) 115419",
+        "Ermakova et al., Appl. Catal. A 201 (2000) 61-74",
+        "Takenaka et al., J. Catal. 217 (2003) 79-87",
+        "Amin et al., Ind. Eng. Chem. Res. 50 (2011) 12460-12470"
+      ]
     }
   },
   "named_reference_catalysts": {
@@ -591,1042 +1467,159 @@
       "physical_mechanism": "Isolated single-atom active site lacking extended metal bulk/step edges for Baker-Helveg carbon filament nucleation (Akri et al., Nat. Commun. 2019)"
     }
   },
-  "pathway_leaderboard": {
-    "electrochemical": {
-      "H2_selectivity": 1.0,
-      "T_K": 353.15,
-      "champion_catalyst": "c9bf4b755ab0023fffba",
-      "champion_catalyst_literature_name": "Ce-doped MgCo2O4/N-graphene (nanoparticle) Spinel Oxide (Liang et al., Nat. Mater. 2011) [id=c9bf4b755ab0023fffba]",
-      "cycle_averaged_CH4_conversion": null,
-      "energy_input_kwh_kg_h2_base": 913.138,
-      "ergun_delta_p_bar": null,
-      "kinetics_status": "screening_bep",
-      "n_usable_records": 24,
-      "overall_effectiveness_factor": null,
-      "reactor_evidence_tier": "uncalibrated_multiphysics_screening",
-      "reactor_type": "Electrochemical",
-      "single_pass_CH4_conversion": 0.0067,
-      "status": "complete",
-      "tea_base_h2_usd_kg": 68.494,
-      "tea_conservative_h2_usd_kg": 140.702,
-      "tea_optimistic_h2_usd_kg": 40.245,
-      "thiele_modulus": null
-    },
-    "mmbcr": {
-      "H2_selectivity": 0.8132,
-      "T_K": 1300.0,
-      "champion_catalyst": "54757bb17c1b638462d9",
-      "champion_catalyst_literature_name": "Ti0.10Te0.90 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=54757bb17c1b638462d9]",
-      "cycle_averaged_CH4_conversion": null,
-      "energy_input_kwh_kg_h2_base": 17.118,
-      "ergun_delta_p_bar": null,
-      "kinetics_status": "mlip_neb_complete",
-      "n_usable_records": 36,
-      "overall_effectiveness_factor": null,
-      "reactor_evidence_tier": "diagnostic_screening_template",
-      "reactor_type": "MMBCR",
-      "single_pass_CH4_conversion": 0.2417,
-      "status": "complete",
-      "tea_base_h2_usd_kg": 1.74,
-      "tea_conservative_h2_usd_kg": 5.765,
-      "tea_optimistic_h2_usd_kg": 0.495,
-      "thiele_modulus": null
-    },
-    "ntec": {
-      "H2_selectivity": 1.0,
-      "T_K": 473.15,
-      "champion_catalyst": "54757bb17c1b638462d9",
-      "champion_catalyst_literature_name": "Ti0.10Te0.90 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=54757bb17c1b638462d9]",
-      "cycle_averaged_CH4_conversion": null,
-      "energy_input_kwh_kg_h2_base": 117.819,
-      "ergun_delta_p_bar": null,
-      "kinetics_status": "screening_bep",
-      "n_usable_records": 28,
-      "overall_effectiveness_factor": null,
-      "reactor_evidence_tier": "uncalibrated_multiphysics_screening",
-      "reactor_type": "NTEC",
-      "single_pass_CH4_conversion": 0.014,
-      "status": "complete",
-      "tea_base_h2_usd_kg": 13.799,
-      "tea_conservative_h2_usd_kg": 30.092,
-      "tea_optimistic_h2_usd_kg": 7.962,
-      "thiele_modulus": null
-    },
-    "thermocatalytic": {
-      "H2_selectivity": 1.0,
-      "T_K": 1300.0,
-      "champion_catalyst": "0021a267d0b5a6e984a9",
-      "champion_catalyst_literature_name": "FeZnNbIrSc-hcp(111) High-Entropy Alloy (Miracle & Senkov 2017 / Yao et al., Science 2018 Multi-Principal-Element Surface) [id=0021a267d0b5a6e984a9]",
-      "cycle_averaged_CH4_conversion": 0.985,
-      "energy_input_kwh_kg_h2_base": 9.631,
-      "ergun_delta_p_bar": 0.91325,
-      "kinetics_status": "mlip_neb_complete",
-      "n_usable_records": 235,
-      "overall_effectiveness_factor": 0.9316,
-      "reactor_evidence_tier": "diagnostic_screening_template",
-      "reactor_type": "PBR",
-      "single_pass_CH4_conversion": 0.985,
-      "status": "complete",
-      "tea_base_h2_usd_kg": 1.012,
-      "tea_conservative_h2_usd_kg": 3.89,
-      "tea_optimistic_h2_usd_kg": 0.102,
-      "thiele_modulus": 0.7034
-    },
-    "thermocatalytic_fluidized": {
-      "H2_selectivity": 1.0,
-      "T_K": 1300.0,
-      "champion_catalyst": "d4403c08f769fc70a3a4",
-      "champion_catalyst_literature_name": "FeZnZrAgIr-bcc(111) High-Entropy Alloy (Miracle & Senkov 2017 / Yao et al., Science 2018 Multi-Principal-Element Surface) [id=d4403c08f769fc70a3a4]",
-      "cycle_averaged_CH4_conversion": 0.4849,
-      "energy_input_kwh_kg_h2_base": 12.143,
-      "ergun_delta_p_bar": 0.398827,
-      "kinetics_status": "mlip_neb_complete",
-      "n_usable_records": 75,
-      "overall_effectiveness_factor": null,
-      "reactor_evidence_tier": "diagnostic_screening_template",
-      "reactor_type": "Fluidized",
-      "single_pass_CH4_conversion": 0.4849,
-      "status": "complete",
-      "tea_base_h2_usd_kg": 1.256,
-      "tea_conservative_h2_usd_kg": 4.519,
-      "tea_optimistic_h2_usd_kg": 0.234,
-      "thiele_modulus": null
-    },
-    "thermocatalytic_pbr": {
-      "H2_selectivity": 1.0,
-      "T_K": 1300.0,
-      "champion_catalyst": "0021a267d0b5a6e984a9",
-      "champion_catalyst_literature_name": "FeZnNbIrSc-hcp(111) High-Entropy Alloy (Miracle & Senkov 2017 / Yao et al., Science 2018 Multi-Principal-Element Surface) [id=0021a267d0b5a6e984a9]",
-      "cycle_averaged_CH4_conversion": 0.985,
-      "energy_input_kwh_kg_h2_base": 9.631,
-      "ergun_delta_p_bar": 0.91325,
-      "kinetics_status": "mlip_neb_complete",
-      "n_usable_records": 95,
-      "overall_effectiveness_factor": 0.9316,
-      "reactor_evidence_tier": "diagnostic_screening_template",
-      "reactor_type": "PBR",
-      "single_pass_CH4_conversion": 0.985,
-      "status": "complete",
-      "tea_base_h2_usd_kg": 1.012,
-      "tea_conservative_h2_usd_kg": 3.89,
-      "tea_optimistic_h2_usd_kg": 0.102,
-      "thiele_modulus": 0.7034
-    },
-    "thermocatalytic_pfr": {
-      "H2_selectivity": 1.0,
-      "T_K": 1300.0,
-      "champion_catalyst": "d4403c08f769fc70a3a4",
-      "champion_catalyst_literature_name": "FeZnZrAgIr-bcc(111) High-Entropy Alloy (Miracle & Senkov 2017 / Yao et al., Science 2018 Multi-Principal-Element Surface) [id=d4403c08f769fc70a3a4]",
-      "cycle_averaged_CH4_conversion": 0.9711,
-      "energy_input_kwh_kg_h2_base": 9.666,
-      "ergun_delta_p_bar": 0.398827,
-      "kinetics_status": "mlip_neb_complete",
-      "n_usable_records": 65,
-      "overall_effectiveness_factor": null,
-      "reactor_evidence_tier": "diagnostic_screening_template",
-      "reactor_type": "PFR",
-      "single_pass_CH4_conversion": 0.9711,
-      "status": "complete",
-      "tea_base_h2_usd_kg": 1.015,
-      "tea_conservative_h2_usd_kg": 3.899,
-      "tea_optimistic_h2_usd_kg": 0.104,
-      "thiele_modulus": null
-    }
-  },
-  "pbr_ergun_residence_diagnostics": {
-    "mean_pbr_overall_effectiveness_factor": 0.97822050123181,
-    "mean_pbr_thiele_modulus": 0.16088307231801044,
-    "mean_regenerated_cycle_minus_single_pass_X": 0.0,
-    "n_completed": 323,
-    "n_ergun_checked": 235,
-    "n_ergun_ok": 235,
-    "n_pbr_records": 95,
-    "n_pilot_residence_checked": 160,
-    "n_plugging_or_overloaded_flagged": 5,
-    "n_within_pilot_residence_band": 155
-  },
   "pemfc_stack_summary": {
-    "cell_efficiency_at_peak": 0.4495,
+    "status": "complete",
+    "n_single_cell_simulations": 207,
     "champion_cathode": "dbc15731f8fdb0f99d43",
     "champion_cathode_literature_name": "W-doped NiCo2O4/N-CNT (nanoparticle) Spinel Oxide (Liang et al., Nat. Mater. 2011) [id=dbc15731f8fdb0f99d43]",
     "champion_membrane": "AquivionE87",
-    "n_single_cell_simulations": 210,
-    "orr_overpotential_V": 0.1591,
     "peak_power_W_cm2": 2.2532,
+    "orr_overpotential_V": 0.1591,
+    "cell_efficiency_at_peak": 0.4495,
     "stack_cells": 400,
-    "stack_cost_usd_per_kW": 30.81,
-    "stack_gravimetric_W_kg": 2732.2,
     "stack_net_power_kW": 253.22,
     "stack_system_efficiency": 0.421,
+    "stack_gravimetric_W_kg": 2732.2,
     "stack_volumetric_W_L": 4122.4,
-    "status": "complete"
+    "stack_cost_usd_per_kW": 30.81
   },
-  "supported_ni_filament_closure_summary": {
-    "baker_helveg_criteria_summary": {
-      "criteria": {
-        "encapsulation_onset": {
-          "description": "first T or A_gamma where exit theta_encap >= 0.1; secondary C_gamma/C_delta < 10.0 (scorable rows only)",
-          "first_A_gamma_ratio": {
-            "CH4_conversion": 0.0028,
-            "T_K": 923.15,
-            "c_gamma_to_c_delta_ratio": 0.39,
-            "cell": "production",
-            "encapsulation_lifetime_h": 0.0292,
-            "exceeds_equilibrium": false,
-            "exit_theta_C_encap": 0.019,
-            "filament_yield_gC_per_gMetal_h": 1.21,
-            "reactor_type": "PFR",
-            "sweep": "ni111_sio2_baker_helveg_agamma",
-            "sweep_values": {
-              "E_act": 1.0,
-              "carbon_transfer_prefactor_1_s": 1000000.0,
-              "ch4_sticking_coefficient": 0.01,
-              "encapsulation_crossover_coverage": 0.5,
-              "max_regen_cycles": 0
-            }
-          },
-          "first_A_gamma_theta_encap": {
-            "CH4_conversion": 0.0187,
-            "T_K": 923.15,
-            "c_gamma_to_c_delta_ratio": 1.06,
-            "cell": "production",
-            "encapsulation_lifetime_h": 0.0038,
-            "exceeds_equilibrium": false,
-            "exit_theta_C_encap": 0.145,
-            "filament_yield_gC_per_gMetal_h": 8.47,
-            "reactor_type": "PFR",
-            "sweep": "ni111_sio2_baker_helveg_agamma",
-            "sweep_values": {
-              "E_act": 1.0,
-              "carbon_transfer_prefactor_1_s": 10000000.0,
-              "ch4_sticking_coefficient": 0.01,
-              "encapsulation_crossover_coverage": 0.5,
-              "max_regen_cycles": 0
-            }
-          },
-          "first_T_ratio": null,
-          "first_T_theta_encap": null,
-          "name": "encapsulation_onset",
-          "pass": true
-        },
-        "flat": {
-          "X_0.9": 0.3121,
-          "X_1.0": 0.1456,
-          "X_1.1": 0.0597,
-          "description": "|d ln X / d E_act| at production PFR 923 K regen 0, central difference from E_act 0.9 and 1.1",
-          "name": "flat",
-          "pass": true,
-          "threshold": 5.0,
-          "unit": "1/eV",
-          "value": 8.269958144390882
-        },
-        "lifetime": {
-          "band_h": [
-            4.0,
-            50.0
-          ],
-          "description": "encapsulation_lifetime_h vs NI TOS band 4\u201350 h",
-          "example": {
-            "CH4_conversion": 0.1694,
-            "T_K": 923.15,
-            "c_gamma_to_c_delta_ratio": 23255.97,
-            "cell": "production",
-            "encapsulation_lifetime_h": 5.03,
-            "exceeds_equilibrium": false,
-            "exit_theta_C_encap": 0.0003025,
-            "filament_yield_gC_per_gMetal_h": 302.4,
-            "reactor_type": "Fluidized",
-            "sweep": "ni111_sio2_takenaka_theta_star",
-            "sweep_values": {
-              "E_act": 1.0,
-              "carbon_transfer_prefactor_1_s": 10000000000000.0,
-              "ch4_sticking_coefficient": 0.01,
-              "encapsulation_crossover_coverage": 0.5,
-              "max_regen_cycles": 0
-            }
-          },
-          "n_hits": 2,
-          "name": "lifetime",
-          "pass": true
-        },
-        "linearity": {
-          "description": "|turnovers_production - turnovers_large| / mean at identical base kinetics, production vs large_particle_ni, PFR 923 K regen 0",
-          "name": "linearity",
-          "pass": true,
-          "threshold": 0.2,
-          "turnovers_large_particle_ni": 9.9512,
-          "turnovers_production": 7.0348,
-          "value": 0.343388673024844
-        },
-        "yield": {
-          "band_gC_per_gNi_h": [
-            8.0,
-            10.0
-          ],
-          "description": "filament yield vs Ermakova 8\u201310 gC/(gNi\u00b7h)",
-          "example": {
-            "CH4_conversion": 0.0187,
-            "T_K": 923.15,
-            "c_gamma_to_c_delta_ratio": 1.06,
-            "cell": "production",
-            "encapsulation_lifetime_h": 0.0038,
-            "exceeds_equilibrium": false,
-            "exit_theta_C_encap": 0.145,
-            "filament_yield_gC_per_gMetal_h": 8.47,
-            "reactor_type": "PFR",
-            "sweep": "ni111_sio2_baker_helveg_agamma",
-            "sweep_values": {
-              "E_act": 1.0,
-              "carbon_transfer_prefactor_1_s": 10000000.0,
-              "ch4_sticking_coefficient": 0.01,
-              "encapsulation_crossover_coverage": 0.5,
-              "max_regen_cycles": 0
-            }
-          },
-          "n_hits": 2,
-          "name": "yield",
-          "pass": true
-        }
-      },
-      "flagged_X_gt_Xeq_note": "X > X_eq rows (typically 1300 K with fast C_gamma) are flagged and are not scored as successes",
-      "n_fail": 0,
-      "n_flagged_X_gt_Xeq": 1,
-      "n_pass": 5,
-      "pbr_ergun_residence_diagnostics": {
-        "mean_pbr_overall_effectiveness_factor": 0.9412,
-        "mean_pbr_thiele_modulus": 0.2785,
-        "mean_regenerated_cycle_minus_single_pass_X": -0.038748333333333336,
-        "n_completed": 12,
-        "n_ergun_checked": 12,
-        "n_ergun_ok": 12,
-        "n_pbr_records": 1,
-        "n_pilot_residence_checked": 12,
-        "n_plugging_or_overloaded_flagged": 0,
-        "n_within_pilot_residence_band": 12
-      },
-      "schema_version": 1,
-      "sweeps": {
-        "ni111_sio2_baker_helveg_agamma": {
-          "n_complete": 4,
-          "n_overshoot": 0,
-          "n_records": 4
-        },
-        "ni111_sio2_baker_helveg_agamma_theta_star": {
-          "n_complete": 1,
-          "n_overshoot": 0,
-          "n_records": 1
-        },
-        "ni111_sio2_bengaard_eact": {
-          "n_complete": 5,
-          "n_overshoot": 1,
-          "n_records": 5
-        },
-        "ni111_sio2_bengaard_sticking": {
-          "n_complete": 1,
-          "n_overshoot": 0,
-          "n_records": 1
-        },
-        "ni111_sio2_takenaka_theta_star": {
-          "n_complete": 1,
-          "n_overshoot": 0,
-          "n_records": 1
-        }
-      }
+  "dft_calibrated_pemfc_stack_summary": {
+    "status": "complete",
+    "n_qe_converged_acid_stable_cathodes": 27,
+    "champion_cathode": "dbc15731f8fdb0f99d43",
+    "champion_cathode_literature_name": "W-doped NiCo2O4/N-CNT (nanoparticle) Spinel Oxide (Liang et al., Nat. Mater. 2011) [id=dbc15731f8fdb0f99d43]",
+    "champion_material_class": "Spinel",
+    "champion_genome": "('Spinel', 'Ni', 'Co', 'W', 'nanoparticle', 'N-CNT')",
+    "champion_membrane": "AquivionE87",
+    "orr_overpotential_che_V": 0.3541,
+    "orr_overpotential_gc_V": 0.1591,
+    "orr_tafel_slope_mV_dec": 105.0,
+    "pourbaix_dissolution_margin_V": 0.0568,
+    "qe_dft_energy_Ry": -519.038923,
+    "peak_power_W_cm2": 2.2532,
+    "rated_power_at_0p6V_W_cm2": 2.0822,
+    "cell_efficiency_at_peak": 0.4495,
+    "stack_cells": 400,
+    "stack_net_power_kW": 253.22,
+    "stack_system_efficiency": 0.421,
+    "stack_gravimetric_W_kg": 2732.2,
+    "stack_volumetric_W_L": 4122.4,
+    "stack_cost_usd_per_kW": 30.81,
+    "pgm_free_champion": {
+      "cathode_catalyst": "dbc15731f8fdb0f99d43",
+      "cathode_catalyst_literature_name": "W-doped NiCo2O4/N-CNT (nanoparticle) Spinel Oxide (Liang et al., Nat. Mater. 2011) [id=dbc15731f8fdb0f99d43]",
+      "material_class": "Spinel",
+      "genome": "('Spinel', 'Ni', 'Co', 'W', 'nanoparticle', 'N-CNT')",
+      "orr_overpotential_gc_V": 0.1591,
+      "pourbaix_dissolution_margin_V": 0.0568,
+      "peak_power_W_cm2": 2.2532,
+      "cell_efficiency_at_peak": 0.4495
     },
-    "calibrated_solids_scorecard": {
-      "candidate_champion_T_K": 1300.0,
-      "candidate_champion_catalyst": "0021a267d0b5a6e984a9",
-      "candidate_champion_conversion": 0.985,
-      "candidate_champion_kinetics_status": "mlip_neb_complete",
-      "candidate_champion_literature_name": "FeZnNbIrSc-hcp(111) High-Entropy Alloy (Miracle & Senkov 2017 / Yao et al., Science 2018 Multi-Principal-Element Surface) [id=0021a267d0b5a6e984a9]",
-      "candidate_champion_reactor": "PBR",
-      "electrochemical_max_conversion": null,
-      "h_parked_excluded": [],
-      "headline": {
-        "Fluidized": {
-          "T_K": 973.15,
-          "WHSV_h-1": 400.0,
-          "active_sv_1_m": 25384.615384615383,
-          "carbon_balance_ok": true,
-          "catalyst_E_act_eV": 0.88,
-          "catalyst_dE_H_eV": -0.5,
-          "catalyst_name": "ni111_sio2_bengaard2002_ref",
-          "catalyst_particle_mm": 0.13,
-          "ergun_delta_p_Pa": 33268.22480720757,
-          "ergun_delta_p_bar": 0.3326822480720757,
-          "ergun_ok": true,
-          "exceeds_equilibrium": false,
-          "h_parked": false,
-          "literature_catalyst_name": "Ni(111)/SiO2 Supported Nanoparticle Reference (Bengaard 2002 / Ermakova 2000 / Takenaka 2003 Filamentous-Carbon Judge)",
-          "metal_dispersion": 1.0,
-          "metal_loading": 1.0,
-          "reactor_type": "Fluidized",
-          "single_pass_CH4_conversion": 0.6418294018294018
-        },
-        "PBR": {
-          "T_K": 973.15,
-          "WHSV_h-1": 1272.245485712434,
-          "active_sv_1_m": 27692.307692307688,
-          "carbon_balance_ok": true,
-          "catalyst_E_act_eV": 0.88,
-          "catalyst_dE_H_eV": -0.5,
-          "catalyst_name": "ni111_sio2_bengaard2002_ref",
-          "catalyst_particle_mm": 0.13,
-          "ergun_delta_p_Pa": 49658.50345894074,
-          "ergun_delta_p_bar": 0.4965850345894074,
-          "ergun_ok": true,
-          "exceeds_equilibrium": false,
-          "h_parked": false,
-          "literature_catalyst_name": "Ni(111)/SiO2 Supported Nanoparticle Reference (Bengaard 2002 / Ermakova 2000 / Takenaka 2003 Filamentous-Carbon Judge)",
-          "metal_dispersion": 1.0,
-          "metal_loading": 1.0,
-          "reactor_type": "PBR",
-          "single_pass_CH4_conversion": 0.6184930284512083
-        },
-        "PFR": {
-          "T_K": 973.15,
-          "WHSV_h-1": 900.0,
-          "active_sv_1_m": 27692.307692307688,
-          "carbon_balance_ok": true,
-          "catalyst_E_act_eV": 0.88,
-          "catalyst_dE_H_eV": -0.5,
-          "catalyst_name": "ni111_sio2_bengaard2002_ref",
-          "catalyst_particle_mm": 0.13,
-          "ergun_delta_p_Pa": 33268.22480720757,
-          "ergun_delta_p_bar": 0.3326822480720757,
-          "ergun_ok": true,
-          "exceeds_equilibrium": false,
-          "h_parked": false,
-          "literature_catalyst_name": "Ni(111)/SiO2 Supported Nanoparticle Reference (Bengaard 2002 / Ermakova 2000 / Takenaka 2003 Filamentous-Carbon Judge)",
-          "metal_dispersion": 1.0,
-          "metal_loading": 1.0,
-          "reactor_type": "PFR",
-          "single_pass_CH4_conversion": 0.6841825412093412
-        }
-      },
-      "headline_band_note": "1300 K is the ADR 0001 ceiling (773\u20131300 K), used as the legacy 4-point headline when t_min=1200 and t_max is open. The Ni judge headline is the 650\u2013700 \u00b0C filament ROI (923.15\u2013973.15 K); X>X_eq and carbon-balance failures are never the headline.",
-      "headline_catalyst": "ni111_sio2_bengaard2002_ref",
-      "headline_catalyst_literature_name": "Ni(111)/SiO2 Supported Nanoparticle Reference (Bengaard 2002 / Ermakova 2000 / Takenaka 2003 Filamentous-Carbon Judge)",
-      "headline_solids_conversion": 0.6841825412093412,
-      "headline_t_max": 973.15,
-      "headline_t_min": 923.15,
-      "judge_catalyst": "ni111_sio2_bengaard2002_ref",
-      "judge_catalyst_literature_name": "Ni(111)/SiO2 Supported Nanoparticle Reference (Bengaard 2002 / Ermakova 2000 / Takenaka 2003 Filamentous-Carbon Judge)",
-      "judge_catalyst_requested": "ni111_sio2_bengaard2002_ref",
-      "judge_reason": "named judge catalyst; not 0.01 eV H-parked; MMBCR X_eq is not a solids rank",
-      "mmbcr_max_conversion": null,
-      "mmbcr_note": "X_eq by construction for large Da; not a catalyst rank (Alves 2021 / Xu 2021 Supported-Ni Filament Reference & Solids Ranking-Authority Gate)",
-      "n_electrochemical_records": 0,
-      "n_mmbcr_records": 0,
-      "n_ntec_records": 0,
-      "n_solids_records": 363,
-      "ntec_max_conversion": null,
-      "pbr_ergun_residence_diagnostics": {
-        "mean_pbr_overall_effectiveness_factor": 0.945262482616518,
-        "mean_pbr_thiele_modulus": 0.2686586426520499,
-        "mean_regenerated_cycle_minus_single_pass_X": 0.0,
-        "n_completed": 363,
-        "n_ergun_checked": 363,
-        "n_ergun_ok": 363,
-        "n_pbr_records": 121,
-        "n_pilot_residence_checked": 242,
-        "n_plugging_or_overloaded_flagged": 5,
-        "n_within_pilot_residence_band": 237
-      },
-      "ranking_authority": true,
-      "solids_max_excluding_h_parked": 0.985,
-      "supported_ni_filament_closure_gate": {
-        "baker_helveg_carbon_criteria_ok": true,
-        "ermakova_takenaka_joint_roi_ok": true,
-        "fluidized_conversion_ok": true,
-        "fluidized_roi_conversion": 0.6418294018294018,
-        "judge_ok": true,
-        "pbr_conversion_ok": true,
-        "pbr_roi_conversion": 0.6184930284512083,
-        "pfr_conversion_ok": true,
-        "pfr_roi_conversion": 0.6841825412093412,
-        "solids_ranking_authority_accepted": true
-      },
-      "validation_gate_registry": {
-        "alves2021_xu2021_supported_ni_filament_ranking_authority": {
-          "governing_equation": "X_single_pass(650-700 C) >= 0.50 on PFR, PBR, and Fluidized with X <= X_eq and Baker-Helveg-Ermakova-Takenaka off-site carbon criteria passed",
-          "literature_citations": [
-            "Alves et al., Renew. Sustain. Energy Rev. 137 (2021) 110465",
-            "Xu et al., Appl. Catal. A 611 (2021) 117967",
-            "Bengaard et al., J. Catal. 209 (2002) 365-384"
-          ],
-          "literature_gate_name": "Alves2021_Xu2021_SupportedNi_FilamentousCarbon_ConversionClosure_Gate",
-          "short_title": "Supported-Ni(111)/SiO2 Filamentous-Carbon ROI Conversion & Ranking Authority Gate (Alves 2021; Xu 2021; Bengaard 2002)"
-        },
-        "baker1972_helveg2004_ermakova2000_takenaka2003_off_site_carbon_nucleation": {
-          "governing_equation": "r_gamma = A_gamma * exp(-E_gamma/RT) * theta_C; r_delta = (A_gamma/theta*) * exp(-E_delta/RT) * theta_C^2; Y_C in [8, 10] g_C/(g_Ni*h); tau_encap in [4, 50] h",
-          "literature_citations": [
-            "Baker et al., J. Catal. 26 (1972) 51-62",
-            "Helveg et al., Nature 427 (2004) 426-429",
-            "Abild-Pedersen et al., Phys. Rev. B 73 (2006) 115419",
-            "Ermakova et al., Appl. Catal. A 201 (2000) 61-74",
-            "Takenaka et al., J. Catal. 217 (2003) 79-87",
-            "Amin et al., Ind. Eng. Chem. Res. 50 (2011) 12460-12470"
-          ],
-          "literature_gate_name": "Baker1972_Helveg2004_AbildPedersen2006_Ermakova2000_Takenaka2003_OffSiteFilamentousCarbon_vs_Encapsulation_Gate",
-          "short_title": "Baker-Helveg-Abild-Pedersen Off-Site Carbon Diffusion (C_gamma) vs. Graphitic Encapsulation (C_delta) Calibration (Ermakova 2000; Takenaka 2003)"
-        },
-        "deutschmann2000_monolayer_site_inventory": {
-          "governing_equation": "Gamma = 2.5e-9 mol/cm^2; a_active = a_geom * metal_loading * metal_dispersion",
-          "literature_citations": [
-            "Deutschmann et al., Catal. Today 59 (2000) 141-150",
-            "Alves et al., Renew. Sustain. Energy Rev. 137 (2021) 110465",
-            "Sanchez-Bastardo et al., Ind. Eng. Chem. Res. 60 (2021) 11855-11881"
-          ],
-          "literature_gate_name": "Deutschmann2000_MonolayerSiteDensity_PelletInventory_Gate",
-          "short_title": "Monolayer Site Density & Pellet Inventory Scaling (Deutschmann 2000; Alves 2021)"
-        },
-        "ergun1952_packed_bed_pressure_drop_pilot_residence": {
-          "governing_equation": "DeltaP_Ergun <= 1.01325 bar; tau_pilot in [2.0, 12.0] s; Omega = eta_internal / (1 + Da_ext * eta_internal)",
-          "literature_citations": [
-            "Ergun, Chem. Eng. Prog. 48 (1952) 89-94",
-            "Froment, De Wilde & Bischoff, Chemical Reactor Analysis and Design (2011)"
-          ],
-          "literature_gate_name": "Ergun1952_PackedBedPressureDrop_ThieleEffectiveness_PilotResidence_Gate",
-          "short_title": "Packed-Bed Ergun Pressure Drop, Thiele Effectiveness & Pilot Residence Window (Ergun 1952)"
-        },
-        "muradov2005_zero_co2_solids_outfeed_regeneration": {
-          "governing_equation": "co2_permitted = False; mechanical/circulating removal clears C_s without clearing encapsulating C_encap_s",
-          "literature_citations": [
-            "Muradov & Veziroglu, Int. J. Hydrogen Energy 30 (2005) 225-237",
-            "Parkinson et al., Energy Environ. Sci. 12 (2019) 19-40"
-          ],
-          "literature_gate_name": "TurquoisePyrolysis_ZeroCO2_CarbonRegeneration_Policy",
-          "short_title": "Zero-CO2 Mechanical & Circulating Carbon Outfeed Policy (Muradov 2005; Parkinson 2019)"
-        },
-        "upham2017_mendelson_bubble_flotation_interfacial": {
-          "governing_equation": "u_b = sqrt(2*sigma/(rho*d_b) + g*d_b/2); eps_g = u_sup/u_b <= 0.30; k0 in (0, 1.0] m/s",
-          "literature_citations": [
-            "Upham et al., Science 358 (2017) 917-921",
-            "Palmer et al., ACS Catal. 10 (2020) 9945-9952",
-            "Chen et al., Ind. Eng. Chem. Res. 62 (2023) 1832-1844"
-          ],
-          "literature_gate_name": "Upham2017_MendelsonBubbleRise_MoltenInterfacialMassTransfer_Closure",
-          "short_title": "Molten-Metal Mendelson Bubble Rise & Interfacial Flotation Closure (Upham 2017; Chen 2023)"
-        }
-      }
-    },
-    "content_sha256": "41e7fcdbd997269726f4086f4ee8df44ea203ee9757c3605254a58236f4aa9e6",
-    "ermakova_takenaka_joint_summary": {
-      "both": [
-        {
-          "CH4_conversion": 0.00568,
-          "T_K": 923.15,
-          "c_gamma_to_c_delta_ratio": 17830.0,
-          "cell": "large_particle_ni",
-          "encapsulation_lifetime_h": 10.81,
-          "exceeds_equilibrium": false,
-          "exit_theta_C_encap": 5.14e-05,
-          "filament_yield_gC_per_gMetal_h": 8.442,
-          "reactor_type": "PFR",
-          "sweep": "ni111_sio2_bengaard_sticking",
-          "sweep_values": {
-            "E_act": 1.0,
-            "carbon_transfer_prefactor_1_s": 1000000000000.0,
-            "ch4_sticking_coefficient": 0.00075,
-            "encapsulation_crossover_coverage": 0.5,
-            "max_regen_cycles": 0
-          }
-        },
-        {
-          "CH4_conversion": 0.00568,
-          "T_K": 923.15,
-          "c_gamma_to_c_delta_ratio": 17830.0,
-          "cell": "large_particle_ni",
-          "encapsulation_lifetime_h": 10.81,
-          "exceeds_equilibrium": false,
-          "exit_theta_C_encap": 5.14e-05,
-          "filament_yield_gC_per_gMetal_h": 8.442,
-          "reactor_type": "PFR",
-          "sweep": "ni111_sio2_ermakova_takenaka_joint",
-          "sweep_values": {
-            "E_act": 1.0,
-            "carbon_transfer_prefactor_1_s": 1000000000000.0,
-            "ch4_sticking_coefficient": 0.00075,
-            "encapsulation_crossover_coverage": 0.5,
-            "max_regen_cycles": 0
-          }
-        },
-        {
-          "CH4_conversion": 0.00637,
-          "T_K": 973.15,
-          "c_gamma_to_c_delta_ratio": 30250.0,
-          "cell": "large_particle_ni",
-          "encapsulation_lifetime_h": 17.25,
-          "exceeds_equilibrium": false,
-          "exit_theta_C_encap": 3.22e-05,
-          "filament_yield_gC_per_gMetal_h": 8.975,
-          "reactor_type": "PFR",
-          "sweep": "ni111_sio2_ermakova_takenaka_joint",
-          "sweep_values": {
-            "E_act": 1.0,
-            "carbon_transfer_prefactor_1_s": 1000000000000.0,
-            "ch4_sticking_coefficient": 0.00045,
-            "encapsulation_crossover_coverage": 0.65,
-            "max_regen_cycles": 0
-          }
-        },
-        {
-          "CH4_conversion": 0.00338,
-          "T_K": 923.15,
-          "c_gamma_to_c_delta_ratio": 10020.0,
-          "cell": "production",
-          "encapsulation_lifetime_h": 34.09,
-          "exceeds_equilibrium": false,
-          "exit_theta_C_encap": 1.63e-05,
-          "filament_yield_gC_per_gMetal_h": 9.027,
-          "reactor_type": "PFR",
-          "sweep": "ni111_sio2_ermakova_takenaka_joint",
-          "sweep_values": {
-            "E_act": 1.0,
-            "carbon_transfer_prefactor_1_s": 100000000000.0,
-            "ch4_sticking_coefficient": 0.00018,
-            "encapsulation_crossover_coverage": 0.5,
-            "max_regen_cycles": 0
-          }
-        },
-        {
-          "CH4_conversion": 0.00412,
-          "T_K": 973.15,
-          "c_gamma_to_c_delta_ratio": 12430.0,
-          "cell": "production",
-          "encapsulation_lifetime_h": 41.86,
-          "exceeds_equilibrium": false,
-          "exit_theta_C_encap": 2.99e-05,
-          "filament_yield_gC_per_gMetal_h": 9.118,
-          "reactor_type": "Fluidized",
-          "sweep": "ni111_sio2_ermakova_takenaka_joint",
-          "sweep_values": {
-            "E_act": 1.0,
-            "carbon_transfer_prefactor_1_s": 100000000000.0,
-            "ch4_sticking_coefficient": 0.00018,
-            "encapsulation_crossover_coverage": 0.35,
-            "max_regen_cycles": 0
-          }
-        }
-      ],
-      "both_roi": [
-        {
-          "CH4_conversion": 0.00568,
-          "T_K": 923.15,
-          "c_gamma_to_c_delta_ratio": 17830.0,
-          "cell": "large_particle_ni",
-          "encapsulation_lifetime_h": 10.81,
-          "exceeds_equilibrium": false,
-          "exit_theta_C_encap": 5.14e-05,
-          "filament_yield_gC_per_gMetal_h": 8.442,
-          "reactor_type": "PFR",
-          "sweep": "ni111_sio2_bengaard_sticking",
-          "sweep_values": {
-            "E_act": 1.0,
-            "carbon_transfer_prefactor_1_s": 1000000000000.0,
-            "ch4_sticking_coefficient": 0.00075,
-            "encapsulation_crossover_coverage": 0.5,
-            "max_regen_cycles": 0
-          }
-        },
-        {
-          "CH4_conversion": 0.00568,
-          "T_K": 923.15,
-          "c_gamma_to_c_delta_ratio": 17830.0,
-          "cell": "large_particle_ni",
-          "encapsulation_lifetime_h": 10.81,
-          "exceeds_equilibrium": false,
-          "exit_theta_C_encap": 5.14e-05,
-          "filament_yield_gC_per_gMetal_h": 8.442,
-          "reactor_type": "PFR",
-          "sweep": "ni111_sio2_ermakova_takenaka_joint",
-          "sweep_values": {
-            "E_act": 1.0,
-            "carbon_transfer_prefactor_1_s": 1000000000000.0,
-            "ch4_sticking_coefficient": 0.00075,
-            "encapsulation_crossover_coverage": 0.5,
-            "max_regen_cycles": 0
-          }
-        },
-        {
-          "CH4_conversion": 0.00637,
-          "T_K": 973.15,
-          "c_gamma_to_c_delta_ratio": 30250.0,
-          "cell": "large_particle_ni",
-          "encapsulation_lifetime_h": 17.25,
-          "exceeds_equilibrium": false,
-          "exit_theta_C_encap": 3.22e-05,
-          "filament_yield_gC_per_gMetal_h": 8.975,
-          "reactor_type": "PFR",
-          "sweep": "ni111_sio2_ermakova_takenaka_joint",
-          "sweep_values": {
-            "E_act": 1.0,
-            "carbon_transfer_prefactor_1_s": 1000000000000.0,
-            "ch4_sticking_coefficient": 0.00045,
-            "encapsulation_crossover_coverage": 0.65,
-            "max_regen_cycles": 0
-          }
-        },
-        {
-          "CH4_conversion": 0.00338,
-          "T_K": 923.15,
-          "c_gamma_to_c_delta_ratio": 10020.0,
-          "cell": "production",
-          "encapsulation_lifetime_h": 34.09,
-          "exceeds_equilibrium": false,
-          "exit_theta_C_encap": 1.63e-05,
-          "filament_yield_gC_per_gMetal_h": 9.027,
-          "reactor_type": "PFR",
-          "sweep": "ni111_sio2_ermakova_takenaka_joint",
-          "sweep_values": {
-            "E_act": 1.0,
-            "carbon_transfer_prefactor_1_s": 100000000000.0,
-            "ch4_sticking_coefficient": 0.00018,
-            "encapsulation_crossover_coverage": 0.5,
-            "max_regen_cycles": 0
-          }
-        },
-        {
-          "CH4_conversion": 0.00412,
-          "T_K": 973.15,
-          "c_gamma_to_c_delta_ratio": 12430.0,
-          "cell": "production",
-          "encapsulation_lifetime_h": 41.86,
-          "exceeds_equilibrium": false,
-          "exit_theta_C_encap": 2.99e-05,
-          "filament_yield_gC_per_gMetal_h": 9.118,
-          "reactor_type": "Fluidized",
-          "sweep": "ni111_sio2_ermakova_takenaka_joint",
-          "sweep_values": {
-            "E_act": 1.0,
-            "carbon_transfer_prefactor_1_s": 100000000000.0,
-            "ch4_sticking_coefficient": 0.00018,
-            "encapsulation_crossover_coverage": 0.35,
-            "max_regen_cycles": 0
-          }
-        }
-      ],
-      "closest_misses": [
-        {
-          "CH4_conversion": 0.00568,
-          "T_K": 923.15,
-          "c_gamma_to_c_delta_ratio": 17830.0,
-          "cell": "large_particle_ni",
-          "encapsulation_lifetime_h": 10.81,
-          "exceeds_equilibrium": false,
-          "exit_theta_C_encap": 5.14e-05,
-          "filament_yield_gC_per_gMetal_h": 8.442,
-          "normalized_miss": 0.0,
-          "reactor_type": "PFR",
-          "sweep": "ni111_sio2_bengaard_sticking",
-          "sweep_values": {
-            "E_act": 1.0,
-            "carbon_transfer_prefactor_1_s": 1000000000000.0,
-            "ch4_sticking_coefficient": 0.00075,
-            "encapsulation_crossover_coverage": 0.5,
-            "max_regen_cycles": 0
-          }
-        },
-        {
-          "CH4_conversion": 0.00568,
-          "T_K": 923.15,
-          "c_gamma_to_c_delta_ratio": 17830.0,
-          "cell": "large_particle_ni",
-          "encapsulation_lifetime_h": 10.81,
-          "exceeds_equilibrium": false,
-          "exit_theta_C_encap": 5.14e-05,
-          "filament_yield_gC_per_gMetal_h": 8.442,
-          "normalized_miss": 0.0,
-          "reactor_type": "PFR",
-          "sweep": "ni111_sio2_ermakova_takenaka_joint",
-          "sweep_values": {
-            "E_act": 1.0,
-            "carbon_transfer_prefactor_1_s": 1000000000000.0,
-            "ch4_sticking_coefficient": 0.00075,
-            "encapsulation_crossover_coverage": 0.5,
-            "max_regen_cycles": 0
-          }
-        },
-        {
-          "CH4_conversion": 0.00637,
-          "T_K": 973.15,
-          "c_gamma_to_c_delta_ratio": 30250.0,
-          "cell": "large_particle_ni",
-          "encapsulation_lifetime_h": 17.25,
-          "exceeds_equilibrium": false,
-          "exit_theta_C_encap": 3.22e-05,
-          "filament_yield_gC_per_gMetal_h": 8.975,
-          "normalized_miss": 0.0,
-          "reactor_type": "PFR",
-          "sweep": "ni111_sio2_ermakova_takenaka_joint",
-          "sweep_values": {
-            "E_act": 1.0,
-            "carbon_transfer_prefactor_1_s": 1000000000000.0,
-            "ch4_sticking_coefficient": 0.00045,
-            "encapsulation_crossover_coverage": 0.65,
-            "max_regen_cycles": 0
-          }
-        },
-        {
-          "CH4_conversion": 0.00338,
-          "T_K": 923.15,
-          "c_gamma_to_c_delta_ratio": 10020.0,
-          "cell": "production",
-          "encapsulation_lifetime_h": 34.09,
-          "exceeds_equilibrium": false,
-          "exit_theta_C_encap": 1.63e-05,
-          "filament_yield_gC_per_gMetal_h": 9.027,
-          "normalized_miss": 0.0,
-          "reactor_type": "PFR",
-          "sweep": "ni111_sio2_ermakova_takenaka_joint",
-          "sweep_values": {
-            "E_act": 1.0,
-            "carbon_transfer_prefactor_1_s": 100000000000.0,
-            "ch4_sticking_coefficient": 0.00018,
-            "encapsulation_crossover_coverage": 0.5,
-            "max_regen_cycles": 0
-          }
-        },
-        {
-          "CH4_conversion": 0.00412,
-          "T_K": 973.15,
-          "c_gamma_to_c_delta_ratio": 12430.0,
-          "cell": "production",
-          "encapsulation_lifetime_h": 41.86,
-          "exceeds_equilibrium": false,
-          "exit_theta_C_encap": 2.99e-05,
-          "filament_yield_gC_per_gMetal_h": 9.118,
-          "normalized_miss": 0.0,
-          "reactor_type": "Fluidized",
-          "sweep": "ni111_sio2_ermakova_takenaka_joint",
-          "sweep_values": {
-            "E_act": 1.0,
-            "carbon_transfer_prefactor_1_s": 100000000000.0,
-            "ch4_sticking_coefficient": 0.00018,
-            "encapsulation_crossover_coverage": 0.35,
-            "max_regen_cycles": 0
-          }
-        },
-        {
-          "CH4_conversion": 0.0187,
-          "T_K": 923.15,
-          "c_gamma_to_c_delta_ratio": 1.06,
-          "cell": "production",
-          "encapsulation_lifetime_h": 0.0038,
-          "exceeds_equilibrium": false,
-          "exit_theta_C_encap": 0.145,
-          "filament_yield_gC_per_gMetal_h": 8.47,
-          "normalized_miss": 0.08687391304347826,
-          "reactor_type": "PFR",
-          "sweep": "ni111_sio2_baker_helveg_agamma",
-          "sweep_values": {
-            "E_act": 1.0,
-            "carbon_transfer_prefactor_1_s": 10000000.0,
-            "ch4_sticking_coefficient": 0.01,
-            "encapsulation_crossover_coverage": 0.5,
-            "max_regen_cycles": 0
-          }
-        },
-        {
-          "CH4_conversion": 0.0028,
-          "T_K": 923.15,
-          "c_gamma_to_c_delta_ratio": 0.39,
-          "cell": "production",
-          "encapsulation_lifetime_h": 0.0292,
-          "exceeds_equilibrium": false,
-          "exit_theta_C_encap": 0.019,
-          "filament_yield_gC_per_gMetal_h": 1.21,
-          "normalized_miss": 3.396097236924541,
-          "reactor_type": "PFR",
-          "sweep": "ni111_sio2_baker_helveg_agamma",
-          "sweep_values": {
-            "E_act": 1.0,
-            "carbon_transfer_prefactor_1_s": 1000000.0,
-            "ch4_sticking_coefficient": 0.01,
-            "encapsulation_crossover_coverage": 0.5,
-            "max_regen_cycles": 0
-          }
-        },
-        {
-          "CH4_conversion": 0.062,
-          "T_K": 923.15,
-          "c_gamma_to_c_delta_ratio": 23255.97,
-          "cell": "large_particle_ni",
-          "encapsulation_lifetime_h": 0.971,
-          "exceeds_equilibrium": false,
-          "exit_theta_C_encap": 0.0003025,
-          "filament_yield_gC_per_gMetal_h": 91.68,
-          "normalized_miss": 40.84005308439499,
-          "reactor_type": "PFR",
-          "sweep": "ni111_sio2_bengaard_eact",
-          "sweep_values": {
-            "E_act": 1.0,
-            "carbon_transfer_prefactor_1_s": 10000000000000.0,
-            "ch4_sticking_coefficient": 0.01,
-            "encapsulation_crossover_coverage": 0.5,
-            "max_regen_cycles": 0
-          }
-        }
-      ],
-      "declaration": "simultaneous_hit",
-      "definition": "A joint hit is one scorable row (usable baseline: complete, not mock, not X>X_eq, carbon balance when reported) with filament_yield in [8.0, 10.0] gC/(gNi\u00b7h) AND encapsulation_lifetime_h in [4.0, 50.0]. Same cell, reactor, T, and (A_\u03b3, \u03b8*, s0).",
-      "n_both": 5,
-      "n_both_roi": 5,
-      "n_lifetime_only": 1,
-      "n_records": 16,
-      "n_scorable": 15,
-      "n_yield_only": 1,
-      "read": "In-band yield is a high-C\u03b4 / low-A_\u03b3 row (surface already encapsulating). In-band lifetime is a high-A_\u03b3 / low-T / low-s0 row where C\u03b4 is a trickle. The arrival rate that fills the Ermakova band also fills \u03b8* inside the pass; the transport that keeps \u03b8_encap a trickle over-produces filaments. No extra DOF was added to force an overlap.",
-      "schema_version": 1
-    },
-    "judge_catalyst": "ni111_sio2_bengaard2002_ref",
-    "judge_catalyst_literature_name": "Ni(111)/SiO2 Supported Nanoparticle Reference (Bengaard 2002 / Ermakova 2000 / Takenaka 2003 Filamentous-Carbon Judge)",
-    "milestone": "ALVES_BENGAARD_ERMAKOVA_TAKENAKA_SUPPORTED_NI_FILAMENT_CLOSURE",
-    "ranking_authority": true,
-    "roi_temperature_band_K": [
-      923.15,
-      973.15
-    ],
-    "schema_version": "1.0",
-    "solids_max_excluding_h_parked": 0.985,
-    "supported_ni_filament_closure_gate": {
-      "baker_helveg_carbon_criteria_ok": true,
-      "ermakova_takenaka_joint_roi_ok": true,
-      "fluidized_conversion_ok": true,
-      "fluidized_roi_conversion": 0.6418294018294018,
-      "judge_ok": true,
-      "pbr_conversion_ok": true,
-      "pbr_roi_conversion": 0.6184930284512083,
-      "pfr_conversion_ok": true,
-      "pfr_roi_conversion": 0.6841825412093412,
-      "solids_ranking_authority_accepted": true
-    },
-    "validation_gate_registry": {
-      "alves2021_xu2021_supported_ni_filament_ranking_authority": {
-        "governing_equation": "X_single_pass(650-700 C) >= 0.50 on PFR, PBR, and Fluidized with X <= X_eq and Baker-Helveg-Ermakova-Takenaka off-site carbon criteria passed",
-        "literature_citations": [
-          "Alves et al., Renew. Sustain. Energy Rev. 137 (2021) 110465",
-          "Xu et al., Appl. Catal. A 611 (2021) 117967",
-          "Bengaard et al., J. Catal. 209 (2002) 365-384"
-        ],
-        "literature_gate_name": "Alves2021_Xu2021_SupportedNi_FilamentousCarbon_ConversionClosure_Gate",
-        "short_title": "Supported-Ni(111)/SiO2 Filamentous-Carbon ROI Conversion & Ranking Authority Gate (Alves 2021; Xu 2021; Bengaard 2002)"
-      },
-      "baker1972_helveg2004_ermakova2000_takenaka2003_off_site_carbon_nucleation": {
-        "governing_equation": "r_gamma = A_gamma * exp(-E_gamma/RT) * theta_C; r_delta = (A_gamma/theta*) * exp(-E_delta/RT) * theta_C^2; Y_C in [8, 10] g_C/(g_Ni*h); tau_encap in [4, 50] h",
-        "literature_citations": [
-          "Baker et al., J. Catal. 26 (1972) 51-62",
-          "Helveg et al., Nature 427 (2004) 426-429",
-          "Abild-Pedersen et al., Phys. Rev. B 73 (2006) 115419",
-          "Ermakova et al., Appl. Catal. A 201 (2000) 61-74",
-          "Takenaka et al., J. Catal. 217 (2003) 79-87",
-          "Amin et al., Ind. Eng. Chem. Res. 50 (2011) 12460-12470"
-        ],
-        "literature_gate_name": "Baker1972_Helveg2004_AbildPedersen2006_Ermakova2000_Takenaka2003_OffSiteFilamentousCarbon_vs_Encapsulation_Gate",
-        "short_title": "Baker-Helveg-Abild-Pedersen Off-Site Carbon Diffusion (C_gamma) vs. Graphitic Encapsulation (C_delta) Calibration (Ermakova 2000; Takenaka 2003)"
-      },
-      "deutschmann2000_monolayer_site_inventory": {
-        "governing_equation": "Gamma = 2.5e-9 mol/cm^2; a_active = a_geom * metal_loading * metal_dispersion",
-        "literature_citations": [
-          "Deutschmann et al., Catal. Today 59 (2000) 141-150",
-          "Alves et al., Renew. Sustain. Energy Rev. 137 (2021) 110465",
-          "Sanchez-Bastardo et al., Ind. Eng. Chem. Res. 60 (2021) 11855-11881"
-        ],
-        "literature_gate_name": "Deutschmann2000_MonolayerSiteDensity_PelletInventory_Gate",
-        "short_title": "Monolayer Site Density & Pellet Inventory Scaling (Deutschmann 2000; Alves 2021)"
-      },
-      "ergun1952_packed_bed_pressure_drop_pilot_residence": {
-        "governing_equation": "DeltaP_Ergun <= 1.01325 bar; tau_pilot in [2.0, 12.0] s; Omega = eta_internal / (1 + Da_ext * eta_internal)",
-        "literature_citations": [
-          "Ergun, Chem. Eng. Prog. 48 (1952) 89-94",
-          "Froment, De Wilde & Bischoff, Chemical Reactor Analysis and Design (2011)"
-        ],
-        "literature_gate_name": "Ergun1952_PackedBedPressureDrop_ThieleEffectiveness_PilotResidence_Gate",
-        "short_title": "Packed-Bed Ergun Pressure Drop, Thiele Effectiveness & Pilot Residence Window (Ergun 1952)"
-      },
-      "muradov2005_zero_co2_solids_outfeed_regeneration": {
-        "governing_equation": "co2_permitted = False; mechanical/circulating removal clears C_s without clearing encapsulating C_encap_s",
-        "literature_citations": [
-          "Muradov & Veziroglu, Int. J. Hydrogen Energy 30 (2005) 225-237",
-          "Parkinson et al., Energy Environ. Sci. 12 (2019) 19-40"
-        ],
-        "literature_gate_name": "TurquoisePyrolysis_ZeroCO2_CarbonRegeneration_Policy",
-        "short_title": "Zero-CO2 Mechanical & Circulating Carbon Outfeed Policy (Muradov 2005; Parkinson 2019)"
-      },
-      "upham2017_mendelson_bubble_flotation_interfacial": {
-        "governing_equation": "u_b = sqrt(2*sigma/(rho*d_b) + g*d_b/2); eps_g = u_sup/u_b <= 0.30; k0 in (0, 1.0] m/s",
-        "literature_citations": [
-          "Upham et al., Science 358 (2017) 917-921",
-          "Palmer et al., ACS Catal. 10 (2020) 9945-9952",
-          "Chen et al., Ind. Eng. Chem. Res. 62 (2023) 1832-1844"
-        ],
-        "literature_gate_name": "Upham2017_MendelsonBubbleRise_MoltenInterfacialMassTransfer_Closure",
-        "short_title": "Molten-Metal Mendelson Bubble Rise & Interfacial Flotation Closure (Upham 2017; Chen 2023)"
-      }
+    "low_pgm_champion": {
+      "cathode_catalyst": "c77b56fa00cdc515e3b7",
+      "cathode_catalyst_literature_name": "Pt1/Co(100) Single-Atom Alloy (Kyriakou et al., Science 2012 / Darby et al., Nat. Mater. 2018) [id=c77b56fa00cdc515e3b7]",
+      "material_class": "SAA",
+      "genome": "('SAA', 'Pt', 'Co', '100', 500)",
+      "orr_overpotential_gc_V": 0.2069,
+      "pourbaix_dissolution_margin_V": 0.6816,
+      "peak_power_W_cm2": 2.3119,
+      "cell_efficiency_at_peak": 0.4612
     }
   },
-  "validation_gate_registry": {
-    "alves2021_xu2021_supported_ni_filament_ranking_authority": {
-      "governing_equation": "X_single_pass(650-700 C) >= 0.50 on PFR, PBR, and Fluidized with X <= X_eq and Baker-Helveg-Ermakova-Takenaka off-site carbon criteria passed",
-      "literature_citations": [
-        "Alves et al., Renew. Sustain. Energy Rev. 137 (2021) 110465",
-        "Xu et al., Appl. Catal. A 611 (2021) 117967",
-        "Bengaard et al., J. Catal. 209 (2002) 365-384"
-      ],
-      "literature_gate_name": "Alves2021_Xu2021_SupportedNi_FilamentousCarbon_ConversionClosure_Gate",
-      "short_title": "Supported-Ni(111)/SiO2 Filamentous-Carbon ROI Conversion & Ranking Authority Gate (Alves 2021; Xu 2021; Bengaard 2002)"
+  "coupled_turquoise_pemfc_tea": {
+    "thermocatalytic_pfr": {
+      "h2_cost_base_usd_kg": 1.013,
+      "h2_cost_optimistic_usd_kg": 0.103,
+      "pemfc_fuel_cost_base_usd_kwh_e": 0.0722,
+      "pemfc_fuel_cost_optimistic_usd_kwh_e": 0.0073
     },
-    "baker1972_helveg2004_ermakova2000_takenaka2003_off_site_carbon_nucleation": {
-      "governing_equation": "r_gamma = A_gamma * exp(-E_gamma/RT) * theta_C; r_delta = (A_gamma/theta*) * exp(-E_delta/RT) * theta_C^2; Y_C in [8, 10] g_C/(g_Ni*h); tau_encap in [4, 50] h",
-      "literature_citations": [
-        "Baker et al., J. Catal. 26 (1972) 51-62",
-        "Helveg et al., Nature 427 (2004) 426-429",
-        "Abild-Pedersen et al., Phys. Rev. B 73 (2006) 115419",
-        "Ermakova et al., Appl. Catal. A 201 (2000) 61-74",
-        "Takenaka et al., J. Catal. 217 (2003) 79-87",
-        "Amin et al., Ind. Eng. Chem. Res. 50 (2011) 12460-12470"
-      ],
-      "literature_gate_name": "Baker1972_Helveg2004_AbildPedersen2006_Ermakova2000_Takenaka2003_OffSiteFilamentousCarbon_vs_Encapsulation_Gate",
-      "short_title": "Baker-Helveg-Abild-Pedersen Off-Site Carbon Diffusion (C_gamma) vs. Graphitic Encapsulation (C_delta) Calibration (Ermakova 2000; Takenaka 2003)"
+    "thermocatalytic_pbr": {
+      "h2_cost_base_usd_kg": 1.006,
+      "h2_cost_optimistic_usd_kg": 0.099,
+      "pemfc_fuel_cost_base_usd_kwh_e": 0.0717,
+      "pemfc_fuel_cost_optimistic_usd_kwh_e": 0.0071
     },
-    "deutschmann2000_monolayer_site_inventory": {
-      "governing_equation": "Gamma = 2.5e-9 mol/cm^2; a_active = a_geom * metal_loading * metal_dispersion",
-      "literature_citations": [
-        "Deutschmann et al., Catal. Today 59 (2000) 141-150",
-        "Alves et al., Renew. Sustain. Energy Rev. 137 (2021) 110465",
-        "Sanchez-Bastardo et al., Ind. Eng. Chem. Res. 60 (2021) 11855-11881"
-      ],
-      "literature_gate_name": "Deutschmann2000_MonolayerSiteDensity_PelletInventory_Gate",
-      "short_title": "Monolayer Site Density & Pellet Inventory Scaling (Deutschmann 2000; Alves 2021)"
+    "thermocatalytic_fluidized": {
+      "h2_cost_base_usd_kg": 1.326,
+      "h2_cost_optimistic_usd_kg": 0.273,
+      "pemfc_fuel_cost_base_usd_kwh_e": 0.0945,
+      "pemfc_fuel_cost_optimistic_usd_kwh_e": 0.0195
     },
-    "ergun1952_packed_bed_pressure_drop_pilot_residence": {
-      "governing_equation": "DeltaP_Ergun <= 1.01325 bar; tau_pilot in [2.0, 12.0] s; Omega = eta_internal / (1 + Da_ext * eta_internal)",
-      "literature_citations": [
-        "Ergun, Chem. Eng. Prog. 48 (1952) 89-94",
-        "Froment, De Wilde & Bischoff, Chemical Reactor Analysis and Design (2011)"
-      ],
-      "literature_gate_name": "Ergun1952_PackedBedPressureDrop_ThieleEffectiveness_PilotResidence_Gate",
-      "short_title": "Packed-Bed Ergun Pressure Drop, Thiele Effectiveness & Pilot Residence Window (Ergun 1952)"
+    "thermocatalytic": {
+      "h2_cost_base_usd_kg": 1.006,
+      "h2_cost_optimistic_usd_kg": 0.099,
+      "pemfc_fuel_cost_base_usd_kwh_e": 0.0717,
+      "pemfc_fuel_cost_optimistic_usd_kwh_e": 0.0071
     },
-    "muradov2005_zero_co2_solids_outfeed_regeneration": {
-      "governing_equation": "co2_permitted = False; mechanical/circulating removal clears C_s without clearing encapsulating C_encap_s",
-      "literature_citations": [
-        "Muradov & Veziroglu, Int. J. Hydrogen Energy 30 (2005) 225-237",
-        "Parkinson et al., Energy Environ. Sci. 12 (2019) 19-40"
-      ],
-      "literature_gate_name": "TurquoisePyrolysis_ZeroCO2_CarbonRegeneration_Policy",
-      "short_title": "Zero-CO2 Mechanical & Circulating Carbon Outfeed Policy (Muradov 2005; Parkinson 2019)"
+    "mmbcr": {
+      "h2_cost_base_usd_kg": 7.66,
+      "h2_cost_optimistic_usd_kg": 3.7,
+      "pemfc_fuel_cost_base_usd_kwh_e": 0.5459,
+      "pemfc_fuel_cost_optimistic_usd_kwh_e": 0.2637
     },
-    "upham2017_mendelson_bubble_flotation_interfacial": {
-      "governing_equation": "u_b = sqrt(2*sigma/(rho*d_b) + g*d_b/2); eps_g = u_sup/u_b <= 0.30; k0 in (0, 1.0] m/s",
-      "literature_citations": [
-        "Upham et al., Science 358 (2017) 917-921",
-        "Palmer et al., ACS Catal. 10 (2020) 9945-9952",
-        "Chen et al., Ind. Eng. Chem. Res. 62 (2023) 1832-1844"
-      ],
-      "literature_gate_name": "Upham2017_MendelsonBubbleRise_MoltenInterfacialMassTransfer_Closure",
-      "short_title": "Molten-Metal Mendelson Bubble Rise & Interfacial Flotation Closure (Upham 2017; Chen 2023)"
+    "ntec": {
+      "h2_cost_base_usd_kg": 14.66,
+      "h2_cost_optimistic_usd_kg": 8.478,
+      "pemfc_fuel_cost_base_usd_kwh_e": 1.0447,
+      "pemfc_fuel_cost_optimistic_usd_kwh_e": 0.6042
+    },
+    "electrochemical": {
+      "h2_cost_base_usd_kg": 68.494,
+      "h2_cost_optimistic_usd_kg": 40.245,
+      "pemfc_fuel_cost_base_usd_kwh_e": 4.8812,
+      "pemfc_fuel_cost_optimistic_usd_kwh_e": 2.8681
     }
-  }
+  },
+  "dft_calibrated_coupled_turquoise_pemfc_tea": {
+    "thermocatalytic_pfr": {
+      "dft_calibrated_h2_cost_base_usd_kg": 1.265,
+      "dft_calibrated_h2_cost_optimistic_usd_kg": 0.24,
+      "dft_calibrated_h2_cost_conservative_usd_kg": 4.54,
+      "dft_calibrated_pemfc_fuel_cost_base_usd_kwh_e": 0.0902,
+      "dft_calibrated_pemfc_fuel_cost_optimistic_usd_kwh_e": 0.0171
+    },
+    "thermocatalytic_pbr": {
+      "dft_calibrated_h2_cost_base_usd_kg": 1.188,
+      "dft_calibrated_h2_cost_optimistic_usd_kg": 0.198,
+      "dft_calibrated_h2_cost_conservative_usd_kg": 4.34,
+      "dft_calibrated_pemfc_fuel_cost_base_usd_kwh_e": 0.0847,
+      "dft_calibrated_pemfc_fuel_cost_optimistic_usd_kwh_e": 0.0141
+    },
+    "thermocatalytic_fluidized": {
+      "dft_calibrated_h2_cost_base_usd_kg": 2.845,
+      "dft_calibrated_h2_cost_optimistic_usd_kg": 1.095,
+      "dft_calibrated_h2_cost_conservative_usd_kg": 8.605,
+      "dft_calibrated_pemfc_fuel_cost_base_usd_kwh_e": 0.2028,
+      "dft_calibrated_pemfc_fuel_cost_optimistic_usd_kwh_e": 0.078
+    },
+    "thermocatalytic": {
+      "dft_calibrated_h2_cost_base_usd_kg": 1.188,
+      "dft_calibrated_h2_cost_optimistic_usd_kg": 0.198,
+      "dft_calibrated_h2_cost_conservative_usd_kg": 4.34,
+      "dft_calibrated_pemfc_fuel_cost_base_usd_kwh_e": 0.0847,
+      "dft_calibrated_pemfc_fuel_cost_optimistic_usd_kwh_e": 0.0141
+    },
+    "mmbcr": {
+      "dft_calibrated_h2_cost_base_usd_kg": 19.83,
+      "dft_calibrated_h2_cost_optimistic_usd_kg": 10.287,
+      "dft_calibrated_h2_cost_conservative_usd_kg": 52.297,
+      "dft_calibrated_pemfc_fuel_cost_base_usd_kwh_e": 1.4132,
+      "dft_calibrated_pemfc_fuel_cost_optimistic_usd_kwh_e": 0.7331
+    },
+    "ntec": {
+      "dft_calibrated_h2_cost_base_usd_kg": 52.902,
+      "dft_calibrated_h2_cost_optimistic_usd_kg": 31.769,
+      "dft_calibrated_h2_cost_conservative_usd_kg": 111.52,
+      "dft_calibrated_pemfc_fuel_cost_base_usd_kwh_e": 3.7701,
+      "dft_calibrated_pemfc_fuel_cost_optimistic_usd_kwh_e": 2.2641
+    },
+    "electrochemical": {
+      "dft_calibrated_h2_cost_base_usd_kg": 321.607,
+      "dft_calibrated_h2_cost_optimistic_usd_kg": 190.625,
+      "dft_calibrated_h2_cost_conservative_usd_kg": 655.752,
+      "dft_calibrated_pemfc_fuel_cost_base_usd_kwh_e": 22.9197,
+      "dft_calibrated_pemfc_fuel_cost_optimistic_usd_kwh_e": 13.5851
+    }
+  },
+  "evidence_level": "screening_multipathway_scorecard"
 }

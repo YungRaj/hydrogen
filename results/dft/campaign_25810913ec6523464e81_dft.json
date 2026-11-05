@@ -1,0 +1,26 @@
+{
+  "catalyst_name": "campaign_25810913ec6523464e81",
+  "candidate_id": "25810913ec6523464e81",
+  "material_class": "DAC",
+  "genome": "('DAC', 'Cr', 'Y', 'N8', 'N-CNT')",
+  "evidence_level": "screening_dft",
+  "returncode": 0,
+  "execution": {
+    "mpi_ranks": 2,
+    "omp_threads": 2,
+    "kpoint_pools": 1,
+    "image_groups": 1,
+    "require_gpu": true
+  },
+  "dft_energy_Ry": -564.82910472,
+  "dft_energy_eV": -7684.891466,
+  "converged": true,
+  "max_force_Ry_bohr": 0.0,
+  "neb_converged": true,
+  "neb_forward_barrier_eV": 0.941826,
+  "neb_reverse_barrier_eV": 1.254226,
+  "neb_path_metric": 3.418,
+  "neb_n_images": 5,
+  "neb_active_index": 7,
+  "kinetics_status": "dft_neb_complete"
+}

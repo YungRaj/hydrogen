@@ -199,6 +199,7 @@ def _run_pbr_pass(
     list[float],
     npt.NDArray[np.float64] | None,
     float,
+    float,
 ]:
     """Advance one full PBR pass across all differential catalyst-weight stages without nonlocal state."""
     conversion_profile: list[float] = [0.0]
@@ -215,6 +216,7 @@ def _run_pbr_pass(
     )
 
     p_local = float(config.P_inlet_Pa)
+    dp_cumulative_pa = 0.0
     tau_total_pass_s = 0.0
     sv_geom_0 = 6.0 * (1.0 - eps_0) / d_p_m
     sv_active_0 = active_sv(sv_geom_0, config)
@@ -281,7 +283,9 @@ def _run_pbr_pass(
         dp_dz = _stage_ergun_gradient_pa_m(
             t_local, p_local, u_local, eps_local, d_p_m
         )
-        p_local = max(MIN_STAGE_PRESSURE_PA, p_local - dp_dz * stage_length)
+        dp_stage_pa = dp_dz * stage_length
+        dp_cumulative_pa += dp_stage_pa
+        p_local = max(MIN_STAGE_PRESSURE_PA, p_local - dp_stage_pa)
         setattr(gas, 'TP', (float(getattr(gas, 'T', t_local)), p_local))
 
         tau_total_pass_s += tau_stage
@@ -301,6 +305,7 @@ def _run_pbr_pass(
         theta_c_tos,
         pass_start_cov,
         tau_total_pass_s,
+        dp_cumulative_pa,
     )
 
 
@@ -387,6 +392,7 @@ def simulate_pbr(
         theta_C_tos,
         pass_start_cov,
         tau_total_pass_s,
+        dp_cumulative_pa,
     ) = _run_pbr_pass(
         config,
         gas,
@@ -428,6 +434,7 @@ def simulate_pbr(
             theta_C_tos,
             pass_start_cov,
             tau_total_pass_s,
+            dp_cumulative_pa,
         ) = _run_pbr_pass(
             config,
             gas,
@@ -472,7 +479,7 @@ def simulate_pbr(
     )
 
     inv_fields = solids_inventory_fields(config, geometric_sv_pfr(config))
-    coupled_dp_pa = float(config.P_inlet_Pa - pressure_profile[-1])
+    coupled_dp_pa = float(dp_cumulative_pa)
     coupled_ergun_ok = bool(coupled_dp_pa <= ERGUN_DP_LIMIT_PA)
     inv_fields['ergun_delta_p_Pa'] = coupled_dp_pa
     inv_fields['ergun_delta_p_bar'] = coupled_dp_pa / 1e5

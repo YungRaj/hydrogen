@@ -182,8 +182,14 @@ def _evaluate_candidate_replica(
                 for index in range(h_index)
             )
         )
+        valid_h_active = [idx for idx in active_idx if 0 <= int(idx) < h_index]
+        ref_h_surface_z = (
+            float(np.max(slab_h.positions[valid_h_active, 2]))
+            if valid_h_active
+            else float(slab_h.positions[:h_index, 2].max())
+        )
         result['h_height_above_surface_A'] = float(
-            slab_h[h_index].position[2] - slab_h.positions[:h_index, 2].max()
+            slab_h[h_index].position[2] - ref_h_surface_z
         )
 
         # 3. CH₃* adsorption: C3v trigonal pyramid with in-plane radius 1.02 A at
@@ -239,8 +245,14 @@ def _evaluate_candidate_replica(
                 for index in range(c_index)
             )
         )
+        valid_c_active = [idx for idx in active_idx if 0 <= int(idx) < c_index]
+        ref_c_surface_z = (
+            float(np.max(slab_c.positions[valid_c_active, 2]))
+            if valid_c_active
+            else float(slab_c.positions[:c_index, 2].max())
+        )
         result['c_height_above_surface_A'] = float(
-            slab_c[c_index].position[2] - slab_c.positions[:c_index, 2].max()
+            slab_c[c_index].position[2] - ref_c_surface_z
         )
 
         # 5. CH₄ → CH₃* + H* reaction energy

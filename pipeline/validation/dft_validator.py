@@ -756,22 +756,28 @@ def _generate_alloy_input(genome: tuple[object, ...], name: str) -> str:
 
 
 def _generate_cluster_input(genome: tuple[object, ...], name: str) -> str:
-    """Generate QE input for a molecular cluster (SAC/MOF)."""
+    """Generate QE input for a molecular cluster (SAC/DAC/MOF/COF)."""
     from pipeline.screening.surface_screener import generate_porphyrin_cluster
 
     mat_class = str(genome[0])
+    extra_metals: list[str] = []
     if mat_class == 'SAC':
         metal, coord = str(genome[1]), str(genome[2])
+        extra_metals = [metal]
     elif mat_class == 'DAC':
-        metal, coord = str(genome[1]), str(genome[3])
+        m1, m2, coord = str(genome[1]), str(genome[2]), str(genome[3])
+        metal = m1
+        extra_metals = [m1, m2] if m2 and m2 not in ('None', 'none', m1) else [m1]
     elif mat_class in ('MOF', 'COF'):
         metal, coord = str(genome[1]), str(genome[3])
+        extra_metals = [metal]
     else:
         metal, coord = 'Ni', 'N4'
+        extra_metals = [metal]
 
     cluster = generate_porphyrin_cluster(metal, coord)
     raw_elems = [atom.symbol for atom in cluster if atom.symbol != 'X']
-    return _generate_motif_scf_input([metal] + raw_elems, name)
+    return _generate_motif_scf_input(extra_metals + raw_elems, name)
 
 
 def extract_genome_motif_elements(genome: tuple[object, ...]) -> list[str]:
@@ -798,10 +804,16 @@ def extract_genome_motif_elements(genome: tuple[object, ...]) -> list[str]:
 
         if mat_class == 'SAC':
             metal, coord = str(genome[1]), str(genome[2])
+            lead_metals = [metal]
+        elif mat_class == 'DAC':
+            m1, m2, coord = str(genome[1]), str(genome[2]), str(genome[3])
+            metal = m1
+            lead_metals = [m1, m2] if m2 and m2 not in ('None', 'none', m1) else [m1]
         else:
             metal, coord = str(genome[1]), str(genome[3])
+            lead_metals = [metal]
         cluster = generate_porphyrin_cluster(metal, coord)
-        elems = [metal] + [atom.symbol for atom in cluster if atom.symbol != 'X']
+        elems = lead_metals + [atom.symbol for atom in cluster if atom.symbol != 'X']
     else:
         from pipeline.screening.surface_screener import generate_structure
 

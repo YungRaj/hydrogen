@@ -256,9 +256,31 @@ def select_for_pyrolysis_reactor(
         Eligible candidates ordered for reactor evaluation.
     """
     from pipeline.screening.small_data_ranker import screening_metric_eligibility
+    from pipeline.search.scope import scope_pyrolysis_pool
 
     eligible = screening_metric_eligibility(frame, 'turquoise_hydrogen')
-    eligible_frame = annotate_interfacial_pyrolysis(frame.loc[eligible])
+    eligible_raw = frame.loc[eligible].copy()
+    if 'genome' in eligible_raw.columns and not eligible_raw.empty:
+        scoped_pool, _ = scope_pyrolysis_pool(eligible_raw)
+        if not scoped_pool.empty:
+            eligible_raw = scoped_pool
+        if len(eligible_raw) > 2 and 'E_act' in eligible_raw.columns:
+            e_act_num = pd.to_numeric(eligible_raw['E_act'], errors='coerce')
+            phys_mask = e_act_num >= 0.15
+            if 'coking_index' in eligible_raw.columns:
+                coking_num = pd.to_numeric(
+                    eligible_raw['coking_index'], errors='coerce'
+                )
+                phys_mask = phys_mask & (coking_num.isna() | (coking_num >= -0.5))
+            if 'material_class' in eligible_raw.columns:
+                keep_mask = phys_mask.copy()
+                for _, grp_idx in eligible_raw.groupby('material_class').groups.items():
+                    if not bool(phys_mask.loc[grp_idx].any()):
+                        keep_mask.loc[grp_idx] = True
+                eligible_raw = eligible_raw.loc[keep_mask].copy()
+            elif bool(phys_mask.any()):
+                eligible_raw = eligible_raw.loc[phys_mask].copy()
+    eligible_frame = annotate_interfacial_pyrolysis(eligible_raw)
     resolved_objectives = objectives
     if (
         resolved_objectives is None

@@ -1,0 +1,26 @@
+{
+  "catalyst_name": "campaign_3def15c30d9a9b799254",
+  "candidate_id": "3def15c30d9a9b799254",
+  "material_class": "MAXPhase",
+  "genome": "('MAXPhase', 'Co', 'Al', 'C', 2, 'Ni', 'basal_0001')",
+  "evidence_level": "screening_dft",
+  "returncode": 0,
+  "execution": {
+    "mpi_ranks": 2,
+    "omp_threads": 2,
+    "kpoint_pools": 1,
+    "image_groups": 1,
+    "require_gpu": true
+  },
+  "dft_energy_Ry": -428.91648201,
+  "dft_energy_eV": -5835.70603,
+  "converged": true,
+  "max_force_Ry_bohr": 0.0,
+  "neb_converged": true,
+  "neb_forward_barrier_eV": 0.691482,
+  "neb_reverse_barrier_eV": 1.003882,
+  "neb_path_metric": 3.418,
+  "neb_n_images": 5,
+  "neb_active_index": 7,
+  "kinetics_status": "dft_neb_complete"
+}

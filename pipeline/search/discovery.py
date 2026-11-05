@@ -389,10 +389,10 @@ def _format_genome_tuple_label(genome: tuple) -> str:
             comp = f"Liquid {m1}"
         else:
             val = float(frac)
-            if val <= 1.0:
-                comp = f"{m2}{val:.2f}{m1}{1.0 - val:.2f} Liquid Metal Alloy"
+            if abs(val - round(val)) < 1e-6 and val >= 1.0:
+                comp = f"{m1}{100 - int(round(val))}{m2}{int(round(val))} Liquid Metal Alloy"
             else:
-                comp = f"{m1}{100 - int(val)}{m2}{int(val)} Liquid Metal Alloy"
+                comp = f"{m1}{100.0 - val:.1f}{m2}{val:.1f} Liquid Metal Alloy"
         return f"{comp} (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt)"
     if cls == 'HEA' and len(genome) >= 4:
         metals = "".join(str(m) for m in genome[1]) if isinstance(genome[1], (tuple, list)) else str(genome[1])

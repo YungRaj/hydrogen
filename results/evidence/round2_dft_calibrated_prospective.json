@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "calibration_sha256": "6fc922a2fca66382b43062e2868057e4c6467d26ddbbfde6614af2e848aebf61",
+  "calibration_sha256": "e536fa873d67686d90f0e87212692f99920fea93fc999b8e17ce207585ced075",
   "fuel_cell_orr": {
     "n_batches": 35,
     "total_budget_selected": 700,
@@ -18,10 +18,10 @@
     },
     "dft_calibrated_hit_lift_vs_uncalibrated": 22,
     "dft_calibrated_doe_hit_lift_vs_uncalibrated": 2,
-    "policy_matched_random_mean_hits": 82.6176,
-    "dft_calibrated_enrichment_vs_random": 2.8928,
-    "dft_calibrated_p_value": 9.999000099990002e-05,
-    "uncalibrated_p_value": 9.999000099990002e-05,
+    "policy_matched_random_mean_hits": 82.46,
+    "dft_calibrated_enrichment_vs_random": 2.8984,
+    "dft_calibrated_p_value": 0.004975124378109453,
+    "uncalibrated_p_value": 0.004975124378109453,
     "acceptance_passed": true,
     "batches": [
       {
@@ -35,7 +35,7 @@
           "uncertainty": 2,
           "validity": 5
         },
-        "random_mean_hits": 2.1747
+        "random_mean_hits": 2.175
       },
       {
         "batch_id": "prereg-02",
@@ -48,7 +48,7 @@
           "uncertainty": 2,
           "validity": 3
         },
-        "random_mean_hits": 2.6893
+        "random_mean_hits": 2.855
       },
       {
         "batch_id": "prereg-03",
@@ -61,7 +61,7 @@
           "uncertainty": 4,
           "validity": 1
         },
-        "random_mean_hits": 2.4908
+        "random_mean_hits": 2.515
       },
       {
         "batch_id": "prereg-04",
@@ -74,7 +74,7 @@
           "uncertainty": 3,
           "validity": 5
         },
-        "random_mean_hits": 2.5138
+        "random_mean_hits": 2.545
       },
       {
         "batch_id": "prereg-05",
@@ -87,7 +87,7 @@
           "uncertainty": 2,
           "validity": 4
         },
-        "random_mean_hits": 2.0002
+        "random_mean_hits": 2.13
       },
       {
         "batch_id": "prereg-06",
@@ -100,7 +100,7 @@
           "uncertainty": 2,
           "validity": 1
         },
-        "random_mean_hits": 2.3417
+        "random_mean_hits": 2.36
       },
       {
         "batch_id": "prereg-07",
@@ -113,7 +113,7 @@
           "uncertainty": 2,
           "validity": 3
         },
-        "random_mean_hits": 2.1762
+        "random_mean_hits": 2.3
       },
       {
         "batch_id": "prereg-08",
@@ -126,7 +126,7 @@
           "uncertainty": 3,
           "validity": 2
         },
-        "random_mean_hits": 2.3095
+        "random_mean_hits": 2.435
       },
       {
         "batch_id": "prereg-09",
@@ -139,7 +139,7 @@
           "uncertainty": 1,
           "validity": 1
         },
-        "random_mean_hits": 2.1809
+        "random_mean_hits": 2.165
       },
       {
         "batch_id": "prereg-10",
@@ -152,7 +152,7 @@
           "uncertainty": 4,
           "validity": 2
         },
-        "random_mean_hits": 2.4806
+        "random_mean_hits": 2.4
       },
       {
         "batch_id": "prereg-11",
@@ -165,7 +165,7 @@
           "uncertainty": 2,
           "validity": 7
         },
-        "random_mean_hits": 2.6906
+        "random_mean_hits": 2.75
       },
       {
         "batch_id": "prereg-12",
@@ -178,7 +178,7 @@
           "uncertainty": 2,
           "validity": 5
         },
-        "random_mean_hits": 2.1532
+        "random_mean_hits": 2.26
       },
       {
         "batch_id": "prereg-13",
@@ -191,7 +191,7 @@
           "uncertainty": 4,
           "validity": 2
         },
-        "random_mean_hits": 2.3465
+        "random_mean_hits": 2.21
       },
       {
         "batch_id": "prereg-14",
@@ -204,7 +204,7 @@
           "uncertainty": 3,
           "validity": 2
         },
-        "random_mean_hits": 2.3216
+        "random_mean_hits": 2.29
       },
       {
         "batch_id": "prereg-15",
@@ -217,7 +217,7 @@
           "uncertainty": 1,
           "validity": 7
         },
-        "random_mean_hits": 2.3318
+        "random_mean_hits": 2.2
       },
       {
         "batch_id": "prereg-16",
@@ -230,7 +230,7 @@
           "uncertainty": 3,
           "validity": 1
         },
-        "random_mean_hits": 2.1785
+        "random_mean_hits": 2.125
       },
       {
         "batch_id": "prereg-17",
@@ -243,7 +243,7 @@
           "uncertainty": 3,
           "validity": 2
         },
-        "random_mean_hits": 2.5091
+        "random_mean_hits": 2.575
       },
       {
         "batch_id": "prereg-18",
@@ -256,7 +256,7 @@
           "uncertainty": 4,
           "validity": 3
         },
-        "random_mean_hits": 2.1688
+        "random_mean_hits": 2.2
       },
       {
         "batch_id": "prereg-19",
@@ -269,7 +269,7 @@
           "uncertainty": 3,
           "validity": 3
         },
-        "random_mean_hits": 2.5121
+        "random_mean_hits": 2.47
       },
       {
         "batch_id": "prereg-20",
@@ -282,7 +282,7 @@
           "uncertainty": 3,
           "validity": 2
         },
-        "random_mean_hits": 2.1596
+        "random_mean_hits": 2.265
       },
       {
         "batch_id": "prereg-21",
@@ -295,7 +295,7 @@
           "uncertainty": 4,
           "validity": 2
         },
-        "random_mean_hits": 2.3498
+        "random_mean_hits": 2.25
       },
       {
         "batch_id": "prereg-22",
@@ -308,7 +308,7 @@
           "uncertainty": 3,
           "validity": 3
         },
-        "random_mean_hits": 2.3428
+        "random_mean_hits": 2.445
       },
       {
         "batch_id": "prereg-23",
@@ -321,7 +321,7 @@
           "uncertainty": 3,
           "validity": 4
         },
-        "random_mean_hits": 2.8242
+        "random_mean_hits": 2.85
       },
       {
         "batch_id": "prereg-24",
@@ -334,7 +334,7 @@
           "uncertainty": 4,
           "validity": 4
         },
-        "random_mean_hits": 2.1745
+        "random_mean_hits": 2.06
       },
       {
         "batch_id": "prereg-25",
@@ -347,7 +347,7 @@
           "uncertainty": 5,
           "validity": 3
         },
-        "random_mean_hits": 2.0116
+        "random_mean_hits": 1.99
       },
       {
         "batch_id": "prereg-26",
@@ -360,7 +360,7 @@
           "uncertainty": 1,
           "validity": 3
         },
-        "random_mean_hits": 1.8193
+        "random_mean_hits": 1.885
       },
       {
         "batch_id": "prereg-27",
@@ -373,7 +373,7 @@
           "uncertainty": 3,
           "validity": 3
         },
-        "random_mean_hits": 2.5082
+        "random_mean_hits": 2.43
       },
       {
         "batch_id": "prereg-28",
@@ -386,7 +386,7 @@
           "uncertainty": 2,
           "validity": 3
         },
-        "random_mean_hits": 2.6789
+        "random_mean_hits": 2.49
       },
       {
         "batch_id": "prereg-29",
@@ -399,7 +399,7 @@
           "uncertainty": 4,
           "validity": 4
         },
-        "random_mean_hits": 3.0068
+        "random_mean_hits": 3.14
       },
       {
         "batch_id": "prereg-30",
@@ -412,7 +412,7 @@
           "uncertainty": 5,
           "validity": 5
         },
-        "random_mean_hits": 2.6818
+        "random_mean_hits": 2.53
       },
       {
         "batch_id": "prereg-31",
@@ -425,7 +425,7 @@
           "uncertainty": 1,
           "validity": 4
         },
-        "random_mean_hits": 2.5158
+        "random_mean_hits": 2.55
       },
       {
         "batch_id": "prereg-32",
@@ -438,7 +438,7 @@
           "uncertainty": 1,
           "validity": 3
         },
-        "random_mean_hits": 2.3307
+        "random_mean_hits": 2.22
       },
       {
         "batch_id": "prereg-33",
@@ -451,7 +451,7 @@
           "uncertainty": 3,
           "validity": 4
         },
-        "random_mean_hits": 2.3144
+        "random_mean_hits": 2.135
       },
       {
         "batch_id": "prereg-34",
@@ -464,7 +464,7 @@
           "uncertainty": 2,
           "validity": 3
         },
-        "random_mean_hits": 2.1616
+        "random_mean_hits": 2.155
       },
       {
         "batch_id": "prereg-35",
@@ -477,7 +477,7 @@
           "uncertainty": 4,
           "validity": 3
         },
-        "random_mean_hits": 2.1677
+        "random_mean_hits": 2.105
       }
     ]
   },
@@ -485,16 +485,16 @@
     "n_batches": 10,
     "total_budget_selected": 200,
     "policy_hits_interfacial_calibrated_top20pct": {
-      "catalyst_dft_calibrated": 42,
-      "catalyst_uncalibrated": 16,
-      "uncertainty": 15,
-      "validity": 21
+      "catalyst_dft_calibrated": 44,
+      "catalyst_uncalibrated": 18,
+      "uncertainty": 13,
+      "validity": 24
     },
     "dft_calibrated_hit_lift_vs_uncalibrated": 26,
-    "policy_matched_random_mean_hits": 19.2231,
-    "dft_calibrated_enrichment_vs_random": 2.1849,
-    "dft_calibrated_p_value": 9.999000099990002e-05,
-    "uncalibrated_p_value": 0.8363163683631637,
+    "policy_matched_random_mean_hits": 19.475,
+    "dft_calibrated_enrichment_vs_random": 2.2593,
+    "dft_calibrated_p_value": 0.004975124378109453,
+    "uncalibrated_p_value": 0.6716417910447762,
     "acceptance_passed": true,
     "batches": [
       {
@@ -503,12 +503,12 @@
         "n_valid": 27,
         "hit_count": 6,
         "policy_hits": {
-          "catalyst_dft_calibrated": 4,
+          "catalyst_dft_calibrated": 6,
           "catalyst_uncalibrated": 2,
-          "uncertainty": 4,
-          "validity": 4
+          "uncertainty": 3,
+          "validity": 3
         },
-        "random_mean_hits": 2.1378
+        "random_mean_hits": 2.155
       },
       {
         "batch_id": "20260930-catalyst-02",
@@ -518,10 +518,10 @@
         "policy_hits": {
           "catalyst_dft_calibrated": 5,
           "catalyst_uncalibrated": 1,
-          "uncertainty": 2,
-          "validity": 2
+          "uncertainty": 1,
+          "validity": 3
         },
-        "random_mean_hits": 1.7759
+        "random_mean_hits": 1.835
       },
       {
         "batch_id": "20260930-catalyst-03",
@@ -529,12 +529,12 @@
         "n_valid": 21,
         "hit_count": 5,
         "policy_hits": {
-          "catalyst_dft_calibrated": 5,
-          "catalyst_uncalibrated": 1,
+          "catalyst_dft_calibrated": 4,
+          "catalyst_uncalibrated": 0,
           "uncertainty": 1,
-          "validity": 2
+          "validity": 3
         },
-        "random_mean_hits": 1.7883
+        "random_mean_hits": 1.86
       },
       {
         "batch_id": "20260930-catalyst-04-powered",
@@ -542,12 +542,12 @@
         "n_valid": 45,
         "hit_count": 9,
         "policy_hits": {
-          "catalyst_dft_calibrated": 4,
+          "catalyst_dft_calibrated": 3,
           "catalyst_uncalibrated": 2,
           "uncertainty": 0,
           "validity": 1
         },
-        "random_mean_hits": 1.5992
+        "random_mean_hits": 1.595
       },
       {
         "batch_id": "20260930-catalyst-05-validity-aware",
@@ -560,7 +560,7 @@
           "uncertainty": 1,
           "validity": 3
         },
-        "random_mean_hits": 1.7945
+        "random_mean_hits": 1.825
       },
       {
         "batch_id": "20260930-catalyst-06-branch-feedback",
@@ -569,11 +569,11 @@
         "hit_count": 5,
         "policy_hits": {
           "catalyst_dft_calibrated": 4,
-          "catalyst_uncalibrated": 0,
+          "catalyst_uncalibrated": 2,
           "uncertainty": 1,
-          "validity": 2
+          "validity": 3
         },
-        "random_mean_hits": 1.7817
+        "random_mean_hits": 1.83
       },
       {
         "batch_id": "20260930-catalyst-07-branch-feedback",
@@ -581,12 +581,12 @@
         "n_valid": 21,
         "hit_count": 5,
         "policy_hits": {
-          "catalyst_dft_calibrated": 3,
-          "catalyst_uncalibrated": 1,
-          "uncertainty": 0,
-          "validity": 0
+          "catalyst_dft_calibrated": 4,
+          "catalyst_uncalibrated": 2,
+          "uncertainty": 1,
+          "validity": 1
         },
-        "random_mean_hits": 1.7987
+        "random_mean_hits": 1.755
       },
       {
         "batch_id": "20260930-catalyst-08-bounded-exploration",
@@ -595,11 +595,11 @@
         "hit_count": 5,
         "policy_hits": {
           "catalyst_dft_calibrated": 4,
-          "catalyst_uncalibrated": 3,
+          "catalyst_uncalibrated": 2,
           "uncertainty": 3,
           "validity": 3
         },
-        "random_mean_hits": 1.7827
+        "random_mean_hits": 1.88
       },
       {
         "batch_id": "20260930-catalyst-09-branch-feedback",
@@ -612,7 +612,7 @@
           "uncertainty": 0,
           "validity": 1
         },
-        "random_mean_hits": 1.4214
+        "random_mean_hits": 1.42
       },
       {
         "batch_id": "smoke-relax-v4-20261009",
@@ -620,14 +620,14 @@
         "n_valid": 28,
         "hit_count": 6,
         "policy_hits": {
-          "catalyst_dft_calibrated": 5,
-          "catalyst_uncalibrated": 3,
-          "uncertainty": 3,
+          "catalyst_dft_calibrated": 6,
+          "catalyst_uncalibrated": 4,
+          "uncertainty": 2,
           "validity": 3
         },
-        "random_mean_hits": 3.3429
+        "random_mean_hits": 3.32
       }
     ]
   },
-  "report_sha256": "fe1b5dc9136f644b662827e879ad9e760e091f9917a46ffc2e6fe9416dd8c341"
+  "report_sha256": "db7aa5d7137b1dcd26aa0cbfa103b893f03013bf48200647973333ad90a874ec"
 }

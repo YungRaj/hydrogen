@@ -114,6 +114,20 @@ def pemfc_cathode_scope(genome: tuple) -> dict:
         }
     if material_class not in DIRECT_PEMFC_CATHODE_CLASSES:
         return {'status': 'unknown', 'reason': 'unrecognized material class'}
+    host_idx = 2 if material_class == 'SAA' else 1
+    if (
+        material_class in ('SolidCatalyst', 'SupportedNanoparticle', 'SAA')
+        and len(genome) > host_idx
+        and str(genome[host_idx]) in LOW_MELTING_HOST_METALS_K
+    ):
+        host = str(genome[host_idx])
+        return {
+            'status': 'out_of_scope',
+            'reason': (
+                f'{material_class} host {host} is liquid or rapidly acid-soluble '
+                'under PEMFC cathode operating conditions (353.15 K, pH ~ 0)'
+            ),
+        }
     return {'status': 'candidate', 'reason': None}
 
 
@@ -147,7 +161,41 @@ LOW_MELTING_HOST_METALS_K = {
     'Bi': 544.7,
     'Pb': 600.6,
     'Zn': 692.7,
+    'Mg': 923.0,
+    'Al': 933.5,
+    'Ba': 1000.0,
+    'Sr': 1050.0,
+    'Ce': 1068.0,
+    'Yb': 1097.0,
+    'Eu': 1099.0,
+    'Ca': 1115.0,
+    'La': 1193.0,
+    'Pr': 1208.0,
 }
+
+PYROLYSIS_VOLATILE_ELEMENTS = frozenset(
+    {
+        'Zn',
+        'Te',
+        'Cd',
+        'Hg',
+        'Se',
+        'As',
+        'Br',
+        'Cl',
+        'F',
+        'I',
+        'Li',
+        'Na',
+        'K',
+        'Rb',
+        'Cs',
+    }
+)
+
+PYROLYSIS_DEMETALLATING_SINGLE_ATOMS = frozenset(
+    {'Zn', 'Cd', 'Hg', 'Ga', 'In', 'Tl', 'Pb', 'Bi'}
+)
 
 
 def phase_stable_at_application_T(
@@ -185,23 +233,164 @@ def phase_stable_at_application_T(
         }
     if not material_class:
         return {'status': 'unknown', 'reason': 'missing material class'}
+
+    if T_K is not None:
+        effective_T_K = float(T_K)
+    elif (
+        material_class in ('MoltenMetal', 'HEA')
+        and len(genome) > 4
+        and isinstance(genome[4], (int, float))
+    ):
+        effective_T_K = max(float(genome[4]), 1073.15)
+    else:
+        effective_T_K = 1073.15
+
     host_idx = 2 if material_class == 'SAA' else 1
     if (
-        T_K is not None
-        and material_class in ('SolidCatalyst', 'SupportedNanoparticle', 'SAA')
+        material_class in ('SolidCatalyst', 'SupportedNanoparticle', 'SAA')
         and len(genome) > host_idx
         and str(genome[host_idx]) in LOW_MELTING_HOST_METALS_K
-        and float(T_K) > LOW_MELTING_HOST_METALS_K[str(genome[host_idx])]
+        and max(effective_T_K, 1073.15) > LOW_MELTING_HOST_METALS_K[str(genome[host_idx])]
     ):
         host = str(genome[host_idx])
         tm_k = LOW_MELTING_HOST_METALS_K[host]
         return {
             'status': 'out_of_scope',
             'reason': (
-                f'{material_class} host {host} melts at {tm_k} K < T={T_K} K '
-                '(liquid metal at pyrolysis T; use MoltenMetal pathway)'
+                f'{material_class} host {host} melts at {tm_k} K < pyrolysis T '
+                f'({max(effective_T_K, 1073.15):.1f} K; use MoltenMetal pathway)'
             ),
         }
+
+    if material_class in ('SolidCatalyst', 'SupportedNanoparticle'):
+        dop_idx = 5 if material_class == 'SolidCatalyst' else 6
+        nsub_idx = 6 if material_class == 'SolidCatalyst' else 7
+        n_sub = (
+            int(genome[nsub_idx])
+            if len(genome) > nsub_idx and isinstance(genome[nsub_idx], (int, float))
+            else 0
+        )
+        dopants = (
+            tuple(str(d) for d in genome[dop_idx])
+            if len(genome) > dop_idx and isinstance(genome[dop_idx], (tuple, list))
+            else ()
+        )
+        if n_sub > 0:
+            volatile_dops = [d for d in dopants if d in PYROLYSIS_VOLATILE_ELEMENTS]
+            if volatile_dops:
+                return {
+                    'status': 'out_of_scope',
+                    'reason': (
+                        f'{material_class} dopant(s) {volatile_dops} volatilize or '
+                        'desorb as halide/metal vapor at pyrolysis temperatures'
+                    ),
+                }
+
+    if (
+        material_class == 'SAA'
+        and len(genome) > 1
+        and str(genome[1]) in PYROLYSIS_VOLATILE_ELEMENTS
+    ):
+        return {
+            'status': 'out_of_scope',
+            'reason': f'SAA trace element {genome[1]} is volatile at pyrolysis temperatures',
+        }
+
+    if (
+        material_class == 'HEA'
+        and len(genome) > 1
+        and isinstance(genome[1], (tuple, list))
+    ):
+        comps = [str(c) for c in genome[1]]
+        volatile_comps = [
+            c
+            for c in comps
+            if c in PYROLYSIS_VOLATILE_ELEMENTS or c in LOW_MELTING_HOST_METALS_K
+        ]
+        if volatile_comps:
+            return {
+                'status': 'out_of_scope',
+                'reason': (
+                    f'HEA component(s) {volatile_comps} melt or boil below solid-solution '
+                    'pyrolysis operating temperatures (e.g. Zn boils at 1180 K)'
+                ),
+            }
+
+    if material_class == 'MoltenMetal' and len(genome) >= 3:
+        host_m = str(genome[1])
+        prom_m = str(genome[2])
+        if host_m in PYROLYSIS_VOLATILE_ELEMENTS:
+            return {
+                'status': 'out_of_scope',
+                'reason': (
+                    f'MoltenMetal host {host_m} boils/volatilizes or forms toxic '
+                    'hydride gas (H2Te/Zn vapor) at pyrolysis temperatures'
+                ),
+            }
+        if prom_m not in ('None', 'none') and prom_m in PYROLYSIS_VOLATILE_ELEMENTS:
+            return {
+                'status': 'out_of_scope',
+                'reason': f'MoltenMetal promoter {prom_m} is volatile at pyrolysis temperatures',
+            }
+
+    if material_class == 'SAC':
+        if len(genome) > 1 and str(genome[1]) in PYROLYSIS_DEMETALLATING_SINGLE_ATOMS:
+            return {
+                'status': 'out_of_scope',
+                'reason': (
+                    f'SAC metal {genome[1]} demetallates and volatilizes from M-Nx '
+                    'coordination sites under high-T reducing CH4/H2'
+                ),
+            }
+        if len(genome) > 2 and 'Se' in str(genome[2]):
+            return {
+                'status': 'out_of_scope',
+                'reason': f'SAC seleno-coordination {genome[2]} volatilizes as H2Se at pyrolysis temperatures',
+            }
+        if len(genome) > 3 and str(genome[3]) == 'Phosphorene':
+            return {
+                'status': 'out_of_scope',
+                'reason': 'SAC Phosphorene support sublimes/decomposes above 650 K',
+            }
+        if len(genome) > 4 and str(genome[4]) in (
+            PYROLYSIS_VOLATILE_ELEMENTS
+            | {'CO', 'NO', 'CN', 'OH', 'OOH', 'SH', 'NH2', 'H2O', 'py'}
+        ):
+            return {
+                'status': 'out_of_scope',
+                'reason': f'SAC axial ligand {genome[4]} desorbs at pyrolysis temperatures',
+            }
+
+    if material_class == 'DAC':
+        if len(genome) > 2:
+            m1, m2 = str(genome[1]), str(genome[2])
+            if (
+                m1 in PYROLYSIS_DEMETALLATING_SINGLE_ATOMS
+                or m2 in PYROLYSIS_DEMETALLATING_SINGLE_ATOMS
+            ):
+                return {
+                    'status': 'out_of_scope',
+                    'reason': (
+                        f'DAC pair {m1}-{m2} contains low-melting/volatile metal that '
+                        'demetallates at pyrolysis temperatures'
+                    ),
+                }
+        if len(genome) > 4 and str(genome[4]) == 'Phosphorene':
+            return {
+                'status': 'out_of_scope',
+                'reason': 'DAC Phosphorene support sublimes/decomposes above 650 K',
+            }
+
+    if (
+        material_class == 'MetalFreeCarbon'
+        and len(genome) > 5
+        and str(genome[5]) in PYROLYSIS_VOLATILE_ELEMENTS
+    ):
+        return {
+            'status': 'out_of_scope',
+            'reason': f'MetalFreeCarbon halogen/volatile dopant {genome[5]} desorbs at pyrolysis temperatures',
+        }
+
     return {'status': 'candidate', 'reason': None}
 
 

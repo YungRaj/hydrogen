@@ -166,20 +166,22 @@ def _append_marker(
 
 
 def _add_surface_markers(atoms: Atoms, symbols: list[str]) -> list[int]:
-    """Add sparse environment atoms and restore a valid bottom constraint."""
+    """Add sparse subsurface/backside environment atoms and restore bottom constraint."""
     if not symbols:
         return []
     atoms.set_constraint()
-    z_max = float(atoms.positions[:, 2].max())
+    z_min = float(atoms.positions[:, 2].min())
     cell = atoms.cell.lengths()
     added = []
     for index, symbol in enumerate(symbols):
         x = (index + 1) * float(cell[0]) / (len(symbols) + 1)
         y = (index % 2 + 1) * float(cell[1]) / 3.0
-        atoms.append(Atom(symbol, position=(x, y, z_max + 1.5 + 0.25 * index)))
+        atoms.append(
+            Atom(symbol, position=(x, y, max(0.6, z_min - 1.6 - 0.55 * index)))
+        )
         added.append(len(atoms) - 1)
     z = atoms.positions[:, 2]
-    atoms.set_constraint(FixAtoms(mask=z < z.min() + 4.0))
+    atoms.set_constraint(FixAtoms(mask=z < z_min + 4.0))
     return added
 
 
@@ -248,7 +250,11 @@ def generate_alloy_slab(
     shuffled = list(top_indices)
     rng.shuffle(shuffled)
 
-    sub_count = min(n_sub, len(shuffled)) if dopants else 0
+    sub_count = (
+        min(max(n_sub, len(dopants)), len(shuffled))
+        if (dopants and n_sub > 0)
+        else 0
+    )
     for i in range(sub_count):
         slab[shuffled[i]].symbol = dopants[i % len(dopants)]
 
@@ -383,7 +389,9 @@ def generate_porphyrin_cluster(
     if ligand not in ('none', '') and metal != 'None':
         ligand_symbol = _representative_element(axial_ligand, 'O')
         _append_marker(
-            atoms, ligand_symbol, (0.0, 0.0, 1.9 + 0.3 * _label_fraction(axial_ligand))
+            atoms,
+            ligand_symbol,
+            (0.0, 0.0, -(1.9 + 0.3 * _label_fraction(axial_ligand))),
         )
 
     atoms.set_cell((15.0, 15.0, 15.0))
@@ -677,8 +685,8 @@ def _build_molten_metal(genome, structure_seed):
     _, host, promoter, at_pct, temp = genome
     # Map atomic percent onto the 9 sites of the 3x3 top surface layer; apply linear
     # thermal expansion alpha = 1.0e-5 K^-1 relative to the 1000 K reference state.
-    n_sub = max(1, round(at_pct / 100.0 * 9))
-    dopants = (promoter,) if promoter != 'None' else ()
+    dopants = (promoter,) if (promoter != 'None' and float(at_pct) > 0.0) else ()
+    n_sub = max(1, round(float(at_pct) / 100.0 * 9)) if dopants else 0
     thermal_strain = (float(temp) - 1000.0) * 1.0e-5
     facet = 'hcp0001' if host in {'Mg', 'Zn', 'Cd'} else 'fcc111'
     slab, top_idx = generate_alloy_slab(

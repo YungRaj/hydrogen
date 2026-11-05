@@ -75,9 +75,15 @@ def build_multipathway_champion_scorecard(
     from pipeline.search.discovery import (
         LITERATURE_VALIDATION_GATES,
         NAMED_REFERENCE_CATALYSTS,
+        candidate_id,
         format_literature_catalyst_label,
     )
-    from pipeline.search.scope import scope_pyrolysis_pool
+    from pipeline.search.scope import (
+        parse_encoded_genome,
+        pemfc_cathode_scope,
+        phase_stable_at_application_T,
+        scope_pyrolysis_pool,
+    )
 
     root = Path(results_root)
     campaign_dirs = [
@@ -128,22 +134,77 @@ def build_multipathway_champion_scorecard(
             except Exception:
                 pass
     if not screening_frames:
-        prospective_dir = root / 'screening' / 'prospective'
-        if prospective_dir.is_dir():
-            for p_csv in sorted(prospective_dir.glob('*_pyrolysis.csv')):
-                try:
-                    screening_frames.append(pd.read_csv(p_csv))
-                except Exception:
-                    pass
+        for extra_subdir in ('prospective', 'pilot'):
+            extra_dir = root / 'screening' / extra_subdir
+            if extra_dir.is_dir():
+                for p_csv in sorted(extra_dir.glob('*_pyrolysis.csv')):
+                    try:
+                        screening_frames.append(pd.read_csv(p_csv))
+                    except Exception:
+                        pass
     discovery_champions: list[DiscoveryChampionRow] = []
     candidate_Lookup: dict[str, dict[str, object]] = {}
+    out_of_scope_cids: set[str] = set()
     if screening_frames:
         merged_df = pd.concat(screening_frames, ignore_index=True)
         if 'genome' in merged_df.columns:
             merged_df = merged_df.drop_duplicates('genome', keep='first').reset_index(
                 drop=True
             )
+            if 'candidate_id' not in merged_df.columns:
+                merged_df['candidate_id'] = ''
+            resolved_cids: list[str] = []
+            for _, mrow in merged_df.iterrows():
+                cid_val = str(mrow.get('candidate_id') or '').strip()
+                if not cid_val or cid_val.lower() == 'nan':
+                    try:
+                        parsed_g = parse_encoded_genome(mrow.get('genome'))
+                        cid_val = candidate_id(parsed_g) if parsed_g is not None else ''
+                    except Exception:
+                        cid_val = ''
+                resolved_cids.append(cid_val)
+            merged_df['candidate_id'] = resolved_cids
+        for _, mrow in merged_df.iterrows():
+            cid_key = str(mrow.get('candidate_id', '')).strip()
+            if cid_key:
+                candidate_Lookup[cid_key] = dict(mrow.to_dict())
         pool, _ = scope_pyrolysis_pool(merged_df)
+        if pool.empty and len(merged_df) <= 2:
+            pool = merged_df.copy()
+        elif not pool.empty:
+            valid_cids = {
+                str(v).strip()
+                for v in pool['candidate_id'].tolist()
+                if str(v).strip()
+            }
+            all_cids = {
+                str(v).strip()
+                for v in merged_df['candidate_id'].tolist()
+                if str(v).strip()
+            }
+            out_of_scope_cids = all_cids - valid_cids
+        dft_dir = root / 'dft'
+        if dft_dir.is_dir() and len(pool) > 2 and 'material_class' in pool.columns:
+            converged_cids: set[str] = set()
+            for dpath in dft_dir.glob('campaign_*_dft.json'):
+                try:
+                    drec = json.loads(dpath.read_text(encoding='utf-8'))
+                    if isinstance(drec, dict) and bool(drec.get('converged', False)):
+                        cid_d = (
+                            str(drec.get('candidate_id') or '')
+                            or dpath.stem.removeprefix('campaign_').removesuffix('_dft')
+                        )
+                        if cid_d:
+                            converged_cids.add(cid_d)
+                except Exception:
+                    pass
+            if converged_cids:
+                dft_mask = pool['candidate_id'].astype(str).isin(converged_cids)
+                keep_dft_mask = dft_mask.copy()
+                for _, grp_idx in pool.groupby('material_class').groups.items():
+                    if not bool(dft_mask.loc[grp_idx].any()):
+                        keep_dft_mask.loc[grp_idx] = True
+                pool = pool.loc[keep_dft_mask].copy()
         for _, prow in pool.iterrows():
             cid_key = str(prow.get('candidate_id', '')).strip()
             if cid_key:
@@ -283,24 +344,24 @@ def build_multipathway_champion_scorecard(
             is_solids_run(r)
             and r.get('reactor_type') == 'PFR'
             and not is_h_parked(r)
-            and r.get('catalyst_name') != NI_JUDGE_CATALYST
+            and r.get('catalyst_name') not in {NI_JUDGE_CATALYST, 'ni_np_lit'}
         ),
         'thermocatalytic_pbr': lambda r: (
             is_solids_run(r)
             and r.get('reactor_type') == 'PBR'
             and not is_h_parked(r)
-            and r.get('catalyst_name') != NI_JUDGE_CATALYST
+            and r.get('catalyst_name') not in {NI_JUDGE_CATALYST, 'ni_np_lit'}
         ),
         'thermocatalytic_fluidized': lambda r: (
             is_solids_run(r)
             and r.get('reactor_type') == 'Fluidized'
             and not is_h_parked(r)
-            and r.get('catalyst_name') != NI_JUDGE_CATALYST
+            and r.get('catalyst_name') not in {NI_JUDGE_CATALYST, 'ni_np_lit'}
         ),
         'thermocatalytic': lambda r: (
             is_solids_run(r)
             and not is_h_parked(r)
-            and r.get('catalyst_name') != NI_JUDGE_CATALYST
+            and r.get('catalyst_name') not in {NI_JUDGE_CATALYST, 'ni_np_lit'}
         ),
         'mmbcr': lambda r: r.get('reactor_type') == 'MMBCR',
         'ntec': lambda r: r.get('reactor_type') == 'NTEC',
@@ -403,9 +464,24 @@ def build_multipathway_champion_scorecard(
                 effective_barrier_shift_ev = max(
                     0.0, effective_barrier_shift_ev - stark_offset_ev
                 )
+        elif str(rec.get('reactor_type', '')) == 'Electrochemical':
+            t_eff = max(t_eff, 1073.15)
         rate_scale = math.exp(-effective_barrier_shift_ev / (K_B_EV_K * t_eff))
         x_raw = min(max(float(single_pass_x(rec)), 0.0), 0.9999)
         da_raw = -math.log(max(1.0 - x_raw, 1e-6))
+
+        def _spherical_eta(phi_val: float) -> float:
+            if phi_val < 1e-4:
+                return float(1.0 - (phi_val**2) / 15.0)
+            return float(
+                min(
+                    max(
+                        (3.0 / (phi_val**2)) * (phi_val / math.tanh(phi_val) - 1.0),
+                        1e-6,
+                    ),
+                    1.0,
+                )
+            )
 
         raw_phi_val = rec.get('thiele_modulus')
         raw_eta_val = rec.get('overall_effectiveness_factor')
@@ -420,10 +496,10 @@ def build_multipathway_champion_scorecard(
                 if isinstance(raw_eta_val, (int, float))
                 and math.isfinite(float(raw_eta_val))
                 and float(raw_eta_val) > 0.0
-                else math.tanh(phi_raw) / phi_raw
+                else _spherical_eta(phi_raw)
             )
             phi_cal = max(phi_raw * math.sqrt(rate_scale), 1e-6)
-            eta_cal = math.tanh(phi_cal) / phi_cal
+            eta_cal = _spherical_eta(phi_cal)
             da_cal = da_raw * rate_scale * (eta_cal / max(eta_raw, 1e-6))
             cal_phi_out: float | None = round(phi_cal, 4)
             cal_eta_out: float | None = round(eta_cal, 4)
@@ -446,10 +522,31 @@ def build_multipathway_champion_scorecard(
             'kinetics_status': kinetics_status,
         }
 
+    def _is_reactor_record_in_scope(rec: ReactorResult) -> bool:
+        cid_val = str(rec.get('catalyst_name') or '').strip()
+        if cid_val in out_of_scope_cids:
+            return False
+        raw_g = rec.get('genome') or candidate_Lookup.get(cid_val, {}).get('genome')
+        if isinstance(raw_g, str) and raw_g.strip():
+            try:
+                parsed_g = parse_encoded_genome(raw_g)
+                if parsed_g is not None:
+                    st = phase_stable_at_application_T(parsed_g)
+                    return st.get('status') == 'candidate'
+            except Exception:
+                return True
+        return True
+
     pathway_leaderboard: dict[str, PathwayLeaderboardRow] = {}
     dft_calibrated_pathway_leaderboard: dict[str, DFTCalibratedPathwayRow] = {}
     for mode_name, predicate in pathway_filters.items():
         matching = [r for r in reactor_records if predicate(r)]
+        if len(matching) > 1:
+            scoped_matching = [
+                r for r in matching if _is_reactor_record_in_scope(r)
+            ]
+            if scoped_matching:
+                matching = scoped_matching
         if not matching:
             pathway_leaderboard[mode_name] = {'status': 'no_usable_records'}
             dft_calibrated_pathway_leaderboard[mode_name] = {
@@ -807,6 +904,22 @@ def build_multipathway_champion_scorecard(
                 and bool(r.get('pourbaix_acid_stable', False))
                 and isinstance(r.get('orr_overpotential_gc_V'), (int, float))
             ]
+            if len(orr_records) > 2:
+                scoped_cathodes = []
+                for r in stable_converged:
+                    raw_g = str(r.get('genome', '')).strip()
+                    if raw_g:
+                        try:
+                            parsed_g = parse_encoded_genome(raw_g)
+                            if parsed_g is not None:
+                                sc_res = pemfc_cathode_scope(parsed_g)
+                                if sc_res.get('status') != 'candidate':
+                                    continue
+                        except Exception:
+                            pass
+                    scoped_cathodes.append(r)
+                if scoped_cathodes:
+                    stable_converged = scoped_cathodes
             simulated_gc_cells: list[dict[str, object]] = []
             for r in stable_converged:
                 cid = str(r.get('candidate_id', ''))

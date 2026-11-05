@@ -2,7 +2,7 @@
   "catalyst_name": "campaign_c4ab2249c156880efdbe",
   "candidate_id": "c4ab2249c156880efdbe",
   "material_class": "MoltenMetal",
-  "genome": "('MoltenMetal', 'Ga', 'Ti', 10.0, 1000)",
+  "genome": "('MoltenMetal', 'Ga', 'Ti', 0.1, 600)",
   "evidence_level": "screening_dft",
   "returncode": 0,
   "converged": true,

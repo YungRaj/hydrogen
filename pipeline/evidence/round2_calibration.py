@@ -866,6 +866,13 @@ def evaluate_round2_dft_calibrated_campaign(
                 is_valid and not is_censored and is_viable and np.isfinite(e_act)
             )
             if is_eligible_metric:
+                from pipeline.search.scope import phase_stable_at_application_T
+
+                phase_ok = (
+                    phase_stable_at_application_T(tuple(genome))['status']
+                    == 'candidate'
+                )
+                phase_pen = 0.0 if phase_ok else 5.0
                 try:
                     c_disp_raw = float(
                         str(row.get('c_height_above_surface_A', 'nan'))
@@ -887,6 +894,7 @@ def evaluate_round2_dft_calibrated_campaign(
                     s_int = float(
                         cal_info['calibrated_interfacial_score_eV']
                         + 0.50 * reg_shift
+                        + phase_pen
                     )
                 else:
                     coke_pen = (
@@ -894,7 +902,7 @@ def evaluate_round2_dft_calibrated_campaign(
                         if np.isfinite(coke_idx)
                         else 0.0
                     )
-                    s_int = float(e_act + reg_shift + coke_pen)
+                    s_int = float(e_act + reg_shift + coke_pen + phase_pen)
                 valid_interfacial_scores.append((s_int, cid, m_cls))
                 batch_pyro_obs.append((genome, s_int))
 

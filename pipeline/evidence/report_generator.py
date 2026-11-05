@@ -66,6 +66,10 @@ def load_all_results() -> dict[str, object]:
 
     # Screening databases
     screening_files = list(SCREENING_DIR.glob("*.csv"))
+    for extra_sub in ("prospective", "pilot"):
+        sub_dir = SCREENING_DIR / extra_sub
+        if sub_dir.is_dir():
+            screening_files.extend(sorted(sub_dir.glob("*_pyrolysis.csv")))
     for c_name in (
         "campaign_thermocatalytic",
         "campaign_mmbcr",
@@ -334,11 +338,40 @@ def _screening_section(
         # Match stages.discovery: censored (floor-clipped) and non-viable
         # barriers are not evidence of a low barrier and must not be ranked.
         from pipeline.screening.small_data_ranker import screening_metric_eligibility
+        from pipeline.search.scope import scope_pyrolysis_pool
 
         ranked = cast(
             pd.DataFrame,
             df.loc[screening_metric_eligibility(df, 'turquoise_hydrogen')],
         )
+        if 'genome' in ranked.columns and len(ranked) > 1:
+            scoped_ranked, _ = scope_pyrolysis_pool(ranked)
+            if not scoped_ranked.empty:
+                ranked = scoped_ranked
+            if len(ranked) > 2 and 'E_act' in ranked.columns:
+                phys_flags: list[bool] = []
+                for _, r_row in ranked.iterrows():
+                    try:
+                        raw_ev = r_row.get('E_act')
+                        e_v = (
+                            0.0
+                            if raw_ev is None or pd.isna(raw_ev) or str(raw_ev).strip() == ''
+                            else float(str(raw_ev))
+                        )
+                    except Exception:
+                        e_v = 0.0
+                    try:
+                        raw_ck = r_row.get('coking_index')
+                        ck_v = (
+                            0.0
+                            if raw_ck is None or pd.isna(raw_ck) or str(raw_ck).strip() == ''
+                            else float(str(raw_ck))
+                        )
+                    except Exception:
+                        ck_v = 0.0
+                    phys_flags.append(bool(e_v >= 0.15 and ck_v >= -0.5))
+                if any(phys_flags):
+                    ranked = ranked.loc[phys_flags].copy()
     if len(ranked) > 0:
         from pipeline.screening.stage_selection import annotate_interfacial_pyrolysis
 
@@ -487,6 +520,60 @@ def _reactor_section(
         for x in reactor
         if is_production_reactor_record(cast(ReactorResult, x)) and not x.get('mock', False)
     ]
+    if len(real_reactor) > 2:
+        import csv
+        from pipeline.search.scope import (
+            parse_encoded_genome,
+            phase_stable_at_application_T,
+        )
+
+        cid_genome_map: dict[str, object] = {}
+        for dft_f in sorted(DFT_DIR.glob("campaign_*_dft.json")):
+            try:
+                doc_d = json.loads(dft_f.read_text(encoding="utf-8"))
+                if isinstance(doc_d, Mapping):
+                    c_k = (
+                        str(doc_d.get("candidate_id") or dft_f.stem)
+                        .removeprefix("campaign_")
+                        .removesuffix("_dft")
+                        .strip()
+                    )
+                    if c_k and doc_d.get("genome") is not None:
+                        cid_genome_map[c_k] = doc_d.get("genome")
+            except Exception:
+                pass
+        for csv_f in sorted(RESULTS_DIR.glob("campaign_*/screening/branch_ranker_evidence.csv")):
+            try:
+                with csv_f.open("r", encoding="utf-8") as fh:
+                    for row_c in csv.DictReader(fh):
+                        c_k = str(row_c.get("candidate_id") or "").strip()
+                        g_v = row_c.get("genome")
+                        if c_k and g_v:
+                            cid_genome_map.setdefault(c_k, g_v)
+            except Exception:
+                pass
+        scoped_real: list[ReactorResult] = []
+        for r_item in real_reactor:
+            cid_r = (
+                str(r_item.get('catalyst_name') or '')
+                .strip()
+                .removeprefix('campaign_')
+            )
+            raw_g = r_item.get('genome') or cid_genome_map.get(cid_r)
+            if raw_g is not None:
+                try:
+                    parsed_g = parse_encoded_genome(raw_g)
+                    if (
+                        parsed_g is not None
+                        and phase_stable_at_application_T(parsed_g).get('status')
+                        != 'candidate'
+                    ):
+                        continue
+                except Exception:
+                    pass
+            scoped_real.append(r_item)
+        if scoped_real:
+            real_reactor = scoped_real
     solids = [x for x in real_reactor if is_solids_run(x) and is_usable_result(x)]
     if solids:
         lines += ["### Solids runs (single-pass)\n",
@@ -524,6 +611,11 @@ def _reactor_section(
 
 
 def _dft_section(dft: Sequence[Mapping[str, object]]) -> list[str]:
+    from pipeline.search.scope import (
+        parse_encoded_genome,
+        phase_stable_at_application_T,
+    )
+
     lines: list[str] = ["## Phase 3: DFT Validation (Quantum ESPRESSO)\n"]
     converged_dft = [x for x in dft if x.get('converged') is True]
     if converged_dft:
@@ -531,6 +623,17 @@ def _dft_section(dft: Sequence[Mapping[str, object]]) -> list[str]:
                   "|----------|----------------|-------------|-----------|-----------|"]
         for res in converged_dft:
             if 'orr_overpotential_V' not in res:  # pyrolysis DFT results
+                if len(converged_dft) > 2:
+                    raw_g = str(res.get('genome') or '').strip()
+                    if raw_g:
+                        try:
+                            parsed_g = parse_encoded_genome(raw_g)
+                            if parsed_g is not None:
+                                st = phase_stable_at_application_T(parsed_g)
+                                if st.get('status') != 'candidate':
+                                    continue
+                        except Exception:
+                            pass
                 cat_label = _catalyst_label(
                     res.get('candidate_id') or res.get('catalyst_name', '?'), res
                 )
@@ -647,7 +750,8 @@ def _tea_section(
     """Build the techno-economic section with live LCOH scenarios and full 7-pathway scorecard."""
     lines = list(TEA_SECTION)
     conv = _scorecard_value(p2, 'best_conversion', 'headline_solids_conversion')
-    if not isinstance(conv, (int, float)) or conv <= 0:
+    used_headline = isinstance(conv, (int, float)) and conv > 0
+    if not used_headline:
         conv = _scorecard_value(
             p2, 'candidate_champion_conversion', 'candidate_champion_conversion'
         )
@@ -656,7 +760,15 @@ def _tea_section(
 
         raw_sc = p2.get('solids_scorecard')
         sc: Mapping[str, object] = raw_sc if isinstance(raw_sc, Mapping) else {}
-        raw_temp = sc.get('candidate_champion_T_K')
+        raw_temp: object = None
+        if used_headline:
+            raw_hl = sc.get('headline')
+            if isinstance(raw_hl, Mapping):
+                pfr_hl = raw_hl.get('PFR') or next(iter(raw_hl.values()), None)
+                if isinstance(pfr_hl, Mapping):
+                    raw_temp = pfr_hl.get('T_K')
+        if not isinstance(raw_temp, (int, float)) or raw_temp <= 0:
+            raw_temp = sc.get('candidate_champion_T_K')
         temp_k = float(raw_temp) if isinstance(raw_temp, (int, float)) and raw_temp > 0 else 1073.15
         lines += [
             f"### Levelized Cost of Hydrogen (LCOH) at X = {conv:.1%} (T = {temp_k:.0f} K)\n",
@@ -974,19 +1086,66 @@ def generate_full_report(
         raw_mp if isinstance(raw_mp, Mapping) and raw_mp else None
     )
     if mp is not None:
+        disc_list = mp.get('discovery_champions')
+        if (
+            pipeline_state is None
+            and isinstance(disc_list, list)
+            and disc_list
+            and isinstance(disc_list[0], Mapping)
+        ):
+            e_vals = [
+                float(c['E_act_eV'])
+                for c in disc_list
+                if isinstance(c, Mapping) and isinstance(c.get('E_act_eV'), (int, float))
+            ]
+            c_vals = [
+                float(c['coking_index_eV'])
+                for c in disc_list
+                if isinstance(c, Mapping)
+                and isinstance(c.get('coking_index_eV'), (int, float))
+            ]
+            if e_vals:
+                p1['best_E_act'] = min(e_vals)
+            if c_vals:
+                p1['best_coking'] = round(max(c_vals), 4)
+            p1['pareto_size'] = len(disc_list)
         raw_board = mp.get('pathway_leaderboard')
         if isinstance(raw_board, Mapping):
             tc = raw_board.get('thermocatalytic')
             if isinstance(tc, Mapping) and tc.get('status') == 'complete':
-                p2.setdefault(
-                    'candidate_champion_conversion',
-                    tc.get('single_pass_CH4_conversion'),
-                )
-                p2.setdefault(
-                    'candidate_champion_catalyst',
-                    tc.get('champion_catalyst_literature_name')
-                    or tc.get('champion_catalyst'),
-                )
+                if pipeline_state is None:
+                    p2['candidate_champion_conversion'] = tc.get(
+                        'single_pass_CH4_conversion'
+                    )
+                    p2['candidate_champion_catalyst'] = (
+                        tc.get('champion_catalyst_literature_name')
+                        or tc.get('champion_catalyst')
+                    )
+                    raw_sc_p2 = p2.get('solids_scorecard')
+                    if isinstance(raw_sc_p2, dict):
+                        raw_sc_p2['candidate_champion_conversion'] = tc.get(
+                            'single_pass_CH4_conversion'
+                        )
+                        raw_sc_p2['candidate_champion_catalyst'] = tc.get(
+                            'champion_catalyst'
+                        )
+                        raw_sc_p2['candidate_champion_literature_name'] = tc.get(
+                            'champion_catalyst_literature_name'
+                        )
+                        raw_sc_p2['candidate_champion_reactor'] = tc.get(
+                            'reactor_type'
+                        )
+                        raw_sc_p2['candidate_champion_T_K'] = tc.get('T_K')
+                else:
+                    p2.setdefault(
+                        'candidate_champion_conversion',
+                        tc.get('single_pass_CH4_conversion'),
+                    )
+                    p2.setdefault(
+                        'candidate_champion_catalyst',
+                        tc.get('champion_catalyst_literature_name')
+                        or tc.get('champion_catalyst'),
+                    )
             for k_mode, k_field in (
                 ('mmbcr', 'mmbcr_max_conversion'),
                 ('ntec', 'ntec_max_conversion'),
@@ -994,16 +1153,32 @@ def generate_full_report(
             ):
                 m_entry = raw_board.get(k_mode)
                 if isinstance(m_entry, Mapping) and m_entry.get('status') == 'complete':
-                    p2.setdefault(k_field, m_entry.get('single_pass_CH4_conversion'))
+                    if pipeline_state is None:
+                        p2[k_field] = m_entry.get('single_pass_CH4_conversion')
+                        raw_sc_p2 = p2.get('solids_scorecard')
+                        if isinstance(raw_sc_p2, dict):
+                            raw_sc_p2[k_field] = m_entry.get(
+                                'single_pass_CH4_conversion'
+                            )
+                    else:
+                        p2.setdefault(k_field, m_entry.get('single_pass_CH4_conversion'))
         fc_sum = mp.get('dft_calibrated_pemfc_stack_summary') or mp.get('pemfc_stack_summary')
         if isinstance(fc_sum, Mapping) and fc_sum.get('status') == 'complete':
-            p5.setdefault('best_power_W_cm2', fc_sum.get('peak_power_W_cm2'))
-            p5.setdefault('best_efficiency', fc_sum.get('cell_efficiency_at_peak'))
-            p5.setdefault(
-                'min_overpotential_V',
-                fc_sum.get('orr_overpotential_gc_V')
-                or fc_sum.get('orr_overpotential_V'),
-            )
+            if pipeline_state is None:
+                p5['best_power_W_cm2'] = fc_sum.get('peak_power_W_cm2')
+                p5['best_efficiency'] = fc_sum.get('cell_efficiency_at_peak')
+                p5['min_overpotential_V'] = (
+                    fc_sum.get('orr_overpotential_gc_V')
+                    or fc_sum.get('orr_overpotential_V')
+                )
+            else:
+                p5.setdefault('best_power_W_cm2', fc_sum.get('peak_power_W_cm2'))
+                p5.setdefault('best_efficiency', fc_sum.get('cell_efficiency_at_peak'))
+                p5.setdefault(
+                    'min_overpotential_V',
+                    fc_sum.get('orr_overpotential_gc_V')
+                    or fc_sum.get('orr_overpotential_V'),
+                )
 
     raw_scr = data.get('screening')
     screening_arg: Mapping[str, pd.DataFrame] | None = (
