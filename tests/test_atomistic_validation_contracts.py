@@ -79,3 +79,46 @@ def test_molten_methane_endpoints_preserve_slab_atom_matching(monkeypatch) -> No
     assert meta['endpoint_match']['max_surface_displacement_A'] == pytest.approx(0.0)
     assert len(initial) == len(final) == len(slab) + 5
 
+
+def test_run_liquid_alloy_md_collects_decorrelated_snapshots() -> None:
+    from ase.calculators.emt import EMT
+    from pipeline.evidence.molten_md import LiquidMDProtocol, run_liquid_alloy_md
+
+    proto = LiquidMDProtocol(
+        temperature_K=1273.15,
+        timestep_fs=1.0,
+        equilibration_steps=4,
+        stride_steps=2,
+        snapshots=3,
+        friction_per_fs=0.01,
+        seed=7,
+    )
+    res = run_liquid_alloy_md(('MoltenMetal', 'Cu', 'Ni', 22.0, 1273.15), EMT(), proto)
+    assert res['complete'] is True
+    assert res['n_snapshots'] == 3
+    assert isinstance(res['mean_potential_energy_eV'], float)
+
+
+def test_crystallographic_oxide_and_max_slabs_expose_active_surface_cations() -> None:
+    from pipeline.screening.structure_builders import generate_structure
+
+    perov_slab, perov_idx, _ = generate_structure(
+        ('Perovskite', 'La', 'Ni', 'Fe', 0.25, 'O_vacancy')
+    )
+    assert perov_slab[perov_idx[0]].symbol in {'Fe', 'Ni'}
+    assert float(perov_slab.positions[perov_idx[0], 2]) >= float(perov_slab.positions[:, 2].max()) - 0.85
+
+    spinel_slab, spinel_idx, _ = generate_structure(
+        ('Spinel', 'Mg', 'Co', 'Ce', 'nanoparticle', 'N-graphene')
+    )
+    assert spinel_slab[spinel_idx[0]].symbol in {'Ce', 'Co'}
+    assert float(spinel_slab.positions[spinel_idx[0], 2]) >= float(spinel_slab.positions[:, 2].max()) - 0.85
+
+    max_slab, max_idx, _ = generate_structure(
+        ('MAXPhase', 'Co', 'Al', 'C', 2, 'Ni', 'basal_0001')
+    )
+    assert max_slab[max_idx[0]].symbol in {'Ni', 'Co'}
+    assert 'C' in max_slab.get_chemical_symbols()
+    assert 'Al' in max_slab.get_chemical_symbols()
+
+

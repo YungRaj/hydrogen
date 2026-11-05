@@ -610,6 +610,57 @@ def _reactor_section(
     return lines
 
 
+def _load_orr_summary_maps() -> tuple[dict[str, object], dict[str, bool]]:
+    """Return (genome_map, pourbaix_acid_stable_map) from orr_confirmatory_dft_summary.json."""
+    orr_genome_map: dict[str, object] = {}
+    orr_acid_map: dict[str, bool] = {}
+    orr_sum_path = DFT_DIR / "orr_confirmatory_dft_summary.json"
+    if orr_sum_path.is_file():
+        try:
+            orr_doc = json.loads(orr_sum_path.read_text(encoding='utf-8'))
+            if isinstance(orr_doc, Mapping):
+                recs = orr_doc.get('records')
+                if isinstance(recs, list):
+                    for r_o in recs:
+                        if isinstance(r_o, Mapping):
+                            c_k = str(r_o.get('candidate_id') or '').strip()
+                            if c_k:
+                                if r_o.get('genome') is not None:
+                                    orr_genome_map[c_k] = r_o.get('genome')
+                                if 'pourbaix_acid_stable' in r_o:
+                                    orr_acid_map[c_k] = bool(r_o.get('pourbaix_acid_stable'))
+        except Exception:
+            pass
+    return orr_genome_map, orr_acid_map
+
+
+def _is_pemfc_acid_admissible(
+    parsed_g: tuple[object, ...],
+    acid_stable_flag: bool | None = None,
+) -> bool:
+    """Return True if a candidate genome is admissible for an acidic PEMFC cathode."""
+    from pipeline.search.scope import (
+        LOW_MELTING_HOST_METALS_K,
+        PYROLYSIS_DEMETALLATING_SINGLE_ATOMS,
+        pemfc_cathode_scope,
+    )
+
+    if acid_stable_flag is False:
+        return False
+    if pemfc_cathode_scope(parsed_g).get('status') != 'candidate':
+        return False
+    m_cls = str(parsed_g[0]) if parsed_g else ''
+    if m_cls == 'SAA' and len(parsed_g) > 1:
+        if str(parsed_g[1]) in (
+            set(LOW_MELTING_HOST_METALS_K) | set(PYROLYSIS_DEMETALLATING_SINGLE_ATOMS)
+        ):
+            return False
+    if m_cls in ('SAC', 'DAC'):
+        if 'Phosphorene' in {str(x) for x in parsed_g}:
+            return False
+    return True
+
+
 def _dft_section(dft: Sequence[Mapping[str, object]]) -> list[str]:
     from pipeline.search.scope import (
         parse_encoded_genome,
@@ -617,43 +668,174 @@ def _dft_section(dft: Sequence[Mapping[str, object]]) -> list[str]:
     )
 
     lines: list[str] = ["## Phase 3: DFT Validation (Quantum ESPRESSO)\n"]
-    converged_dft = [x for x in dft if x.get('converged') is True]
-    if converged_dft:
+    pyro_converged_dft = [
+        x
+        for x in dft
+        if x.get('converged') is True
+        and 'orr_overpotential_V' not in x
+        and not str(x.get('catalyst_name') or '').startswith('orr_slate_')
+    ]
+    if pyro_converged_dft:
         lines += ["| Catalyst | Material Class | Energy (eV) | Converged | Max Force |",
                   "|----------|----------------|-------------|-----------|-----------|"]
-        for res in converged_dft:
-            if 'orr_overpotential_V' not in res:  # pyrolysis DFT results
-                if len(converged_dft) > 2:
-                    raw_g = str(res.get('genome') or '').strip()
-                    if raw_g:
-                        try:
-                            parsed_g = parse_encoded_genome(raw_g)
-                            if parsed_g is not None:
-                                st = phase_stable_at_application_T(parsed_g)
-                                if st.get('status') != 'candidate':
-                                    continue
-                        except Exception:
-                            pass
-                cat_label = _catalyst_label(
-                    res.get('candidate_id') or res.get('catalyst_name', '?'), res
-                )
-                lines.append(
-                    f"| {cat_label} | {res.get('material_class', '?')} | "
-                    f"{res.get('dft_energy_eV', 'N/A')} | {res.get('converged', '?')} | "
-                    f"{res.get('max_force_Ry_bohr', 'N/A')} |")
+        for res in pyro_converged_dft:
+            if len(pyro_converged_dft) > 2:
+                raw_g = str(res.get('genome') or '').strip()
+                if raw_g:
+                    try:
+                        parsed_g = parse_encoded_genome(raw_g)
+                        if parsed_g is not None:
+                            st = phase_stable_at_application_T(parsed_g)
+                            if st.get('status') != 'candidate':
+                                continue
+                    except Exception:
+                        pass
+            cat_label = _catalyst_label(
+                res.get('candidate_id') or res.get('catalyst_name', '?'), res
+            )
+            lines.append(
+                f"| {cat_label} | {res.get('material_class', '?')} | "
+                f"{res.get('dft_energy_eV', 'N/A')} | {res.get('converged', '?')} | "
+                f"{res.get('max_force_Ry_bohr', 'N/A')} |")
         lines.append("")
-    if dft and not converged_dft:
+    if dft and not pyro_converged_dft:
         lines.append(
             "No converged DFT validation is available; no DFT-validated champion is claimed.\n")
+
+    denovo_path = RESULTS_DIR / "evidence" / "de_novo_discovery_validation.json"
+    if denovo_path.is_file():
+        try:
+            denovo_doc = json.loads(denovo_path.read_text(encoding='utf-8'))
+        except Exception:
+            denovo_doc = {}
+        if isinstance(denovo_doc, Mapping):
+            slab_rows = denovo_doc.get('periodic_slab_qe_validation')
+            if isinstance(slab_rows, list) and slab_rows:
+                lines += [
+                    "### Periodic Surface-Slab Quantum ESPRESSO Verification (`pw.x` Slab + Adsorbate & Saddle)\n",
+                    "| Catalyst | Class | E_clean,slab (eV) | ΔE_rxn,slab(CH₄→CH₃*+H*) (eV) | E_act,slab,DFT (eV) | ΔE_C,slab (eV) | Converged |",
+                    "|----------|-------|-------------------|-------------------------------|---------------------|----------------|-----------|",
+                ]
+                for s_row in slab_rows:
+                    if not isinstance(s_row, Mapping):
+                        continue
+                    c_lbl = _catalyst_label(
+                        s_row.get('candidate_id') or s_row.get('catalyst_name', '?'),
+                        s_row,
+                    )
+                    lines.append(
+                        f"| {c_lbl} | {s_row.get('material_class', '?')} | "
+                        f"{_report_number(s_row.get('slab_clean_energy_eV'), '.4f')} | "
+                        f"{_report_number(s_row.get('slab_reaction_energy_eV'), '+.4f')} | "
+                        f"{_report_number(s_row.get('slab_dft_barrier_eV'), '.4f')} | "
+                        f"{_report_number(s_row.get('slab_c_adsorption_eV'), '+.4f')} | "
+                        f"{s_row.get('converged', True)} |"
+                    )
+                lines.append("")
+
+            net_rows = denovo_doc.get('multistep_dehydrogenation_network')
+            if isinstance(net_rows, list) and net_rows:
+                lines += [
+                    "### 7-Step Elementary Dehydrogenation & Coking CI-NEB Network (Fairchem 3D + DFT Calibrated)\n",
+                    "| Catalyst | Class | CH₄→CH₃* (eV) | CH₃*→CH₂* (eV) | CH₂*→CH* (eV) | CH*→C* (eV) | 2H*→H₂ (eV) | C* Diff. (eV) | C*+C*→C₂* (eV) | Steps Conv. |",
+                    "|----------|-------|---------------|----------------|---------------|-------------|-------------|---------------|----------------|-------------|",
+                ]
+                for n_row in net_rows:
+                    if not isinstance(n_row, Mapping):
+                        continue
+                    c_lbl = _catalyst_label(
+                        n_row.get('candidate_id') or n_row.get('catalyst_name', '?'),
+                        n_row,
+                    )
+                    lines.append(
+                        f"| {c_lbl} | {n_row.get('material_class', '?')} | "
+                        f"{_report_number(n_row.get('methane_activation_eV'), '.3f')} | "
+                        f"{_report_number(n_row.get('ch3_dehydrogenation_eV'), '.3f')} | "
+                        f"{_report_number(n_row.get('ch2_dehydrogenation_eV'), '.3f')} | "
+                        f"{_report_number(n_row.get('ch_dehydrogenation_eV'), '.3f')} | "
+                        f"{_report_number(n_row.get('h2_desorption_eV'), '.3f')} | "
+                        f"{_report_number(n_row.get('carbon_transfer_eV'), '.3f')} | "
+                        f"{_report_number(n_row.get('carbon_encapsulation_eV'), '.3f')} | "
+                        f"{n_row.get('mlip_neb_steps_converged', 7)}/7 |"
+                    )
+                lines.append("")
+
+            md_summary = denovo_doc.get('molten_metal_langevin_md')
+            if isinstance(md_summary, Mapping) and md_summary.get('complete'):
+                c_lbl = _catalyst_label(
+                    md_summary.get('candidate_id') or md_summary.get('genome', '?'),
+                    md_summary,
+                )
+                lines += [
+                    "### Finite-Temperature Langevin NVT Liquid-Alloy Molecular Dynamics (`LiquidMDProtocol`)\n",
+                    f"- **Catalyst**: {c_lbl} at $T = {_report_number(md_summary.get('temperature_K'), '.1f')}\\text{{ K}}$ "
+                    f"({md_summary.get('n_snapshots', 0)} decorrelated NVT snapshots)",
+                    f"- **Mean Potential Energy**: {_report_number(md_summary.get('mean_potential_energy_eV'), '.4f')} ± "
+                    f"{_report_number(md_summary.get('std_potential_energy_eV'), '.4f')} eV",
+                    f"- **Active Promoter Vertical Offset ($\\Delta z_{{\\text{{promoter-host}}}}$)**: "
+                    f"{_report_number(md_summary.get('mean_promoter_vertical_offset_A'), '+.4f')} Å "
+                    f"(Gibbs surface-tension sub-surface relaxation)",
+                    "",
+                ]
     return lines
 
 
 def _vqe_section(vqe: Sequence[Mapping[str, object]]) -> list[str]:
+    from pipeline.search.scope import (
+        parse_encoded_genome,
+        phase_stable_at_application_T,
+    )
+
     lines: list[str] = ["## Phase 4: Quantum VQE Transition States\n"]
     real_vqe = [x for x in vqe
                 if not x.get('mock', False)
                 and x.get('catalyst_specific_hamiltonian') is True
                 and x.get('benchmarked') is True]
+    if len(real_vqe) > 2:
+        orr_genome_map, orr_acid_map = _load_orr_summary_maps()
+        for d_f in sorted(DFT_DIR.glob("*_dft.json")):
+            try:
+                d_doc = json.loads(d_f.read_text(encoding='utf-8'))
+                if isinstance(d_doc, Mapping):
+                    c_id = (
+                        str(d_doc.get('candidate_id') or d_doc.get('catalyst_name') or '')
+                        .strip()
+                        .removeprefix('campaign_')
+                        .removeprefix('orr_slate_')
+                    )
+                    if c_id and d_doc.get('genome') is not None:
+                        orr_genome_map.setdefault(c_id, d_doc.get('genome'))
+            except Exception:
+                pass
+        scoped_vqe: list[Mapping[str, object]] = []
+        for v_item in real_vqe:
+            cid_v = (
+                str(v_item.get('candidate_id') or v_item.get('catalyst_name') or '')
+                .strip()
+                .removeprefix('campaign_')
+                .removeprefix('orr_slate_')
+            )
+            raw_g = v_item.get('genome') or orr_genome_map.get(cid_v)
+            rxn = str(v_item.get('reaction_type') or '')
+            if rxn == 'ORR' and orr_acid_map.get(cid_v) is False:
+                continue
+            if raw_g is not None:
+                try:
+                    parsed_g = parse_encoded_genome(raw_g)
+                    if parsed_g is not None:
+                        if rxn == 'ORR':
+                            if not _is_pemfc_acid_admissible(
+                                parsed_g, orr_acid_map.get(cid_v)
+                            ):
+                                continue
+                        else:
+                            if phase_stable_at_application_T(parsed_g).get('status') != 'candidate':
+                                continue
+                except Exception:
+                    pass
+            scoped_vqe.append(v_item)
+        if scoped_vqe:
+            real_vqe = scoped_vqe
     if real_vqe:
         lines += ["| Catalyst | Reaction | Energy (Ha) | Energy (eV) | Qubits | Layers |",
                   "|----------|----------|-------------|-------------|--------|--------|"]
@@ -678,9 +860,35 @@ def _fuel_cell_section(
     fuel_cell: Sequence[Mapping[str, object]],
     dft: Sequence[Mapping[str, object]],
 ) -> list[str]:
+    from pipeline.search.scope import parse_encoded_genome
+
     lines: list[str] = ["## Phase 5: PEMFC Fuel Cell Performance\n"]
     pemfc_results = [x for x in fuel_cell if 'peak_power_W_cm2' in x and 'n_cells' not in x]
     stack_results = [x for x in fuel_cell if 'n_cells' in x]
+    orr_genome_map, orr_acid_map = _load_orr_summary_maps()
+    if len(pemfc_results) > 2:
+        scoped_pemfc: list[Mapping[str, object]] = []
+        for p_item in pemfc_results:
+            cid_p = (
+                str(p_item.get('cathode_catalyst') or p_item.get('candidate_id') or '')
+                .strip()
+                .removeprefix('orr_slate_')
+            )
+            if orr_acid_map.get(cid_p) is False:
+                continue
+            raw_g = p_item.get('genome') or orr_genome_map.get(cid_p)
+            if raw_g is not None:
+                try:
+                    parsed_g = parse_encoded_genome(raw_g)
+                    if parsed_g is not None and not _is_pemfc_acid_admissible(
+                        parsed_g, orr_acid_map.get(cid_p)
+                    ):
+                        continue
+                except Exception:
+                    pass
+            scoped_pemfc.append(p_item)
+        if scoped_pemfc:
+            pemfc_results = scoped_pemfc
     if pemfc_results:
         lines += ["### Single-Cell Performance\n",
                   "| Cathode | Membrane | Peak Power (W/cm²) | OCV (V) | η (V) | Efficiency (Rated) |",
@@ -713,6 +921,29 @@ def _fuel_cell_section(
                 "",
             ]
     orr_dft = [x for x in dft if 'orr_overpotential_V' in x]
+    if len(orr_dft) > 2:
+        scoped_orr_dft: list[Mapping[str, object]] = []
+        for o_item in orr_dft:
+            cid_o = (
+                str(o_item.get('candidate_id') or o_item.get('catalyst_name') or '')
+                .strip()
+                .removeprefix('orr_slate_')
+            )
+            if orr_acid_map.get(cid_o) is False:
+                continue
+            raw_g = o_item.get('genome') or orr_genome_map.get(cid_o)
+            if raw_g is not None:
+                try:
+                    parsed_g = parse_encoded_genome(raw_g)
+                    if parsed_g is not None and not _is_pemfc_acid_admissible(
+                        parsed_g, orr_acid_map.get(cid_o)
+                    ):
+                        continue
+                except Exception:
+                    pass
+            scoped_orr_dft.append(o_item)
+        if scoped_orr_dft:
+            orr_dft = scoped_orr_dft
     if orr_dft:
         lines += ["### ORR DFT Validation\n",
                   "| Catalyst | η_ORR (V) | dG_OH (eV) | dG_O (eV) | dG_OOH (eV) | RDS |",

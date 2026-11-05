@@ -462,17 +462,79 @@ def _slab_facet_key(facet: str) -> str:
     return facet_key if facet_key in _SLAB_FACETS else 'fcc111'
 
 
-def _top_layer_indices(slab: Atoms) -> list:
-    """Return indices of atoms within 3 angstrom of the slab top."""
+def _top_layer_indices(
+    slab: Atoms, preferred_symbols: tuple[str, ...] = ()
+) -> list[int]:
+    """Return indices of atoms within 3 angstrom of the slab top, prioritizing exposed active cations."""
     z = slab.positions[:, 2]
-    return list(np.where(z > z.max() - 3.0)[0])
+    z_max = float(z.max())
+    raw = [int(i) for i in np.where(z > z_max - 3.0)[0]]
+    pref = {s for s in preferred_symbols if s and s != 'None'}
+
+    def _sort_key(idx: int) -> tuple[int, float, int]:
+        sym = slab[idx].symbol
+        in_outer_plane = float(z[idx]) >= z_max - 0.85
+        is_pref = sym in pref
+        tier = (
+            0
+            if (in_outer_plane and is_pref)
+            else (
+                1
+                if (in_outer_plane and sym != 'O')
+                else (2 if is_pref else (3 if sym != 'O' else 4))
+            )
+        )
+        return (tier, -float(z[idx]), idx)
+
+    return sorted(raw, key=_sort_key)
+
+
+# Effective Shannon 6/12-coordinate ionic radii (Å) for ABO3 / AB2O4 lattice scaling
+_CATION_RADII_A: dict[str, float] = {
+    'La': 1.36,
+    'Sr': 1.44,
+    'Ba': 1.61,
+    'Ca': 1.34,
+    'Ce': 1.14,
+    'Pr': 1.18,
+    'Nd': 1.16,
+    'Sm': 1.13,
+    'Gd': 1.10,
+    'Y': 1.08,
+    'Mg': 0.72,
+    'Zn': 0.74,
+    'Ti': 0.605,
+    'V': 0.64,
+    'Cr': 0.615,
+    'Mn': 0.645,
+    'Fe': 0.645,
+    'Co': 0.61,
+    'Ni': 0.69,
+    'Cu': 0.73,
+    'Zr': 0.72,
+    'Nb': 0.64,
+    'Mo': 0.65,
+    'Ru': 0.62,
+    'Rh': 0.665,
+    'Al': 0.535,
+    'Ga': 0.62,
+    'In': 0.80,
+    'Sn': 0.69,
+}
 
 
 def _generate_perovskite_slab(
     A: str, B: str, dopant: str, frac: float, defect: str, seed_key=None
 ) -> Atoms:
-    """Generate a simple ABO₃ perovskite slab for MACE evaluation."""
-    a = 3.9
+    """Generate a BO2-terminated Pm-3m ABO3(001) perovskite slab with composition-scaled lattice constant."""
+    r_a = _CATION_RADII_A.get(A, 1.34)
+    r_b = _CATION_RADII_A.get(B, 0.64)
+    r_dop = _CATION_RADII_A.get(dopant, r_b) if dopant != 'None' else r_b
+    r_b_eff = (1.0 - float(frac)) * r_b + float(frac) * r_dop
+    # Cubic Pm-3m lattice constant from Goldschmidt A-O and B-O bond lengths (r_O = 1.40 Å)
+    a_ao = (r_a + 1.40) * np.sqrt(2.0)
+    a_bo = 2.0 * (r_b_eff + 1.40)
+    a = float(np.clip(0.5 * (a_ao + a_bo), 3.76, 4.12))
     atoms = Atoms()
     a_sites, b_sites, o_sites = [], [], []
     for ix in range(2):
@@ -495,7 +557,16 @@ def _generate_perovskite_slab(
     )
     if dopant != 'None' and frac > 0:
         count = max(1, min(len(b_sites), round(float(frac) * len(b_sites))))
-        for index in rng.sample(b_sites, count):
+        # Ensure at least one top-layer B-site is substituted when doped so the exposed
+        # BO2(001) termination probes the dopant-modified active site.
+        top_b = [idx for idx in b_sites if atoms.positions[idx, 2] > 2.0 * a]
+        chosen = []
+        if top_b:
+            chosen.append(rng.choice(top_b))
+        rem_pool = [idx for idx in b_sites if idx not in chosen]
+        if count > len(chosen) and rem_pool:
+            chosen.extend(rng.sample(rem_pool, min(count - len(chosen), len(rem_pool))))
+        for index in chosen:
             atoms[index].symbol = dopant
 
     vacancy_pool = {
@@ -521,9 +592,11 @@ def _generate_perovskite_slab(
 def _generate_spinel_slab(
     A: str, B: str, dopant: str, defect: str, support: str, seed_key=None
 ) -> Atoms:
-    """Build an AB2O4-like local slab rather than reusing ABO3 stoichiometry."""
+    """Build an octahedral-B-terminated AB2O4 spinel slab with composition-scaled lattice constant."""
     atoms = Atoms()
-    a = 4.1
+    r_a = _CATION_RADII_A.get(A, 0.72)
+    r_b = _CATION_RADII_A.get(B, 0.62)
+    a = float(np.clip(4.02 + 0.22 * (r_a - 0.70) + 0.30 * (r_b - 0.60), 3.95, 4.30))
     for ix in range(2):
         for iy in range(2):
             for iz in range(2):
@@ -543,7 +616,8 @@ def _generate_spinel_slab(
     )
     if dopant != 'None':
         b_sites = [i for i, atom in enumerate(atoms) if atom.symbol == B]
-        atoms[rng.choice(b_sites)].symbol = dopant
+        top_b = [i for i in b_sites if atoms.positions[i, 2] > 1.5 * a]
+        atoms[rng.choice(top_b if top_b else b_sites)].symbol = dopant
     vacancy_symbol = {'A_vacancy': A, 'B_vacancy': B, 'O_vacancy': 'O'}.get(defect)
     if vacancy_symbol:
         choices = [i for i, atom in enumerate(atoms) if atom.symbol == vacancy_symbol]
@@ -769,7 +843,7 @@ def _build_framework(genome, structure_seed):
 def _build_perovskite(genome, structure_seed):
     _, A, B, dopant, frac, defect = genome
     slab = _generate_perovskite_slab(A, B, dopant, frac, defect, seed_key=genome)
-    return slab, _top_layer_indices(slab)
+    return slab, _top_layer_indices(slab, preferred_symbols=(str(dopant), str(B)))
 
 
 def _build_metal_hydride(genome, structure_seed):
@@ -782,23 +856,89 @@ def _build_metal_hydride(genome, structure_seed):
         temperature_K=temp,
         seed_key=genome,
     )
-    return slab, _top_layer_indices(slab)
+    return slab, _top_layer_indices(slab, preferred_symbols=(str(second), str(metal)))
+
+
+def _insert_octahedral_interstitial_sublayers(
+    slab: Atoms, x_symbols: list[str]
+) -> list[int]:
+    """Insert octahedral interstitial C/N atoms at interlayer midplanes of an M_{n+1}X_n slab."""
+    if not x_symbols:
+        return []
+    slab.set_constraint()
+    z_vals = np.sort(np.unique(np.round(slab.positions[:, 2], 2)))
+    cell_len = slab.cell.lengths()
+    lx, ly = float(cell_len[0]), float(cell_len[1])
+    mid_zs = (
+        [0.5 * float(z_vals[k] + z_vals[k + 1]) for k in range(len(z_vals) - 1)]
+        if len(z_vals) >= 2
+        else [float(slab.positions[:, 2].mean())]
+    )
+    # Candidate hollow-site fractional (fx, fy) grid in the lateral unit cell
+    hollow_grid = [
+        (1.0 / 3.0, 2.0 / 3.0),
+        (2.0 / 3.0, 1.0 / 3.0),
+        (0.50, 0.50),
+        (0.25, 0.75),
+        (0.75, 0.25),
+        (0.18, 0.42),
+        (0.82, 0.58),
+    ]
+    added: list[int] = []
+    for idx_s, sym in enumerate(x_symbols):
+        z_mid = mid_zs[idx_s % len(mid_zs)]
+        best_pos = None
+        best_min_d = -1.0
+        for shift in range(len(hollow_grid)):
+            fx, fy = hollow_grid[(idx_s + shift) % len(hollow_grid)]
+            cand = np.array([fx * lx, fy * ly, z_mid], dtype=float)
+            min_d = float(np.linalg.norm(slab.positions - cand, axis=1).min())
+            if min_d > best_min_d:
+                best_min_d = min_d
+                best_pos = cand
+        if best_pos is not None and best_min_d >= 1.15:
+            slab.append(Atom(sym, position=best_pos))
+            added.append(len(slab) - 1)
+        else:
+            added.extend(_add_surface_markers(slab, [sym]))
+    z_all = slab.positions[:, 2]
+    z_min = float(z_all.min())
+    slab.set_constraint(FixAtoms(mask=z_all < z_min + 3.5))
+    return added
 
 
 def _build_max_phase(genome, structure_seed):
     _, M, A, X, n_val, dopant, facet = genome
-    dopants = tuple(x for x in (A, dopant) if x != 'None')
+    n_int = max(1, int(n_val))
+    # On basal_0001, the top catalytic layer is M (substituted by dopant if present) while
+    # the A-group nanolaminate layer resides in the subsurface plane; on prism edge facets
+    # (edge_1010, edge_1120), both M/dopant and A are exposed at the surface step.
+    if str(facet) == 'basal_0001':
+        top_dopants = (dopant,) if str(dopant) != 'None' else ()
+    else:
+        top_dopants = tuple(x for x in (dopant, A) if str(x) != 'None')
     slab, top_idx = generate_alloy_slab(
         M,
         _MAX_FACETS.get(facet, 'hcp0001'),
         0.0,
-        dopants,
-        min(len(dopants), 2),
+        top_dopants,
+        min(len(top_dopants), 2),
         0,
-        size=(3, 3, n_val + 1),
+        size=(3, 3, n_int + 1),
         seed_key=genome,
     )
-    _add_surface_markers(slab, [X] * n_val)
+    if str(facet) == 'basal_0001' and str(A) != 'None':
+        # Substitute A-group atoms into the subsurface nanolaminate plane
+        z_coords = slab.positions[:, 2]
+        z_max = float(z_coords.max())
+        sub_indices = [
+            int(i)
+            for i in range(len(slab))
+            if int(i) not in set(top_idx) and float(z_coords[i]) < z_max - 1.5
+        ]
+        for sub_i in sub_indices[:3]:
+            slab[sub_i].symbol = str(A)
+    _insert_octahedral_interstitial_sublayers(slab, [str(X)] * n_int)
     return slab, top_idx
 
 
@@ -837,23 +977,27 @@ def _build_spinel(genome, structure_seed):
     )
     morphology_scale = 0.98 + 0.04 * _label_fraction(morph)
     slab.set_cell(slab.cell * [morphology_scale, 1.0, 1.0], scale_atoms=True)
-    return slab, _top_layer_indices(slab)
+    return slab, _top_layer_indices(slab, preferred_symbols=(str(dopant), str(B)))
 
 
 def _build_mxene(genome, structure_seed):
     _, M, X_elem, n_val, term, sac_metal = genome
+    n_int = max(1, int(n_val))
     slab, top_idx = generate_alloy_slab(
         M,
         'hcp0001',
         0.0,
         (sac_metal,) if sac_metal != 'None' else (),
-        1,
+        1 if sac_metal != 'None' else 0,
         0,
-        size=(3, 3, n_val + 1),
+        size=(3, 3, n_int + 1),
         seed_key=genome,
     )
     x_symbols = list(('C', 'N') if X_elem == 'CN' else (X_elem,))
-    _add_surface_markers(slab, x_symbols * n_val + _MXENE_TERMINATIONS.get(term, []))
+    _insert_octahedral_interstitial_sublayers(slab, x_symbols * n_int)
+    term_syms = _MXENE_TERMINATIONS.get(term, [])
+    if term_syms:
+        _add_surface_markers(slab, list(term_syms))
     return slab, top_idx
 
 

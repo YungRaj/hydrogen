@@ -289,6 +289,45 @@ def compute_candidate_mlip_neb(
                 zpe_correction_ev=ZPE_CORRECTION_H2_EV,
             )
             neb_steps_converged += int(ok5)
+
+            # Step 6: C* surface diffusion hop (C_site1* -> C_site2*)
+            c_site1 = ads_pos - 0.35 * ads_dir
+            c_site2 = c_site1 + np.array([2.45, 0.0, 0.0])
+            init_6 = structure.copy()
+            init_6.append(Atom('C', position=c_site1))
+            fin_6 = structure.copy()
+            fin_6.append(Atom('C', position=c_site2))
+            c_trans, ok6 = _run_neb_step(
+                init_6,
+                fin_6,
+                calc,
+                n_images=n_images,
+                fmax=fmax,
+                max_steps=max_steps,
+                fallback=c_trans,
+                zpe_correction_ev=-0.03,
+            )
+            neb_steps_converged += int(ok6)
+
+            # Step 7: C* + C* -> C2* graphitic dimerization / encapsulation nucleation
+            init_7 = structure.copy()
+            init_7.append(Atom('C', position=c_site1 + np.array([-1.35, 0.0, 0.0])))
+            init_7.append(Atom('C', position=c_site1 + np.array([1.35, 0.0, 0.0])))
+            fin_7 = structure.copy()
+            fin_7.append(Atom('C', position=c_site1 + np.array([-0.66, 0.0, 0.15])))
+            fin_7.append(Atom('C', position=c_site1 + np.array([0.66, 0.0, 0.15])))
+            c_encap_fallback = max(c_trans + 0.03, c_encap)
+            c_encap, ok7 = _run_neb_step(
+                init_7,
+                fin_7,
+                calc,
+                n_images=n_images,
+                fmax=fmax,
+                max_steps=max_steps,
+                fallback=c_encap_fallback,
+                zpe_correction_ev=-0.04,
+            )
+            neb_steps_converged += int(ok7)
         except Exception:
             pass
 

@@ -891,6 +891,59 @@ def parse_champion_neb_barrier(neb_output_file: str) -> ChampionNEBBarrierResult
     return _parse(neb_output_file)
 
 
+def generate_champion_slab_adsorption_inputs(
+    catalyst_name: str,
+    genome: tuple[object, ...],
+    *,
+    output_dir: Path | None = None,
+    kpoints: tuple[int, int, int] = (2, 2, 1),
+) -> dict[str, str]:
+    """Generate periodic surface-slab QE inputs (initial CH4*, TS saddle, final CH3*+H*) for a finalist.
+
+    Args:
+        catalyst_name: Catalyst identifier used for output filenames.
+        genome: Catalyst genome tuple.
+        output_dir: Optional directory for generated slab QE input files.
+        kpoints: Monkhorst-Pack k-point mesh for the periodic surface slab.
+
+    Returns:
+        Dictionary mapping stage names (`initial`, `ts`, `final`) to written QE `.in` file paths.
+    """
+    from pipeline.validation.neb_path import (
+        build_champion_neb_slab as _build_slab,
+        methane_dissociation_images,
+    )
+
+    calc_dir = Path(output_dir) if output_dir is not None else (DFT_DIR / catalyst_name)
+    calc_dir.mkdir(parents=True, exist_ok=True)
+    slab, active_idx = _build_slab(genome)
+    images = methane_dissociation_images(slab, active_index=active_idx, n_images=5)
+    stage_images = {
+        'initial': images[0],
+        'ts': images[len(images) // 2],
+        'final': images[-1],
+    }
+    paths: dict[str, str] = {}
+    for stage_key, img in stage_images.items():
+        elems = [atom.symbol for atom in img]
+        pos_ang = [tuple(float(x) for x in pos) for pos in img.positions]
+        cell_ang = [
+            [float(x) for x in row] for row in img.cell.array
+        ]
+        in_text = generate_slab_scf_input(
+            elems,
+            pos_ang,
+            cell_ang,
+            calc_name=f"{catalyst_name}_slab_{stage_key}",
+            ecutwfc=45.0,
+            kpoints=kpoints,
+        )
+        in_path = calc_dir / f"{catalyst_name}_slab_{stage_key}.in"
+        in_path.write_text(in_text, encoding='utf-8')
+        paths[stage_key] = str(in_path)
+    return paths
+
+
 if __name__ == '__main__':
     # Test: generate input for a Ni-Bi molten metal catalyst
     genome = ('MoltenMetal', 'Bi', 'Ni', 10.0, 1000)
