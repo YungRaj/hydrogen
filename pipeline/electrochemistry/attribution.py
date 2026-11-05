@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any, Mapping
+from collections.abc import Mapping
 
 
 def compare_regeneration(
     baseline: Mapping[str, float], regeneration: Mapping[str, float]
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """Return carbon-removal deltas without changing either result.
 
     Args:

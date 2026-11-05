@@ -2,16 +2,23 @@
 
 from __future__ import annotations
 
-import hashlib
 from dataclasses import dataclass, replace
+import hashlib
 from pathlib import Path
+from typing import cast
 
-import numpy as np
 from ase import Atoms
 from ase.build import molecule
 from ase.geometry import find_mic
 from ase.mep import NEB
 from ase.units import Bohr
+import numpy as np
+
+from pipeline.data_models.quantum import (
+    ChampionNEBBarrierResult,
+    ChampionNEBInputMetadata,
+    NEBRestartBoundResult,
+)
 
 
 @dataclass(frozen=True)
@@ -679,7 +686,9 @@ def neb_checkpoint_images(path: str | Path, templates: list[Atoms]) -> list[Atom
     return recovered
 
 
-def bound_neb_restart_checkpoint(path: str | Path, final_iteration: int) -> dict:
+def bound_neb_restart_checkpoint(
+    path: str | Path, final_iteration: int
+) -> NEBRestartBoundResult:
     """Set an enforceable absolute iteration ceiling in a QE NEB restart.
 
     On restart, ``neb.x`` takes ``nstep_path`` from the first four lines of
@@ -899,7 +908,9 @@ def redistribute_neb_images_equal_arc(
     unwrapped = [np.asarray(images[0].positions, dtype=float).copy()]
     for previous, current in zip(images, images[1:]):
         displacement = current.positions - previous.positions
-        minimum_displacement, _ = find_mic(displacement, cell, pbc=pbc)
+        minimum_displacement, _ = find_mic(
+            displacement, cell, pbc=cast(bool, pbc)
+        )
         unwrapped.append(unwrapped[-1] + minimum_displacement)
     segment_lengths = np.asarray(
         [np.linalg.norm(right - left) for left, right in zip(unwrapped, unwrapped[1:])]
@@ -933,7 +944,7 @@ def redistribute_neb_images_equal_arc(
     return redistributed
 
 
-def build_champion_neb_slab(genome: tuple) -> tuple[Atoms, int]:
+def build_champion_neb_slab(genome: tuple[object, ...]) -> tuple[Atoms, int]:
     """Build a periodic 2x2x2 surface slab and active site index for CH4 -> CH3* + H* NEB.
 
     Args:
@@ -947,18 +958,18 @@ def build_champion_neb_slab(genome: tuple) -> tuple[Atoms, int]:
     from ase.build import fcc111
     from ase.constraints import FixAtoms
     from pipeline.validation.dft_validator import (
-        _FCC_EQUIVALENT_LATTICE_BOHR,
-        _extract_genome_motif_elements,
+        FCC_EQUIVALENT_LATTICE_BOHR,
+        extract_genome_motif_elements,
     )
 
-    motif_elems = _extract_genome_motif_elements(genome)
+    motif_elems = extract_genome_motif_elements(genome)
     host_elem = (
         str(genome[1])
         if str(genome[0]) in ('MoltenMetal', 'SolidCatalyst')
-        and str(genome[1]) in _FCC_EQUIVALENT_LATTICE_BOHR
+        and str(genome[1]) in FCC_EQUIVALENT_LATTICE_BOHR
         else motif_elems[0]
     )
-    celldm_bohr = _FCC_EQUIVALENT_LATTICE_BOHR.get(host_elem, 7.0)
+    celldm_bohr = FCC_EQUIVALENT_LATTICE_BOHR.get(host_elem, 7.0)
     a_ang = celldm_bohr * 0.529177210903
     slab = fcc111(host_elem, size=(2, 2, 2), a=a_ang, vacuum=6.0, periodic=True)
     top_indices = [i for i, atom in enumerate(slab) if atom.tag == 1]
@@ -977,12 +988,12 @@ def build_champion_neb_slab(genome: tuple) -> tuple[Atoms, int]:
 
 def generate_champion_neb_input(
     catalyst_name: str,
-    genome: tuple,
+    genome: tuple[object, ...],
     *,
     n_images: int = 7,
     path_config: NEBPathConfig | None = None,
     output_dir: Path | None = None,
-) -> dict:
+) -> ChampionNEBInputMetadata:
     """Generate a candidate-specific Quantum ESPRESSO `neb.x` input for CH4 -> CH3* + H*.
 
     Args:
@@ -1012,15 +1023,24 @@ def generate_champion_neb_input(
         prefix=f'{catalyst_name}_neb',
         path_config=cfg,
     )
+    sssp_raw = meta.get('sssp')
+    sssp_dict: dict[str, object] = (
+        dict(sssp_raw) if isinstance(sssp_raw, dict) else {}
+    )
     return {
-        **meta,
+        'path': str(meta.get('path', neb_input_path)),
+        'n_images': int(meta.get('n_images', len(images))),
+        'sssp': sssp_dict,
+        'equal_arc_preconditioned': bool(
+            meta.get('equal_arc_preconditioned', False)
+        ),
         'catalyst_name': catalyst_name,
         'active_index': active_index,
         'elements': sorted(set(images[0].get_chemical_symbols())),
     }
 
 
-def parse_champion_neb_barrier(neb_output_file: str) -> dict:
+def parse_champion_neb_barrier(neb_output_file: str) -> ChampionNEBBarrierResult:
     """Parse a QE `neb.x` output file and classify candidate kinetics status.
 
     Args:

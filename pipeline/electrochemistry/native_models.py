@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Mapping
 
 from pipeline.electrochemistry.cell import CellOperatingPoint, cell_voltage
 from pipeline.electrochemistry.kinetics import (
@@ -42,7 +42,7 @@ def turquoise_reversible_voltage_V(temperature_K: float, electrons: int = 4) -> 
     return float(delta_g_j_mol / (n_e * FARADAY_C_MOL))
 
 
-def electrochemical_screening_point(parameters: dict[str, float]) -> dict[str, Any]:
+def electrochemical_screening_point(parameters: Mapping[str, float]) -> dict[str, object]:
     """Evaluate one explicit analytic electrochemical operating point.
 
     Required parameters are intentionally passed by name; there are no hidden
@@ -118,7 +118,7 @@ def electrochemical_screening_point(parameters: dict[str, float]) -> dict[str, A
     }
 
 
-def ntec_screening_point(parameters: dict[str, float]) -> dict[str, Any]:
+def ntec_screening_point(parameters: Mapping[str, float]) -> dict[str, object]:
     """Evaluate explicit collision, impact, and detachment diagnostics.
 
     Args:
@@ -148,7 +148,7 @@ def ntec_screening_point(parameters: dict[str, float]) -> dict[str, Any]:
         * parameters['contact_area_m2']
         * detached
     )
-    result: dict[str, Any] = {
+    result: dict[str, object] = {
         'status': 'diagnostic', 'reactor_evidence_tier': 'native_screening_model',
         'can_exclude_candidate': False, 'collision_events_per_volume_s': collisions,
         'impact_energy_J': impact,
@@ -185,3 +185,4 @@ def ntec_screening_point(parameters: dict[str, float]) -> dict[str, Any]:
             ),
         })
     return result
+

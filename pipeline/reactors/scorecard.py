@@ -12,6 +12,7 @@ from typing import Iterable, Mapping, Protocol, cast
 from pipeline.reactors.eligibility import finite_number, is_usable_result
 from pipeline.reactors.modes import ReactorTypeName
 from pipeline.data_models.reactors import (
+    PBRErgunDiagnosticsSummary,
     SolidsMetricRow,
     SolidsScorecard,
     SupportedNiFilamentClosureGateResult as SupportedNiFilamentClosureGateResult,
@@ -217,7 +218,7 @@ def metric_row(record: Mapping[str, object]) -> SolidsMetricRow:
 
 def evaluate_pbr_and_ergun_residence_diagnostics(
     records: Iterable[Mapping[str, object]],
-) -> dict[str, object]:
+) -> PBRErgunDiagnosticsSummary:
     """Summarize PBR intraparticle effectiveness, Ergun ΔP, pilot residence-time, and regenerated-cycle conversion deltas.
 
     Quantifies packed-bed pellet diffusion limitations (overall effectiveness

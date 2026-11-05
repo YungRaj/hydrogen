@@ -1,37 +1,45 @@
 """Thermocatalytic packed-bed plug-flow reactor model."""
 
-from typing import List, Optional, Tuple
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import cast
 
 import numpy as np
+import numpy.typing as npt
 
-from pipeline.data_models.reactors import ReactorResult
+from pipeline.data_models.reactors import (
+    CanteraGasPhase,
+    CanteraSurfacePhase,
+    ReactorResult,
+)
 from pipeline.reactors.reactor_core import (
     PFR_PILOT_TAU_BAND_S,
     REGEN_OXIDATIVE,
     R_J_MOL_K,
     ReactorConfig,
-    _advance_reactor_stage,
-    _ch4_extent,
-    _clamp_gas_to_equilibrium,
-    _coverage,
-    _load_gas_and_surface,
-    _mole_fraction_drop,
-    _off_site_carbon_metrics,
-    _require_ar_tracer,
-    _reset_surface_carbon,
-    _species_x,
-    _validate_carbon_policy,
     active_sv,
+    advance_reactor_stage,
+    ch4_extent,
+    clamp_gas_to_equilibrium,
     common_reactor_result_fields,
     geometric_sv_pfr,
+    load_gas_and_surface,
     logger,
+    mole_fraction_drop,
+    off_site_carbon_metrics,
+    require_ar_tracer,
+    reset_surface_carbon,
     solids_inventory_fields,
+    species_x,
+    surface_coverage,
+    validate_carbon_policy,
 )
 
 
 def _run_pfr_pass(
-    gas: object,
-    surf: object,
+    gas: CanteraGasPhase,
+    surf: CanteraSurfacePhase | None,
     *,
     n_stages: int,
     t_inlet_k: float,
@@ -40,26 +48,26 @@ def _run_pfr_pass(
     stage_gas_volume: float,
     stage_surface_area: float,
     tau_stage: float,
-) -> Tuple[List[float], List[float], List[Optional[float]], Optional[np.ndarray], float]:
+) -> tuple[list[float], list[float], list[float], npt.NDArray[np.float64] | None, float]:
     """Advance one full Lagrangian PFR pass across all axial stages without nonlocal state."""
-    conversion_profile: List[float] = [0.0]
-    temperature_profile: List[float] = [float(t_inlet_k)]
-    theta_c_tos: List[Optional[float]] = [_coverage(surf, 'C_s')]
-    pass_start_cov = (
-        np.array(getattr(surf, 'coverages'), dtype=float)
+    conversion_profile: list[float] = [0.0]
+    temperature_profile: list[float] = [float(t_inlet_k)]
+    theta_c_tos: list[float] = [surface_coverage(surf, 'C_s')]
+    pass_start_cov: npt.NDArray[np.float64] | None = (
+        np.array(surf.coverages, dtype=np.float64)
         if surf is not None
         else None
     )
     pass_produce_time_s = 0.0
     for _ in range(n_stages):
-        _advance_reactor_stage(
+        advance_reactor_stage(
             gas, surf, stage_gas_volume, stage_surface_area, tau_stage
         )
-        _clamp_gas_to_equilibrium(gas, ch4_initial, ar_initial)
+        clamp_gas_to_equilibrium(gas, ch4_initial, ar_initial)
         pass_produce_time_s += tau_stage
-        conversion_profile.append(_ch4_extent(gas, ch4_initial, ar_initial))
-        temperature_profile.append(float(getattr(gas, 'T', t_inlet_k)))
-        theta_c_tos.append(_coverage(surf, 'C_s'))
+        conversion_profile.append(ch4_extent(gas, ch4_initial, ar_initial))
+        temperature_profile.append(float(gas.T))
+        theta_c_tos.append(surface_coverage(surf, 'C_s'))
     return (
         conversion_profile,
         temperature_profile,
@@ -70,7 +78,10 @@ def _run_pfr_pass(
 
 
 def simulate_pfr(
-    config: ReactorConfig, *, cantera_available: bool, mock_result
+    config: ReactorConfig,
+    *,
+    cantera_available: bool,
+    mock_result: Callable[[ReactorConfig, str], ReactorResult],
 ) -> ReactorResult:
     """Packed bed as a staged Lagrangian PFR with one shared surface.
 
@@ -87,19 +98,19 @@ def simulate_pfr(
     Returns:
         Dictionary containing the computed values, status, and supporting metadata.
     """
-    _validate_carbon_policy(config)
+    validate_carbon_policy(config)
     if not cantera_available:
         return mock_result(config, 'PFR')
 
     logger.info(f"Simulating PFR: {config.catalyst_name} at {config.T_inlet_K} K")
-    gas, graphite, surf = _load_gas_and_surface(config)
+    gas, graphite, surf = load_gas_and_surface(config)
     gas.TPX = config.T_inlet_K, config.P_inlet_Pa, config.inlet_composition
 
     eps = config.bed_porosity
     sv_ratio = active_sv(geometric_sv_pfr(config), config)  # m² active / m³ bed
-    ch4_initial = _species_x(gas, 'CH4') or 1.0
-    ar_initial = _species_x(gas, 'Ar')
-    _require_ar_tracer(ch4_initial, ar_initial)
+    ch4_initial = species_x(gas, 'CH4') or 1.0
+    ar_initial = species_x(gas, 'Ar')
+    require_ar_tracer(ch4_initial, ar_initial)
 
     n_stages = 50
     bed_cross_area = np.pi * (config.bed_diameter_m / 2) ** 2
@@ -113,13 +124,13 @@ def simulate_pfr(
 
     z_positions = np.linspace(0, config.bed_length_m, n_stages + 1)
     cycles_completed = 0
-    per_cycle_conversion: List[float] = []
+    per_cycle_conversion: list[float] = []
     produce_time_s = 0.0
 
     # One produce pass (always). Optional discrete regen cycles if configured.
     gas.TPX = config.T_inlet_K, config.P_inlet_Pa, config.inlet_composition
     if surf is not None:
-        _reset_surface_carbon(surf)
+        reset_surface_carbon(surf)
     (
         conversion_profile,
         temperature_profile,
@@ -153,7 +164,7 @@ def simulate_pfr(
                 'Oxidative PFR regen enabled via co2_permitted=True (test only)'
             )
         # Mechanical / consumable: free-site reset without CO2 chemistry in-model.
-        _reset_surface_carbon(surf)
+        reset_surface_carbon(surf)
         gas.TPX = config.T_inlet_K, config.P_inlet_Pa, config.inlet_composition
         cycles_completed += 1
         (
@@ -177,7 +188,7 @@ def simulate_pfr(
         per_cycle_conversion.append(conversion_profile[-1])
 
     final_conv = conversion_profile[-1]
-    x_h2 = _species_x(gas, 'H2')
+    x_h2 = species_x(gas, 'H2')
 
     # Carbon accounting on the parcel basis (last pass).
     gamma_mol_m2 = float(config.site_density_mol_cm2) * 1e4
@@ -185,7 +196,7 @@ def simulate_pfr(
     c_total = config.P_inlet_Pa / (R_J_MOL_K * config.T_inlet_K)  # mol/m³
     n_parcel_in_mol = c_total * stage_gas_volume
     n_ch4_fed_mol = ch4_initial * n_parcel_in_mol
-    off_site = _off_site_carbon_metrics(
+    off_site = off_site_carbon_metrics(
         config,
         gas,
         surf,
@@ -237,7 +248,7 @@ def simulate_pfr(
         'cycle_averaged_CH4_conversion': float(
             np.mean(per_cycle_conversion) if per_cycle_conversion else final_conv
         ),
-        'CH4_mole_fraction_drop': _mole_fraction_drop(gas, ch4_initial),
+        'CH4_mole_fraction_drop': mole_fraction_drop(gas, ch4_initial),
         'conversion_basis': 'argon_tracer',
         'thermal_mode': 'isothermal_energy_disabled',
         'surface_area_basis': 'sv_per_bed_volume_times_bed_volume',
@@ -266,4 +277,4 @@ def simulate_pfr(
         f"  PFR result: conversion={final_conv:.2%}, τ={tau_total:.1f}s, "
         f"regen_cycles={cycles_completed}"
     )
-    return result
+    return cast(ReactorResult, result)

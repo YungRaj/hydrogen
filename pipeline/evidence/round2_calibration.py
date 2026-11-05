@@ -4,14 +4,24 @@ from __future__ import annotations
 
 import ast
 from collections import defaultdict
+from collections.abc import Mapping, Sequence
 import hashlib
 import json
 from pathlib import Path
 import tempfile
-from typing import Any, Mapping, Sequence
+from typing import cast
 
 import numpy as np
+import numpy.typing as npt
 
+from pipeline.data_models.evidence import (
+    ActiveLearningCalibrationArtifact,
+    ApplicationCalibrationSummary,
+    CalibrationObservation,
+    Round2ApplicationReport,
+    Round2BatchReport,
+    Round2CampaignReport,
+)
 from pipeline.search.discovery import candidate_id, discovery_region
 
 
@@ -31,7 +41,7 @@ def build_active_learning_calibration_artifact(
     *,
     database: str | Path | None = None,
     prior_rows: float = 5.0,
-) -> dict[str, Any]:
+) -> ActiveLearningCalibrationArtifact:
     """Ingest QE DFT + grand-canonical/interfacial residuals into active-learning calibration.
 
     Args:
@@ -53,7 +63,7 @@ def build_active_learning_calibration_artifact(
 
     orr_path = Path(orr_summary_path)
     pyro_path = Path(pyrolysis_scorecard_path)
-    observations: list[dict[str, Any]] = []
+    observations: list[CalibrationObservation] = []
 
     if pyro_path.is_file():
         pyro_doc = json.loads(pyro_path.read_text(encoding='utf-8'))
@@ -66,6 +76,8 @@ def build_active_learning_calibration_artifact(
                     ast.literal_eval(raw_genome)
                     if isinstance(raw_genome, str)
                     else tuple(raw_genome)
+                    if isinstance(raw_genome, Sequence)
+                    else ()
                 )
                 pred_e = float(
                     champ.get('E_act_eV', champ.get('raw_activation_eV'))
@@ -78,10 +90,10 @@ def build_active_learning_calibration_artifact(
                 )
             except (KeyError, TypeError, ValueError, SyntaxError):
                 continue
-            if not (np.isfinite(pred_e) and np.isfinite(obs_e)):
+            if not genome or not (np.isfinite(pred_e) and np.isfinite(obs_e)):
                 continue
             cid = str(champ.get('candidate_id') or candidate_id(genome))
-            prov = {
+            prov: dict[str, str | float | bool] = {
                 'source_id': f'qe_pyrolysis_dft:{cid}',
                 'qe_total_energy_eV': float(champ.get('qe_dft_energy_eV', 0.0)),
                 'calibrated_activation_eV': float(
@@ -114,10 +126,12 @@ def build_active_learning_calibration_artifact(
                 continue
             raw_genome = rec.get('genome')
             try:
-                genome = (
+                genome: tuple[object, ...] = (
                     ast.literal_eval(raw_genome)
                     if isinstance(raw_genome, str)
                     else tuple(raw_genome)
+                    if isinstance(raw_genome, Sequence)
+                    else ()
                 )
                 pred_v = float(
                     rec.get(
@@ -133,11 +147,11 @@ def build_active_learning_calibration_artifact(
                 )
             except (KeyError, TypeError, ValueError, SyntaxError):
                 continue
-            if not (np.isfinite(pred_v) and np.isfinite(obs_v)):
+            if not genome or not (np.isfinite(pred_v) and np.isfinite(obs_v)):
                 continue
             cid = str(rec.get('candidate_id') or candidate_id(genome))
             acid_stable = bool(rec.get('pourbaix_acid_stable', False))
-            prov = {
+            prov_orr: dict[str, str | float | bool] = {
                 'source_id': f'qe_gc_dft:{cid}',
                 'qe_total_energy_eV': float(
                     rec.get(
@@ -168,11 +182,13 @@ def build_active_learning_calibration_artifact(
                     'residual_eV': round(obs_v - pred_v, 6),
                     'fidelity': 'qe_gc_dft',
                     'productive': bool(obs_v <= 0.35 and acid_stable),
-                    'provenance': prov,
+                    'provenance': prov_orr,
                 }
             )
 
-    def _compute_app_maps(db_file: str, app_name: str) -> dict[str, Any]:
+    def _compute_app_maps(
+        db_file: str, app_name: str
+    ) -> ApplicationCalibrationSummary:
         cls_stats = class_calibration(db_file, app_name)
         reg_stats = regional_calibration(db_file, app_name)
         cls_bias: dict[str, float] = {}
@@ -212,7 +228,7 @@ def build_active_learning_calibration_artifact(
                 obs['observed_eV'],
                 obs['fidelity'],
                 obs['productive'],
-                obs['provenance'],
+                dict(obs['provenance']),
             )
         turq_maps = _compute_app_maps(db_target, 'turquoise_hydrogen')
         orr_maps = _compute_app_maps(db_target, 'fuel_cell_orr')
@@ -241,8 +257,18 @@ def build_active_learning_calibration_artifact(
     digest_sha = hashlib.sha256(
         json.dumps(digest_body, sort_keys=True, separators=(',', ':')).encode()
     ).hexdigest()
-    payload = {
-        **digest_body,
+    payload: ActiveLearningCalibrationArtifact = {
+        'schema_version': 1,
+        'n_validation_samples': len(observations),
+        'prior_rows': float(prior_rows),
+        'class_bias_eV': combined_class_bias,
+        'class_bias_delta_eV': combined_class_bias,
+        'region_bias_eV': combined_region_bias,
+        'applications': {
+            'turquoise_hydrogen': turq_maps,
+            'fuel_cell_orr': orr_maps,
+        },
+        'observations': observations,
         'calibration_sha256': digest_sha,
     }
 
@@ -255,7 +281,7 @@ def build_active_learning_calibration_artifact(
     return payload
 
 
-def pyrolysis_genome_structural_prior_eV(genome: Sequence[Any]) -> float:
+def pyrolysis_genome_structural_prior_eV(genome: Sequence[object]) -> float:
     """Compute strictly pre-screening physical/structural barrier prior for CH4 pyrolysis.
 
     Encodes ADR-0001 thermal phase stability at 1073 K alongside active-site
@@ -360,7 +386,7 @@ def evaluate_round2_dft_calibrated_campaign(
     ),
     *,
     random_trials: int = 10000,
-) -> dict[str, Any]:
+) -> Round2CampaignReport:
     """Evaluate Round 2 DFT-calibrated prospective policy against uncalibrated and control baselines.
 
     Scores all 35 preregistered ORR batches (1,680 candidates) against the
@@ -386,11 +412,14 @@ def evaluate_round2_dft_calibrated_campaign(
 
     cal_file = Path(calibration_path)
     if not cal_file.is_file():
-        cal_doc = build_active_learning_calibration_artifact(
-            output_path=cal_file
+        cal_doc: ActiveLearningCalibrationArtifact = (
+            build_active_learning_calibration_artifact(output_path=cal_file)
         )
     else:
-        cal_doc = json.loads(cal_file.read_text(encoding='utf-8'))
+        cal_doc = cast(
+            ActiveLearningCalibrationArtifact,
+            json.loads(cal_file.read_text(encoding='utf-8')),
+        )
 
     turq_bias = (
         cal_doc.get('applications', {})
@@ -450,7 +479,7 @@ def evaluate_round2_dft_calibrated_campaign(
         return chosen_ids
 
     # 1. Evaluate 35-batch ORR confirmatory pool (prereg-01 .. prereg-35)
-    orr_batch_reports: list[dict[str, Any]] = []
+    orr_batch_reports: list[Round2BatchReport] = []
     orr_totals = {
         'catalyst_dft_calibrated': 0,
         'catalyst_uncalibrated': 0,
@@ -463,7 +492,7 @@ def evaluate_round2_dft_calibrated_campaign(
         'uncertainty': 0,
         'validity': 0,
     }
-    orr_random_matrix: list[np.ndarray] = []
+    orr_random_matrix: list[npt.NDArray[np.int16]] = []
     prior_orr_region_sum: dict[str, list[float]] = defaultdict(list)
     prior_orr_class_sum: dict[str, list[float]] = defaultdict(list)
 
@@ -507,7 +536,7 @@ def evaluate_round2_dft_calibrated_campaign(
         if record is None:
             continue
 
-        rows_by_cid: dict[str, dict[str, Any]] = {}
+        rows_by_cid: dict[str, dict[str, object]] = {}
         with outcome_path.open(newline='', encoding='utf-8') as f:
             for row in csv.DictReader(f):
                 genome = ast.literal_eval(row['genome'])
@@ -527,11 +556,11 @@ def evaluate_round2_dft_calibrated_campaign(
         valid_gc_scores: list[tuple[float, str, str]] = []
         calibrated_acquisition_pool: list[tuple[float, str, str]] = []
         doe_gc_stable_ids: set[str] = set()
-        batch_observations_for_next: list[tuple[tuple, float]] = []
+        batch_observations_for_next: list[tuple[tuple[object, ...], float]] = []
 
         for elig_idx, cid in enumerate(eligible_ids):
             row = rows_by_cid[cid]
-            genome = row['_genome']
+            genome = cast(tuple[object, ...], row['_genome'])
             m_cls = str(genome[0])
             reg = '|'.join(discovery_region(genome))
             reg_shift = float(
@@ -573,7 +602,7 @@ def evaluate_round2_dft_calibrated_campaign(
             # Post-screening evaluation of the batch outcome
             is_valid = str(row.get('valid', '')).lower() == 'true'
             try:
-                che_eta = float(row.get('orr_overpotential_V', 'nan'))
+                che_eta = float(str(row.get('orr_overpotential_V', 'nan')))
             except (TypeError, ValueError):
                 che_eta = float('nan')
             is_eligible_metric = (
@@ -582,9 +611,9 @@ def evaluate_round2_dft_calibrated_campaign(
             if is_eligible_metric:
                 batch_observations_for_next.append((genome, che_eta))
                 try:
-                    dg_oh = float(row.get('dG_OH_eV', row.get('dG_OH')))
-                    dg_o = float(row.get('dG_O_eV', row.get('dG_O')))
-                    dg_ooh = float(row.get('dG_OOH_eV', row.get('dG_OOH')))
+                    dg_oh = float(str(row.get('dG_OH_eV', row.get('dG_OH'))))
+                    dg_o = float(str(row.get('dG_O_eV', row.get('dG_O'))))
+                    dg_ooh = float(str(row.get('dG_OOH_eV', row.get('dG_OOH'))))
                     gc_info = compute_grand_canonical_orr_corrections(
                         dg_oh, dg_o, dg_ooh, genome=genome
                     )
@@ -611,7 +640,7 @@ def evaluate_round2_dft_calibrated_campaign(
             calibrated_acquisition_pool, budget
         )
 
-        batch_hits = {
+        batch_hits: dict[str, int] = {
             'catalyst_dft_calibrated': sum(
                 c in hit_ids for c in dft_cal_selected
             ),
@@ -639,7 +668,8 @@ def evaluate_round2_dft_calibrated_campaign(
 
         by_class_ids: dict[str, list[str]] = defaultdict(list)
         for cid in eligible_ids:
-            by_class_ids[str(rows_by_cid[cid]['_genome'][0])].append(cid)
+            g_cid = cast(tuple[object, ...], rows_by_cid[cid]['_genome'])
+            by_class_ids[str(g_cid[0])].append(cid)
         rng = np.random.default_rng(int(record.get('random_seed', 42)))
         rand_draws = np.empty(random_trials, dtype=np.int16)
         sorted_classes = sorted(by_class_ids)
@@ -685,14 +715,14 @@ def evaluate_round2_dft_calibrated_campaign(
     )
 
     # 2. Evaluate 10 Pyrolysis batches (20260930-catalyst-01..09 + smoke-relax-v4-20261009)
-    pyro_batch_reports: list[dict[str, Any]] = []
+    pyro_batch_reports: list[Round2BatchReport] = []
     pyro_totals = {
         'catalyst_dft_calibrated': 0,
         'catalyst_uncalibrated': 0,
         'uncertainty': 0,
         'validity': 0,
     }
-    pyro_random_matrix: list[np.ndarray] = []
+    pyro_random_matrix: list[npt.NDArray[np.int16]] = []
     prior_pyro_region_sum: dict[str, list[float]] = defaultdict(list)
     prior_pyro_class_sum: dict[str, list[float]] = defaultdict(list)
 
@@ -786,11 +816,11 @@ def evaluate_round2_dft_calibrated_campaign(
 
         valid_interfacial_scores: list[tuple[float, str, str]] = []
         calibrated_pyro_pool: list[tuple[float, str, str]] = []
-        batch_pyro_obs: list[tuple[tuple, float]] = []
+        batch_pyro_obs: list[tuple[tuple[object, ...], float]] = []
 
         for elig_idx, cid in enumerate(eligible_ids):
             row = rows_by_cid[cid]
-            genome = row['_genome']
+            genome = cast(tuple[object, ...], row['_genome'])
             m_cls = str(genome[0])
             reg = '|'.join(discovery_region(genome))
             reg_shift = float(
@@ -829,7 +859,7 @@ def evaluate_round2_dft_calibrated_campaign(
             is_censored = str(row.get('E_act_censored', '')).lower() == 'true'
             is_viable = str(row.get('pyrolysis_viable', 'true')).lower() == 'true'
             try:
-                e_act = float(row.get('E_act', 'nan'))
+                e_act = float(str(row.get('E_act', 'nan')))
             except (TypeError, ValueError):
                 e_act = float('nan')
             is_eligible_metric = (
@@ -837,11 +867,13 @@ def evaluate_round2_dft_calibrated_campaign(
             )
             if is_eligible_metric:
                 try:
-                    c_disp_raw = float(row.get('c_height_above_surface_A', 'nan'))
+                    c_disp_raw = float(
+                        str(row.get('c_height_above_surface_A', 'nan'))
+                    )
                 except (TypeError, ValueError):
                     c_disp_raw = float('nan')
                 try:
-                    coke_idx = float(row.get('coking_index', 'nan'))
+                    coke_idx = float(str(row.get('coking_index', 'nan')))
                 except (TypeError, ValueError):
                     coke_idx = float('nan')
                 if np.isfinite(c_disp_raw):
@@ -897,7 +929,8 @@ def evaluate_round2_dft_calibrated_campaign(
 
         by_class_ids = defaultdict(list)
         for cid in eligible_ids:
-            by_class_ids[str(rows_by_cid[cid]['_genome'][0])].append(cid)
+            g_cid = cast(tuple[object, ...], rows_by_cid[cid]['_genome'])
+            by_class_ids[str(g_cid[0])].append(cid)
         rng = np.random.default_rng(int(record.get('random_seed', 42)))
         rand_draws = np.empty(random_trials, dtype=np.int16)
         sorted_classes = sorted(by_class_ids)
@@ -952,82 +985,87 @@ def evaluate_round2_dft_calibrated_campaign(
         / (len(pyro_rand_sum) + 1)
     )
 
-    body = {
+    fuel_cell_orr_report: Round2ApplicationReport = {
+        'n_batches': len(orr_batch_reports),
+        'total_budget_selected': len(orr_batch_reports) * 20,
+        'policy_hits_gc_acid_stable_top20pct': orr_totals,
+        'doe_035V_gc_acid_stable_hits': orr_doe_gc_hits,
+        'dft_calibrated_hit_lift_vs_uncalibrated': int(
+            orr_totals['catalyst_dft_calibrated']
+            - orr_totals['catalyst_uncalibrated']
+        ),
+        'dft_calibrated_doe_hit_lift_vs_uncalibrated': int(
+            orr_doe_gc_hits['catalyst_dft_calibrated']
+            - orr_doe_gc_hits['catalyst_uncalibrated']
+        ),
+        'policy_matched_random_mean_hits': round(
+            float(np.mean(orr_rand_sum)), 4
+        ),
+        'dft_calibrated_enrichment_vs_random': round(
+            float(
+                orr_totals['catalyst_dft_calibrated']
+                / max(float(np.mean(orr_rand_sum)), 1e-9)
+            ),
+            4,
+        ),
+        'dft_calibrated_p_value': orr_p_dft,
+        'uncalibrated_p_value': orr_p_uncal,
+        'acceptance_passed': bool(
+            orr_totals['catalyst_dft_calibrated']
+            > orr_totals['catalyst_uncalibrated']
+            and orr_totals['catalyst_dft_calibrated']
+            > orr_totals['uncertainty']
+            and orr_totals['catalyst_dft_calibrated']
+            > orr_totals['validity']
+            and orr_p_dft <= 0.05
+        ),
+        'batches': orr_batch_reports,
+    }
+    turquoise_report: Round2ApplicationReport = {
+        'n_batches': len(pyro_batch_reports),
+        'total_budget_selected': len(pyro_batch_reports) * 20,
+        'policy_hits_interfacial_calibrated_top20pct': pyro_totals,
+        'dft_calibrated_hit_lift_vs_uncalibrated': int(
+            pyro_totals['catalyst_dft_calibrated']
+            - pyro_totals['catalyst_uncalibrated']
+        ),
+        'policy_matched_random_mean_hits': round(
+            float(np.mean(pyro_rand_sum)), 4
+        ),
+        'dft_calibrated_enrichment_vs_random': round(
+            float(
+                pyro_totals['catalyst_dft_calibrated']
+                / max(float(np.mean(pyro_rand_sum)), 1e-9)
+            ),
+            4,
+        ),
+        'dft_calibrated_p_value': pyro_p_dft,
+        'uncalibrated_p_value': pyro_p_uncal,
+        'acceptance_passed': bool(
+            pyro_totals['catalyst_dft_calibrated']
+            >= pyro_totals['catalyst_uncalibrated']
+            and pyro_totals['catalyst_dft_calibrated']
+            > pyro_totals['uncertainty']
+            and pyro_totals['catalyst_dft_calibrated']
+            > pyro_totals['validity']
+            and pyro_p_dft <= 0.05
+        ),
+        'batches': pyro_batch_reports,
+    }
+    body: dict[str, object] = {
         'schema_version': 1,
         'calibration_sha256': cal_doc.get('calibration_sha256'),
-        'fuel_cell_orr': {
-            'n_batches': len(orr_batch_reports),
-            'total_budget_selected': len(orr_batch_reports) * 20,
-            'policy_hits_gc_acid_stable_top20pct': orr_totals,
-            'doe_035V_gc_acid_stable_hits': orr_doe_gc_hits,
-            'dft_calibrated_hit_lift_vs_uncalibrated': int(
-                orr_totals['catalyst_dft_calibrated']
-                - orr_totals['catalyst_uncalibrated']
-            ),
-            'dft_calibrated_doe_hit_lift_vs_uncalibrated': int(
-                orr_doe_gc_hits['catalyst_dft_calibrated']
-                - orr_doe_gc_hits['catalyst_uncalibrated']
-            ),
-            'policy_matched_random_mean_hits': round(
-                float(np.mean(orr_rand_sum)), 4
-            ),
-            'dft_calibrated_enrichment_vs_random': round(
-                float(
-                    orr_totals['catalyst_dft_calibrated']
-                    / max(float(np.mean(orr_rand_sum)), 1e-9)
-                ),
-                4,
-            ),
-            'dft_calibrated_p_value': orr_p_dft,
-            'uncalibrated_p_value': orr_p_uncal,
-            'acceptance_passed': bool(
-                orr_totals['catalyst_dft_calibrated']
-                > orr_totals['catalyst_uncalibrated']
-                and orr_totals['catalyst_dft_calibrated']
-                > orr_totals['uncertainty']
-                and orr_totals['catalyst_dft_calibrated']
-                > orr_totals['validity']
-                and orr_p_dft <= 0.05
-            ),
-            'batches': orr_batch_reports,
-        },
-        'turquoise_hydrogen': {
-            'n_batches': len(pyro_batch_reports),
-            'total_budget_selected': len(pyro_batch_reports) * 20,
-            'policy_hits_interfacial_calibrated_top20pct': pyro_totals,
-            'dft_calibrated_hit_lift_vs_uncalibrated': int(
-                pyro_totals['catalyst_dft_calibrated']
-                - pyro_totals['catalyst_uncalibrated']
-            ),
-            'policy_matched_random_mean_hits': round(
-                float(np.mean(pyro_rand_sum)), 4
-            ),
-            'dft_calibrated_enrichment_vs_random': round(
-                float(
-                    pyro_totals['catalyst_dft_calibrated']
-                    / max(float(np.mean(pyro_rand_sum)), 1e-9)
-                ),
-                4,
-            ),
-            'dft_calibrated_p_value': pyro_p_dft,
-            'uncalibrated_p_value': pyro_p_uncal,
-            'acceptance_passed': bool(
-                pyro_totals['catalyst_dft_calibrated']
-                >= pyro_totals['catalyst_uncalibrated']
-                and pyro_totals['catalyst_dft_calibrated']
-                > pyro_totals['uncertainty']
-                and pyro_totals['catalyst_dft_calibrated']
-                > pyro_totals['validity']
-                and pyro_p_dft <= 0.05
-            ),
-            'batches': pyro_batch_reports,
-        },
+        'fuel_cell_orr': fuel_cell_orr_report,
+        'turquoise_hydrogen': turquoise_report,
     }
     report_sha = hashlib.sha256(
         json.dumps(body, sort_keys=True, separators=(',', ':')).encode()
     ).hexdigest()
-    report = {
-        **body,
+    report: Round2CampaignReport = {
+        'schema_version': 1,
+        'calibration_sha256': str(cal_doc['calibration_sha256']),
+        'fuel_cell_orr': fuel_cell_orr_report,
+        'turquoise_hydrogen': turquoise_report,
         'report_sha256': report_sha,
     }
     target = Path(output_path)

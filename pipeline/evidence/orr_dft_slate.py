@@ -3,17 +3,25 @@
 from __future__ import annotations
 
 import ast
+from collections import defaultdict
+from collections.abc import Iterable
 import csv
 import hashlib
 import json
 import math
-from collections import defaultdict
 from pathlib import Path
-from typing import Any, Iterable
+from typing import cast
 
-from pipeline.search.discovery import candidate_id
+from pipeline.data_models.evidence import (
+    ORRConfirmatoryDFTSummary,
+    ORRPolicyEnrichmentSummary,
+    ORRRoleSummary,
+    ORRSlateSelectedRow,
+    ORRValidatedSlateRecord,
+)
 from pipeline.io.hashing import file_sha256
 from pipeline.io.json import write_atomic_json
+from pipeline.search.discovery import candidate_id
 
 ROOT = Path('results/prospective_search')
 OUTPUT = Path('results/dft/orr_confirmatory_slate.json')
@@ -22,15 +30,30 @@ OUTPUT = Path('results/dft/orr_confirmatory_slate.json')
 SLATE_SIZE = 50
 
 
-def _rank(rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
-    return sorted(rows, key=lambda row: (row['predicted_overpotential_V'], row['candidate_id']))
+def _rank(rows: Iterable[ORRSlateSelectedRow]) -> list[ORRSlateSelectedRow]:
+    return sorted(
+        rows,
+        key=lambda row: (row['predicted_overpotential_V'], row['candidate_id']),
+    )
 
 
 def _take(
-    candidates: Iterable[dict[str, Any]], count: int, selected: dict[str, dict[str, Any]], role: str
+    candidates: Iterable[ORRSlateSelectedRow],
+    count: int,
+    selected: dict[str, ORRSlateSelectedRow],
+    role: str,
 ) -> None:
     for row in candidates:
-        if len([item for item in selected.values() if item['selection_role'] == role]) >= count:
+        if (
+            len(
+                [
+                    item
+                    for item in selected.values()
+                    if item.get('selection_role') == role
+                ]
+            )
+            >= count
+        ):
             return
         identity = str(row['candidate_id'])
         if identity not in selected:
@@ -55,7 +78,7 @@ def build_slate(output: Path = OUTPUT) -> Path:
         raise RuntimeError('confirmatory batch count does not match the locked plan')
 
     source_hashes = {str(final_path): file_sha256(final_path)}
-    rows: list[dict[str, Any]] = []
+    rows: list[ORRSlateSelectedRow] = []
     for batch in batch_ids:
         folder = ROOT / 'batches' / batch
         manifest_path = folder / 'manifest.json'
@@ -102,8 +125,8 @@ def build_slate(output: Path = OUTPUT) -> Path:
                     'policy_membership': policies,
                 })
 
-    selected: dict[str, dict[str, Any]] = {}
-    by_class: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    selected: dict[str, ORRSlateSelectedRow] = {}
+    by_class: dict[str, list[ORRSlateSelectedRow]] = defaultdict(list)
     for row in rows:
         by_class[str(row['material_class'])].append(row)
     for material_class in sorted(by_class):
@@ -122,19 +145,24 @@ def build_slate(output: Path = OUTPUT) -> Path:
     if len(selected) != SLATE_SIZE:
         raise RuntimeError(f'DFT slate has {len(selected)} candidates, expected {SLATE_SIZE}')
 
-    records = []
+    slate_records: list[ORRSlateSelectedRow] = []
     for rank, row in enumerate(selected.values(), 1):
-        records.append({'rank': rank, **row})
+        slate_records.append({'rank': rank, **row})
     body = {
         'application': 'fuel_cell_orr',
         'screening_evidence': 'esen_gnn_not_dft',
         'validation_goal': 'measure GNN-to-DFT error, rank retention, and policy enrichment',
         'selection_counts': dict(sorted(
-            (role, sum(item['selection_role'] == role for item in records))
-            for role in {item['selection_role'] for item in records}
+            (
+                role,
+                sum(item.get('selection_role') == role for item in slate_records),
+            )
+            for role in {
+                str(item.get('selection_role', '')) for item in slate_records
+            }
         )),
         'source_sha256': source_hashes,
-        'records': records,
+        'records': slate_records,
     }
     from pipeline.io.hashing import canonical_json_sha256
 
@@ -173,7 +201,7 @@ def summarize_orr_slate_dft_validation(
     slate_path: Path = OUTPUT,
     dft_dir: Path = Path('results/dft'),
     output_path: Path = SUMMARY_OUTPUT,
-) -> dict[str, Any]:
+) -> ORRConfirmatoryDFTSummary:
     """Aggregate QE pw.x DFT validation, GC-DFT shifts, and policy enrichment for the locked ORR slate.
 
     Args:
@@ -192,8 +220,8 @@ def summarize_orr_slate_dft_validation(
     )
 
     slate = json.loads(slate_path.read_text(encoding='utf-8'))
-    validated_records: list[dict[str, Any]] = []
-    by_role: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    validated_records: list[ORRValidatedSlateRecord] = []
+    by_role: dict[str, list[ORRValidatedSlateRecord]] = defaultdict(list)
 
     for row in slate['records']:
         cid = str(row['candidate_id'])
@@ -203,7 +231,7 @@ def summarize_orr_slate_dft_validation(
             alt_path = dft_dir / f'campaign_{cid}_dft.json'
             if alt_path.is_file():
                 dft_path = alt_path
-        dft_rec: dict[str, Any] = (
+        dft_rec: dict[str, object] = (
             json.loads(dft_path.read_text(encoding='utf-8'))
             if dft_path.is_file()
             else {}
@@ -224,34 +252,45 @@ def summarize_orr_slate_dft_validation(
         dft_e_ry = dft_rec.get('dft_energy_Ry')
         dft_e_ev = dft_rec.get('dft_energy_eV')
         max_f = dft_rec.get('max_force_Ry_bohr')
-        enriched = {
-            **row,
-            'orr_overpotential_gc_V': round(eta_gc, 6),
-            'gc_field_shift_OH_eV': round(float(gc_corr['dG_OH_gc_eV']) - dg_oh, 6),
-            'pourbaix_dissolution_onset_V': round(
-                float(gc_corr['pourbaix_dissolution_onset_V']), 4
-            ),
-            'pourbaix_dissolution_margin_V': round(
-                float(gc_corr['pourbaix_dissolution_margin_V']), 4
-            ),
-            'pourbaix_acid_stable': acid_stable,
-            'qe_converged': qe_conv,
-            'qe_dft_energy_Ry': (
-                round(float(dft_e_ry), 6) if isinstance(dft_e_ry, (int, float)) else None
-            ),
-            'qe_dft_energy_eV': (
-                round(float(dft_e_ev), 4) if isinstance(dft_e_ev, (int, float)) else None
-            ),
-            'qe_max_force_Ry_bohr': (
-                round(float(max_f), 6) if isinstance(max_f, (int, float)) else None
-            ),
-            'doe_target_hit': eta_che <= DOE_ORR_OVERPOTENTIAL_TARGET_V,
-            'doe_target_hit_gc': eta_gc <= DOE_ORR_OVERPOTENTIAL_TARGET_V,
-        }
+        enriched = cast(
+            ORRValidatedSlateRecord,
+            {
+                **row,
+                'orr_overpotential_gc_V': round(eta_gc, 6),
+                'gc_field_shift_OH_eV': round(
+                    float(gc_corr['dG_OH_gc_eV']) - dg_oh, 6
+                ),
+                'pourbaix_dissolution_onset_V': round(
+                    float(gc_corr['pourbaix_dissolution_onset_V']), 4
+                ),
+                'pourbaix_dissolution_margin_V': round(
+                    float(gc_corr['pourbaix_dissolution_margin_V']), 4
+                ),
+                'pourbaix_acid_stable': acid_stable,
+                'qe_converged': qe_conv,
+                'qe_dft_energy_Ry': (
+                    round(float(dft_e_ry), 6)
+                    if isinstance(dft_e_ry, (int, float))
+                    else None
+                ),
+                'qe_dft_energy_eV': (
+                    round(float(dft_e_ev), 4)
+                    if isinstance(dft_e_ev, (int, float))
+                    else None
+                ),
+                'qe_max_force_Ry_bohr': (
+                    round(float(max_f), 6)
+                    if isinstance(max_f, (int, float))
+                    else None
+                ),
+                'doe_target_hit': eta_che <= DOE_ORR_OVERPOTENTIAL_TARGET_V,
+                'doe_target_hit_gc': eta_gc <= DOE_ORR_OVERPOTENTIAL_TARGET_V,
+            },
+        )
         validated_records.append(enriched)
         by_role[str(row['selection_role'])].append(enriched)
 
-    role_summary: dict[str, dict[str, Any]] = {}
+    role_summary: dict[str, ORRRoleSummary] = {}
     for role, items in sorted(by_role.items()):
         etas = [float(x['predicted_overpotential_V']) for x in items]
         etas_gc = [float(x['orr_overpotential_gc_V']) for x in items]
@@ -272,12 +311,12 @@ def summarize_orr_slate_dft_validation(
     guided_pool = [
         x
         for x in validated_records
-        if x['selection_role'] in ('class_champion', 'guided_top')
+        if x.get('selection_role') in ('class_champion', 'guided_top')
     ]
     control_pool = [
         x
         for x in validated_records
-        if x['selection_role']
+        if x.get('selection_role')
         in ('uncertainty_control', 'validity_control', 'coverage_control')
     ]
     guided_hit_rate = (
@@ -291,9 +330,20 @@ def summarize_orr_slate_dft_validation(
         else 0.0
     )
     n_conv = sum(1 for x in validated_records if x['qe_converged'])
-    body: dict[str, Any] = {
+    enrichment: ORRPolicyEnrichmentSummary = {
+        'guided_and_champion_count': len(guided_pool),
+        'control_count': len(control_pool),
+        'guided_doe_hit_rate': round(guided_hit_rate, 4),
+        'control_doe_hit_rate': round(control_hit_rate, 4),
+        'enrichment_ratio': (
+            round(guided_hit_rate / control_hit_rate, 4)
+            if control_hit_rate > 0
+            else None
+        ),
+    }
+    body: dict[str, object] = {
         'application': 'fuel_cell_orr',
-        'slate_sha256': slate['slate_sha256'],
+        'slate_sha256': str(slate['slate_sha256']),
         'n_slate_candidates': len(validated_records),
         'n_qe_converged': n_conv,
         'qe_convergence_rate': round(n_conv / max(len(validated_records), 1), 4),
@@ -301,22 +351,26 @@ def summarize_orr_slate_dft_validation(
             1 for x in validated_records if x['pourbaix_acid_stable']
         ),
         'role_summary': role_summary,
-        'policy_enrichment': {
-            'guided_and_champion_count': len(guided_pool),
-            'control_count': len(control_pool),
-            'guided_doe_hit_rate': round(guided_hit_rate, 4),
-            'control_doe_hit_rate': round(control_hit_rate, 4),
-            'enrichment_ratio': (
-                round(guided_hit_rate / control_hit_rate, 4)
-                if control_hit_rate > 0
-                else None
-            ),
-        },
+        'policy_enrichment': enrichment,
         'records': validated_records,
     }
     digest = canonical_json_sha256(body)
-    payload = {'schema_version': 1, **body, 'summary_sha256': digest}
-    write_atomic_json(output_path, payload)
+    payload: ORRConfirmatoryDFTSummary = {
+        'schema_version': 1,
+        'application': 'fuel_cell_orr',
+        'slate_sha256': str(slate['slate_sha256']),
+        'n_slate_candidates': len(validated_records),
+        'n_qe_converged': n_conv,
+        'qe_convergence_rate': round(n_conv / max(len(validated_records), 1), 4),
+        'n_pourbaix_acid_stable': sum(
+            1 for x in validated_records if x['pourbaix_acid_stable']
+        ),
+        'role_summary': role_summary,
+        'policy_enrichment': enrichment,
+        'records': validated_records,
+        'summary_sha256': digest,
+    }
+    write_atomic_json(output_path, dict(payload))
     return payload
 
 

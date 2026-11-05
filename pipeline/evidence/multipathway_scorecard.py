@@ -5,7 +5,21 @@ from __future__ import annotations
 import json
 import math
 from pathlib import Path
+from typing import cast
 
+from pipeline.data_models.evidence import (
+    CoupledPathwayTEARow,
+    DFTCalibratedPathwayRow,
+    DFTCalibratedReactorMetrics,
+    DiscoveryChampionRow,
+    MultipathwayChampionScorecard,
+    PathwayLeaderboardRow,
+    PEMFCStackSummaryRow,
+)
+from pipeline.data_models.reactors import (
+    ReactorResult,
+    SupportedNiFilamentClosureSummary,
+)
 from pipeline.economics.tea import LHV_H2_KWH_PER_KG, estimate_scenario_range
 
 
@@ -14,7 +28,7 @@ def build_multipathway_champion_scorecard(
     *,
     stack_cells: int = 400,
     top_k_catalysts: int = 11,
-) -> dict:
+) -> MultipathwayChampionScorecard:
     """Build an end-to-end 6-pathway champion portfolio and TEA scorecard.
 
     Aggregates Phase 1 turquoise discovery rows (annotated with validated
@@ -121,8 +135,8 @@ def build_multipathway_champion_scorecard(
                     screening_frames.append(pd.read_csv(p_csv))
                 except Exception:
                     pass
-    discovery_champions: list[dict] = []
-    candidate_Lookup: dict[str, dict] = {}
+    discovery_champions: list[DiscoveryChampionRow] = []
+    candidate_Lookup: dict[str, dict[str, object]] = {}
     if screening_frames:
         merged_df = pd.concat(screening_frames, ignore_index=True)
         if 'genome' in merged_df.columns:
@@ -133,7 +147,7 @@ def build_multipathway_champion_scorecard(
         for _, prow in pool.iterrows():
             cid_key = str(prow.get('candidate_id', '')).strip()
             if cid_key:
-                candidate_Lookup[cid_key] = prow.to_dict()
+                candidate_Lookup[cid_key] = dict(prow.to_dict())
         selected = select_for_pyrolysis_reactor(
             pool, top_k_catalysts, primary='E_act', min_per_class=1
         )
@@ -158,7 +172,7 @@ def build_multipathway_champion_scorecard(
                 except Exception:
                     pass
             coking = row.get('coking_index')
-            champ_entry: dict = {
+            champ_entry: DiscoveryChampionRow = {
                 'rank': rank_idx,
                 'candidate_id': cid_str,
                 'literature_catalyst_name': format_literature_catalyst_label(
@@ -168,7 +182,12 @@ def build_multipathway_champion_scorecard(
                 ),
                 'material_class': str(row.get('material_class', '')),
                 'genome': str(row.get('genome', '')),
-                'E_act_eV': round(float(row['E_act']), 4),
+                'E_act_eV': round(
+                    float(raw_e_act)
+                    if isinstance(raw_e_act := row.get('E_act', 0.0), (int, float, str))
+                    else 0.0,
+                    4,
+                ),
                 'calibrated_activation_eV': (
                     None
                     if cal_e_act is None or pd.isna(cal_e_act)
@@ -239,7 +258,7 @@ def build_multipathway_champion_scorecard(
                 }
 
     # 2. Phase 2 6-Pathway Reactor & TEA Leaderboard (Raw + DFT-Calibrated)
-    reactor_records: list[dict] = []
+    reactor_records: list[ReactorResult] = []
     for cdir in campaign_dirs:
         rdir = cdir / 'reactor'
         if not rdir.is_dir():
@@ -257,7 +276,7 @@ def build_multipathway_champion_scorecard(
                 and not rec.get('mock', False)
                 and is_usable_result(rec)
             ):
-                reactor_records.append(rec)
+                reactor_records.append(cast(ReactorResult, rec))
 
     pathway_filters = {
         'thermocatalytic_pfr': lambda r: (
@@ -289,7 +308,7 @@ def build_multipathway_champion_scorecard(
     }
 
     def _resolve_candidate_neb_evidence(
-        cat_name: str, cat_meta: dict
+        cat_name: str, cat_meta: dict[str, object]
     ) -> tuple[bool, float | None]:
         """Return (neb_converged, neb_forward_barrier_eV) for a catalyst if present."""
         if not cat_name:
@@ -330,7 +349,9 @@ def build_multipathway_champion_scorecard(
                     pass
         return False, None
 
-    def _compute_dft_calibrated_reactor_metrics(rec: dict) -> dict:
+    def _compute_dft_calibrated_reactor_metrics(
+        rec: ReactorResult,
+    ) -> DFTCalibratedReactorMetrics:
         cat_name = str(rec.get('catalyst_name', '')).strip()
         cat_meta = candidate_Lookup.get(cat_name, {})
         mat_cls = str(
@@ -370,9 +391,10 @@ def build_multipathway_champion_scorecard(
         # Effective barrier shift includes the QE AL class bias (or direct NEB shift) and 0.15 eV/A interfacial coking drag
         effective_barrier_shift_ev = max(0.0, delta_e_dft + 0.15 * c_disp_a)
         if str(rec.get('reactor_type', '')) == 'NTEC':
+            mp_scr = rec.get('multiphysics_screening')
             mp_out = (
-                rec.get('multiphysics_screening', {}).get('outputs', {})
-                if isinstance(rec.get('multiphysics_screening'), dict)
+                mp_scr.get('outputs', {})
+                if isinstance(mp_scr, dict) and isinstance(mp_scr.get('outputs'), dict)
                 else {}
             )
             raw_fe = mp_out.get('field_rate_enhancement')
@@ -424,8 +446,8 @@ def build_multipathway_champion_scorecard(
             'kinetics_status': kinetics_status,
         }
 
-    pathway_leaderboard: dict[str, dict] = {}
-    dft_calibrated_pathway_leaderboard: dict[str, dict] = {}
+    pathway_leaderboard: dict[str, PathwayLeaderboardRow] = {}
+    dft_calibrated_pathway_leaderboard: dict[str, DFTCalibratedPathwayRow] = {}
     for mode_name, predicate in pathway_filters.items():
         matching = [r for r in reactor_records if predicate(r)]
         if not matching:
@@ -631,7 +653,7 @@ def build_multipathway_champion_scorecard(
         }
 
     # 3. Phase 5 PEMFC Cathode & Stack TEA (Screening + QE GC/Pourbaix Confirmed)
-    pemfc_records: list[dict] = []
+    pemfc_records: list[dict[str, object]] = []
     for cdir in campaign_dirs:
         fcdir = cdir / 'fuel_cell'
         if not fcdir.is_dir():
@@ -662,8 +684,8 @@ def build_multipathway_champion_scorecard(
         'MetalHydride',
         'MoltenMetal',
     }
-    pemfc_stack_summary: dict = {'status': 'no_pemfc_records'}
-    coupled_tea: dict[str, dict] = {}
+    pemfc_stack_summary: PEMFCStackSummaryRow = {'status': 'no_pemfc_records'}
+    coupled_tea: dict[str, CoupledPathwayTEARow] = {}
     if pemfc_records:
         dedup_pemfc = {
             (str(r.get('cathode_catalyst')), str(r.get('membrane'))): r
@@ -675,13 +697,27 @@ def build_multipathway_champion_scorecard(
         best_cell = ranked_pemfc[0]
         mat_cls = str(best_cell.get('material_class', ''))
         default_pgm = 0.05 if mat_cls in pgm_free_classes else 0.10
-        cell_pgm = float(best_cell.get('pgm_loading_mg_cm2', default_pgm))
-        cell_mem_cost = float(best_cell.get('membrane_cost_usd_cm2', 0.025))
+        raw_pgm = best_cell.get('pgm_loading_mg_cm2')
+        cell_pgm = (
+            float(raw_pgm) if isinstance(raw_pgm, (int, float)) else default_pgm
+        )
+        raw_mem_cost = best_cell.get('membrane_cost_usd_cm2')
+        cell_mem_cost = (
+            float(raw_mem_cost)
+            if isinstance(raw_mem_cost, (int, float))
+            else 0.025
+        )
+        raw_pk_v = best_cell.get('peak_voltage_V')
+        raw_pk_i = best_cell.get('peak_current_A_cm2')
         stack_res = model_stack(
             StackConfig(
                 n_cells=stack_cells,
-                cell_voltage_V=float(best_cell.get('peak_voltage_V', 0.65)),
-                current_density_A_cm2=float(best_cell.get('peak_current_A_cm2', 1.5)),
+                cell_voltage_V=(
+                    float(raw_pk_v) if isinstance(raw_pk_v, (int, float)) else 0.65
+                ),
+                current_density_A_cm2=(
+                    float(raw_pk_i) if isinstance(raw_pk_i, (int, float)) else 1.5
+                ),
                 pgm_loading_mg_cm2=cell_pgm,
                 membrane_cost_usd_cm2=cell_mem_cost,
             )
@@ -689,23 +725,37 @@ def build_multipathway_champion_scorecard(
         sys_eff = float(stack_res.get('system_efficiency', 0.50))
         best_cath_id = str(best_cell.get('cathode_catalyst', ''))
         best_cath_meta = candidate_Lookup.get(best_cath_id, {})
+        raw_pk_p = best_cell.get('peak_power_W_cm2')
+        raw_orr_eta = best_cell.get('orr_overpotential_V')
+        raw_eff_pk = best_cell.get('efficiency_at_peak')
         pemfc_stack_summary = {
             'status': 'complete',
             'n_single_cell_simulations': len(dedup_pemfc),
             'champion_cathode': best_cath_id,
             'champion_cathode_literature_name': format_literature_catalyst_label(
                 best_cath_id,
-                material_class=best_cell.get('material_class')
-                or best_cath_meta.get('material_class'),
-                genome=best_cell.get('genome') or best_cath_meta.get('genome'),
+                material_class=str(
+                    best_cell.get('material_class')
+                    or best_cath_meta.get('material_class')
+                    or ''
+                ),
+                genome=str(
+                    best_cell.get('genome') or best_cath_meta.get('genome') or ''
+                ),
             ),
             'champion_membrane': str(best_cell.get('membrane', '')),
-            'peak_power_W_cm2': round(float(best_cell.get('peak_power_W_cm2', 0.0)), 4),
+            'peak_power_W_cm2': round(
+                float(raw_pk_p) if isinstance(raw_pk_p, (int, float)) else 0.0, 4
+            ),
             'orr_overpotential_V': round(
-                float(best_cell.get('orr_overpotential_V', 0.0)), 4
+                float(raw_orr_eta)
+                if isinstance(raw_orr_eta, (int, float))
+                else 0.0,
+                4,
             ),
             'cell_efficiency_at_peak': round(
-                float(best_cell.get('efficiency_at_peak', 0.0)), 4
+                float(raw_eff_pk) if isinstance(raw_eff_pk, (int, float)) else 0.0,
+                4,
             ),
             'stack_cells': int(stack_res.get('n_cells', stack_cells)),
             'stack_net_power_kW': round(float(stack_res.get('net_power_kW', 0.0)), 2),
@@ -739,8 +789,10 @@ def build_multipathway_champion_scorecard(
 
     # 4. QE-Confirmed Grand-Canonical + Pourbaix Acid-Stable ORR PEMFC Stack & Coupled TEA
     orr_dft_path = root / 'dft' / 'orr_confirmatory_dft_summary.json'
-    dft_calibrated_pemfc_stack_summary: dict = {'status': 'no_confirmatory_orr_dft'}
-    dft_calibrated_coupled_tea: dict[str, dict] = {}
+    dft_calibrated_pemfc_stack_summary: PEMFCStackSummaryRow = {
+        'status': 'no_confirmatory_orr_dft'
+    }
+    dft_calibrated_coupled_tea: dict[str, CoupledPathwayTEARow] = {}
     if orr_dft_path.is_file():
         try:
             orr_doc = json.loads(orr_dft_path.read_text(encoding='utf-8'))
@@ -755,14 +807,14 @@ def build_multipathway_champion_scorecard(
                 and bool(r.get('pourbaix_acid_stable', False))
                 and isinstance(r.get('orr_overpotential_gc_V'), (int, float))
             ]
-            simulated_gc_cells: list[dict] = []
+            simulated_gc_cells: list[dict[str, object]] = []
             for r in stable_converged:
                 cid = str(r.get('candidate_id', ''))
                 m_cls = str(r.get('material_class', 'SolidCatalyst'))
                 eta_gc = float(r['orr_overpotential_gc_V'])
                 tafel = float(TAFEL_SLOPE_BY_CLASS.get(m_cls, 70.0))
                 cath_loading = 0.0 if m_cls in pgm_free_classes else 0.05
-                cell_sim = dict(
+                cell_sim: dict[str, object] = dict(
                     simulate_pemfc(
                         PEMFCConfig(
                             T_K=353.15,
@@ -811,52 +863,86 @@ def build_multipathway_champion_scorecard(
                 ]
                 best_pgm_free = pgm_free_gc[0] if pgm_free_gc else None
                 best_low_pgm = low_pgm_gc[0] if low_pgm_gc else None
+                raw_gc_v = best_gc.get('peak_voltage_V')
+                raw_gc_i = best_gc.get('peak_current_A_cm2')
+                raw_gc_pgm = best_gc.get('pgm_loading_mg_cm2')
+                raw_gc_mem = best_gc.get('membrane_cost_usd_cm2')
                 gc_stack = model_stack(
                     StackConfig(
                         n_cells=stack_cells,
-                        cell_voltage_V=float(best_gc.get('peak_voltage_V', 0.65)),
-                        current_density_A_cm2=float(
-                            best_gc.get('peak_current_A_cm2', 1.5)
+                        cell_voltage_V=(
+                            float(raw_gc_v)
+                            if isinstance(raw_gc_v, (int, float))
+                            else 0.65
                         ),
-                        pgm_loading_mg_cm2=float(
-                            best_gc.get('pgm_loading_mg_cm2', 0.10)
+                        current_density_A_cm2=(
+                            float(raw_gc_i)
+                            if isinstance(raw_gc_i, (int, float))
+                            else 1.5
                         ),
-                        membrane_cost_usd_cm2=float(
-                            best_gc.get('membrane_cost_usd_cm2', 0.025)
+                        pgm_loading_mg_cm2=(
+                            float(raw_gc_pgm)
+                            if isinstance(raw_gc_pgm, (int, float))
+                            else 0.10
+                        ),
+                        membrane_cost_usd_cm2=(
+                            float(raw_gc_mem)
+                            if isinstance(raw_gc_mem, (int, float))
+                            else 0.025
                         ),
                     )
                 )
                 gc_sys_eff = float(gc_stack.get('system_efficiency', 0.50))
                 gc_cath_id = str(best_gc.get('cathode_catalyst', ''))
+                raw_gc_pk_p = best_gc.get('peak_power_W_cm2')
+                raw_gc_rt_p = best_gc.get('rated_power_W_cm2')
+                raw_gc_eff = best_gc.get('efficiency_at_peak')
+                raw_gc_ry = best_gc.get('qe_dft_energy_Ry')
                 dft_calibrated_pemfc_stack_summary = {
                     'status': 'complete',
                     'n_qe_converged_acid_stable_cathodes': len(simulated_gc_cells),
                     'champion_cathode': gc_cath_id,
                     'champion_cathode_literature_name': format_literature_catalyst_label(
                         gc_cath_id,
-                        material_class=best_gc.get('material_class'),
-                        genome=best_gc.get('genome'),
+                        material_class=str(best_gc.get('material_class', '')),
+                        genome=str(best_gc.get('genome', '')),
                     ),
                     'champion_material_class': str(best_gc.get('material_class', '')),
                     'champion_genome': str(best_gc.get('genome', '')),
                     'champion_membrane': str(best_gc.get('membrane', 'AquivionE87')),
-                    'orr_overpotential_che_V': best_gc['orr_overpotential_che_V'],
-                    'orr_overpotential_gc_V': best_gc['orr_overpotential_gc_V'],
-                    'orr_tafel_slope_mV_dec': best_gc['orr_tafel_slope_mV_dec'],
-                    'pourbaix_dissolution_margin_V': best_gc[
-                        'pourbaix_dissolution_margin_V'
-                    ],
-                    'qe_dft_energy_Ry': best_gc.get('qe_dft_energy_Ry'),
+                    'orr_overpotential_che_V': float(
+                        cast(float, best_gc['orr_overpotential_che_V'])
+                    ),
+                    'orr_overpotential_gc_V': float(
+                        cast(float, best_gc['orr_overpotential_gc_V'])
+                    ),
+                    'orr_tafel_slope_mV_dec': float(
+                        cast(float, best_gc['orr_tafel_slope_mV_dec'])
+                    ),
+                    'pourbaix_dissolution_margin_V': float(
+                        cast(float, best_gc['pourbaix_dissolution_margin_V'])
+                    ),
+                    'qe_dft_energy_Ry': (
+                        float(raw_gc_ry)
+                        if isinstance(raw_gc_ry, (int, float))
+                        else None
+                    ),
                     'peak_power_W_cm2': round(
-                        float(best_gc.get('peak_power_W_cm2', 0.0)), 4
+                        float(raw_gc_pk_p)
+                        if isinstance(raw_gc_pk_p, (int, float))
+                        else 0.0,
+                        4,
                     ),
                     'rated_power_at_0p6V_W_cm2': (
-                        round(float(best_gc['rated_power_W_cm2']), 4)
-                        if best_gc.get('rated_power_W_cm2') is not None
+                        round(float(raw_gc_rt_p), 4)
+                        if isinstance(raw_gc_rt_p, (int, float))
                         else None
                     ),
                     'cell_efficiency_at_peak': round(
-                        float(best_gc.get('efficiency_at_peak', 0.0)), 4
+                        float(raw_gc_eff)
+                        if isinstance(raw_gc_eff, (int, float))
+                        else 0.0,
+                        4,
                     ),
                     'stack_cells': int(gc_stack.get('n_cells', stack_cells)),
                     'stack_net_power_kW': round(
@@ -878,25 +964,44 @@ def build_multipathway_champion_scorecard(
                                 best_pgm_free.get('cathode_catalyst', '')
                             ),
                             'cathode_catalyst_literature_name': format_literature_catalyst_label(
-                                best_pgm_free.get('cathode_catalyst', ''),
-                                material_class=best_pgm_free.get('material_class'),
-                                genome=best_pgm_free.get('genome'),
+                                str(best_pgm_free.get('cathode_catalyst', '')),
+                                material_class=str(
+                                    best_pgm_free.get('material_class', '')
+                                ),
+                                genome=str(best_pgm_free.get('genome', '')),
                             ),
                             'material_class': str(
                                 best_pgm_free.get('material_class', '')
                             ),
                             'genome': str(best_pgm_free.get('genome', '')),
-                            'orr_overpotential_gc_V': best_pgm_free[
-                                'orr_overpotential_gc_V'
-                            ],
-                            'pourbaix_dissolution_margin_V': best_pgm_free[
-                                'pourbaix_dissolution_margin_V'
-                            ],
+                            'orr_overpotential_gc_V': float(
+                                cast(float, best_pgm_free['orr_overpotential_gc_V'])
+                            ),
+                            'pourbaix_dissolution_margin_V': float(
+                                cast(
+                                    float,
+                                    best_pgm_free['pourbaix_dissolution_margin_V'],
+                                )
+                            ),
                             'peak_power_W_cm2': round(
-                                float(best_pgm_free.get('peak_power_W_cm2', 0.0)), 4
+                                float(
+                                    cast(
+                                        float,
+                                        best_pgm_free.get('peak_power_W_cm2', 0.0),
+                                    )
+                                ),
+                                4,
                             ),
                             'cell_efficiency_at_peak': round(
-                                float(best_pgm_free.get('efficiency_at_peak', 0.0)), 4
+                                float(
+                                    cast(
+                                        float,
+                                        best_pgm_free.get(
+                                            'efficiency_at_peak', 0.0
+                                        ),
+                                    )
+                                ),
+                                4,
                             ),
                         }
                         if best_pgm_free is not None
@@ -908,25 +1013,44 @@ def build_multipathway_champion_scorecard(
                                 best_low_pgm.get('cathode_catalyst', '')
                             ),
                             'cathode_catalyst_literature_name': format_literature_catalyst_label(
-                                best_low_pgm.get('cathode_catalyst', ''),
-                                material_class=best_low_pgm.get('material_class'),
-                                genome=best_low_pgm.get('genome'),
+                                str(best_low_pgm.get('cathode_catalyst', '')),
+                                material_class=str(
+                                    best_low_pgm.get('material_class', '')
+                                ),
+                                genome=str(best_low_pgm.get('genome', '')),
                             ),
                             'material_class': str(
                                 best_low_pgm.get('material_class', '')
                             ),
                             'genome': str(best_low_pgm.get('genome', '')),
-                            'orr_overpotential_gc_V': best_low_pgm[
-                                'orr_overpotential_gc_V'
-                            ],
-                            'pourbaix_dissolution_margin_V': best_low_pgm[
-                                'pourbaix_dissolution_margin_V'
-                            ],
+                            'orr_overpotential_gc_V': float(
+                                cast(float, best_low_pgm['orr_overpotential_gc_V'])
+                            ),
+                            'pourbaix_dissolution_margin_V': float(
+                                cast(
+                                    float,
+                                    best_low_pgm['pourbaix_dissolution_margin_V'],
+                                )
+                            ),
                             'peak_power_W_cm2': round(
-                                float(best_low_pgm.get('peak_power_W_cm2', 0.0)), 4
+                                float(
+                                    cast(
+                                        float,
+                                        best_low_pgm.get('peak_power_W_cm2', 0.0),
+                                    )
+                                ),
+                                4,
                             ),
                             'cell_efficiency_at_peak': round(
-                                float(best_low_pgm.get('efficiency_at_peak', 0.0)), 4
+                                float(
+                                    cast(
+                                        float,
+                                        best_low_pgm.get(
+                                            'efficiency_at_peak', 0.0
+                                        ),
+                                    )
+                                ),
+                                4,
                             ),
                         }
                         if best_low_pgm is not None
@@ -963,7 +1087,7 @@ def build_multipathway_champion_scorecard(
                     ),
                 }
 
-    supported_ni_closure_summary: dict | None = None
+    supported_ni_closure_summary: SupportedNiFilamentClosureSummary | None = None
     try:
         supported_ni_closure_summary = evaluate_supported_ni_filament_closure()
     except Exception:

@@ -8,24 +8,25 @@ the family implementations and the compatibility router in ``models``.
 from dataclasses import dataclass
 from pathlib import Path
 import json
-from typing import Any, Dict, Optional
+from typing import Mapping, Optional, Sequence, cast
 
 import numpy as np
+import numpy.typing as npt
 
-try:
-    import cantera as ct
-    HAS_CANTERA = True
-except ImportError:
-    HAS_CANTERA = False
+import importlib.util
+
+HAS_CANTERA: bool = importlib.util.find_spec('cantera') is not None
 
 from pipeline.data_models.artifacts import ExternalSolverArtifact
 from pipeline.data_models.reactors import (
     AnalyticalClosureEvidence,
     CanteraGasPhase,
     CanteraSurfacePhase,
+    InventoryGridCell,
     KineticsEvidenceFields,
     KineticsProvenanceFields,
-    LoadStatusFields,
+    KuniiLevenspielExchangeMetrics,
+    MMBCRHydrodynamicsResult,
     SolidsInventoryFields,
 )
 from pipeline.data_models.transport import ReactorClosure
@@ -33,24 +34,24 @@ from pipeline.reactors.carbon_accounting import (
     CH4_PYROLYSIS_DELTA_H_KJ_MOL,
     PFR_PILOT_TAU_BAND_S as PFR_PILOT_TAU_BAND_S,
     SOLID_CARBON_DENSITY_KG_M3 as SOLID_CARBON_DENSITY_KG_M3,
-    _advance_reactor_stage,
-    _apply_continuous_carbon_removal as _apply_continuous_carbon_removal,
-    _ch4_extent,
-    _clamp_gas_to_equilibrium,
-    _coverage,
-    _h2_atom_balance_metric as _h2_atom_balance_metric,
-    _load_gas_and_surface,
-    _load_status_fields as _load_status_fields,
-    _local_tp_x_eq as _local_tp_x_eq,
-    _mix_bubble_bypass as _mix_bubble_bypass,
-    _mole_fraction_drop,
-    _off_site_carbon_metrics as _compute_off_site_carbon_metrics,
-    _require_ar_tracer,
-    _reset_surface_carbon,
-    _set_gas_from_ch4_conversion as _set_gas_from_ch4_conversion,
-    _species_x,
-    _tabulated_x_eq as _tabulated_x_eq,
+    advance_reactor_stage,
+    apply_continuous_carbon_removal,
+    ch4_extent,
+    clamp_gas_to_equilibrium,
+    compute_off_site_carbon_metrics,
+    h2_atom_balance_metric,
+    load_gas_and_surface,
+    load_status_fields,
+    local_tp_x_eq,
+    mix_bubble_bypass,
+    mole_fraction_drop,
     pyrolysis_reaction_enthalpy_kJ_mol,
+    require_ar_tracer,
+    reset_surface_carbon,
+    set_gas_from_ch4_conversion,
+    species_x,
+    surface_coverage,
+    tabulated_x_eq,
 )
 from pipeline.reactors.mechanisms import MONOLAYER_SITE_DENSITY_MOL_CM2
 from pipeline.reactors.modes import DEFAULT_MODE
@@ -237,8 +238,12 @@ def _validate_carbon_policy(config: ReactorConfig) -> None:
         raise ValueError('circulating_carbon_removal_rate_1_s must be >= 0')
 
 
-def _validate_reactor_config(config: ReactorConfig) -> None:
-    """Reject geometries that do not represent the selected physical bed."""
+def validate_reactor_config(config: ReactorConfig) -> None:
+    """Reject geometries that do not represent the selected physical bed.
+
+    Args:
+        config: Reactor configuration to validate.
+    """
     if config.T_inlet_K <= 0 or config.P_inlet_Pa <= 0:
         raise ValueError('reactor temperature and pressure must be positive')
     if config.max_residence_time_s <= 0:
@@ -299,19 +304,22 @@ def _validate_reactor_config(config: ReactorConfig) -> None:
         _mmbcr_hydrodynamics(config)
 
 
-def _mechanism_metadata(config: ReactorConfig) -> dict:
-    path = (
-        Path(config.mechanism_file).with_suffix('.kinetics.json')
-        if config.mechanism_file
-        else None
-    )
+def _mechanism_metadata(config: object) -> dict[str, object]:
+    mech_file = str(getattr(config, 'mechanism_file', '') or '')
+    path = Path(mech_file).with_suffix('.kinetics.json') if mech_file else None
     if path is None or not path.exists():
         return {
             'inputs': {'quantitative_status': 'missing_provenance'},
             'carbon_phase_model': 'unknown',
         }
     try:
-        return json.loads(path.read_text(encoding='utf-8'))
+        loaded: object = json.loads(path.read_text(encoding='utf-8'))
+        if isinstance(loaded, dict):
+            return cast(dict[str, object], loaded)
+        return {
+            'inputs': {'quantitative_status': 'invalid_provenance'},
+            'carbon_phase_model': 'unknown',
+        }
     except Exception:
         return {
             'inputs': {'quantitative_status': 'invalid_provenance'},
@@ -322,11 +330,13 @@ def _mechanism_metadata(config: ReactorConfig) -> dict:
 def _kinetics_evidence(config: ReactorConfig) -> KineticsEvidenceFields:
     """Declare whether reactor output may make a candidate-level decision."""
     metadata = _mechanism_metadata(config)
-    status = str(
-        metadata.get('inputs', {}).get(
-            'quantitative_status', 'missing_provenance'
-        )
+    raw_inputs = metadata.get('inputs')
+    inputs_map: Mapping[str, object] = (
+        cast(Mapping[str, object], raw_inputs)
+        if isinstance(raw_inputs, Mapping)
+        else {}
     )
+    status = str(inputs_map.get('quantitative_status', 'missing_provenance'))
     carbon_model = str(metadata.get('carbon_phase_model', 'unknown'))
     limitations: list[str] = []
     if status != 'candidate_specific':
@@ -561,7 +571,9 @@ def ch4_viscosity_pa_s(T_K: float) -> float:
 
 
 def ergun_delta_p_pa(
-    config: ReactorConfig, T_K: float = None, P_Pa: float = None
+    config: ReactorConfig,
+    T_K: Optional[float] = None,
+    P_Pa: Optional[float] = None,
 ) -> float:
     """Packed-bed Ergun ΔP over bed_length_m (Ergun 1952 / Froment 2011). Not used for MMBCR.
 
@@ -637,33 +649,44 @@ def solids_inventory_fields(
     }
 
 
-def inventory_grid_cells(particle_mm=None, loadings=None, dispersions=None):
+def inventory_grid_cells(
+    particle_mm: Optional[Sequence[float]] = None,
+    loadings: Optional[Sequence[float]] = None,
+    dispersions: Optional[Sequence[float]] = None,
+) -> list[InventoryGridCell]:
     """Quantized (d_p, loading, dispersion) grid. Defaults to the coarse Deutschmann (2000) inventory set.
 
     Args:
         particle_mm: Input controlling particle mm.
         loadings: Input controlling loadings.
         dispersions: Input controlling dispersions.
+
+    Returns:
+        List of quantized solids inventory grid cells.
     """
     d_levels = INVENTORY_PARTICLE_MM if particle_mm is None else particle_mm
     w_levels = INVENTORY_METAL_LOADING if loadings is None else loadings
     s_levels = INVENTORY_METAL_DISPERSION if dispersions is None else dispersions
-    cells = []
+    cells: list[InventoryGridCell] = []
     for d_p in d_levels:
         for loading in w_levels:
             for dispersion in s_levels:
                 cells.append(
                     {
-                        'catalyst_particle_mm': d_p,
-                        'metal_loading': loading,
-                        'metal_dispersion': dispersion,
+                        'catalyst_particle_mm': float(d_p),
+                        'metal_loading': float(loading),
+                        'metal_dispersion': float(dispersion),
                     }
                 )
     return cells
 
 
-def inventory_roi_grid_cells():
-    """Return the predefined region-of-interest inventory grid."""
+def inventory_roi_grid_cells() -> list[InventoryGridCell]:
+    """Return the predefined region-of-interest inventory grid.
+
+    Returns:
+        List of ROI solids inventory grid cells.
+    """
     return inventory_grid_cells(
         INVENTORY_ROI_PARTICLE_MM,
         INVENTORY_ROI_METAL_LOADING,
@@ -671,19 +694,24 @@ def inventory_roi_grid_cells():
     )
 
 
-load_gas_and_surface = _load_gas_and_surface
-load_status_fields = _load_status_fields
-
-
+_validate_reactor_config = validate_reactor_config
+_load_gas_and_surface = load_gas_and_surface
+_load_status_fields = load_status_fields
 validate_carbon_policy = _validate_carbon_policy
-species_x = _species_x
-surface_coverage = _coverage
-require_ar_tracer = _require_ar_tracer
-advance_reactor_stage = _advance_reactor_stage
-ch4_extent = _ch4_extent
-clamp_gas_to_equilibrium = _clamp_gas_to_equilibrium
-mole_fraction_drop = _mole_fraction_drop
-reset_surface_carbon = _reset_surface_carbon
+_species_x = species_x
+_coverage = surface_coverage
+_require_ar_tracer = require_ar_tracer
+_advance_reactor_stage = advance_reactor_stage
+_apply_continuous_carbon_removal = apply_continuous_carbon_removal
+_ch4_extent = ch4_extent
+_clamp_gas_to_equilibrium = clamp_gas_to_equilibrium
+_mole_fraction_drop = mole_fraction_drop
+_reset_surface_carbon = reset_surface_carbon
+_h2_atom_balance_metric = h2_atom_balance_metric
+_local_tp_x_eq = local_tp_x_eq
+_mix_bubble_bypass = mix_bubble_bypass
+_set_gas_from_ch4_conversion = set_gas_from_ch4_conversion
+_tabulated_x_eq = tabulated_x_eq
 kinetics_evidence = _kinetics_evidence
 policy_metadata = _policy_metadata
 
@@ -700,7 +728,7 @@ def off_site_carbon_metrics(
     n_ch4_fed_mol: float,
     n_parcel_in_mol: float,
     pass_time_s: float,
-    cov_start: Optional[np.ndarray[Any, Any]],
+    cov_start: Optional[npt.NDArray[np.float64]],
     removed_surface_carbon_mol: float = 0.0,
     basis: str = 'Gamma*A_stage / (c_CH4*eps*V_stage), PFR parcel',
 ) -> dict[str, object]:
@@ -724,7 +752,7 @@ def off_site_carbon_metrics(
     Returns:
         Dictionary of per-pass carbon balance and turnover metrics.
     """
-    return _compute_off_site_carbon_metrics(
+    return compute_off_site_carbon_metrics(
         config,
         gas,
         surf,
@@ -814,7 +842,7 @@ def wen_yu_umf_m_s(config: ReactorConfig) -> float:
 
 def kunii_levenspiel_bubble_exchange(
     config: ReactorConfig, delta: float, u0_m_s: float, umf_m_s: float
-) -> dict[str, float]:
+) -> KuniiLevenspielExchangeMetrics:
     """Compute Kunii-Levenspiel (1991) bubble-to-emulsion mass transfer metrics.
 
     Args:
@@ -920,7 +948,13 @@ def resolve_molten_metal_properties(
     ):
         return sigma_cfg, rho_cfg, 'explicit_config_override'
     metadata = _mechanism_metadata(config)
-    raw_genome = metadata.get('inputs', {}).get('genome')
+    raw_inputs = metadata.get('inputs')
+    inputs_map: Mapping[str, object] = (
+        cast(Mapping[str, object], raw_inputs)
+        if isinstance(raw_inputs, Mapping)
+        else {}
+    )
+    raw_genome = inputs_map.get('genome')
     from pipeline.reactors.mechanisms import parse_catalyst_genome
 
     parsed = parse_catalyst_genome(raw_genome)
@@ -932,7 +966,14 @@ def resolve_molten_metal_properties(
     ):
         host = str(parsed[1])
         promoter = str(parsed[2])
-        at_pct = min(max(float(parsed[3]), 0.0), 100.0)
+        raw_pct = parsed[3]
+        at_pct = min(
+            max(
+                float(raw_pct) if isinstance(raw_pct, (int, float, str)) else 0.0,
+                0.0,
+            ),
+            100.0,
+        )
         x_prom = at_pct / 100.0
         sigma_h, rho_h = MELT_ELEMENT_PROPERTIES[host]
         sigma_p, rho_p = MELT_ELEMENT_PROPERTIES.get(promoter, (sigma_h, rho_h))
@@ -952,9 +993,22 @@ def resolve_molten_metal_properties(
     return sigma_cfg, rho_cfg, 'Ni-Bi order of magnitude; not fitted'
 
 
-def _mmbcr_interfacial_k_m_s(E_act_eV: float, T_K: float, k0_m_s: float) -> float:
+def mmbcr_interfacial_k_m_s(E_act_eV: float, T_K: float, k0_m_s: float) -> float:
+    """Compute Arrhenius melt-bubble interfacial rate constant k_if [m/s].
+
+    Args:
+        E_act_eV: Activation energy in eV.
+        T_K: Temperature in kelvin.
+        k0_m_s: Interfacial prefactor in m/s.
+
+    Returns:
+        Interfacial rate constant in m/s.
+    """
     k_B_eV = 8.617333262e-5  # Boltzmann constant [eV/K] (CODATA 2018)
     return float(k0_m_s * np.exp(-E_act_eV / max(k_B_eV * T_K, 1e-12)))
+
+
+_mmbcr_interfacial_k_m_s = mmbcr_interfacial_k_m_s
 
 
 def _mmbcr_flotation_label(config: ReactorConfig) -> str:
@@ -966,10 +1020,19 @@ def _mmbcr_flotation_label(config: ReactorConfig) -> str:
     return 'finite'
 
 
-def _mmbcr_flotation_eta(
+def mmbcr_flotation_eta(
     k_if_m_s: float, sv_ratio_1_m: float, k_float_1_s: Optional[float]
 ) -> float:
-    """Available-interface factor. None = unconstrained; 0 = fouled."""
+    """Compute available-interface factor η_float from carbon flotation rate.
+
+    Args:
+        k_if_m_s: Interfacial reaction rate constant in m/s.
+        sv_ratio_1_m: Bubble surface-to-volume ratio in 1/m.
+        k_float_1_s: Carbon flotation removal rate in 1/s, or ``None`` if unconstrained.
+
+    Returns:
+        Unblocked interface fraction in ``[0, 1]``.
+    """
     if k_float_1_s is None:
         return 1.0
     if k_float_1_s <= 0.0:
@@ -981,6 +1044,9 @@ def _mmbcr_flotation_eta(
     if denom <= 0:
         return 0.0
     return float(k_float_1_s / denom)
+
+
+_mmbcr_flotation_eta = mmbcr_flotation_eta
 
 
 def mendelson_bubble_rise_velocity_m_s(
@@ -1005,12 +1071,25 @@ def mendelson_bubble_rise_velocity_m_s(
     )
 
 
-def _mmbcr_hydrodynamics(config: ReactorConfig) -> Dict:
-    """Derive u_b, τ, and gas holdup from geometry; fail closed outside bubbly flow."""
+def mmbcr_hydrodynamics(config: ReactorConfig) -> MMBCRHydrodynamicsResult:
+    """Derive u_b, τ, and gas holdup from geometry; fail closed outside bubbly flow.
+
+    Args:
+        config: Reactor configuration for the MMBCR run.
+
+    Returns:
+        Dictionary of bubble-rise, gas-holdup, residence-time, and melt properties.
+    """
     d_b = config.bubble_diameter_mm * 1e-3
     sigma_eff, rho_eff, prop_basis = resolve_molten_metal_properties(config)
-    evidence = config.reactor_closure_evidence or {}
-    external = evidence.get('source') in EXTERNAL_CLOSURE_SOURCES
+    raw_evidence = config.reactor_closure_evidence
+    evidence: Mapping[str, object] = (
+        cast(Mapping[str, object], raw_evidence)
+        if isinstance(raw_evidence, Mapping)
+        else {}
+    )
+    ev_source = evidence.get('source')
+    external = isinstance(ev_source, str) and ev_source in EXTERNAL_CLOSURE_SOURCES
     if config.gas_holdup_fraction is not None and not external:
         raise ValueError(
             f'gas_holdup_fraction={config.gas_holdup_fraction} was set explicitly '
@@ -1026,8 +1105,8 @@ def _mmbcr_hydrodynamics(config: ReactorConfig) -> Dict:
             )
         u_b = config.gas_velocity_m_s / eps_g
         tau_total = config.column_height_m * eps_g / config.gas_velocity_m_s
-        rise_basis = f'u_sup / eps_g from {evidence.get("source")}'
-        holdup_basis = evidence.get('source')
+        rise_basis = f'u_sup / eps_g from {ev_source}'
+        holdup_basis: str | None = str(ev_source) if ev_source is not None else None
         residence_basis = MMBCR_ARTIFACT_RESIDENCE_BASIS
     else:
         u_b = mendelson_bubble_rise_velocity_m_s(d_b, sigma_eff, rho_eff)
@@ -1058,21 +1137,5 @@ def _mmbcr_hydrodynamics(config: ReactorConfig) -> Dict:
     }
 
 
-_INFRASTRUCTURE_EXPORTS = {
-    'Any',
-    'Dict',
-    'Optional',
-    'Path',
-    'ct',
-    'dataclass',
-    'json',
-    'logger',
-    'np',
-    'setup_logger',
-    '_INFRASTRUCTURE_EXPORTS',
-}
-__all__ = [
-    name
-    for name in globals()
-    if not name.startswith('__') and name not in _INFRASTRUCTURE_EXPORTS
-]
+_mmbcr_hydrodynamics = mmbcr_hydrodynamics
+

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal, TypedDict
+from typing import Literal, TypedDict
+
+from pipeline.data_models.core import JsonValue
 
 
 class SolverExecution(TypedDict):
@@ -15,11 +17,22 @@ class SolverExecution(TypedDict):
     require_gpu: Literal[True]
 
 
+class NEBRestartBoundResult(TypedDict):
+    """Provenance record for an enforceable QE NEB restart iteration ceiling."""
+
+    path: str
+    current_iteration: int
+    old_limit: int
+    new_limit: int
+    sha256_before: str
+    sha256_after: str
+
+
 class _SolverRunResultOptional(TypedDict, total=False):
     """Optional provenance present for specialized solver invocations."""
 
     candidate_specific: bool
-    restart_bound: dict[str, Any]
+    restart_bound: NEBRestartBoundResult | dict[str, JsonValue]
     checkpoint_restored: bool
 
 
@@ -71,6 +84,32 @@ class NEBResult(TypedDict):
     candidate_specific: bool
 
 
+class ChampionNEBInputMetadata(TypedDict, total=False):
+    """Metadata returned when generating a candidate-specific QE neb.x input."""
+
+    path: str
+    input_file: str
+    prefix: str
+    n_images: int
+    sssp: dict[str, object]
+    equal_arc_preconditioned: bool
+    ecutwfc_Ry: float
+    ecutrho_Ry: float
+    catalyst_name: str
+    active_index: int
+    elements: list[str]
+
+
+class ChampionNEBBarrierResult(TypedDict):
+    """Parsed candidate-specific QE neb.x barrier and kinetics status."""
+
+    neb_converged: bool
+    neb_forward_barrier_eV: float | None
+    neb_reverse_barrier_eV: float | None
+    neb_path_metric: float | None
+    kinetics_status: str
+
+
 class TransitionStateFrequencyResult(TypedDict):
     """Partial-Hessian frequencies used to validate a transition state."""
 
@@ -94,7 +133,7 @@ class _VQEResultOptional(TypedDict, total=False):
     benchmark_tolerance_Ha: float
     catalyst_name: str
     reaction_type: str
-    hamiltonian: dict[str, Any]
+    hamiltonian: dict[str, JsonValue]
 
 
 class VQEResult(_VQEResultOptional):
@@ -114,11 +153,12 @@ class ORREnsembleResult(TypedDict, total=False):
 
     complete: bool
     evidence_level: Literal['corrected_DFT_ensemble', 'incomplete']
-    cases: list[dict[str, Any]]
+    cases: list[dict[str, JsonValue]]
     case_count: int
     expected_cases: int
     invalid_or_incomplete_rows: int
     orr_overpotential_V: float | None
     limiting_step: str
-    best_case: dict[str, Any]
+    best_case: dict[str, JsonValue]
     uncertainty_V: float
+

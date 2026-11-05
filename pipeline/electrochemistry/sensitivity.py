@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from typing import Any
 
 
 def sensitivity_band(
     evaluate: Callable[[Mapping[str, float]], float],
     cases: Mapping[str, Mapping[str, float]],
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """Evaluate named low/nominal/high cases without fitting parameters.
 
     Args:

@@ -12,7 +12,7 @@ from dataclasses import asdict, dataclass
 import json
 import math
 import os
-from typing import Any, cast
+from typing import cast
 
 # IAPWS-95 critical temperature of pure water (373.946 C, P_c = 22.064 MPa),
 # above which no distinct liquid aqueous electrolyte phase exists.
@@ -58,16 +58,32 @@ def conditions_from_environment() -> ElectrochemicalConditions:
         raw = json.loads(os.environ.get('ELECTROCHEMICAL_CONDITIONS_JSON', '{}'))
         if not isinstance(raw, dict):
             return ElectrochemicalConditions()
-        raw_dict = cast(dict[str, Any], raw)
-        allowed = set(ElectrochemicalConditions.__dataclass_fields__)
+        raw_dict = cast(dict[str, object], raw)
+        def _opt_str(key: str) -> str | None:
+            v = raw_dict.get(key)
+            return str(v) if isinstance(v, str) else None
+
+        def _opt_float(key: str) -> float | None:
+            v = raw_dict.get(key)
+            return float(v) if isinstance(v, (int, float)) else None
+
         return ElectrochemicalConditions(
-            **{key: value for key, value in raw_dict.items() if key in allowed}
+            electrolyte_phase=_opt_str('electrolyte_phase'),
+            electrolyte_identity=_opt_str('electrolyte_identity'),
+            applied_potential_V=_opt_float('applied_potential_V'),
+            current_density_A_cm2=_opt_float('current_density_A_cm2'),
+            faradaic_efficiency_H2=_opt_float('faradaic_efficiency_H2'),
+            methane_conversion=_opt_float('methane_conversion'),
+            temperature_K=_opt_float('temperature_K'),
+            pressure_Pa=_opt_float('pressure_Pa'),
+            measurement_source=_opt_str('measurement_source'),
+            paired_control_source=_opt_str('paired_control_source'),
         )
     except (TypeError, ValueError, json.JSONDecodeError):
         return ElectrochemicalConditions()
 
 
-def electrochemical_evidence(conditions: ElectrochemicalConditions) -> dict[str, Any]:
+def electrochemical_evidence(conditions: ElectrochemicalConditions) -> dict[str, object]:
     """Validate electrochemical conditions and classify their evidence status.
 
     Args:
@@ -151,3 +167,4 @@ def electrochemical_evidence(conditions: ElectrochemicalConditions) -> dict[str,
         'conditions': values,
         'evidence_level': 'measured_operating_point',
     }
+

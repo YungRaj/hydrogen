@@ -9,11 +9,12 @@ compared.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 import hashlib
 import json
 import math
 from pathlib import Path
-from typing import Any, cast
+from typing import cast
 
 from pipeline.data_models.reference_validation import (
     ComputedObservation,
@@ -24,11 +25,18 @@ from pipeline.data_models.reference_validation import (
 )
 
 
-def _required_text(record: dict[str, Any], key: str) -> str:
+def _required_text(record: Mapping[str, object], key: str) -> str:
     value = record.get(key)
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"reference {key!r} must be non-empty text")
     return value.strip()
+
+
+def _required_float(record: Mapping[str, object], key: str) -> float:
+    raw = record.get(key)
+    if not isinstance(raw, (int, float, str)) or isinstance(raw, bool):
+        raise ValueError(f"reference {key!r} must be numeric")
+    return float(raw)
 
 
 def load_reference_manifest(path: str | Path) -> dict[str, ReferenceObservation]:
@@ -43,19 +51,19 @@ def load_reference_manifest(path: str | Path) -> dict[str, ReferenceObservation]
     raw_data = json.loads(Path(path).read_text())
     if not isinstance(raw_data, dict):
         raise ValueError("reference manifest must be a JSON object")
-    data = cast(dict[str, Any], raw_data)
+    data = cast(dict[str, object], raw_data)
     if data.get("schema_version") != 1:
         raise ValueError("reference manifest schema_version must be 1")
     raw_records = data.get("references")
     if not isinstance(raw_records, list) or not raw_records:
         raise ValueError("reference manifest must contain references")
-    records = cast(list[Any], raw_records)
+    records = cast(list[object], raw_records)
 
     references: dict[str, ReferenceObservation] = {}
     for item in records:
         if not isinstance(item, dict):
             raise ValueError("each reference must be an object")
-        raw = cast(dict[str, Any], item)
+        raw = cast(dict[str, object], item)
         reference_id = _required_text(raw, "reference_id")
         if reference_id in references:
             raise ValueError(f"duplicate reference_id: {reference_id}")
@@ -69,8 +77,8 @@ def load_reference_manifest(path: str | Path) -> dict[str, ReferenceObservation]
         if not isinstance(raw_conditions, dict) or not raw_conditions:
             raise ValueError(f"conditions are required for {reference_id}")
         conditions = cast(dict[str, object], raw_conditions)
-        value = float(raw["value"])
-        tolerance = float(raw["tolerance"])
+        value = _required_float(raw, "value")
+        tolerance = _required_float(raw, "tolerance")
         if not math.isfinite(value) or not math.isfinite(tolerance) or tolerance <= 0:
             raise ValueError(
                 f"finite value and positive tolerance required for {reference_id}"
@@ -93,7 +101,7 @@ def load_reference_manifest(path: str | Path) -> dict[str, ReferenceObservation]
     return references
 
 
-def computed_observation(record: dict[str, Any]) -> ComputedObservation:
+def computed_observation(record: Mapping[str, object]) -> ComputedObservation:
     """Parse a solver-derived observable, rejecting incomplete provenance.
 
     Args:
@@ -120,7 +128,7 @@ def computed_observation(record: dict[str, Any]) -> ComputedObservation:
         character not in "0123456789abcdef" for character in digest
     ):
         raise ValueError("artifact_sha256 must be a hexadecimal SHA-256 digest")
-    value = float(record["value"])
+    value = _required_float(record, "value")
     if not math.isfinite(value):
         raise ValueError("computed value must be finite")
     raw_conditions = record.get("conditions")

@@ -13,22 +13,32 @@ For champion catalysts from catalyst-guided screening:
 Generates QE input files and submits calculations via pw.x.
 """
 
-import os
-import sys
-import json
-import re
-from pathlib import Path
-from typing import List, Tuple, Optional
+from __future__ import annotations
 
-from pipeline.data_models.quantum import DFTResult
+from collections.abc import Sequence
+import json
+import os
+from pathlib import Path
+import re
+import sys
+from typing import cast
+
+from ase import Atoms
+
+from pipeline.data_models.quantum import (
+    ChampionNEBBarrierResult,
+    ChampionNEBInputMetadata,
+    DFTResult,
+)
+from pipeline.validation.neb_path import NEBPathConfig
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from pipeline.utils import (
     DFT_DIR,
     Ry_to_eV,
-    setup_logger,
     print_banner,
     save_json,
+    setup_logger,
 )
 
 logger = setup_logger('dft_validator', 'dft/dft_validation.log')
@@ -103,19 +113,19 @@ ATOMIC_MASSES_QE = {
 
 
 def _prepare_qe_species_and_atoms(
-    elements: List[str],
-    positions: List[Tuple],
+    elements: Sequence[str],
+    positions: Sequence[tuple[float, float, float] | Sequence[float]],
     ecutwfc: float,
     *,
     trailing_newline: bool = True,
-) -> tuple[dict, str, float, list[str], str, str]:
+) -> tuple[dict[str, object], str, float, list[str], str, str]:
     """Verify SSSP pseudopotentials and format QE ATOMIC_SPECIES and ATOMIC_POSITIONS blocks."""
     from pipeline.validation.qe_workflows import SSSP_DIR, verify_sssp
 
     sssp = verify_sssp(elements)
     if not sssp['valid']:
         raise RuntimeError(f"SSSP verification failed: {sssp['errors']}")
-    ecutwfc_resolved = max(float(ecutwfc), sssp['ecutwfc_Ry'])
+    ecutwfc_resolved = max(float(ecutwfc), float(sssp['ecutwfc_Ry']))
     unique_elements = sorted(set(elements))
     suffix = '\n' if trailing_newline else ''
     species_block = (
@@ -144,14 +154,14 @@ def _prepare_qe_species_and_atoms(
 
 
 def generate_bulk_scf_input(
-    elements: List[str],
-    positions_frac: List[Tuple],
+    elements: Sequence[str],
+    positions_frac: Sequence[tuple[float, float, float] | Sequence[float]],
     celldm_bohr: float,
     ibrav: int = 2,
     calc_name: str = "bulk_scf",
     ecutwfc: float = 50.0,
     ecutrho: float = 400.0,
-    kpoints: Tuple = (6, 6, 6),
+    kpoints: tuple[int, int, int] = (6, 6, 6),
 ) -> str:
     """Generate a QE scf input for a bulk crystal.
 
@@ -179,7 +189,13 @@ def generate_bulk_scf_input(
         atoms_block,
     ) = _prepare_qe_species_and_atoms(elements, positions_frac, ecutwfc)
     ntyp = len(unique_elements)
-    ecutrho = max(float(ecutrho), sssp['ecutrho_Ry'])
+    raw_ecutrho = sssp.get('ecutrho_Ry')
+    sssp_ecutrho = (
+        float(raw_ecutrho)
+        if isinstance(raw_ecutrho, (int, float, str))
+        else 0.0
+    )
+    ecutrho = max(float(ecutrho), sssp_ecutrho)
 
     # smearing = 'mv' with degauss = 0.02 Ry (~0.272 eV): Marzari-Vanderbilt
     # cold smearing (Phys. Rev. Lett. 82, 3296, 1999) for metallic Fermi surfaces.
@@ -218,12 +234,12 @@ K_POINTS {{automatic}}
 
 
 def generate_slab_scf_input(
-    elements: List[str],
-    positions_ang: List[Tuple],
-    cell_params: List[List[float]],
+    elements: Sequence[str],
+    positions_ang: Sequence[tuple[float, float, float] | Sequence[float]],
+    cell_params: Sequence[Sequence[float]],
     calc_name: str = "slab_scf",
     ecutwfc: float = 50.0,
-    kpoints: Tuple = (4, 4, 1),
+    kpoints: tuple[int, int, int] = (4, 4, 1),
 ) -> str:
     """Generate QE scf input for a surface slab (ibrav=0).
 
@@ -303,8 +319,8 @@ K_POINTS {{automatic}}
 
 
 def generate_molecule_input(
-    elements: List[str],
-    positions_ang: List[Tuple],
+    elements: Sequence[str],
+    positions_ang: Sequence[tuple[float, float, float] | Sequence[float]],
     cell_size_ang: float,
     calc_name: str,
     ecutwfc: float = 40.0,
@@ -385,14 +401,14 @@ K_POINTS {{gamma}}
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-def parse_total_energy(output_file: str) -> Optional[float]:
+def parse_total_energy(output_file: str) -> float | None:
     """Parse total energy from QE output file (Ry).
 
     Args:
         output_file: Filesystem location used for output file.
 
     Returns:
-        Computed `Optional[float]` result.
+        Computed `float | None` result.
     """
     if not os.path.exists(output_file):
         return None
@@ -406,14 +422,14 @@ def parse_total_energy(output_file: str) -> Optional[float]:
     return float(matches[-1]) if matches else None
 
 
-def parse_forces(output_file: str) -> Optional[float]:
+def parse_forces(output_file: str) -> float | None:
     """Parse maximum force from QE output (Ry/bohr).
 
     Args:
         output_file: Filesystem location used for output file.
 
     Returns:
-        Computed `Optional[float]` result.
+        Computed `float | None` result.
     """
     if not os.path.exists(output_file):
         return None
@@ -462,10 +478,10 @@ def parse_convergence(output_file: str, *, require_ionic: bool = False) -> bool:
 
 def validate_catalyst(
     catalyst_name: str,
-    genome: tuple,
+    genome: tuple[object, ...],
     run_dft: bool = True,
     restart_incomplete: bool = False,
-    execution=None,
+    execution: object = None,
 ) -> DFTResult:
     """
         Full DFT validation workflow for a champion catalyst.
@@ -492,7 +508,7 @@ def validate_catalyst(
     calc_dir = DFT_DIR / catalyst_name
     calc_dir.mkdir(parents=True, exist_ok=True)
 
-    mat_class = genome[0]
+    mat_class = str(genome[0])
     from pipeline.search.discovery import candidate_id
 
     result: DFTResult = {
@@ -529,7 +545,7 @@ def validate_catalyst(
             logger.warning(f"Structure generation failed for {mat_class}: {e}")
             result['error'] = str(e)[:200]
             result['converged'] = False
-            save_json(result, f"{catalyst_name}_dft.json", subdir="dft")
+            save_json(dict(result), f"{catalyst_name}_dft.json", subdir="dft")
             return result
 
     # Write input file
@@ -565,10 +581,12 @@ def validate_catalyst(
             )
             neb_output_file = calc_dir / f"{catalyst_name}.neb.out"
             if neb_output_file.is_file() and neb_output_file.stat().st_size:
-                result.update(parse_champion_neb_barrier(str(neb_output_file)))
+                cast(dict[str, object], result).update(
+                    parse_champion_neb_barrier(str(neb_output_file))
+                )
             if not existing_converged:
                 result['error'] = 'existing_output_incomplete_or_failed'
-            save_json(result, f"{catalyst_name}_dft.json", subdir="dft")
+            save_json(dict(result), f"{catalyst_name}_dft.json", subdir="dft")
             return result
     with open(input_file, 'w') as f:
         f.write(input_text)
@@ -582,7 +600,7 @@ def validate_catalyst(
 
             exec_cfg = (
                 execution
-                if execution is not None
+                if isinstance(execution, QEExecutionConfig)
                 else QEExecutionConfig.production_default()
             )
             outcome = run_pw(
@@ -624,9 +642,11 @@ def validate_catalyst(
 
     neb_output_file = calc_dir / f"{catalyst_name}.neb.out"
     if neb_output_file.is_file() and neb_output_file.stat().st_size:
-        result.update(parse_champion_neb_barrier(str(neb_output_file)))
+        cast(dict[str, object], result).update(
+            parse_champion_neb_barrier(str(neb_output_file))
+        )
 
-    save_json(result, f"{catalyst_name}_dft.json", subdir="dft")
+    save_json(dict(result), f"{catalyst_name}_dft.json", subdir="dft")
     return result
 
 
@@ -635,7 +655,7 @@ def validate_catalyst(
 # a; bcc/hcp/complex metals (Fe, Mo, W, V, Cr, Ti, Zr, Y, Zn, La, alpha-Mn,
 # beta-Sn, In, Ga, Sb, Bi) use the volume-matched fcc value so that the
 # 4-site conventional cube below is not compressed or expanded artificially.
-_FCC_EQUIVALENT_LATTICE_BOHR = {
+FCC_EQUIVALENT_LATTICE_BOHR: dict[str, float] = {
     'Ni': 6.66,
     'Fe': 6.82,
     'Co': 6.69,
@@ -677,6 +697,7 @@ _FCC_EQUIVALENT_LATTICE_BOHR = {
     'Pr': 9.78,
     'Ba': 10.50,
 }
+_FCC_EQUIVALENT_LATTICE_BOHR = FCC_EQUIVALENT_LATTICE_BOHR
 # Fractional coordinates of the four fcc sites in the simple-cubic
 # conventional cell (ibrav=1). These are NOT valid in the ibrav=2 primitive
 # cell, where they would place atoms 0.354 a apart.
@@ -688,10 +709,10 @@ _FCC_CONVENTIONAL_SITES = (
 )
 
 
-def _generate_motif_scf_input(elements: List[str], name: str) -> str:
+def _generate_motif_scf_input(elements: Sequence[str], name: str) -> str:
     """Build a 4-site conventional cell SCF input from ordered motif elements."""
     seen_unique = list(dict.fromkeys(elements))
-    site_elems = (seen_unique + elements)[:4]
+    site_elems = (seen_unique + list(elements))[:4]
     while len(site_elems) < 4:
         site_elems.append(site_elems[0] if site_elems else 'Ni')
     celldm = _FCC_EQUIVALENT_LATTICE_BOHR.get(site_elems[0], 7.0)
@@ -706,19 +727,19 @@ def _generate_motif_scf_input(elements: List[str], name: str) -> str:
     )
 
 
-def _generate_alloy_input(genome: tuple, name: str) -> str:
+def _generate_alloy_input(genome: tuple[object, ...], name: str) -> str:
     """Generate QE input for an alloy bulk structure (4-site fcc cube)."""
-    mat_class = genome[0]
-    host = genome[1]
+    mat_class = str(genome[0])
+    host = str(genome[1])
     elements = [host] * len(_FCC_CONVENTIONAL_SITES)
     if mat_class == 'MoltenMetal':
-        promoter = genome[2]
+        promoter = str(genome[2])
         # L1_2-type ordering: one promoter site out of four.
         if promoter != 'None':
             elements[0] = promoter
-    elif genome[5]:
+    elif len(genome) > 5 and isinstance(genome[5], (tuple, list)) and genome[5]:
         # Apply dopant substitution
-        elements[0] = genome[5][0]
+        elements[0] = str(genome[5][0])
 
     # The host metal sets the cell; a substituted minority site does not.
     celldm = _FCC_EQUIVALENT_LATTICE_BOHR.get(host, 7.0)
@@ -734,17 +755,17 @@ def _generate_alloy_input(genome: tuple, name: str) -> str:
     )
 
 
-def _generate_cluster_input(genome: tuple, name: str) -> str:
+def _generate_cluster_input(genome: tuple[object, ...], name: str) -> str:
     """Generate QE input for a molecular cluster (SAC/MOF)."""
     from pipeline.screening.surface_screener import generate_porphyrin_cluster
 
-    mat_class = genome[0]
+    mat_class = str(genome[0])
     if mat_class == 'SAC':
-        metal, coord = genome[1], genome[2]
+        metal, coord = str(genome[1]), str(genome[2])
     elif mat_class == 'DAC':
-        metal, coord = genome[1], genome[3]
+        metal, coord = str(genome[1]), str(genome[3])
     elif mat_class in ('MOF', 'COF'):
-        metal, coord = genome[1], genome[3]
+        metal, coord = str(genome[1]), str(genome[3])
     else:
         metal, coord = 'Ni', 'N4'
 
@@ -753,8 +774,15 @@ def _generate_cluster_input(genome: tuple, name: str) -> str:
     return _generate_motif_scf_input([metal] + raw_elems, name)
 
 
-def _extract_genome_motif_elements(genome: tuple) -> List[str]:
-    """Extract ordered active/host elements from a catalyst genome for slab/NEB models."""
+def extract_genome_motif_elements(genome: tuple[object, ...]) -> list[str]:
+    """Extract ordered active/host elements from a catalyst genome for slab/NEB models.
+
+    Args:
+        genome: Catalyst genome tuple.
+
+    Returns:
+        Ordered list of unique chemical element symbols.
+    """
     mat_class = str(genome[0])
     if mat_class == 'MoltenMetal':
         host = str(genome[1])
@@ -762,7 +790,8 @@ def _extract_genome_motif_elements(genome: tuple) -> List[str]:
         elems = [promoter, host] if promoter and promoter != 'None' else [host]
     elif mat_class == 'SolidCatalyst':
         host = str(genome[1])
-        dopants = [str(d) for d in (genome[5] or []) if d and str(d) != 'None']
+        raw_dops = genome[5] if len(genome) > 5 and isinstance(genome[5], (tuple, list)) else ()
+        dopants = [str(d) for d in raw_dops if d and str(d) != 'None']
         elems = dopants + [host]
     elif mat_class in ('SAC', 'DAC', 'MOF', 'COF'):
         from pipeline.screening.surface_screener import generate_porphyrin_cluster
@@ -788,7 +817,10 @@ def _extract_genome_motif_elements(genome: tuple) -> List[str]:
     return seen if seen else ['Ni']
 
 
-def build_champion_neb_slab(genome: tuple):
+_extract_genome_motif_elements = extract_genome_motif_elements
+
+
+def build_champion_neb_slab(genome: tuple[object, ...]) -> tuple[Atoms, int]:
     """Build a periodic 2x2x2 surface slab and active site index for CH4 -> CH3* + H* NEB.
 
     Args:
@@ -804,12 +836,12 @@ def build_champion_neb_slab(genome: tuple):
 
 def generate_champion_neb_input(
     catalyst_name: str,
-    genome: tuple,
+    genome: tuple[object, ...],
     *,
     n_images: int = 7,
-    path_config=None,
-    output_dir: Optional[Path] = None,
-) -> dict:
+    path_config: NEBPathConfig | None = None,
+    output_dir: Path | None = None,
+) -> ChampionNEBInputMetadata:
     """Generate a candidate-specific Quantum ESPRESSO `neb.x` input for CH4 -> CH3* + H*.
 
     Args:
@@ -833,7 +865,7 @@ def generate_champion_neb_input(
     )
 
 
-def parse_champion_neb_barrier(neb_output_file: str) -> dict:
+def parse_champion_neb_barrier(neb_output_file: str) -> ChampionNEBBarrierResult:
     """Parse a QE `neb.x` output file and classify candidate kinetics status.
 
     Args:

@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Callable, Mapping, Optional, Protocol, cast
 
 import numpy as np
+import numpy.typing as npt
 
 from pipeline.data_models.reactors import (
     CanteraGasPhase,
@@ -15,23 +16,40 @@ from pipeline.data_models.reactors import (
 try:
     import cantera as ct
 except ImportError:
-    ct = None
+    ct = None  # type: ignore[assignment]
 
-METAL_MOLAR_MASS_G_MOL = {'Ni': 58.6934, 'Fe': 55.845, 'Co': 58.9332}
+
+class _CarbonConfigLike(Protocol):
+    """Minimal reactor configuration contract required by carbon accounting helpers."""
+
+    mechanism_file: str
+    catalyst_name: str
+    gas_only: bool
+    T_inlet_K: float
+    P_inlet_Pa: float
+    metal_dispersion: float
+    metal_loading: float
+
+
+METAL_MOLAR_MASS_G_MOL: dict[str, float] = {
+    'Ni': 58.6934,
+    'Fe': 55.845,
+    'Co': 58.9332,
+}
 # Ermakova 2000 / Takenaka: 40-384 gC/gNi over 4-50 h on high-Ni/SiO2 -> ~8-10 gC/(gNi h).
-NI_FILAMENT_YIELD_BAND_G_C_PER_G_NI_H = (8.0, 10.0)
+NI_FILAMENT_YIELD_BAND_G_C_PER_G_NI_H: tuple[float, float] = (8.0, 10.0)
 # Same TOS literature: the catalyst dies (encapsulated) after 4-50 h.
-NI_TOS_LIFETIME_BAND_H = (4.0, 50.0)
+NI_TOS_LIFETIME_BAND_H: tuple[float, float] = (4.0, 50.0)
 # Baker (1972) / Helveg (2004) / Takenaka (2003) encapsulation-onset markers:
 # ENCAP_ONSET_THETA = 0.10 (10% irreversible C_δ site blockage triggers onset warning),
 # ENCAP_ONSET_RATIO = 10.0 (filament-to-encapsulating selectivity C_γ/C_δ < 10 signals competitive deactivation),
 # ENCAP_DEAD_THETA = 0.50 (50% C_δ site blockage defines end-of-life time-on-stream τ_TOS).
-ENCAP_ONSET_THETA = 0.1
-ENCAP_ONSET_RATIO = 10.0
-ENCAP_DEAD_THETA = 0.5
-PFR_PILOT_TAU_BAND_S = (2.0, 12.0)  # Pilot-scale packed-bed gas residence-time window [s]
-CH4_PYROLYSIS_DELTA_H_KJ_MOL = 74.85  # Standard reaction enthalpy ΔH°_298 for CH4(g) -> C(gr) + 2 H2(g) [kJ/mol]
-SOLID_CARBON_DENSITY_KG_M3 = 2160.0  # Bulk crystalline/turbostratic graphite density [kg/m³] (2.16 g/cm³)
+ENCAP_ONSET_THETA: float = 0.1
+ENCAP_ONSET_RATIO: float = 10.0
+ENCAP_DEAD_THETA: float = 0.5
+PFR_PILOT_TAU_BAND_S: tuple[float, float] = (2.0, 12.0)  # Pilot-scale packed-bed gas residence-time window [s]
+CH4_PYROLYSIS_DELTA_H_KJ_MOL: float = 74.85  # Standard reaction enthalpy ΔH°_298 for CH4(g) -> C(gr) + 2 H2(g) [kJ/mol]
+SOLID_CARBON_DENSITY_KG_M3: float = 2160.0  # Bulk crystalline/turbostratic graphite density [kg/m³] (2.16 g/cm³)
 
 # NASA-7 polynomial coefficients (a1..a6) for Low (200-1000 K) and High (1000-5000/6000 K) temperature intervals:
 # H°(T)/(R T) = a1 + a2*T/2 + a3*T²/3 + a4*T³/4 + a5*T⁴/5 + a6/T
@@ -119,34 +137,56 @@ def pyrolysis_reaction_enthalpy_kJ_mol(T_K: float = 298.15) -> float:
     return float((h_cgr + 2.0 * h_h2 - h_ch4) / 1000.0)
 
 
-
-def _load_gas_and_surface(
-    config: Any,
+def load_gas_and_surface(
+    config: _CarbonConfigLike,
 ) -> tuple[CanteraGasPhase, object | None, CanteraSurfacePhase | None]:
-    gas = ct.Solution(config.mechanism_file, 'gas')
+    """Load gas, optional graphite, and catalytic surface phases from Cantera YAML.
+
+    Args:
+        config: Reactor configuration specifying mechanism file and catalyst name.
+
+    Returns:
+        Tuple of ``(gas_phase, graphite_phase, surface_phase)``.
+    """
+    if ct is None:
+        raise RuntimeError('Cantera is not installed; cannot load gas and surface')
+    ct_mod: object = ct
+    gas: CanteraGasPhase = cast(
+        CanteraGasPhase, getattr(ct_mod, 'Solution')(config.mechanism_file, 'gas')
+    )
     if 'C_graphite' in gas.species_names:
         raise RuntimeError(
             'mechanism still contains gas-phase C_graphite; regenerate YAML'
         )
-    graphite = None
+    graphite: object | None = None
     try:
-        graphite = ct.Solution(config.mechanism_file, 'graphite')
+        graphite = getattr(ct_mod, 'Solution')(config.mechanism_file, 'graphite')
     except Exception as exc:
         if not config.gas_only:
             raise RuntimeError(
                 f'graphite phase missing from {config.mechanism_file}; '
                 'set gas_only=True only for an explicit gas-only run'
             ) from exc
-    surf = None
+    surf: CanteraSurfacePhase | None = None
     surf_name = f'{config.catalyst_name}_surface'
     try:
-        adjacent = [gas]
+        adjacent: list[object] = [gas]
         if graphite is not None:
             adjacent.append(graphite)
         try:
-            surf = ct.Interface(config.mechanism_file, surf_name, adjacent)
+            surf = cast(
+                CanteraSurfacePhase,
+                getattr(ct_mod, 'Interface')(
+                    config.mechanism_file, surf_name, adjacent
+                ),
+            )
         except Exception:
-            surf = ct.Interface(config.mechanism_file, surf_name, [gas])
+            surf = cast(
+                CanteraSurfacePhase,
+                getattr(ct_mod, 'Interface')(
+                    config.mechanism_file, surf_name, [gas]
+                ),
+            )
     except Exception as exc:
         if not config.gas_only:
             raise RuntimeError(
@@ -158,9 +198,22 @@ def _load_gas_and_surface(
     return gas, graphite, surf
 
 
-def _load_status_fields(
-    config: Any, graphite: object | None, surf: object | None
+_load_gas_and_surface = load_gas_and_surface
+
+
+def load_status_fields(
+    config: _CarbonConfigLike, graphite: object | None, surf: object | None
 ) -> LoadStatusFields:
+    """Summarize phase-loading status for reactor result provenance.
+
+    Args:
+        config: Reactor configuration for the evaluated run.
+        graphite: Loaded graphite phase or ``None``.
+        surf: Loaded surface phase or ``None``.
+
+    Returns:
+        Dictionary of phase-loading flags and surface name.
+    """
     return {
         'gas_only': bool(config.gas_only),
         'surface_loaded': surf is not None,
@@ -169,22 +222,57 @@ def _load_status_fields(
     }
 
 
-def _species_x(gas: CanteraGasPhase, name: str) -> float:
+_load_status_fields = load_status_fields
+
+
+def species_x(gas: CanteraGasPhase, name: str) -> float:
+    """Return mole fraction of ``name`` in ``gas``, or 0.0 when absent.
+
+    Args:
+        gas: Cantera gas phase.
+        name: Species identifier.
+
+    Returns:
+        Species mole fraction in ``[0, 1]``.
+    """
     if name not in gas.species_names:
         return 0.0
     return float(gas.X[gas.species_index(name)])
 
 
-def _coverage(surf: Optional[CanteraSurfacePhase], name: str) -> float:
+_species_x = species_x
+
+
+def surface_coverage(surf: Optional[CanteraSurfacePhase], name: str) -> float:
+    """Return surface site coverage of ``name`` on ``surf``, or 0.0 when absent.
+
+    Args:
+        surf: Cantera surface phase or ``None``.
+        name: Surface species identifier.
+
+    Returns:
+        Fractional surface site coverage in ``[0, 1]``.
+    """
     if surf is None or name not in surf.species_names:
         return 0.0
     return float(surf.coverages[surf.species_index(name)])
 
 
-def _apply_continuous_carbon_removal(surf: Optional[CanteraSurfacePhase], rate_1_s: float, dt: float) -> float:
+_coverage = surface_coverage
+
+
+def apply_continuous_carbon_removal(
+    surf: Optional[CanteraSurfacePhase], rate_1_s: float, dt: float
+) -> float:
     """Transport-style continuous removal of C_s → free sites.
 
-    Returns approximate coverage of C removed (not moles).
+    Args:
+        surf: Cantera catalytic surface phase or ``None``.
+        rate_1_s: First-order carbon removal rate constant in 1/s.
+        dt: Integration time step in seconds.
+
+    Returns:
+        Approximate coverage fraction of C_s removed during ``dt``.
     """
     if surf is None or rate_1_s <= 0 or dt <= 0:
         return 0.0
@@ -193,28 +281,34 @@ def _apply_continuous_carbon_removal(surf: Optional[CanteraSurfacePhase], rate_1
     cov = np.array(surf.coverages, dtype=float)
     i_c = surf.species_index('C_s')
     i_site = surf.species_index('site')
-    c_before = cov[i_c]
-    removed = c_before * (1.0 - np.exp(-rate_1_s * dt))
+    c_before = float(cov[i_c])
+    removed = float(c_before * (1.0 - np.exp(-rate_1_s * dt)))
     cov[i_c] = c_before - removed
     cov[i_site] += removed
     site_mask = np.array([surf.species(n).size > 0 for n in range(surf.n_species)])
-    s = cov[site_mask].sum()
+    s = float(cov[site_mask].sum())
     if s > 0:
         cov[site_mask] /= s
     surf.coverages = cov
-    return float(removed)
+    return removed
 
 
-def _reset_surface_carbon(surf: Optional[CanteraSurfacePhase]) -> None:
+_apply_continuous_carbon_removal = apply_continuous_carbon_removal
+
+
+def reset_surface_carbon(surf: Optional[CanteraSurfacePhase]) -> None:
     """Mechanical / consumable regen: clear adsorbates and restore free sites.
 
     Encapsulating carbon (``C_encap_s``, Baker-Helveg Cδ) is time-on-stream
     death and is never cleared.
+
+    Args:
+        surf: Cantera catalytic surface phase or ``None``.
     """
     if surf is None or 'C_s' not in surf.species_names:
         return
-    encap = _coverage(surf, 'C_encap_s') if 'C_encap_s' in surf.species_names else 0.0
-    cov = np.zeros(surf.n_species)
+    encap = surface_coverage(surf, 'C_encap_s') if 'C_encap_s' in surf.species_names else 0.0
+    cov = np.zeros(surf.n_species, dtype=float)
     if 'C_encap_s' in surf.species_names:
         cov[surf.species_index('C_encap_s')] = encap
     if 'site' in surf.species_names:
@@ -222,7 +316,12 @@ def _reset_surface_carbon(surf: Optional[CanteraSurfacePhase]) -> None:
     surf.coverages = cov
 
 
-def _surface_carbon_coverage(surf, cov: np.ndarray) -> float:
+_reset_surface_carbon = reset_surface_carbon
+
+
+def _surface_carbon_coverage(
+    surf: CanteraSurfacePhase, cov: npt.NDArray[np.float64]
+) -> float:
     """Total θ of carbon-bearing site-occupying species (C_s, CH_x_s, C_encap_s)."""
     total = 0.0
     for k in range(surf.n_species):
@@ -232,13 +331,34 @@ def _surface_carbon_coverage(surf, cov: np.ndarray) -> float:
     return total
 
 
-def _tabulated_x_eq(T_K: float) -> float:
+def tabulated_x_eq(T_K: float) -> float:
+    """Return tabulated 1-bar methane pyrolysis equilibrium conversion at ``T_K``.
+
+    Args:
+        T_K: Temperature in kelvin.
+
+    Returns:
+        Equilibrium methane conversion fraction in ``[0, 1]``.
+    """
     from pipeline.reactors.equilibrium import interpolate_x_eq
 
     return interpolate_x_eq(T_K)
 
 
-def _local_tp_x_eq(T_K: float, P_Pa: float, y_ch4_0: float) -> float:
+_tabulated_x_eq = tabulated_x_eq
+
+
+def local_tp_x_eq(T_K: float, P_Pa: float, y_ch4_0: float) -> float:
+    """Return local (T, P) methane pyrolysis equilibrium conversion.
+
+    Args:
+        T_K: Temperature in kelvin.
+        P_Pa: Pressure in pascals.
+        y_ch4_0: Initial methane mole fraction.
+
+    Returns:
+        Equilibrium methane conversion fraction in ``[0, 1]``.
+    """
     from pipeline.reactors.equilibrium import equilibrium_ch4_conversion_tp
 
     return equilibrium_ch4_conversion_tp(
@@ -246,10 +366,13 @@ def _local_tp_x_eq(T_K: float, P_Pa: float, y_ch4_0: float) -> float:
     )
 
 
-def _off_site_carbon_metrics(
-    config,
-    gas,
-    surf,
+_local_tp_x_eq = local_tp_x_eq
+
+
+def compute_off_site_carbon_metrics(
+    config: _CarbonConfigLike,
+    gas: CanteraGasPhase,
+    surf: Optional[CanteraSurfacePhase],
     *,
     ch4_initial: float,
     ar_initial: float,
@@ -258,16 +381,37 @@ def _off_site_carbon_metrics(
     n_ch4_fed_mol: float,
     n_parcel_in_mol: float,
     pass_time_s: float,
-    cov_start: Optional[np.ndarray[Any, Any]],
+    cov_start: Optional[npt.NDArray[np.float64]],
     removed_surface_carbon_mol: float = 0.0,
     basis: str = 'Gamma*A_stage / (c_CH4*eps*V_stage), PFR parcel',
-    mechanism_metadata_fn: Any = None,
-) -> Dict[str, Any]:
-    """Per-pass carbon accounting for the Alves-Xu / Baker-Helveg closure criterion."""
+    mechanism_metadata_fn: Callable[[_CarbonConfigLike], Mapping[str, object]]
+    | None = None,
+) -> dict[str, object]:
+    """Per-pass carbon accounting for the Alves-Xu / Baker-Helveg closure criterion.
+
+    Args:
+        config: Reactor configuration for the evaluated bed.
+        gas: Cantera gas phase at bed exit.
+        surf: Cantera catalytic surface phase or ``None``.
+        ch4_initial: Inlet methane mole fraction.
+        ar_initial: Inlet argon tracer mole fraction.
+        pass_conversion: Single-pass methane conversion.
+        n_sites_mol: Total catalytic surface sites in the stage/bed in moles.
+        n_ch4_fed_mol: Methane fed per pass in moles.
+        n_parcel_in_mol: Total gas moles in the inlet parcel.
+        pass_time_s: Single-pass gas residence time in seconds.
+        cov_start: Surface coverage vector at the start of the pass.
+        removed_surface_carbon_mol: Surface carbon removed during the pass in moles.
+        basis: Text label describing the site-to-gas normalization basis.
+        mechanism_metadata_fn: Optional callback returning mechanism sidecar metadata.
+
+    Returns:
+        Dictionary of per-pass carbon balance and turnover metrics.
+    """
     x_bound = n_sites_mol / n_ch4_fed_mol if n_ch4_fed_mol > 0 else None
-    x_eq = _tabulated_x_eq(config.T_inlet_K)
-    x_eq_tp = _local_tp_x_eq(config.T_inlet_K, config.P_inlet_Pa, ch4_initial)
-    out = {
+    x_eq = tabulated_x_eq(config.T_inlet_K)
+    x_eq_tp = local_tp_x_eq(config.T_inlet_K, config.P_inlet_Pa, ch4_initial)
+    out: dict[str, object] = {
         'site_inventory_bound_X': x_bound,
         'site_inventory_bound_basis': basis,
         'X_eq_table': x_eq,
@@ -279,10 +423,10 @@ def _off_site_carbon_metrics(
     cov_end = np.array(surf.coverages, dtype=float)
     if cov_start is None:
         cov_start = np.zeros_like(cov_end)
-    x_ar = _species_x(gas, 'Ar') or ar_initial
+    x_ar = species_x(gas, 'Ar') or ar_initial
     n_ar = ar_initial * n_parcel_in_mol
     n_c2 = sum(
-        2.0 * (_species_x(gas, sp) or 0.0) / max(x_ar, 1e-30) * n_ar
+        2.0 * (species_x(gas, sp) or 0.0) / max(x_ar, 1e-30) * n_ar
         for sp in ('C2H2', 'C2H4', 'C2H6')
     )
     n_solid = max(0.0, pass_conversion * n_ch4_fed_mol - n_c2)
@@ -305,7 +449,7 @@ def _off_site_carbon_metrics(
     theta_encap = (
         float(cov_end[surf.species_index('C_encap_s')]) if has_encap else None
     )
-    lifetime_h = None
+    lifetime_h: float | None = None
     if has_encap and n_sites_mol > 0 and pass_time_s > 0:
         d_theta_dt = n_delta / n_sites_mol / pass_time_s
         lifetime_h = (
@@ -358,25 +502,29 @@ def _off_site_carbon_metrics(
             }
         )
     if has_encap:
-        metadata = (
+        metadata: Mapping[str, object] = (
             mechanism_metadata_fn(config) if mechanism_metadata_fn is not None else {}
         )
-        genome = metadata.get('inputs', {}).get('genome')
-        metal = None
+        raw_inputs = metadata.get('inputs')
+        inputs_map: Mapping[str, object] = (
+            cast(Mapping[str, object], raw_inputs)
+            if isinstance(raw_inputs, Mapping)
+            else {}
+        )
+        genome = inputs_map.get('genome')
+        metal: str | None = None
         try:
-            from pipeline.reactors.mechanisms import (
-                OFF_SITE_CARBON_METALS,
-                _nanoparticle_metals,
-                parse_catalyst_genome,
-            )
+            import pipeline.reactors.mechanisms as _mech_mod
 
-            parsed_g = parse_catalyst_genome(genome)
-            metals = (
-                _nanoparticle_metals(
+            parsed_g = _mech_mod.parse_catalyst_genome(genome)
+            raw_m_cls = inputs_map.get('material_class')
+            nanoparticle_fn = getattr(_mech_mod, '_nanoparticle_metals')
+            metals: set[str] = (
+                nanoparticle_fn(
                     parsed_g,
-                    metadata.get('inputs', {}).get('material_class'),
+                    str(raw_m_cls) if raw_m_cls is not None else None,
                 )
-                & OFF_SITE_CARBON_METALS
+                & _mech_mod.OFF_SITE_CARBON_METALS
             )
             if len(metals) == 1:
                 metal = next(iter(metals))
@@ -384,7 +532,7 @@ def _off_site_carbon_metrics(
                 if (
                     parsed_g
                     and len(parsed_g) > 1
-                    and str(parsed_g[1]) in OFF_SITE_CARBON_METALS
+                    and str(parsed_g[1]) in _mech_mod.OFF_SITE_CARBON_METALS
                 ):
                     metal = str(parsed_g[1])
                 else:
@@ -392,7 +540,7 @@ def _off_site_carbon_metrics(
         except Exception:
             metal = None
         dispersion = float(config.metal_dispersion)
-        yield_rate = None
+        yield_rate: float | None = None
         if metal and dispersion > 0 and pass_time_s > 0 and n_sites_mol > 0:
             n_metal = n_sites_mol / dispersion
             yield_rate = (
@@ -446,10 +594,22 @@ def _off_site_carbon_metrics(
     return out
 
 
-def _h2_atom_balance_metric(
+_off_site_carbon_metrics = compute_off_site_carbon_metrics
+
+
+def h2_atom_balance_metric(
     ch4_initial: float, final_conv: float, x_h2: float
 ) -> float:
-    """H-atom balance metric — not true branching H2 selectivity."""
+    """H-atom balance metric — not true branching H2 selectivity.
+
+    Args:
+        ch4_initial: Inlet methane mole fraction.
+        final_conv: Final methane conversion fraction.
+        x_h2: Outlet H2 mole fraction.
+
+    Returns:
+        Clipped H-atom balance ratio in ``[0, 1]``.
+    """
     if final_conv <= 0.01:
         return 0.0
     h_in_ch4 = 4.0 * ch4_initial
@@ -457,36 +617,58 @@ def _h2_atom_balance_metric(
     return float(np.clip(h_in_h2 / max(h_in_ch4 * final_conv, 1e-10), 0, 1))
 
 
-def _ch4_extent(gas: CanteraGasPhase, x_ch4_feed: float, x_ar_feed: float) -> float:
+_h2_atom_balance_metric = h2_atom_balance_metric
+
+
+def ch4_extent(gas: CanteraGasPhase, x_ch4_feed: float, x_ar_feed: float) -> float:
+    """Compute argon-tracer-normalized methane conversion extent.
+
+    Args:
+        gas: Cantera gas phase.
+        x_ch4_feed: Inlet methane mole fraction.
+        x_ar_feed: Inlet argon mole fraction.
+
+    Returns:
+        Methane conversion fraction in ``[0, 1]``.
+    """
     from pipeline.reactors.equilibrium import ch4_conversion_from_argon_tracer
 
     return ch4_conversion_from_argon_tracer(
-        _species_x(gas, 'CH4'), _species_x(gas, 'Ar'), x_ch4_feed, x_ar_feed
+        species_x(gas, 'CH4'), species_x(gas, 'Ar'), x_ch4_feed, x_ar_feed
     )
 
 
-def _clamp_gas_to_equilibrium(
+_ch4_extent = ch4_extent
+
+
+def clamp_gas_to_equilibrium(
     gas: CanteraGasPhase, x_ch4_feed: float, x_ar_feed: float
 ) -> None:
-    """Prevent irreversible C_s => C(gr) + site sink from pulling X past X_eq(T, P)."""
+    """Prevent irreversible C_s => C(gr) + site sink from pulling X past X_eq(T, P).
+
+    Args:
+        gas: Cantera gas phase modified in place.
+        x_ch4_feed: Inlet methane mole fraction.
+        x_ar_feed: Inlet argon mole fraction.
+    """
     if x_ch4_feed <= 0.0 or x_ar_feed <= 0.0:
         return
     try:
-        x_eq_1bar = _tabulated_x_eq(float(gas.T))
+        x_eq_1bar = tabulated_x_eq(float(gas.T))
         p_pa = float(gas.P)
         if p_pa > 105000.0:
             x_eq = min(
                 x_eq_1bar,
-                _local_tp_x_eq(float(gas.T), p_pa, x_ch4_feed),
+                local_tp_x_eq(float(gas.T), p_pa, x_ch4_feed),
             )
         else:
             x_eq = x_eq_1bar
     except ValueError:
         return
-    conv = _ch4_extent(gas, x_ch4_feed, x_ar_feed)
+    conv = ch4_extent(gas, x_ch4_feed, x_ar_feed)
     if conv <= x_eq:
         return
-    x_ar = _species_x(gas, 'Ar')
+    x_ar = species_x(gas, 'Ar')
     if x_ar <= 0.0:
         return
     scale_to_feed = float(x_ar_feed) / x_ar
@@ -502,7 +684,16 @@ def _clamp_gas_to_equilibrium(
         gas.TPX = float(gas.T), float(gas.P), n_vec / total
 
 
-def _require_ar_tracer(x_ch4_feed: float, x_ar_feed: float) -> None:
+_clamp_gas_to_equilibrium = clamp_gas_to_equilibrium
+
+
+def require_ar_tracer(x_ch4_feed: float, x_ar_feed: float) -> None:
+    """Validate that positive CH4 and Ar mole fractions are present at the inlet.
+
+    Args:
+        x_ch4_feed: Inlet methane mole fraction.
+        x_ar_feed: Inlet argon mole fraction.
+    """
     if x_ar_feed <= 0 or x_ch4_feed <= 0:
         raise ValueError(
             'solids CH4 conversion uses an Ar mole-fraction tracer; '
@@ -510,41 +701,58 @@ def _require_ar_tracer(x_ch4_feed: float, x_ar_feed: float) -> None:
         )
 
 
-def _disable_reactor_energy(reactor) -> str:
+_require_ar_tracer = require_ar_tracer
+
+
+def _disable_reactor_energy(reactor: object) -> str:
     """Hold solids stages at inlet T so they match isothermal MMBCR."""
     if hasattr(reactor, 'energy_enabled'):
-        reactor.energy_enabled = False
+        setattr(reactor, 'energy_enabled', False)
         return 'isothermal_energy_disabled'
     raise RuntimeError(
         'Cantera reactor has no energy_enabled; cannot force isothermal solids'
     )
 
 
-def _advance_reactor_stage(
+def advance_reactor_stage(
     gas: CanteraGasPhase,
     surf: Optional[CanteraSurfacePhase],
     volume_m3: float,
     surface_area_m2: float,
     dt: float,
 ) -> None:
-    """Advance an isothermal gas+surface stage, falling back to substepped tight tolerances on stiff CVODES failure."""
+    """Advance an isothermal gas+surface stage, falling back to substepped tight tolerances on stiff CVODES failure.
+
+    Args:
+        gas: Cantera gas phase modified in place.
+        surf: Optional Cantera surface phase modified in place.
+        volume_m3: Stage gas volume in m³.
+        surface_area_m2: Stage catalytic surface area in m².
+        dt: Stage residence time in seconds.
+    """
+    if ct is None:
+        raise RuntimeError('Cantera is not installed; cannot advance reactor stage')
+    ct_mod: object = ct
     gas_t, gas_p = float(gas.T), float(gas.P)
     gas_x = np.array(gas.X, dtype=float)
     surf_cov = np.array(surf.coverages, dtype=float) if surf is not None else None
 
     def _step_stage(step_dt: float, *, tight: bool = False) -> None:
+        ideal_gas_reactor_cls = getattr(ct_mod, 'IdealGasReactor')
+        reactor_surface_cls = getattr(ct_mod, 'ReactorSurface')
+        reactor_net_cls = getattr(ct_mod, 'ReactorNet')
         try:
-            reactor = ct.IdealGasReactor(gas, clone=False)
+            reactor = ideal_gas_reactor_cls(gas, clone=False)
         except TypeError:
-            reactor = ct.IdealGasReactor(gas)
+            reactor = ideal_gas_reactor_cls(gas)
         reactor.volume = volume_m3
         _disable_reactor_energy(reactor)
         if surf is not None:
             try:
-                ct.ReactorSurface(surf, reactor, A=surface_area_m2, clone=False)
+                reactor_surface_cls(surf, reactor, A=surface_area_m2, clone=False)
             except TypeError:
-                ct.ReactorSurface(surf, reactor, A=surface_area_m2)
-        net = ct.ReactorNet([reactor])
+                reactor_surface_cls(surf, reactor, A=surface_area_m2)
+        net = reactor_net_cls([reactor])
         if tight:
             net.rtol = 1e-11
             net.atol = 1e-18
@@ -568,19 +776,48 @@ def _advance_reactor_stage(
         _step_stage(sub_dt, tight=True)
 
 
-def _mole_fraction_drop(gas: CanteraGasPhase, x_ch4_feed: float) -> float:
+_advance_reactor_stage = advance_reactor_stage
+
+
+def mole_fraction_drop(gas: CanteraGasPhase, x_ch4_feed: float) -> float:
+    """Compute uncalibrated mole-fraction drop ``1 - y_CH4 / y_CH4,0``.
+
+    Args:
+        gas: Cantera gas phase.
+        x_ch4_feed: Inlet methane mole fraction.
+
+    Returns:
+        Fractional mole-fraction drop in ``[0, 1]``.
+    """
     if x_ch4_feed <= 0:
         return 0.0
-    return float(max(0.0, 1.0 - _species_x(gas, 'CH4') / x_ch4_feed))
+    return float(max(0.0, 1.0 - species_x(gas, 'CH4') / x_ch4_feed))
 
 
-def _set_gas_from_ch4_conversion(
-    gas, T_K: float, P_Pa: float, x_ch4_feed: float, x_ar_feed: float, X: float
-):
-    """CH4 → C(s) + 2 H2; C leaves the bubble by flotation (not in the gas)."""
-    X = float(np.clip(X, 0.0, 1.0))
-    n_ch4 = x_ch4_feed * (1.0 - X)
-    n_h2 = 2.0 * x_ch4_feed * X
+_mole_fraction_drop = mole_fraction_drop
+
+
+def set_gas_from_ch4_conversion(
+    gas: CanteraGasPhase,
+    T_K: float,
+    P_Pa: float,
+    x_ch4_feed: float,
+    x_ar_feed: float,
+    conversion: float,
+) -> None:
+    """Set gas composition from CH4 → C(s) + 2 H2 conversion where solid C exits by flotation.
+
+    Args:
+        gas: Cantera gas phase modified in place.
+        T_K: Temperature in kelvin.
+        P_Pa: Pressure in pascals.
+        x_ch4_feed: Inlet methane mole fraction.
+        x_ar_feed: Inlet argon mole fraction.
+        conversion: Methane conversion fraction in ``[0, 1]``.
+    """
+    x_clamped = float(np.clip(conversion, 0.0, 1.0))
+    n_ch4 = x_ch4_feed * (1.0 - x_clamped)
+    n_h2 = 2.0 * x_ch4_feed * x_clamped
     n_ar = x_ar_feed
     n_tot = n_ch4 + n_h2 + n_ar
     if n_tot <= 0:
@@ -592,12 +829,25 @@ def _set_gas_from_ch4_conversion(
     )
 
 
-def _mix_bubble_bypass(
-    gas, inlet_x: np.ndarray, delta: float, x_ar_feed: float
+_set_gas_from_ch4_conversion = set_gas_from_ch4_conversion
+
+
+def mix_bubble_bypass(
+    gas: CanteraGasPhase,
+    inlet_x: npt.NDArray[np.float64],
+    delta: float,
+    x_ar_feed: float,
 ) -> None:
-    """Mix a bypass stream (fraction δ of feed, unreacted) with the emulsion outlet on a molar basis."""
+    """Mix a bypass stream (fraction δ of feed, unreacted) with the emulsion outlet on a molar basis.
+
+    Args:
+        gas: Emulsion outlet Cantera gas phase modified in place.
+        inlet_x: Inlet gas mole-fraction array.
+        delta: Effective bubble bypass fraction in ``[0, 1)``.
+        x_ar_feed: Inlet argon mole fraction.
+    """
     x_em = np.array(gas.X, dtype=float)
-    x_ar_em = _species_x(gas, 'Ar')
+    x_ar_em = species_x(gas, 'Ar')
     if x_ar_em <= 0:
         raise RuntimeError(
             'Ar tracer vanished from emulsion outlet; cannot mix bypass'
@@ -611,3 +861,7 @@ def _mix_bubble_bypass(
     if total <= 0:
         raise RuntimeError('bubble bypass mixing produced no moles')
     gas.TPX = gas.T, gas.P, moles / total
+
+
+_mix_bubble_bypass = mix_bubble_bypass
+

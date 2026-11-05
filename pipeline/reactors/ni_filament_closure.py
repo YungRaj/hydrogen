@@ -10,6 +10,7 @@ from typing import Mapping, cast
 from pipeline.data_models.reactors import (
     SolidsScorecard,
     SupportedNiFilamentClosureGateResult,
+    SupportedNiFilamentClosureSummary,
 )
 from pipeline.search.discovery import (
     LITERATURE_VALIDATION_GATES,
@@ -464,7 +465,7 @@ def evaluate_supported_ni_filament_closure(
     *,
     reactor_dir: str | None = None,
     output_path: str | None = None,
-) -> dict[str, object]:
+) -> SupportedNiFilamentClosureSummary:
     """Evaluate supported-Ni(111)/SiO2 filament reference closure and solids ranking authority.
 
     Combines the five Baker-Helveg-Ermakova-Takenaka off-site carbon criteria gates,
@@ -539,7 +540,7 @@ def evaluate_supported_ni_filament_closure(
         baker_helveg_criteria_summary=baker_helveg_summary,
         ermakova_takenaka_joint_summary=ermakova_takenaka_summary,
     )
-    payload: dict[str, object] = {
+    payload: SupportedNiFilamentClosureSummary = {
         'schema_version': '1.0',
         'milestone': 'ALVES_BENGAARD_ERMAKOVA_TAKENAKA_SUPPORTED_NI_FILAMENT_CLOSURE',
         'judge_catalyst': NI_JUDGE_CATALYST,
@@ -566,3 +567,4 @@ def evaluate_supported_ni_filament_closure(
         out_file.parent.mkdir(parents=True, exist_ok=True)
         out_file.write_text(json.dumps(payload, indent=2) + '\n', encoding='utf-8')
     return payload
+

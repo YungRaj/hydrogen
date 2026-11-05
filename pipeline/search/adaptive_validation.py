@@ -2,23 +2,30 @@
 
 from __future__ import annotations
 
-import json
-import hashlib
 import ast
+from collections import defaultdict
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from datetime import datetime, timezone
+import hashlib
+import json
 import os
+from pathlib import Path
 import sqlite3
 import tempfile
 import time
-from collections import defaultdict
-from dataclasses import dataclass
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Literal, Mapping, Sequence
+from typing import Literal
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 
-from pipeline.search.discovery import candidate_id, discovery_region, _quality_score
+from pipeline.data_models.evidence import CalibrationBucketStats, JsonValue
+import pipeline.search.discovery as _discovery_mod
+from pipeline.search.discovery import (
+    candidate_id,
+    discovery_region,
+)
 
 AdvancementStatus = Literal[
     'advance', 'validation_required', 'hold', 'hard_excluded'
@@ -103,11 +110,11 @@ def write_portfolio_artifact(
     application: str,
     protocol_id: str,
     criteria: Sequence[AdvancementCriterion],
-    candidates: Sequence[tuple],
-    objectives: np.ndarray,
+    candidates: Sequence[tuple[object, ...]],
+    objectives: npt.NDArray[np.float64] | Sequence[Sequence[float]],
     evidence: pd.DataFrame,
     indices: Sequence[int],
-    budget: Mapping[str, Any] | None = None,
+    budget: Mapping[str, JsonValue] | None = None,
 ) -> Path:
     """Atomically persist a versioned, self-contained advancement portfolio.
 
@@ -206,7 +213,9 @@ def write_portfolio_artifact(
     return target
 
 
-def verify_portfolio_artifact(path: str | Path) -> dict[str, Any]:
+def verify_portfolio_artifact(
+    path: str | Path,
+) -> dict[str, bool | list[str]]:
     """Verify the schema and content digest of a portfolio handoff artifact.
 
     Args:
@@ -220,7 +229,7 @@ def verify_portfolio_artifact(path: str | Path) -> dict[str, Any]:
     except (OSError, json.JSONDecodeError) as exc:
         return {'valid': False, 'errors': [f'unreadable:{exc}']}
     required = ('application', 'protocol_id', 'scorecard', 'pilot_budget', 'records')
-    errors = []
+    errors: list[str] = []
     if document.get('schema_version') != 1:
         errors.append('schema_version')
     missing = [field for field in required if field not in document]
@@ -236,7 +245,7 @@ def verify_portfolio_artifact(path: str | Path) -> dict[str, Any]:
     return {'valid': not errors, 'errors': errors}
 
 
-def _connect(database: str):
+def _connect(database: str) -> sqlite3.Connection:
     Path(database).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(database, timeout=60)
     conn.execute(
@@ -258,12 +267,12 @@ def _connect(database: str):
 def record_validation(
     database: str,
     application: str,
-    genome: tuple,
+    genome: tuple[object, ...],
     predicted: float,
     observed: float,
     fidelity: str,
     productive: bool,
-    provenance: Mapping,
+    provenance: Mapping[str, object],
 ) -> None:
     """Persist a paired prediction/observation; provenance is mandatory.
 
@@ -305,7 +314,7 @@ def record_validation(
 
 def regional_calibration(
     database: str, application: str, *, fidelity: str | None = None
-) -> dict:
+) -> dict[str, CalibrationBucketStats]:
     """Return MAE, bias, disagreement, and productivity for each chemistry region.
 
     Args:
@@ -332,7 +341,7 @@ def regional_calibration(
                 (application, fidelity),
             ).fetchall()
     return {
-        region: {
+        str(region): {
             'n': int(n),
             'mae': float(mae),
             'bias': float(bias),
@@ -345,7 +354,7 @@ def regional_calibration(
 
 def class_calibration(
     database: str, application: str, *, fidelity: str | None = None
-) -> dict:
+) -> dict[str, CalibrationBucketStats]:
     """Aggregate calibration when an exact chemistry region is still unseen.
 
     Args:
@@ -372,7 +381,7 @@ def class_calibration(
                 (application, fidelity),
             ).fetchall()
     return {
-        material_class: {
+        str(material_class): {
             'n': int(n),
             'mae': float(mae),
             'bias': float(bias),
@@ -419,13 +428,22 @@ def seed_validation_from_artifact(
                 ast.literal_eval(raw_genome)
                 if isinstance(raw_genome, str)
                 else tuple(raw_genome)
+                if isinstance(raw_genome, Sequence)
+                else ()
             )
+            if not genome:
+                continue
             predicted = float(item.get('predicted_eV', item.get('predicted')))
             observed = float(item.get('observed_eV', item.get('observed')))
             fidelity = str(item.get('fidelity') or 'screening_dft')
             productive = bool(item.get('productive', observed <= 1.0))
             cid = str(item.get('candidate_id') or candidate_id(genome))
-            provenance = item.get('provenance') or {'source_id': f'{fidelity}:{cid}'}
+            raw_prov = item.get('provenance')
+            provenance: Mapping[str, object] = (
+                raw_prov
+                if isinstance(raw_prov, Mapping)
+                else {'source_id': f'{fidelity}:{cid}'}
+            )
             record_validation(
                 database,
                 application,
@@ -442,13 +460,20 @@ def seed_validation_from_artifact(
     return recorded
 
 
-def _calibration_for(genome: tuple, regional: dict, by_class: dict) -> dict:
+def _calibration_for(
+    genome: tuple[object, ...],
+    regional: Mapping[str, CalibrationBucketStats],
+    by_class: Mapping[str, CalibrationBucketStats],
+) -> CalibrationBucketStats | None:
     """Use the most local available calibration without inventing evidence."""
-    return regional.get('|'.join(discovery_region(genome)), by_class.get(genome[0], {}))
+    reg_key = '|'.join(discovery_region(genome))
+    if reg_key in regional:
+        return regional[reg_key]
+    return by_class.get(str(genome[0]))
 
 
 def priority_adjustment(
-    database: str, application: str, genomes: Sequence[tuple]
+    database: str, application: str, genomes: Sequence[tuple[object, ...]]
 ) -> float:
     """Lower disagreement priority; defer repeatedly unproductive regions.
 
@@ -462,8 +487,11 @@ def priority_adjustment(
     """
     stats = regional_calibration(database, application)
     classes = class_calibration(database, application)
-    matched = [_calibration_for(g, stats, classes) for g in genomes]
-    matched = [x for x in matched if x]
+    matched = [
+        item
+        for g in genomes
+        if (item := _calibration_for(g, stats, classes)) is not None
+    ]
     if not matched:
         return 0.0
     disagreement_bonus = np.mean([min(x['mae'], 2.0) for x in matched])
@@ -474,13 +502,13 @@ def priority_adjustment(
 
 
 def allocate_validation_batch(
-    candidates: Sequence[tuple],
-    objectives: np.ndarray,
+    candidates: Sequence[tuple[object, ...]],
+    objectives: npt.NDArray[np.float64] | Sequence[Sequence[float]],
     n_select: int,
     database: str,
     application: str,
     min_per_class: int = 1,
-    uncertainties=None,
+    uncertainties: npt.NDArray[np.float64] | Sequence[float] | Sequence[Sequence[float]] | None = None,
     *,
     multi_objective: bool = False,
     kappa: float = 0.0,
@@ -506,22 +534,23 @@ def allocate_validation_batch(
     if n_select <= 0 or not candidates:
         return []
     n_select = min(n_select, len(candidates))
-    objectives = np.asarray(objectives, float)
+    obj_arr = np.asarray(objectives, dtype=np.float64)
     from pipeline.screening.objectives import pareto_ranks, robust_objective_matrix
 
     raw_uncertainty = (
-        np.zeros(len(candidates), dtype=float)
+        np.zeros(len(candidates), dtype=np.float64)
         if uncertainties is None
-        else np.asarray(uncertainties, dtype=float)
+        else np.asarray(uncertainties, dtype=np.float64)
     )
     if len(raw_uncertainty) != len(candidates):
         raise ValueError('uncertainties must match candidates')
     robust_obj = robust_objective_matrix(
-        objectives,
+        obj_arr,
         raw_uncertainty if uncertainties is not None else None,
         kappa=kappa,
     )
-    quality = _quality_score(robust_obj, active_indices=active_objectives)
+    quality_fn = getattr(_discovery_mod, '_quality_score')
+    quality = quality_fn(robust_obj, active_indices=active_objectives)
     uncertainty = (
         raw_uncertainty[:, 0].copy()
         if raw_uncertainty.ndim == 2
@@ -532,14 +561,29 @@ def allocate_validation_batch(
     stats = regional_calibration(database, application)
     classes = class_calibration(database, application)
     candidate_stats = [_calibration_for(g, stats, classes) for g in candidates]
-    error = np.array([item.get('mae', 0.0) for item in candidate_stats])
+    error = np.array(
+        [item['mae'] if item is not None else 0.0 for item in candidate_stats]
+    )
     if np.ptp(error) > 0:
         error = (error - error.min()) / np.ptp(error)
-    productivity = np.array([item.get('productivity', 0.5) for item in candidate_stats])
+    productivity = np.array(
+        [
+            item['productivity'] if item is not None else 0.5
+            for item in candidate_stats
+        ]
+    )
     primary = robust_obj[:, 0]
     improvement = np.array(
         [
-            max(candidate_stats[i].get('best_observed', primary[i]) - primary[i], 0.0)
+            max(
+                (
+                    stat_i['best_observed']
+                    if (stat_i := candidate_stats[i]) is not None
+                    else float(primary[i])
+                )
+                - float(primary[i]),
+                0.0,
+            )
             for i in range(len(candidates))
         ]
     )
@@ -564,21 +608,21 @@ def allocate_validation_batch(
     )
     ids = [candidate_id(g) for g in candidates]
 
-    def _order_key(i: int) -> tuple:
+    def _order_key(i: int) -> tuple[int, float, str]:
         return (int(front_ranks[i]), -float(score[i]), ids[i])
 
     from pipeline.search.scope import is_validation_quota_class
 
-    by_class = defaultdict(list)
+    by_class: dict[str, list[int]] = defaultdict(list)
     for i, genome in enumerate(candidates):
-        by_class[genome[0]].append(i)
+        by_class[str(genome[0])].append(i)
     quota_classes = [c for c in by_class if is_validation_quota_class(c, application)]
     quota_required = min_per_class * len(quota_classes)
     if quota_required > n_select:
         raise ValueError(
             f'validation budget {n_select} cannot satisfy class quota {quota_required}'
         )
-    selected = []
+    selected: list[int] = []
     for material_class in sorted(quota_classes):
         ranked = sorted(by_class[material_class], key=_order_key)
         selected.extend(ranked[: min(min_per_class, len(ranked))])
@@ -593,12 +637,12 @@ def allocate_validation_batch(
 
 
 def experimental_slate(
-    candidates: Sequence[tuple],
-    objectives: np.ndarray,
+    candidates: Sequence[tuple[object, ...]],
+    objectives: npt.NDArray[np.float64] | Sequence[Sequence[float]],
     n_select: int,
     advancement_priority: Sequence[float] | None = None,
     *,
-    uncertainties=None,
+    uncertainties: npt.NDArray[np.float64] | Sequence[float] | Sequence[Sequence[float]] | None = None,
     kappa: float = 0.0,
     multi_objective: bool = False,
     active_objectives: Sequence[int] | None = None,
@@ -620,30 +664,36 @@ def experimental_slate(
     """
     from pipeline.screening.objectives import pareto_ranks, robust_objective_matrix
 
-    robust_obj = robust_objective_matrix(
-        np.asarray(objectives, float), uncertainties, kappa=kappa
+    unc_arr = (
+        None
+        if uncertainties is None
+        else np.asarray(uncertainties, dtype=np.float64)
     )
-    quality = _quality_score(robust_obj, active_indices=active_objectives)
+    robust_obj = robust_objective_matrix(
+        np.asarray(objectives, dtype=np.float64), unc_arr, kappa=kappa
+    )
+    quality_fn = getattr(_discovery_mod, '_quality_score')
+    quality = quality_fn(robust_obj, active_indices=active_objectives)
     front_ranks = (
         pareto_ranks(robust_obj, active_indices=active_objectives)
         if multi_objective
         else np.zeros(len(candidates), dtype=int)
     )
     priority = (
-        np.zeros(len(candidates), dtype=float)
+        np.zeros(len(candidates), dtype=np.float64)
         if advancement_priority is None
-        else np.asarray(advancement_priority, dtype=float)
+        else np.asarray(advancement_priority, dtype=np.float64)
     )
     if len(priority) != len(candidates):
         raise ValueError('advancement_priority must match candidates')
     eligible = [i for i in range(len(candidates)) if np.isfinite(priority[i])]
     n_select = min(max(n_select, 0), len(eligible))
     ids = [candidate_id(g) for g in candidates]
-    by_region = defaultdict(list)
+    by_region: dict[tuple[str, ...], list[int]] = defaultdict(list)
     for i in eligible:
         by_region[discovery_region(candidates[i])].append(i)
 
-    def _order_key(i: int) -> tuple:
+    def _order_key(i: int) -> tuple[float, int, float, str]:
         return (-float(priority[i]), int(front_ranks[i]), -float(quality[i]), ids[i])
 
     # Same total order as the ranking sort below: ties go to the smallest ID.
@@ -666,7 +716,7 @@ def record_screening_frame(
     database: str,
     application: str,
     predictions: Mapping[str, float],
-    frame,
+    frame: pd.DataFrame | None,
     observed_column: str,
     fidelity: str,
     productive_threshold: float,
@@ -699,13 +749,23 @@ def record_screening_frame(
         if not eligible[position]:
             continue
         try:
+            raw_g = row.get('genome')
             genome = (
-                ast.literal_eval(row['genome'])
-                if isinstance(row['genome'], str)
-                else tuple(row['genome'])
+                ast.literal_eval(raw_g)
+                if isinstance(raw_g, str)
+                else tuple(raw_g)
+                if isinstance(raw_g, Sequence)
+                else ()
             )
+            if not genome:
+                continue
             cid = candidate_id(genome)
-            observed = float(row[observed_column])
+            raw_obs = row.get(observed_column)
+            observed = (
+                float(raw_obs)
+                if isinstance(raw_obs, (int, float, str))
+                else float('nan')
+            )
             if (
                 cid not in predictions
                 or not np.isfinite(observed)
@@ -730,8 +790,8 @@ def record_screening_frame(
 def persist_experimental_slate(
     database: str,
     application: str,
-    candidates: Sequence[tuple],
-    objectives: np.ndarray,
+    candidates: Sequence[tuple[object, ...]],
+    objectives: npt.NDArray[np.float64] | Sequence[Sequence[float]],
     indices: Sequence[int],
 ) -> None:
     """Persist the diverse shortlist for synthesis/experimental handoff.
@@ -762,15 +822,13 @@ def persist_experimental_slate(
                     application,
                     rank,
                     candidate_id(genome),
-                    genome[0],
+                    str(genome[0]),
                     '|'.join(discovery_region(genome)),
                     repr(genome),
                     json.dumps([float(x) for x in objectives[i]]),
                     time.time(),
                 ),
             )
-
-
 
 
 from pipeline.evidence.round2_calibration import (  # noqa: E402

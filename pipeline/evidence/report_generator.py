@@ -11,13 +11,19 @@ Generates a comprehensive Markdown report with:
   - Techno-economic summary
 """
 
-import sys
+from __future__ import annotations
+
+from collections.abc import Mapping, Sequence
+from datetime import datetime
 import json
 from pathlib import Path
-from typing import Dict
-from datetime import datetime
+import sys
+from typing import cast
+
+import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from pipeline.data_models.reactors import ReactorResult
 from pipeline.fuel_cell import composite_score
 from pipeline.utils import (
     RESULTS_DIR,
@@ -34,27 +40,29 @@ from pipeline.utils import (
 logger = setup_logger('report_generator', 'reports/report_generation.log')
 
 
-def _load_json_dir(directory: Path) -> list:
+def _load_json_dir(directory: Path) -> list[dict[str, object]]:
     """Load every readable JSON file in a results directory."""
     if not directory.is_dir():
         return []
-    records = []
+    records: list[dict[str, object]] = []
     for f in sorted(directory.glob("*.json")):
         try:
             with open(f, 'r') as fh:
-                records.append(json.load(fh))
+                loaded = json.load(fh)
+            if isinstance(loaded, dict):
+                records.append(dict(loaded))
         except Exception:
             pass
     return records
 
 
-def load_all_results() -> Dict:
+def load_all_results() -> dict[str, object]:
     """Load all results from the pipeline output directories.
 
     Returns:
         Dictionary containing the computed values, status, and supporting metadata.
     """
-    data = {}
+    data: dict[str, object] = {}
 
     # Screening databases
     screening_files = list(SCREENING_DIR.glob("*.csv"))
@@ -68,19 +76,15 @@ def load_all_results() -> Dict:
         if c_scr.is_dir():
             screening_files.extend(c_scr.glob("*.csv"))
     if screening_files:
-        try:
-            import pandas as pd
-
-            data['screening'] = {}
-            for f in screening_files:
-                if f.stem in data['screening']:
-                    continue
-                try:
-                    data['screening'][f.stem] = pd.read_csv(f)
-                except Exception:
-                    pass
-        except ImportError:
-            data['screening'] = {}
+        screening_map: dict[str, pd.DataFrame] = {}
+        for f in screening_files:
+            if f.stem in screening_map:
+                continue
+            try:
+                screening_map[f.stem] = pd.read_csv(f)
+            except Exception:
+                pass
+        data['screening'] = screening_map
 
     reactor_records = list(_load_json_dir(REACTOR_DIR))
     for c_name in (
@@ -112,10 +116,9 @@ def load_all_results() -> Dict:
     return data
 
 
-
 def _catalyst_label(
     raw_name_or_id: object,
-    record: dict | None = None,
+    record: Mapping[str, object] | None = None,
     *,
     material_class: object = None,
     genome: object = None,
@@ -123,7 +126,7 @@ def _catalyst_label(
     """Resolve a catalyst identifier or record into a literature-backed label."""
     from pipeline.search.discovery import format_literature_catalyst_label
 
-    rec = record if isinstance(record, dict) else {}
+    rec: Mapping[str, object] = record if isinstance(record, Mapping) else {}
     for lit_key in (
         'literature_catalyst_name',
         'cathode_catalyst_literature_name',
@@ -150,26 +153,36 @@ def _catalyst_label(
     )
 
 
+def _report_number(
+    value: object,
+    format_spec: str,
+    unavailable: str = 'N/A',
+) -> str:
+    if isinstance(value, (int, float, str)):
+        try:
+            return format(float(value), format_spec)
+        except (TypeError, ValueError):
+            return unavailable
+    return unavailable
 
-def _report_number(value, format_spec, unavailable='N/A'):
-    try:
-        return format(float(value), format_spec)
-    except (TypeError, ValueError):
-        return unavailable
 
-
-def _metric_row(label: str, value, format_spec: str = ',', suffix: str = '') -> str:
+def _metric_row(
+    label: str,
+    value: object,
+    format_spec: str = ',',
+    suffix: str = '',
+) -> str:
     """Return a summary row, or N/A unless the value is a number."""
     if isinstance(value, (int, float)):
         return f"| {label} | {format(value, format_spec)}{suffix} |"
     return f"| {label} | N/A |"
 
 
-def _header() -> list:
+def _header() -> list[str]:
     return [
         "# Turquoise Hydrogen → Fuel Cell: Pipeline Report",
         f"\n**Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-        f"**Pipeline Version**: 2.0.0",
+        "**Pipeline Version**: 2.0.0",
         "",
         "> **Evidence status:** screening values are hypotheses. Mock results and "
         "unconverged calculations are excluded from validated claims; catalyst "
@@ -178,25 +191,39 @@ def _header() -> list:
     ]
 
 
-def _scorecard_value(p2: dict, key: str, scorecard_key: str):
+def _scorecard_value(
+    p2: Mapping[str, object],
+    key: str,
+    scorecard_key: str,
+) -> object:
     """Prefer the phase-2 summary value, falling back to its solids scorecard."""
     value = p2.get(key)
-    if not isinstance(value, (int, float)) and isinstance(p2.get('solids_scorecard'), dict):
-        value = p2['solids_scorecard'].get(scorecard_key)
+    sc = p2.get('solids_scorecard')
+    if not isinstance(value, (int, float)) and isinstance(sc, Mapping):
+        value = sc.get(scorecard_key)
     return value
 
 
-def _executive_summary(p1: dict, p2: dict, p5: dict) -> list:
-    lines = ["## Executive Summary\n", f"| Metric | Value |", f"|--------|-------|",
-             _metric_row('Catalysts evaluated (Fairchem)', p1.get('total_evaluated')),
-             _metric_row('Valid candidates', p1.get('valid_count')),
-             f"| Pareto front size | {p1.get('pareto_size', 'N/A')} |",
-             _metric_row('Best eligible screening barrier', p1.get('best_E_act'), '.3f', ' eV'),
-             f"| Best coking resistance | {p1.get('best_coking', 'N/A')} |",
-             f"| Reactor simulations | {p2.get('catalysts_simulated', 'N/A')} |"]
+def _executive_summary(
+    p1: Mapping[str, object],
+    p2: Mapping[str, object],
+    p5: Mapping[str, object],
+) -> list[str]:
+    lines: list[str] = [
+        "## Executive Summary\n",
+        "| Metric | Value |",
+        "|--------|-------|",
+        _metric_row('Catalysts evaluated (Fairchem)', p1.get('total_evaluated')),
+        _metric_row('Valid candidates', p1.get('valid_count')),
+        f"| Pareto front size | {p1.get('pareto_size', 'N/A')} |",
+        _metric_row('Best eligible screening barrier', p1.get('best_E_act'), '.3f', ' eV'),
+        f"| Best coking resistance | {p1.get('best_coking', 'N/A')} |",
+        f"| Reactor simulations | {p2.get('catalysts_simulated', 'N/A')} |",
+    ]
     solids_x = _scorecard_value(p2, 'best_conversion', 'headline_solids_conversion')
+    raw_sc = p2.get('solids_scorecard')
+    sc: Mapping[str, object] = raw_sc if isinstance(raw_sc, Mapping) else {}
     if isinstance(solids_x, (int, float)):
-        sc = p2.get('solids_scorecard') or {}
         judge = (
             sc.get('judge_catalyst_literature_name')
             or sc.get('headline_catalyst_literature_name')
@@ -211,7 +238,6 @@ def _executive_summary(p1: dict, p2: dict, p5: dict) -> list:
         p2, 'candidate_champion_conversion', 'candidate_champion_conversion'
     )
     if isinstance(cand_solids_x, (int, float)):
-        sc = p2.get('solids_scorecard') or {}
         cand_cat = (
             sc.get('candidate_champion_literature_name')
             or _catalyst_label(
@@ -252,15 +278,17 @@ def _executive_summary(p1: dict, p2: dict, p5: dict) -> list:
 _ELIGIBILITY_COLUMNS = frozenset({'valid', 'E_act', 'E_act_censored', 'pyrolysis_viable'})
 
 
-def _screening_section(screening: dict) -> list:
-    lines = ["## Phase 1: Catalyst Screening & Genetic Optimization\n"]
+def _screening_section(
+    screening: Mapping[str, pd.DataFrame] | None,
+) -> list[str]:
+    lines: list[str] = ["## Phase 1: Catalyst Screening & Genetic Optimization\n"]
     if not screening:
         mp = (
             load_json("multipathway_champion_scorecard.json", subdir="")
             or load_json("multipathway_champion_scorecard.json")
             or {}
         )
-        champs = mp.get('discovery_champions') if isinstance(mp, dict) else None
+        champs = mp.get('discovery_champions')
         if isinstance(champs, list) and champs:
             lines += [
                 "**Top Discovery Champions by Activation Barrier & Interfacial Coking Score:**\n",
@@ -268,7 +296,7 @@ def _screening_section(screening: dict) -> list:
                 "|------|--------------------------|-------|------------|------------------------|-----------------------|-------------------|",
             ]
             for ch in champs:
-                if not isinstance(ch, dict):
+                if not isinstance(ch, Mapping):
                     continue
                 lines.append(
                     f"| {ch.get('rank', '?')} | {_catalyst_label(ch.get('candidate_id', '?'), ch)} | "
@@ -284,12 +312,16 @@ def _screening_section(screening: dict) -> list:
         (k for k in screening if 'branch_ranker_evidence' in k or 'full' in k or 'initial' in k),
         list(screening.keys())[0])
     df = screening[main_db_key]
-    valid = df[df.get('valid', True) == True] if 'valid' in df.columns else df
+    valid: pd.DataFrame = (
+        cast(pd.DataFrame, df[df.get('valid', True) == True])
+        if 'valid' in df.columns
+        else df
+    )
     lines += [f"### Screening Database: `{main_db_key}`\n",
               f"- **Total entries**: {len(df):,}",
               f"- **Valid candidates**: {len(valid):,}"]
     if 'material_class' in df.columns:
-        lines += [f"\n**Distribution by Material Class:**\n",
+        lines += ["\n**Distribution by Material Class:**\n",
                   "| Material Class | Count | Valid |", "|----------------|-------|-------|"]
         for cls in df['material_class'].unique():
             n_total = len(df[df['material_class'] == cls])
@@ -297,13 +329,16 @@ def _screening_section(screening: dict) -> list:
                        if 'material_class' in valid.columns else 0)
             lines.append(f"| {cls} | {n_total} | {n_valid} |")
         lines.append("")
-    ranked = valid
+    ranked: pd.DataFrame = valid
     if _ELIGIBILITY_COLUMNS.issubset(df.columns):
         # Match stages.discovery: censored (floor-clipped) and non-viable
         # barriers are not evidence of a low barrier and must not be ranked.
         from pipeline.screening.small_data_ranker import screening_metric_eligibility
 
-        ranked = df.loc[screening_metric_eligibility(df, 'turquoise_hydrogen')]
+        ranked = cast(
+            pd.DataFrame,
+            df.loc[screening_metric_eligibility(df, 'turquoise_hydrogen')],
+        )
     if len(ranked) > 0:
         from pipeline.screening.stage_selection import annotate_interfacial_pyrolysis
 
@@ -323,21 +358,31 @@ def _screening_section(screening: dict) -> list:
                 "|------|--------|------------|-------------|-----------|",
             ]
         for rank, (_, row) in enumerate(ranked.nsmallest(10, 'E_act').iterrows(), 1):
-            row_dict = row.to_dict() if hasattr(row, 'to_dict') else dict(row)
+            row_dict: dict[str, object] = (
+                {str(k): v for k, v in row.to_dict().items()}
+                if hasattr(row, 'to_dict')
+                else dict(row)
+            )
             genome_str = _catalyst_label(
                 row_dict.get('candidate_id') or row_dict.get('genome', ''),
                 row_dict,
             )
+            raw_e_act = row.get('E_act', 0.0)
+            e_act_val = (
+                float(raw_e_act)
+                if isinstance(raw_e_act, (int, float, str))
+                else 0.0
+            )
             if has_interfacial:
                 lines.append(
-                    f"| {rank} | {genome_str} | {row['E_act']:.4f} | "
+                    f"| {rank} | {genome_str} | {e_act_val:.4f} | "
                     f"{_report_number(row.get('interfacial_pyrolysis_score_eV'), '.4f')} | "
                     f"{_report_number(row.get('calibrated_interfacial_score_eV'), '.4f')} | "
                     f"{row.get('coking_index', 'N/A')} | {row.get('dE_H', 'N/A')} |"
                 )
             else:
                 lines.append(
-                    f"| {rank} | {genome_str} | {row['E_act']:.4f} | "
+                    f"| {rank} | {genome_str} | {e_act_val:.4f} | "
                     f"{row.get('coking_index', 'N/A')} | {row.get('dE_H', 'N/A')} |"
                 )
         lines.append("")
@@ -347,14 +392,18 @@ def _screening_section(screening: dict) -> list:
 SOLIDS_TABLE_TAIL = "| T (K) | Single-pass X | a (m⁻¹) | WHSV (h⁻¹) | ΔP (bar) |"
 
 
-def _solids_columns(record: dict, conversion) -> str:
+def _solids_columns(record: Mapping[str, object], conversion: object) -> str:
     return (f"{_report_number(conversion, '.2%')} | "
             f"{_report_number(record.get('active_sv_1_m'), '.0f', '—')} | "
             f"{_report_number(record.get('WHSV_h-1'), '.0f', '—')} | "
             f"{_report_number(record.get('ergun_delta_p_bar'), '.2f', '—')} |")
 
 
-def _reactor_section(p2: dict, reactor: list) -> list:
+def _reactor_section(
+    p2: Mapping[str, object],
+    reactor: Sequence[Mapping[str, object]],
+) -> list[str]:
+    from typing import cast
     from pipeline.reactors.scorecard import (
         is_production_reactor_record,
         is_solids_run,
@@ -362,13 +411,15 @@ def _reactor_section(p2: dict, reactor: list) -> list:
     )
     from pipeline.reactors.eligibility import is_usable_result
 
-    lines = ["## Phase 2: Reactor-Scale Simulation\n"]
-    scorecard = (
+    lines: list[str] = ["## Phase 2: Reactor-Scale Simulation\n"]
+    raw_sc = (
         p2.get('solids_scorecard')
         or load_json('phase2_solids_scorecard.json', subdir='reactor')
         or {}
     )
-    if scorecard.get('headline'):
+    scorecard: Mapping[str, object] = raw_sc if isinstance(raw_sc, Mapping) else {}
+    headline = scorecard.get('headline')
+    if isinstance(headline, Mapping) and headline:
         judge = (
             scorecard.get('judge_catalyst_literature_name')
             or scorecard.get('headline_catalyst_literature_name')
@@ -384,7 +435,9 @@ def _reactor_section(p2: dict, reactor: list) -> list:
             "| Reactor | Catalyst " + SOLIDS_TABLE_TAIL,
             "|---------|----------|-------|---------------|---------|------------|----------|",
         ]
-        for rt, row in scorecard['headline'].items():
+        for rt, row in headline.items():
+            if not isinstance(row, Mapping):
+                continue
             cat_label = _catalyst_label(row.get('catalyst_name', '?'), row)
             lines.append(f"| {rt} | {cat_label} | {row.get('T_K', '?')} | "
                          + _solids_columns(row, row.get('single_pass_CH4_conversion')))
@@ -405,29 +458,35 @@ def _reactor_section(p2: dict, reactor: list) -> list:
                 f"MMBCR max X = {_report_number(scorecard['mmbcr_max_conversion'], '.1%')} "
                 f"({scorecard.get('mmbcr_note', 'not a solids rank')})\n")
     pbr_diag = scorecard.get('pbr_ergun_residence_diagnostics')
-    if isinstance(pbr_diag, dict) and int(pbr_diag.get('n_completed') or 0) > 0:
-        lines += [
-            "### Packed-Bed (PBR), Ergun Pilot Residence-Time, & Regenerated-Cycle Diagnostics\n",
-            f"- **Completed solids runs**: {pbr_diag.get('n_completed', 0)} "
-            f"(PBR: {pbr_diag.get('n_pbr_records', 0)})",
-            f"- **Mean PBR overall effectiveness ($\\Omega$)**: "
-            f"{_report_number(pbr_diag.get('mean_pbr_overall_effectiveness_factor'), '.3f')}",
-            f"- **Mean PBR Thiele modulus ($\\phi$)**: "
-            f"{_report_number(pbr_diag.get('mean_pbr_thiele_modulus'), '.3f')}",
-            f"- **Ergun $\\Delta P$ compliance**: "
-            f"{pbr_diag.get('n_ergun_ok', 0)}/{pbr_diag.get('n_ergun_checked', 0)}",
-            f"- **Ergun & Froment pilot residence-time band ($\\tau \\in [0.1, 10]\\text{{ s}}$)**: "
-            f"{pbr_diag.get('n_within_pilot_residence_band', 0)}/{pbr_diag.get('n_pilot_residence_checked', 0)}",
-            f"- **Mean Muradov regenerated-cycle minus single-pass conversion ($\\Delta X$)**: "
-            f"{_report_number(pbr_diag.get('mean_regenerated_cycle_minus_single_pass_X'), '+.2%')}",
-            "",
-        ]
+    if isinstance(pbr_diag, Mapping):
+        n_comp_raw = pbr_diag.get('n_completed')
+        n_comp = int(n_comp_raw) if isinstance(n_comp_raw, (int, float)) else 0
+        if n_comp > 0:
+            lines += [
+                "### Packed-Bed (PBR), Ergun Pilot Residence-Time, & Regenerated-Cycle Diagnostics\n",
+                f"- **Completed solids runs**: {pbr_diag.get('n_completed', 0)} "
+                f"(PBR: {pbr_diag.get('n_pbr_records', 0)})",
+                f"- **Mean PBR overall effectiveness ($\\Omega$)**: "
+                f"{_report_number(pbr_diag.get('mean_pbr_overall_effectiveness_factor'), '.3f')}",
+                f"- **Mean PBR Thiele modulus ($\\phi$)**: "
+                f"{_report_number(pbr_diag.get('mean_pbr_thiele_modulus'), '.3f')}",
+                f"- **Ergun $\\Delta P$ compliance**: "
+                f"{pbr_diag.get('n_ergun_ok', 0)}/{pbr_diag.get('n_ergun_checked', 0)}",
+                f"- **Ergun & Froment pilot residence-time band ($\\tau \\in [0.1, 10]\\text{{ s}}$)**: "
+                f"{pbr_diag.get('n_within_pilot_residence_band', 0)}/{pbr_diag.get('n_pilot_residence_checked', 0)}",
+                f"- **Mean Muradov regenerated-cycle minus single-pass conversion ($\\Delta X$)**: "
+                f"{_report_number(pbr_diag.get('mean_regenerated_cycle_minus_single_pass_X'), '+.2%')}",
+                "",
+            ]
 
     # Only completed production runs count. Sweeps, mocks, not_applicable,
     # validation_required, and failed records are evidence about the
     # workflow, not about the catalyst.
-    real_reactor = [x for x in reactor
-                    if is_production_reactor_record(x) and not x.get('mock', False)]
+    real_reactor: list[ReactorResult] = [
+        cast(ReactorResult, x)
+        for x in reactor
+        if is_production_reactor_record(cast(ReactorResult, x)) and not x.get('mock', False)
+    ]
     solids = [x for x in real_reactor if is_solids_run(x) and is_usable_result(x)]
     if solids:
         lines += ["### Solids runs (single-pass)\n",
@@ -464,8 +523,8 @@ def _reactor_section(p2: dict, reactor: list) -> list:
     return lines
 
 
-def _dft_section(dft: list) -> list:
-    lines = ["## Phase 3: DFT Validation (Quantum ESPRESSO)\n"]
+def _dft_section(dft: Sequence[Mapping[str, object]]) -> list[str]:
+    lines: list[str] = ["## Phase 3: DFT Validation (Quantum ESPRESSO)\n"]
     converged_dft = [x for x in dft if x.get('converged') is True]
     if converged_dft:
         lines += ["| Catalyst | Material Class | Energy (eV) | Converged | Max Force |",
@@ -486,8 +545,8 @@ def _dft_section(dft: list) -> list:
     return lines
 
 
-def _vqe_section(vqe: list) -> list:
-    lines = ["## Phase 4: Quantum VQE Transition States\n"]
+def _vqe_section(vqe: Sequence[Mapping[str, object]]) -> list[str]:
+    lines: list[str] = ["## Phase 4: Quantum VQE Transition States\n"]
     real_vqe = [x for x in vqe
                 if not x.get('mock', False)
                 and x.get('catalyst_specific_hamiltonian') is True
@@ -499,9 +558,11 @@ def _vqe_section(vqe: list) -> list:
             cat_label = _catalyst_label(
                 res.get('candidate_id') or res.get('catalyst_name', '?'), res
             )
+            e_ha = _report_number(res.get('energy_Ha', 0), '.6f', '0.000000')
+            e_ev = _report_number(res.get('energy_eV', 0), '.4f', '0.0000')
             lines.append(
                 f"| {cat_label} | {res.get('reaction_type', '?')} | "
-                f"{res.get('energy_Ha', 0):.6f} | {res.get('energy_eV', 0):.4f} | "
+                f"{e_ha} | {e_ev} | "
                 f"{res.get('n_qubits', '?')} | {res.get('n_layers', '?')} |")
         lines.append("")
     if vqe and not real_vqe:
@@ -510,8 +571,11 @@ def _vqe_section(vqe: list) -> list:
     return lines
 
 
-def _fuel_cell_section(fuel_cell: list, dft: list) -> list:
-    lines = ["## Phase 5: PEMFC Fuel Cell Performance\n"]
+def _fuel_cell_section(
+    fuel_cell: Sequence[Mapping[str, object]],
+    dft: Sequence[Mapping[str, object]],
+) -> list[str]:
+    lines: list[str] = ["## Phase 5: PEMFC Fuel Cell Performance\n"]
     pemfc_results = [x for x in fuel_cell if 'peak_power_W_cm2' in x and 'n_cells' not in x]
     stack_results = [x for x in fuel_cell if 'n_cells' in x]
     if pemfc_results:
@@ -520,21 +584,29 @@ def _fuel_cell_section(fuel_cell: list, dft: list) -> list:
                   "|---------|----------|---------------------|---------|-------|--------------------|"]
         for res in sorted(pemfc_results, key=composite_score, reverse=True)[:15]:
             cath_label = _catalyst_label(res.get('cathode_catalyst', '?'), res)
+            p_pk = _report_number(res.get('peak_power_W_cm2', 0), '.4f', '0.0000')
+            ocv = _report_number(res.get('OCV_V', 0), '.3f', '0.000')
+            eff = _report_number(res.get('efficiency_at_peak', 0), '.1%', '0.0%')
             lines.append(
                 f"| {cath_label} | {res.get('membrane', '?')} | "
-                f"{res.get('peak_power_W_cm2', 0):.4f} | {res.get('OCV_V', 0):.3f} | "
-                f"{res.get('orr_overpotential_V', '?')} | {res.get('efficiency_at_peak', 0):.1%} |")
+                f"{p_pk} | {ocv} | "
+                f"{res.get('orr_overpotential_V', '?')} | {eff} |")
         lines.append("")
     if stack_results:
         lines.append("### Stack Performance\n")
         for res in stack_results:
+            net_kw = _report_number(res.get('net_power_kW', 0), '.1f', '0.0')
+            sys_eff = _report_number(res.get('system_efficiency', 0), '.1%', '0.0%')
+            grav = _report_number(res.get('gravimetric_W_kg', 0), '.0f', '0')
+            vol = _report_number(res.get('volumetric_W_L', 0), '.0f', '0')
+            cost_kw = _report_number(res.get('cost_per_kW', 0), '.0f', '0')
             lines += [
-                f"- **Stack Power**: {res.get('net_power_kW', 0):.1f} kW net "
+                f"- **Stack Power**: {net_kw} kW net "
                 f"({res.get('n_cells', '?')} cells)",
-                f"- **System Efficiency**: {res.get('system_efficiency', 0):.1%}",
-                f"- **Power Density**: {res.get('gravimetric_W_kg', 0):.0f} W/kg, "
-                f"{res.get('volumetric_W_L', 0):.0f} W/L",
-                f"- **Cost**: ${res.get('cost_per_kW', 0):.0f}/kW",
+                f"- **System Efficiency**: {sys_eff}",
+                f"- **Power Density**: {grav} W/kg, "
+                f"{vol} W/L",
+                f"- **Cost**: ${cost_kw}/kW",
                 "",
             ]
     orr_dft = [x for x in dft if 'orr_overpotential_V' in x]
@@ -546,15 +618,16 @@ def _fuel_cell_section(fuel_cell: list, dft: list) -> list:
             cat_label = _catalyst_label(
                 res.get('candidate_id') or res.get('catalyst_name', '?'), res
             )
+            eta_str = _report_number(res.get('orr_overpotential_V'), '.3f', '?')
             lines.append(
-                f"| {cat_label} | {res.get('orr_overpotential_V', '?'):.3f} | "
+                f"| {cat_label} | {eta_str} | "
                 f"{res.get('dG_OH_eV', '?')} | {res.get('dG_O_eV', '?')} | "
                 f"{res.get('dG_OOH_eV', '?')} | {res.get('rate_determining_step', '?')} |")
         lines.append("")
     return lines
 
 
-TEA_SECTION = [
+TEA_SECTION: list[str] = [
     "## Techno-Economic Summary\n",
     "### Turquoise H₂ Production Cost Drivers\n",
     "| Parameter | Value |",
@@ -568,8 +641,9 @@ TEA_SECTION = [
 
 
 def _tea_section(
-    p2: dict, multipathway_scorecard: dict | None = None
-) -> list:
+    p2: Mapping[str, object],
+    multipathway_scorecard: Mapping[str, object] | None = None,
+) -> list[str]:
     """Build the techno-economic section with live LCOH scenarios and full 7-pathway scorecard."""
     lines = list(TEA_SECTION)
     conv = _scorecard_value(p2, 'best_conversion', 'headline_solids_conversion')
@@ -580,8 +654,10 @@ def _tea_section(
     if isinstance(conv, (int, float)) and conv > 0:
         from pipeline.economics.tea import estimate_hydrogen_cost
 
-        sc = p2.get('solids_scorecard') or {}
-        temp_k = float(sc.get('candidate_champion_T_K') or 1073.15)
+        raw_sc = p2.get('solids_scorecard')
+        sc: Mapping[str, object] = raw_sc if isinstance(raw_sc, Mapping) else {}
+        raw_temp = sc.get('candidate_champion_T_K')
+        temp_k = float(raw_temp) if isinstance(raw_temp, (int, float)) and raw_temp > 0 else 1073.15
         lines += [
             f"### Levelized Cost of Hydrogen (LCOH) at X = {conv:.1%} (T = {temp_k:.0f} K)\n",
             "| Scenario | Single-Pass X | Net CH₄ Util. | H₂ Cost ($/kg) | Carbon Credit ($/kg H₂) | DOE < $2/kg |",
@@ -600,17 +676,18 @@ def _tea_section(
             )
         lines.append("")
 
-    mp = (
+    raw_mp = (
         multipathway_scorecard
-        if isinstance(multipathway_scorecard, dict) and multipathway_scorecard
+        if multipathway_scorecard
         else (
             load_json("multipathway_champion_scorecard.json", subdir="")
             or load_json("multipathway_champion_scorecard.json")
             or {}
         )
     )
-    if not isinstance(mp, dict) or not mp:
+    if not raw_mp:
         return lines
+    mp: Mapping[str, object] = raw_mp
 
     lines.append(
         "### Multi-Pathway Discovery Champions & QE-DFT-Calibrated Leaderboard\n"
@@ -623,7 +700,7 @@ def _tea_section(
             "|------|--------------------------|-------|----------------------|-----------------------|------------------------|-----------------------|--------------------|",
         ]
         for ch in disc_champs:
-            if not isinstance(ch, dict):
+            if not isinstance(ch, Mapping):
                 continue
             lit_name = _catalyst_label(ch.get('candidate_id', '?'), ch)
             lines.append(
@@ -637,7 +714,7 @@ def _tea_section(
         lines.append("")
 
     cal_board = mp.get('dft_calibrated_pathway_leaderboard')
-    if isinstance(cal_board, dict) and cal_board:
+    if isinstance(cal_board, Mapping) and cal_board:
         lines += [
             "#### 7-Pathway QE-DFT-Calibrated Reactor & LCOH Leaderboard\n",
             "| Pathway | Reactor | Literature Champion Catalyst | T (K) | Uncalibrated X | Calibrated X | Ω | ΔP (bar) | Base LCOH ($/kg) | Optimistic LCOH ($/kg) | Kinetics Status |",
@@ -653,11 +730,11 @@ def _tea_section(
             'electrochemical',
         )
         ordered_keys = [k for k in pathway_order if k in cal_board] + [
-            k for k in cal_board if k not in pathway_order
+            str(k) for k in cal_board if k not in pathway_order
         ]
         for mode_key in ordered_keys:
             row = cal_board.get(mode_key)
-            if not isinstance(row, dict) or row.get('status') != 'complete':
+            if not isinstance(row, Mapping) or row.get('status') != 'complete':
                 continue
             champ_label = _catalyst_label(row.get('champion_catalyst', '?'), row)
             lines.append(
@@ -674,62 +751,92 @@ def _tea_section(
         lines.append("")
 
     ni_closure = mp.get('supported_ni_filament_closure_summary')
-    if isinstance(ni_closure, dict) and ni_closure:
-        gate = (
-            ni_closure.get('supported_ni_filament_closure_gate')
-            if isinstance(ni_closure.get('supported_ni_filament_closure_gate'), dict)
-            else {}
+    if isinstance(ni_closure, Mapping) and ni_closure:
+        raw_gate = ni_closure.get('supported_ni_filament_closure_gate')
+        gate: Mapping[str, object] = (
+            raw_gate if isinstance(raw_gate, Mapping) else {}
         )
-        bh_crit = (
-            (ni_closure.get('baker_helveg_criteria_summary') or {}).get('criteria')
-            if isinstance(ni_closure.get('baker_helveg_criteria_summary'), dict)
-            else (ni_closure.get('criteria') if isinstance(ni_closure.get('criteria'), dict) else {})
+        raw_bh = ni_closure.get('baker_helveg_criteria_summary')
+        raw_bh_crit = (
+            raw_bh.get('criteria')
+            if isinstance(raw_bh, Mapping)
+            else ni_closure.get('criteria')
+        )
+        bh_crit: Mapping[str, object] = (
+            raw_bh_crit if isinstance(raw_bh_crit, Mapping) else {}
         )
         closure_ok = bool(
             ni_closure.get('supported_ni_filament_closure_passed')
             or ni_closure.get('ranking_authority')
             or gate.get('solids_ranking_authority_accepted')
         )
+        c_flat = bh_crit.get('flat')
+        c_bs = bh_crit.get('barrier_sensitivity')
         flat_val = (
-            (bh_crit.get('flat') or {}).get('value')
-            or (bh_crit.get('barrier_sensitivity') or {}).get('d_ln_X_d_E_act_inv_eV')
+            (c_flat.get('value') if isinstance(c_flat, Mapping) else None)
+            or (c_bs.get('d_ln_X_d_E_act_inv_eV') if isinstance(c_bs, Mapping) else None)
         )
+        c_lin = bh_crit.get('linearity')
+        c_psd = bh_crit.get('particle_size_differentiation')
         lin_val = (
-            (bh_crit.get('linearity') or {}).get('value')
-            or (bh_crit.get('particle_size_differentiation') or {}).get(
-                'relative_turnover_difference'
+            (c_lin.get('value') if isinstance(c_lin, Mapping) else None)
+            or (
+                c_psd.get('relative_turnover_difference')
+                if isinstance(c_psd, Mapping)
+                else None
             )
         )
+        c_eo = bh_crit.get('encapsulation_onset')
+        c_first_eo = (
+            c_eo.get('first_A_gamma_theta_encap')
+            if isinstance(c_eo, Mapping)
+            else None
+        )
+        c_hteo = bh_crit.get('high_temperature_encapsulation_onset')
         encap_val = (
-            ((bh_crit.get('encapsulation_onset') or {}).get('first_A_gamma_theta_encap') or {}).get(
-                'exit_theta_C_encap'
+            (
+                c_first_eo.get('exit_theta_C_encap')
+                if isinstance(c_first_eo, Mapping)
+                else None
             )
-            or (bh_crit.get('high_temperature_encapsulation_onset') or {}).get(
-                'theta_encap_1100K'
+            or (
+                c_hteo.get('theta_encap_1100K')
+                if isinstance(c_hteo, Mapping)
+                else None
             )
         )
+        c_yld = bh_crit.get('yield')
+        c_yld_ex = c_yld.get('example') if isinstance(c_yld, Mapping) else None
+        c_scy = bh_crit.get('specific_carbon_yield')
         yield_923 = (
-            ((bh_crit.get('yield') or {}).get('example') or {}).get(
-                'filament_yield_gC_per_gMetal_h'
+            (
+                c_yld_ex.get('filament_yield_gC_per_gMetal_h')
+                if isinstance(c_yld_ex, Mapping)
+                else None
             )
-            or (bh_crit.get('specific_carbon_yield') or {}).get('yield_923K_g_C_g_Ni_h')
+            or (
+                c_scy.get('yield_923K_g_C_g_Ni_h')
+                if isinstance(c_scy, Mapping)
+                else None
+            )
         )
-        joint_roi = (
-            ni_closure.get('ermakova_takenaka_joint_roi_record')
-            if isinstance(ni_closure.get('ermakova_takenaka_joint_roi_record'), dict)
-            else {}
+        raw_jroi = ni_closure.get('ermakova_takenaka_joint_roi_record')
+        joint_roi: Mapping[str, object] = (
+            raw_jroi if isinstance(raw_jroi, Mapping) else {}
         )
+        raw_jsum = ni_closure.get('ermakova_takenaka_joint_summary')
         both_roi = (
-            (ni_closure.get('ermakova_takenaka_joint_summary') or {}).get('both_roi')
-            if isinstance(ni_closure.get('ermakova_takenaka_joint_summary'), dict)
+            raw_jsum.get('both_roi')
+            if isinstance(raw_jsum, Mapping)
             else []
         )
         roi_973_val = next(
             (
                 r.get('filament_yield_gC_per_gMetal_h')
                 for r in (both_roi if isinstance(both_roi, list) else [])
-                if isinstance(r, dict)
-                and abs(float(r.get('T_K') or 0.0) - 973.15) < 5.0
+                if isinstance(r, Mapping)
+                and isinstance(r.get('T_K'), (int, float))
+                and abs(float(r['T_K']) - 973.15) < 5.0
                 and r.get('cell') == 'production'
             ),
             None,
@@ -737,7 +844,11 @@ def _tea_section(
         yield_973 = (
             joint_roi.get('filament_yield_gC_per_gMetal_h')
             or roi_973_val
-            or (bh_crit.get('specific_carbon_yield') or {}).get('yield_973K_g_C_g_Ni_h')
+            or (
+                c_scy.get('yield_973K_g_C_g_Ni_h')
+                if isinstance(c_scy, Mapping)
+                else None
+            )
         )
 
         lines += [
@@ -756,10 +867,9 @@ def _tea_section(
             "",
         ]
 
-
     gc_stack = mp.get('dft_calibrated_pemfc_stack_summary')
     cal_coupled = mp.get('dft_calibrated_coupled_turquoise_pemfc_tea')
-    if isinstance(gc_stack, dict) and gc_stack.get('status') == 'complete':
+    if isinstance(gc_stack, Mapping) and gc_stack.get('status') == 'complete':
         lines += [
             "#### Coupled Turquoise H₂ → PEMFC Stack & Electricity Cost (LCOE)\n",
             f"- **QE-Confirmed Acid-Stable PEMFC Champion**: {_catalyst_label(gc_stack.get('champion_cathode', '?'), gc_stack)} "
@@ -770,7 +880,7 @@ def _tea_section(
             f"{_report_number(gc_stack.get('stack_system_efficiency'), '.2%')} system efficiency)",
         ]
         low_pgm = gc_stack.get('low_pgm_champion')
-        if isinstance(low_pgm, dict):
+        if isinstance(low_pgm, Mapping):
             lines.append(
                 f"- **Low-PGM Champion**: {_catalyst_label(low_pgm.get('cathode_catalyst', '?'), low_pgm)} "
                 f"($\\eta_{{\\text{{ORR,GC}}}} = {_report_number(low_pgm.get('orr_overpotential_gc_V'), '.4f')}\\text{{ V}}$, "
@@ -778,13 +888,13 @@ def _tea_section(
                 f"peak power **{_report_number(low_pgm.get('peak_power_W_cm2'), '.4f')} W/cm²**)"
             )
         lines.append("")
-    if isinstance(cal_coupled, dict) and cal_coupled:
+    if isinstance(cal_coupled, Mapping) and cal_coupled:
         lines += [
             "| Pathway | Calibrated Base H₂ ($/kg) | Calibrated Optimistic H₂ ($/kg) | Coupled Base PEMFC Fuel Cost ($/kWh_e) | Coupled Optimistic PEMFC Fuel Cost ($/kWh_e) |",
             "|---------|---------------------------|---------------------------------|----------------------------------------|----------------------------------------------|",
         ]
         for mode_key, c_row in cal_coupled.items():
-            if not isinstance(c_row, dict):
+            if not isinstance(c_row, Mapping):
                 continue
             lines.append(
                 f"| `{mode_key}` | "
@@ -797,7 +907,7 @@ def _tea_section(
     return lines
 
 
-PHASE_NAMES = {
+PHASE_NAMES: dict[str, str] = {
     'phase1': 'Fairchem Screening + GA',
     'phase2': 'Reactor Simulation',
     'phase3': 'DFT Validation',
@@ -807,12 +917,16 @@ PHASE_NAMES = {
 }
 
 
-def _timing_section(ps: dict) -> list:
-    lines = ["## Pipeline Timing\n", "| Phase | Duration |", "|-------|----------|"]
+def _timing_section(ps: Mapping[str, object]) -> list[str]:
+    lines: list[str] = ["## Pipeline Timing\n", "| Phase | Duration |", "|-------|----------|"]
     for phase_key, phase_name in PHASE_NAMES.items():
-        lines.append(f"| {phase_name} | {ps.get(phase_key, {}).get('elapsed_s', 0):.0f}s |")
+        phase_obj = ps.get(phase_key)
+        raw_elapsed = phase_obj.get('elapsed_s', 0) if isinstance(phase_obj, Mapping) else 0
+        elapsed_val = float(raw_elapsed) if isinstance(raw_elapsed, (int, float)) else 0.0
+        lines.append(f"| {phase_name} | {elapsed_val:.0f}s |")
     # 3600 s/hr conversion from elapsed seconds to wall-clock hours
-    total_s = ps.get('total_elapsed_s', 0)
+    raw_total = ps.get('total_elapsed_s', 0)
+    total_s = float(raw_total) if isinstance(raw_total, (int, float)) else 0.0
     lines += [f"| **Total** | **{total_s:.0f}s ({total_s/3600:.1f} hours)** |", ""]
     return lines
 
@@ -833,22 +947,37 @@ def generate_full_report(
     data = load_all_results()
     if pipeline_state:
         data['pipeline_state'] = pipeline_state
-    ps = data.get('pipeline_state', {})
-    p1 = dict(ps.get('phase1', {}) if isinstance(ps.get('phase1'), dict) else {})
-    p2 = dict(ps.get('phase2', {}) if isinstance(ps.get('phase2'), dict) else {})
+    raw_ps = data.get('pipeline_state')
+    ps: Mapping[str, object] = raw_ps if isinstance(raw_ps, Mapping) else {}
+    raw_p1 = ps.get('phase1')
+    p1: dict[str, object] = (
+        {str(k): v for k, v in raw_p1.items()}
+        if isinstance(raw_p1, Mapping)
+        else {}
+    )
+    raw_p2 = ps.get('phase2')
+    p2: dict[str, object] = (
+        {str(k): v for k, v in raw_p2.items()}
+        if isinstance(raw_p2, Mapping)
+        else {}
+    )
     # FC results come from the orchestrator ('phase5') or the campaign
     # ('phase5_branch' search summary + 'phase5_stack' PEMFC/stack results).
-    p5 = {
-        **(ps.get('phase5', {}) if isinstance(ps.get('phase5'), dict) else {}),
-        **(ps.get('phase5_branch', {}) if isinstance(ps.get('phase5_branch'), dict) else {}),
-        **(ps.get('phase5_stack', {}) if isinstance(ps.get('phase5_stack'), dict) else {}),
-    }
-    mp = data.get('multipathway_scorecard')
-    if isinstance(mp, dict) and mp:
-        raw_board = mp.get('pathway_leaderboard') or {}
-        if isinstance(raw_board, dict):
-            tc = raw_board.get('thermocatalytic') or {}
-            if isinstance(tc, dict) and tc.get('status') == 'complete':
+    p5: dict[str, object] = {}
+    for p5_key in ('phase5', 'phase5_branch', 'phase5_stack'):
+        sub = ps.get(p5_key)
+        if isinstance(sub, Mapping):
+            for k, v in sub.items():
+                p5[str(k)] = v
+    raw_mp = data.get('multipathway_scorecard')
+    mp: Mapping[str, object] | None = (
+        raw_mp if isinstance(raw_mp, Mapping) and raw_mp else None
+    )
+    if mp is not None:
+        raw_board = mp.get('pathway_leaderboard')
+        if isinstance(raw_board, Mapping):
+            tc = raw_board.get('thermocatalytic')
+            if isinstance(tc, Mapping) and tc.get('status') == 'complete':
                 p2.setdefault(
                     'candidate_champion_conversion',
                     tc.get('single_pass_CH4_conversion'),
@@ -863,11 +992,11 @@ def generate_full_report(
                 ('ntec', 'ntec_max_conversion'),
                 ('electrochemical', 'electrochemical_max_conversion'),
             ):
-                m_entry = raw_board.get(k_mode) or {}
-                if isinstance(m_entry, dict) and m_entry.get('status') == 'complete':
+                m_entry = raw_board.get(k_mode)
+                if isinstance(m_entry, Mapping) and m_entry.get('status') == 'complete':
                     p2.setdefault(k_field, m_entry.get('single_pass_CH4_conversion'))
-        fc_sum = mp.get('dft_calibrated_pemfc_stack_summary') or mp.get('pemfc_stack_summary') or {}
-        if isinstance(fc_sum, dict) and fc_sum.get('status') == 'complete':
+        fc_sum = mp.get('dft_calibrated_pemfc_stack_summary') or mp.get('pemfc_stack_summary')
+        if isinstance(fc_sum, Mapping) and fc_sum.get('status') == 'complete':
             p5.setdefault('best_power_W_cm2', fc_sum.get('peak_power_W_cm2'))
             p5.setdefault('best_efficiency', fc_sum.get('cell_efficiency_at_peak'))
             p5.setdefault(
@@ -876,14 +1005,43 @@ def generate_full_report(
                 or fc_sum.get('orr_overpotential_V'),
             )
 
+    raw_scr = data.get('screening')
+    screening_arg: Mapping[str, pd.DataFrame] | None = (
+        raw_scr if isinstance(raw_scr, Mapping) else None
+    )
+    raw_reactor = data.get('reactor')
+    reactor_arg: Sequence[Mapping[str, object]] = (
+        [r for r in raw_reactor if isinstance(r, Mapping)]
+        if isinstance(raw_reactor, list)
+        else []
+    )
+    raw_dft = data.get('dft')
+    dft_arg: Sequence[Mapping[str, object]] = (
+        [r for r in raw_dft if isinstance(r, Mapping)]
+        if isinstance(raw_dft, list)
+        else []
+    )
+    raw_vqe = data.get('vqe')
+    vqe_arg: Sequence[Mapping[str, object]] = (
+        [r for r in raw_vqe if isinstance(r, Mapping)]
+        if isinstance(raw_vqe, list)
+        else []
+    )
+    raw_fc = data.get('fuel_cell')
+    fc_arg: Sequence[Mapping[str, object]] = (
+        [r for r in raw_fc if isinstance(r, Mapping)]
+        if isinstance(raw_fc, list)
+        else []
+    )
+
     report_lines = (
         _header()
         + _executive_summary(p1, p2, p5)
-        + _screening_section(data.get('screening'))
-        + _reactor_section(p2, data['reactor'])
-        + _dft_section(data['dft'])
-        + _vqe_section(data['vqe'])
-        + _fuel_cell_section(data['fuel_cell'], data['dft'])
+        + _screening_section(screening_arg)
+        + _reactor_section(p2, reactor_arg)
+        + _dft_section(dft_arg)
+        + _vqe_section(vqe_arg)
+        + _fuel_cell_section(fc_arg, dft_arg)
         + _tea_section(p2, mp)
         + _timing_section(ps)
     )
@@ -897,4 +1055,5 @@ def generate_full_report(
 if __name__ == '__main__':
     report = generate_full_report()
     print(f"Report generated: {report}")
+
 

@@ -2,7 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
+
+from pipeline.data_models.evidence import (
+    MultipathwayChampionScorecard,
+    TEAAssumptionsDict,
+    TEAScenarioEstimate,
+    TEAScenarioRangeResult,
+)
 
 
 @dataclass(frozen=True)
@@ -26,7 +33,7 @@ class TEAAssumptions:
     source_id: str
 
 
-SCENARIOS = {
+SCENARIOS: dict[str, TEAAssumptions] = {
     'optimistic': TEAAssumptions(
         2.50, 0.035, 7.0, 0.30, 1.00, 'screening-tea-v3:optimistic'
     ),
@@ -41,8 +48,8 @@ SCENARIOS = {
 # Priced on the HHV basis used for natural-gas $/MMBtu quotes
 # (55.5 MJ/kg CH4; 1 MMBtu = 1055.06 MJ): ~0.209 MMBtu per kg H2 at X = 1.
 # (v2 used 0.05 MMBtu/kg, about 4x too little feedstock.)
-KG_CH4_PER_KG_H2 = 16.043 / (2 * 2.016)
-MMBTU_CH4_PER_KG_H2 = KG_CH4_PER_KG_H2 * 55.5 / 1055.06
+KG_CH4_PER_KG_H2: float = 16.043 / (2 * 2.016)
+MMBTU_CH4_PER_KG_H2: float = KG_CH4_PER_KG_H2 * 55.5 / 1055.06
 PSA_CH4_RECOVERY: float = 0.96  # Industrial pressure-swing adsorption (PSA) unreacted CH4 recovery fraction
 RECYCLE_ENERGY_FRACTION: float = 0.25  # Fractional compression + reheat energy penalty per unit recycle ratio R = (1-X)/X
 RECYCLE_CAPEX_SCALING: float = 0.12  # Fractional PSA + recycle compressor CAPEX increment per unit recycle ratio R
@@ -56,7 +63,7 @@ def estimate_hydrogen_cost(
     temperature_K: float | None = None,
     solid_c_selectivity: float = 1.0,
     specific_energy_kwh_kg_h2: float | None = None,
-) -> dict:
+) -> TEAScenarioEstimate:
     """Return an assumption-labelled screening estimate with PSA CH4 recycle, never a measurement.
 
     Models an industrial PSA H2 purification and unreacted CH4 recycle loop:
@@ -123,6 +130,14 @@ def estimate_hydrogen_cost(
         + effective_capex
         - carbon_credit
     )
+    assumptions_dict: TEAAssumptionsDict = {
+        'natural_gas_usd_mmbtu': assumptions.natural_gas_usd_mmbtu,
+        'electricity_usd_kwh': assumptions.electricity_usd_kwh,
+        'base_energy_kwh_kg_h2': assumptions.base_energy_kwh_kg_h2,
+        'capex_usd_kg_h2': assumptions.capex_usd_kg_h2,
+        'carbon_value_usd_kg_h2': assumptions.carbon_value_usd_kg_h2,
+        'source_id': assumptions.source_id,
+    }
     return {
         'scenario': scenario,
         'h2_cost_usd_kg': round(cost, 3),
@@ -134,7 +149,7 @@ def estimate_hydrogen_cost(
         'carbon_credit_usd_kg_h2': round(carbon_credit, 4),
         'energy_input_kwh_kg_h2': energy,
         'effective_capex_usd_kg_h2': round(effective_capex, 4),
-        'assumptions': asdict(assumptions),
+        'assumptions': assumptions_dict,
         'evidence_level': 'screening_scenario_not_measured_tea',
     }
 
@@ -145,7 +160,7 @@ def estimate_scenario_range(
     temperature_K: float | None = None,
     solid_c_selectivity: float = 1.0,
     specific_energy_kwh_kg_h2: float | None = None,
-) -> dict:
+) -> TEAScenarioRangeResult:
     """Evaluate hydrogen cost across named techno-economic scenarios.
 
     Args:
@@ -157,7 +172,7 @@ def estimate_scenario_range(
     Returns:
         A dictionary containing estimate scenario range outputs, status, and supporting metadata.
     """
-    estimates = {
+    estimates: dict[str, TEAScenarioEstimate] = {
         name: estimate_hydrogen_cost(
             conversion,
             name,
@@ -176,7 +191,7 @@ def estimate_scenario_range(
 
 
 # Lower heating value of H2 (33.33 kWh/kg H2) for coupled H2 -> PEMFC LCOE.
-LHV_H2_KWH_PER_KG = 33.33
+LHV_H2_KWH_PER_KG: float = 33.33
 
 
 def build_multipathway_champion_scorecard(
@@ -184,7 +199,7 @@ def build_multipathway_champion_scorecard(
     *,
     stack_cells: int = 400,
     top_k_catalysts: int = 11,
-) -> dict:
+) -> MultipathwayChampionScorecard:
     """Delegate multi-pathway scorecard aggregation to pipeline.evidence.multipathway_scorecard.
 
     Args:
@@ -204,3 +219,4 @@ def build_multipathway_champion_scorecard(
         stack_cells=stack_cells,
         top_k_catalysts=top_k_catalysts,
     )
+

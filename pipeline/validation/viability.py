@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
 import math
-from typing import Any
+from typing import cast
 
 
 @dataclass(frozen=True)
@@ -59,10 +59,10 @@ class FuelCellBounds:
     min_measured_hours: float = 100.0  # Minimum accelerated durability test duration [h]
 
 
-def _number(record: Mapping[str, Any], names: Sequence[str]) -> float | None:
+def _number(record: Mapping[str, object], names: Sequence[str]) -> float | None:
     for name in names:
         value = record.get(name)
-        if value is not None:
+        if isinstance(value, (int, float, str)) and not isinstance(value, bool):
             try:
                 num = float(value)
                 if math.isfinite(num):
@@ -73,9 +73,9 @@ def _number(record: Mapping[str, Any], names: Sequence[str]) -> float | None:
 
 
 def evaluate_turquoise(
-    record: Mapping[str, Any],
+    record: Mapping[str, object],
     bounds: TurquoiseHydrogenBounds = TurquoiseHydrogenBounds(),
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """Evaluate measured turquoise-hydrogen performance against viability bounds.
 
     Args:
@@ -129,15 +129,21 @@ def evaluate_turquoise(
         )
     result = _evaluate(checks, asdict(bounds))
     if bounds.reject_co2_permitted_runs and record.get('co2_permitted') is True:
-        result['failed'] = list(result.get('failed') or []) + ['co2_permitted=True']
+        failed_list = result.get('failed')
+        existing_failed = (
+            [str(x) for x in cast(list[object], failed_list)]
+            if isinstance(failed_list, list)
+            else []
+        )
+        result['failed'] = existing_failed + ['co2_permitted=True']
         result['status'] = 'fail'
     return result
 
 
 def evaluate_fuel_cell(
-    record: Mapping[str, Any],
+    record: Mapping[str, object],
     bounds: FuelCellBounds = FuelCellBounds(),
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """Evaluate measured fuel-cell performance against viability bounds.
 
     Args:
@@ -180,8 +186,8 @@ def evaluate_fuel_cell(
 
 def _evaluate(
     checks: Mapping[str, tuple[float | None, float | None, float | None]],
-    bounds: dict[str, Any],
-) -> dict[str, Any]:
+    bounds: dict[str, object],
+) -> dict[str, object]:
     failed: list[str] = []
     missing: list[str] = []
     observed: dict[str, float] = {}
@@ -202,3 +208,4 @@ def _evaluate(
         'observed': observed,
         'bounds': bounds,
     }
+

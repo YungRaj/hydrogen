@@ -1,28 +1,36 @@
 """Molten-metal bubble-column methane-conversion model."""
 
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import cast
+
 import numpy as np
 
 from pipeline.data_models.reactors import ReactorResult
 from pipeline.reactors.reactor_core import (
     G_M_S2,
     ReactorConfig,
-    _h2_atom_balance_metric,
-    _load_gas_and_surface,
-    _local_tp_x_eq,
-    _mmbcr_flotation_eta,
-    _mmbcr_hydrodynamics,
-    _mmbcr_interfacial_k_m_s,
-    _set_gas_from_ch4_conversion,
-    _species_x,
-    _tabulated_x_eq,
-    _validate_carbon_policy,
     common_reactor_result_fields,
+    h2_atom_balance_metric,
+    load_gas_and_surface,
+    local_tp_x_eq,
     logger,
+    mmbcr_flotation_eta,
+    mmbcr_hydrodynamics,
+    mmbcr_interfacial_k_m_s,
+    set_gas_from_ch4_conversion,
+    species_x,
+    tabulated_x_eq,
+    validate_carbon_policy,
 )
 
 
 def simulate_mmbcr(
-    config: ReactorConfig, *, cantera_available: bool, mock_result
+    config: ReactorConfig,
+    *,
+    cantera_available: bool,
+    mock_result: Callable[[ReactorConfig, str], ReactorResult],
 ) -> ReactorResult:
     """Melt ODE to tabulated X_eq with bubble-area flotation (Upham 2017 / Chen 2023).
 
@@ -40,27 +48,27 @@ def simulate_mmbcr(
     Returns:
         Dictionary containing the computed values, status, and supporting metadata.
     """
-    _validate_carbon_policy(config)
-    hydro = _mmbcr_hydrodynamics(config)
+    validate_carbon_policy(config)
+    hydro = mmbcr_hydrodynamics(config)
     if not cantera_available:
         return mock_result(config, 'MMBCR')
 
     logger.info(f"Simulating MMBCR: {config.catalyst_name} at {config.T_inlet_K} K")
-    gas, graphite, surf = _load_gas_and_surface(config)
+    gas, graphite, surf = load_gas_and_surface(config)
     gas.TPX = config.T_inlet_K, config.P_inlet_Pa, config.inlet_composition
-    x_ch4_feed = _species_x(gas, 'CH4') or 0.95
-    x_ar_feed = _species_x(gas, 'Ar')
+    x_ch4_feed = species_x(gas, 'CH4') or 0.95
+    x_ar_feed = species_x(gas, 'Ar')
     if x_ar_feed <= 0:
         x_ar_feed = max(0.0, 1.0 - x_ch4_feed)
 
     tau_total = hydro['residence_time_s']
     tau_stage = tau_total / config.n_cstr_stages
     sv_ratio = hydro['interfacial_sv_ratio_1_m']  # bubble S/V (m² interface / m³ gas)
-    x_eq = _tabulated_x_eq(config.T_inlet_K)
-    k_if = _mmbcr_interfacial_k_m_s(
+    x_eq = tabulated_x_eq(config.T_inlet_K)
+    k_if = mmbcr_interfacial_k_m_s(
         config.catalyst_E_act_eV, config.T_inlet_K, config.mmbcr_interfacial_k0_m_s
     )
-    eta_float = _mmbcr_flotation_eta(
+    eta_float = mmbcr_flotation_eta(
         k_if, sv_ratio, config.mmbcr_carbon_removal_rate_1_s
     )
     # Dimensionless interfacial Damkohler number per stage:
@@ -80,7 +88,7 @@ def simulate_mmbcr(
     conversion_profile = [0.0]
     temperature_profile = [config.T_inlet_K]
     species_profiles = {
-        sp: [_species_x(gas, sp)] for sp in ['CH4', 'H2', 'C2H2', 'C2H4', 'C2H6']
+        sp: [species_x(gas, sp)] for sp in ['CH4', 'H2', 'C2H2', 'C2H4', 'C2H6']
     }
     conv = 0.0
     carbon_removed_coverage = 0.0
@@ -100,7 +108,7 @@ def simulate_mmbcr(
         )
         x_eq_local = min(
             x_eq,
-            _local_tp_x_eq(config.T_inlet_K, p_stage, x_ch4_feed),
+            local_tp_x_eq(config.T_inlet_K, p_stage, x_ch4_feed),
         )
         # Account for gas molar expansion (1 + y_CH4,0 * X) from CH4 -> 2 H2 and
         # hydrostatic decompression (P_bottom / P(z), guarded by a 10 kPa = 0.1 bar
@@ -114,20 +122,20 @@ def simulate_mmbcr(
             conv = x_eq_local - (x_eq_local - conv) * float(np.exp(-da_stage_local))
         conv = float(min(conv, x_eq))
         carbon_removed_coverage += max(0.0, conv - conversion_profile[-1]) * x_ch4_feed
-        _set_gas_from_ch4_conversion(
+        set_gas_from_ch4_conversion(
             gas, config.T_inlet_K, p_stage, x_ch4_feed, x_ar_feed, conv
         )
         conversion_profile.append(float(conv))
         temperature_profile.append(config.T_inlet_K)
         for sp in species_profiles:
-            species_profiles[sp].append(_species_x(gas, sp))
+            species_profiles[sp].append(species_x(gas, sp))
 
     # Top of column is at P_inlet_Pa
-    _set_gas_from_ch4_conversion(
+    set_gas_from_ch4_conversion(
         gas, config.T_inlet_K, config.P_inlet_Pa, x_ch4_feed, x_ar_feed, conv
     )
     final_conv = conversion_profile[-1]
-    x_h2 = _species_x(gas, 'H2')
+    x_h2 = species_x(gas, 'H2')
 
     result = {
         'reactor_type': 'MMBCR',
@@ -141,16 +149,16 @@ def simulate_mmbcr(
         'bubble_diameter_mm': config.bubble_diameter_mm,
         **hydro,
         'CH4_conversion': float(final_conv),
-        'H2_atom_balance': _h2_atom_balance_metric(x_ch4_feed, final_conv, x_h2),
+        'H2_atom_balance': h2_atom_balance_metric(x_ch4_feed, final_conv, x_h2),
         # Backward-compatible alias; not true selectivity.
-        'H2_selectivity': _h2_atom_balance_metric(x_ch4_feed, final_conv, x_h2),
+        'H2_selectivity': h2_atom_balance_metric(x_ch4_feed, final_conv, x_h2),
         'solid_C_selectivity': None,
         'solid_C_selectivity_note': (
             'melt reconstructs CH4/H2/Ar only; C2s are not in the bubble gas'
         ),
         'c2_tracked': False,
         'exit_x_H2': x_h2,
-        'exit_x_CH4': _species_x(gas, 'CH4'),
+        'exit_x_CH4': species_x(gas, 'CH4'),
         'exit_x_C2H2': None,
         'exit_x_C2H4': None,
         'exit_x_C2H6': None,
@@ -159,7 +167,7 @@ def simulate_mmbcr(
         'carbon_removed_coverage_proxy': float(carbon_removed_coverage),
         'X_eq_table': float(x_eq),
         'X_eq_local_tp': float(
-            _local_tp_x_eq(config.T_inlet_K, config.P_inlet_Pa, x_ch4_feed)
+            local_tp_x_eq(config.T_inlet_K, config.P_inlet_Pa, x_ch4_feed)
         ),
         'mmbcr_k_if_m_s': float(k_if),
         'mmbcr_flotation_eta': float(eta_float),
@@ -180,4 +188,4 @@ def simulate_mmbcr(
         f"τ={tau_total:.1f}s (u_b={hydro['bubble_rise_velocity_m_s']:.3f} m/s, "
         f"eps_g={hydro['gas_holdup_fraction']:.3f})"
     )
-    return result
+    return cast(ReactorResult, result)

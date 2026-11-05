@@ -1,8 +1,18 @@
 """Thermocatalytic two-phase fluidized-bed reactor model."""
 
-import numpy as np
+from __future__ import annotations
 
-from pipeline.data_models.reactors import ReactorResult
+from collections.abc import Callable
+from typing import cast
+
+import numpy as np
+import numpy.typing as npt
+
+from pipeline.data_models.reactors import (
+    CanteraGasPhase,
+    CanteraSurfacePhase,
+    ReactorResult,
+)
 from pipeline.reactors.reactor_core import (
     FLUIDIZED_CIRCULATING,
     FLUIDIZED_EMULSION_VOIDAGE,
@@ -10,31 +20,31 @@ from pipeline.reactors.reactor_core import (
     REGEN_OXIDATIVE,
     R_J_MOL_K,
     ReactorConfig,
-    _advance_reactor_stage,
-    _apply_continuous_carbon_removal,
-    _ch4_extent,
-    _clamp_gas_to_equilibrium,
-    _coverage,
-    _load_gas_and_surface,
-    _mix_bubble_bypass,
-    _mole_fraction_drop,
-    _off_site_carbon_metrics,
-    _require_ar_tracer,
-    _reset_surface_carbon,
-    _species_x,
-    _validate_carbon_policy,
     active_sv,
+    advance_reactor_stage,
+    apply_continuous_carbon_removal,
+    ch4_extent,
+    clamp_gas_to_equilibrium,
     common_reactor_result_fields,
     geometric_sv_fluidized,
     kunii_levenspiel_bubble_exchange,
+    load_gas_and_surface,
     logger,
+    mix_bubble_bypass,
+    mole_fraction_drop,
+    off_site_carbon_metrics,
+    require_ar_tracer,
+    reset_surface_carbon,
     solids_inventory_fields,
+    species_x,
+    surface_coverage,
+    validate_carbon_policy,
 )
 
 
 def _integrate_fluidized_pass(
-    gas,
-    surf,
+    gas: CanteraGasPhase,
+    surf: CanteraSurfacePhase | None,
     tau: float,
     sv_ratio: float,
     removal_rate_1_s: float,
@@ -57,12 +67,12 @@ def _integrate_fluidized_pass(
     n = max(1, int(FLUIDIZED_REMOVAL_SUBSTEPS))
     dt = tau / n
     for _ in range(n):
-        _advance_reactor_stage(
+        advance_reactor_stage(
             gas, surf, FLUIDIZED_EMULSION_VOIDAGE, sv_ratio, dt
         )
-        _clamp_gas_to_equilibrium(gas, ch4_initial, ar_initial)
+        clamp_gas_to_equilibrium(gas, ch4_initial, ar_initial)
         if removal_rate_1_s > 0 and surf is not None:
-            carbon_removed += _apply_continuous_carbon_removal(
+            carbon_removed += apply_continuous_carbon_removal(
                 surf, removal_rate_1_s, dt
             )
     return carbon_removed
@@ -74,7 +84,10 @@ def _integrate_fluidized_pass(
 
 
 def simulate_fluidized_bed(
-    config: ReactorConfig, *, cantera_available: bool, mock_result
+    config: ReactorConfig,
+    *,
+    cantera_available: bool,
+    mock_result: Callable[[ReactorConfig, str], ReactorResult],
 ) -> ReactorResult:
     """Two-phase fluidized bed: reacting emulsion plus bubble bypass.
 
@@ -92,7 +105,7 @@ def simulate_fluidized_bed(
     Returns:
         Dictionary containing the computed values, status, and supporting metadata.
     """
-    _validate_carbon_policy(config)
+    validate_carbon_policy(config)
     if not cantera_available:
         return mock_result(config, 'Fluidized')
 
@@ -100,12 +113,12 @@ def simulate_fluidized_bed(
         f"Simulating Fluidized ({config.fluidized_mode}): "
         f"{config.catalyst_name} at {config.T_inlet_K} K"
     )
-    gas, graphite, surf = _load_gas_and_surface(config)
+    gas, graphite, surf = load_gas_and_surface(config)
     gas.TPX = config.T_inlet_K, config.P_inlet_Pa, config.inlet_composition
     inlet_x = np.array(gas.X, dtype=float)
-    ch4_initial = _species_x(gas, 'CH4') or 1.0
-    ar_initial = _species_x(gas, 'Ar')
-    _require_ar_tracer(ch4_initial, ar_initial)
+    ch4_initial = species_x(gas, 'CH4') or 1.0
+    ar_initial = species_x(gas, 'Ar')
+    require_ar_tracer(ch4_initial, ar_initial)
 
     u0 = max(config.gas_velocity_m_s, 0.05)  # Superficial gas velocity floor (0.05 m/s)
     umf = config.u_mf_m_s
@@ -131,19 +144,21 @@ def simulate_fluidized_bed(
     circulating = config.fluidized_mode == FLUIDIZED_CIRCULATING
     removal_rate = config.circulating_carbon_removal_rate_1_s if circulating else 0.0
     if surf is not None:
-        _reset_surface_carbon(surf)
-    pass_start_cov = np.array(surf.coverages, dtype=float) if surf is not None else None
+        reset_surface_carbon(surf)
+    pass_start_cov: npt.NDArray[np.float64] | None = (
+        np.array(surf.coverages, dtype=np.float64) if surf is not None else None
+    )
     carbon_removed = _integrate_fluidized_pass(
         gas, surf, tau_emulsion, sv_ratio, removal_rate, ch4_initial, ar_initial
     )
     last_pass_removed = carbon_removed
 
     regen_cycles = 0
-    per_cycle = []
+    per_cycle: list[float] = []
 
     if not circulating:
-        theta = _coverage(surf, 'C_s')
-        per_cycle.append(_ch4_extent(gas, ch4_initial, ar_initial))
+        theta = surface_coverage(surf, 'C_s')
+        per_cycle.append(ch4_extent(gas, ch4_initial, ar_initial))
         while (
             config.max_regen_cycles > 0
             and regen_cycles < config.max_regen_cycles
@@ -151,19 +166,23 @@ def simulate_fluidized_bed(
         ):
             if config.regen_mechanism == REGEN_OXIDATIVE and not config.co2_permitted:
                 raise RuntimeError('oxidative regen blocked (co2_permitted=False)')
-            _reset_surface_carbon(surf)
+            reset_surface_carbon(surf)
             gas.TPX = config.T_inlet_K, config.P_inlet_Pa, config.inlet_composition
-            pass_start_cov = np.array(surf.coverages, dtype=float)
+            pass_start_cov = (
+                np.array(surf.coverages, dtype=np.float64)
+                if surf is not None
+                else None
+            )
             last_pass_removed = _integrate_fluidized_pass(
                 gas, surf, tau_emulsion, sv_ratio, 0.0, ch4_initial, ar_initial
             )
             carbon_removed += last_pass_removed
-            theta = _coverage(surf, 'C_s')
+            theta = surface_coverage(surf, 'C_s')
             regen_cycles += 1
-            per_cycle.append(_ch4_extent(gas, ch4_initial, ar_initial))
+            per_cycle.append(ch4_extent(gas, ch4_initial, ar_initial))
 
-    emulsion_conv = _ch4_extent(gas, ch4_initial, ar_initial)
-    exit_theta_c = _coverage(surf, 'C_s')
+    emulsion_conv = ch4_extent(gas, ch4_initial, ar_initial)
+    exit_theta_c = surface_coverage(surf, 'C_s')
 
     # Baker-Helveg-Abild-Pedersen off-site carbon accounting on the emulsion basis
     # (1 m³ emulsion: gas volume ε_mf, area sv_ratio), before the bubble bypass is mixed in.
@@ -174,7 +193,7 @@ def simulate_fluidized_bed(
     c_total = config.P_inlet_Pa / (R_J_MOL_K * config.T_inlet_K)
     n_parcel_in_mol = c_total * FLUIDIZED_EMULSION_VOIDAGE
     n_ch4_fed_mol = ch4_initial * n_parcel_in_mol
-    off_site = _off_site_carbon_metrics(
+    off_site = off_site_carbon_metrics(
         config,
         gas,
         surf,
@@ -191,15 +210,15 @@ def simulate_fluidized_bed(
     )
 
     # Bubble bypass: δ of the feed passes unreacted; mix on molar flows (Ar tracer).
-    _mix_bubble_bypass(gas, inlet_x, delta, ar_initial)
-    final_conv = _ch4_extent(gas, ch4_initial, ar_initial)
+    mix_bubble_bypass(gas, inlet_x, delta, ar_initial)
+    final_conv = ch4_extent(gas, ch4_initial, ar_initial)
     expected = (1.0 - delta) * emulsion_conv
     if abs(final_conv - expected) > 1e-6 + 1e-6 * abs(expected):
         raise RuntimeError(
             f'bypass mixing inconsistent: X_mixed={final_conv:.6f} vs '
             f'(1-delta)*X_em={expected:.6f}'
         )
-    x_h2 = _species_x(gas, 'H2')
+    x_h2 = species_x(gas, 'H2')
     kl_metrics = kunii_levenspiel_bubble_exchange(config, delta, u0, umf)
 
     circulating_outfeed_active = bool(circulating and removal_rate > 0.0)
@@ -242,7 +261,7 @@ def simulate_fluidized_bed(
         'circulating_outfeed_active': circulating_outfeed_active,
         'carbon_outfeed_policy_summary': carbon_outfeed_policy_summary,
         'bypass_basis': 'ar_tracer_molar_mix',
-        'CH4_mole_fraction_drop': _mole_fraction_drop(gas, ch4_initial),
+        'CH4_mole_fraction_drop': mole_fraction_drop(gas, ch4_initial),
         'conversion_basis': 'argon_tracer',
         'thermal_mode': 'isothermal_energy_disabled',
         'exit_x_H2': float(x_h2),
@@ -262,4 +281,4 @@ def simulate_fluidized_bed(
         f"  Fluidized result: conversion={final_conv:.2%} "
         f"(emulsion {emulsion_conv:.2%}, delta={delta:.2f}) mode={config.fluidized_mode}"
     )
-    return result
+    return cast(ReactorResult, result)

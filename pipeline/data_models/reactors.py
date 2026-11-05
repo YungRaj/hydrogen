@@ -39,6 +39,13 @@ class CanteraGasPhase(Protocol):
         ...
 
 
+class CanteraSpeciesDescriptor(Protocol):
+    """Typed protocol for a Cantera species descriptor returned by surf.species(k)."""
+
+    size: float
+    composition: dict[str, float]
+
+
 class CanteraSurfacePhase(Protocol):
     """Typed protocol for a Cantera catalytic interface phase."""
 
@@ -54,6 +61,17 @@ class CanteraSurfacePhase(Protocol):
 
         Returns:
             Zero-based species index in `species_names` and `coverages`.
+        """
+        ...
+
+    def species(self, index: int | str) -> CanteraSpeciesDescriptor:
+        """Return the species descriptor for a zero-based index or species name.
+
+        Args:
+            index: Zero-based species index or species identifier.
+
+        Returns:
+            Cantera species descriptor exposing `size` and `composition`.
         """
         ...
 
@@ -278,6 +296,56 @@ class PyrolysisValidationArtifact(_PyrolysisValidationOptional):
     resolved_kinetics_eV: ResolvedKineticsBarriers
 
 
+class PBRErgunDiagnosticsSummary(TypedDict):
+    """Summary of PBR intraparticle effectiveness, Ergun ΔP, pilot residence-time, and regenerated-cycle conversion deltas."""
+
+    n_completed: int
+    n_pbr_records: int
+    mean_pbr_overall_effectiveness_factor: float | None
+    mean_pbr_thiele_modulus: float | None
+    n_ergun_checked: int
+    n_ergun_ok: int
+    n_pilot_residence_checked: int
+    n_within_pilot_residence_band: int
+    n_plugging_or_overloaded_flagged: int
+    mean_regenerated_cycle_minus_single_pass_X: float | None
+
+
+class InventoryGridCell(TypedDict):
+    """One quantized (particle diameter, metal loading, metal dispersion) solids inventory cell."""
+
+    catalyst_particle_mm: float
+    metal_loading: float
+    metal_dispersion: float
+
+
+class MMBCRHydrodynamicsResult(TypedDict):
+    """Mendelson bubble rise, gas holdup, residence time, and melt property diagnostics for MMBCR."""
+
+    bubble_rise_velocity_m_s: float
+    bubble_rise_basis: str
+    gas_holdup_fraction: float
+    gas_holdup_basis: str | None
+    residence_time_s: float
+    residence_time_basis: str
+    interfacial_sv_ratio_1_m: float
+    melt_surface_tension_N_m: float
+    melt_density_kg_m3: float
+    melt_property_basis: str
+
+
+class KuniiLevenspielExchangeMetrics(TypedDict):
+    """Kunii-Levenspiel (1991) bubble-to-emulsion mass-transfer metrics for fluidized beds."""
+
+    umf_wen_yu_m_s: float
+    bubble_diameter_kl_m: float
+    bubble_rise_velocity_kl_m_s: float
+    k_be_1_s: float
+    interphase_transfer_units_N_be: float
+    bubble_exchange_efficiency: float
+    effective_bypass_fraction: float
+
+
 class SupportedNiFilamentClosureGateResult(TypedDict):
     """Pass/fail evidence summary for the supported-Ni(111)/SiO2 filament closure & solids ranking authority gate."""
 
@@ -302,7 +370,7 @@ class _SolidsScorecardOptional(TypedDict, total=False):
     candidate_champion_reactor: str | None
     candidate_champion_T_K: float | None
     candidate_champion_kinetics_status: str | None
-    pbr_ergun_residence_diagnostics: dict[str, object]
+    pbr_ergun_residence_diagnostics: PBRErgunDiagnosticsSummary
     supported_ni_filament_closure_gate: SupportedNiFilamentClosureGateResult | None
     validation_gate_registry: dict[str, dict[str, object]]
 
@@ -330,5 +398,27 @@ class SolidsScorecard(_SolidsScorecardOptional):
     n_mmbcr_records: int
     n_ntec_records: int
     n_electrochemical_records: int
+
+
+class _SupportedNiFilamentClosureSummaryOptional(TypedDict, total=False):
+    content_sha256: str
+
+
+class SupportedNiFilamentClosureSummary(_SupportedNiFilamentClosureSummaryOptional):
+    """Full Alves-Bengaard-Ermakova-Takenaka supported-Ni(111)/SiO2 filament closure artifact."""
+
+    schema_version: str
+    milestone: str
+    judge_catalyst: str
+    judge_catalyst_literature_name: str
+    roi_temperature_band_K: list[float]
+    supported_ni_filament_closure_gate: SupportedNiFilamentClosureGateResult
+    ranking_authority: bool
+    solids_max_excluding_h_parked: float | None
+    baker_helveg_criteria_summary: dict[str, object]
+    ermakova_takenaka_joint_summary: dict[str, object]
+    calibrated_solids_scorecard: SolidsScorecard
+    validation_gate_registry: dict[str, dict[str, object]]
+
 
 
