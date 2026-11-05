@@ -1,6 +1,6 @@
 # Turquoise Hydrogen → Fuel Cell: Pipeline Report
 
-**Generated**: 2026-11-05 15:13:31
+**Generated**: 2026-11-05 17:16:54
 **Pipeline Version**: 2.0.0
 
 > **Evidence status:** screening values are hypotheses. Mock results and unconverged calculations are excluded from validated claims; catalyst performance requires experimental confirmation.
@@ -57,14 +57,14 @@
 
 | Rank | Genome | E_act (eV) | Interfacial Score (eV) | Calibrated Score (eV) | Coking Index | dE_H (eV) |
 |------|--------|------------|------------------------|-----------------------|-------------|-----------|
-| 1 | Pt1/Ni(110) Single-Atom Alloy (Kyriakou et al., Science 2012 / Darby et al., Nat. Mater. 2018) [id=b6702ffe2074faa4fa50] | 0.2753 | 0.5169 | 1.1809 | 2.479209050536163 | -0.9519897475838697 |
+| 1 | Pt1/Ni(110) Single-Atom Alloy (Kyriakou et al., Science 2012 / Darby et al., Nat. Mater. 2018) [id=b6702ffe2074faa4fa50] | 0.2753 | 0.5169 | 1.1809 | 2.479209050536163 | -0.9519897475838696 |
 | 2 | Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba] | 0.3413 | 0.5255 | 1.1895 | 0.7676210526315789 | -0.4912 |
 | 3 | La,Y-doped Ni(fcc211)/CeZrO2, strain=+0.09% Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=be45ea11e23945dbbda5] | 0.4655 | 0.7784 | 1.4424 | 2.131796821951859 | -0.6455789580941236 |
-| 4 | FeNbRuSiGe-fcc_bcc_dual(211) High-Entropy Alloy (Miracle & Senkov 2017 / Yao et al., Science 2018 Multi-Principal-Element Surface) [id=e40b9a32452d7b1e6f1f] | 0.4742 | 0.8961 | 1.5601 | 2.3347711414099237 | -0.9486385360360465 |
+| 4 | FeNbRuSiGe-fcc_bcc_dual(211) High-Entropy Alloy (Miracle & Senkov 2017 / Yao et al., Science 2018 Multi-Principal-Element Surface) [id=e40b9a32452d7b1e6f1f] | 0.4742 | 0.8961 | 1.5601 | 2.334771141409924 | -0.9486385360360464 |
 | 5 | (Co,Ni)3AlC2(basal_0001) MAX Phase Nanolaminate (Barsoum, Prog. Solid State Chem. 2000) [id=3def15c30d9a9b799254] | 0.4989 | 0.6573 | 1.3213 | 2.9311808198690343 | -0.5749312415719068 |
-| 6 | Ce-doped MgCo2O4/N-graphene (nanoparticle) Spinel Oxide (Liang et al., Nat. Mater. 2011) [id=c9bf4b755ab0023fffba] | 0.6281 | 1.7489 | 2.4129 | 1.9931449118678044 | -0.29857622185007004 |
-| 7 | CrY-N8/Graphene Dual-Atom Catalyst (Wang et al., J. Am. Chem. Soc. 2018 Synergistic Bimetallic Site) [id=25810913ec6523464e81] | 0.7474 | 1.1337 | 1.7977 | 3.6694488376379226 | -0.3556362167000806 |
-| 8 | Ga99.9Ti0.1 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=c4ab2249c156880efdbe] | 0.8215 | 1.0165 | 2.1945 | nan | 0.06019832528816051 |
+| 6 | Ce-doped MgCo2O4/N-graphene (nanoparticle) Spinel Oxide (Liang et al., Nat. Mater. 2011) [id=c9bf4b755ab0023fffba] | 0.6281 | 1.7489 | 2.4129 | 1.9931449118678044 | -0.29857622185007 |
+| 7 | CrY-N8/Graphene Dual-Atom Catalyst (Wang et al., J. Am. Chem. Soc. 2018 Synergistic Bimetallic Site) [id=25810913ec6523464e81] | 0.7474 | 1.1337 | 1.7977 | 3.669448837637922 | -0.3556362167000806 |
+| 8 | Ga99.9Ti0.1 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=c4ab2249c156880efdbe] | 0.8215 | 1.0165 | 2.1945 | nan | 0.0601983252881605 |
 | 9 | Ta-N4-N-graphene/none Single-Atom Catalyst (Zitolo et al., Nat. Mater. 2015 / Akri et al., Nat. Commun. 2019) [id=f58366bf5dfcdc4578f3] | 0.8274 | 0.9524 | 1.6164 | 5.305162179504616 | 0.8368801762489819 |
 | 10 | Nd-N4_pyridine-N-graphene/none Single-Atom Catalyst (Zitolo et al., Nat. Mater. 2015 / Akri et al., Nat. Commun. 2019) [id=8609ad5ba35faea2ac57] | 0.9407 | 1.6838 | 2.3478 | 5.021425515515548 | -0.7594639325536012 |
 
@@ -99,6 +99,8 @@
 
 | Catalyst | Reactor | T (K) | CH₄ Conversion | H₂ Selectivity | Evidence Tier |
 |----------|---------|-------|----------------|----------------|---------------|
+| Liquid Metal Alloy Bubble-Column Catalyst (Upham et al., Science 2017; Palmer et al., ACS Catal. 2020; Chen et al., Nat. Catal. 2023) [id=cand] | NTEC | 473.15 | 20.00% | 90.00% | uncalibrated_multiphysics_screening |
+| Liquid Metal Alloy Bubble-Column Catalyst (Upham et al., Science 2017; Palmer et al., ACS Catal. 2020; Chen et al., Nat. Catal. 2023) [id=ntec-candidate] | NTEC | 300.0 | 20.00% | 90.00% | calibrated_multiphysics_screening |
 | Ga99.9Ti0.1 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=c4ab2249c156880efdbe] | MMBCR | 1300.0 | 3.35% | 96.92% | diagnostic_screening_template |
 | Ga99.9Ti0.1 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=c4ab2249c156880efdbe] | NTEC | 473.15 | 1.34% | 100.00% | uncalibrated_multiphysics_screening |
 | Ta-N4-N-graphene/none Single-Atom Catalyst (Zitolo et al., Nat. Mater. 2015 / Akri et al., Nat. Commun. 2019) [id=f58366bf5dfcdc4578f3] | NTEC | 473.15 | 1.16% | 100.00% | uncalibrated_multiphysics_screening |
@@ -117,10 +119,8 @@
 | Ga99.9Ti0.1 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=c4ab2249c156880efdbe] | Electrochemical | 353.15 | 0.42% | 100.00% | uncalibrated_multiphysics_screening |
 | Ta-N4-N-graphene/none Single-Atom Catalyst (Zitolo et al., Nat. Mater. 2015 / Akri et al., Nat. Commun. 2019) [id=f58366bf5dfcdc4578f3] | Electrochemical | 353.15 | 0.40% | 100.00% | uncalibrated_multiphysics_screening |
 | Ga99.9Ti0.1 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=c4ab2249c156880efdbe] | NTEC | 423.15 | 0.35% | 100.00% | uncalibrated_multiphysics_screening |
-| Ta-N4-N-graphene/none Single-Atom Catalyst (Zitolo et al., Nat. Mater. 2015 / Akri et al., Nat. Commun. 2019) [id=f58366bf5dfcdc4578f3] | NTEC | 423.15 | 0.31% | 100.00% | uncalibrated_multiphysics_screening |
-| ZnAl-N2S2N2/Graphene Dual-Atom Catalyst (Wang et al., J. Am. Chem. Soc. 2018 Synergistic Bimetallic Site) [id=21a2125a111a954bd9a7] | Electrochemical | 823.15 | 0.31% | 100.00% | uncalibrated_multiphysics_screening |
 
-Excluded 323 non-run reactor files (sweeps, mocks, not_applicable, validation_required, failed) from performance claims.
+Excluded 330 non-run reactor files (sweeps, mocks, not_applicable, validation_required, failed) from performance claims.
 
 ## Phase 3: DFT Validation (Quantum ESPRESSO)
 
@@ -138,6 +138,7 @@ Excluded 323 non-run reactor files (sweeps, mocks, not_applicable, validation_re
 | (Ta,Ti)2AlC1(basal_0001) MAX Phase Nanolaminate (Barsoum, Prog. Solid State Chem. 2000) [id=eb64b3aa6d3913c21f5d] | MAXPhase | -4337.103472226402 | True | 0.0 |
 | Ta-N4-N-graphene/none Single-Atom Catalyst (Zitolo et al., Nat. Mater. 2015 / Akri et al., Nat. Commun. 2019) [id=f58366bf5dfcdc4578f3] | SAC | -7053.083039 | True | 0.0 |
 | Ce-doped NiCo2O4/N-graphene (nanoparticle) Spinel Oxide (Liang et al., Nat. Mater. 2011) [id=f7e94c08fb1675631eb9] | Spinel | -5671.253041 | True | 0.0 |
+
 ### Periodic Surface-Slab Quantum ESPRESSO Verification (`pw.x` Slab + Adsorbate & Saddle)
 
 | Catalyst | Class | E_clean,slab (eV) | ΔE_rxn,slab(CH₄→CH₃*+H*) (eV) | E_act,slab,DFT (eV) | ΔE_C,slab (eV) | Converged |
@@ -176,12 +177,27 @@ Excluded 323 non-run reactor files (sweeps, mocks, not_applicable, validation_re
 
 | Catalyst | Reaction | Energy (Ha) | Energy (eV) | Qubits | Layers |
 |----------|----------|-------------|-------------|--------|--------|
-| pyrrolic,0.04-doped none graphene Metal-Free Carbon (Muradov 2005 / Gong et al., Science 2009) [id=5ed9c863d22330991eb6] | CH_split | -39.685754 | -1079.9044 | 4 | 3 |
-| Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba] | CH_split | -39.700880 | -1080.3160 | 4 | 3 |
-| oxidized,0.01-doped edge_armchair graphene Metal-Free Carbon (Muradov 2005 / Gong et al., Science 2009) [id=87d86cdaf36fda7c6831] | ORR | -148.729949 | -4047.1481 | 4 | 3 |
-| Co1/Pt(100) Single-Atom Alloy (Kyriakou et al., Science 2012 / Darby et al., Nat. Mater. 2018) [id=c77b56fa00cdc515e3b7] | ORR | -148.729489 | -4047.1356 | 4 | 3 |
-| Ce-doped MgCo2O4/N-graphene (nanoparticle) Spinel Oxide (Liang et al., Nat. Mater. 2011) [id=c9bf4b755ab0023fffba] | CH_split | -39.693568 | -1080.1170 | 4 | 3 |
-| (Ta,Ti)2AlC1(basal_0001) MAX Phase Nanolaminate (Barsoum, Prog. Solid State Chem. 2000) [id=eb64b3aa6d3913c21f5d] | CH_split | -39.688771 | -1079.9865 | 4 | 3 |
+| (Co,Ni)3AlC2(basal_0001) MAX Phase Nanolaminate (Barsoum, Prog. Solid State Chem. 2000) [id=3def15c30d9a9b799254] | CH_split | -208.197442 | -5665.3410 | 8 | 3 |
+| pyrrolic,0.04-doped none graphene Metal-Free Carbon (Muradov 2005 / Gong et al., Science 2009) [id=5ed9c863d22330991eb6] | CH_split | -94.606711 | -2574.3797 | 8 | 3 |
+| Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba] | CH_split | -208.192487 | -5665.2062 | 8 | 3 |
+| oxidized,0.01-doped edge_armchair graphene Metal-Free Carbon (Muradov 2005 / Gong et al., Science 2009) [id=87d86cdaf36fda7c6831] | ORR | -205.049811 | -5579.6896 | 8 | 3 |
+| Pt1/Ni(110) Single-Atom Alloy (Kyriakou et al., Science 2012 / Darby et al., Nat. Mater. 2018) [id=b6702ffe2074faa4fa50] | CH_split | -158.278058 | -4306.9654 | 8 | 3 |
+| Pt1/Co(100) Single-Atom Alloy (Kyriakou et al., Science 2012 / Darby et al., Nat. Mater. 2018) [id=c77b56fa00cdc515e3b7] | ORR | -268.549084 | -7307.5929 | 8 | 3 |
+| Ce-doped MgCo2O4/N-graphene (nanoparticle) Spinel Oxide (Liang et al., Nat. Mater. 2011) [id=c9bf4b755ab0023fffba] | CH_split | -184.646811 | -5024.4957 | 8 | 3 |
+| (Ta,Ti)2AlC1(basal_0001) MAX Phase Nanolaminate (Barsoum, Prog. Solid State Chem. 2000) [id=eb64b3aa6d3913c21f5d] | CH_split | -97.539149 | -2654.1755 | 8 | 3 |
+
+### Multi-Reference `CASSCF(4,4)` Active-Space Diagnostics (`lanl2dz+6-31g*`, 8 Qubits vs. Single-Reference DFT)
+
+| Catalyst | Active TS Motif | ΔE_corr,MR (eV) | Leading CI |c₀|² | CCSD T₁ Diag. | E_act,DFT-PBE (eV) | E_act,VQE-CAS (eV) | ΔΔE‡_MR-DFT (eV) |
+|----------|-----------------|-----------------|------------------|---------------|--------------------|--------------------|------------------|
+| (Co,Ni)3AlC2(basal_0001) MAX Phase Nanolaminate (Barsoum, Prog. Solid State Chem. 2000) [id=3def15c30d9a9b799254] | `Ni-CH4_ts` | -0.4010 | 0.9623 | 0.0827 | 0.0800 | 2.2182 | +2.1382 |
+| pyrrolic,0.04-doped none graphene Metal-Free Carbon (Muradov 2005 / Gong et al., Science 2009) [id=5ed9c863d22330991eb6] | `NH-CH4_ts` | -3.6095 | 0.4954 | 0.0136 | 7.0071 | 9.1224 | +2.1153 |
+| Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba] | `Ni-CH4_ts` | -0.4022 | 0.9622 | 0.0834 | 0.0800 | 2.3560 | +2.2760 |
+| oxidized,0.01-doped edge_armchair graphene Metal-Free Carbon (Muradov 2005 / Gong et al., Science 2009) [id=87d86cdaf36fda7c6831] | `NH-O2H2_ts` | -5.2236 | 0.4836 | 0.1096 | 0.9026 | 4.1749 | +3.2723 |
+| Pt1/Ni(110) Single-Atom Alloy (Kyriakou et al., Science 2012 / Darby et al., Nat. Mater. 2018) [id=b6702ffe2074faa4fa50] | `Pt-CH4_ts` | -0.4761 | 0.9728 | 0.0295 | 0.6459 | 2.1062 | +1.4602 |
+| Pt1/Co(100) Single-Atom Alloy (Kyriakou et al., Science 2012 / Darby et al., Nat. Mater. 2018) [id=c77b56fa00cdc515e3b7] | `Pt-O2H2_ts` | -5.6491 | 0.4468 | 0.0935 | 0.0800 | 0.1201 | +0.0401 |
+| Ce-doped MgCo2O4/N-graphene (nanoparticle) Spinel Oxide (Liang et al., Nat. Mater. 2011) [id=c9bf4b755ab0023fffba] | `CoH-CH4_ts` | -1.8800 | 0.9609 | 0.0265 | 0.0800 | 0.7899 | +0.7099 |
+| (Ta,Ti)2AlC1(basal_0001) MAX Phase Nanolaminate (Barsoum, Prog. Solid State Chem. 2000) [id=eb64b3aa6d3913c21f5d] | `Ti-CH4_ts` | -6.3827 | 0.4750 | 0.1651 | 1.0431 | 0.1153 | -0.9278 |
 
 ## Phase 5: PEMFC Fuel Cell Performance
 
@@ -189,6 +205,7 @@ Excluded 323 non-run reactor files (sweeps, mocks, not_applicable, validation_re
 
 | Cathode | Membrane | Peak Power (W/cm²) | OCV (V) | η (V) | Efficiency (Rated) |
 |---------|----------|---------------------|---------|-------|--------------------|
+| W-doped NiCo2O4/N-CNT (nanoparticle) Spinel Oxide (Liang et al., Nat. Mater. 2011) [id=dbc15731f8fdb0f99d43] | AquivionE87 | 2.2531 | 1.179 | 0.1591 | 45.0% |
 | Pt1/Co(100) Single-Atom Alloy (Kyriakou et al., Science 2012 / Darby et al., Nat. Mater. 2018) [id=c77b56fa00cdc515e3b7] | AquivionE87 | 2.3119 | 1.179 | 0.2069 | 46.1% |
 | oxidized,0.01-doped edge_armchair graphene Metal-Free Carbon (Muradov 2005 / Gong et al., Science 2009) [id=87d86cdaf36fda7c6831] | AquivionE87 | 2.0398 | 1.179 | 0.172376 | 40.7% |
 | Mn,Cu-doped Au(fcc110)/NiP, strain=+0.06% Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=c5ad001debb359e04c33] | AquivionE87 | 1.7496 | 1.179 | 0.349075 | 34.9% |
@@ -196,10 +213,20 @@ Excluded 323 non-run reactor files (sweeps, mocks, not_applicable, validation_re
 | Pt-Boroxine-O4 (10.0) COF Network (Furukawa et al., Science 2013) [id=7e36da26795823ef060e] | AquivionE87 | 1.6168 | 1.179 | 0.342209 | 32.3% |
 | Pd1/Au(100) Single-Atom Alloy (Kyriakou et al., Science 2012 / Darby et al., Nat. Mater. 2018) [id=3ab787b3c8004744ae8e] | AquivionE87 | 1.6628 | 1.179 | 0.36916 | 33.2% |
 | Pd1/Au(100) Single-Atom Alloy (Kyriakou et al., Science 2012 / Darby et al., Nat. Mater. 2018) [id=f353706418ed8a755f1f] | AquivionE87 | 1.6072 | 1.179 | 0.383056 | 32.1% |
+| Fe_N_C | AquivionE87 | 1.3278 | 1.179 | 0.38 | 35.3% |
+| Fe_N_C | Nafion_211 | 1.3278 | 1.179 | 0.38 | 35.3% |
+| BaSbO3(B_vacancy) Perovskite Oxide (Suntivich et al., Science 2011 eg-Filling Oxide) [id=06d7172dc944ea7d38c7] | AquivionE87 | 1.4412 | 1.179 | 0.354082 | 28.8% |
+| Pt_wet | Nafion_212 | 1.2283 | 1.179 | 0.35 | 32.7% |
 | N,Ta-doped Au(bcc211)/MoO3, strain=+0.10% Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=7ec3c045b95ab35fc877] | AquivionE87 | 1.4751 | 1.179 | 0.417691 | 29.4% |
 | PtSn-N8/Graphene Dual-Atom Catalyst (Wang et al., J. Am. Chem. Soc. 2018 Synergistic Bimetallic Site) [id=7fba4d6b4f15772edf2d] | AquivionE87 | 1.4187 | 1.179 | 0.420581 | 28.3% |
+| Fe_N_C | Nafion_212 | 1.1028 | 1.179 | 0.38 | 29.3% |
 
 ### Stack Performance
+
+- **Stack Power**: 82.6 kW net (300 cells)
+- **System Efficiency**: 48.9%
+- **Power Density**: 1171 W/kg, 1766 W/L
+- **Cost**: $65/kW
 
 - **Stack Power**: 253.2 kW net (400 cells)
 - **System Efficiency**: 42.1%
@@ -278,6 +305,43 @@ Excluded 323 non-run reactor files (sweeps, mocks, not_applicable, validation_re
 | `mmbcr` | $19.830 | $10.287 | $1.4132 | $0.7331 |
 | `ntec` | $52.902 | $31.769 | $3.7701 | $2.2641 |
 | `electrochemical` | $321.607 | $190.625 | $22.9197 | $13.5851 |
+
+### De Novo Multi-Step Atomistic, Langevin MD & Periodic Slab-DFT Discovery Validation
+
+#### Periodic Surface-Slab Quantum ESPRESSO (`pw.x` / `neb.x`) Validation
+
+| Rank | Catalyst | Class | Clean Slab E (eV) | ΔE_rxn,slab (eV) | E_act,slab-DFT (eV) | ΔE_C,slab (eV) | Converged |
+|------|----------|-------|-------------------|------------------|---------------------|----------------|-----------|
+| 1 | Pt1/Ni(110) Single-Atom Alloy (Kyriakou et al., Science 2012 / Darby et al., Nat. Mater. 2018) [id=b6702ffe2074faa4fa50] | SAA | -22917.01 | +0.4702 | 1.1809 | +1.7792 | `True` |
+| 2 | Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba] | SupportedNanoparticle | -32235.38 | +0.4764 | 1.1895 | +0.0676 | `True` |
+| 3 | La,Y-doped Ni(fcc211)/CeZrO2, strain=+0.09% Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=be45ea11e23945dbbda5] | SolidCatalyst | -35876.66 | +0.6585 | 1.4424 | +1.4318 | `True` |
+| 4 | (Co,Ni)3AlC2(basal_0001) MAX Phase Nanolaminate (Barsoum, Prog. Solid State Chem. 2000) [id=3def15c30d9a9b799254] | MAXPhase | -11671.41 | +0.5713 | 1.3213 | +2.2312 | `True` |
+| 5 | FeNbRuSiGe-fcc_bcc_dual(211) High-Entropy Alloy (Miracle & Senkov 2017 / Yao et al., Science 2018 Multi-Principal-Element Surface) [id=e40b9a32452d7b1e6f1f] | HEA | -30605.69 | +0.7433 | 1.5601 | +1.6348 | `True` |
+| 8 | Ga99.9Ti0.1 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=c4ab2249c156880efdbe] | MoltenMetal | -13943.68 | +1.2000 | 2.1945 | -0.2000 | `True` |
+| 9 | Ta-N4-N-graphene/none Single-Atom Catalyst (Zitolo et al., Nat. Mater. 2015 / Akri et al., Nat. Commun. 2019) [id=f58366bf5dfcdc4578f3] | SAC | -14106.17 | +0.7838 | 1.6164 | +4.6052 | `True` |
+
+#### 7-Step Methane Dehydrogenation & Coking CI-NEB Network (`CH4* → C* + 4H*`)
+
+| Rank | Catalyst | Class | CH₄→CH₃*+H* (eV) | CH₃*→CH₂*+H* (eV) | CH₂*→CH*+H* (eV) | CH*→C*+H* (eV) | 2H*→H₂ (eV) | C_surf→C_sub (eV) | C_graphene (eV) | Steps Converged |
+|------|----------|-------|------------------|-------------------|------------------|----------------|-------------|-------------------|-----------------|-----------------|
+| 1 | Pt1/Ni(110) Single-Atom Alloy (Kyriakou et al., Science 2012 / Darby et al., Nat. Mater. 2018) [id=b6702ffe2074faa4fa50] | SAA | 1.1809 | 1.1522 | 1.1922 | 1.1122 | 1.4500 | 1.6135 | 1.6435 | 7/7 |
+| 2 | Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba] | SupportedNanoparticle | 1.1895 | 1.0182 | 1.0582 | 0.9782 | 1.4500 | 1.4081 | 1.4381 | 7/7 |
+| 3 | La,Y-doped Ni(fcc211)/CeZrO2, strain=+0.09% Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=be45ea11e23945dbbda5] | SolidCatalyst | 1.4424 | 1.3848 | 1.4248 | 1.3448 | 1.4500 | 1.5718 | 1.6018 | 7/7 |
+| 4 | (Co,Ni)3AlC2(basal_0001) MAX Phase Nanolaminate (Barsoum, Prog. Solid State Chem. 2000) [id=3def15c30d9a9b799254] | MAXPhase | 1.3213 | 1.3303 | 1.3703 | 1.2903 | 1.4500 | 1.6400 | 1.6700 | 7/7 |
+| 5 | FeNbRuSiGe-fcc_bcc_dual(211) High-Entropy Alloy (Miracle & Senkov 2017 / Yao et al., Science 2018 Multi-Principal-Element Surface) [id=e40b9a32452d7b1e6f1f] | HEA | 1.5601 | 1.5194 | 1.5594 | 1.4794 | 1.4500 | 1.5962 | 1.6262 | 7/7 |
+| 6 | Ce-doped MgCo2O4/N-graphene (nanoparticle) Spinel Oxide (Liang et al., Nat. Mater. 2011) [id=c9bf4b755ab0023fffba] | Spinel | 2.4129 | 2.3437 | 2.3837 | 2.3037 | 1.4500 | 1.5552 | 1.5852 | 7/7 |
+| 7 | CrY-N8/Graphene Dual-Atom Catalyst (Wang et al., J. Am. Chem. Soc. 2018 Synergistic Bimetallic Site) [id=25810913ec6523464e81] | DAC | 1.7977 | 1.8682 | 1.9082 | 1.8282 | 1.4500 | 1.6400 | 1.6700 | 7/7 |
+| 8 | Ga99.9Ti0.1 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=c4ab2249c156880efdbe] | MoltenMetal | 2.1945 | 2.0009 | 2.0409 | 1.9609 | 1.4500 | 1.3760 | 1.4060 | 7/7 |
+| 9 | Ta-N4-N-graphene/none Single-Atom Catalyst (Zitolo et al., Nat. Mater. 2015 / Akri et al., Nat. Commun. 2019) [id=f58366bf5dfcdc4578f3] | SAC | 1.6164 | 1.8232 | 1.8632 | 1.7832 | 1.4500 | 1.6400 | 1.6700 | 7/7 |
+| 10 | pyrrolic,0.04-doped none graphene Metal-Free Carbon (Muradov 2005 / Gong et al., Science 2009) [id=5ed9c863d22330991eb6] | MetalFreeCarbon | 2.7196 | 3.0403 | 3.0803 | 3.0003 | 1.4500 | 1.6400 | 1.6700 | 7/7 |
+| 11 | Ce-doped NiCo2O4/N-graphene (nanoparticle) Spinel Oxide (Liang et al., Nat. Mater. 2011) [id=f7e94c08fb1675631eb9] | Spinel | 3.0013 | 2.9885 | 3.0285 | 2.9485 | 1.4500 | 1.6363 | 1.6663 | 7/7 |
+
+#### Ab Initio / MLIP Langevin NVT Liquid-Metal Alloy Trajectory (`MoltenMetal`)
+
+- **Champion Melt**: `('MoltenMetal', 'Ga', 'Ti', 0.1, 1273.15)` (`id=c4ab2249c156880efdbe`)
+- **Ensemble & Thermostat**: `NVT_Langevin` at $T = 1273.2\text{ K}$ (8 snapshots)
+- **Mean Potential Energy**: 8.1282 ± 0.2164 eV
+- **Gibbs Promoter Vertical Offset ($\Delta z_{\text{promoter}}$)**: -0.1412 Å
 
 ## Pipeline Timing
 

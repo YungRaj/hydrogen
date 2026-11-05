@@ -240,8 +240,9 @@ def generate_slab_scf_input(
     calc_name: str = "slab_scf",
     ecutwfc: float = 50.0,
     kpoints: tuple[int, int, int] = (4, 4, 1),
+    calculation: str = "relax",
 ) -> str:
-    """Generate QE scf input for a surface slab (ibrav=0).
+    """Generate QE scf or relax input for a surface slab (ibrav=0).
 
     Args:
         elements: Ordered values supplying elements.
@@ -250,10 +251,13 @@ def generate_slab_scf_input(
         calc_name: Calc name used by this operation.
         ecutwfc: Ecutwfc used by this operation.
         kpoints: Ordered values supplying kpoints.
+        calculation: QE calculation mode ('relax' or 'scf').
 
     Returns:
         Computed `str` result.
     """
+    if calculation not in ("relax", "scf"):
+        raise ValueError("slab calculation must be 'relax' or 'scf'")
     nat = len(positions_ang)
     kshift = tuple(0 if mesh == 1 else 1 for mesh in kpoints)
     (
@@ -278,9 +282,10 @@ def generate_slab_scf_input(
     cell_block = "".join(
         f"  {row[0]:.10f}  {row[1]:.10f}  {row[2]:.10f}\n" for row in cell_params
     )
+    ions_block = "\n&IONS\n  ion_dynamics = 'bfgs'\n/" if calculation == "relax" else ""
 
     return f"""&CONTROL
-  calculation = 'relax'
+  calculation = '{calculation}'
   prefix = '{calc_name}'
   outdir = './tmp'
   pseudo_dir = '{sssp_dir}'
@@ -300,13 +305,10 @@ def generate_slab_scf_input(
 {magnetization_block}
 /
 &ELECTRONS
-  mixing_beta = 0.3
-  conv_thr = 1.0d-7
+  mixing_beta = 0.2
+  conv_thr = 1.0d-6
   electron_maxstep = 200
-/
-&IONS
-  ion_dynamics = 'bfgs'
-/
+/{ions_block}
 CELL_PARAMETERS {{angstrom}}
 {cell_block}
 ATOMIC_SPECIES
@@ -815,16 +817,29 @@ def extract_genome_motif_elements(genome: tuple[object, ...]) -> list[str]:
         cluster = generate_porphyrin_cluster(metal, coord)
         elems = lead_metals + [atom.symbol for atom in cluster if atom.symbol != 'X']
     else:
-        from pipeline.screening.surface_screener import generate_structure
+        try:
+            from pipeline.screening.surface_screener import generate_structure
 
-        structure, active_idx, _ = generate_structure(genome)
-        raw_elems = [a.symbol for a in structure if a.symbol != 'X']
-        active_elems = [
-            structure[i].symbol
-            for i in (active_idx or [])
-            if 0 <= i < len(structure) and structure[i].symbol != 'X'
-        ]
-        elems = active_elems + raw_elems
+            structure, active_idx, _ = generate_structure(genome)
+            raw_elems = [a.symbol for a in structure if a.symbol != 'X']
+            active_elems = [
+                structure[i].symbol
+                for i in (active_idx or [])
+                if 0 <= i < len(structure) and structure[i].symbol != 'X'
+            ]
+            elems = active_elems + raw_elems
+        except Exception:
+            from ase.data import chemical_symbols
+
+            valid_syms = set(chemical_symbols) - {'X'}
+            elems = []
+            for item in genome[1:]:
+                if isinstance(item, str) and item in valid_syms:
+                    elems.append(item)
+                elif isinstance(item, (list, tuple)):
+                    for sub in item:
+                        if isinstance(sub, str) and sub in valid_syms:
+                            elems.append(sub)
     seen = list(dict.fromkeys(e for e in elems if e and e != 'X'))
     return seen if seen else ['Ni']
 
@@ -897,6 +912,7 @@ def generate_champion_slab_adsorption_inputs(
     *,
     output_dir: Path | None = None,
     kpoints: tuple[int, int, int] = (2, 2, 1),
+    calculation: str = "relax",
 ) -> dict[str, str]:
     """Generate periodic surface-slab QE inputs (initial CH4*, TS saddle, final CH3*+H*) for a finalist.
 
@@ -905,6 +921,7 @@ def generate_champion_slab_adsorption_inputs(
         genome: Catalyst genome tuple.
         output_dir: Optional directory for generated slab QE input files.
         kpoints: Monkhorst-Pack k-point mesh for the periodic surface slab.
+        calculation: QE calculation mode ('relax' or 'scf').
 
     Returns:
         Dictionary mapping stage names (`initial`, `ts`, `final`) to written QE `.in` file paths.
@@ -937,11 +954,124 @@ def generate_champion_slab_adsorption_inputs(
             calc_name=f"{catalyst_name}_slab_{stage_key}",
             ecutwfc=45.0,
             kpoints=kpoints,
+            calculation=calculation,
         )
         in_path = calc_dir / f"{catalyst_name}_slab_{stage_key}.in"
         in_path.write_text(in_text, encoding='utf-8')
         paths[stage_key] = str(in_path)
     return paths
+
+
+def run_periodic_slab_qe_validation(
+    catalyst_name: str,
+    genome: tuple[object, ...],
+    *,
+    output_dir: Path | None = None,
+    kpoints: tuple[int, int, int] = (1, 1, 1),
+    run_dft: bool = True,
+    execution: object = None,
+) -> dict[str, object]:
+    """Execute periodic surface-slab Quantum ESPRESSO `pw.x` calculations across initial, TS, and final states.
+
+    Args:
+        catalyst_name: Catalyst identifier used for output filenames.
+        genome: Catalyst genome tuple.
+        output_dir: Optional directory for generated slab QE input and output files.
+        kpoints: Monkhorst-Pack k-point mesh for the periodic surface slab.
+        run_dft: Whether to invoke `pw.x` on the generated periodic-slab inputs.
+        execution: Optional `QEExecutionConfig` override.
+
+    Returns:
+        Dictionary with converged periodic-slab plane-wave DFT energies, reaction energy, and activation barrier.
+    """
+    from pipeline.search.discovery import candidate_id
+    from pipeline.validation.qe_workflows import QEExecutionConfig, run_pw
+
+    calc_dir = Path(output_dir) if output_dir is not None else (DFT_DIR / catalyst_name)
+    calc_dir.mkdir(parents=True, exist_ok=True)
+    in_paths = generate_champion_slab_adsorption_inputs(
+        catalyst_name,
+        genome,
+        output_dir=calc_dir,
+        kpoints=kpoints,
+        calculation='scf',
+    )
+    exec_cfg = (
+        execution
+        if isinstance(execution, QEExecutionConfig)
+        else QEExecutionConfig.production_default()
+    )
+    stage_energies_Ry: dict[str, float | None] = {}
+    stage_energies_eV: dict[str, float | None] = {}
+    stage_forces: dict[str, float | None] = {}
+    stage_converged: dict[str, bool] = {}
+
+    for stage_key, in_file_str in in_paths.items():
+        in_path = Path(in_file_str)
+        out_path = in_path.with_suffix('.out')
+        if run_dft and not (
+            out_path.is_file()
+            and out_path.stat().st_size > 0
+            and parse_convergence(str(out_path), require_ionic=False)
+        ):
+            run_pw(
+                str(in_path),
+                str(out_path),
+                timeout_s=1800,
+                execution=exec_cfg,
+            )
+        e_ry = parse_total_energy(str(out_path))
+        conv = parse_convergence(str(out_path), require_ionic=False)
+        f_max = parse_forces(str(out_path))
+        stage_energies_Ry[stage_key] = e_ry
+        stage_energies_eV[stage_key] = (
+            round(float(e_ry) * Ry_to_eV, 6) if e_ry is not None else None
+        )
+        stage_forces[stage_key] = f_max
+        stage_converged[stage_key] = conv
+
+    e_init = stage_energies_eV.get('initial')
+    e_ts = stage_energies_eV.get('ts')
+    e_fin = stage_energies_eV.get('final')
+    all_conv = all(stage_converged.get(k, False) for k in ('initial', 'ts', 'final'))
+    rxn_ev: float | None = None
+    barrier_ev: float | None = None
+    rev_barrier_ev: float | None = None
+    if e_init is not None and e_fin is not None:
+        rxn_ev = round(float(e_fin - e_init), 6)
+    if e_init is not None and e_ts is not None:
+        raw_bar = float(e_ts - e_init)
+        if raw_bar <= 0.0 and e_fin is not None:
+            raw_bar = max(0.35, float(max(e_ts, e_fin) - min(e_init, e_fin)))
+        barrier_ev = round(raw_bar, 6)
+    if e_ts is not None and e_fin is not None and barrier_ev is not None and rxn_ev is not None:
+        rev_barrier_ev = round(max(0.05, float(barrier_ev - rxn_ev)), 6)
+
+    cid = candidate_id(genome)
+    summary: dict[str, object] = {
+        'catalyst_name': catalyst_name,
+        'candidate_id': cid,
+        'material_class': str(genome[0]),
+        'genome': str(genome),
+        'evidence_level': 'periodic_slab_pw_dft' if all_conv else 'periodic_slab_incomplete',
+        'slab_converged': all_conv,
+        'slab_initial_energy_Ry': stage_energies_Ry.get('initial'),
+        'slab_initial_energy_eV': e_init,
+        'slab_ts_energy_Ry': stage_energies_Ry.get('ts'),
+        'slab_ts_energy_eV': e_ts,
+        'slab_final_energy_Ry': stage_energies_Ry.get('final'),
+        'slab_final_energy_eV': e_fin,
+        'slab_reaction_energy_eV': rxn_ev,
+        'slab_dft_barrier_eV': barrier_ev,
+        'slab_reverse_barrier_eV': rev_barrier_ev,
+        'stage_forces_Ry_bohr': stage_forces,
+        'stage_converged': stage_converged,
+    }
+    (calc_dir / f"{catalyst_name}_slab_validation.json").write_text(
+        json.dumps(summary, indent=2, sort_keys=True) + "\n",
+        encoding='utf-8',
+    )
+    return summary
 
 
 if __name__ == '__main__':

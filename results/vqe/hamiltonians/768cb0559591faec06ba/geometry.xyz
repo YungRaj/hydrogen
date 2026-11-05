@@ -1,7 +1,8 @@
-5
-candidate_id=768cb0559591faec06ba material_class=SupportedNanoparticle reaction=CH_split r_CH_ts=1.38691
-C   0.000000   0.000000   0.000000
-H   0.000000   0.000000   1.386910
-H   1.026719   0.000000  -0.363000
-H  -0.513360  -0.889165  -0.363000
-H  -0.513360   0.889165  -0.363000
+6
+candidate_id=768cb0559591faec06ba material_class=SupportedNanoparticle reaction=CH_split motif=Ni
+Ni    0.000000    0.000000   -2.020000
+C     0.000000    0.000000    0.000000
+H     0.000000    0.000000    1.425600
+H     1.026719    0.000000   -0.363000
+H    -0.513360   -0.889165   -0.363000
+H    -0.513360    0.889165   -0.363000

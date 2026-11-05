@@ -122,3 +122,36 @@ def test_crystallographic_oxide_and_max_slabs_expose_active_surface_cations() ->
     assert 'Al' in max_slab.get_chemical_symbols()
 
 
+def test_catalyst_embedded_casscf_8qubit_hamiltonian_and_diagnostics(tmp_path):
+    """Verify 8-qubit CASSCF(4,4) catalyst-embedded TS Hamiltonian generation and diagnostics."""
+    import pytest
+
+    pytest.importorskip('pyscf')
+    pytest.importorskip('openfermion')
+    from pipeline.search.discovery import candidate_id
+    from pipeline.validation.candidate_hamiltonian import (
+        build_candidate_hamiltonian,
+        generate_catalyst_ts_fcidump,
+    )
+
+    genome = ('SAA', 'Pt', 'Ni', '110', 0.05)
+    cid = candidate_id(genome)
+    out_dir = tmp_path / cid
+    meta = generate_catalyst_ts_fcidump(
+        cid,
+        genome,
+        reaction_type='CH_split',
+        output_dir=out_dir,
+        active_electrons=4,
+        active_orbitals=4,
+    )
+    assert meta['active_electrons'] == 4
+    assert meta['active_orbitals'] == 4
+    assert 'Pt' in str(meta['catalyst_motif'])
+    assert float(meta['correlation_energy_Ha']) < 0.0
+    assert 0.0 < float(meta['leading_ci_weight']) <= 1.0
+
+    ham = build_candidate_hamiltonian(out_dir / 'FCIDUMP')
+    assert ham['n_qubits'] == 8
+    assert ham['catalyst_specific_hamiltonian'] is True
+    assert ham['catalyst_motif'] == meta['catalyst_motif']

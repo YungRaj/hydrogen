@@ -1,6 +1,8 @@
-4
-candidate_id=87d86cdaf36fda7c6831 material_class=MetalFreeCarbon reaction=ORR r_OO_ts=1.70313
-O   0.000000   0.000000   0.000000
-O   0.000000   0.000000   1.703130
-H   0.890000   0.000000  -0.380000
-H  -0.890000   0.000000   2.083130
+6
+candidate_id=87d86cdaf36fda7c6831 material_class=MetalFreeCarbon reaction=ORR motif=NH
+N     0.000000    0.000000   -1.430000
+O     0.000000    0.000000    0.000000
+O     0.000000    0.000000    1.793800
+H     0.890000    0.000000   -0.380000
+H    -0.890000    0.000000    2.173800
+H     0.000000    0.000000   -2.460000

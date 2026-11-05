@@ -1,11 +1,17 @@
 {
-  "active_electrons": 2,
-  "active_orbitals": 2,
-  "basis": "sto-3g",
+  "active_electrons": 4,
+  "active_orbitals": 4,
+  "basis": "6-31g*",
   "candidate_id": "87d86cdaf36fda7c6831",
+  "casci_energy_Ha": -205.56319859,
+  "catalyst_motif": "NH-O2H2_ts",
+  "ccsd_energy_Ha": -205.98802972,
   "charge": 0,
-  "electronic_structure_protocol": "PySCF-RHF-CASCI(2,2)/STO-3G",
-  "fcidump_sha256": "c89470da4d29c2b0d293efdae0a25e030a6001bff499771dcc409e976ac32bad",
+  "correlation_energy_Ha": -0.19196452,
+  "correlation_energy_eV": -5.223621,
+  "dft_pbe_barrier_eV": 0.9026,
+  "electronic_structure_protocol": "PySCF-CASSCF(4,4)/6-31g*",
+  "fcidump_sha256": "d3c4c08c33adec258350508e22f89ff899d31484478cecfcf405db6cfcb26578",
   "fermion_to_qubit_mapping": "Jordan-Wigner",
   "frozen_orbitals": [
     0,
@@ -15,12 +21,20 @@
     4,
     5,
     6,
-    7
+    7,
+    8,
+    9,
+    10
   ],
   "geometry_id": "87d86cdaf36fda7c6831_ORR_ts",
   "geometry_path": "geometry.xyz",
-  "geometry_sha256": "78a122c79ec912042e52c9f719db0fa62895a870044877a368057d64baa85271",
-  "integral_source": "pyscf_casci_active_space",
+  "geometry_sha256": "805921f5e5c31ddfd4ce4bc9f84e351a6aaada7b58ee58ba63aa877fbd0a1a49",
+  "hf_energy_Ha": -205.37123407,
+  "integral_source": "pyscf_casscf_active_space",
+  "leading_ci_weight": 0.483569,
+  "multi_reference_barrier_correction_eV": 3.2723,
   "multiplicity": 1,
-  "schema_version": 1
+  "schema_version": 1,
+  "t1_diagnostic": 0.109573,
+  "vqe_cas_barrier_eV": 4.1749
 }

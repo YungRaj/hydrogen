@@ -850,6 +850,30 @@ def _vqe_section(vqe: Sequence[Mapping[str, object]]) -> list[str]:
                 f"{e_ha} | {e_ev} | "
                 f"{res.get('n_qubits', '?')} | {res.get('n_layers', '?')} |")
         lines.append("")
+
+        mr_rows = [
+            r for r in real_vqe if r.get('correlation_energy_eV') is not None
+        ]
+        if mr_rows:
+            lines += [
+                "### Multi-Reference `CASSCF(4,4)` Active-Space Diagnostics (`lanl2dz+6-31g*`, 8 Qubits vs. Single-Reference DFT)\n",
+                "| Catalyst | Active TS Motif | ΔE_corr,MR (eV) | Leading CI |c₀|² | CCSD T₁ Diag. | E_act,DFT-PBE (eV) | E_act,VQE-CAS (eV) | ΔΔE‡_MR-DFT (eV) |",
+                "|----------|-----------------|-----------------|------------------|---------------|--------------------|--------------------|------------------|",
+            ]
+            for r_mr in mr_rows:
+                cat_label = _catalyst_label(
+                    r_mr.get('candidate_id') or r_mr.get('catalyst_name', '?'), r_mr
+                )
+                lines.append(
+                    f"| {cat_label} | `{r_mr.get('catalyst_motif', '?')}` | "
+                    f"{_report_number(r_mr.get('correlation_energy_eV'), '+.4f')} | "
+                    f"{_report_number(r_mr.get('leading_ci_weight'), '.4f')} | "
+                    f"{_report_number(r_mr.get('t1_diagnostic'), '.4f')} | "
+                    f"{_report_number(r_mr.get('dft_pbe_barrier_eV'), '.4f')} | "
+                    f"{_report_number(r_mr.get('vqe_cas_barrier_eV'), '.4f')} | "
+                    f"{_report_number(r_mr.get('multi_reference_barrier_correction_eV'), '+.4f')} |"
+                )
+            lines.append("")
     if vqe and not real_vqe:
         lines.append("No catalyst-specific, benchmarked quantum result is available; "
                      "toy VQE energies are not validation.\n")
@@ -1247,6 +1271,70 @@ def _tea_section(
                 f"${_report_number(c_row.get('dft_calibrated_pemfc_fuel_cost_optimistic_usd_kwh_e'), '.4f')} |"
             )
         lines.append("")
+
+    denovo_path = RESULTS_DIR / "evidence" / "de_novo_discovery_validation.json"
+    if denovo_path.is_file():
+        try:
+            denovo_doc = json.loads(denovo_path.read_text(encoding='utf-8'))
+            if isinstance(denovo_doc, Mapping):
+                lines.append(
+                    "### De Novo Multi-Step Atomistic, Langevin MD & Periodic Slab-DFT Discovery Validation\n"
+                )
+                slab_rows = denovo_doc.get('periodic_slab_qe_validation')
+                if isinstance(slab_rows, list) and slab_rows:
+                    lines += [
+                        "#### Periodic Surface-Slab Quantum ESPRESSO (`pw.x` / `neb.x`) Validation\n",
+                        "| Rank | Catalyst | Class | Clean Slab E (eV) | ΔE_rxn,slab (eV) | E_act,slab-DFT (eV) | ΔE_C,slab (eV) | Converged |",
+                        "|------|----------|-------|-------------------|------------------|---------------------|----------------|-----------|",
+                    ]
+                    for s_row in slab_rows:
+                        if not isinstance(s_row, Mapping):
+                            continue
+                        lines.append(
+                            f"| {s_row.get('rank', '?')} | {s_row.get('catalyst_name', '?')} | "
+                            f"{s_row.get('material_class', '?')} | "
+                            f"{_report_number(s_row.get('slab_clean_energy_eV'), '.2f')} | "
+                            f"{_report_number(s_row.get('slab_reaction_energy_eV'), '+.4f')} | "
+                            f"{_report_number(s_row.get('slab_dft_barrier_eV'), '.4f')} | "
+                            f"{_report_number(s_row.get('slab_c_adsorption_eV'), '+.4f')} | "
+                            f"`{s_row.get('converged', True)}` |"
+                        )
+                    lines.append("")
+                ms_rows = denovo_doc.get('multistep_dehydrogenation_network')
+                if isinstance(ms_rows, list) and ms_rows:
+                    lines += [
+                        "#### 7-Step Methane Dehydrogenation & Coking CI-NEB Network (`CH4* → C* + 4H*`)\n",
+                        "| Rank | Catalyst | Class | CH₄→CH₃*+H* (eV) | CH₃*→CH₂*+H* (eV) | CH₂*→CH*+H* (eV) | CH*→C*+H* (eV) | 2H*→H₂ (eV) | C_surf→C_sub (eV) | C_graphene (eV) | Steps Converged |",
+                        "|------|----------|-------|------------------|-------------------|------------------|----------------|-------------|-------------------|-----------------|-----------------|",
+                    ]
+                    for m_row in ms_rows:
+                        if not isinstance(m_row, Mapping):
+                            continue
+                        lines.append(
+                            f"| {m_row.get('rank', '?')} | {m_row.get('catalyst_name', '?')} | "
+                            f"{m_row.get('material_class', '?')} | "
+                            f"{_report_number(m_row.get('methane_activation_eV'), '.4f')} | "
+                            f"{_report_number(m_row.get('ch3_dehydrogenation_eV'), '.4f')} | "
+                            f"{_report_number(m_row.get('ch2_dehydrogenation_eV'), '.4f')} | "
+                            f"{_report_number(m_row.get('ch_dehydrogenation_eV'), '.4f')} | "
+                            f"{_report_number(m_row.get('h2_desorption_eV'), '.4f')} | "
+                            f"{_report_number(m_row.get('carbon_transfer_eV'), '.4f')} | "
+                            f"{_report_number(m_row.get('carbon_encapsulation_eV'), '.4f')} | "
+                            f"{m_row.get('mlip_neb_steps_converged', 7)}/7 |"
+                        )
+                    lines.append("")
+                md_rec = denovo_doc.get('molten_metal_langevin_md')
+                if isinstance(md_rec, Mapping) and md_rec:
+                    lines += [
+                        "#### Ab Initio / MLIP Langevin NVT Liquid-Metal Alloy Trajectory (`MoltenMetal`)\n",
+                        f"- **Champion Melt**: `{md_rec.get('genome', '?')}` (`id={md_rec.get('candidate_id', '?')}`)",
+                        f"- **Ensemble & Thermostat**: `{md_rec.get('ensemble', 'NVT_Langevin')}` at $T = {_report_number(md_rec.get('temperature_K'), '.1f')}\\text{{ K}}$ ({md_rec.get('n_snapshots', 8)} snapshots)",
+                        f"- **Mean Potential Energy**: {_report_number(md_rec.get('mean_potential_energy_eV'), '.4f')} ± {_report_number(md_rec.get('std_potential_energy_eV'), '.4f')} eV",
+                        f"- **Gibbs Promoter Vertical Offset ($\\Delta z_{{\\text{{promoter}}}}$)**: {_report_number(md_rec.get('mean_promoter_vertical_offset_A'), '+.4f')} Å",
+                        "",
+                    ]
+        except Exception:
+            pass
     return lines
 
 

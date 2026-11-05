@@ -57,6 +57,16 @@ class _DFTResultOptional(TypedDict, total=False):
     neb_reverse_barrier_eV: float | None
     neb_path_metric: float | None
     kinetics_status: str
+    slab_initial_energy_Ry: float | None
+    slab_initial_energy_eV: float | None
+    slab_ts_energy_Ry: float | None
+    slab_ts_energy_eV: float | None
+    slab_final_energy_Ry: float | None
+    slab_final_energy_eV: float | None
+    slab_reaction_energy_eV: float | None
+    slab_dft_barrier_eV: float | None
+    slab_reverse_barrier_eV: float | None
+    slab_converged: bool
     returncode: int
     execution: SolverExecution
     resumed_existing_output: bool
@@ -134,6 +144,17 @@ class _VQEResultOptional(TypedDict, total=False):
     catalyst_name: str
     reaction_type: str
     hamiltonian: dict[str, JsonValue]
+    hf_energy_Ha: float
+    casci_energy_Ha: float
+    ccsd_energy_Ha: float
+    correlation_energy_Ha: float
+    correlation_energy_eV: float
+    leading_ci_weight: float
+    t1_diagnostic: float
+    dft_pbe_barrier_eV: float
+    vqe_cas_barrier_eV: float
+    multi_reference_barrier_correction_eV: float
+    catalyst_motif: str
 
 
 class VQEResult(_VQEResultOptional):

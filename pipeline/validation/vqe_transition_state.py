@@ -216,26 +216,104 @@ def run_vqe(
             if n_qubits > 1:
                 cx(q[n_qubits - 1], q[0])
 
+    @cudaq.kernel
+    def ansatz_cas(thetas: list[float]):
+        q = cudaq.qvector(n_qubits)
+
+        # Hartree-Fock reference determinant |11...100...0>
+        half = n_qubits // 2
+        for i in range(half):
+            x(q[i])
+
+        # Coupled pair excitations between occupied (0..half-1) and virtual (half..n_qubits-1) spin-orbitals
+        # followed by HF-preserving sandwiched entanglers (CNOT * R(theta) * CNOT = I at theta=0)
+        param_idx = 0
+        # 1. HOMO -> LUMO and HOMO-1 -> LUMO+1 pair excitations
+        if n_qubits >= 8:
+            # HOMO (2,3) -> LUMO (4,5) double excitation
+            ry(thetas[param_idx], q[4])
+            param_idx += 1
+            cx(q[4], q[2])
+            cx(q[4], q[3])
+            cx(q[4], q[5])
+
+            # HOMO-1 (0,1) -> LUMO+1 (6,7) double excitation
+            ry(thetas[param_idx], q[6])
+            param_idx += 1
+            cx(q[6], q[0])
+            cx(q[6], q[1])
+            cx(q[6], q[7])
+
+        # 2. Remaining parameters in HF-preserving sandwiched CNOT blocks
+        for layer in range(n_layers):
+            for i in range(n_qubits - 1):
+                cx(q[i], q[i + 1])
+            for i in range(n_qubits):
+                if param_idx < len(thetas):
+                    ry(thetas[param_idx], q[i])
+                    param_idx += 1
+                if param_idx < len(thetas):
+                    rz(thetas[param_idx], q[i])
+                    param_idx += 1
+            for i in range(n_qubits - 2, -1, -1):
+                cx(q[i], q[i + 1])
+
+    active_kernel = ansatz_cas if n_qubits >= 6 else ansatz
+
     # Initial parameters
     if initial_theta is None:
-        initial_theta = [0.01] * n_params
+        initial_theta = [0.0] * n_params if n_qubits >= 6 else [0.01] * n_params
 
     # Run VQE optimization using the CUDA-Q 0.12 optimizer contract.
     logger.info(
         f"  Running CUDA-Q VQE: {n_qubits} qubits, {n_params} parameters, {n_layers} layers"
     )
     optimizer = cudaq.optimizers.COBYLA()
-    optimizer.max_iterations = int(max_iter)
+    optimizer.max_iterations = min(int(max_iter), 20) if n_qubits >= 6 else int(max_iter)
     optimizer.initial_parameters = list(initial_theta)
-    result = cudaq.vqe(ansatz, H, optimizer, n_params)
+    try:
+        result = cudaq.vqe(active_kernel, H, optimizer, n_params)
+    except RuntimeError:
+        result = optimizer.optimize(
+            dimensions=n_params,
+            function=lambda x: float(
+                cudaq.observe(active_kernel, H, [float(v) for v in x]).expectation()
+            ),
+        )
 
-    optimal_energy = result.energy if hasattr(result, 'energy') else result[0]
-    optimal_params = (
+    optimal_energy = float(result.energy if hasattr(result, 'energy') else result[0])
+    optimal_params = list(
         result.optimal_parameters
         if hasattr(result, 'optimal_parameters')
         else result[1]
     )
     exact_energy = exact_ground_energy(hamiltonian_terms, n_qubits)
+    chemical_accuracy_Ha = 1.6e-3
+
+    # For larger active spaces (n_qubits >= 6), refine the seniority-zero twin-pair
+    # excitation amplitudes on the CUDA-Q expectation value to converge within chemical accuracy.
+    if n_qubits >= 6 and (optimal_energy - exact_energy) > chemical_accuracy_Ha:
+        try:
+            from scipy.optimize import minimize as scipy_minimize
+
+            n_pair = min(2, n_params)
+
+            def _obj_pair(x_pair: np.ndarray) -> float:
+                full_p = [float(x_pair[idx]) for idx in range(n_pair)] + [0.0] * (n_params - n_pair)
+                return float(cudaq.observe(active_kernel, H, full_p).expectation())
+
+            res_opt = scipy_minimize(
+                _obj_pair,
+                np.zeros(n_pair, dtype=float),
+                method='Powell',
+                options={'maxfev': 80, 'ftol': 1e-6},
+            )
+            if float(res_opt.fun) < optimal_energy:
+                optimal_energy = float(res_opt.fun)
+                optimal_params = [float(res_opt.x[idx]) for idx in range(n_pair)] + [0.0] * (n_params - n_pair)
+        except Exception:
+            pass
+
     variational_gap = float(optimal_energy) - exact_energy
     # Rayleigh-Ritz variational principle: ⟨ψ(θ)|H|ψ(θ)⟩ >= E_0 (allowing 1e-8 Ha floating-point tolerance)
     variational_valid = variational_gap >= -1e-8
@@ -244,7 +322,6 @@ def run_vqe(
             f'VQE energy violates the variational bound by {-variational_gap:.3e} Ha'
         )
     # Standard quantum-chemistry chemical accuracy threshold: 1 kcal/mol ≈ 1.5936e-3 Ha ≈ 43.36 meV
-    chemical_accuracy_Ha = 1.6e-3
     benchmark_passed = variational_valid and variational_gap <= chemical_accuracy_Ha
 
     logger.info(
@@ -350,6 +427,21 @@ def validate_transition_state(
             if result.get('benchmarked') and not result.get('mock', False)
             else 'candidate_specific_vqe_incomplete'
         )
+        for mr_key in (
+            'catalyst_motif',
+            'hf_energy_Ha',
+            'casci_energy_Ha',
+            'ccsd_energy_Ha',
+            'correlation_energy_Ha',
+            'correlation_energy_eV',
+            'leading_ci_weight',
+            't1_diagnostic',
+            'dft_pbe_barrier_eV',
+            'vqe_cas_barrier_eV',
+            'multi_reference_barrier_correction_eV',
+        ):
+            if mr_key in Hamiltonian and Hamiltonian[mr_key] is not None:
+                result[mr_key] = Hamiltonian[mr_key]  # type: ignore[literal-required]
 
     save_json(result, f"vqe_{catalyst_name}_{reaction_type}.json", subdir="vqe")
     return result

@@ -1,0 +1,60 @@
+&CONTROL
+  calculation = 'scf'
+  prefix = 'campaign_768cb0559591faec06ba_slab_initial'
+  outdir = './tmp'
+  pseudo_dir = '/root/hydrogen/quantum_espresso/sssp/1.3.0-pbe-efficiency'
+  tprnfor = .true.
+  forc_conv_thr = 1.0d-3
+/
+&SYSTEM
+  ibrav = 0
+  nat = 13
+  ntyp = 6
+  ecutwfc = 90.0
+  ecutrho = 1080.0
+  occupations = 'smearing'
+  smearing = 'mv'
+  degauss = 0.02
+  nspin = 2
+  starting_magnetization(1) = 0.05
+  starting_magnetization(2) = 0.05
+  starting_magnetization(3) = 0.05
+  starting_magnetization(4) = 0.05
+  starting_magnetization(5) = 0.05
+  starting_magnetization(6) = 0.05
+/
+&ELECTRONS
+  mixing_beta = 0.2
+  conv_thr = 1.0d-6
+  electron_maxstep = 200
+/
+CELL_PARAMETERS {angstrom}
+  4.9841414598  0.0000000000  0.0000000000
+  2.4920707299  4.3163931202  0.0000000000
+  0.0000000000  0.0000000000  14.0347672304
+
+ATOMIC_SPECIES
+  Al  26.982  Al.pbe-n-kjpaw_psl.1.0.0.UPF
+  C  12.011  C.pbe-n-kjpaw_psl.1.0.0.UPF
+  Cu  63.546  Cu.paw.z_11.ld1.psl.v1.0.0-low.upf
+  Fe  55.845  Fe.pbe-spn-kjpaw_psl.0.2.1.UPF
+  H  1.008  H.pbe-rrkjus_psl.1.0.0.UPF
+  Ni  58.693  ni_pbe_v1.4.uspp.F.UPF
+
+ATOMIC_POSITIONS {angstrom}
+  Ni  -0.0000000000  1.4387977067  6.0000000000
+  Ni  2.4920707299  1.4387977067  6.0000000000
+  Ni  1.2460353649  3.5969942669  6.0000000000
+  Ni  3.7381060948  3.5969942669  6.0000000000
+  Al  0.0000000000  0.0000000000  8.0347672304
+  Cu  2.4920707299  0.0000000000  8.0347672304
+  Fe  1.2460353649  2.1581965601  8.0347672304
+  Ni  3.7381060948  2.1581965601  8.0347672304
+  C  3.7381060948  2.1581965601  11.2347672304
+  H  4.3672240948  2.7873145601  11.8638852304
+  H  3.1089880948  1.5290785601  11.8638852304
+  H  4.3672240948  1.5290785601  10.6056492304
+  H  3.1089880948  2.7873145601  10.6056492304
+
+K_POINTS {automatic}
+  2 2 1  1 1 0
