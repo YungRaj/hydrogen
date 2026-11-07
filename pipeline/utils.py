@@ -60,19 +60,63 @@ def repo_relative(path: str | Path) -> str:
         return p.as_posix()
 
 
-# ─── Physical Constants ─────────────────────────────────────────────────────────
+# ─── Physical Constants (CODATA 2018) ───────────────────────────────────────────
 
-# Fundamental
-k_B_eV = 8.617333262145e-5  # Boltzmann constant (eV/K)
-h_eV = 4.135667696e-15  # Planck constant (eV·s)
-R_gas = 8.314462618  # Universal gas constant (J/(mol·K))
-F_const = 96485.33212  # Faraday constant (C/mol)
-eV_to_J = 1.602176634e-19  # eV to Joules
-Ry_to_eV = 13.605693122994  # Rydberg to eV
-Ha_to_eV = 27.211386245988  # Hartree to eV
+K_B_EV_K: float = 8.617333262e-5  # Boltzmann constant k_B [eV/K]
+H_PLANCK_EV_S: float = 4.135667696e-15  # Planck constant h [eV·s]
+R_J_MOL_K: float = 8.314462618  # Universal gas constant R [J/(mol·K)]
+FARADAY_C_MOL: float = 96485.33212  # Faraday constant F [C/mol]
+EV_TO_J: float = 1.602176634e-19  # Elementary charge / eV-to-Joule conversion [J/eV]
+RY_TO_EV: float = 13.605693122994  # Rydberg energy [eV/Ry]
+HA_TO_EV: float = 27.211386245988  # Hartree energy [eV/Ha]
+BOHR_TO_ANGSTROM: float = 0.529177210903  # Bohr radius a_0 [Å/Bohr]
+BOHR_PER_ANGSTROM: float = 1.889726125458  # Inverse Bohr radius 1/a_0 [Bohr/Å]
+RY_BOHR_TO_EV_ANGSTROM: float = RY_TO_EV / BOHR_TO_ANGSTROM  # Force unit conversion [eV/Å per Ry/Bohr]
+
+# Reference molar masses & heating values
+MOLAR_MASS_H2_KG_MOL: float = 0.00201588  # Molecular hydrogen H2 molar mass [kg/mol]
+MOLAR_MASS_2H2_KG_MOL: float = 0.00403188  # 2 mol H2 per mol CH4 (4 mol e-) [kg/mol]
+MOLAR_MASS_CH4_KG_MOL: float = 0.016043  # Methane CH4 molar mass [kg/mol]
+MOLAR_MASS_C_KG_MOL: float = 0.012011  # Atomic carbon C molar mass [kg/mol]
+LHV_H2_KWH_KG: float = 33.33  # Hydrogen lower heating value [kWh/kg H2]
+LHV_H2_MJ_KG: float = 120.0  # Hydrogen lower heating value [MJ/kg H2]
+
+# Backward-compatible aliases
+k_B_eV: float = K_B_EV_K
+h_eV: float = H_PLANCK_EV_S
+R_gas: float = R_J_MOL_K
+F_const: float = FARADAY_C_MOL
+eV_to_J: float = EV_TO_J
+Ry_to_eV: float = RY_TO_EV
+Ha_to_eV: float = HA_TO_EV
 
 # Standard electrode potentials
-E_ORR_eq = 1.229  # Equilibrium potential for ORR at 298 K (V)
+E_ORR_eq: float = 1.229  # Equilibrium potential for ORR at 298 K (V)
+
+
+def finite_float(
+    value: object, ndigits: Optional[int] = None
+) -> Optional[float]:
+    """Convert ``value`` to a finite float (optionally rounded), or ``None``.
+
+    Args:
+        value: Arbitrary candidate numeric value (rejects ``bool``, ``NaN``, ``±inf``).
+        ndigits: Optional decimal rounding precision when a finite float is returned.
+
+    Returns:
+        Finite ``float`` (rounded to ``ndigits`` if specified), or ``None``.
+    """
+    import math
+
+    if isinstance(value, bool) or value is None:
+        return None
+    try:
+        num = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(num):
+        return None
+    return round(num, ndigits) if ndigits is not None else num
 
 # ─── Atomic Data ─────────────────────────────────────────────────────────────────
 

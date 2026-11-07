@@ -343,6 +343,28 @@ def compute_candidate_mlip_neb(
     }
 
 
+def format_elementary_step_barriers(
+    neb_record: MlipNebValidationRecord | Mapping[str, float | int],
+) -> dict[str, float]:
+    """Map an ``MlipNebValidationRecord`` into the 7-step ``elementary_step_barriers_eV`` dictionary.
+
+    Args:
+        neb_record: Dictionary of MLIP-NEB elementary barriers from ``compute_candidate_mlip_neb``.
+
+    Returns:
+        Dictionary mapping canonical elementary step names to rounded barriers in eV.
+    """
+    return {
+        'CH4_to_CH3': round(float(neb_record['E_act_neb']), 4),
+        'CH3_to_CH2': round(float(neb_record['ch3_dehydrogenation_eV']), 4),
+        'CH2_to_CH': round(float(neb_record['ch2_dehydrogenation_eV']), 4),
+        'CH_to_C': round(float(neb_record['ch_dehydrogenation_eV']), 4),
+        'H_recombination': round(float(neb_record['h2_desorption_eV']), 4),
+        'C_diffusion': round(float(neb_record['carbon_transfer_eV']), 4),
+        'C_encapsulation': round(float(neb_record['carbon_encapsulation_eV']), 4),
+    }
+
+
 def write_pyrolysis_validation_json(
     candidate_id: str,
     neb_record: MlipNebValidationRecord | Mapping[str, float | int],

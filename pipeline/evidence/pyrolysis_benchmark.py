@@ -11,6 +11,7 @@ import random
 from typing import Any
 
 from pipeline.search.discovery import candidate_id
+from pipeline.utils import K_B_EV_K
 
 MIN_PER_LABEL = 12
 LABELS = ('active', 'poor_or_poisoning')
@@ -25,7 +26,6 @@ REQUIRED_TEXT_FIELDS = (
 )
 TRUE_VALUES = (True, 'True', 'true', 1, '1')
 EV_PER_KJ_MOL = 1.0 / 96.4853321233  # 1 eV/molecule = F J/mol = 96.4853321233 kJ/mol
-K_B_EV_K = 8.617333262145e-5  # Boltzmann constant k_B [eV/K]
 # NIST-JANAF integrated sensible enthalpy H°(298.15 K) - H°(0 K) = 8.468 kJ/mol for H2(g),
 # converting Shomate H°(T) - H°(298.15 K) to a 0 K DFT reference state.
 H2_H_298_MINUS_H_0_KJ_MOL = 8.468

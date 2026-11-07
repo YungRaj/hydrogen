@@ -139,7 +139,10 @@ def _catalyst_label(
     genome: object = None,
 ) -> str:
     """Resolve a catalyst identifier or record into a literature-backed label."""
-    from pipeline.search.discovery import format_literature_catalyst_label
+    from pipeline.search.discovery import (
+        format_literature_catalyst_label,
+        normalize_candidate_id,
+    )
 
     rec: Mapping[str, object] = record if isinstance(record, Mapping) else {}
     for lit_key in (
@@ -158,9 +161,7 @@ def _catalyst_label(
     )
     if raw_id in (None, '', '?'):
         return '?'
-    clean_id = (
-        str(raw_id).strip().removeprefix('campaign_').removeprefix('orr_slate_')
-    )
+    clean_id = normalize_candidate_id(raw_id)
     return format_literature_catalyst_label(
         clean_id,
         material_class=material_class if material_class is not None else rec.get('material_class'),
@@ -559,22 +560,23 @@ def _reactor_section(
             phase_stable_at_application_T,
         )
 
+        from pipeline.search.discovery import (
+            candidate_id,
+            normalize_candidate_id,
+        )
+
         cid_genome_map: dict[str, object] = {}
         for dft_f in sorted(DFT_DIR.glob("campaign_*_dft.json")):
             try:
                 doc_d = json.loads(dft_f.read_text(encoding="utf-8"))
                 if isinstance(doc_d, Mapping):
-                    c_k = (
-                        str(doc_d.get("candidate_id") or dft_f.stem)
-                        .removeprefix("campaign_")
-                        .removesuffix("_dft")
-                        .strip()
+                    c_k = normalize_candidate_id(
+                        doc_d.get("candidate_id") or dft_f.stem
                     )
                     if c_k and doc_d.get("genome") is not None:
                         cid_genome_map[c_k] = doc_d.get("genome")
             except Exception:
                 pass
-        from pipeline.search.discovery import candidate_id
 
         scr_csv_list = sorted(
             RESULTS_DIR.glob("campaign_*/screening/branch_ranker_evidence.csv")
@@ -603,11 +605,7 @@ def _reactor_section(
                 pass
         scoped_real: list[ReactorResult] = []
         for r_item in real_reactor:
-            cid_r = (
-                str(r_item.get('catalyst_name') or '')
-                .strip()
-                .removeprefix('campaign_')
-            )
+            cid_r = normalize_candidate_id(r_item.get('catalyst_name') or '')
             raw_g = r_item.get('genome') or cid_genome_map.get(cid_r)
             if raw_g is not None:
                 try:
@@ -848,16 +846,15 @@ def _vqe_section(vqe: Sequence[Mapping[str, object]]) -> list[str]:
                 and x.get('catalyst_specific_hamiltonian') is True
                 and x.get('benchmarked') is True]
     if len(real_vqe) > 2:
+        from pipeline.search.discovery import normalize_candidate_id
+
         orr_genome_map, orr_acid_map = _load_orr_summary_maps()
         for d_f in sorted(DFT_DIR.glob("*_dft.json")):
             try:
                 d_doc = json.loads(d_f.read_text(encoding='utf-8'))
                 if isinstance(d_doc, Mapping):
-                    c_id = (
-                        str(d_doc.get('candidate_id') or d_doc.get('catalyst_name') or '')
-                        .strip()
-                        .removeprefix('campaign_')
-                        .removeprefix('orr_slate_')
+                    c_id = normalize_candidate_id(
+                        d_doc.get('candidate_id') or d_doc.get('catalyst_name') or ''
                     )
                     if c_id and d_doc.get('genome') is not None:
                         orr_genome_map.setdefault(c_id, d_doc.get('genome'))
@@ -865,11 +862,8 @@ def _vqe_section(vqe: Sequence[Mapping[str, object]]) -> list[str]:
                 pass
         scoped_vqe: list[Mapping[str, object]] = []
         for v_item in real_vqe:
-            cid_v = (
-                str(v_item.get('candidate_id') or v_item.get('catalyst_name') or '')
-                .strip()
-                .removeprefix('campaign_')
-                .removeprefix('orr_slate_')
+            cid_v = normalize_candidate_id(
+                v_item.get('candidate_id') or v_item.get('catalyst_name') or ''
             )
             raw_g = v_item.get('genome') or orr_genome_map.get(cid_v)
             rxn = str(v_item.get('reaction_type') or '')

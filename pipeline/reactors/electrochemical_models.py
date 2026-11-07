@@ -152,6 +152,8 @@ def simulate_ntec_pathway(config: ElectrochemicalReactorConfig) -> ReactorResult
 
 def _specific_energy_from_outputs(outputs: dict) -> float:
     """Return specific electrical energy (kWh/kg H2) from outputs or Faraday law."""
+    from pipeline.utils import FARADAY_C_MOL, MOLAR_MASS_2H2_KG_MOL
+
     fe_h2 = max(float(outputs['faradaic_efficiency_H2']), 1e-6)
     v_cell = float(outputs['cell_voltage_V'])
     # Faraday's law for CH4 -> C(s) + 2 H2 (n = 4 e- per 2 mol H2):
@@ -160,7 +162,7 @@ def _specific_energy_from_outputs(outputs: dict) -> float:
     return float(
         outputs.get(
             'specific_energy_kWh_kg_H2',
-            v_cell * 4.0 * 96485.33212 / (fe_h2 * 3.6e6 * 0.00403188),
+            v_cell * 4.0 * FARADAY_C_MOL / (fe_h2 * 3.6e6 * MOLAR_MASS_2H2_KG_MOL),
         )
     )
 

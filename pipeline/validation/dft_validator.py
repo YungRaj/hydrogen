@@ -34,6 +34,7 @@ from pipeline.validation.neb_path import NEBPathConfig
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from pipeline.utils import (
+    BOHR_TO_ANGSTROM,
     DFT_DIR,
     Ry_to_eV,
     print_banner,
@@ -405,7 +406,7 @@ def generate_molecule_input(
 /
 &SYSTEM
   ibrav = 1
-  celldm(1) = {cell_size_ang / 0.529177210903:.12f}
+  celldm(1) = {cell_size_ang / BOHR_TO_ANGSTROM:.12f}
   nat = {len(elements)}
   ntyp = {len(unique_elements)}
   ecutwfc = {ecutwfc}
@@ -1109,8 +1110,10 @@ def run_periodic_slab_qe_validation(
     if e_ts is not None and e_fin is not None and barrier_ev is not None and rxn_ev is not None:
         rev_barrier_ev = round(max(0.05, float(barrier_ev - rxn_ev)), 6)
 
+    from pipeline.search.discovery import normalize_candidate_id
+
     cid = (
-        catalyst_name.removeprefix('campaign_').removeprefix('orr_slate_')
+        normalize_candidate_id(catalyst_name)
         if catalyst_name.startswith(('campaign_', 'orr_slate_'))
         else candidate_id(genome)
     )

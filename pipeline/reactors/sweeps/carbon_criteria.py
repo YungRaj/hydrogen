@@ -14,7 +14,7 @@ import math
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Optional
 
-from pipeline.utils import SWEEPS_DIR, repo_relative
+from pipeline.utils import SWEEPS_DIR, finite_float, repo_relative
 from pipeline.reactors.eligibility import is_usable_result
 
 SWEEP_NAMES = (
@@ -55,13 +55,7 @@ FLAT_E_LO = 0.9
 FLAT_E_HI = 1.1
 FLAT_E_BASE = 1.0
 
-
-def _finite(value: Any) -> Optional[float]:
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return None
-    return number if math.isfinite(number) else None
+_finite = finite_float
 
 
 # Relative tolerance 1e-6 and absolute tolerance 1e-12 for floating-point grid-point matching

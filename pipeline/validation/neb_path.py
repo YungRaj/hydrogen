@@ -999,8 +999,10 @@ def build_champion_neb_slab(genome: tuple[object, ...]) -> tuple[Atoms, int]:
             else motif_elems[0]
         )
     )
+    from pipeline.utils import BOHR_TO_ANGSTROM
+
     celldm_bohr = FCC_EQUIVALENT_LATTICE_BOHR.get(host_elem, 7.0)
-    a_ang = celldm_bohr * 0.529177210903
+    a_ang = celldm_bohr * BOHR_TO_ANGSTROM
     slab = fcc111(host_elem, size=(2, 2, 2), a=a_ang, vacuum=6.0, periodic=True)
     top_indices = [i for i, atom in enumerate(slab) if atom.tag == 1]
     bottom_indices = [i for i, atom in enumerate(slab) if atom.tag > 1]

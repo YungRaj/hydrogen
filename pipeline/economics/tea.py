@@ -253,8 +253,10 @@ def estimate_scenario_range(
     }
 
 
+from pipeline.utils import LHV_H2_KWH_KG
+
 # Lower heating value of H2 (33.33 kWh/kg H2) for coupled H2 -> PEMFC LCOE.
-LHV_H2_KWH_PER_KG: float = 33.33
+LHV_H2_KWH_PER_KG: float = LHV_H2_KWH_KG
 
 
 def build_multipathway_champion_scorecard(

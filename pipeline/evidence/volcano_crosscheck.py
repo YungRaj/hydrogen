@@ -10,6 +10,8 @@ from __future__ import annotations
 import math
 from typing import Iterable, Mapping
 
+from pipeline.utils import K_B_EV_K
+
 
 def volcano_rate_log10(dG_OH_eV: float, *, temperature_K: float = 298.15) -> float:
     """Return a dimensionless log10 relative rate from a simple OH volcano.
@@ -34,7 +36,7 @@ def volcano_rate_log10(dG_OH_eV: float, *, temperature_K: float = 298.15) -> flo
     activation_eV = abs(float(dG_OH_eV) - 0.86)
     # Base-10 relative Arrhenius rate: log10(k / k_max) = -|dG_OH* - 0.86| / (k_B * T * ln(10)),
     # where k_B = 8.617333262e-5 eV/K (CODATA 2018).
-    return -activation_eV / (8.617333262e-5 * temperature_K * math.log(10.0))
+    return -activation_eV / (K_B_EV_K * temperature_K * math.log(10.0))
 
 
 def rank_descriptors(rows: Iterable[Mapping[str, object]]) -> list[dict[str, object]]:

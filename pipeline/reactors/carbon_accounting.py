@@ -107,10 +107,11 @@ _NASA7_CGR_HIGH = (
 def _nasa7_enthalpy_j_mol(
     T_K: float, coeffs_low: tuple[float, ...], coeffs_high: tuple[float, ...]
 ) -> float:
+    from pipeline.utils import R_J_MOL_K
+
     t = min(max(float(T_K), 200.0), 5000.0)
     a1, a2, a3, a4, a5, a6 = coeffs_low if t <= 1000.0 else coeffs_high
-    r_j_mol_k = 8.314462618
-    return r_j_mol_k * (
+    return R_J_MOL_K * (
         a1 * t
         + 0.5 * a2 * (t ** 2)
         + (a3 / 3.0) * (t ** 3)

@@ -13,6 +13,7 @@ from pathlib import Path
 
 import numpy as np
 
+from pipeline.utils import BOHR_PER_ANGSTROM, RY_TO_EV
 from pipeline.validation.qe_workflows import (
     QEExecutionConfig,
     SSSP_DIR,
@@ -22,8 +23,6 @@ from pipeline.validation.qe_workflows import (
 )
 
 
-RY_TO_EV = 13.605693122994  # Rydberg-to-eV conversion factor [eV/Ry] (CODATA 2018)
-BOHR_PER_ANGSTROM = 1.889726125458  # Inverse Bohr radius 1/a_0 [Bohr/A] (a_0 = 0.529177210903 A, CODATA 2018)
 # Experimental 293 K conventional cubic lattice constants [A] (NIST crystallographic reference)
 REFERENCE_LATTICES = {"Fe": 2.8664, "Ni": 3.5238}
 STRUCTURES = {"Fe": "bcc", "Ni": "fcc"}

@@ -40,7 +40,7 @@ from pipeline.reactors.carbon_accounting import (
 )
 from pipeline.reactors.mechanisms import MONOLAYER_SITE_DENSITY_MOL_CM2
 from pipeline.reactors.modes import DEFAULT_MODE
-from pipeline.utils import setup_logger
+from pipeline.utils import R_J_MOL_K, setup_logger
 
 logger = setup_logger('reactor_core', 'reactor/reactor_simulation.log')
 
@@ -68,7 +68,6 @@ MMBCR_ARTIFACT_RESIDENCE_BASIS = (
     'gas_holdup_times_column_height_over_superficial_velocity'
 )
 G_M_S2 = 9.80665  # Standard gravitational acceleration [m/s²]
-R_J_MOL_K = 8.314462618  # Universal gas constant [J/(mol·K)]
 FLUIDIZED_REMOVAL_SUBSTEPS = 20
 FLUIDIZED_EMULSION_VOIDAGE = 0.45  # Minimum-fluidization emulsion void fraction ε_mf for Geldart B/A solids
 
@@ -545,7 +544,7 @@ def hydrocarbon_feed_density_kg_m3(T_K: float, P_Pa: float) -> float:
     """
     # Mixture molar mass M_mix [kg/mol]: M_CH4 = 0.01604 kg/mol (95%), M_Ar = 0.03995 kg/mol (5%)
     M = 0.01604 * 0.95 + 0.03995 * 0.05
-    return P_Pa * M / (8.314462618 * T_K)
+    return P_Pa * M / (R_J_MOL_K * T_K)
 
 
 def hydrocarbon_viscosity_pa_s(T_K: float) -> float:
@@ -994,8 +993,9 @@ def mmbcr_interfacial_k_m_s(E_act_eV: float, T_K: float, k0_m_s: float) -> float
     Returns:
         Interfacial rate constant in m/s.
     """
-    k_B_eV = 8.617333262e-5  # Boltzmann constant [eV/K] (CODATA 2018)
-    return float(k0_m_s * np.exp(-E_act_eV / max(k_B_eV * T_K, 1e-12)))
+    from pipeline.utils import K_B_EV_K
+
+    return float(k0_m_s * np.exp(-E_act_eV / max(K_B_EV_K * T_K, 1e-12)))
 
 
 _mmbcr_interfacial_k_m_s = mmbcr_interfacial_k_m_s

@@ -198,9 +198,12 @@ def generate_catalyst_ts_fcidump(
     from pipeline.validation.dft_validator import extract_genome_motif_elements
 
     try:
+        import pyscf.lib
         from pyscf import ao2mo, dft, gto, mcscf, scf
         from pyscf import cc as pyscf_cc
         from pyscf.tools import fcidump
+
+        pyscf.lib.num_threads(2)
     except ImportError as exc:
         raise RuntimeError(
             'generate_catalyst_ts_fcidump requires PySCF'
@@ -304,16 +307,16 @@ def generate_catalyst_ts_fcidump(
     # Use '1e' initial guess for 5d heavy metals (Z >= 72) where PySCF minao ANO projection hangs
     use_1e_guess = bool(ecp_map and z_metal >= 72)
     mf_ts = scf.RHF(mol_ts)
+    mf_ts.max_cycle = 15 if use_1e_guess else 25
     if use_1e_guess:
         mf_ts.init_guess = '1e'
-        mf_ts.max_cycle = 15
     mf_ts.run()
     hf_energy_Ha = float(mf_ts.e_tot)
 
     mf_react = scf.RHF(mol_react)
+    mf_react.max_cycle = 15 if use_1e_guess else 25
     if use_1e_guess:
         mf_react.init_guess = '1e'
-        mf_react.max_cycle = 15
     mf_react.run()
 
     mc_ts = (
@@ -323,7 +326,9 @@ def generate_catalyst_ts_fcidump(
     )
     mc_ts.natorb = True
     if not use_1e_guess:
-        mc_ts.max_cycle_macro = 25
+        mc_ts.max_cycle_macro = 3
+        mc_ts.max_cycle_micro = 1
+        mc_ts.conv_tol = 1e-4
     mc_ts.run()
     casci_energy_Ha = float(mc_ts.e_tot)
 
@@ -334,7 +339,9 @@ def generate_catalyst_ts_fcidump(
     )
     mc_react.natorb = True
     if not use_1e_guess:
-        mc_react.max_cycle_macro = 25
+        mc_react.max_cycle_macro = 3
+        mc_react.max_cycle_micro = 1
+        mc_react.conv_tol = 1e-4
     mc_react.run()
     cas_react_Ha = float(mc_react.e_tot)
 
@@ -345,7 +352,7 @@ def generate_catalyst_ts_fcidump(
     # 2. Coupled-Cluster CCSD and T1 diagnostic at TS
     try:
         mycc = pyscf_cc.CCSD(mf_ts)
-        mycc.max_cycle = 10 if use_1e_guess else 25
+        mycc.max_cycle = 8
         mycc.run()
         ccsd_energy_Ha = float(mycc.e_tot)
         t1_diag = float(mycc.get_t1_diagnostic())

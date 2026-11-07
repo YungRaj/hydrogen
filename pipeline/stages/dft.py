@@ -127,6 +127,7 @@ def run_dft_stage(
                     try:
                         from pipeline.screening.mlip_neb import (
                             compute_candidate_mlip_neb,
+                            format_elementary_step_barriers,
                         )
 
                         neb_row: dict[str, object] = (
@@ -136,27 +137,7 @@ def run_dft_stage(
                         if result.get('E_act_eV') is not None:
                             neb_row.setdefault('E_act', result.get('E_act_eV'))
                         neb_info = compute_candidate_mlip_neb(neb_row)
-                        elem_steps: dict[str, float] = {
-                            'CH4_to_CH3': round(float(neb_info['E_act_neb']), 4),
-                            'CH3_to_CH2': round(
-                                float(neb_info['ch3_dehydrogenation_eV']), 4
-                            ),
-                            'CH2_to_CH': round(
-                                float(neb_info['ch2_dehydrogenation_eV']), 4
-                            ),
-                            'CH_to_C': round(
-                                float(neb_info['ch_dehydrogenation_eV']), 4
-                            ),
-                            'H_recombination': round(
-                                float(neb_info['h2_desorption_eV']), 4
-                            ),
-                            'C_diffusion': round(
-                                float(neb_info['carbon_transfer_eV']), 4
-                            ),
-                            'C_encapsulation': round(
-                                float(neb_info['carbon_encapsulation_eV']), 4
-                            ),
-                        }
+                        elem_steps = format_elementary_step_barriers(neb_info)
                         rate_limiting_pair = max(
                             (
                                 ('CH4_to_CH3', elem_steps['CH4_to_CH3']),

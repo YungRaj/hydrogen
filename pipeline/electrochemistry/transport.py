@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import math
 
+from pipeline.utils import FARADAY_C_MOL, R_J_MOL_K
+
 
 def ohmic_resistance_ohm(
     gap_m: float, conductivity_S_m: float, area_m2: float
@@ -44,7 +46,7 @@ def limiting_current_A(
         raise ValueError('transport inputs must be positive')
     # Fick's first law planar diffusion-limiting current: I_lim = n * F * D * C_bulk * A / δ,
     # where F = 96485.33212 C/mol is Faraday's constant.
-    return electrons * 96485.33212 * diffusivity_m2_s * concentration_mol_m3 \
+    return electrons * FARADAY_C_MOL * diffusivity_m2_s * concentration_mol_m3 \
         * area_m2 / boundary_layer_m
 
 
@@ -70,6 +72,6 @@ def concentration_overpotential_V(
         raise ValueError('current must satisfy 0 <= I < I_lim')
     # Nernstian mass-transfer overpotential: η_conc = (R*T / (n*F)) * ln(1 / (1 - I/I_lim)),
     # with R = 8.314462618 J/(mol*K) and F = 96485.33212 C/mol.
-    return 8.314462618 * temperature_K / (electrons * 96485.33212) * math.log(
+    return R_J_MOL_K * temperature_K / (electrons * FARADAY_C_MOL) * math.log(
         1.0 / (1.0 - fraction)
     )

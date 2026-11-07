@@ -589,6 +589,7 @@ fi
     )
     test_cmd = (
         'set -euo pipefail; '
+        'export OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2 MKL_NUM_THREADS=2; '
         'cd /root/hydrogen; '
         'pyright; '
         'python3 tests/run_pytest_contracts.py; '

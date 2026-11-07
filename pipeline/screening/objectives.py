@@ -414,10 +414,12 @@ def operating_stability_and_hull_gate(
         dissolution_drive = max(0.0, (d_center + 2.15) * 0.45 + (2.05 - chi) * 0.60 + (U_V_vs_RHE - 0.80))
         poisoning_eV = float(dissolution_drive)
     else:
+        from pipeline.utils import K_B_EV_K
+
         # At 900-1200 K in CH4/H2, strongly carbophilic early TMs (e_d > -1.35 eV)
         # suffer irreversible bulk carburization, offset by thermal energy 0.5*k_B*T
         # (k_B = 8.617333262e-5 eV/K) and attenuated 4x (0.25) in liquid MoltenMetal.
-        k_B_T = 8.617333262e-5 * float(T_K)
+        k_B_T = K_B_EV_K * float(T_K)
         carburization_drive = max(0.0, (d_center + 1.35) * 0.75 - 0.5 * k_B_T)
         if str(genome[0]) == 'MoltenMetal':
             carburization_drive *= 0.25

@@ -50,9 +50,10 @@ from pipeline.data_models.artifacts import (  # noqa: E402
 )
 from pipeline.electrochemistry.ntec_mechanics import (  # noqa: E402
     detachment_probability, impact_energy_J)
+from pipeline.utils import FARADAY_C_MOL, K_B_EV_K  # noqa: E402
 
-FARADAY = 96485.33212  # Faraday constant F [C/mol]
-K_B_EV = 8.617333262145e-5  # Boltzmann constant k_B [eV/K]
+FARADAY = FARADAY_C_MOL  # Faraday constant F [C/mol]
+K_B_EV = K_B_EV_K  # Boltzmann constant k_B [eV/K]
 M_CH4 = 0.01604246  # Methane molar mass [kg/mol]
 M_C = 0.0120107  # Carbon atomic mass [kg/mol]
 M_H = 0.00100794  # Hydrogen atomic mass [kg/mol]

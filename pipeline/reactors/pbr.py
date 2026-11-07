@@ -47,10 +47,40 @@ from pipeline.reactors.reactor_core import (
     validate_carbon_policy,
 )
 
+from pipeline.utils import (
+    K_B_EV_K,
+    MOLAR_MASS_C_KG_MOL,
+    MOLAR_MASS_CH4_KG_MOL,
+)
+
 MIN_PACKED_BED_POROSITY: float = 0.10  # Jammed-bed voidage floor under severe carbon coking
 MIN_STAGE_PRESSURE_PA: float = 10000.0  # 0.1 bar numerical floor against total bed plugging
-CH4_MOLAR_MASS_KG_MOL: float = 0.016043  # Reference methane molar mass [kg/mol] for baseline Cantera transport pass
+CH4_MOLAR_MASS_KG_MOL: float = MOLAR_MASS_CH4_KG_MOL  # Reference methane molar mass [kg/mol] for baseline Cantera transport pass
 DEFAULT_STICKING_COEFF: float = 0.01  # Baseline dissociative sticking probability s0 for hydrocarbon on transition metals
+
+
+def spherical_effectiveness_factor(thiele_phi: float) -> float:
+    """Compute the internal spherical-pellet Thiele effectiveness factor η_int(φ).
+
+    Evaluates ``(3 / φ^2) * (φ * coth(φ) - 1)`` using a 4th-order Taylor
+    expansion ``1 - φ^2 / 15 + 2 * φ^4 / 315`` for ``φ < 0.01`` (avoiding
+    catastrophic cancellation) and the asymptotic ``3 / φ`` limit for
+    ``φ > 200``.
+
+    Args:
+        thiele_phi: Dimensionless spherical Thiele modulus ``φ = (d_p / 6) * sqrt(k_vol / D_eff)``.
+
+    Returns:
+        Internal effectiveness factor ``η_int`` clamped to ``[1e-6, 1.0]``.
+    """
+    phi = max(float(thiele_phi), 0.0)
+    if phi < 1e-2:
+        eta = float(1.0 - (phi ** 2) / 15.0 + (2.0 * phi ** 4) / 315.0)
+    elif phi > 200.0:
+        eta = float(3.0 / phi)
+    else:
+        eta = float((3.0 / (phi ** 2)) * (phi / np.tanh(phi) - 1.0))
+    return min(max(eta, 1e-6), 1.0)
 
 
 def pbr_pellet_effectiveness(
@@ -103,7 +133,6 @@ def pbr_pellet_effectiveness(
     d_eff = max((eps_p / max(tau_p, 1e-6)) * d_bosanquet, 1e-12)
 
     # Hertz-Knudsen kinetic-theory surface reaction velocity k_s'' = (1/4) * s_0 * (1 - θ_C) * v_th * exp(-E_a / k_B T) [m/s]
-    k_b_ev = 8.617333262e-5  # Boltzmann constant in eV/K
     e_act = max(float(config.catalyst_E_act_eV), 0.0)
     free_site_frac = min(max(1.0 - float(theta_c), 0.0), 1.0)
     k_surf_m_s = (
@@ -111,7 +140,7 @@ def pbr_pellet_effectiveness(
         * DEFAULT_STICKING_COEFF
         * free_site_frac
         * v_thermal
-        * float(np.exp(-e_act / max(k_b_ev * T_K, 1e-9)))
+        * float(np.exp(-e_act / max(K_B_EV_K * T_K, 1e-9)))
     )
 
     # Active area per unit pellet volume [m² active / m³ pellet].
@@ -122,21 +151,9 @@ def pbr_pellet_effectiveness(
     k_vol_1_s = av_pellet * k_surf_m_s
 
     # Spherical pellet characteristic length L_c = V_p / A_p = d_p / 6 and Thiele modulus φ = L_c * sqrt(k_vol / D_eff).
-    # Exact spherical effectiveness η_int = (3/φ²)*(φ*coth(φ) - 1), using 4th-order Taylor expansion
-    # 1 - φ²/15 + 2φ⁴/315 for φ < 0.01 (avoids 0/0 cancellation) and asymptotic 3/φ for φ > 200.
     l_char = d_p / 6.0
     thiele_phi = float(l_char * np.sqrt(max(k_vol_1_s, 0.0) / d_eff))
-    if thiele_phi < 1e-2:
-        eta_internal = float(
-            1.0 - (thiele_phi ** 2) / 15.0 + (2.0 * thiele_phi ** 4) / 315.0
-        )
-    elif thiele_phi > 200.0:
-        eta_internal = float(3.0 / thiele_phi)
-    else:
-        eta_internal = float(
-            (3.0 / (thiele_phi ** 2)) * (thiele_phi / np.tanh(thiele_phi) - 1.0)
-        )
-    eta_internal = min(max(eta_internal, 1e-6), 1.0)
+    eta_internal = spherical_effectiveness_factor(thiele_phi)
 
     # External film mass transfer via Wakao-Funazkri (1979) packed-bed correlation:
     # Sh = k_c * d_p / D_mol = 2.0 + 1.1 * Re_p^0.6 * Sc^(1/3), overall effectiveness Ω = η_int / (1 + Da_ext).
@@ -227,7 +244,7 @@ def _run_pbr_pass(
     sv_geom_0 = 6.0 * (1.0 - eps_0) / d_p_m
     sv_active_0 = active_sv(sv_geom_0, config)
     c_inlet_mol_m3 = float(config.P_inlet_Pa) / (R_J_MOL_K * float(config.T_inlet_K))
-    carbon_molar_vol_m3_mol = 0.012011 / SOLID_CARBON_DENSITY_KG_M3
+    carbon_molar_vol_m3_mol = MOLAR_MASS_C_KG_MOL / SOLID_CARBON_DENSITY_KG_M3
     gamma_mol_m2_stage = float(config.site_density_mol_cm2) * 1e4
 
     for _ in range(n_stages):

@@ -74,6 +74,7 @@ def build_multipathway_champion_scorecard(
         is_solids_run,
         single_pass_x,
     )
+    from pipeline.reactors.pbr import spherical_effectiveness_factor
     from pipeline.screening.stage_selection import select_for_pyrolysis_reactor
     from pipeline.search.discovery import (
         LITERATURE_VALIDATION_GATES,
@@ -81,6 +82,7 @@ def build_multipathway_champion_scorecard(
         candidate_id,
         classify_catalyst_novelty,
         format_literature_catalyst_label,
+        normalize_candidate_id,
     )
     from pipeline.search.scope import (
         parse_encoded_genome,
@@ -194,9 +196,8 @@ def build_multipathway_champion_scorecard(
                 try:
                     drec = json.loads(dpath.read_text(encoding='utf-8'))
                     if isinstance(drec, dict) and bool(drec.get('converged', False)):
-                        cid_d = (
-                            str(drec.get('candidate_id') or '')
-                            or dpath.stem.removeprefix('campaign_').removesuffix('_dft')
+                        cid_d = normalize_candidate_id(
+                            drec.get('candidate_id') or dpath.stem
                         )
                         if cid_d:
                             converged_cids.add(cid_d)
@@ -361,10 +362,9 @@ def build_multipathway_champion_scorecard(
             try:
                 d_rec = json.loads(dft_p.read_text(encoding='utf-8'))
                 if isinstance(d_rec, dict):
-                    cid_d = (
-                        str(d_rec.get('candidate_id') or '')
-                        or dft_p.stem.removeprefix('campaign_').removesuffix('_dft')
-                    ).strip()
+                    cid_d = normalize_candidate_id(
+                        d_rec.get('candidate_id') or dft_p.stem
+                    )
                     if cid_d:
                         existing = candidate_Lookup.get(cid_d, {})
                         merged_meta = {**existing}
@@ -720,19 +720,6 @@ def build_multipathway_champion_scorecard(
         x_raw = min(max(float(single_pass_x(rec)), 0.0), 0.9999)
         da_raw = -math.log(max(1.0 - x_raw, 1e-6))
 
-        def _spherical_eta(phi_val: float) -> float:
-            if phi_val < 1e-4:
-                return float(1.0 - (phi_val**2) / 15.0)
-            return float(
-                min(
-                    max(
-                        (3.0 / (phi_val**2)) * (phi_val / math.tanh(phi_val) - 1.0),
-                        1e-6,
-                    ),
-                    1.0,
-                )
-            )
-
         raw_phi_val = rec.get('thiele_modulus')
         raw_eta_val = rec.get('overall_effectiveness_factor')
         if (
@@ -746,10 +733,10 @@ def build_multipathway_champion_scorecard(
                 if isinstance(raw_eta_val, (int, float))
                 and math.isfinite(float(raw_eta_val))
                 and float(raw_eta_val) > 0.0
-                else _spherical_eta(phi_raw)
+                else spherical_effectiveness_factor(phi_raw)
             )
             phi_cal = max(phi_raw * math.sqrt(rate_scale), 1e-6)
-            eta_cal = _spherical_eta(phi_cal)
+            eta_cal = spherical_effectiveness_factor(phi_cal)
             da_cal = da_raw * rate_scale * (eta_cal / max(eta_raw, 1e-6))
             cal_phi_out: float | None = round(phi_cal, 4)
             cal_eta_out: float | None = round(eta_cal, 4)

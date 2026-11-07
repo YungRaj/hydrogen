@@ -36,6 +36,7 @@ from pipeline.data_models.reactors import (
     FeedstockName,
     ReactorResult,
 )
+from pipeline.utils import R_J_MOL_K
 
 DEFAULT_FEEDSTOCK: FeedstockName = 'CH4'
 
@@ -43,7 +44,6 @@ MW_C_G_MOL: float = 12.011
 MW_H_G_MOL: float = 1.00794
 MW_O_G_MOL: float = 15.999
 MW_H2_G_MOL: float = 2.01588
-R_J_MOL_K: float = 8.314462618
 
 
 @dataclass(frozen=True)

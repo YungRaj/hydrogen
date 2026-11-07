@@ -570,7 +570,7 @@ def format_literature_catalyst_label(
             except (ValueError, SyntaxError):
                 pass
         _populate_candidate_genome_cache()
-        clean_id = text.removeprefix('campaign_').removeprefix('orr_slate_')
+        clean_id = normalize_candidate_id(text)
         if text in _CANDIDATE_GENOME_CACHE:
             return (
                 f"{_format_genome_tuple_label(_CANDIDATE_GENOME_CACHE[text])} "
@@ -592,6 +592,24 @@ def format_literature_catalyst_label(
     return str(genome_or_id)
 
 
+def normalize_candidate_id(raw_id: object) -> str:
+    """Strip campaign/slate prefixes and DFT suffixes from a candidate identifier.
+
+    Args:
+        raw_id: Raw or prefixed candidate identifier string.
+
+    Returns:
+        Normalized candidate identifier string.
+    """
+    return (
+        str(raw_id or '')
+        .strip()
+        .removeprefix('campaign_')
+        .removeprefix('orr_slate_')
+        .removesuffix('_dft')
+    )
+
+
 def lookup_candidate_genome(candidate_id: str) -> tuple[object, ...] | None:
     """Look up a cached catalyst genome tuple by candidate identifier.
 
@@ -605,7 +623,7 @@ def lookup_candidate_genome(candidate_id: str) -> tuple[object, ...] | None:
     if not text:
         return None
     _populate_candidate_genome_cache()
-    clean_id = text.removeprefix('campaign_').removeprefix('orr_slate_')
+    clean_id = normalize_candidate_id(text)
     cached = _CANDIDATE_GENOME_CACHE.get(text) or _CANDIDATE_GENOME_CACHE.get(
         clean_id
     )
@@ -653,7 +671,7 @@ def classify_catalyst_novelty(
     """
     if isinstance(genome_or_id, str) and genome_or_id.strip():
         raw_id = genome_or_id.strip()
-        clean_id = raw_id.removeprefix('campaign_').removeprefix('orr_slate_')
+        clean_id = normalize_candidate_id(raw_id)
         if (
             raw_id in LITERATURE_BENCHMARK_CANDIDATE_IDS
             or clean_id in LITERATURE_BENCHMARK_CANDIDATE_IDS
@@ -680,13 +698,7 @@ def classify_catalyst_novelty(
             except (ValueError, SyntaxError):
                 parsed_genome = None
         else:
-            _populate_candidate_genome_cache()
-            clean_g_id = text_g.removeprefix('campaign_').removeprefix('orr_slate_')
-            cached = _CANDIDATE_GENOME_CACHE.get(text_g) or _CANDIDATE_GENOME_CACHE.get(
-                clean_g_id
-            )
-            if isinstance(cached, tuple):
-                parsed_genome = cached
+            parsed_genome = lookup_candidate_genome(text_g)
 
     if parsed_genome:
         try:

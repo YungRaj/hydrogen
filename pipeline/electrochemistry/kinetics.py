@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 
-K_B_EV_K = 8.617333262145e-5  # Boltzmann constant k_B [eV/K]
+from pipeline.utils import FARADAY_C_MOL, K_B_EV_K, R_J_MOL_K
 
 
 def exchange_current_density(
@@ -59,7 +59,7 @@ def butler_volmer_current_density(
         raise ValueError('symmetry_factor must lie strictly between zero and one')
     # Butler-Volmer thermal voltage inverse: n*F / (R*T) [1/V], with F = 96485.33212 C/mol
     # and R = 8.314462618 J/(mol*K) (Bard & Faulkner, Electrochemical Methods, Eq. 3.3.11).
-    factor = electrons * 96485.33212 / (8.314462618 * temperature_K)
+    factor = electrons * FARADAY_C_MOL / (R_J_MOL_K * temperature_K)
     return exchange_current_A_cm2 * (
         math.exp((1.0 - symmetry_factor) * factor * overpotential_V)
         - math.exp(-symmetry_factor * factor * overpotential_V)

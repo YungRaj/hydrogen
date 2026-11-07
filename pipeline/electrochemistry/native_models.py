@@ -19,13 +19,18 @@ from pipeline.electrochemistry.transport import (
     limiting_current_A,
     ohmic_resistance_ohm,
 )
+from pipeline.utils import (
+    FARADAY_C_MOL,
+    K_B_EV_K,
+    MOLAR_MASS_2H2_KG_MOL,
+    MOLAR_MASS_H2_KG_MOL,
+)
 
 
 # Standard thermodynamics for CH4(g) -> C(gr) + 2 H2(g) at 298.15 K:
 # ΔH°_298 = +74.85 kJ/mol, ΔS°_298 = +80.6 J/(mol·K); ΔG°(T) = ΔH° - T*ΔS° crosses zero near 818 K.
 CH4_PYROLYSIS_DELTA_H_J_MOL: float = 74850.0
 CH4_PYROLYSIS_DELTA_S_J_MOL_K: float = 80.6
-FARADAY_C_MOL: float = 96485.33212  # Faraday constant F [C/mol e-]
 
 
 def turquoise_reversible_voltage_V(temperature_K: float, electrons: int = 4) -> float:
@@ -128,8 +133,6 @@ def ntec_screening_point(parameters: Mapping[str, float]) -> dict[str, object]:
     Returns:
         Diagnostic collision, impact, and regeneration values.
     """
-    import math
-
     collisions = collision_events_per_volume_s(
         parameters['shear_rate_s'], parameters['particle_diameter_m'],
         parameters['number_density_m3'],
@@ -144,7 +147,7 @@ def ntec_screening_point(parameters: Mapping[str, float]) -> dict[str, object]:
     k_regen = (
         collisions / (
             parameters['number_density_m3']
-            * 3.141592653589793 * parameters['particle_diameter_m'] ** 2
+            * math.pi * parameters['particle_diameter_m'] ** 2
         )
         * parameters['contact_area_m2']
         * detached
@@ -173,7 +176,7 @@ def ntec_screening_point(parameters: Mapping[str, float]) -> dict[str, object]:
                 **result, 'status': 'invalid',
                 'reason': 'consumption_exceeds_feed_supply',
             }
-        h2_kg_s = 2.0 * consumed * 2.0 * 0.00100794
+        h2_kg_s = 2.0 * consumed * MOLAR_MASS_H2_KG_MOL
         power_w = float(parameters.get('mechanical_power_W', 0.0))
         result.update({
             'status': 'complete',
@@ -259,12 +262,11 @@ def coupled_ntec_operating_point(
     raw_mu = cond.get('liquid_viscosity_Pa_s', liquid_viscosity_Pa_s)
     mu_val = float(raw_mu) if isinstance(raw_mu, (int, float)) else float(liquid_viscosity_Pa_s)
 
-    k_b_ev = 8.617333262145e-5
     delta_e_stark = min(max(fb_val, 0.0), 0.25)
     e_eff_ev = max(0.05, e_act_val - delta_e_stark)
-    enhancement = math.exp(delta_e_stark / (k_b_ev * t_eff))
+    enhancement = math.exp(delta_e_stark / (K_B_EV_K * t_eff))
     # First-order heterogeneous surface rate constant k_s [m/s] from interfacial site turnover
-    k_s = 4.0e-3 * math.exp(-e_eff_ev / (k_b_ev * t_eff))
+    k_s = 4.0e-3 * math.exp(-e_eff_ev / (K_B_EV_K * t_eff))
     da = k_s * h_val / max(d_val, 1e-15)
     c_bulk = henry_val * p_val
     j_max = d_val * c_bulk / max(h_val, 1e-9)
@@ -273,7 +275,7 @@ def coupled_ntec_operating_point(
     conversion = min(max(1.0 - math.exp(-ntu_rxn), 0.0), 0.98)
     consumed = conversion * feed_val
     wall_work_w = mu_val * (shear_val ** 2) * h_val * area_val
-    h2_kg_s = 2.0 * consumed * 0.00201588
+    h2_kg_s = 2.0 * consumed * MOLAR_MASS_H2_KG_MOL
     spec_energy = wall_work_w / (h2_kg_s * 3.6e6) if h2_kg_s > 0.0 else math.inf
     diag = ntec_screening_point({
         'shear_rate_s': shear_val,
@@ -378,7 +380,6 @@ def coupled_electrochemical_operating_point(
     raw_roughness = cond.get('gde_roughness_factor', 0.35 if is_aqueous else 1.0)
     roughness_val = float(raw_roughness) if isinstance(raw_roughness, (int, float)) else (0.35 if is_aqueous else 1.0)
 
-    k_b_ev = 8.617333262145e-5
     n_electrons = 4
     c_bulk = henry_val * p_val
     i_lim_a_m2 = (
@@ -391,7 +392,7 @@ def coupled_electrochemical_operating_point(
     e_a_eq = 0.17
     eta_a = max(0.0, v_cell - e_a_eq)
     r_kinet = roughness_val * 6.5e-4 * math.exp(
-        -max(0.05, e_act_val - 0.35 * eta_a) / (k_b_ev * t_eff)
+        -max(0.05, e_act_val - 0.35 * eta_a) / (K_B_EV_K * t_eff)
     )
     i_kinet_a_m2 = n_electrons * FARADAY_C_MOL * r_kinet * c_bulk
     i_anode_a_m2 = (i_kinet_a_m2 * i_lim_a_m2) / max(i_kinet_a_m2 + i_lim_a_m2, 1e-15)
@@ -400,7 +401,7 @@ def coupled_electrochemical_operating_point(
     conversion = min(max(1.0 - math.exp(-ntu_ec), 0.0), 0.98)
     j_a_cm2 = i_anode_a_m2 / 1.0e4
     spec_energy = (
-        v_cell * 4.0 * FARADAY_C_MOL / (3.6e6 * 0.00403188)
+        v_cell * 4.0 * FARADAY_C_MOL / (3.6e6 * MOLAR_MASS_2H2_KG_MOL)
     )
     phase = 'molten' if not is_aqueous else 'aqueous'
     return {

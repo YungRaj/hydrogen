@@ -16,8 +16,9 @@ failure.
 
 from __future__ import annotations
 
-import math
 from typing import Iterable, Mapping, Optional, TypeVar
+
+from pipeline.utils import finite_float
 
 RecordT = TypeVar('RecordT', bound=Mapping[str, object])
 
@@ -31,13 +32,7 @@ def finite_number(value: object) -> Optional[float]:
     Returns:
         Validated Optional[float] output for this operation.
     """
-    if not isinstance(value, (int, float, str)):
-        return None
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return None
-    return number if math.isfinite(number) else None
+    return finite_float(value)
 
 
 def is_usable_result(record: Mapping[str, object]) -> bool:
