@@ -22,5 +22,6 @@
   "slab_e_final_ry": -1928.75126164,
   "slab_e_act_ev": 2.605515,
   "slab_delta_e_rxn_ev": 2.2844,
-  "slab_calculation_mode": "pw_scf_3state"
+  "slab_calculation_mode": "pw_scf_3state",
+  "novelty_status": "literature_benchmark"
 }

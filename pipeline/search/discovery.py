@@ -592,8 +592,135 @@ def format_literature_catalyst_label(
     return str(genome_or_id)
 
 
+def lookup_candidate_genome(candidate_id: str) -> tuple[object, ...] | None:
+    """Look up a cached catalyst genome tuple by candidate identifier.
+
+    Args:
+        candidate_id: Raw or prefixed candidate identifier string.
+
+    Returns:
+        Cached genome tuple if found, otherwise ``None``.
+    """
+    text = str(candidate_id or '').strip()
+    if not text:
+        return None
+    _populate_candidate_genome_cache()
+    clean_id = text.removeprefix('campaign_').removeprefix('orr_slate_')
+    cached = _CANDIDATE_GENOME_CACHE.get(text) or _CANDIDATE_GENOME_CACHE.get(
+        clean_id
+    )
+    return cached if isinstance(cached, tuple) else None
+
+
+LITERATURE_BENCHMARK_CANDIDATE_IDS: frozenset[str] = frozenset(
+    {
+        'ni111_sio2_bengaard2002_ref',
+        'ni_np_lit',
+        'rh1_ceo2_akri2019_sac_ref',
+        'b6702ffe2074faa4fa50',  # Pt1/Ni(110) SAA (Kyriakou 2012 / Darby 2018)
+        '768cb0559591faec06ba',  # Cu,Fe-Ni(fcc211)/MgAl2O4 (Reshetenko 2003 / Ashok 2007)
+        'be45ea11e23945dbbda5',  # La,Y-Ni(fcc211)/CeZrO2 (Roh 2001 / Alves 2021)
+        '99cbb4a430ec9289b09d',  # Bi73Ni27 Liquid Metal (Upham 2017)
+        'f2f562d4c2602522a2e3',  # Bi73Ni27 Liquid Metal (Upham 2017)
+        'c4ab2249c156880efdbe',  # Ga99.9Ti0.1 Liquid Metal (Palmer 2020)
+        'c77b56fa00cdc515e3b7',  # Pt1/Co(100) SAA
+        'Fe_N_C',
+        'Pt_wet',
+    }
+)
+
+
+def classify_catalyst_novelty(
+    genome_or_id: object,
+    *,
+    genome: object = None,
+) -> str:
+    """Classify a catalyst as ``'de_novo_novel'`` or ``'literature_benchmark'``.
+
+    Literature benchmark anchors are known experimental reference compositions
+    used for calibration and ranking-authority gates (such as ``Ni(111)/SiO2``,
+    ``Rh1/CeO2(111)``, ``Pt1/Ni(110)``, ``Cu,Fe-Ni/MgAl2O4``, ``Bi73Ni27``, and
+    ``Ga99.9Ti0.1``). Candidates discovered in the combinatorial 14-class design
+    space outside this reference anchor set are classified as ``'de_novo_novel'``.
+
+    Args:
+        genome_or_id: Catalyst genome tuple/list/string or candidate identifier.
+        genome: Optional explicit genome tuple/list/string when ``genome_or_id``
+            is a candidate ID.
+
+    Returns:
+        ``'de_novo_novel'`` or ``'literature_benchmark'``.
+    """
+    if isinstance(genome_or_id, str) and genome_or_id.strip():
+        raw_id = genome_or_id.strip()
+        clean_id = raw_id.removeprefix('campaign_').removeprefix('orr_slate_')
+        if (
+            raw_id in LITERATURE_BENCHMARK_CANDIDATE_IDS
+            or clean_id in LITERATURE_BENCHMARK_CANDIDATE_IDS
+            or raw_id in NAMED_REFERENCE_CATALYSTS
+            or clean_id in NAMED_REFERENCE_CATALYSTS
+        ):
+            return 'literature_benchmark'
+
+    parsed_genome: tuple[object, ...] | None = None
+    target_g = genome if (genome is not None and str(genome).strip()) else genome_or_id
+    if isinstance(target_g, (tuple, list)):
+        parsed_genome = tuple(
+            tuple(x) if isinstance(x, list) else x for x in target_g
+        )
+    elif isinstance(target_g, str):
+        text_g = target_g.strip()
+        if text_g.startswith('(') or text_g.startswith('['):
+            try:
+                ev = ast.literal_eval(text_g)
+                if isinstance(ev, (tuple, list)):
+                    parsed_genome = tuple(
+                        tuple(x) if isinstance(x, list) else x for x in ev
+                    )
+            except (ValueError, SyntaxError):
+                parsed_genome = None
+        else:
+            _populate_candidate_genome_cache()
+            clean_g_id = text_g.removeprefix('campaign_').removeprefix('orr_slate_')
+            cached = _CANDIDATE_GENOME_CACHE.get(text_g) or _CANDIDATE_GENOME_CACHE.get(
+                clean_g_id
+            )
+            if isinstance(cached, tuple):
+                parsed_genome = cached
+
+    if parsed_genome:
+        try:
+            cid = candidate_id(parsed_genome)
+            if cid in LITERATURE_BENCHMARK_CANDIDATE_IDS:
+                return 'literature_benchmark'
+        except Exception:
+            pass
+        cls = str(parsed_genome[0])
+        if cls == 'MoltenMetal' and len(parsed_genome) >= 4:
+            m1, m2 = str(parsed_genome[1]), str(parsed_genome[2])
+            try:
+                frac = float(str(parsed_genome[3]))
+                if (m1, m2) == ('Bi', 'Ni') and abs(frac - 27.0) <= 1.0:
+                    return 'literature_benchmark'
+            except (TypeError, ValueError):
+                pass
+        elif (
+            cls == 'SolidCatalyst'
+            and len(parsed_genome) >= 6
+            and isinstance(parsed_genome[5], (tuple, list))
+        ):
+            if (
+                str(parsed_genome[1]) == 'Ni'
+                and str(parsed_genome[2]) == 'SiO2'
+                and not parsed_genome[5]
+            ):
+                return 'literature_benchmark'
+
+    return 'de_novo_novel'
+
+
 def add_discovery_metadata(frame):
-    """Add stable identity, coverage-cell, and literature-backed name columns to a screening DataFrame.
+    """Add stable identity, coverage-cell, novelty, and literature-backed name columns to a screening DataFrame.
 
     Args:
         frame: Tabular candidate or result records.
@@ -603,21 +730,25 @@ def add_discovery_metadata(frame):
     """
     if frame is None or "genome" not in frame.columns:
         return frame
-    ids, regions, labels = [], [], []
+    ids, regions, labels, novelties = [], [], [], []
     for raw in frame["genome"]:
         try:
             genome = ast.literal_eval(raw) if isinstance(raw, str) else tuple(raw)
-            ids.append(candidate_id(genome))
+            cid = candidate_id(genome)
+            ids.append(cid)
             regions.append("|".join(discovery_region(genome)))
             labels.append(_format_genome_tuple_label(genome))
+            novelties.append(classify_catalyst_novelty(cid, genome=genome))
         except (ValueError, SyntaxError, TypeError):
             ids.append(None)
             regions.append(None)
             labels.append(None)
+            novelties.append(None)
     frame = frame.copy()
     frame["candidate_id"] = ids
     frame["discovery_region"] = regions
     frame["literature_catalyst_name"] = labels
+    frame["novelty_status"] = novelties
     return frame
 
 

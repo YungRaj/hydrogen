@@ -14,5 +14,6 @@
   "periodic_slab_qe_executed": true,
   "slab_initial_energy_eV": -24768.9406,
   "slab_ts_energy_eV": -24765.7002,
-  "slab_final_energy_eV": -24766.9115
+  "slab_final_energy_eV": -24766.9115,
+  "novelty_status": "literature_benchmark"
 }

@@ -1,0 +1,244 @@
+{
+  "provenance": {
+    "timestamp": "2026-10-15T02:28:35+0000",
+    "git_sha": "513cfc1",
+    "cli_args": {
+      "calibration_probes": 20,
+      "validation_batch": 14,
+      "min_validation_per_class": 1,
+      "hours": 0,
+      "top_k": 14,
+      "no_dft": false,
+      "no_vqe": true,
+      "mode": "thermocatalytic",
+      "ntec_conditions_json": "",
+      "electrochemical_conditions_json": "",
+      "workers_per_gpu": 16,
+      "scan_batch_size": 65536,
+      "scan_workers": 8,
+      "branch_leaf_size": 1000000,
+      "branch_probes": 9,
+      "branch_max_leaves": 14,
+      "branch_class_floor": 1,
+      "branch_exploration_interval": 4,
+      "branch_priority_refresh": 10000,
+      "expected_space_size": 21092657271,
+      "results_dir": "/root/hydrogen/results/campaign_thermocatalytic",
+      "mechanisms_dir": "/root/hydrogen/results/campaign_thermocatalytic/mechanisms",
+      "prior_art_db": "/root/hydrogen/results/campaign_thermocatalytic/prior_art.sqlite",
+      "prior_art_csv": [],
+      "final_campaign": false,
+      "evidence_manifest": "/root/hydrogen/results/campaign_thermocatalytic/evidence_manifest.json",
+      "kinetics_validation_dir": "/root/hydrogen/results/campaign_thermocatalytic/dft/pyrolysis_kinetics",
+      "multiphysics_results_dir": "/root/hydrogen/results/campaign_thermocatalytic/multiphysics",
+      "qe_mpi_ranks": 4,
+      "qe_omp_threads": 1,
+      "qe_max_concurrent": 2
+    },
+    "n_gpus": 1,
+    "gpu_names": [
+      "NVIDIA RTX 6000 Ada Generation"
+    ],
+    "conda_env_snapshot": "unavailable"
+  },
+  "phase1": {
+    "pareto_size": 340,
+    "total_evaluated": 54,
+    "valid_count": 46,
+    "top_catalysts_count": 14,
+    "dft_resolution_count": 14,
+    "candidate_dispositions": {
+      "quantitative_screening": 44,
+      "validation_required": 10
+    },
+    "elapsed_s": 251.80543518066406,
+    "search_strategy": "deterministic_branch_and_bound",
+    "metric_eligible_count": 30,
+    "best_E_act": 0.013127854260997385,
+    "best_coking": "8.359 eV"
+  },
+  "phase2": {
+    "catalysts_attempted": 20,
+    "catalysts_simulated": 20,
+    "complete_sweeps": 6,
+    "partial_sweeps": 0,
+    "failed_sweeps": 0,
+    "elapsed_s": 0.17452740669250488,
+    "equilibrium_check": {
+      "within_tolerance": true,
+      "worst_abs_error": 0.05966938673325417
+    },
+    "solids_scorecard": {
+      "judge_catalyst": null,
+      "headline_catalyst": null,
+      "judge_catalyst_requested": "ni_np_lit",
+      "judge_reason": "ni_np_lit missing from solids results; no catalyst fallback while B5/B6 are open",
+      "headline_t_min": 923.15,
+      "headline_t_max": 973.15,
+      "headline_band_note": "1300 K is the ADR 0001 ceiling (773\u20131300 K), used as the legacy 4-point headline when t_min=1200 and t_max is open. The Ni judge headline is the 650\u2013700 \u00b0C filament ROI (923.15\u2013973.15 K); X>X_eq and carbon-balance failures are never the headline.",
+      "headline": {},
+      "headline_solids_conversion": null,
+      "ranking_authority": false,
+      "solids_max_excluding_h_parked": null,
+      "candidate_champion_conversion": null,
+      "candidate_champion_catalyst": null,
+      "candidate_champion_reactor": null,
+      "candidate_champion_T_K": null,
+      "candidate_champion_kinetics_status": null,
+      "h_parked_excluded": [],
+      "mmbcr_max_conversion": 0.2417395210941916,
+      "mmbcr_note": "X_eq by construction for large Da; not a catalyst rank (B5)",
+      "ntec_max_conversion": null,
+      "electrochemical_max_conversion": null,
+      "n_solids_records": 0,
+      "n_mmbcr_records": 36,
+      "n_ntec_records": 0,
+      "n_electrochemical_records": 0
+    },
+    "industrial_viability": {
+      "pass": 0,
+      "fail": 6,
+      "unknown": 14
+    },
+    "best_conversion": null,
+    "best_conversion_scope": "solids_single_pass_judge_unavailable",
+    "candidate_champion_conversion": null,
+    "candidate_champion_catalyst": null,
+    "best_h2_cost_usd_kg": 1.623
+  },
+  "phase3": {
+    "catalysts_validated": 10,
+    "converged": 10,
+    "active_learning_calibration": {
+      "error": "TreeRanker.__init__() got multiple values for argument 'application'"
+    },
+    "qe_max_concurrent": 2,
+    "qe_mpi_ranks": 4,
+    "qe_omp_threads": 1,
+    "task_queue": {
+      "converged": 10
+    },
+    "evidence_level": "screening_dft",
+    "elapsed_s": 213.3519628047943
+  },
+  "phase4": {
+    "skipped": true,
+    "reason": "--no-vqe flag"
+  },
+  "phase5_branch": {
+    "pareto_size": 627,
+    "total_evaluated": 74,
+    "valid_count": 23,
+    "pemfc_model_count": 19,
+    "validation_resolution_count": 14,
+    "validation_slate": "/root/hydrogen/results/campaign_thermocatalytic/fuel_cell/validation_slate.csv",
+    "pemfc_scope": {
+      "filter": "pemfc_cathode_scope",
+      "admissible_count": 65,
+      "dropped_count": 9
+    },
+    "candidate_dispositions": {
+      "validation_required": 51,
+      "quantitative_screening": 23
+    },
+    "elapsed_s": 620.6408538818359,
+    "best_overpotential_V": 0.2965542871952218,
+    "best_overpotential_gc_V": 0.3803018207697578,
+    "pourbaix_acid_stable_count": 10
+  },
+  "phase5_stack": {
+    "best_power_W_cm2": 1.3477309154064199,
+    "best_efficiency": 0.35852292523126567,
+    "min_overpotential_V": 0.2965542871952218,
+    "best_catalyst": "0b8c1b55b88de7699474",
+    "best_membrane": "Nafion_211",
+    "stack_net_kW": 148.75499569942872,
+    "stack_efficiency": 0.3297646164086148,
+    "industrial_viability": {
+      "status": "fail",
+      "failed": [
+        "system_efficiency<0.4"
+      ],
+      "missing": [
+        "voltage_degradation",
+        "measured_hours",
+        "experimental_mea"
+      ],
+      "observed": {
+        "orr_overpotential": 0.2965542871952218,
+        "peak_power": 1.3477309154064199,
+        "system_efficiency": 0.3297646164086148
+      },
+      "bounds": {
+        "max_orr_overpotential_V": 0.4,
+        "min_peak_power_W_cm2": 1.0,
+        "min_system_efficiency": 0.4,
+        "max_voltage_degradation_uV_h": 10.0,
+        "min_measured_hours": 100.0
+      }
+    }
+  },
+  "phase5": {
+    "pareto_size": 627,
+    "total_evaluated": 74,
+    "valid_count": 23,
+    "pemfc_model_count": 19,
+    "validation_resolution_count": 14,
+    "validation_slate": "/root/hydrogen/results/campaign_thermocatalytic/fuel_cell/validation_slate.csv",
+    "pemfc_scope": {
+      "filter": "pemfc_cathode_scope",
+      "admissible_count": 65,
+      "dropped_count": 9
+    },
+    "candidate_dispositions": {
+      "validation_required": 51,
+      "quantitative_screening": 23
+    },
+    "elapsed_s": 620.6408538818359,
+    "best_overpotential_V": 0.2965542871952218,
+    "best_overpotential_gc_V": 0.3803018207697578,
+    "pourbaix_acid_stable_count": 10,
+    "best_power_W_cm2": 1.3477309154064199,
+    "best_efficiency": 0.35852292523126567,
+    "min_overpotential_V": 0.2965542871952218,
+    "best_catalyst": "0b8c1b55b88de7699474",
+    "best_membrane": "Nafion_211",
+    "stack_net_kW": 148.75499569942872,
+    "stack_efficiency": 0.3297646164086148,
+    "industrial_viability": {
+      "status": "fail",
+      "failed": [
+        "system_efficiency<0.4"
+      ],
+      "missing": [
+        "voltage_degradation",
+        "measured_hours",
+        "experimental_mea"
+      ],
+      "observed": {
+        "orr_overpotential": 0.2965542871952218,
+        "peak_power": 1.3477309154064199,
+        "system_efficiency": 0.3297646164086148
+      },
+      "bounds": {
+        "max_orr_overpotential_V": 0.4,
+        "min_peak_power_W_cm2": 1.0,
+        "min_system_efficiency": 0.4,
+        "max_voltage_degradation_uV_h": 10.0,
+        "min_measured_hours": 100.0
+      }
+    },
+    "n_cathodes_screened": 104,
+    "n_valid": 41
+  },
+  "total_elapsed_s": 1086.1638045310974,
+  "phase6": {
+    "report_path": "/root/hydrogen/results/campaign_mmbcr/reports/pipeline_report.md",
+    "elapsed_s": 0.05608725547790527
+  },
+  "pathway_mode": "mmbcr",
+  "reactor_types": [
+    "MMBCR"
+  ],
+  "schema_version": 1
+}

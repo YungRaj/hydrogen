@@ -36,6 +36,27 @@ def _default_hamiltonian_root() -> Path:
     return VQE_DIR / 'hamiltonians'
 
 
+def _extract_row_genome(row: Any) -> tuple[object, ...] | None:
+    """Return a parsed genome tuple from a candidate row if present."""
+    import ast
+
+    raw_g = row.get('genome') if hasattr(row, 'get') else None
+    if raw_g is None:
+        return None
+    if isinstance(raw_g, (tuple, list)):
+        return tuple(tuple(x) if isinstance(x, list) else x for x in raw_g)
+    if isinstance(raw_g, str) and raw_g.strip():
+        try:
+            parsed = ast.literal_eval(raw_g.strip())
+            if isinstance(parsed, (tuple, list)) and parsed:
+                return tuple(
+                    tuple(x) if isinstance(x, list) else x for x in parsed
+                )
+        except (ValueError, SyntaxError):
+            return None
+    return None
+
+
 def run_vqe_stage(
     candidates: Any = None,
     *,
@@ -43,14 +64,16 @@ def run_vqe_stage(
     execute_quantum: bool,
     validator: Callable[..., VQEResult] | None = None,
     hamiltonian_root: str | Path | None = None,
+    auto_generate_hamiltonian: bool | None = None,
 ) -> StageOutcome[VQEState, VQEProducts]:
     """Run candidate VQE validations with an injectable solver boundary.
 
     Only candidates with a provenance-bound, candidate-specific Hamiltonian at
-    ``<hamiltonian_root>/<candidate_id>/FCIDUMP`` are run. Without one the
-    validator would fall back to a toy benchmark Hamiltonian that carries no
-    candidate identity, so those candidates are reported as missing inputs
-    instead of producing placeholder ``champion_<i>`` results.
+    ``<hamiltonian_root>/<candidate_id>/FCIDUMP`` are run. When a candidate row
+    carries a valid ``genome`` and ``auto_generate_hamiltonian`` is enabled
+    (defaults to ``execute_quantum``), ``generate_catalyst_ts_fcidump`` is
+    invoked automatically to construct the 8-qubit ``CASSCF(4,4)`` transition-state
+    ``FCIDUMP`` and ``FCIDUMP.json`` provenance sidecar on disk before VQE runs.
 
     Args:
         candidates: Ranked candidate table or sequence of mappings carrying
@@ -60,6 +83,9 @@ def run_vqe_stage(
         validator: Injected callable used to perform validator.
         hamiltonian_root: Directory holding ``<candidate_id>/FCIDUMP`` inputs;
             defaults to ``<results>/vqe/hamiltonians``.
+        auto_generate_hamiltonian: Optional override controlling automatic
+            PySCF ``CASSCF(4,4)`` ``FCIDUMP`` generation when a candidate row
+            includes a valid ``genome``; defaults to ``execute_quantum``.
 
     Returns:
         Computed `StageOutcome` result.
@@ -80,6 +106,11 @@ def run_vqe_stage(
         if hamiltonian_root is not None
         else _default_hamiltonian_root()
     )
+    should_auto_generate = (
+        bool(execute_quantum)
+        if auto_generate_hamiltonian is None
+        else bool(auto_generate_hamiltonian)
+    )
     # Use GPU statevector ('nvidia') when quantum execution is enabled, else CPU ('default')
     target = 'nvidia' if execute_quantum else 'default'
     ready: list[tuple[str, Path]] = []
@@ -87,6 +118,21 @@ def run_vqe_stage(
     for row in _candidate_rows(candidates, top_k):
         key = _candidate_key(row)
         hamiltonian = root / key / 'FCIDUMP'
+        if not hamiltonian.is_file() and should_auto_generate:
+            parsed_genome = _extract_row_genome(row)
+            if parsed_genome is not None:
+                try:
+                    from pipeline.validation.candidate_hamiltonian import (
+                        generate_catalyst_ts_fcidump,
+                    )
+
+                    generate_catalyst_ts_fcidump(
+                        key,
+                        parsed_genome,
+                        output_dir=root / key,
+                    )
+                except Exception:
+                    pass
         (ready if hamiltonian.is_file() else missing).append((key, hamiltonian))
     results: list[VQEResult] = [
         active_validator(

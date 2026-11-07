@@ -79,6 +79,7 @@ def build_multipathway_champion_scorecard(
         LITERATURE_VALIDATION_GATES,
         NAMED_REFERENCE_CATALYSTS,
         candidate_id,
+        classify_catalyst_novelty,
         format_literature_catalyst_label,
     )
     from pipeline.search.scope import (
@@ -244,6 +245,10 @@ def build_multipathway_champion_scorecard(
                     material_class=str(row.get('material_class', '')),
                     genome=str(row.get('genome', '')),
                 ),
+                'novelty_status': classify_catalyst_novelty(
+                    cid_str,
+                    genome=str(row.get('genome', '')),
+                ),
                 'material_class': str(row.get('material_class', '')),
                 'genome': str(row.get('genome', '')),
                 'E_act_eV': round(
@@ -366,10 +371,26 @@ def build_multipathway_champion_scorecard(
                         for k_meta in (
                             'genome',
                             'material_class',
-                            'interfacial_carbon_displacement_A',
                         ):
-                            if d_rec.get(k_meta) is not None and merged_meta.get(k_meta) is None:
+                            if (
+                                d_rec.get(k_meta) is not None
+                                and merged_meta.get(k_meta) is None
+                            ):
                                 merged_meta[k_meta] = d_rec[k_meta]
+                        for k_dft in (
+                            'interfacial_carbon_displacement_A',
+                            'E_act_eV',
+                            'calibrated_activation_eV',
+                            'interfacial_pyrolysis_score_eV',
+                            'calibrated_interfacial_score_eV',
+                            'coking_index_eV',
+                            'dft_energy_Ry',
+                            'dft_energy_eV',
+                            'max_force_Ry_bohr',
+                            'converged',
+                        ):
+                            if d_rec.get(k_dft) is not None:
+                                merged_meta[k_dft] = d_rec[k_dft]
                         if d_rec.get('neb_converged') is not None:
                             merged_meta['qe_neb_converged'] = bool(d_rec['neb_converged'])
                         if isinstance(d_rec.get('neb_forward_barrier_eV'), (int, float)):
@@ -379,6 +400,148 @@ def build_multipathway_champion_scorecard(
                         candidate_Lookup[cid_d] = merged_meta
             except Exception:
                 pass
+
+    # Build de_novo_discovery_champions: all QE-DFT-validated de_novo_novel candidates
+    de_novo_by_cid: dict[str, DiscoveryChampionRow] = {
+        ch['candidate_id']: dict(ch)  # type: ignore[misc]
+        for ch in discovery_champions
+        if ch.get('novelty_status') == 'de_novo_novel'
+    }
+    for cid_k, c_meta in candidate_Lookup.items():
+        if cid_k in de_novo_by_cid or cid_k in out_of_scope_cids:
+            continue
+        raw_g_k = c_meta.get('genome')
+        if not isinstance(raw_g_k, str) or not raw_g_k.strip():
+            continue
+        if classify_catalyst_novelty(cid_k, genome=raw_g_k) != 'de_novo_novel':
+            continue
+        dft_k_path = root / 'dft' / f'campaign_{cid_k}_dft.json'
+        if not dft_k_path.is_file():
+            continue
+        raw_e_k = c_meta.get('E_act_eV')
+        if raw_e_k is None:
+            raw_e_k = c_meta.get('E_act')
+        if not isinstance(raw_e_k, (int, float)) or not math.isfinite(float(raw_e_k)):
+            continue
+        try:
+            pg_k = parse_encoded_genome(raw_g_k)
+            if (
+                pg_k is not None
+                and phase_stable_at_application_T(pg_k).get('status') != 'candidate'
+            ):
+                continue
+        except Exception:
+            pass
+        e_act_k = round(float(raw_e_k), 4)
+        c_disp_k = c_meta.get('interfacial_carbon_displacement_A')
+        cal_e_k = c_meta.get('calibrated_activation_eV')
+        i_score_k = c_meta.get('interfacial_pyrolysis_score_eV')
+        cal_score_k = c_meta.get('calibrated_interfacial_score_eV')
+        if cal_e_k is None or cal_score_k is None:
+            try:
+                cal_info_k = calibrated_interfacial_pyrolysis_score_eV(
+                    {
+                        'E_act': e_act_k,
+                        'E_act_raw': e_act_k,
+                        'c_height_above_surface_A': (
+                            float(c_disp_k)
+                            if isinstance(c_disp_k, (int, float))
+                            else 0.15
+                        ),
+                        **c_meta,
+                    }
+                )
+                cal_e_k = cal_info_k['calibrated_activation_eV']
+                cal_score_k = cal_info_k['calibrated_interfacial_score_eV']
+                if c_disp_k is None:
+                    c_disp_k = cal_info_k['interfacial_carbon_displacement_A']
+                if i_score_k is None:
+                    i_score_k = cal_info_k['uncalibrated_interfacial_score_eV']
+            except Exception:
+                pass
+        coking_k = c_meta.get('coking_index_eV')
+        if coking_k is None:
+            coking_k = c_meta.get('coking_index')
+        mat_cls_k = str(c_meta.get('material_class') or '')
+        dn_entry: DiscoveryChampionRow = {
+            'rank': 0,
+            'candidate_id': cid_k,
+            'literature_catalyst_name': format_literature_catalyst_label(
+                cid_k, material_class=mat_cls_k, genome=raw_g_k
+            ),
+            'novelty_status': 'de_novo_novel',
+            'material_class': mat_cls_k,
+            'genome': raw_g_k,
+            'E_act_eV': e_act_k,
+            'calibrated_activation_eV': (
+                round(float(cal_e_k), 4)
+                if isinstance(cal_e_k, (int, float)) and math.isfinite(float(cal_e_k))
+                else None
+            ),
+            'interfacial_carbon_displacement_A': (
+                round(float(c_disp_k), 4)
+                if isinstance(c_disp_k, (int, float)) and math.isfinite(float(c_disp_k))
+                else None
+            ),
+            'interfacial_pyrolysis_score_eV': (
+                round(float(i_score_k), 4)
+                if isinstance(i_score_k, (int, float)) and math.isfinite(float(i_score_k))
+                else None
+            ),
+            'calibrated_interfacial_score_eV': (
+                round(float(cal_score_k), 4)
+                if isinstance(cal_score_k, (int, float))
+                and math.isfinite(float(cal_score_k))
+                else None
+            ),
+            'coking_index_eV': (
+                round(float(coking_k), 4)
+                if isinstance(coking_k, (int, float)) and math.isfinite(float(coking_k))
+                else None
+            ),
+        }
+        try:
+            dft_k_doc = json.loads(dft_k_path.read_text(encoding='utf-8'))
+            if isinstance(dft_k_doc, dict):
+                dn_entry['qe_dft_converged'] = bool(dft_k_doc.get('converged', False))
+                if isinstance(dft_k_doc.get('dft_energy_Ry'), (int, float)):
+                    dn_entry['qe_dft_energy_Ry'] = round(
+                        float(dft_k_doc['dft_energy_Ry']), 8
+                    )
+                if isinstance(dft_k_doc.get('dft_energy_eV'), (int, float)):
+                    dn_entry['qe_dft_energy_eV'] = round(
+                        float(dft_k_doc['dft_energy_eV']), 4
+                    )
+                if isinstance(dft_k_doc.get('max_force_Ry_bohr'), (int, float)):
+                    dn_entry['qe_max_force_Ry_bohr'] = round(
+                        float(dft_k_doc['max_force_Ry_bohr']), 6
+                    )
+                if dft_k_doc.get('neb_converged') is not None:
+                    dn_entry['qe_neb_converged'] = bool(dft_k_doc['neb_converged'])
+                if isinstance(dft_k_doc.get('neb_forward_barrier_eV'), (int, float)):
+                    dn_entry['qe_neb_barrier_eV'] = round(
+                        float(dft_k_doc['neb_forward_barrier_eV']), 4
+                    )
+        except Exception:
+            pass
+        de_novo_by_cid[cid_k] = dn_entry
+
+    sorted_de_novo = sorted(
+        de_novo_by_cid.values(),
+        key=lambda row_dn: (
+            float(row_dn['E_act_eV']),
+            float(
+                row_dn.get('calibrated_interfacial_score_eV')
+                or row_dn['E_act_eV']
+            ),
+            str(row_dn['candidate_id']),
+        ),
+    )
+    de_novo_discovery_champions: list[DiscoveryChampionRow] = []
+    for dn_idx, dn_item in enumerate(sorted_de_novo, 1):
+        dn_copy = dict(dn_item)
+        dn_copy['rank'] = dn_idx
+        de_novo_discovery_champions.append(cast(DiscoveryChampionRow, dn_copy))
 
     # 2. Phase 2 6-Pathway Reactor & TEA Leaderboard (Raw + DFT-Calibrated)
     reactor_records: list[ReactorResult] = []
@@ -486,11 +649,17 @@ def build_multipathway_champion_scorecard(
         t_eff = max(t_val, 300.0)
         neb_conv, neb_barrier_ev = _resolve_candidate_neb_evidence(cat_name, cat_meta)
         if neb_conv and neb_barrier_ev is not None:
+            rec_e_act = rec.get('catalyst_E_act_eV')
             raw_e_act = (
-                rec.get('catalyst_E_act_eV')
-                or cat_meta.get('E_act_eV')
-                or cat_meta.get('E_act')
-                or 0.0
+                rec_e_act
+                if isinstance(rec_e_act, (int, float))
+                and abs(float(rec_e_act) - 0.28) > 1e-6
+                else (
+                    cat_meta.get('E_act_eV')
+                    or cat_meta.get('E_act')
+                    or rec_e_act
+                    or 0.0
+                )
             )
             e_act_bep = (
                 float(raw_e_act)
@@ -729,8 +898,122 @@ def build_multipathway_champion_scorecard(
             'h2_turnover_frequency_1_s': tof_h2,
         }
 
+    def _build_calibrated_pathway_row(
+        best_cal_rec: ReactorResult,
+        best_cal_metrics: DFTCalibratedReactorMetrics,
+        n_usable: int,
+    ) -> DFTCalibratedPathwayRow:
+        cal_conv: float = float(
+            best_cal_metrics['dft_calibrated_single_pass_CH4_conversion']
+        )
+        cal_t_rec: float = float(best_cal_rec.get('T_K') or 0.0)
+        cal_rates: ExtractedSelectivityRateMetrics = _extract_selectivity_and_rates(
+            best_cal_rec, cal_conv, cal_t_rec
+        )
+        cal_s_c: float = float(cal_rates['solid_C_selectivity'])
+        cal_raw_spec_e = best_cal_rec.get('specific_energy_kWh_kg_H2')
+        cal_spec_e = (
+            float(cal_raw_spec_e)
+            if isinstance(cal_raw_spec_e, (int, float))
+            and 0.0 < float(cal_raw_spec_e) < 1e6
+            else None
+        )
+        cal_tea_range = (
+            estimate_scenario_range(
+                cal_conv,
+                temperature_K=cal_t_rec if cal_t_rec > 298.15 else None,
+                solid_c_selectivity=cal_s_c,
+                specific_energy_kwh_kg_h2=cal_spec_e,
+            )
+            if 0.0 < cal_conv <= 1.0
+            else None
+        )
+        cal_dp = best_cal_rec.get('ergun_delta_p_bar')
+        best_cal_cat_id = str(best_cal_rec.get('catalyst_name', ''))
+        best_cal_meta = candidate_Lookup.get(best_cal_cat_id, {})
+        best_cal_genome = best_cal_rec.get('genome') or best_cal_meta.get('genome')
+        return {
+            'status': 'complete',
+            'n_usable_records': n_usable,
+            'champion_catalyst': best_cal_cat_id,
+            'champion_catalyst_literature_name': format_literature_catalyst_label(
+                best_cal_cat_id,
+                material_class=best_cal_metrics['material_class'],
+                genome=best_cal_genome,
+            ),
+            'novelty_status': classify_catalyst_novelty(
+                best_cal_cat_id, genome=best_cal_genome
+            ),
+            'material_class': best_cal_metrics['material_class'],
+            'reactor_type': str(best_cal_rec.get('reactor_type', '')),
+            'T_K': cal_t_rec,
+            'uncalibrated_single_pass_CH4_conversion': round(
+                float(single_pass_x(best_cal_rec)), 4
+            ),
+            'dft_barrier_shift_eV': best_cal_metrics['dft_barrier_shift_eV'],
+            'arrhenius_rate_scaling': best_cal_metrics['arrhenius_rate_scaling'],
+            'dft_calibrated_single_pass_CH4_conversion': cal_conv,
+            'dft_calibrated_overall_effectiveness_factor': best_cal_metrics[
+                'dft_calibrated_overall_effectiveness_factor'
+            ],
+            'dft_calibrated_thiele_modulus': best_cal_metrics[
+                'dft_calibrated_thiele_modulus'
+            ],
+            'ergun_delta_p_bar': (
+                round(float(cal_dp), 6)
+                if isinstance(cal_dp, (int, float)) and math.isfinite(float(cal_dp))
+                else None
+            ),
+            'H2_selectivity': float(cal_rates['H2_selectivity'] or 1.0),
+            'H2_yield': cal_rates['H2_yield'],
+            'solid_C_selectivity': cal_rates['solid_C_selectivity'],
+            'C2_carbon_selectivity': cal_rates['C2_carbon_selectivity'],
+            'dft_calibrated_feedstock_conversion_rate_mol_m3_s': cal_rates[
+                'feedstock_conversion_rate_mol_m3_s'
+            ],
+            'dft_calibrated_ch4_conversion_rate_mol_m3_s': cal_rates[
+                'ch4_conversion_rate_mol_m3_s'
+            ],
+            'dft_calibrated_h2_production_rate_mol_m3_s': cal_rates[
+                'h2_production_rate_mol_m3_s'
+            ],
+            'dft_calibrated_h2_production_rate_kg_m3_h': cal_rates[
+                'h2_production_rate_kg_m3_h'
+            ],
+            'dft_calibrated_h2_turnover_frequency_1_s': cal_rates[
+                'h2_turnover_frequency_1_s'
+            ],
+            'kinetics_status': best_cal_metrics.get(
+                'kinetics_status', 'qe_dft_calibrated_bep'
+            ),
+            'dft_calibrated_tea_base_h2_usd_kg': (
+                cal_tea_range['estimates']['base']['h2_cost_usd_kg']
+                if cal_tea_range
+                else None
+            ),
+            'dft_calibrated_tea_optimistic_h2_usd_kg': (
+                cal_tea_range['estimates']['optimistic']['h2_cost_usd_kg']
+                if cal_tea_range
+                else None
+            ),
+            'dft_calibrated_tea_conservative_h2_usd_kg': (
+                cal_tea_range['estimates']['conservative']['h2_cost_usd_kg']
+                if cal_tea_range
+                else None
+            ),
+            'dft_calibrated_energy_input_kwh_kg_h2_base': (
+                round(
+                    cal_tea_range['estimates']['base']['energy_input_kwh_kg_h2'], 3
+                )
+                if cal_tea_range
+                else None
+            ),
+        }
+
     pathway_leaderboard: dict[str, PathwayLeaderboardRow] = {}
     dft_calibrated_pathway_leaderboard: dict[str, DFTCalibratedPathwayRow] = {}
+    de_novo_pathway_leaderboard: dict[str, DFTCalibratedPathwayRow] = {}
+    literature_benchmark_pathway_leaderboard: dict[str, DFTCalibratedPathwayRow] = {}
     for mode_name, predicate in pathway_filters.items():
         matching = [r for r in reactor_records if predicate(r)]
         if len(matching) > 1:
@@ -742,6 +1025,12 @@ def build_multipathway_champion_scorecard(
         if not matching:
             pathway_leaderboard[mode_name] = {'status': 'no_usable_records'}
             dft_calibrated_pathway_leaderboard[mode_name] = {
+                'status': 'no_usable_records'
+            }
+            de_novo_pathway_leaderboard[mode_name] = {
+                'status': 'no_usable_records'
+            }
+            literature_benchmark_pathway_leaderboard[mode_name] = {
                 'status': 'no_usable_records'
             }
             continue
@@ -777,6 +1066,7 @@ def build_multipathway_champion_scorecard(
         raw_dp = best_rec.get('ergun_delta_p_bar')
         best_cat_id = str(best_rec.get('catalyst_name', ''))
         best_cat_meta = candidate_Lookup.get(best_cat_id, {})
+        best_cat_genome = best_rec.get('genome') or best_cat_meta.get('genome')
         pathway_leaderboard[mode_name] = {
             'status': 'complete',
             'n_usable_records': len(matching),
@@ -785,7 +1075,10 @@ def build_multipathway_champion_scorecard(
                 best_cat_id,
                 material_class=best_rec.get('material_class')
                 or best_cat_meta.get('material_class'),
-                genome=best_rec.get('genome') or best_cat_meta.get('genome'),
+                genome=best_cat_genome,
+            ),
+            'novelty_status': classify_catalyst_novelty(
+                best_cat_id, genome=best_cat_genome
             ),
             'reactor_type': str(best_rec.get('reactor_type', '')),
             'T_K': t_rec,
@@ -859,108 +1152,72 @@ def build_multipathway_champion_scorecard(
                 -float(item[0].get('T_K') or 0.0),
             ),
         )
-        cal_conv: float = float(
-            best_cal_metrics['dft_calibrated_single_pass_CH4_conversion']
-        )
-        cal_t_rec: float = float(best_cal_rec.get('T_K') or 0.0)
-        cal_rates: ExtractedSelectivityRateMetrics = _extract_selectivity_and_rates(
-            best_cal_rec, cal_conv, cal_t_rec
-        )
-        cal_s_c: float = float(cal_rates['solid_C_selectivity'])
-        cal_raw_spec_e = best_cal_rec.get('specific_energy_kWh_kg_H2')
-        cal_spec_e = (
-            float(cal_raw_spec_e)
-            if isinstance(cal_raw_spec_e, (int, float))
-            and 0.0 < float(cal_raw_spec_e) < 1e6
-            else None
-        )
-        cal_tea_range = (
-            estimate_scenario_range(
-                cal_conv,
-                temperature_K=cal_t_rec if cal_t_rec > 298.15 else None,
-                solid_c_selectivity=cal_s_c,
-                specific_energy_kwh_kg_h2=cal_spec_e,
+        dft_calibrated_pathway_leaderboard[mode_name] = (
+            _build_calibrated_pathway_row(
+                best_cal_rec, best_cal_metrics, len(matching)
             )
-            if 0.0 < cal_conv <= 1.0
-            else None
         )
-        cal_dp = best_cal_rec.get('ergun_delta_p_bar')
-        best_cal_cat_id = str(best_cal_rec.get('catalyst_name', ''))
-        best_cal_meta = candidate_Lookup.get(best_cal_cat_id, {})
-        dft_calibrated_pathway_leaderboard[mode_name] = {
-            'status': 'complete',
-            'n_usable_records': len(matching),
-            'champion_catalyst': best_cal_cat_id,
-            'champion_catalyst_literature_name': format_literature_catalyst_label(
-                best_cal_cat_id,
-                material_class=best_cal_metrics['material_class'],
-                genome=best_cal_rec.get('genome') or best_cal_meta.get('genome'),
-            ),
-            'material_class': best_cal_metrics['material_class'],
-            'reactor_type': str(best_cal_rec.get('reactor_type', '')),
-            'T_K': cal_t_rec,
-            'uncalibrated_single_pass_CH4_conversion': round(
-                float(single_pass_x(best_cal_rec)), 4
-            ),
-            'dft_barrier_shift_eV': best_cal_metrics['dft_barrier_shift_eV'],
-            'arrhenius_rate_scaling': best_cal_metrics['arrhenius_rate_scaling'],
-            'dft_calibrated_single_pass_CH4_conversion': cal_conv,
-            'dft_calibrated_overall_effectiveness_factor': best_cal_metrics[
-                'dft_calibrated_overall_effectiveness_factor'
-            ],
-            'dft_calibrated_thiele_modulus': best_cal_metrics[
-                'dft_calibrated_thiele_modulus'
-            ],
-            'ergun_delta_p_bar': (
-                round(float(cal_dp), 6)
-                if isinstance(cal_dp, (int, float)) and math.isfinite(float(cal_dp))
-                else None
-            ),
-            'H2_selectivity': float(cal_rates['H2_selectivity'] or 1.0),
-            'H2_yield': cal_rates['H2_yield'],
-            'solid_C_selectivity': cal_rates['solid_C_selectivity'],
-            'C2_carbon_selectivity': cal_rates['C2_carbon_selectivity'],
-            'dft_calibrated_feedstock_conversion_rate_mol_m3_s': cal_rates[
-                'feedstock_conversion_rate_mol_m3_s'
-            ],
-            'dft_calibrated_ch4_conversion_rate_mol_m3_s': cal_rates[
-                'ch4_conversion_rate_mol_m3_s'
-            ],
-            'dft_calibrated_h2_production_rate_mol_m3_s': cal_rates[
-                'h2_production_rate_mol_m3_s'
-            ],
-            'dft_calibrated_h2_production_rate_kg_m3_h': cal_rates[
-                'h2_production_rate_kg_m3_h'
-            ],
-            'dft_calibrated_h2_turnover_frequency_1_s': cal_rates[
-                'h2_turnover_frequency_1_s'
-            ],
-            'kinetics_status': best_cal_metrics.get(
-                'kinetics_status', 'qe_dft_calibrated_bep'
-            ),
-            'dft_calibrated_tea_base_h2_usd_kg': (
-                cal_tea_range['estimates']['base']['h2_cost_usd_kg']
-                if cal_tea_range
-                else None
-            ),
-            'dft_calibrated_tea_optimistic_h2_usd_kg': (
-                cal_tea_range['estimates']['optimistic']['h2_cost_usd_kg']
-                if cal_tea_range
-                else None
-            ),
-            'dft_calibrated_tea_conservative_h2_usd_kg': (
-                cal_tea_range['estimates']['conservative']['h2_cost_usd_kg']
-                if cal_tea_range
-                else None
-            ),
-            'dft_calibrated_energy_input_kwh_kg_h2_base': (
-                round(
-                    cal_tea_range['estimates']['base']['energy_input_kwh_kg_h2'], 3
+
+        # Partition scored_cal into de_novo_novel vs literature_benchmark
+        de_novo_scored = [
+            item
+            for item in scored_cal
+            if classify_catalyst_novelty(
+                str(item[0].get('catalyst_name', '')),
+                genome=item[0].get('genome')
+                or candidate_Lookup.get(
+                    str(item[0].get('catalyst_name', '')), {}
+                ).get('genome'),
+            )
+            == 'de_novo_novel'
+        ]
+        if de_novo_scored:
+            dn_rec, dn_metrics = max(
+                de_novo_scored,
+                key=lambda item: (
+                    item[1]['_x_cal_exact'],
+                    -float(item[0].get('T_K') or 0.0),
+                ),
+            )
+            de_novo_pathway_leaderboard[mode_name] = (
+                _build_calibrated_pathway_row(
+                    dn_rec, dn_metrics, len(de_novo_scored)
                 )
-                if cal_tea_range
-                else None
-            ),
-        }
+            )
+        else:
+            de_novo_pathway_leaderboard[mode_name] = {
+                'status': 'no_usable_records'
+            }
+
+        lit_scored = [
+            item
+            for item in scored_cal
+            if classify_catalyst_novelty(
+                str(item[0].get('catalyst_name', '')),
+                genome=item[0].get('genome')
+                or candidate_Lookup.get(
+                    str(item[0].get('catalyst_name', '')), {}
+                ).get('genome'),
+            )
+            == 'literature_benchmark'
+        ]
+        if lit_scored:
+            lit_rec, lit_metrics = max(
+                lit_scored,
+                key=lambda item: (
+                    item[1]['_x_cal_exact'],
+                    -float(item[0].get('T_K') or 0.0),
+                ),
+            )
+            literature_benchmark_pathway_leaderboard[mode_name] = (
+                _build_calibrated_pathway_row(
+                    lit_rec, lit_metrics, len(lit_scored)
+                )
+            )
+        else:
+            literature_benchmark_pathway_leaderboard[mode_name] = {
+                'status': 'no_usable_records'
+            }
 
     # 3. Phase 5 PEMFC Cathode & Stack TEA (Screening + QE GC/Pourbaix Confirmed)
     pemfc_records: list[dict[str, object]] = []
@@ -1670,8 +1927,13 @@ def build_multipathway_champion_scorecard(
 
     return {
         'discovery_champions': discovery_champions,
+        'de_novo_discovery_champions': de_novo_discovery_champions,
         'pathway_leaderboard': pathway_leaderboard,
         'dft_calibrated_pathway_leaderboard': dft_calibrated_pathway_leaderboard,
+        'de_novo_pathway_leaderboard': de_novo_pathway_leaderboard,
+        'literature_benchmark_pathway_leaderboard': (
+            literature_benchmark_pathway_leaderboard
+        ),
         'pbr_ergun_residence_diagnostics': evaluate_pbr_and_ergun_residence_diagnostics(
             reactor_records
         ),

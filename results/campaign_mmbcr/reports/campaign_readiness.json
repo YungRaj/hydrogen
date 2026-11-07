@@ -1,0 +1,194 @@
+{
+  "turquoise_hydrogen": {
+    "ready": false,
+    "failures": [
+      "coverage_incomplete",
+      "prior_art_registry_empty"
+    ],
+    "warnings": [
+      "industrial_viability_requires_reactor_or_stack_measurements",
+      "surrogate_coverage_is_not_experimental_validation"
+    ],
+    "prior_art_records": 0,
+    "coverage": {
+      "application": "turquoise_hydrogen",
+      "complete": false,
+      "declared_encoded_population": 21092657271,
+      "errors": [],
+      "gap_free": true,
+      "generated_at": "2026-10-15T02:31:36Z",
+      "material_classes": [
+        "MoltenMetal",
+        "SolidCatalyst",
+        "SAC",
+        "DAC",
+        "MOF",
+        "COF",
+        "Perovskite",
+        "MetalHydride",
+        "MAXPhase",
+        "HEA",
+        "Spinel",
+        "MXene",
+        "SAA",
+        "MetalFreeCarbon"
+      ],
+      "objective_specs": [
+        {
+          "active": true,
+          "column_index": 0,
+          "direction": "minimize",
+          "model_predicted": true,
+          "name": "activation_barrier_eV",
+          "source": "E_act",
+          "unit": "eV",
+          "validated": true
+        },
+        {
+          "active": true,
+          "column_index": 1,
+          "direction": "minimize",
+          "model_predicted": true,
+          "name": "coking_susceptibility_eV",
+          "source": "-coking_index",
+          "unit": "eV",
+          "validated": true
+        },
+        {
+          "active": true,
+          "column_index": 2,
+          "direction": "minimize",
+          "model_predicted": true,
+          "name": "desorption_overbinding_penalty_eV",
+          "source": "max(-2*dE_H,-dE_C,0)",
+          "unit": "eV",
+          "validated": true
+        },
+        {
+          "active": true,
+          "column_index": 3,
+          "direction": "minimize",
+          "model_predicted": false,
+          "name": "abundance_cost_penalty",
+          "source": "-abundance_cost_penalty",
+          "unit": "dimensionless",
+          "validated": true
+        }
+      ],
+      "overlap_free": true,
+      "partition_digest_sha256": "c4528944e89a8cb38d97051a037de035ee22ff867e7df4899cdb9c25c0da827a",
+      "resolved_terminal_nodes": 14,
+      "terminal_interval_population": 21092657271,
+      "terminal_nodes": 37,
+      "unresolved_terminal_nodes": 23
+    },
+    "evidence": {}
+  },
+  "fuel_cell": {
+    "ready": false,
+    "failures": [
+      "coverage_incomplete",
+      "prior_art_registry_empty"
+    ],
+    "warnings": [
+      "industrial_viability_requires_reactor_or_stack_measurements",
+      "surrogate_coverage_is_not_experimental_validation"
+    ],
+    "prior_art_records": 0,
+    "coverage": {
+      "application": "fuel_cell_orr",
+      "complete": false,
+      "declared_encoded_population": 21092657271,
+      "errors": [],
+      "gap_free": true,
+      "generated_at": "2026-10-15T02:44:14Z",
+      "material_classes": [
+        "MoltenMetal",
+        "SolidCatalyst",
+        "SAC",
+        "DAC",
+        "MOF",
+        "COF",
+        "Perovskite",
+        "MetalHydride",
+        "MAXPhase",
+        "HEA",
+        "Spinel",
+        "MXene",
+        "SAA",
+        "MetalFreeCarbon"
+      ],
+      "objective_specs": [
+        {
+          "active": true,
+          "column_index": 0,
+          "direction": "minimize",
+          "model_predicted": true,
+          "name": "orr_overpotential_V",
+          "source": "orr_overpotential_V",
+          "unit": "V",
+          "validated": true
+        },
+        {
+          "active": true,
+          "column_index": 1,
+          "direction": "minimize",
+          "model_predicted": false,
+          "name": "fenton_degradation_risk",
+          "source": "-fenton_stability",
+          "unit": "risk_index",
+          "validated": true
+        },
+        {
+          "active": true,
+          "column_index": 2,
+          "direction": "minimize",
+          "model_predicted": false,
+          "name": "abundance_cost_penalty",
+          "source": "-abundance_cost_penalty",
+          "unit": "dimensionless",
+          "validated": true
+        },
+        {
+          "active": true,
+          "column_index": 3,
+          "direction": "minimize",
+          "model_predicted": true,
+          "name": "oxide_overbinding_penalty_eV",
+          "source": "binding_strength",
+          "unit": "eV",
+          "validated": true
+        }
+      ],
+      "overlap_free": true,
+      "partition_digest_sha256": "c04602f18e7b6e66f79360b50b6b3af24e8933d5f0fc6e1074e526439e928b93",
+      "resolved_terminal_nodes": 14,
+      "terminal_interval_population": 21092657271,
+      "terminal_nodes": 37,
+      "unresolved_terminal_nodes": 23
+    },
+    "evidence": {}
+  },
+  "ready": false,
+  "six_point_status": {
+    "ready": false,
+    "criteria": {
+      "complete_search": false,
+      "validated_champions": false,
+      "validated_reactor": false,
+      "validated_pemfc": false,
+      "defensible_novelty": false
+    },
+    "missing": [
+      "complete_search",
+      "validated_champions",
+      "validated_reactor",
+      "validated_pemfc",
+      "defensible_novelty"
+    ],
+    "evidence_manifest_valid": false,
+    "evidence_errors": [
+      "evidence_manifest_missing"
+    ]
+  }
+}

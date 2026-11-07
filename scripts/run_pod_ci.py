@@ -524,15 +524,14 @@ export PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # 1. Start Python + pyright bootstrap in background
 (
-    if ! python3 -c "import pytest, ase, cantera, sklearn, scipy, pandas" >/dev/null 2>&1 || ! command -v pyright >/dev/null 2>&1; then
+    if ! python3 -c "import pytest, ase, cantera, sklearn, scipy, pandas, pyscf" >/dev/null 2>&1 || ! command -v pyright >/dev/null 2>&1; then
         echo "[runpod-ci] Bootstrapping Python CI dependencies on container..."
         if [ -f /workspace/cache/ci_wheels.tar.gz ]; then
             rm -rf /tmp/wheels
             tar -xzf /workspace/cache/ci_wheels.tar.gz -C /tmp
             pip install -q --no-index --find-links=/tmp/wheels --break-system-packages --root-user-action=ignore pytest pyright ase cantera scikit-learn scipy pandas
-        else
-            pip install -q --prefer-binary --break-system-packages --root-user-action=ignore pytest "pyright[nodejs]" ase cantera scikit-learn scipy pandas
         fi
+        pip install -q --prefer-binary --break-system-packages --root-user-action=ignore pytest "pyright[nodejs]" ase cantera scikit-learn scipy pandas pyscf
     fi
     if ! pyright --version >/dev/null 2>&1; then
         rm -rf /root/.cache/pyright-python

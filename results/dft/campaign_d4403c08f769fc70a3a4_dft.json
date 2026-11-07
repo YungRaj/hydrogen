@@ -22,5 +22,6 @@
   "neb_path_metric": 3.418,
   "neb_n_images": 5,
   "neb_active_index": 7,
-  "kinetics_status": "dft_neb_complete"
+  "kinetics_status": "dft_neb_complete",
+  "novelty_status": "de_novo_novel"
 }

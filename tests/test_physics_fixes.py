@@ -2017,3 +2017,151 @@ def test_ntec_electrochemical_multicarbon_mechanisms_and_pemfc_coupling(
     assert 0.30 < float(echem_sim['CH4_conversion']) < 1.0
 
 
+def test_de_novo_novelty_and_automated_stage_handoffs(tmp_path: Path) -> None:
+    """Verify novelty classification, ADR-0001 solids scorecard filter, and automated Phase 3/4 handoffs."""
+    import json
+    import pytest
+    from pipeline.reactors.scorecard import build_solids_scorecard
+    from pipeline.search.discovery import candidate_id, classify_catalyst_novelty
+    from pipeline.stages.dft import run_dft_stage
+    from pipeline.stages.vqe import run_vqe_stage
+
+    # 1. Explicit novelty classification
+    dn_solid_genome = (
+        'SupportedNanoparticle',
+        'Ni',
+        'CeZrO2',
+        'fcc211',
+        10.0,
+        25.0,
+        ('Cu', 'Ru'),
+        2,
+        1,
+    )
+    dn_solid_cid = candidate_id(dn_solid_genome)
+    assert classify_catalyst_novelty(dn_solid_cid, genome=dn_solid_genome) == 'de_novo_novel'
+
+    dn_mm_genome = ('MoltenMetal', 'Ga', 'Ni', 15.0, 1000)
+    dn_mm_cid = candidate_id(dn_mm_genome)
+    assert classify_catalyst_novelty(dn_mm_cid, genome=dn_mm_genome) == 'de_novo_novel'
+
+    assert classify_catalyst_novelty('768cb0559591faec06ba') == 'literature_benchmark'
+    assert classify_catalyst_novelty('99cbb4a430ec9289b09d') == 'literature_benchmark'
+    assert classify_catalyst_novelty('ni111_sio2_bengaard2002_ref') == 'literature_benchmark'
+    assert (
+        classify_catalyst_novelty(('MoltenMetal', 'Bi', 'Ni', 27.0, 1000))
+        == 'literature_benchmark'
+    )
+
+    # 2. ADR-0001 phase-stability filter in build_solids_scorecard excludes volatile Zn at 1300 K
+    sc_records = [
+        {
+            'status': 'complete',
+            'reactor_type': 'PFR',
+            'catalyst_name': 'ni111_sio2_bengaard2002_ref',
+            'T_K': 1300.0,
+            'CH4_conversion': 0.85,
+            'single_pass_CH4_conversion': 0.85,
+            'surface_loaded': True,
+            'exceeds_equilibrium': False,
+        },
+        {
+            'status': 'complete',
+            'reactor_type': 'PFR',
+            'catalyst_name': 'volatile_zn_hea',
+            'genome': "('HEA', ('Fe', 'Ir', 'Nb', 'Sc', 'Zn'), 'hcp', '111', 800)",
+            'T_K': 1300.0,
+            'CH4_conversion': 0.9687,
+            'single_pass_CH4_conversion': 0.9687,
+            'surface_loaded': True,
+            'exceeds_equilibrium': False,
+        },
+        {
+            'status': 'complete',
+            'reactor_type': 'PBR',
+            'catalyst_name': dn_solid_cid,
+            'genome': repr(dn_solid_genome),
+            'T_K': 1300.0,
+            'CH4_conversion': 0.955,
+            'single_pass_CH4_conversion': 0.955,
+            'surface_loaded': True,
+            'exceeds_equilibrium': False,
+        },
+    ]
+    solids_sc = build_solids_scorecard(
+        sc_records, judge_catalyst='ni111_sio2_bengaard2002_ref'
+    )
+    assert solids_sc['candidate_champion_catalyst'] == dn_solid_cid
+    assert solids_sc['candidate_champion_conversion'] == pytest.approx(0.955)
+
+    # 3. Automated Phase 3 CI-NEB enrichment and campaign DFT JSON persistence
+    dft_dir = tmp_path / 'dft_out'
+    dft_outcome = run_dft_stage(
+        [{'genome': repr(dn_solid_genome)}],
+        top_k=1,
+        execute_dft=False,
+        validator=lambda name, g, *, run_dft: {
+            'catalyst_name': name,
+            'candidate_id': dn_solid_cid,
+            'material_class': 'SupportedNanoparticle',
+            'genome': repr(g),
+            'evidence_level': 'dft_converged',
+            'converged': True,
+            'dft_energy_Ry': -1210.5,
+            'dft_energy_eV': -16469.7,
+            'max_force_Ry_bohr': 0.0,
+        },
+        include_neb=True,
+        persist_campaign_dft_dir=dft_dir,
+    )
+    assert dft_outcome.state['n_validated'] == 1
+    dft_res0 = dft_outcome.products['dft_results'][0]
+    assert dft_res0.get('neb_converged') is True
+    assert float(dft_res0.get('neb_forward_barrier_eV') or 0.0) > 0.0
+    assert dft_res0.get('novelty_status') == 'de_novo_novel'
+    persisted_dft = dft_dir / f'campaign_{dn_solid_cid}_dft.json'
+    assert persisted_dft.is_file()
+
+    # 4. Automated Phase 4 PySCF CASSCF(4,4) FCIDUMP generation when row carries genome
+    ham_root = tmp_path / 'hamiltonians'
+    vqe_seen: list[tuple[str, str]] = []
+    vqe_outcome = run_vqe_stage(
+        [{'candidate_id': dn_mm_cid, 'genome': repr(dn_mm_genome)}],
+        top_k=1,
+        execute_quantum=False,
+        auto_generate_hamiltonian=True,
+        hamiltonian_root=ham_root,
+        validator=lambda cid, rxn, *, target, candidate_hamiltonian: (
+            vqe_seen.append((cid, candidate_hamiltonian))
+            or {'candidate': cid, 'converged': True}  # type: ignore[return-value]
+        ),
+    )
+    assert vqe_outcome.state['n_vqe_runs'] == 1
+    assert vqe_outcome.state['n_missing_hamiltonians'] == 0
+    assert (ham_root / dn_mm_cid / 'FCIDUMP').is_file()
+    assert (ham_root / dn_mm_cid / 'FCIDUMP.json').is_file()
+
+    # 5. Production multipathway scorecard de novo champions across all 7 pathways
+    mp_doc = json.loads(
+        Path('results/multipathway_champion_scorecard.json').read_text(encoding='utf-8')
+    )
+    assert len(mp_doc.get('de_novo_discovery_champions', [])) >= 9
+    dn_board = mp_doc.get('de_novo_pathway_leaderboard', {})
+    cal_board = mp_doc.get('dft_calibrated_pathway_leaderboard', {})
+    for mode_key in (
+        'thermocatalytic',
+        'thermocatalytic_pbr',
+        'thermocatalytic_pfr',
+        'thermocatalytic_fluidized',
+        'mmbcr',
+        'ntec',
+        'electrochemical',
+    ):
+        assert dn_board[mode_key]['status'] == 'complete'
+        assert dn_board[mode_key]['novelty_status'] == 'de_novo_novel'
+        assert dn_board[mode_key]['kinetics_status'] == 'dft_neb_complete'
+        assert cal_board[mode_key]['novelty_status'] == 'de_novo_novel'
+        assert cal_board[mode_key]['kinetics_status'] == 'dft_neb_complete'
+
+
+

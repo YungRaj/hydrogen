@@ -1,0 +1,251 @@
+{
+  "status": "complete",
+  "valid": true,
+  "reactor_type": "Electrochemical",
+  "pathway_mode": "electrochemical",
+  "catalyst_name": "eb64b3aa6d3913c21f5d",
+  "candidate_id": "eb64b3aa6d3913c21f5d",
+  "T_K": 823.15,
+  "can_exclude_candidate": false,
+  "electrolyte_phase": "molten",
+  "CH4_conversion": 0.8408418985473983,
+  "H2_selectivity": 1.0,
+  "faradaic_efficiency_H2": 1.0,
+  "current_density_A_cm2": 0.0002456347058770456,
+  "cell_voltage_V": 0.65,
+  "electrical_power_density_W_cm2": 0.00015966255882007965,
+  "electrochemical_evidence": {
+    "status": "unknown",
+    "missing": [
+      "electrolyte_phase",
+      "electrolyte_identity",
+      "applied_potential_V",
+      "current_density_A_cm2",
+      "faradaic_efficiency_H2",
+      "methane_conversion",
+      "temperature_K",
+      "pressure_Pa",
+      "measurement_source",
+      "paired_control_source"
+    ],
+    "conditions": {
+      "electrolyte_phase": null,
+      "electrolyte_identity": null,
+      "applied_potential_V": null,
+      "current_density_A_cm2": null,
+      "faradaic_efficiency_H2": null,
+      "methane_conversion": null,
+      "temperature_K": null,
+      "pressure_Pa": null,
+      "measurement_source": null,
+      "paired_control_source": null
+    }
+  },
+  "multiphysics_screening": {
+    "schema_version": 1,
+    "valid": true,
+    "tier": "uncalibrated_multiphysics_screening",
+    "calibrated": false,
+    "candidate_exclusion_authorized": false,
+    "candidate_id": "eb64b3aa6d3913c21f5d",
+    "pathway_mode": "electrochemical",
+    "reactor_type": "Electrochemical",
+    "temperature_K": 823.15,
+    "outputs": {
+      "CH4_conversion": 0.8408418985473983,
+      "H2_selectivity": 1.0,
+      "anode_overpotential_V": 0.48,
+      "anode_surface_ch4_mol_m3": 0.047487667816578906,
+      "cathode_overpotential_V": -0.00825,
+      "cell_voltage_V": 0.65,
+      "current_density_A_cm2": 0.0002456347058770456,
+      "electrical_power_density_W_cm2": 0.00015966255882007965,
+      "faradaic_efficiency_H2": 1.0,
+      "ohmic_drop_V": 8.187823529234853e-06
+    },
+    "convergence": {
+      "conservation_budgets": {
+        "carbon": {
+          "inlet": 2.966107965954e-06,
+          "outlet": 2.966107965954e-06
+        },
+        "charge": {
+          "inlet": 1.1447436487954,
+          "outlet": 1.1447436487954
+        },
+        "hydrogen": {
+          "inlet": 1.1864431863816e-05,
+          "outlet": 1.1864431863832608e-05
+        },
+        "mass": {
+          "inlet": 4.758366839949841e-08,
+          "outlet": 4.7583668399515144e-08
+        }
+      },
+      "converged": true,
+      "mesh_series": [
+        {
+          "cells": 100,
+          "observable": 1.1447436487954
+        },
+        {
+          "cells": 200,
+          "observable": 1.1447436487954
+        },
+        {
+          "cells": 400,
+          "observable": 1.1447436487954
+        }
+      ],
+      "mesh_tolerance_relative": 0.01,
+      "mesh_independent": true,
+      "mesh_relative_change": 0.0,
+      "conservation_relative_residuals": {
+        "carbon": 0.0,
+        "charge": 0.0,
+        "hydrogen": 1.399866611431694e-12,
+        "mass": 3.5170718685802854e-13
+      },
+      "conservation_satisfied": true
+    },
+    "backend_solvers": {
+      "moose": "Application Version: snapshot-20-10-27-57293-gc140bfd5a6",
+      "cantera": "3.2.0"
+    },
+    "solver_coupling": {
+      "method": "iterative_two_way",
+      "iterations": 7,
+      "residual_relative": 3.9668537121964796e-07,
+      "tolerance_relative": 1e-06,
+      "converged": true,
+      "mechanism_sha256": "c615346d16c3f4fd8026119745b25f35edff32a5e42435a42d7411c3d38d7a50",
+      "cantera_log_sha256": "c8436c74862474fcef7573283a1392462629d80b758ba090158daa114a45d3df",
+      "rate_exchange_sha256": "1fc3b7f59976a55b07b6a4e5afa0a472589208ac65302f34eb40aea19a99a7d9",
+      "coupling_history_sha256": "7ddca972b15b1650d165b1a69c31817297fdb0792878edd2aaaf06d0af7e48c7",
+      "exchanged_fields": [
+        "charge",
+        "potential",
+        "reaction_heat",
+        "reaction_rates",
+        "species",
+        "temperature"
+      ]
+    },
+    "mechanism": {
+      "complete": true,
+      "source": "candidate screening kinetics (write_full_mechanism)"
+    },
+    "case_dir": "/root/hydrogen/results/campaign_electrochemical/multiphysics/screening_cases/eb64b3aa6d3913c21f5d/Electrochemical/823.15K",
+    "input_sha256": "3b34b6b4626f0dc7c4a1ffce4685bdbfe74657007f8a294dfcef30fae9e68f91",
+    "moose_input_sha256": "3a3b811e3516983a1955a2e55775f89ec5b24141f17e26364a71fa678126e3d3",
+    "hydrodynamic_handoff": null,
+    "observed_coupling_iterations": [
+      {
+        "iteration": 1,
+        "residual_relative": 0.9992741479179139,
+        "tolerance_relative": 1e-06,
+        "converged": false,
+        "feedback_sha256": "81ef06b0b08e61b63fc911816569bdccc21320e1efe4db588e87d28aa7b28cdd"
+      },
+      {
+        "iteration": 2,
+        "residual_relative": 9.275037015258054,
+        "tolerance_relative": 1e-06,
+        "converged": false,
+        "feedback_sha256": "2064734f702a8ceca0c2d6cd6351b85685f9b11f446e3acfad16060763dd06af"
+      },
+      {
+        "iteration": 3,
+        "residual_relative": 1.5313568930800712,
+        "tolerance_relative": 1e-06,
+        "converged": false,
+        "feedback_sha256": "2bf54eb83848c1e40a5d82b76611d55e84031db29e563396fbfd23461720f202"
+      },
+      {
+        "iteration": 4,
+        "residual_relative": 0.1660640357479862,
+        "tolerance_relative": 1e-06,
+        "converged": false,
+        "feedback_sha256": "c6b862dff27d9b9c1fcc8346af7d8facd0c60366e817912be27443b0b2a9edf2"
+      },
+      {
+        "iteration": 5,
+        "residual_relative": 0.00505726695191061,
+        "tolerance_relative": 1e-06,
+        "converged": false,
+        "feedback_sha256": "cbc254c52044cb79645638c8500d4946c0381ebf880d82d8c729d3fb5b57f83d"
+      },
+      {
+        "iteration": 6,
+        "residual_relative": 4.674077341707716e-05,
+        "tolerance_relative": 1e-06,
+        "converged": false,
+        "feedback_sha256": "e8f41e5cfa3326d88778e7bbead93e04d5914c6a4b308414c9f38d20ce9cba45"
+      },
+      {
+        "iteration": 7,
+        "residual_relative": 3.9668537121964796e-07,
+        "tolerance_relative": 1e-06,
+        "converged": true,
+        "feedback_sha256": "c44642fd7c425cd94861feb17e832015a11cd90de1277c43f66d9d17b46f90bb"
+      }
+    ],
+    "kinetics_source": "candidate screening kinetics (write_full_mechanism)",
+    "feed_source": "pure methane feed; representative operating point (assumed, uncalibrated); see moose/operating_points/README.md",
+    "limitations": [
+      "uncalibrated_representative_operating_point",
+      "no_holdout_validation"
+    ],
+    "electrolyte_phase": "molten",
+    "reused": false
+  },
+  "reactor_evidence_tier": "uncalibrated_multiphysics_screening",
+  "limitations": [
+    "uncalibrated_representative_operating_point"
+  ],
+  "material_class": "MAXPhase",
+  "bed_or_interface": "electrode_electrolyte_interface",
+  "cantera_reactor_model": null,
+  "reaction_domain": "electrode_electrolyte_charge_transfer_pathway",
+  "reactor_model_fidelity": "validated_multiphysics_artifact_required",
+  "multiphysics_evidence": null,
+  "reactor_closure_evidence": null,
+  "reactor_evidence_limitations": [
+    "electrochemical_screening_model_not_validated"
+  ],
+  "specific_energy_kWh_kg_H2": 17.28321551622458,
+  "H2_atom_balance": 1.0,
+  "H2_yield": 0.840842,
+  "solid_C_selectivity": 1.0,
+  "C2_carbon_selectivity": 0.0,
+  "exit_x_CH4": 0.08405615570764792,
+  "exit_x_C2H6": 0.0,
+  "exit_x_C2H4": 0.0,
+  "exit_x_C2H2": 0.0,
+  "ch4_conversion_rate_mol_m3_s": 18.921753344765243,
+  "h2_production_rate_mol_m3_s": 37.843507,
+  "h2_production_rate_kg_m3_h": 274.636688,
+  "h2_turnover_frequency_1_s": 420.4834076614498,
+  "exit_x_feedstock": 0.08405615570764792,
+  "feedstock_conversion_rate_mol_m3_s": 18.921753344765243,
+  "feedstock": "CH4",
+  "feedstock_name": "Methane (Pipeline Natural Gas)",
+  "feedstock_category": "natural_gas",
+  "feedstock_n_C": 1,
+  "feedstock_n_H": 4,
+  "feedstock_n_O": 0,
+  "feedstock_h_to_c_ratio": 4.0,
+  "feedstock_nu_H2": 2.0,
+  "feedstock_nu_C": 1.0,
+  "feedstock_nu_CO": 0.0,
+  "feedstock_kg_per_kg_h2": 3.979096,
+  "feedstock_kg_c_per_kg_h2": 2.979096,
+  "feedstock_conversion": 0.8408418985473983,
+  "single_pass_feedstock_conversion": 0.8408418985473983,
+  "cycle_averaged_feedstock_conversion": 0.8408418985473983,
+  "exit_x_CO": 0.0,
+  "single_pass_CH4_conversion": 0.8408418985473983,
+  "catalyst_E_act_eV": 0.4892,
+  "genome": "('MAXPhase', 'Ta', 'Al', 'C', 1, 'Ti', 'basal_0001')",
+  "novelty_status": "de_novo_novel"
+}

@@ -498,17 +498,80 @@ def build_solids_scorecard(
     elif 'Fluidized' in headline:
         headline_catalyst = headline['Fluidized'].get('catalyst_name')
 
-    candidate_solids = [
-        r for r in scoreable_non_h_parked
+    def _is_phase_stable_solid_candidate(r: Mapping[str, object]) -> bool:
+        from pipeline.search.discovery import lookup_candidate_genome
+        from pipeline.search.scope import (
+            parse_encoded_genome,
+            phase_stable_at_application_T,
+        )
+
+        raw_g = r.get('genome')
+        parsed_g: tuple[object, ...] | None = None
+        if isinstance(raw_g, str) and raw_g.strip():
+            parsed_g = parse_encoded_genome(raw_g)
+        elif isinstance(raw_g, (tuple, list)):
+            parsed_g = tuple(raw_g)
+        if parsed_g is None:
+            cat_id = str(r.get('catalyst_name') or '').strip()
+            if cat_id:
+                parsed_g = lookup_candidate_genome(cat_id)
+        if parsed_g is not None:
+            try:
+                t_run = max(_t_k(r), 1073.15)
+                st = phase_stable_at_application_T(parsed_g, T_K=t_run)
+                return st.get('status') == 'candidate'
+            except Exception:
+                return True
+        return True
+
+    raw_candidate_solids = [
+        r
+        for r in scoreable_non_h_parked
         if r.get('catalyst_name') != judge_catalyst
     ]
+    stable_candidate_solids = [
+        r for r in raw_candidate_solids if _is_phase_stable_solid_candidate(r)
+    ]
+    candidate_solids = (
+        stable_candidate_solids
+        if stable_candidate_solids
+        else raw_candidate_solids
+    )
+    from pipeline.search.discovery import classify_catalyst_novelty
+
     best_candidate_solids = max(
         candidate_solids,
-        key=lambda r: (single_pass_x(r), -_t_k(r)),
+        key=lambda r: (
+            round(single_pass_x(r), 4),
+            1
+            if classify_catalyst_novelty(
+                str(r.get('catalyst_name') or ''), genome=r.get('genome')
+            )
+            == 'de_novo_novel'
+            else 0,
+            single_pass_x(r),
+            -_t_k(r),
+        ),
         default=None,
     )
+    stable_scoreable_non_h_parked = [
+        r
+        for r in scoreable_non_h_parked
+        if r.get('catalyst_name') == judge_catalyst
+        or _is_phase_stable_solid_candidate(r)
+    ]
     solids_max_ex_h = (
-        max((single_pass_x(r) for r in scoreable_non_h_parked), default=None)
+        max(
+            (
+                single_pass_x(r)
+                for r in (
+                    stable_scoreable_non_h_parked
+                    if stable_scoreable_non_h_parked
+                    else scoreable_non_h_parked
+                )
+            ),
+            default=None,
+        )
         if ranking_authority_effective
         else None
     )

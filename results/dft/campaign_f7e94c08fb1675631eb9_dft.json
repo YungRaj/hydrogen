@@ -29,5 +29,6 @@
   "slab_e_final_ry": -2057.91322469,
   "slab_e_act_ev": 4.539842,
   "slab_delta_e_rxn_ev": 4.365313,
-  "slab_calculation_mode": "pw_scf_3state"
+  "slab_calculation_mode": "pw_scf_3state",
+  "novelty_status": "de_novo_novel"
 }

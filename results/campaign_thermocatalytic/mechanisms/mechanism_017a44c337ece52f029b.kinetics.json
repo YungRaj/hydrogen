@@ -1,0 +1,88 @@
+{
+  "carbon_phase_model": "condensed_graphite_plus_surface_C_s",
+  "catalyst_name": "017a44c337ece52f029b",
+  "coking_index_mapped_to_off_site": false,
+  "inputs": {
+    "c_adsorption_eV": 3.08,
+    "candidate_id": "017a44c337ece52f029b",
+    "carbon_diffusion_prefactor_m2_s": null,
+    "carbon_encapsulation_eV": 1.67,
+    "carbon_transfer_eV": 1.64,
+    "carbon_transfer_particle_nm": null,
+    "carbon_transfer_prefactor_1_s": 10000000000000.0,
+    "ch2_dehydrogenation_eV": 0.482,
+    "ch3_adsorption_eV": -2.35,
+    "ch3_dehydrogenation_eV": 0.452,
+    "ch4_sticking_coefficient": 0.01,
+    "ch_dehydrogenation_eV": 0.422,
+    "encapsulation_crossover_coverage": 0.5,
+    "genome": [
+      "MoltenMetal",
+      "Ga",
+      "Ni",
+      15.0,
+      1000
+    ],
+    "h2_desorption_eV": 0.72,
+    "h_adsorption_eV": -0.42,
+    "material_class": "MoltenMetal",
+    "methane_activation_eV": 0.352,
+    "provenance": {
+      "c_adsorption_eV": "screening:esen-sm-conserving-all-oc25:relax-v4:pyrolysis-v7:dE_C",
+      "carbon_encapsulation_eV": "mlip_neb:converged_mlip_neb",
+      "carbon_transfer_eV": "mlip_neb:converged_mlip_neb",
+      "carbon_transfer_prefactor_1_s": "template_default: single-hop TST 1e13/s; transport+precipitation lump is D0/L^2 and particle-size dependent; swept in Baker-Helveg-Takenaka calibration",
+      "ch2_dehydrogenation_eV": "mlip_neb:converged_mlip_neb",
+      "ch3_adsorption_eV": "screening:esen-sm-conserving-all-oc25:relax-v4:pyrolysis-v7:dE_CH3",
+      "ch3_dehydrogenation_eV": "mlip_neb:converged_mlip_neb",
+      "ch4_sticking_coefficient": "template_default: s0 = 0.01 (methane_pox_on_pt order of magnitude); swept in Bengaard (2002) sticking calibration",
+      "ch_dehydrogenation_eV": "mlip_neb:converged_mlip_neb",
+      "encapsulation_crossover_coverage": "declared_not_measured: swept in Baker-Helveg-Takenaka off-site carbon calibration",
+      "h2_desorption_eV": "mlip_neb:converged_mlip_neb",
+      "h_adsorption_eV": "screening:esen-sm-conserving-all-oc25:relax-v4:pyrolysis-v7:dE_H",
+      "methane_activation_eV": "mlip_neb:converged_mlip_neb"
+    },
+    "quantitative_status": "mlip_neb_complete",
+    "screening_protocol": "esen-sm-conserving-all-oc25:relax-v4:pyrolysis-v7",
+    "site_density_mol_cm2": 2.5e-09,
+    "sources": {
+      "c_adsorption_eV": "screening:esen-sm-conserving-all-oc25:relax-v4:pyrolysis-v7:dE_C",
+      "carbon_encapsulation_eV": "mlip_neb:converged_mlip_neb",
+      "carbon_transfer_eV": "mlip_neb:converged_mlip_neb",
+      "ch2_dehydrogenation_eV": "mlip_neb:converged_mlip_neb",
+      "ch3_adsorption_eV": "screening:esen-sm-conserving-all-oc25:relax-v4:pyrolysis-v7:dE_CH3",
+      "ch3_dehydrogenation_eV": "mlip_neb:converged_mlip_neb",
+      "ch_dehydrogenation_eV": "mlip_neb:converged_mlip_neb",
+      "h2_desorption_eV": "mlip_neb:converged_mlip_neb",
+      "h_adsorption_eV": "screening:esen-sm-conserving-all-oc25:relax-v4:pyrolysis-v7:dE_H",
+      "methane_activation_eV": "mlip_neb:converged_mlip_neb"
+    }
+  },
+  "mechanism_file": "results/campaign_thermocatalytic/mechanisms/mechanism_017a44c337ece52f029b.yaml",
+  "off_site_carbon": false,
+  "off_site_channels": {},
+  "schema_version": 1,
+  "surface_enthalpies_J_mol": {
+    "CH2_s": 20164.587320079256,
+    "CH3_s": -81040.53048977855,
+    "CH_s": 121369.70512993707,
+    "C_s": 222574.82293979486,
+    "H_s": -40523.839491790204
+  },
+  "surface_prefactors": {
+    "basis": "k_TST(1/s) / site_density(mol/cm^2)",
+    "bimolecular_cm2_mol_s": 4e+21,
+    "ch4_sticking_coefficient": 0.01,
+    "ch4_sticking_source": "template_default: s0 = 0.01 (methane_pox_on_pt order of magnitude); swept in Bengaard (2002) sticking calibration",
+    "h2_desorption_cm2_mol_s": 2e+22
+  },
+  "surface_thermo_reference": {
+    "CH2_s": "template: CH3_s + (C_s - CH3_s)/3",
+    "CH3_s": "dE_CH3 + h_f(CH3 radical) = dE_CH3 + 145.7 kJ/mol",
+    "CH_s": "template: CH3_s + 2 (C_s - CH3_s)/3",
+    "C_encap_s": "same as C_s",
+    "C_s": "dE_C + h_f(CH4) = dE_C - 74.6 kJ/mol (screener C reference is CH4 - 2 H2)",
+    "H_s": "dE_H (reference 1/2 H2)",
+    "scale": "cantera_absolute_elements_zero"
+  }
+}

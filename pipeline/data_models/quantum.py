@@ -56,6 +56,14 @@ class _DFTResultOptional(TypedDict, total=False):
     neb_forward_barrier_eV: float | None
     neb_reverse_barrier_eV: float | None
     neb_path_metric: float | None
+    neb_rate_limiting_step: str | None
+    elementary_step_barriers_eV: (
+        dict[str, float] | dict[str, dict[str, float | str | bool]]
+    )
+    coking_cc_coupling_barrier_eV: float | None
+    coking_resistance_margin_eV: float | None
+    interfacial_carbon_displacement_A: float | None
+    novelty_status: str
     kinetics_status: str
     slab_initial_energy_Ry: float | None
     slab_initial_energy_eV: float | None

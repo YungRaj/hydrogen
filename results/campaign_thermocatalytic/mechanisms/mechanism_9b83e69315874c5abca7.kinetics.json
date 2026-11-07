@@ -1,0 +1,117 @@
+{
+  "carbon_phase_model": "condensed_graphite_plus_surface_C_s_off_site_Cgamma_Cdelta",
+  "catalyst_name": "9b83e69315874c5abca7",
+  "coking_index_mapped_to_off_site": false,
+  "inputs": {
+    "c_adsorption_eV": -0.35,
+    "candidate_id": "9b83e69315874c5abca7",
+    "carbon_diffusion_prefactor_m2_s": null,
+    "carbon_encapsulation_eV": 1.68,
+    "carbon_transfer_eV": 1.38,
+    "carbon_transfer_particle_nm": null,
+    "carbon_transfer_prefactor_1_s": 10000000000000.0,
+    "ch2_dehydrogenation_eV": 0.4225,
+    "ch3_adsorption_eV": -2.95,
+    "ch3_dehydrogenation_eV": 0.3925,
+    "ch4_sticking_coefficient": 0.01,
+    "ch_dehydrogenation_eV": 0.3625,
+    "encapsulation_crossover_coverage": 0.5,
+    "genome": [
+      "SupportedNanoparticle",
+      "Ni",
+      "CeZrO2",
+      "fcc211",
+      10.0,
+      25.0,
+      [
+        "Cu",
+        "Ru"
+      ],
+      2,
+      1
+    ],
+    "h2_desorption_eV": 0.68,
+    "h_adsorption_eV": -0.72,
+    "material_class": "SupportedNanoparticle",
+    "methane_activation_eV": 0.3125,
+    "provenance": {
+      "c_adsorption_eV": "screening:esen-sm-conserving-all-oc25:relax-v4:pyrolysis-v7:dE_C",
+      "carbon_encapsulation_eV": "mlip_neb:converged_mlip_neb",
+      "carbon_transfer_eV": "mlip_neb:converged_mlip_neb",
+      "carbon_transfer_prefactor_1_s": "template_default: single-hop TST 1e13/s; transport+precipitation lump is D0/L^2 and particle-size dependent; swept in Baker-Helveg-Takenaka calibration",
+      "ch2_dehydrogenation_eV": "mlip_neb:converged_mlip_neb",
+      "ch3_adsorption_eV": "screening:esen-sm-conserving-all-oc25:relax-v4:pyrolysis-v7:dE_CH3",
+      "ch3_dehydrogenation_eV": "mlip_neb:converged_mlip_neb",
+      "ch4_sticking_coefficient": "template_default: s0 = 0.01 (methane_pox_on_pt order of magnitude); swept in Bengaard (2002) sticking calibration",
+      "ch_dehydrogenation_eV": "mlip_neb:converged_mlip_neb",
+      "encapsulation_crossover_coverage": "declared_not_measured: swept in Baker-Helveg-Takenaka off-site carbon calibration",
+      "h2_desorption_eV": "mlip_neb:converged_mlip_neb",
+      "h_adsorption_eV": "screening:esen-sm-conserving-all-oc25:relax-v4:pyrolysis-v7:dE_H",
+      "methane_activation_eV": "mlip_neb:converged_mlip_neb"
+    },
+    "quantitative_status": "mlip_neb_complete",
+    "screening_protocol": "esen-sm-conserving-all-oc25:relax-v4:pyrolysis-v7",
+    "site_density_mol_cm2": 2.5e-09,
+    "sources": {
+      "c_adsorption_eV": "screening:esen-sm-conserving-all-oc25:relax-v4:pyrolysis-v7:dE_C",
+      "carbon_encapsulation_eV": "mlip_neb:converged_mlip_neb",
+      "carbon_transfer_eV": "mlip_neb:converged_mlip_neb",
+      "ch2_dehydrogenation_eV": "mlip_neb:converged_mlip_neb",
+      "ch3_adsorption_eV": "screening:esen-sm-conserving-all-oc25:relax-v4:pyrolysis-v7:dE_CH3",
+      "ch3_dehydrogenation_eV": "mlip_neb:converged_mlip_neb",
+      "ch_dehydrogenation_eV": "mlip_neb:converged_mlip_neb",
+      "h2_desorption_eV": "mlip_neb:converged_mlip_neb",
+      "h_adsorption_eV": "screening:esen-sm-conserving-all-oc25:relax-v4:pyrolysis-v7:dE_H",
+      "methane_activation_eV": "mlip_neb:converged_mlip_neb"
+    }
+  },
+  "mechanism_file": "results/campaign_thermocatalytic/mechanisms/mechanism_9b83e69315874c5abca7.yaml",
+  "off_site_carbon": true,
+  "off_site_channels": {
+    "C_delta": {
+      "barrier_eV": 1.68,
+      "crossover_coverage_source": "declared_not_measured: swept in Baker-Helveg-Takenaka off-site carbon calibration",
+      "crossover_coverage_theta_star": 0.5,
+      "effective_crossover_note": "theta_x(T) = theta_star * exp((Ea_delta - Ea_gamma) / kT); C_gamma wins below theta_x, C_delta above",
+      "equation": "C_s => C_encap_s",
+      "form": "coverage_dependent_theta_C_squared",
+      "kind": "encapsulating",
+      "preexponential_1_s": 20000000000000.0,
+      "source": "template_default: Amin IEC Res 2011 50 12460; 147-149 kJ/mol encapsulating-carbon"
+    },
+    "C_gamma": {
+      "barrier_eV": 1.38,
+      "equation": "C_s => C(gr) + site",
+      "form": "first_order_theta_C",
+      "kind": "transport_to_edge",
+      "particle_nm": null,
+      "preexponential_1_s": 10000000000000.0,
+      "preexponential_source": "template_default: single-hop TST 1e13/s; transport+precipitation lump is D0/L^2 and particle-size dependent; swept in Baker-Helveg-Takenaka calibration",
+      "source": "template_default: Abild-Pedersen 2006 / Baker 1972"
+    }
+  },
+  "schema_version": 1,
+  "surface_enthalpies_J_mol": {
+    "CH2_s": -128744.44192356252,
+    "CH3_s": -138931.72976376454,
+    "CH_s": -118557.15408336051,
+    "C_s": -108369.8662431585,
+    "H_s": -69469.43912878321
+  },
+  "surface_prefactors": {
+    "basis": "k_TST(1/s) / site_density(mol/cm^2)",
+    "bimolecular_cm2_mol_s": 4e+21,
+    "ch4_sticking_coefficient": 0.01,
+    "ch4_sticking_source": "template_default: s0 = 0.01 (methane_pox_on_pt order of magnitude); swept in Bengaard (2002) sticking calibration",
+    "h2_desorption_cm2_mol_s": 2e+22
+  },
+  "surface_thermo_reference": {
+    "CH2_s": "template: CH3_s + (C_s - CH3_s)/3",
+    "CH3_s": "dE_CH3 + h_f(CH3 radical) = dE_CH3 + 145.7 kJ/mol",
+    "CH_s": "template: CH3_s + 2 (C_s - CH3_s)/3",
+    "C_encap_s": "same as C_s",
+    "C_s": "dE_C + h_f(CH4) = dE_C - 74.6 kJ/mol (screener C reference is CH4 - 2 H2)",
+    "H_s": "dE_H (reference 1/2 H2)",
+    "scale": "cantera_absolute_elements_zero"
+  }
+}

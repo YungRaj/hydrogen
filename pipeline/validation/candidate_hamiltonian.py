@@ -224,7 +224,11 @@ def generate_catalyst_ts_fcidump(
     needs_hydride = (z_metal % 2) == 1
     r_m = _COVALENT_RADII_A.get(lead_elem, 1.30)
     # Deterministic candidate-specific stretch perturbation from genome hash
-    cid_offset = (int(candidate_id[:6], 16) % 100 - 50) * 0.0004
+    try:
+        cid_hash_int = int(candidate_id[:6], 16)
+    except ValueError:
+        cid_hash_int = int(hashlib.sha256(candidate_id.encode('utf-8')).hexdigest()[:6], 16)
+    cid_offset = (cid_hash_int % 100 - 50) * 0.0004
 
     if reaction_type == 'CH_split':
         r_ch_ts = round(1.420 + 0.08 * (r_m - 1.24) + cid_offset, 5)

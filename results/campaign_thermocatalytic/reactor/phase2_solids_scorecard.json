@@ -1,0 +1,105 @@
+{
+  "judge_catalyst": null,
+  "judge_catalyst_literature_name": null,
+  "headline_catalyst": null,
+  "headline_catalyst_literature_name": null,
+  "judge_catalyst_requested": "ni111_sio2_bengaard2002_ref",
+  "judge_reason": "ni111_sio2_bengaard2002_ref missing from solids results; no catalyst fallback while Supported-Ni(111)/SiO2 filament closure is open",
+  "headline_t_min": 923.15,
+  "headline_t_max": 973.15,
+  "headline_band_note": "1300 K is the ADR 0001 ceiling (773\u20131300 K), used as the legacy 4-point headline when t_min=1200 and t_max is open. The Ni judge headline is the 650\u2013700 \u00b0C filament ROI (923.15\u2013973.15 K); X>X_eq and carbon-balance failures are never the headline.",
+  "headline": {},
+  "headline_solids_conversion": null,
+  "ranking_authority": false,
+  "solids_max_excluding_h_parked": null,
+  "candidate_champion_conversion": 0.985,
+  "candidate_champion_catalyst": "9b83e69315874c5abca7",
+  "candidate_champion_literature_name": "Cu,Ru-doped Ni(fcc211)/CeZrO2 (d=10.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=9b83e69315874c5abca7]",
+  "candidate_champion_reactor": "PBR",
+  "candidate_champion_T_K": 1300.0,
+  "candidate_champion_kinetics_status": "mlip_neb_complete",
+  "h_parked_excluded": [],
+  "mmbcr_max_conversion": null,
+  "mmbcr_note": "X_eq by construction for large Da; not a catalyst rank (Alves 2021 / Xu 2021 Supported-Ni Filament Reference & Solids Ranking-Authority Gate)",
+  "ntec_max_conversion": null,
+  "electrochemical_max_conversion": null,
+  "n_solids_records": 378,
+  "n_mmbcr_records": 0,
+  "n_ntec_records": 0,
+  "n_electrochemical_records": 0,
+  "pbr_ergun_residence_diagnostics": {
+    "n_completed": 378,
+    "n_pbr_records": 126,
+    "mean_pbr_overall_effectiveness_factor": 0.9460159990986887,
+    "mean_pbr_thiele_modulus": 0.27987832783798083,
+    "n_ergun_checked": 378,
+    "n_ergun_ok": 373,
+    "n_pilot_residence_checked": 252,
+    "n_within_pilot_residence_band": 241,
+    "n_plugging_or_overloaded_flagged": 11,
+    "mean_regenerated_cycle_minus_single_pass_X": 0.0
+  },
+  "validation_gate_registry": {
+    "deutschmann2000_monolayer_site_inventory": {
+      "literature_gate_name": "Deutschmann2000_MonolayerSiteDensity_PelletInventory_Gate",
+      "short_title": "Monolayer Site Density & Pellet Inventory Scaling (Deutschmann 2000; Alves 2021)",
+      "governing_equation": "Gamma = 2.5e-9 mol/cm^2; a_active = a_geom * metal_loading * metal_dispersion",
+      "literature_citations": [
+        "Deutschmann et al., Catal. Today 59 (2000) 141-150",
+        "Alves et al., Renew. Sustain. Energy Rev. 137 (2021) 110465",
+        "Sanchez-Bastardo et al., Ind. Eng. Chem. Res. 60 (2021) 11855-11881"
+      ]
+    },
+    "muradov2005_zero_co2_solids_outfeed_regeneration": {
+      "literature_gate_name": "TurquoisePyrolysis_ZeroCO2_CarbonRegeneration_Policy",
+      "short_title": "Zero-CO2 Mechanical & Circulating Carbon Outfeed Policy (Muradov 2005; Parkinson 2019)",
+      "governing_equation": "co2_permitted = False; mechanical/circulating removal clears C_s without clearing encapsulating C_encap_s",
+      "literature_citations": [
+        "Muradov & Veziroglu, Int. J. Hydrogen Energy 30 (2005) 225-237",
+        "Parkinson et al., Energy Environ. Sci. 12 (2019) 19-40"
+      ]
+    },
+    "upham2017_mendelson_bubble_flotation_interfacial": {
+      "literature_gate_name": "Upham2017_MendelsonBubbleRise_MoltenInterfacialMassTransfer_Closure",
+      "short_title": "Molten-Metal Mendelson Bubble Rise & Interfacial Flotation Closure (Upham 2017; Chen 2023)",
+      "governing_equation": "u_b = sqrt(2*sigma/(rho*d_b) + g*d_b/2); eps_g = u_sup/u_b <= 0.30; k0 in (0, 1.0] m/s",
+      "literature_citations": [
+        "Upham et al., Science 358 (2017) 917-921",
+        "Palmer et al., ACS Catal. 10 (2020) 9945-9952",
+        "Chen et al., Ind. Eng. Chem. Res. 62 (2023) 1832-1844"
+      ]
+    },
+    "ergun1952_packed_bed_pressure_drop_pilot_residence": {
+      "literature_gate_name": "Ergun1952_PackedBedPressureDrop_ThieleEffectiveness_PilotResidence_Gate",
+      "short_title": "Packed-Bed Ergun Pressure Drop, Thiele Effectiveness & Pilot Residence Window (Ergun 1952)",
+      "governing_equation": "DeltaP_Ergun <= 1.01325 bar; tau_pilot in [2.0, 12.0] s; Omega = eta_internal / (1 + Da_ext * eta_internal)",
+      "literature_citations": [
+        "Ergun, Chem. Eng. Prog. 48 (1952) 89-94",
+        "Froment, De Wilde & Bischoff, Chemical Reactor Analysis and Design (2011)"
+      ]
+    },
+    "alves2021_xu2021_supported_ni_filament_ranking_authority": {
+      "literature_gate_name": "Alves2021_Xu2021_SupportedNi_FilamentousCarbon_ConversionClosure_Gate",
+      "short_title": "Supported-Ni(111)/SiO2 Filamentous-Carbon ROI Conversion & Ranking Authority Gate (Alves 2021; Xu 2021; Bengaard 2002)",
+      "governing_equation": "X_single_pass(650-700 C) >= 0.50 on PFR, PBR, and Fluidized with X <= X_eq and Baker-Helveg-Ermakova-Takenaka off-site carbon criteria passed",
+      "literature_citations": [
+        "Alves et al., Renew. Sustain. Energy Rev. 137 (2021) 110465",
+        "Xu et al., Appl. Catal. A 611 (2021) 117967",
+        "Bengaard et al., J. Catal. 209 (2002) 365-384"
+      ]
+    },
+    "baker1972_helveg2004_ermakova2000_takenaka2003_off_site_carbon_nucleation": {
+      "literature_gate_name": "Baker1972_Helveg2004_AbildPedersen2006_Ermakova2000_Takenaka2003_OffSiteFilamentousCarbon_vs_Encapsulation_Gate",
+      "short_title": "Baker-Helveg-Abild-Pedersen Off-Site Carbon Diffusion (C_gamma) vs. Graphitic Encapsulation (C_delta) Calibration (Ermakova 2000; Takenaka 2003)",
+      "governing_equation": "r_gamma = A_gamma * exp(-E_gamma/RT) * theta_C; r_delta = (A_gamma/theta*) * exp(-E_delta/RT) * theta_C^2; Y_C in [8, 10] g_C/(g_Ni*h); tau_encap in [4, 50] h",
+      "literature_citations": [
+        "Baker et al., J. Catal. 26 (1972) 51-62",
+        "Helveg et al., Nature 427 (2004) 426-429",
+        "Abild-Pedersen et al., Phys. Rev. B 73 (2006) 115419",
+        "Ermakova et al., Appl. Catal. A 201 (2000) 61-74",
+        "Takenaka et al., J. Catal. 217 (2003) 79-87",
+        "Amin et al., Ind. Eng. Chem. Res. 50 (2011) 12460-12470"
+      ]
+    }
+  }
+}

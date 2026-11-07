@@ -105,6 +105,7 @@ class _DiscoveryChampionRowOptional(TypedDict, total=False):
     qe_max_force_Ry_bohr: float | None
     qe_neb_converged: bool
     qe_neb_barrier_eV: float
+    novelty_status: str
 
 
 class DiscoveryChampionRow(_DiscoveryChampionRowOptional):
@@ -130,6 +131,7 @@ class PathwayLeaderboardRow(TypedDict, total=False):
     n_usable_records: int
     champion_catalyst: str
     champion_catalyst_literature_name: str
+    novelty_status: str
     reactor_type: str
     T_K: float
     single_pass_CH4_conversion: float
@@ -188,6 +190,7 @@ class DFTCalibratedPathwayRow(TypedDict, total=False):
     n_usable_records: int
     champion_catalyst: str
     champion_catalyst_literature_name: str
+    novelty_status: str
     material_class: str
     reactor_type: str
     T_K: float
@@ -344,6 +347,9 @@ class ReactorToPEMFCCouplingRow(TypedDict):
 class _MultipathwayScorecardOptional(TypedDict, total=False):
     """Optional extended tables on MultipathwayChampionScorecard."""
 
+    de_novo_discovery_champions: list[DiscoveryChampionRow]
+    de_novo_pathway_leaderboard: dict[str, DFTCalibratedPathwayRow]
+    literature_benchmark_pathway_leaderboard: dict[str, DFTCalibratedPathwayRow]
     feedstock_flexibility_matrix: list[FeedstockFlexibilityRow]
     reactor_to_pemfc_system_coupling: dict[str, ReactorToPEMFCCouplingRow]
 

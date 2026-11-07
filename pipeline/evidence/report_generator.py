@@ -1119,15 +1119,16 @@ def _tea_section(
     if isinstance(disc_champs, list) and disc_champs:
         lines += [
             "#### 11-Champion Discovery Portfolio (Interfacial & QE DFT Validated)\n",
-            "| Rank | Literature Catalyst Name | Class | Screening E_act (eV) | Calibrated E_act (eV) | Interfacial Score (eV) | Calibrated Score (eV) | QE DFT Energy (Ry) |",
-            "|------|--------------------------|-------|----------------------|-----------------------|------------------------|-----------------------|--------------------|",
+            "| Rank | Literature Catalyst Name | Class | Novelty | Screening E_act (eV) | Calibrated E_act (eV) | Interfacial Score (eV) | Calibrated Score (eV) | QE DFT Energy (Ry) |",
+            "|------|--------------------------|-------|---------|----------------------|-----------------------|------------------------|-----------------------|--------------------|",
         ]
         for ch in disc_champs:
             if not isinstance(ch, Mapping):
                 continue
             lit_name = _catalyst_label(ch.get('candidate_id', '?'), ch)
+            nov = str(ch.get('novelty_status') or 'de_novo_novel')
             lines.append(
-                f"| {ch.get('rank', '?')} | {lit_name} | {ch.get('material_class', '?')} | "
+                f"| {ch.get('rank', '?')} | {lit_name} | {ch.get('material_class', '?')} | `{nov}` | "
                 f"{_report_number(ch.get('E_act_eV'), '.4f')} | "
                 f"{_report_number(ch.get('calibrated_activation_eV'), '.4f')} | "
                 f"{_report_number(ch.get('interfacial_pyrolysis_score_eV'), '.4f')} | "
@@ -1140,8 +1141,8 @@ def _tea_section(
     if isinstance(cal_board, Mapping) and cal_board:
         lines += [
             "#### 7-Pathway QE-DFT-Calibrated Reactor & LCOH Leaderboard\n",
-            "| Pathway | Reactor | Literature Champion Catalyst | T (K) | Uncalibrated X | Calibrated X | Ω | ΔP (bar) | Base LCOH ($/kg) | Optimistic LCOH ($/kg) | Kinetics Status |",
-            "|---------|---------|------------------------------|-------|----------------|--------------|---|----------|------------------|------------------------|-----------------|",
+            "| Pathway | Reactor | Champion Catalyst | Novelty | T (K) | Uncalibrated X | Calibrated X | Ω | ΔP (bar) | Base LCOH ($/kg) | Optimistic LCOH ($/kg) | Kinetics Status |",
+            "|---------|---------|-------------------|---------|-------|----------------|--------------|---|----------|------------------|------------------------|-----------------|",
         ]
         pathway_order = (
             'thermocatalytic',
@@ -1160,8 +1161,9 @@ def _tea_section(
             if not isinstance(row, Mapping) or row.get('status') != 'complete':
                 continue
             champ_label = _catalyst_label(row.get('champion_catalyst', '?'), row)
+            nov_r = str(row.get('novelty_status') or 'de_novo_novel')
             lines.append(
-                f"| `{mode_key}` | {row.get('reactor_type', '?')} | {champ_label} | "
+                f"| `{mode_key}` | {row.get('reactor_type', '?')} | {champ_label} | `{nov_r}` | "
                 f"{_report_number(row.get('T_K'), '.1f')} | "
                 f"{_report_number(row.get('uncalibrated_single_pass_CH4_conversion'), '.2%')} | "
                 f"{_report_number(row.get('dft_calibrated_single_pass_CH4_conversion'), '.2%')} | "
@@ -1172,6 +1174,70 @@ def _tea_section(
                 f"`{row.get('kinetics_status', 'qe_dft_calibrated_bep')}` |"
             )
         lines.append("")
+
+        dn_board = mp.get('de_novo_pathway_leaderboard')
+        lit_board = mp.get('literature_benchmark_pathway_leaderboard')
+        if isinstance(dn_board, Mapping) and dn_board:
+            lit_map: Mapping[str, object] = (
+                lit_board if isinstance(lit_board, Mapping) else {}
+            )
+            lines += [
+                "#### De Novo Novel Catalyst Champions vs. Literature Reference Benchmarks (7-Pathway Comparison)\n",
+                "| Pathway | Reactor | De Novo Novel Champion | De Novo Cal. X | De Novo Base LCOH ($/kg) | Literature Benchmark Reference | Benchmark Cal. X | Benchmark Base LCOH ($/kg) | ΔX_cal Lift | ΔLCOH Saving ($/kg) |",
+                "|---------|---------|------------------------|----------------|--------------------------|--------------------------------|------------------|----------------------------|-------------|---------------------|",
+            ]
+            for mode_key in ordered_keys:
+                dn_row = dn_board.get(mode_key)
+                if not isinstance(dn_row, Mapping) or dn_row.get('status') != 'complete':
+                    continue
+                lit_row_raw = lit_map.get(mode_key)
+                lit_row: Mapping[str, object] = (
+                    lit_row_raw
+                    if isinstance(lit_row_raw, Mapping)
+                    and lit_row_raw.get('status') == 'complete'
+                    else {}
+                )
+                dn_label = _catalyst_label(
+                    dn_row.get('champion_catalyst', '?'), dn_row
+                )
+                dn_x = dn_row.get('dft_calibrated_single_pass_CH4_conversion')
+                dn_lcoh = dn_row.get('dft_calibrated_tea_base_h2_usd_kg')
+                if lit_row:
+                    lit_label = _catalyst_label(
+                        lit_row.get('champion_catalyst', '?'), lit_row
+                    )
+                    lit_x = lit_row.get(
+                        'dft_calibrated_single_pass_CH4_conversion'
+                    )
+                    lit_lcoh = lit_row.get('dft_calibrated_tea_base_h2_usd_kg')
+                    dx_str = (
+                        f"{float(dn_x) - float(lit_x):+.2%}"
+                        if isinstance(dn_x, (int, float))
+                        and isinstance(lit_x, (int, float))
+                        else '—'
+                    )
+                    dlcoh_str = (
+                        f"${float(dn_lcoh) - float(lit_lcoh):+.3f}"
+                        if isinstance(dn_lcoh, (int, float))
+                        and isinstance(lit_lcoh, (int, float))
+                        else '—'
+                    )
+                    lit_x_str = _report_number(lit_x, '.2%')
+                    lit_lcoh_str = f"${_report_number(lit_lcoh, '.3f')}"
+                else:
+                    lit_label = '— (de novo only)'
+                    lit_x_str = '—'
+                    lit_lcoh_str = '—'
+                    dx_str = '—'
+                    dlcoh_str = '—'
+                lines.append(
+                    f"| `{mode_key}` | {dn_row.get('reactor_type', '?')} | "
+                    f"{dn_label} | {_report_number(dn_x, '.2%')} | "
+                    f"${_report_number(dn_lcoh, '.3f')} | "
+                    f"{lit_label} | {lit_x_str} | {lit_lcoh_str} | "
+                    f"**{dx_str}** | **{dlcoh_str}** |"
+                )
+            lines.append("")
 
         uncal_board = mp.get('pathway_leaderboard')
         uncal_map: Mapping[str, object] = (

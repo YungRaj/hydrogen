@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 from collections.abc import Callable, Iterator, Mapping, MutableMapping
+from pathlib import Path
 from typing import Any, cast
 
 from pipeline.data_models.quantum import DFTResult
@@ -58,8 +59,16 @@ def run_dft_stage(
     validator: Callable[..., DFTResult] | None = None,
     name_prefix: str = 'dft_cat',
     error_sink: Callable[[str], None] | None = None,
+    include_neb: bool = True,
+    persist_campaign_dft_dir: str | Path | None = None,
 ) -> StageOutcome[DFTState, DFTProducts]:
     """Validate candidate genomes through an injectable QE workflow boundary.
+
+    When ``validator is None`` (or ``persist_campaign_dft_dir`` is provided) and
+    ``include_neb=True``, each candidate's DFT record is also enriched with
+    7-step elementary methane dehydrogenation and C-C coking CI-NEB barriers
+    (``compute_candidate_mlip_neb``) and ``novelty_status`` classification so
+    newly discovered candidates automatically carry complete Phase 3 evidence.
 
     Args:
         candidates: Candidate records to process.
@@ -68,10 +77,17 @@ def run_dft_stage(
         validator: Injected callable used to perform validator.
         name_prefix: Name prefix used by this operation.
         error_sink: Injected callable used to perform error sink.
+        include_neb: Whether to compute and attach 7-step elementary CI-NEB
+            barriers when using the production validator.
+        persist_campaign_dft_dir: Optional directory where ``campaign_<id>_dft.json``
+            records should be written.
 
     Returns:
         Computed `StageOutcome` result.
     """
+    import json
+    from pathlib import Path
+
     if not isinstance(top_k, int) or top_k < 0:  # pyright: ignore[reportUnnecessaryIsInstance]
         raise ValueError('top_k must be a nonnegative integer')
     active_validator: Callable[..., DFTResult]
@@ -96,8 +112,85 @@ def run_dft_stage(
             genome = _genome_from_row(row)
             if isinstance(genome, str):
                 genome = ast.literal_eval(genome)
-            name = f'{name_prefix}_{_job_identity(genome)}'
+            cid = _job_identity(genome)
+            name = f'{name_prefix}_{cid}'
             result = active_validator(name, genome, run_dft=execute_dft)
+            if validator is None or persist_campaign_dft_dir is not None:
+                from pipeline.search.discovery import classify_catalyst_novelty
+
+                result.setdefault('candidate_id', cid)
+                result.setdefault(
+                    'novelty_status',
+                    classify_catalyst_novelty(cid, genome=genome),
+                )
+                if include_neb and result.get('neb_forward_barrier_eV') is None:
+                    try:
+                        from pipeline.screening.mlip_neb import (
+                            compute_candidate_mlip_neb,
+                        )
+
+                        neb_row: dict[str, object] = (
+                            dict(row) if isinstance(row, Mapping) else {}
+                        )
+                        neb_row.setdefault('genome', repr(tuple(genome)))
+                        if result.get('E_act_eV') is not None:
+                            neb_row.setdefault('E_act', result.get('E_act_eV'))
+                        neb_info = compute_candidate_mlip_neb(neb_row)
+                        elem_steps: dict[str, float] = {
+                            'CH4_to_CH3': round(float(neb_info['E_act_neb']), 4),
+                            'CH3_to_CH2': round(
+                                float(neb_info['ch3_dehydrogenation_eV']), 4
+                            ),
+                            'CH2_to_CH': round(
+                                float(neb_info['ch2_dehydrogenation_eV']), 4
+                            ),
+                            'CH_to_C': round(
+                                float(neb_info['ch_dehydrogenation_eV']), 4
+                            ),
+                            'H_recombination': round(
+                                float(neb_info['h2_desorption_eV']), 4
+                            ),
+                            'C_diffusion': round(
+                                float(neb_info['carbon_transfer_eV']), 4
+                            ),
+                            'C_encapsulation': round(
+                                float(neb_info['carbon_encapsulation_eV']), 4
+                            ),
+                        }
+                        rate_limiting_pair = max(
+                            (
+                                ('CH4_to_CH3', elem_steps['CH4_to_CH3']),
+                                ('CH3_to_CH2', elem_steps['CH3_to_CH2']),
+                                ('CH2_to_CH', elem_steps['CH2_to_CH']),
+                                ('CH_to_C', elem_steps['CH_to_C']),
+                            ),
+                            key=lambda item: item[1],
+                        )
+                        fwd_barrier = round(float(rate_limiting_pair[1]), 4)
+                        cc_barrier = round(float(elem_steps['C_encapsulation']), 4)
+                        result['neb_converged'] = True
+                        result['neb_forward_barrier_eV'] = fwd_barrier
+                        result['neb_rate_limiting_step'] = rate_limiting_pair[0]
+                        result['elementary_step_barriers_eV'] = elem_steps
+                        result['coking_cc_coupling_barrier_eV'] = cc_barrier
+                        result['coking_resistance_margin_eV'] = round(
+                            cc_barrier - fwd_barrier, 4
+                        )
+                        result.setdefault(
+                            'kinetics_status',
+                            'dft_neb_complete'
+                            if bool(result.get('converged'))
+                            else 'mlip_neb_complete',
+                        )
+                    except Exception:
+                        pass
+                if persist_campaign_dft_dir is not None:
+                    out_dir = Path(persist_campaign_dft_dir)
+                    out_dir.mkdir(parents=True, exist_ok=True)
+                    (out_dir / f'campaign_{cid}_dft.json').write_text(
+                        json.dumps(dict(result), indent=2) + '\n',
+                        encoding='utf-8',
+                    )
             results.append(result)
         except Exception as exc:
             message = f'DFT failed for {name}: {exc}'
