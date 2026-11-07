@@ -1,0 +1,23 @@
+{
+  "checkpoint_restored": false,
+  "command": [
+    "/opt/envs/qe-env/bin/mpirun",
+    "-np",
+    "2",
+    "/opt/envs/qe-env/bin/pw.x",
+    "-in",
+    "/root/hydrogen/results/dft/campaign_99cbb4a430ec9289b09d/campaign_99cbb4a430ec9289b09d_slab_initial.in"
+  ],
+  "configuration": {
+    "image_groups": 1,
+    "kpoint_pools": 1,
+    "mpi_ranks": 2,
+    "omp_threads": 2,
+    "require_gpu": true
+  },
+  "elapsed_s": 183.9345611159224,
+  "input_sha256": "de66a408189c2ccea6617470571813f01cd642050204281c9a72561db7846cae",
+  "interrupted": false,
+  "returncode": 0,
+  "timed_out": false
+}

@@ -542,12 +542,29 @@ def _reactor_section(
                         cid_genome_map[c_k] = doc_d.get("genome")
             except Exception:
                 pass
-        for csv_f in sorted(RESULTS_DIR.glob("campaign_*/screening/branch_ranker_evidence.csv")):
+        from pipeline.search.discovery import candidate_id
+
+        scr_csv_list = sorted(
+            RESULTS_DIR.glob("campaign_*/screening/branch_ranker_evidence.csv")
+        )
+        if (RESULTS_DIR / "screening").is_dir():
+            scr_csv_list.extend(sorted((RESULTS_DIR / "screening").glob("*.csv")))
+            if (RESULTS_DIR / "screening" / "prospective").is_dir():
+                scr_csv_list.extend(
+                    sorted((RESULTS_DIR / "screening" / "prospective").glob("*_pyrolysis.csv"))
+                )
+        for csv_f in scr_csv_list:
             try:
                 with csv_f.open("r", encoding="utf-8") as fh:
                     for row_c in csv.DictReader(fh):
                         c_k = str(row_c.get("candidate_id") or "").strip()
                         g_v = row_c.get("genome")
+                        if not c_k and g_v:
+                            try:
+                                pg_c = parse_encoded_genome(g_v)
+                                c_k = candidate_id(pg_c) if pg_c is not None else ""
+                            except Exception:
+                                c_k = ""
                         if c_k and g_v:
                             cid_genome_map.setdefault(c_k, g_v)
             except Exception:

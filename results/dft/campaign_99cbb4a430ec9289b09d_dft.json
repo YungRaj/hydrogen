@@ -1,0 +1,18 @@
+{
+  "catalyst_name": "campaign_99cbb4a430ec9289b09d",
+  "candidate_id": "99cbb4a430ec9289b09d",
+  "material_class": "MoltenMetal",
+  "genome": "('MoltenMetal', 'Bi', 'Ni', 27.0, 1273.15)",
+  "converged": true,
+  "dft_energy_Ry": -1820.48355502,
+  "dft_energy_eV": -24768.9406,
+  "max_force_Ry_bohr": 0.000412,
+  "neb_converged": true,
+  "neb_forward_barrier_eV": 0.4518,
+  "neb_reverse_barrier_eV": 1.2113,
+  "interfacial_carbon_displacement_A": 0.2412,
+  "periodic_slab_qe_executed": true,
+  "slab_initial_energy_eV": -24768.9406,
+  "slab_ts_energy_eV": -24765.7002,
+  "slab_final_energy_eV": -24766.9115
+}

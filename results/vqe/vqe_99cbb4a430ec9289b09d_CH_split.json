@@ -1,0 +1,305 @@
+{
+  "energy_Ha": -208.19311605517743,
+  "energy_eV": -5665.223294733239,
+  "optimal_params": [
+    -0.30508225479242845,
+    -0.007629540984020421,
+    -0.00015195953491810613,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "n_qubits": 8,
+  "n_layers": 3,
+  "n_params": 48,
+  "max_iter": 3000,
+  "target": "qpp-cpu",
+  "evidence_level": "candidate_specific_vqe_benchmarked",
+  "catalyst_specific_hamiltonian": true,
+  "benchmarked": true,
+  "exact_ground_energy_Ha": -208.1931160740327,
+  "variational_gap_Ha": 1.8855274674933753e-08,
+  "variational_bound_valid": true,
+  "benchmark_tolerance_Ha": 0.0016,
+  "catalyst_name": "99cbb4a430ec9289b09d",
+  "reaction_type": "CH_split",
+  "hamiltonian": {
+    "schema_version": 1,
+    "candidate_id": "99cbb4a430ec9289b09d",
+    "geometry_id": "99cbb4a430ec9289b09d_CH_split_ts",
+    "geometry_path": "geometry.xyz",
+    "geometry_sha256": "7aeb5ba468bf78dd8077502f943a07a85ea81a3ad69baaaa6acee942ccb38d63",
+    "electronic_structure_protocol": "PySCF-CASSCF(4,4)/lanl2dz+6-31g*",
+    "basis": "lanl2dz+6-31g*",
+    "active_orbitals": 4,
+    "active_electrons": 4,
+    "charge": 0,
+    "multiplicity": 1,
+    "frozen_orbitals": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11
+    ],
+    "integral_source": "pyscf_casscf_active_space",
+    "fcidump_sha256": "49737ddfcb7c1d09db70f7984207872bdc37e30ac4d63efcb15382addb9cd33d",
+    "fermion_to_qubit_mapping": "Jordan-Wigner",
+    "n_qubits": 8,
+    "pauli_terms": [
+      [
+        -204.0801841217789,
+        "IIIIIIII"
+      ],
+      [
+        -0.49262504435065885,
+        "IIIIIIIZ"
+      ],
+      [
+        -0.49262504435065885,
+        "IIIIIIZI"
+      ],
+      [
+        -0.1814077421326709,
+        "IIIIIIZZ"
+      ],
+      [
+        -0.48016411554856636,
+        "IIIIIZII"
+      ],
+      [
+        0.05976529598576238,
+        "IIIIIZIZ"
+      ],
+      [
+        0.05976529598576238,
+        "IIIIIZZI"
+      ],
+      [
+        -0.48016411554856636,
+        "IIIIZIII"
+      ],
+      [
+        0.05976529598576238,
+        "IIIIZIIZ"
+      ],
+      [
+        0.05976529598576238,
+        "IIIIZIZI"
+      ],
+      [
+        -0.1814178964132392,
+        "IIIIZZII"
+      ],
+      [
+        -0.33957278704052246,
+        "IIIZIIII"
+      ],
+      [
+        0.06818834844640037,
+        "IIIZIIIZ"
+      ],
+      [
+        0.06818834844640037,
+        "IIIZIIZI"
+      ],
+      [
+        0.3043156138088839,
+        "IIIZIZII"
+      ],
+      [
+        0.31818724738398624,
+        "IIIZZIII"
+      ],
+      [
+        -0.013871633575102358,
+        "IIXXYYII"
+      ],
+      [
+        0.013871633575102358,
+        "IIXYYXII"
+      ],
+      [
+        0.013871633575102358,
+        "IIYXXYII"
+      ],
+      [
+        -0.013871633575102358,
+        "IIYYXXII"
+      ],
+      [
+        -0.33957278704052246,
+        "IIZIIIII"
+      ],
+      [
+        0.06818834844640037,
+        "IIZIIIIZ"
+      ],
+      [
+        0.06818834844640037,
+        "IIZIIIZI"
+      ],
+      [
+        0.31818724738398624,
+        "IIZIIZII"
+      ],
+      [
+        0.3043156138088839,
+        "IIZIZIII"
+      ],
+      [
+        -0.16868399510737692,
+        "IIZZIIII"
+      ],
+      [
+        -0.07382841303413384,
+        "IZIIIIII"
+      ],
+      [
+        0.3265673856466904,
+        "IZIIIIIZ"
+      ],
+      [
+        0.32798511069042474,
+        "IZIIIIZI"
+      ],
+      [
+        0.0779817023274206,
+        "IZIIIZII"
+      ],
+      [
+        0.0779817023274206,
+        "IZIIZIII"
+      ],
+      [
+        0.1126523630527646,
+        "IZIZIIII"
+      ],
+      [
+        0.1126523630527646,
+        "IZZIIIII"
+      ],
+      [
+        -0.0014177250437343468,
+        "XXIIIIYY"
+      ],
+      [
+        0.0014177250437343468,
+        "XYIIIIYX"
+      ],
+      [
+        0.0014177250437343468,
+        "YXIIIIXY"
+      ],
+      [
+        -0.0014177250437343468,
+        "YYIIIIXX"
+      ],
+      [
+        -0.07382841303413384,
+        "ZIIIIIII"
+      ],
+      [
+        0.32798511069042474,
+        "ZIIIIIIZ"
+      ],
+      [
+        0.3265673856466904,
+        "ZIIIIIZI"
+      ],
+      [
+        0.0779817023274206,
+        "ZIIIIZII"
+      ],
+      [
+        0.0779817023274206,
+        "ZIIIZIII"
+      ],
+      [
+        0.1126523630527646,
+        "ZIIZIIII"
+      ],
+      [
+        0.1126523630527646,
+        "ZIZIIIII"
+      ],
+      [
+        -0.004973866596640785,
+        "ZZIIIIII"
+      ]
+    ],
+    "catalyst_specific_hamiltonian": true,
+    "evidence_level": "candidate_specific_integrals",
+    "catalyst_motif": "Ni-CH4_ts",
+    "hf_energy_Ha": -208.21573766,
+    "casci_energy_Ha": -208.23051337,
+    "ccsd_energy_Ha": -208.62834239,
+    "correlation_energy_Ha": -0.01477571,
+    "correlation_energy_eV": -0.402068,
+    "leading_ci_weight": 0.962176,
+    "t1_diagnostic": 0.083312,
+    "dft_pbe_barrier_eV": 0.08,
+    "vqe_cas_barrier_eV": 1.9624,
+    "multi_reference_barrier_correction_eV": 1.8824
+  },
+  "catalyst_motif": "Ni-CH4_ts",
+  "hf_energy_Ha": -208.21573766,
+  "casci_energy_Ha": -208.23051337,
+  "ccsd_energy_Ha": -208.62834239,
+  "correlation_energy_Ha": -0.01477571,
+  "correlation_energy_eV": -0.402068,
+  "leading_ci_weight": 0.962176,
+  "t1_diagnostic": 0.083312,
+  "dft_pbe_barrier_eV": 0.08,
+  "vqe_cas_barrier_eV": 1.9624,
+  "multi_reference_barrier_correction_eV": 1.8824
+}

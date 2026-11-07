@@ -318,6 +318,65 @@ def build_multipathway_champion_scorecard(
                     **champ_entry,
                 }
 
+    # Populate candidate_Lookup with supplementary benchmark/prospective CSVs and DFT records
+    # for pathway_leaderboard reactor runs without altering discovery_champions.
+    supp_csv_paths: list[Path] = [
+        root / 'screening' / 'pyrolysis_rate_descriptor.csv',
+        root / 'screening' / 'pyrolysis_benchmark.csv',
+    ]
+    for extra_subdir in ('prospective', 'pilot'):
+        extra_dir = root / 'screening' / extra_subdir
+        if extra_dir.is_dir():
+            supp_csv_paths.extend(sorted(extra_dir.glob('*_pyrolysis.csv')))
+    for s_csv in supp_csv_paths:
+        if not s_csv.is_file():
+            continue
+        try:
+            s_df = pd.read_csv(s_csv)
+            for _, s_row in s_df.iterrows():
+                s_dict = dict(s_row.to_dict())
+                cid_k = str(s_dict.get('candidate_id') or '').strip()
+                if not cid_k or cid_k.lower() == 'nan':
+                    try:
+                        pg = parse_encoded_genome(s_dict.get('genome'))
+                        cid_k = candidate_id(pg) if pg is not None else ''
+                    except Exception:
+                        cid_k = ''
+                if cid_k and cid_k not in candidate_Lookup:
+                    s_dict['candidate_id'] = cid_k
+                    candidate_Lookup[cid_k] = s_dict
+        except Exception:
+            pass
+    dft_dir_supp = root / 'dft'
+    if dft_dir_supp.is_dir():
+        for dft_p in sorted(dft_dir_supp.glob('campaign_*_dft.json')):
+            try:
+                d_rec = json.loads(dft_p.read_text(encoding='utf-8'))
+                if isinstance(d_rec, dict):
+                    cid_d = (
+                        str(d_rec.get('candidate_id') or '')
+                        or dft_p.stem.removeprefix('campaign_').removesuffix('_dft')
+                    ).strip()
+                    if cid_d:
+                        existing = candidate_Lookup.get(cid_d, {})
+                        merged_meta = {**existing}
+                        for k_meta in (
+                            'genome',
+                            'material_class',
+                            'interfacial_carbon_displacement_A',
+                        ):
+                            if d_rec.get(k_meta) is not None and merged_meta.get(k_meta) is None:
+                                merged_meta[k_meta] = d_rec[k_meta]
+                        if d_rec.get('neb_converged') is not None:
+                            merged_meta['qe_neb_converged'] = bool(d_rec['neb_converged'])
+                        if isinstance(d_rec.get('neb_forward_barrier_eV'), (int, float)):
+                            merged_meta['qe_neb_barrier_eV'] = round(
+                                float(d_rec['neb_forward_barrier_eV']), 4
+                            )
+                        candidate_Lookup[cid_d] = merged_meta
+            except Exception:
+                pass
+
     # 2. Phase 2 6-Pathway Reactor & TEA Leaderboard (Raw + DFT-Calibrated)
     reactor_records: list[ReactorResult] = []
     for cdir in campaign_dirs:

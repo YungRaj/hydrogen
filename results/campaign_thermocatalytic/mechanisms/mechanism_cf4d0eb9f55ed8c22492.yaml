@@ -1,0 +1,168 @@
+units: {length: cm, time: s, quantity: mol, activation-energy: J/mol}
+
+phases:
+- name: gas
+  thermo: ideal-gas
+  elements: [C, H, Ar]
+  species: [CH4, H2, C2H2, C2H4, C2H6, Ar]
+  kinetics: gas
+  state: {T: 1000.0, P: 1 atm}
+
+- name: graphite
+  thermo: fixed-stoichiometry
+  elements: [C]
+  species: [C(gr)]
+  state: {T: 1000.0, P: 1 atm}
+
+- name: cf4d0eb9f55ed8c22492_surface
+  thermo: ideal-surface
+  elements: [C, H]
+  species: [site, CH3_s, CH2_s, CH_s, H_s, C_s]
+  kinetics: surface
+  reactions: [cf4d0eb9f55ed8c22492_surface-reactions]
+  site-density: 2.500e-09 mol/cm^2
+  adjacent-phases: [gas]
+
+species:
+- name: CH4
+  composition: {C: 1, H: 4}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [5.14987613, -0.0136709788, 4.91800599e-05, -4.84743026e-08, 1.66693956e-11,
+      -10246.6, -4.64130376]
+    - [0.074851495, 0.0133909467, -5.73285809e-06, 1.22292535e-09, -1.01815230e-13,
+      -9468.34459, 18.437318]
+- name: H2
+  composition: {H: 2}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [2.34433112, 7.98052075e-03, -1.9478151e-05, 2.01572094e-08, -7.37611761e-12,
+      -917.935173, 0.683010238]
+    - [2.93286575, 8.26608026e-04, -1.46402364e-07, 1.54100414e-11, -6.888048e-16,
+      -813.065581, -1.02432865]
+- name: C2H2
+  composition: {C: 2, H: 2}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [0.808681094, 0.0233615629, -3.55171815e-05, 2.80152437e-08, -8.50072974e-12,
+      26428.9807, 13.9397051]
+    - [4.14756964, 5.96166664e-03, -2.37294852e-06, 4.67412171e-10, -3.61235213e-14,
+      25935.9992, -1.23028121]
+- name: C2H4
+  composition: {C: 2, H: 4}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [3.95920148, -7.57052247e-03, 5.70990292e-05, -6.91588753e-08, 2.69884373e-11,
+      5089.77593, 4.09733096]
+    - [3.99182724, 0.0104833908, -3.71721342e-06, 5.94628366e-10, -3.53630386e-14,
+      4268.65851, -0.269081762]
+- name: C2H6
+  composition: {C: 2, H: 6}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [4.29142492, -5.50154270e-03, 5.99438288e-05, -7.08466285e-08, 2.68685771e-11,
+      -11522.2055, 2.66682316]
+    - [4.04666411, 0.0153538802, -5.47039485e-06, 8.77826544e-10, -5.23167531e-14,
+      -12447.3273, -0.968698313]
+- name: Ar
+  composition: {Ar: 1}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [2.5, 0.0, 0.0, 0.0, 0.0, -745.375, 4.366]
+    - [2.5, 0.0, 0.0, 0.0, 0.0, -745.375, 4.366]
+
+- name: C(gr)
+  composition: {C: 1}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 5000.0]
+    data:
+    - [-0.310872072, 4.40353686e-03, 1.90394118e-06, -6.38546966e-09, 2.98964248e-12,
+      -108.650794, 1.11382953]
+    - [1.45571829, 1.71702216e-03, -6.97562786e-07, 1.35277032e-10, -9.67590652e-15,
+      -695.138814, -8.52583033]
+  equation-of-state:
+    model: constant-volume
+    density: 2.16 g/cm^3
+  note: Condensed graphite (fixed-stoichiometry); unit activity, not a gas species
+
+- name: site
+  composition: {}
+  thermo:
+    model: constant-cp
+    h0: 0.0 J/mol
+    s0: 0.0 J/mol/K
+  sites: 1
+- name: CH3_s
+  composition: {C: 1, H: 3}
+  thermo:
+    model: constant-cp
+    h0: -42612.389 J/mol
+    s0: 50.0 J/mol/K
+  sites: 1
+- name: CH2_s
+  composition: {C: 1, H: 2}
+  thermo:
+    model: constant-cp
+    h0: 120280.01 J/mol
+    s0: 40.0 J/mol/K
+  sites: 1
+  note: template enthalpy, CH3_s + (C_s - CH3_s)/3
+- name: CH_s
+  composition: {C: 1, H: 1}
+  thermo:
+    model: constant-cp
+    h0: 283172.4 J/mol
+    s0: 30.0 J/mol/K
+  sites: 1
+  note: template enthalpy, CH3_s + 2 (C_s - CH3_s)/3
+- name: H_s
+  composition: {H: 1}
+  thermo:
+    model: constant-cp
+    h0: 50038.921 J/mol
+    s0: 20.0 J/mol/K
+  sites: 1
+- name: C_s
+  composition: {C: 1}
+  thermo:
+    model: constant-cp
+    h0: 446064.8 J/mol
+    s0: 10.0 J/mol/K
+  sites: 1
+  note: Surface carbon (Cα); occupies catalytic sites until removed by policy or off-site Cγ
+
+reactions:
+- equation: 2 CH4 <=> C2H6 + H2
+  rate-constant: {A: 2.3e+13, b: 0.0, Ea: 356000.0}
+- equation: C2H6 <=> C2H4 + H2
+  rate-constant: {A: 4.65e+13, b: 0.0, Ea: 273000.0}
+- equation: C2H4 <=> C2H2 + H2
+  rate-constant: {A: 1.0e+14, b: 0.0, Ea: 331000.0}
+
+cf4d0eb9f55ed8c22492_surface-reactions:
+- equation: CH4 + 2 site <=> CH3_s + H_s
+  sticking-coefficient: {A: 0.01, b: 0.0, Ea: 136428.7}
+  note: s0 sets the carbon arrival rate; provenance in the .kinetics.json sidecar
+- equation: CH3_s + site <=> CH2_s + H_s
+  rate-constant: {A: 4e+21, b: 0.0, Ea: 212931.3}
+  note: A = 1e13/s / Γ in cm^2/mol/s (bimolecular surface TST)
+- equation: CH2_s + site <=> CH_s + H_s
+  rate-constant: {A: 4e+21, b: 0.0, Ea: 212931.3}
+- equation: CH_s + site <=> C_s + H_s
+  rate-constant: {A: 4e+21, b: 0.0, Ea: 212931.3}
+- equation: 2 H_s <=> H2 + 2 site
+  rate-constant: {A: 2e+22, b: 0.0, Ea: 72364.0}
+

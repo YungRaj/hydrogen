@@ -1,0 +1,28 @@
+{
+  "candidate_id": "99cbb4a430ec9289b09d",
+  "catalyst_name": "campaign_99cbb4a430ec9289b09d",
+  "evidence_level": "periodic_slab_pw_dft",
+  "genome": "('MoltenMetal', 'Bi', 'Ni', 27.0, 1273.15)",
+  "material_class": "MoltenMetal",
+  "periodic_slab_qe_executed": true,
+  "slab_converged": true,
+  "slab_dft_barrier_eV": 3.240411,
+  "slab_final_energy_Ry": -1820.33442121,
+  "slab_final_energy_eV": -24766.911516,
+  "slab_initial_energy_Ry": -1820.48355501,
+  "slab_initial_energy_eV": -24768.940585,
+  "slab_reaction_energy_eV": 2.029069,
+  "slab_reverse_barrier_eV": 1.211342,
+  "slab_ts_energy_Ry": -1820.24538921,
+  "slab_ts_energy_eV": -24765.700174,
+  "stage_converged": {
+    "final": true,
+    "initial": true,
+    "ts": true
+  },
+  "stage_forces_Ry_bohr": {
+    "final": 0.192018,
+    "initial": 0.083226,
+    "ts": 0.217079
+  }
+}
