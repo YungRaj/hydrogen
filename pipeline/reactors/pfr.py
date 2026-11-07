@@ -23,6 +23,7 @@ from pipeline.reactors.reactor_core import (
     ch4_extent,
     clamp_gas_to_equilibrium,
     common_reactor_result_fields,
+    compute_h2_c2_selectivity_and_rates,
     geometric_sv_pfr,
     load_gas_and_surface,
     logger,
@@ -227,6 +228,19 @@ def simulate_pfr(
         f"plugging_risk={plugging_risk}"
     )
 
+    h2_c2_metrics = compute_h2_c2_selectivity_and_rates(
+        gas,
+        ch4_initial=ch4_initial,
+        ar_initial=ar_initial,
+        final_conv=float(final_conv),
+        tau_s=tau_total,
+        P_inlet_Pa=config.P_inlet_Pa,
+        T_inlet_K=config.T_inlet_K,
+        active_sv_1_m=sv_ratio,
+        site_density_mol_cm2=float(config.site_density_mol_cm2),
+        bed_porosity_or_holdup=eps,
+    )
+
     result = {
         'reactor_type': 'PFR',
         'catalyst_name': config.catalyst_name,
@@ -258,6 +272,7 @@ def simulate_pfr(
         'regen_cycles_completed': cycles_completed,
         'exit_x_H2': x_h2,
         'exit_T_K': float(gas.T),
+        **h2_c2_metrics,
         'z_positions': z_positions.tolist(),
         'conversion_profile': conversion_profile,
         'temperature_profile': temperature_profile,

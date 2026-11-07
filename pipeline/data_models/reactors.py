@@ -170,7 +170,19 @@ class ReactorResult(TypedDict, total=False):
     CH4_conversion: float
     single_pass_CH4_conversion: float
     H2_selectivity: float
+    H2_atom_balance: float
+    H2_yield: float
     solid_C_selectivity: float | None
+    C2_carbon_selectivity: float
+    exit_x_CH4: float
+    exit_x_H2: float
+    exit_x_C2H6: float | None
+    exit_x_C2H4: float | None
+    exit_x_C2H2: float | None
+    ch4_conversion_rate_mol_m3_s: float
+    h2_production_rate_mol_m3_s: float
+    h2_production_rate_kg_m3_h: float
+    h2_turnover_frequency_1_s: float | None
     residence_time_s: float
     specific_energy_kWh_kg_H2: float
     faradaic_efficiency_H2: float

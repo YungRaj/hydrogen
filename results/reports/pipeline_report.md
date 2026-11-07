@@ -1,6 +1,6 @@
 # Turquoise Hydrogen → Fuel Cell: Pipeline Report
 
-**Generated**: 2026-11-07 04:58:01
+**Generated**: 2026-11-07 05:52:38
 **Pipeline Version**: 2.0.0
 
 > **Evidence status:** screening values are hypotheses. Mock results and unconverged calculations are excluded from validated claims; catalyst performance requires experimental confirmation.
@@ -15,7 +15,7 @@
 | Best eligible screening barrier | 0.015 eV |
 | Best coking resistance | 8.359 eV |
 | Reactor simulations | 20 |
-| Solids judge CH₄ conversion (ni_np_lit PFR) | 26.34% |
+| Solids judge CH₄ conversion (Ni(fcc111)/SiO2 Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=ni_np_lit] PFR) | 26.34% |
 | Top candidate solids CH₄ conversion (FeZnNbIrSc-hcp(111) High-Entropy Alloy (Miracle & Senkov 2017 / Yao et al., Science 2018 Multi-Principal-Element Surface) [id=0021a267d0b5a6e984a9]) | 98.50% |
 | MMBCR max CH₄ conversion | 73.83% (not a solids rank) |
 | NTEC max CH₄ conversion (coupled MOOSE+Cantera) | 1.34% |
@@ -70,65 +70,65 @@
 
 ## Phase 2: Reactor-Scale Simulation
 
-Solids judged on **ni_np_lit** (single-pass X, `a`, WHSV, ΔP). MMBCR X_eq and 0.01 eV H-parked cats are not ranks.
+Solids judged on **Ni(fcc111)/SiO2 Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=ni_np_lit]** (single-pass X, `a`, WHSV, ΔP). MMBCR X_eq and 0.01 eV H-parked cats are not ranks.
 
-| Reactor | Catalyst | T (K) | Single-pass X | a (m⁻¹) | WHSV (h⁻¹) | ΔP (bar) |
-|---------|----------|-------|---------------|---------|------------|----------|
-| PFR | ni_np_lit | 973.15 | 26.34% | 4154 | 900 | 0.33 |
-| PBR | ni_np_lit | 973.15 | 23.03% | 4154 | 1272 | 0.50 |
-| Fluidized | ni_np_lit | 973.15 | 18.79% | 3808 | 400 | 0.33 |
+| Reactor | Catalyst | T (K) | Single-pass X | H₂ Selectivity | H₂ Yield | r_H₂ (mol/m³·s) | a (m⁻¹) | WHSV (h⁻¹) | ΔP (bar) |
+|---------|----------|-------|---------------|----------------|----------|-----------------|---------|------------|----------|
+| PFR | Ni(fcc111)/SiO2 Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=ni_np_lit] | 973.15 | 26.34% | 100.00% | 26.34% | — | 4154 | 900 | 0.33 |
+| PBR | Ni(fcc111)/SiO2 Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=ni_np_lit] | 973.15 | 23.03% | 100.00% | 23.03% | — | 4154 | 1272 | 0.50 |
+| Fluidized | Ni(fcc111)/SiO2 Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=ni_np_lit] | 973.15 | 18.79% | 100.00% | 18.79% | — | 3808 | 400 | 0.33 |
 
 Top candidate solids X = 98.50% on **FeZnNbIrSc-hcp(111) High-Entropy Alloy (Miracle & Senkov 2017 / Yao et al., Science 2018 Multi-Principal-Element Surface) [id=0021a267d0b5a6e984a9]** (PBR @ 1300.0 K)
 
 ### Solids runs (single-pass)
 
-| Catalyst | Reactor | T (K) | Single-pass X | a (m⁻¹) | WHSV (h⁻¹) | ΔP (bar) |
-|----------|---------|-------|---------------|---------|------------|----------|
-| Supported Extended-Surface Transition Metal Catalyst (Bengaard et al., J. Catal. 2002; Alves et al., Appl. Catal. A 2021) [id=ni_np_lit] | PBR | 1300.0 | 97.09% | 4154 | 2783 | 0.91 |
-| Supported Extended-Surface Transition Metal Catalyst (Bengaard et al., J. Catal. 2002; Alves et al., Appl. Catal. A 2021) [id=ni_np_lit] | PFR | 1300.0 | 97.05% | 4154 | 900 | 0.40 |
-| Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba] | PBR | 1300.0 | 96.58% | 4154 | 2956 | 0.91 |
-| Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba] | PFR | 1300.0 | 94.01% | 4154 | 900 | 0.40 |
-| Supported Extended-Surface Transition Metal Catalyst (Bengaard et al., J. Catal. 2002; Alves et al., Appl. Catal. A 2021) [id=ni_np_lit] | PFR | 1100.0 | 72.54% | 4154 | 900 | 0.36 |
-| Supported Extended-Surface Transition Metal Catalyst (Bengaard et al., J. Catal. 2002; Alves et al., Appl. Catal. A 2021) [id=ni_np_lit] | PBR | 1100.0 | 60.18% | 4154 | 1696 | 0.84 |
-| Supported Extended-Surface Transition Metal Catalyst (Bengaard et al., J. Catal. 2002; Alves et al., Appl. Catal. A 2021) [id=ni_np_lit] | Fluidized | 1300.0 | 48.45% | 3808 | 400 | 0.40 |
-| Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba] | PFR | 1100.0 | 44.65% | 4154 | 900 | 0.36 |
-| Supported Extended-Surface Transition Metal Catalyst (Bengaard et al., J. Catal. 2002; Alves et al., Appl. Catal. A 2021) [id=ni_np_lit] | Fluidized | 1100.0 | 43.84% | 3808 | 400 | 0.36 |
-| Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba] | Fluidized | 1300.0 | 41.27% | 3808 | 400 | 0.40 |
-| Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba] | PBR | 1100.0 | 40.05% | 4154 | 1572 | 0.73 |
-| Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba] | Fluidized | 1100.0 | 27.35% | 3808 | 400 | 0.36 |
-| Supported Extended-Surface Transition Metal Catalyst (Bengaard et al., J. Catal. 2002; Alves et al., Appl. Catal. A 2021) [id=ni_np_lit] | PFR | 973.15 | 26.34% | 4154 | 900 | 0.33 |
-| Supported Extended-Surface Transition Metal Catalyst (Bengaard et al., J. Catal. 2002; Alves et al., Appl. Catal. A 2021) [id=ni_np_lit] | PBR | 973.15 | 23.03% | 4154 | 1272 | 0.50 |
-| Supported Extended-Surface Transition Metal Catalyst (Bengaard et al., J. Catal. 2002; Alves et al., Appl. Catal. A 2021) [id=ni_np_lit] | Fluidized | 973.15 | 18.79% | 3808 | 400 | 0.33 |
-| Supported Extended-Surface Transition Metal Catalyst (Bengaard et al., J. Catal. 2002; Alves et al., Appl. Catal. A 2021) [id=ni_np_lit] | PFR | 923.15 | 14.56% | 4154 | 900 | 0.32 |
-| Supported Extended-Surface Transition Metal Catalyst (Bengaard et al., J. Catal. 2002; Alves et al., Appl. Catal. A 2021) [id=ni_np_lit] | PBR | 923.15 | 13.04% | 4154 | 1185 | 0.44 |
-| Supported Extended-Surface Transition Metal Catalyst (Bengaard et al., J. Catal. 2002; Alves et al., Appl. Catal. A 2021) [id=ni_np_lit] | Fluidized | 923.15 | 10.70% | 3808 | 400 | 0.32 |
-| Supported Extended-Surface Transition Metal Catalyst (Bengaard et al., J. Catal. 2002; Alves et al., Appl. Catal. A 2021) [id=ni_np_lit] | PFR | 900.0 | 10.69% | 4154 | 900 | 0.32 |
-| Supported Extended-Surface Transition Metal Catalyst (Bengaard et al., J. Catal. 2002; Alves et al., Appl. Catal. A 2021) [id=ni_np_lit] | PBR | 900.0 | 9.66% | 4154 | 1155 | 0.42 |
+| Catalyst | Reactor | T (K) | Single-pass X | H₂ Selectivity | H₂ Yield | r_H₂ (mol/m³·s) | a (m⁻¹) | WHSV (h⁻¹) | ΔP (bar) |
+|----------|---------|-------|---------------|----------------|----------|-----------------|---------|------------|----------|
+| Ni(fcc111)/SiO2 Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=ni_np_lit] | PBR | 1300.0 | 97.09% | 99.87% | 96.97% | 5.34 | 4154 | 2783 | 0.91 |
+| Ni(fcc111)/SiO2 Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=ni_np_lit] | PFR | 1300.0 | 97.05% | 99.62% | 96.68% | 1.72 | 4154 | 900 | 0.40 |
+| Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba] | PBR | 1300.0 | 96.58% | 99.87% | 96.46% | 5.64 | 4154 | 2956 | 0.91 |
+| Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba] | PFR | 1300.0 | 94.01% | 99.54% | 93.57% | 1.67 | 4154 | 900 | 0.40 |
+| Ni(fcc111)/SiO2 Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=ni_np_lit] | PFR | 1100.0 | 72.54% | 100.00% | 72.54% | 1.53 | 4154 | 900 | 0.36 |
+| Ni(fcc111)/SiO2 Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=ni_np_lit] | PBR | 1100.0 | 60.18% | 100.00% | 60.18% | 2.39 | 4154 | 1696 | 0.84 |
+| Ni(fcc111)/SiO2 Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=ni_np_lit] | Fluidized | 1300.0 | 48.45% | 97.75% | 47.36% | 0.37 | 3808 | 400 | 0.40 |
+| Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba] | PFR | 1100.0 | 44.65% | 99.99% | 44.64% | 0.94 | 4154 | 900 | 0.36 |
+| Ni(fcc111)/SiO2 Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=ni_np_lit] | Fluidized | 1100.0 | 43.84% | 99.99% | 43.84% | 0.41 | 3808 | 400 | 0.36 |
+| Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba] | Fluidized | 1300.0 | 41.27% | 97.53% | 40.25% | 0.32 | 3808 | 400 | 0.40 |
+| Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba] | PBR | 1100.0 | 40.05% | 100.00% | 40.05% | 1.47 | 4154 | 1572 | 0.73 |
+| Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba] | Fluidized | 1100.0 | 27.35% | 99.97% | 27.35% | 0.26 | 3808 | 400 | 0.36 |
+| Ni(fcc111)/SiO2 Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=ni_np_lit] | PFR | 973.15 | 26.34% | 100.00% | 26.34% | 0.63 | 4154 | 900 | 0.33 |
+| Ni(fcc111)/SiO2 Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=ni_np_lit] | PBR | 973.15 | 23.03% | 100.00% | 23.03% | 0.77 | 4154 | 1272 | 0.50 |
+| Ni(fcc111)/SiO2 Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=ni_np_lit] | Fluidized | 973.15 | 18.79% | 100.00% | 18.79% | 0.20 | 3808 | 400 | 0.33 |
+| Ni(fcc111)/SiO2 Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=ni_np_lit] | PFR | 923.15 | 14.56% | 100.00% | 14.56% | 0.37 | 4154 | 900 | 0.32 |
+| Ni(fcc111)/SiO2 Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=ni_np_lit] | PBR | 923.15 | 13.04% | 100.00% | 13.04% | 0.43 | 4154 | 1185 | 0.44 |
+| Ni(fcc111)/SiO2 Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=ni_np_lit] | Fluidized | 923.15 | 10.70% | 100.00% | 10.70% | 0.12 | 3808 | 400 | 0.32 |
+| Ni(fcc111)/SiO2 Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=ni_np_lit] | PFR | 900.0 | 10.69% | 100.00% | 10.69% | 0.27 | 4154 | 900 | 0.32 |
+| Ni(fcc111)/SiO2 Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=ni_np_lit] | PBR | 900.0 | 9.66% | 100.00% | 9.66% | 0.32 | 4154 | 1155 | 0.42 |
 
 ### Liquid-Metal, NTEC, and Electrochemical Runs
 
-| Catalyst | Reactor | T (K) | CH₄ Conversion | H₂ Selectivity | Evidence Tier |
-|----------|---------|-------|----------------|----------------|---------------|
-| Bi73Ni27 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=99cbb4a430ec9289b09d] | MMBCR | 1300.0 | 73.83% | 58.78% | diagnostic_screening_template |
-| Bi73Ni27 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=f2f562d4c2602522a2e3] | MMBCR | 1300.0 | 67.88% | 60.80% | diagnostic_screening_template |
-| Bi73Ni27 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=99cbb4a430ec9289b09d] | MMBCR | 1100.0 | 51.16% | 67.30% | diagnostic_screening_template |
-| Bi73Ni27 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=f2f562d4c2602522a2e3] | MMBCR | 1100.0 | 44.51% | 70.28% | diagnostic_screening_template |
-| Bi89Ga11 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=0e7e12a7c4a5ff0d18a9] | MMBCR | 1300.0 | 40.58% | 72.17% | diagnostic_screening_template |
-| Bi73Ni27 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=99cbb4a430ec9289b09d] | MMBCR | 973.15 | 31.12% | 77.18% | diagnostic_screening_template |
-| Bi73Ni27 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=f2f562d4c2602522a2e3] | MMBCR | 973.15 | 25.69% | 80.38% | diagnostic_screening_template |
-| Bi73Ni27 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=99cbb4a430ec9289b09d] | MMBCR | 923.15 | 23.26% | 81.90% | diagnostic_screening_template |
-| Bi73Ni27 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=99cbb4a430ec9289b09d] | MMBCR | 900.0 | 20.04% | 84.01% | diagnostic_screening_template |
-| Bi89Ga11 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=0e7e12a7c4a5ff0d18a9] | MMBCR | 1100.0 | 20.01% | 84.03% | diagnostic_screening_template |
-| Bi73Ni27 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=f2f562d4c2602522a2e3] | MMBCR | 923.15 | 18.73% | 84.90% | diagnostic_screening_template |
-| Bi73Ni27 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=f2f562d4c2602522a2e3] | MMBCR | 900.0 | 15.93% | 86.86% | diagnostic_screening_template |
-| Bi83Ni17 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=87880819e7c1e902b8c0] | MMBCR | 1300.0 | 11.61% | 90.07% | diagnostic_screening_template |
-| Bi89Ga11 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=0e7e12a7c4a5ff0d18a9] | MMBCR | 973.15 | 8.97% | 92.14% | diagnostic_screening_template |
-| Bi89Ga11 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=0e7e12a7c4a5ff0d18a9] | MMBCR | 923.15 | 5.83% | 94.75% | diagnostic_screening_template |
-| Bi73Ni27 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=99cbb4a430ec9289b09d] | MMBCR | 773.15 | 5.62% | 94.93% | diagnostic_screening_template |
-| Bi89Ga11 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=0e7e12a7c4a5ff0d18a9] | MMBCR | 900.0 | 4.69% | 95.74% | diagnostic_screening_template |
-| Bi73Ni27 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=f2f562d4c2602522a2e3] | MMBCR | 773.15 | 4.13% | 96.23% | diagnostic_screening_template |
-| Bi83Ni17 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=87880819e7c1e902b8c0] | MMBCR | 1100.0 | 3.75% | 96.56% | diagnostic_screening_template |
-| Ga99.9Ti0.1 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=c4ab2249c156880efdbe] | MMBCR | 1300.0 | 3.35% | 96.92% | diagnostic_screening_template |
+| Catalyst | Reactor | T (K) | CH₄ Conversion | H₂ Selectivity | H₂ Yield | r_H₂ (mol/m³·s) | Evidence Tier |
+|----------|---------|-------|----------------|----------------|----------|-----------------|---------------|
+| Bi73Ni27 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=99cbb4a430ec9289b09d] | MMBCR | 1300.0 | 73.83% | 98.49% | 72.72% | 0.43 | diagnostic_screening_template |
+| Bi73Ni27 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=f2f562d4c2602522a2e3] | MMBCR | 1300.0 | 67.88% | 98.29% | 66.72% | 0.40 | diagnostic_screening_template |
+| Bi73Ni27 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=99cbb4a430ec9289b09d] | MMBCR | 1100.0 | 51.16% | 99.99% | 51.15% | 0.36 | diagnostic_screening_template |
+| Bi73Ni27 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=f2f562d4c2602522a2e3] | MMBCR | 1100.0 | 44.51% | 99.99% | 44.51% | 0.31 | diagnostic_screening_template |
+| Bi89Ga11 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=0e7e12a7c4a5ff0d18a9] | MMBCR | 1300.0 | 40.58% | 97.23% | 39.46% | 0.23 | diagnostic_screening_template |
+| Bi73Ni27 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=99cbb4a430ec9289b09d] | MMBCR | 973.15 | 31.12% | 100.00% | 31.12% | 0.25 | diagnostic_screening_template |
+| Bi73Ni27 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=f2f562d4c2602522a2e3] | MMBCR | 973.15 | 25.69% | 100.00% | 25.69% | 0.20 | diagnostic_screening_template |
+| Bi73Ni27 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=99cbb4a430ec9289b09d] | MMBCR | 923.15 | 23.26% | 100.00% | 23.26% | 0.19 | diagnostic_screening_template |
+| Bi73Ni27 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=99cbb4a430ec9289b09d] | MMBCR | 900.0 | 20.04% | 100.00% | 20.04% | 0.17 | diagnostic_screening_template |
+| Bi89Ga11 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=0e7e12a7c4a5ff0d18a9] | MMBCR | 1100.0 | 20.01% | 99.95% | 20.00% | 0.14 | diagnostic_screening_template |
+| Bi73Ni27 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=f2f562d4c2602522a2e3] | MMBCR | 923.15 | 18.73% | 100.00% | 18.73% | 0.16 | diagnostic_screening_template |
+| Bi73Ni27 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=f2f562d4c2602522a2e3] | MMBCR | 900.0 | 15.93% | 100.00% | 15.93% | 0.14 | diagnostic_screening_template |
+| Bi83Ni17 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=87880819e7c1e902b8c0] | MMBCR | 1300.0 | 11.61% | 96.23% | 11.17% | 0.07 | diagnostic_screening_template |
+| Bi89Ga11 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=0e7e12a7c4a5ff0d18a9] | MMBCR | 973.15 | 8.97% | 100.00% | 8.97% | 0.07 | diagnostic_screening_template |
+| Bi89Ga11 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=0e7e12a7c4a5ff0d18a9] | MMBCR | 923.15 | 5.83% | 100.00% | 5.83% | 0.05 | diagnostic_screening_template |
+| Bi73Ni27 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=99cbb4a430ec9289b09d] | MMBCR | 773.15 | 5.62% | 100.00% | 5.62% | 0.06 | diagnostic_screening_template |
+| Bi89Ga11 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=0e7e12a7c4a5ff0d18a9] | MMBCR | 900.0 | 4.69% | 100.00% | 4.69% | 0.04 | diagnostic_screening_template |
+| Bi73Ni27 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=f2f562d4c2602522a2e3] | MMBCR | 773.15 | 4.13% | 100.00% | 4.13% | 0.04 | diagnostic_screening_template |
+| Bi83Ni17 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=87880819e7c1e902b8c0] | MMBCR | 1100.0 | 3.75% | 99.74% | 3.74% | 0.03 | diagnostic_screening_template |
+| Ga99.9Ti0.1 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=c4ab2249c156880efdbe] | MMBCR | 1300.0 | 3.35% | 95.94% | 3.21% | 0.02 | diagnostic_screening_template |
 
 Excluded 324 non-run reactor files (sweeps, mocks, not_applicable, validation_required, failed) from performance claims.
 
@@ -305,13 +305,25 @@ Excluded 324 non-run reactor files (sweeps, mocks, not_applicable, validation_re
 
 | Pathway | Reactor | Literature Champion Catalyst | T (K) | Uncalibrated X | Calibrated X | Ω | ΔP (bar) | Base LCOH ($/kg) | Optimistic LCOH ($/kg) | Kinetics Status |
 |---------|---------|------------------------------|-------|----------------|--------------|---|----------|------------------|------------------------|-----------------|
-| `thermocatalytic` | PBR | Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba] | 1300.0 | 96.58% | 54.87% | 0.993 | 0.913 | $1.188 | $0.198 | `dft_neb_complete` |
-| `thermocatalytic_pbr` | PBR | Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba] | 1300.0 | 96.58% | 54.87% | 0.993 | 0.913 | $1.188 | $0.198 | `dft_neb_complete` |
-| `thermocatalytic_pfr` | PFR | Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba] | 1300.0 | 94.01% | 46.32% | — | 0.399 | $1.265 | $0.240 | `dft_neb_complete` |
-| `thermocatalytic_fluidized` | Fluidized | Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba] | 1300.0 | 41.27% | 11.10% | — | 0.399 | $2.845 | $1.095 | `dft_neb_complete` |
-| `mmbcr` | MMBCR | Bi73Ni27 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=99cbb4a430ec9289b09d] | 1300.0 | 73.83% | 40.37% | — | — | $1.339 | $0.279 | `dft_neb_complete` |
+| `thermocatalytic` | PBR | Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba] | 1300.0 | 96.58% | 54.87% | 0.993 | 0.913 | $1.190 | $0.200 | `dft_neb_complete` |
+| `thermocatalytic_pbr` | PBR | Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba] | 1300.0 | 96.58% | 54.87% | 0.993 | 0.913 | $1.190 | $0.200 | `dft_neb_complete` |
+| `thermocatalytic_pfr` | PFR | Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba] | 1300.0 | 94.01% | 46.32% | — | 0.399 | $1.273 | $0.249 | `dft_neb_complete` |
+| `thermocatalytic_fluidized` | Fluidized | Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba] | 1300.0 | 41.27% | 11.10% | — | 0.399 | $2.884 | $1.143 | `dft_neb_complete` |
+| `mmbcr` | MMBCR | Bi73Ni27 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=99cbb4a430ec9289b09d] | 1300.0 | 73.83% | 40.37% | — | — | $1.362 | $0.308 | `dft_neb_complete` |
 | `ntec` | NTEC | Ga99.9Ti0.1 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=c4ab2249c156880efdbe] | 473.1 | 1.34% | 0.36% | — | — | $52.902 | $31.769 | `dft_neb_complete` |
 | `electrochemical` | Electrochemical | Ga99.9Ti0.1 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=c4ab2249c156880efdbe] | 823.1 | 0.48% | 0.14% | — | — | $321.607 | $190.625 | `dft_neb_complete` |
+
+#### 7-Pathway H₂/C₂ Selectivity, Yield, & Volumetric / Site-Normalized Production Rates
+
+| Pathway | Reactor | H₂ Selectivity | Solid C Selectivity | C₂ Byproduct Selectivity | Calibrated H₂ Yield | Uncal. r_H₂ (mol/m³·s) | Cal. r_CH₄ (mol/m³·s) | Cal. r_H₂ (mol/m³·s) | Cal. r_H₂ (kg/m³·h) | Cal. TOF_H₂ (s⁻¹) |
+|---------|---------|----------------|---------------------|--------------------------|---------------------|------------------------|-----------------------|----------------------|---------------------|-------------------|
+| `thermocatalytic` | PBR | 99.87% | 99.75% | 0.25% | 54.80% | 5.644 | 1.605 | 3.206 | 23.267 | 30.8734 |
+| `thermocatalytic_pbr` | PBR | 99.87% | 99.75% | 0.25% | 54.80% | 5.644 | 1.605 | 3.206 | 23.267 | 30.8734 |
+| `thermocatalytic_pfr` | PFR | 99.54% | 99.10% | 0.90% | 46.11% | 1.667 | 0.412 | 0.821 | 5.960 | 7.9079 |
+| `thermocatalytic_fluidized` | Fluidized | 97.53% | 95.18% | 4.82% | 10.83% | 0.319 | 0.044 | 0.086 | 0.622 | 0.9003 |
+| `mmbcr` | MMBCR | 98.49% | 97.13% | 2.87% | 39.76% | 0.432 | 0.120 | 0.236 | 1.713 | 35.7290 |
+| `ntec` | NTEC | 100.00% | 100.00% | 0.00% | 0.36% | 0.210 | 0.028 | 0.056 | 0.409 | 0.6264 |
+| `electrochemical` | Electrochemical | 100.00% | 100.00% | 0.00% | 0.14% | 0.140 | 0.006 | 0.013 | 0.091 | 0.1400 |
 
 #### Supported-Ni(111)/SiO₂ Filamentous-Carbon Reference Closure
 
@@ -329,11 +341,11 @@ Excluded 324 non-run reactor files (sweeps, mocks, not_applicable, validation_re
 
 | Pathway | Calibrated Base H₂ ($/kg) | Calibrated Optimistic H₂ ($/kg) | Coupled Base PEMFC Fuel Cost ($/kWh_e) | Coupled Optimistic PEMFC Fuel Cost ($/kWh_e) |
 |---------|---------------------------|---------------------------------|----------------------------------------|----------------------------------------------|
-| `thermocatalytic_pfr` | $1.265 | $0.240 | $0.0902 | $0.0171 |
-| `thermocatalytic_pbr` | $1.188 | $0.198 | $0.0847 | $0.0141 |
-| `thermocatalytic_fluidized` | $2.845 | $1.095 | $0.2028 | $0.0780 |
-| `thermocatalytic` | $1.188 | $0.198 | $0.0847 | $0.0141 |
-| `mmbcr` | $1.339 | $0.279 | $0.0954 | $0.0199 |
+| `thermocatalytic_pfr` | $1.273 | $0.249 | $0.0907 | $0.0177 |
+| `thermocatalytic_pbr` | $1.190 | $0.200 | $0.0848 | $0.0143 |
+| `thermocatalytic_fluidized` | $2.884 | $1.143 | $0.2055 | $0.0815 |
+| `thermocatalytic` | $1.190 | $0.200 | $0.0848 | $0.0143 |
+| `mmbcr` | $1.362 | $0.308 | $0.0971 | $0.0219 |
 | `ntec` | $52.902 | $31.769 | $3.7701 | $2.2641 |
 | `electrochemical` | $321.607 | $190.625 | $22.9197 | $13.5851 |
 

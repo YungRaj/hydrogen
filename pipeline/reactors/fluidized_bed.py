@@ -26,6 +26,7 @@ from pipeline.reactors.reactor_core import (
     ch4_extent,
     clamp_gas_to_equilibrium,
     common_reactor_result_fields,
+    compute_h2_c2_selectivity_and_rates,
     geometric_sv_fluidized,
     kunii_levenspiel_bubble_exchange,
     load_gas_and_surface,
@@ -229,6 +230,19 @@ def simulate_fluidized_bed(
         f"exit_theta_C={float(exit_theta_c or 0.0):.3f}"
     )
 
+    h2_c2_metrics = compute_h2_c2_selectivity_and_rates(
+        gas,
+        ch4_initial=ch4_initial,
+        ar_initial=ar_initial,
+        final_conv=float(final_conv),
+        tau_s=tau_emulsion,
+        P_inlet_Pa=config.P_inlet_Pa,
+        T_inlet_K=config.T_inlet_K,
+        active_sv_1_m=sv_ratio * (1.0 - delta),
+        site_density_mol_cm2=float(config.site_density_mol_cm2),
+        bed_porosity_or_holdup=FLUIDIZED_EMULSION_VOIDAGE * (1.0 - delta) + delta,
+    )
+
     result = {
         'reactor_type': 'Fluidized',
         'catalyst_name': config.catalyst_name,
@@ -267,6 +281,7 @@ def simulate_fluidized_bed(
         'exit_x_H2': float(x_h2),
         'exit_T_K': float(gas.T),
         'exit_theta_C': exit_theta_c,
+        **h2_c2_metrics,
         'carbon_removed_coverage_proxy': float(carbon_removed),
         'regen_cycles_completed': regen_cycles,
         'per_cycle_CH4_conversion': per_cycle,

@@ -38,6 +38,7 @@ from pipeline.reactors.carbon_accounting import (
     apply_continuous_carbon_removal,
     ch4_extent,
     clamp_gas_to_equilibrium,
+    compute_h2_c2_selectivity_and_rates as compute_h2_c2_selectivity_and_rates,
     compute_off_site_carbon_metrics,
     h2_atom_balance_metric,
     load_gas_and_surface,

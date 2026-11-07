@@ -120,6 +120,13 @@ class PathwayLeaderboardRow(TypedDict, total=False):
     thiele_modulus: float | None
     ergun_delta_p_bar: float | None
     H2_selectivity: float
+    H2_yield: float | None
+    solid_C_selectivity: float | None
+    C2_carbon_selectivity: float | None
+    ch4_conversion_rate_mol_m3_s: float | None
+    h2_production_rate_mol_m3_s: float | None
+    h2_production_rate_kg_m3_h: float | None
+    h2_turnover_frequency_1_s: float | None
     reactor_evidence_tier: str
     kinetics_status: str
     tea_base_h2_usd_kg: float | None
@@ -159,6 +166,13 @@ class DFTCalibratedPathwayRow(TypedDict, total=False):
     dft_calibrated_thiele_modulus: float | None
     ergun_delta_p_bar: float | None
     H2_selectivity: float
+    H2_yield: float | None
+    solid_C_selectivity: float | None
+    C2_carbon_selectivity: float | None
+    dft_calibrated_ch4_conversion_rate_mol_m3_s: float | None
+    dft_calibrated_h2_production_rate_mol_m3_s: float | None
+    dft_calibrated_h2_production_rate_kg_m3_h: float | None
+    dft_calibrated_h2_turnover_frequency_1_s: float | None
     kinetics_status: str
     dft_calibrated_tea_base_h2_usd_kg: float | None
     dft_calibrated_tea_optimistic_h2_usd_kg: float | None

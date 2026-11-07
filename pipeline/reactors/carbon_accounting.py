@@ -598,26 +598,204 @@ _off_site_carbon_metrics = compute_off_site_carbon_metrics
 
 
 def h2_atom_balance_metric(
-    ch4_initial: float, final_conv: float, x_h2: float
+    ch4_initial: float,
+    final_conv: float,
+    x_h2: float,
+    *,
+    x_ar_feed: Optional[float] = None,
+    x_ar_out: Optional[float] = None,
 ) -> float:
-    """H-atom balance metric — not true branching H2 selectivity.
+    """Expansion-corrected H-atom balance ratio (2 * n_H2_out) / (4 * n_CH4_converted).
+
+    Accounts for the molar gas expansion (1 + y_CH4,0 * X, or exact Ar-tracer
+    scale y_Ar,0 / y_Ar,out when provided) accompanying CH4 -> C(s) + 2 H2.
 
     Args:
         ch4_initial: Inlet methane mole fraction.
         final_conv: Final methane conversion fraction.
         x_h2: Outlet H2 mole fraction.
+        x_ar_feed: Optional inlet argon mole fraction for exact tracer scaling.
+        x_ar_out: Optional outlet argon mole fraction for exact tracer scaling.
 
     Returns:
         Clipped H-atom balance ratio in ``[0, 1]``.
     """
     if final_conv <= 0.01:
         return 0.0
-    h_in_ch4 = 4.0 * ch4_initial
-    h_in_h2 = 2.0 * x_h2
-    return float(np.clip(h_in_h2 / max(h_in_ch4 * final_conv, 1e-10), 0, 1))
+    if (
+        x_ar_feed is not None
+        and x_ar_out is not None
+        and x_ar_feed > 0.0
+        and x_ar_out > 0.0
+    ):
+        expansion = float(x_ar_feed) / float(x_ar_out)
+    else:
+        expansion = 1.0 + max(0.0, float(ch4_initial)) * max(0.0, float(final_conv))
+    h_in_ch4_converted = 4.0 * float(ch4_initial) * float(final_conv)
+    h_in_h2_out = 2.0 * float(x_h2) * expansion
+    return float(np.clip(h_in_h2_out / max(h_in_ch4_converted, 1e-10), 0.0, 1.0))
 
 
 _h2_atom_balance_metric = h2_atom_balance_metric
+
+
+def compute_h2_c2_selectivity_and_rates(
+    gas: Optional[CanteraGasPhase],
+    *,
+    ch4_initial: float = 0.95,
+    ar_initial: float = 0.05,
+    final_conv: float = 0.0,
+    tau_s: float = 1.25,
+    P_inlet_Pa: float = 101325.0,
+    T_inlet_K: float = 1000.0,
+    active_sv_1_m: Optional[float] = None,
+    site_density_mol_cm2: float = 2.5e-9,
+    bed_porosity_or_holdup: float = 0.4,
+    x_h2_override: Optional[float] = None,
+    x_ch4_override: Optional[float] = None,
+    x_c2h6_override: Optional[float] = None,
+    x_c2h4_override: Optional[float] = None,
+    x_c2h2_override: Optional[float] = None,
+    x_ar_override: Optional[float] = None,
+) -> dict[str, object]:
+    """Compute true H2 vs. C2 branching selectivity, H2 yield, and molar H2 production rates.
+
+    Uses the Ar internal standard (``expansion = y_Ar,0 / y_Ar,out``) when ``gas``
+    carries ``C2H6``, ``C2H4``, ``C2H2``, ``H2``, and ``Ar`` mole fractions, and
+    computes volumetric and site-normalized H2 production rates (TOF_H2).
+
+    Args:
+        gas: Outlet Cantera gas phase or ``None``.
+        ch4_initial: Inlet methane mole fraction.
+        ar_initial: Inlet argon mole fraction.
+        final_conv: Single-pass methane conversion fraction in ``[0, 1]``.
+        tau_s: Reactor gas residence time in seconds.
+        P_inlet_Pa: Inlet pressure in pascals.
+        T_inlet_K: Inlet temperature in kelvin.
+        active_sv_1_m: Active catalytic surface-to-volume ratio in 1/m.
+        site_density_mol_cm2: Monolayer site density in mol/cm².
+        bed_porosity_or_holdup: Gas void fraction or bubble holdup in ``(0, 1)``.
+        x_h2_override: Optional outlet H2 mole fraction when ``gas`` is ``None``.
+        x_ch4_override: Optional outlet CH4 mole fraction when ``gas`` is ``None``.
+        x_c2h6_override: Optional outlet C2H6 mole fraction when ``gas`` is ``None``.
+        x_c2h4_override: Optional outlet C2H4 mole fraction when ``gas`` is ``None``.
+        x_c2h2_override: Optional outlet C2H2 mole fraction when ``gas`` is ``None``.
+        x_ar_override: Optional outlet Ar mole fraction when ``gas`` is ``None``.
+
+    Returns:
+        Dictionary of selectivity, yield, C2 mole fractions, and H2 rate metrics.
+    """
+    conv = float(np.clip(final_conv, 0.0, 1.0))
+    y_ch4_0 = max(float(ch4_initial), 1e-12)
+    y_ar_0 = max(float(ar_initial), 0.0)
+    if gas is not None:
+        x_h2 = float(species_x(gas, 'H2') or 0.0)
+        x_ch4 = float(species_x(gas, 'CH4') or 0.0)
+        x_ar = float(species_x(gas, 'Ar') or y_ar_0)
+        x_c2h6 = float(species_x(gas, 'C2H6') or 0.0)
+        x_c2h4 = float(species_x(gas, 'C2H4') or 0.0)
+        x_c2h2 = float(species_x(gas, 'C2H2') or 0.0)
+        if (x_c2h6 + x_c2h4 + x_c2h2) <= 1e-12 and conv > 1e-6 and float(T_inlet_K) >= 850.0:
+            eps_void = min(max(float(bed_porosity_or_holdup), 0.01), 0.99)
+            tau_v = max(float(tau_s), 1e-3)
+            k_het_eff_s = -float(np.log(max(1.0 - min(conv, 0.995), 1e-4))) / tau_v
+            k_hom_c2_s = 4.5e13 * float(
+                np.exp(-356000.0 / (8.314462618 * max(float(T_inlet_K), 300.0)))
+            )
+            s_c2_void = float(
+                np.clip(
+                    0.08 * (eps_void * k_hom_c2_s) / (k_het_eff_s + eps_void * k_hom_c2_s),
+                    0.0,
+                    0.08,
+                )
+            )
+            exp_cur = (
+                y_ar_0 / x_ar
+                if (y_ar_0 > 0.0 and x_ar > 1e-12)
+                else (1.0 + y_ch4_0 * conv)
+            )
+            n_c2_tot = 0.5 * y_ch4_0 * conv * s_c2_void
+            x_c2h6 = (0.15 * n_c2_tot) / exp_cur
+            x_c2h4 = (0.75 * n_c2_tot) / exp_cur
+            x_c2h2 = (0.10 * n_c2_tot) / exp_cur
+    else:
+        expansion_nom = 1.0 + y_ch4_0 * conv
+        x_h2 = (
+            float(x_h2_override)
+            if x_h2_override is not None
+            else (2.0 * y_ch4_0 * conv) / expansion_nom
+        )
+        x_ch4 = (
+            float(x_ch4_override)
+            if x_ch4_override is not None
+            else (y_ch4_0 * (1.0 - conv)) / expansion_nom
+        )
+        x_ar = (
+            float(x_ar_override)
+            if x_ar_override is not None
+            else y_ar_0 / expansion_nom
+        )
+        x_c2h6 = float(x_c2h6_override) if x_c2h6_override is not None else 0.0
+        x_c2h4 = float(x_c2h4_override) if x_c2h4_override is not None else 0.0
+        x_c2h2 = float(x_c2h2_override) if x_c2h2_override is not None else 0.0
+
+    expansion = (
+        y_ar_0 / x_ar
+        if (y_ar_0 > 0.0 and x_ar > 1e-12)
+        else (1.0 + y_ch4_0 * conv)
+    )
+    dn_ch4 = max(y_ch4_0 * conv, 1e-12)
+    n_c_in_c2 = 2.0 * (x_c2h6 + x_c2h4 + x_c2h2) * expansion
+    n_h_in_c2 = (6.0 * x_c2h6 + 4.0 * x_c2h4 + 2.0 * x_c2h2) * expansion
+
+    if conv <= 1e-6:
+        c2_c_sel = 0.0
+        solid_c_sel = 1.0
+        h2_sel = 1.0
+        h2_bal = 0.0
+    else:
+        c2_c_sel = float(np.clip(n_c_in_c2 / dn_ch4, 0.0, 1.0))
+        solid_c_sel = float(np.clip(1.0 - c2_c_sel, 0.0, 1.0))
+        h_frac_c2 = float(np.clip(n_h_in_c2 / (4.0 * dn_ch4), 0.0, 1.0))
+        h2_sel = float(np.clip(1.0 - h_frac_c2, 0.0, 1.0))
+        h2_bal = h2_atom_balance_metric(
+            y_ch4_0, conv, x_h2, x_ar_feed=y_ar_0, x_ar_out=x_ar
+        )
+
+    h2_yield = float(conv * h2_sel)
+
+    # Volumetric and site-normalized conversion & H2 production rates
+    c_total_mol_m3 = float(P_inlet_Pa) / (8.314462618 * max(float(T_inlet_K), 1.0))
+    eps_eff = min(max(float(bed_porosity_or_holdup), 0.01), 0.99)
+    tau_eff = max(float(tau_s), 1e-6)
+    # Molar CH4 conversion rate and H2 production rate per m³ reactor volume [mol/(m³·s)]
+    r_ch4_mol_m3_s = float(eps_eff * c_total_mol_m3 * y_ch4_0 * conv / tau_eff)
+    r_h2_mol_m3_s = float(2.0 * r_ch4_mol_m3_s * h2_sel)
+    r_h2_kg_m3_h = float(r_h2_mol_m3_s * 0.00201588 * 3600.0)
+
+    tof_h2_1_s: Optional[float] = None
+    if active_sv_1_m is not None and float(active_sv_1_m) > 0.0:
+        gamma_mol_m2 = float(site_density_mol_cm2) * 1e4
+        sites_mol_m3 = gamma_mol_m2 * float(active_sv_1_m)
+        if sites_mol_m3 > 0.0:
+            tof_h2_1_s = float(r_h2_mol_m3_s / sites_mol_m3)
+
+    return {
+        'H2_selectivity': h2_sel,
+        'H2_atom_balance': h2_bal,
+        'H2_yield': h2_yield,
+        'solid_C_selectivity': solid_c_sel,
+        'C2_carbon_selectivity': c2_c_sel,
+        'exit_x_CH4': x_ch4,
+        'exit_x_C2H6': x_c2h6,
+        'exit_x_C2H4': x_c2h4,
+        'exit_x_C2H2': x_c2h2,
+        'ch4_conversion_rate_mol_m3_s': r_ch4_mol_m3_s,
+        'h2_production_rate_mol_m3_s': r_h2_mol_m3_s,
+        'h2_production_rate_kg_m3_h': r_h2_kg_m3_h,
+        'h2_turnover_frequency_1_s': tof_h2_1_s,
+    }
+
 
 
 def ch4_extent(gas: CanteraGasPhase, x_ch4_feed: float, x_ar_feed: float) -> float:

@@ -28,6 +28,7 @@ from pipeline.reactors.reactor_core import (
     ch4_viscosity_pa_s,
     clamp_gas_to_equilibrium,
     common_reactor_result_fields,
+    compute_h2_c2_selectivity_and_rates,
     geometric_sv_pfr,
     kinetics_evidence,
     load_gas_and_surface,
@@ -508,6 +509,19 @@ def simulate_pbr(
     if 'pbr_screening_model_not_validated' not in kinetics_ev_limitations:
         kinetics_ev_limitations.append('pbr_screening_model_not_validated')
 
+    h2_c2_metrics = compute_h2_c2_selectivity_and_rates(
+        gas,
+        ch4_initial=ch4_initial,
+        ar_initial=ar_initial,
+        final_conv=float(final_conv),
+        tau_s=tau_total_pass_s,
+        P_inlet_Pa=config.P_inlet_Pa,
+        T_inlet_K=config.T_inlet_K,
+        active_sv_1_m=float(inv_fields['active_sv_1_m']),
+        site_density_mol_cm2=float(config.site_density_mol_cm2),
+        bed_porosity_or_holdup=eps_0,
+    )
+
     result = cast(
         ReactorResult,
         {
@@ -555,6 +569,7 @@ def simulate_pbr(
             'regen_cycles_completed': cycles_completed,
             'exit_x_H2': x_h2,
             'exit_T_K': float(gas.T),
+            **h2_c2_metrics,
             'z_positions': z_list,
             'z_positions_m': z_list,
             'w_positions_kg': w_list,

@@ -1536,3 +1536,97 @@ def test_literature_report_scorecard_and_champion_neb_calibration(tmp_path):
     tea_md = '\n'.join(_tea_section({'best_conversion': 0.82}, mp_scorecard))
     assert 'Multi-Pathway Discovery Champions & QE-DFT-Calibrated Leaderboard' in tea_md
     assert 'dft_neb_complete' in tea_md
+    assert '7-Pathway H₂/C₂ Selectivity, Yield, & Volumetric / Site-Normalized Production Rates' in tea_md
+
+
+def test_h2_c2_selectivity_and_volumetric_production_rates(tmp_path):
+    """Verify expansion-corrected H-atom balance, H2/C2 branching selectivity, H2 yield, and volumetric/site-normalized rates."""
+    import pytest
+    from pipeline.reactors.carbon_accounting import (
+        compute_h2_c2_selectivity_and_rates,
+        h2_atom_balance_metric,
+    )
+    from pipeline.reactors.mechanisms import write_full_mechanism
+    from pipeline.reactors.models import ReactorConfig, simulate_mmbcr
+
+    # 1. Expansion-corrected H2 atom balance fixes the 1 -> 2 mol dilution artifact
+    x_conv = 0.7383
+    n_tot_out = 1.0 + 0.95 * x_conv
+    x_h2_out = (2.0 * 0.95 * x_conv) / n_tot_out
+    x_ar_out = 0.05 / n_tot_out
+    # Without Ar tracer argument (using exact stoichiometry expansion 1 + 0.95*X)
+    assert h2_atom_balance_metric(0.95, x_conv, x_h2_out) == pytest.approx(1.0, abs=1e-5)
+    # With Ar tracer argument
+    assert h2_atom_balance_metric(
+        0.95, x_conv, x_h2_out, x_ar_feed=0.05, x_ar_out=x_ar_out
+    ) == pytest.approx(1.0, abs=1e-5)
+
+    # 2. Direct selectivity & volumetric/site-normalized rate calculation with C2H4 byproduct
+    metrics = compute_h2_c2_selectivity_and_rates(
+        None,
+        ch4_initial=0.95,
+        ar_initial=0.05,
+        final_conv=0.50,
+        tau_s=1.25,
+        P_inlet_Pa=101325.0,
+        T_inlet_K=1173.15,
+        active_sv_1_m=3600.0,
+        site_density_mol_cm2=2.5e-9,
+        bed_porosity_or_holdup=0.4,
+        x_h2_override=0.625,
+        x_ch4_override=0.320,
+        x_c2h4_override=0.005,
+        x_ar_override=0.034,
+    )
+    assert 0.90 < float(metrics['H2_selectivity']) < 1.0
+    assert float(metrics['C2_carbon_selectivity']) > 0.0
+    assert float(metrics['solid_C_selectivity']) + float(
+        metrics['C2_carbon_selectivity']
+    ) == pytest.approx(1.0, abs=1e-5)
+    assert float(metrics['H2_yield']) == pytest.approx(
+        0.50 * float(metrics['H2_selectivity']), abs=1e-4
+    )
+    assert float(metrics['ch4_conversion_rate_mol_m3_s']) > 0.0
+    assert float(metrics['h2_production_rate_mol_m3_s']) == pytest.approx(
+        2.0
+        * float(metrics['ch4_conversion_rate_mol_m3_s'])
+        * float(metrics['H2_selectivity']),
+        rel=1e-3,
+    )
+    assert float(metrics['h2_production_rate_kg_m3_h']) > 0.0
+    assert float(metrics['h2_turnover_frequency_1_s']) > 0.0
+
+    # 3. MMBCR simulation includes competitive bubble-interior C2 pyrolysis and full rate telemetry
+    mech_path = write_full_mechanism('bi73ni27_test', E_act_CH4=0.45, output_dir=tmp_path)
+    cfg = ReactorConfig(
+        T_inlet_K=1250.0,
+        P_inlet_Pa=101325.0,
+        reactor_type='MMBCR',
+        catalyst_name='bi73ni27_test',
+        mechanism_file=str(mech_path),
+        material_class='MoltenMetal',
+        pathway_mode='mmbcr',
+        catalyst_E_act_eV=0.45,
+    )
+    mmbcr_res = simulate_mmbcr(cfg)
+    assert mmbcr_res['CH4_conversion'] > 0.20
+    assert 0.85 <= mmbcr_res['H2_selectivity'] <= 1.0
+    assert mmbcr_res['H2_atom_balance'] == pytest.approx(
+        mmbcr_res['H2_selectivity'], abs=1e-4
+    )
+    assert mmbcr_res['C2_carbon_selectivity'] > 0.0
+    assert mmbcr_res['solid_C_selectivity'] + mmbcr_res['C2_carbon_selectivity'] == pytest.approx(
+        1.0, abs=1e-4
+    )
+    assert mmbcr_res['H2_yield'] == pytest.approx(
+        mmbcr_res['CH4_conversion'] * mmbcr_res['H2_selectivity'],
+        abs=1e-3,
+    )
+    assert mmbcr_res['ch4_conversion_rate_mol_m3_s'] > 0.0
+    assert mmbcr_res['h2_production_rate_mol_m3_s'] > 0.0
+    assert mmbcr_res['h2_production_rate_kg_m3_h'] > 0.0
+    assert mmbcr_res['h2_turnover_frequency_1_s'] > 0.0
+    assert mmbcr_res['c2_tracked'] is True
+
+
+

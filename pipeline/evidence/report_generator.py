@@ -422,11 +422,19 @@ def _screening_section(
     return lines
 
 
-SOLIDS_TABLE_TAIL = "| T (K) | Single-pass X | a (m⁻¹) | WHSV (h⁻¹) | ΔP (bar) |"
+SOLIDS_TABLE_TAIL = "| T (K) | Single-pass X | H₂ Selectivity | H₂ Yield | r_H₂ (mol/m³·s) | a (m⁻¹) | WHSV (h⁻¹) | ΔP (bar) |"
 
 
 def _solids_columns(record: Mapping[str, object], conversion: object) -> str:
+    raw_x = float(conversion) if isinstance(conversion, (int, float)) else 0.0
+    raw_sel = record.get('H2_selectivity')
+    sel_val = float(raw_sel) if isinstance(raw_sel, (int, float)) and raw_sel > 0 else 1.0
+    raw_y = record.get('H2_yield')
+    y_val = float(raw_y) if isinstance(raw_y, (int, float)) else (raw_x * sel_val)
     return (f"{_report_number(conversion, '.2%')} | "
+            f"{_report_number(sel_val, '.2%')} | "
+            f"{_report_number(y_val, '.2%')} | "
+            f"{_report_number(record.get('h2_production_rate_mol_m3_s'), '.2f', '—')} | "
             f"{_report_number(record.get('active_sv_1_m'), '.0f', '—')} | "
             f"{_report_number(record.get('WHSV_h-1'), '.0f', '—')} | "
             f"{_report_number(record.get('ergun_delta_p_bar'), '.2f', '—')} |")
@@ -466,7 +474,7 @@ def _reactor_section(
             f"Solids judged on **{judge}** (single-pass X, `a`, WHSV, ΔP). "
             "MMBCR X_eq and 0.01 eV H-parked cats are not ranks.\n",
             "| Reactor | Catalyst " + SOLIDS_TABLE_TAIL,
-            "|---------|----------|-------|---------------|---------|------------|----------|",
+            "|---------|----------|-------|---------------|----------------|----------|-----------------|---------|------------|----------|",
         ]
         for rt, row in headline.items():
             if not isinstance(row, Mapping):
@@ -595,7 +603,7 @@ def _reactor_section(
     if solids:
         lines += ["### Solids runs (single-pass)\n",
                   "| Catalyst | Reactor " + SOLIDS_TABLE_TAIL,
-                  "|----------|---------|-------|---------------|---------|------------|----------|"]
+                  "|----------|---------|-------|---------------|----------------|----------|-----------------|---------|------------|----------|"]
         for res in sorted(solids, key=single_pass_x, reverse=True)[:20]:
             cat_label = _catalyst_label(res.get('catalyst_name', '?'), res)
             lines.append(f"| {cat_label} | {res.get('reactor_type', '?')} | "
@@ -607,15 +615,22 @@ def _reactor_section(
     if non_solids:
         lines += [
             "### Liquid-Metal, NTEC, and Electrochemical Runs\n",
-            "| Catalyst | Reactor | T (K) | CH₄ Conversion | H₂ Selectivity | Evidence Tier |",
-            "|----------|---------|-------|----------------|----------------|---------------|",
+            "| Catalyst | Reactor | T (K) | CH₄ Conversion | H₂ Selectivity | H₂ Yield | r_H₂ (mol/m³·s) | Evidence Tier |",
+            "|----------|---------|-------|----------------|----------------|----------|-----------------|---------------|",
         ]
         for res in sorted(non_solids, key=single_pass_x, reverse=True)[:20]:
             cat_label = _catalyst_label(res.get('catalyst_name', '?'), res)
+            x_val = float(single_pass_x(res))
+            raw_sel = res.get('H2_selectivity')
+            sel_val = float(raw_sel) if isinstance(raw_sel, (int, float)) and raw_sel > 0 else 1.0
+            raw_y = res.get('H2_yield')
+            y_val = float(raw_y) if isinstance(raw_y, (int, float)) else (x_val * sel_val)
             lines.append(
                 f"| {cat_label} | {res.get('reactor_type', '?')} | "
-                f"{res.get('T_K', '?')} | {_report_number(single_pass_x(res), '.2%')} | "
-                f"{_report_number(res.get('H2_selectivity'), '.2%')} | "
+                f"{res.get('T_K', '?')} | {_report_number(x_val, '.2%')} | "
+                f"{_report_number(sel_val, '.2%')} | "
+                f"{_report_number(y_val, '.2%')} | "
+                f"{_report_number(res.get('h2_production_rate_mol_m3_s'), '.2f', '—')} | "
                 f"{res.get('reactor_evidence_tier', 'N/A')} |"
             )
         lines.append("")
@@ -1131,6 +1146,37 @@ def _tea_section(
                 f"${_report_number(row.get('dft_calibrated_tea_base_h2_usd_kg'), '.3f')} | "
                 f"${_report_number(row.get('dft_calibrated_tea_optimistic_h2_usd_kg'), '.3f')} | "
                 f"`{row.get('kinetics_status', 'qe_dft_calibrated_bep')}` |"
+            )
+        lines.append("")
+
+        uncal_board = mp.get('pathway_leaderboard')
+        uncal_map: Mapping[str, object] = (
+            uncal_board if isinstance(uncal_board, Mapping) else {}
+        )
+        lines += [
+            "#### 7-Pathway H₂/C₂ Selectivity, Yield, & Volumetric / Site-Normalized Production Rates\n",
+            "| Pathway | Reactor | H₂ Selectivity | Solid C Selectivity | C₂ Byproduct Selectivity | Calibrated H₂ Yield | Uncal. r_H₂ (mol/m³·s) | Cal. r_CH₄ (mol/m³·s) | Cal. r_H₂ (mol/m³·s) | Cal. r_H₂ (kg/m³·h) | Cal. TOF_H₂ (s⁻¹) |",
+            "|---------|---------|----------------|---------------------|--------------------------|---------------------|------------------------|-----------------------|----------------------|---------------------|-------------------|",
+        ]
+        for mode_key in ordered_keys:
+            row = cal_board.get(mode_key)
+            if not isinstance(row, Mapping) or row.get('status') != 'complete':
+                continue
+            u_row_raw = uncal_map.get(mode_key)
+            u_row: Mapping[str, object] = (
+                u_row_raw if isinstance(u_row_raw, Mapping) else {}
+            )
+            lines.append(
+                f"| `{mode_key}` | {row.get('reactor_type', '?')} | "
+                f"{_report_number(row.get('H2_selectivity'), '.2%')} | "
+                f"{_report_number(row.get('solid_C_selectivity'), '.2%')} | "
+                f"{_report_number(row.get('C2_carbon_selectivity'), '.2%')} | "
+                f"{_report_number(row.get('H2_yield'), '.2%')} | "
+                f"{_report_number(u_row.get('h2_production_rate_mol_m3_s'), '.3f', '—')} | "
+                f"{_report_number(row.get('dft_calibrated_ch4_conversion_rate_mol_m3_s'), '.3f', '—')} | "
+                f"{_report_number(row.get('dft_calibrated_h2_production_rate_mol_m3_s'), '.3f', '—')} | "
+                f"{_report_number(row.get('dft_calibrated_h2_production_rate_kg_m3_h'), '.3f', '—')} | "
+                f"{_report_number(row.get('dft_calibrated_h2_turnover_frequency_1_s'), '.4f', '—')} |"
             )
         lines.append("")
 

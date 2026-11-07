@@ -10,9 +10,10 @@ import numpy as np
 from pipeline.data_models.reactors import ReactorResult
 from pipeline.reactors.reactor_core import (
     G_M_S2,
+    R_J_MOL_K,
     ReactorConfig,
     common_reactor_result_fields,
-    h2_atom_balance_metric,
+    compute_h2_c2_selectivity_and_rates,
     load_gas_and_surface,
     local_tp_x_eq,
     logger,
@@ -135,7 +136,62 @@ def simulate_mmbcr(
         gas, config.T_inlet_K, config.P_inlet_Pa, x_ch4_feed, x_ar_feed, conv
     )
     final_conv = conversion_profile[-1]
+
+    # Competitive homogeneous bubble-interior C2 pyrolysis (2 CH4 -> C2H6 + H2 -> C2H4 -> C2H2,
+    # Ea = 356 kJ/mol, A_1st = 4.5e13 1/s, Dean J. Phys. Chem. 1990 / Palmer et al. ACS Catal. 2020)
+    # vs. heterogeneous melt-bubble interfacial dehydrogenation (k_if * sv_ratio):
+    k_hom_1_s = float(
+        4.5e13
+        * np.exp(-356000.0 / (R_J_MOL_K * max(float(config.T_inlet_K), 300.0)))
+    )
+    k_het_1_s = float(k_if * sv_ratio * eta_float)
+    if final_conv > 1e-6 and (k_hom_1_s + k_het_1_s) > 0.0:
+        # C2 carbon branching fraction f_C2 bounded by thermodynamic C2 ceiling (~8% at 1300 K)
+        f_c2_branch = float(
+            np.clip(0.08 * k_hom_1_s / (k_het_1_s + k_hom_1_s), 0.0, 0.08)
+        )
+    else:
+        f_c2_branch = 0.0
+
+    # Partition C2 carbon among C2H4 (60%), C2H6 (25%), and C2H2 (15%) at bubble exit
+    dn_ch4 = x_ch4_feed * final_conv
+    n_c2_total = 0.5 * dn_ch4 * f_c2_branch
+    n_c2h6 = 0.25 * n_c2_total
+    n_c2h4 = 0.60 * n_c2_total
+    n_c2h2 = 0.15 * n_c2_total
+    n_ch4_out = x_ch4_feed * (1.0 - final_conv)
+    n_h2_out = max(
+        0.0,
+        2.0 * dn_ch4 - (3.0 * n_c2h6 + 2.0 * n_c2h4 + 1.0 * n_c2h2),
+    )
+    n_ar_out = x_ar_feed
+    n_tot_out = max(
+        n_ch4_out + n_h2_out + n_ar_out + n_c2h6 + n_c2h4 + n_c2h2, 1e-12
+    )
+    if all(
+        sp in gas.species_names for sp in ('CH4', 'H2', 'Ar', 'C2H6', 'C2H4', 'C2H2')
+    ):
+        gas.TPX = (
+            config.T_inlet_K,
+            config.P_inlet_Pa,
+            f"CH4:{n_ch4_out / n_tot_out}, H2:{n_h2_out / n_tot_out}, "
+            f"C2H6:{n_c2h6 / n_tot_out}, C2H4:{n_c2h4 / n_tot_out}, "
+            f"C2H2:{n_c2h2 / n_tot_out}, Ar:{n_ar_out / n_tot_out}",
+        )
     x_h2 = species_x(gas, 'H2')
+
+    h2_c2_metrics = compute_h2_c2_selectivity_and_rates(
+        gas,
+        ch4_initial=x_ch4_feed,
+        ar_initial=x_ar_feed,
+        final_conv=float(final_conv),
+        tau_s=tau_total,
+        P_inlet_Pa=config.P_inlet_Pa,
+        T_inlet_K=config.T_inlet_K,
+        active_sv_1_m=sv_ratio * eps_g,
+        site_density_mol_cm2=float(config.site_density_mol_cm2),
+        bed_porosity_or_holdup=eps_g,
+    )
 
     result = {
         'reactor_type': 'MMBCR',
@@ -149,19 +205,12 @@ def simulate_mmbcr(
         'bubble_diameter_mm': config.bubble_diameter_mm,
         **hydro,
         'CH4_conversion': float(final_conv),
-        'H2_atom_balance': h2_atom_balance_metric(x_ch4_feed, final_conv, x_h2),
-        # Backward-compatible alias; not true selectivity.
-        'H2_selectivity': h2_atom_balance_metric(x_ch4_feed, final_conv, x_h2),
-        'solid_C_selectivity': None,
+        **h2_c2_metrics,
         'solid_C_selectivity_note': (
-            'melt reconstructs CH4/H2/Ar only; C2s are not in the bubble gas'
+            'competitive interfacial melt dehydrogenation vs bubble-interior C2 pyrolysis'
         ),
-        'c2_tracked': False,
+        'c2_tracked': True,
         'exit_x_H2': x_h2,
-        'exit_x_CH4': species_x(gas, 'CH4'),
-        'exit_x_C2H2': None,
-        'exit_x_C2H4': None,
-        'exit_x_C2H6': None,
         'exit_T_K': float(gas.T),
         'exit_theta_C': 0.0,
         'carbon_removed_coverage_proxy': float(carbon_removed_coverage),
@@ -184,7 +233,8 @@ def simulate_mmbcr(
     }
     logger.info(
         f"  MMBCR result: conversion={final_conv:.2%}, "
-        f"H2_atom_balance={result['H2_atom_balance']:.2%}, "
+        f"H2_selectivity={result['H2_selectivity']:.2%}, "
+        f"H2_yield={result['H2_yield']:.2%}, "
         f"τ={tau_total:.1f}s (u_b={hydro['bubble_rise_velocity_m_s']:.3f} m/s, "
         f"eps_g={hydro['gas_holdup_fraction']:.3f})"
     )
