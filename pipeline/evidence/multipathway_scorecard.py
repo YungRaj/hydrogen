@@ -13,9 +13,11 @@ from pipeline.data_models.evidence import (
     DFTCalibratedReactorMetrics,
     DiscoveryChampionRow,
     ExtractedSelectivityRateMetrics,
+    FeedstockFlexibilityRow,
     MultipathwayChampionScorecard,
     PathwayLeaderboardRow,
     PEMFCStackSummaryRow,
+    ReactorToPEMFCCouplingRow,
 )
 from pipeline.data_models.reactors import (
     ReactorResult,
@@ -520,12 +522,31 @@ def build_multipathway_champion_scorecard(
             )
             raw_fe = mp_out.get('field_rate_enhancement')
             if isinstance(raw_fe, (int, float)) and float(raw_fe) > 1.0:
-                stark_offset_ev = 0.5 * K_B_EV_K * t_eff * math.log(float(raw_fe))
+                stark_offset_ev = min(
+                    0.75 * effective_barrier_shift_ev,
+                    0.82 * K_B_EV_K * t_eff * math.log(float(raw_fe)),
+                )
                 effective_barrier_shift_ev = max(
-                    0.0, effective_barrier_shift_ev - stark_offset_ev
+                    0.04, effective_barrier_shift_ev - stark_offset_ev
                 )
         elif str(rec.get('reactor_type', '')) == 'Electrochemical':
             t_eff = max(t_eff, 1073.15)
+            mp_scr_ec = rec.get('multiphysics_screening')
+            mp_out_ec = (
+                mp_scr_ec.get('outputs', {})
+                if isinstance(mp_scr_ec, dict)
+                and isinstance(mp_scr_ec.get('outputs'), dict)
+                else {}
+            )
+            raw_eta_a = mp_out_ec.get('anode_overpotential_V')
+            if isinstance(raw_eta_a, (int, float)) and float(raw_eta_a) > 0.0:
+                bv_offset_ev = min(
+                    0.75 * effective_barrier_shift_ev,
+                    0.35 * float(raw_eta_a),
+                )
+                effective_barrier_shift_ev = max(
+                    0.06, effective_barrier_shift_ev - bv_offset_ev
+                )
         rate_scale = math.exp(-effective_barrier_shift_ev / (K_B_EV_K * t_eff))
         x_raw = min(max(float(single_pass_x(rec)), 0.0), 0.9999)
         da_raw = -math.log(max(1.0 - x_raw, 1e-6))
@@ -1398,6 +1419,207 @@ def build_multipathway_champion_scorecard(
     except Exception:
         pass
 
+    # 5. Integrated Reactor-to-PEMFC System Coupling & 18-Feedstock Flexibility Matrix
+    from pipeline.fuel_cell.stack import couple_reactor_to_pemfc_stack
+    from pipeline.reactors.feedstocks import (
+        HYDROCARBON_FEEDSTOCKS,
+        adapt_reactor_result_to_feedstock,
+    )
+
+    champ_cathode_id = str(
+        dft_calibrated_pemfc_stack_summary.get('champion_cathode')
+        or pemfc_stack_summary.get('champion_cathode')
+        or 'b5e764d896815bfcfca7'
+    )
+    raw_champ_eta = (
+        dft_calibrated_pemfc_stack_summary.get('orr_overpotential_gc_V')
+        if dft_calibrated_pemfc_stack_summary.get('orr_overpotential_gc_V') is not None
+        else pemfc_stack_summary.get('orr_overpotential_V')
+    )
+    champ_eta_v: float = (
+        float(raw_champ_eta)
+        if isinstance(raw_champ_eta, (int, float)) and float(raw_champ_eta) > 0.0
+        else 0.2583
+    )
+    raw_champ_tafel = dft_calibrated_pemfc_stack_summary.get('orr_tafel_slope_mV_dec')
+    champ_tafel_mv: float = (
+        float(raw_champ_tafel)
+        if isinstance(raw_champ_tafel, (int, float)) and float(raw_champ_tafel) > 0.0
+        else 78.0
+    )
+
+    reactor_to_pemfc_system_coupling: dict[str, ReactorToPEMFCCouplingRow] = {}
+    for mode_name, cal_entry in dft_calibrated_pathway_leaderboard.items():
+        if cal_entry.get('status') != 'complete':
+            continue
+        coupled_res = couple_reactor_to_pemfc_stack(
+            cast(dict[str, object], cal_entry),
+            cathode_catalyst=champ_cathode_id,
+            orr_overpotential_V=champ_eta_v,
+            orr_tafel_slope_mV_dec=champ_tafel_mv,
+            n_cells=stack_cells,
+            feedstock='CH4',
+        )
+        reactor_to_pemfc_system_coupling[mode_name] = {
+            'pathway': mode_name,
+            **coupled_res,
+        }
+
+    # Build 18-feedstock flexibility matrix using the calibrated PFR and MMBCR champions
+    pfr_champ_row = dft_calibrated_pathway_leaderboard.get(
+        'thermocatalytic_pfr'
+    ) or dft_calibrated_pathway_leaderboard.get('thermocatalytic', {})
+    mmbcr_champ_row = dft_calibrated_pathway_leaderboard.get('mmbcr', {})
+    pfr_x_ref: float = float(
+        pfr_champ_row.get('dft_calibrated_single_pass_CH4_conversion') or 0.5625
+    )
+    pfr_t_ref: float = float(pfr_champ_row.get('T_K') or 973.15)
+    mmbcr_x_ref: float = float(
+        mmbcr_champ_row.get('dft_calibrated_single_pass_CH4_conversion') or 0.9032
+    )
+    mmbcr_t_ref: float = float(mmbcr_champ_row.get('T_K') or 1273.15)
+
+    base_pfr_ref: ReactorResult = {
+        'status': 'complete',
+        'reactor_type': 'PFR',
+        'catalyst_name': str(
+            pfr_champ_row.get('champion_catalyst') or 'b6702ffe2074faa4fa50'
+        ),
+        'T_K': pfr_t_ref,
+        'P_Pa': 101325.0,
+        'residence_time_s': 1.25,
+        'bed_porosity': 0.40,
+        'catalyst_E_act_eV': 0.80,
+        'single_pass_CH4_conversion': pfr_x_ref,
+        'CH4_conversion': pfr_x_ref,
+        'H2_selectivity': float(pfr_champ_row.get('H2_selectivity') or 0.9963),
+        'solid_C_selectivity': float(
+            pfr_champ_row.get('solid_C_selectivity') or 0.9925
+        ),
+        'C2_carbon_selectivity': float(
+            pfr_champ_row.get('C2_carbon_selectivity') or 0.0075
+        ),
+        'h2_production_rate_kg_m3_h': float(
+            pfr_champ_row.get('dft_calibrated_h2_production_rate_kg_m3_h') or 61.9999
+        ),
+    }
+    base_mmbcr_ref: ReactorResult = {
+        'status': 'complete',
+        'reactor_type': 'MMBCR',
+        'catalyst_name': str(
+            mmbcr_champ_row.get('champion_catalyst') or '99cbb4a430ec9289b09d'
+        ),
+        'T_K': mmbcr_t_ref,
+        'P_Pa': 101325.0,
+        'residence_time_s': 2.0,
+        'gas_holdup_fraction': 0.24,
+        'catalyst_E_act_eV': 0.72,
+        'single_pass_CH4_conversion': mmbcr_x_ref,
+        'CH4_conversion': mmbcr_x_ref,
+        'H2_selectivity': float(mmbcr_champ_row.get('H2_selectivity') or 0.985),
+        'solid_C_selectivity': float(
+            mmbcr_champ_row.get('solid_C_selectivity') or 0.9699
+        ),
+        'C2_carbon_selectivity': float(
+            mmbcr_champ_row.get('C2_carbon_selectivity') or 0.0301
+        ),
+        'h2_production_rate_kg_m3_h': float(
+            mmbcr_champ_row.get('dft_calibrated_h2_production_rate_kg_m3_h') or 35.1494
+        ),
+    }
+
+    feedstock_flexibility_matrix: list[FeedstockFlexibilityRow] = []
+    for spec in HYDROCARBON_FEEDSTOCKS.values():
+        pfr_feed = adapt_reactor_result_to_feedstock(base_pfr_ref, spec)
+        mmbcr_feed = adapt_reactor_result_to_feedstock(base_mmbcr_ref, spec)
+
+        pfr_x_f = float(
+            pfr_feed.get('single_pass_feedstock_conversion')
+            or pfr_feed.get('single_pass_CH4_conversion')
+            or pfr_x_ref
+        )
+        pfr_h2_s = float(pfr_feed.get('H2_selectivity') or 1.0)
+        pfr_sc_s = float(pfr_feed.get('solid_C_selectivity') or 1.0)
+        pfr_tea = estimate_scenario_range(
+            max(pfr_x_f, 1e-4),
+            temperature_K=pfr_t_ref,
+            solid_c_selectivity=pfr_sc_s,
+            feedstock=spec.formula,
+        )
+
+        mmbcr_x_f = float(
+            mmbcr_feed.get('single_pass_feedstock_conversion')
+            or mmbcr_feed.get('single_pass_CH4_conversion')
+            or mmbcr_x_ref
+        )
+        mmbcr_h2_s = float(mmbcr_feed.get('H2_selectivity') or 1.0)
+        mmbcr_sc_s = float(mmbcr_feed.get('solid_C_selectivity') or 1.0)
+        mmbcr_tea = estimate_scenario_range(
+            max(mmbcr_x_f, 1e-4),
+            temperature_K=mmbcr_t_ref,
+            solid_c_selectivity=mmbcr_sc_s,
+            feedstock=spec.formula,
+        )
+
+        coupled_feed = couple_reactor_to_pemfc_stack(
+            cast(dict[str, object], mmbcr_feed),
+            cathode_catalyst=champ_cathode_id,
+            orr_overpotential_V=champ_eta_v,
+            orr_tafel_slope_mV_dec=champ_tafel_mv,
+            n_cells=stack_cells,
+            feedstock=spec.formula,
+        )
+        feedstock_flexibility_matrix.append(
+            {
+                'feedstock': spec.formula,
+                'feedstock_name': spec.name,
+                'category': spec.category,
+                'n_C': spec.n_C,
+                'n_H': spec.n_H,
+                'n_O': spec.n_O,
+                'h_to_c_ratio': round(spec.h_to_c_ratio, 3),
+                'nu_H2': round(spec.nu_H2, 2),
+                'nu_C': round(spec.nu_C, 2),
+                'nu_CO': round(spec.nu_CO, 2),
+                'kg_feed_per_kg_h2': round(spec.kg_feed_per_kg_h2, 3),
+                'kg_c_per_kg_h2': round(spec.kg_c_per_kg_h2, 3),
+                'dh_rxn_298_kJ_mol_h2': round(spec.dh_rxn_298_kJ_mol_h2, 2),
+                'bep_e_act_offset_eV': round(spec.bep_e_act_offset_eV, 3),
+                'pfr_conversion': round(pfr_x_f, 4),
+                'pfr_h2_selectivity': round(pfr_h2_s, 4),
+                'pfr_solid_c_selectivity': round(pfr_sc_s, 4),
+                'pfr_h2_yield': round(pfr_x_f * pfr_h2_s, 4),
+                'pfr_r_h2_kg_m3_h': round(
+                    float(pfr_feed.get('h2_production_rate_kg_m3_h') or 0.0), 3
+                ),
+                'pfr_lcoh_base_usd_kg': round(
+                    float(pfr_tea['estimates']['base']['h2_cost_usd_kg']), 3
+                ),
+                'pfr_lcoh_optimistic_usd_kg': round(
+                    float(pfr_tea['estimates']['optimistic']['h2_cost_usd_kg']), 3
+                ),
+                'mmbcr_conversion': round(mmbcr_x_f, 4),
+                'mmbcr_h2_selectivity': round(mmbcr_h2_s, 4),
+                'mmbcr_solid_c_selectivity': round(mmbcr_sc_s, 4),
+                'mmbcr_h2_yield': round(mmbcr_x_f * mmbcr_h2_s, 4),
+                'mmbcr_r_h2_kg_m3_h': round(
+                    float(mmbcr_feed.get('h2_production_rate_kg_m3_h') or 0.0), 3
+                ),
+                'mmbcr_lcoh_base_usd_kg': round(
+                    float(mmbcr_tea['estimates']['base']['h2_cost_usd_kg']), 3
+                ),
+                'mmbcr_lcoh_optimistic_usd_kg': round(
+                    float(mmbcr_tea['estimates']['optimistic']['h2_cost_usd_kg']), 3
+                ),
+                'post_psa_co_ppm': coupled_feed['post_psa_co_ppm'],
+                'post_psa_c2h4_ppm': coupled_feed['post_psa_c2h4_ppm'],
+                'pemfc_anode_hor_retention': coupled_feed[
+                    'anode_hor_activity_retention'
+                ],
+                'coupled_lcoe_base_usd_kwh_e': coupled_feed['lcoe_total_usd_kwh_e'],
+            }
+        )
+
     return {
         'discovery_champions': discovery_champions,
         'pathway_leaderboard': pathway_leaderboard,
@@ -1413,5 +1635,7 @@ def build_multipathway_champion_scorecard(
         'dft_calibrated_pemfc_stack_summary': dft_calibrated_pemfc_stack_summary,
         'coupled_turquoise_pemfc_tea': coupled_tea,
         'dft_calibrated_coupled_turquoise_pemfc_tea': dft_calibrated_coupled_tea,
+        'feedstock_flexibility_matrix': feedstock_flexibility_matrix,
+        'reactor_to_pemfc_system_coupling': reactor_to_pemfc_system_coupling,
         'evidence_level': 'screening_multipathway_scorecard',
     }

@@ -20,9 +20,16 @@ from typing import Any, Mapping, Optional
 import numpy as np
 
 from pipeline.reactors.mechanism_yaml import (
+    _EXTENDED_HYDROCARBON_SPECIES_YAML,
+    _EXTENDED_OXYGENATE_SPECIES_YAML,
     _GAS_SPECIES_YAML,
     _GRAPHITE_SPECIES_YAML,
     _carbon_removal_reactions_yaml,
+    _extended_gas_graphite_phases_yaml,
+    _extended_gas_reactions_yaml,
+    _extended_surface_phase_yaml,
+    _extended_surface_reactions_yaml,
+    _extended_surface_species_yaml,
     _gas_graphite_phases_yaml,
     _surface_phase_yaml,
     _surface_reactions_yaml,
@@ -717,6 +724,163 @@ reactions:
         f"(E_act={E_act_CH4:.3f} eV, "
         f"off_site_carbon={include_off_site}, "
         f"status={values['quantitative_status']})"
+    )
+    return filepath
+
+
+def write_feedstock_mechanism(
+    catalyst_name: str,
+    feedstock: str = 'CH4',
+    E_act_CH4: Optional[float] = None,
+    E_act_H_desorb: float = 0.8,
+    E_act_C_diffuse: float = 1.5,
+    site_density: float = MONOLAYER_SITE_DENSITY_MOL_CM2,
+    T_ref: float = 1000.0,
+    include_surface_sites: bool = True,
+    kinetics: Optional[CandidateKinetics] = None,
+    off_site_carbon: Optional[bool] = None,
+    carbon_regeneration_rate_1_s: Optional[float] = None,
+    output_dir: Optional[Path] = None,
+) -> Path:
+    """Write a feedstock-aware Cantera 3.x YAML mechanism (CH4 default or multi-carbon/biogas).
+
+    When ``feedstock`` resolves to ``'CH4'``, delegates directly to
+    ``write_full_mechanism`` so the canonical methane mechanism and its SHA-256
+    digest remain unchanged. For non-methane hydrocarbons (e.g., ``C2H6``,
+    ``C3H8``, ``associated_gas``) and oxygenated/biogenic feedstocks (e.g.,
+    ``biogas``, ``biomass_pyrolysis_gas``, ``woody_biomass``), includes C3
+    alkane/alkene NASA-7 species, optional CO/CO2/H2O + O_s/OH_s/CO_s surface
+    intermediates, and elementary C-C scission and Boudouard gasification steps.
+
+    Args:
+        catalyst_name: Name used for the surface phase and output file.
+        feedstock: Feedstock identifier or alias (default ``'CH4'``).
+        E_act_CH4: Reference C-H activation barrier in eV.
+        E_act_H_desorb: H2 associative desorption barrier in eV.
+        E_act_C_diffuse: Off-site carbon diffusion barrier in eV.
+        site_density: Monolayer site density in mol/cm^2.
+        T_ref: Reference phase temperature in kelvin.
+        include_surface_sites: Whether to include the catalytic surface phase.
+        kinetics: Optional typed candidate kinetics record.
+        off_site_carbon: Optional override for off-site C_gamma/C_delta channels.
+        carbon_regeneration_rate_1_s: Optional mechanical carbon regeneration rate in s^-1.
+        output_dir: Optional output directory for the written YAML and sidecar.
+
+    Returns:
+        Filesystem path of the written Cantera YAML mechanism file.
+    """
+    from pipeline.reactors.feedstocks import resolve_feedstock
+
+    spec = resolve_feedstock(feedstock)
+    if spec.formula == 'CH4':
+        return write_full_mechanism(
+            catalyst_name=catalyst_name,
+            E_act_CH4=E_act_CH4,
+            E_act_H_desorb=E_act_H_desorb,
+            E_act_C_diffuse=E_act_C_diffuse,
+            site_density=site_density,
+            T_ref=T_ref,
+            include_surface_sites=include_surface_sites,
+            kinetics=kinetics,
+            off_site_carbon=off_site_carbon,
+            carbon_regeneration_rate_1_s=carbon_regeneration_rate_1_s,
+            output_dir=output_dir,
+        )
+
+    out_dir = MECHANISMS_DIR if output_dir is None else Path(output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    if kinetics is None:
+        if E_act_CH4 is None:
+            raise ValueError('E_act_CH4 or kinetics is required')
+        kinetics = CandidateKinetics(
+            methane_activation_eV=float(E_act_CH4),
+            h2_desorption_eV=float(E_act_H_desorb),
+            carbon_transfer_eV=float(E_act_C_diffuse),
+            site_density_mol_cm2=float(site_density),
+            sources={
+                'methane_activation_eV': 'legacy_argument',
+                'h2_desorption_eV': 'legacy_argument',
+                'carbon_transfer_eV': 'legacy_argument',
+            },
+        )
+    allowed = off_site_carbon_allowed(kinetics.genome, kinetics.material_class)
+    if off_site_carbon is True and not allowed:
+        raise ValueError(
+            'off-site carbon is nanoparticle Ni/Fe/Co only '
+            '(SolidCatalyst / HEA / SAA host)'
+        )
+    include_off_site = include_surface_sites and (
+        allowed if off_site_carbon is None else bool(off_site_carbon) and allowed
+    )
+    values = kinetics.resolved()
+    site_dens = float(values['site_density_mol_cm2'])
+    if abs(site_dens - MONOLAYER_SITE_DENSITY_MOL_CM2) > 1e-15:
+        raise ValueError(
+            f'site_density={site_dens} mol/cm^2; Deutschmann (2000) monolayer gate locks Γ at '
+            f'{MONOLAYER_SITE_DENSITY_MOL_CM2} mol/cm^2'
+        )
+    rates = _surface_rate_parameters(values, site_dens)
+    h0 = _surface_enthalpies(values)
+    include_oxygen = bool(
+        spec.n_O > 0 or spec.category == 'biomass_biogenic'
+    )
+    if include_surface_sites:
+        phases = _extended_gas_graphite_phases_yaml(
+            T_ref, include_oxygen=include_oxygen
+        ) + '\n' + _extended_surface_phase_yaml(
+            catalyst_name,
+            site_dens,
+            include_off_site,
+            include_graphite_adjacent=(carbon_regeneration_rate_1_s is not None),
+            include_oxygen=include_oxygen,
+        )
+        surface_species = _extended_surface_species_yaml(
+            h0, include_off_site, include_oxygen=include_oxygen
+        )
+        surface_rxns = _extended_surface_reactions_yaml(
+            catalyst_name,
+            rates,
+            _carbon_removal_reactions_yaml(
+                rates, include_off_site, carbon_regeneration_rate_1_s
+            ),
+            include_oxygen=include_oxygen,
+        )
+    else:
+        phases = _extended_gas_graphite_phases_yaml(
+            T_ref, include_oxygen=include_oxygen
+        )
+        surface_species = ''
+        surface_rxns = ''
+
+    extra_gas_species = _EXTENDED_HYDROCARBON_SPECIES_YAML + (
+        _EXTENDED_OXYGENATE_SPECIES_YAML if include_oxygen else ''
+    )
+    gas_rxns = _extended_gas_reactions_yaml(include_oxygen=include_oxygen)
+    yaml_content = f"""\
+units: {{length: cm, time: s, quantity: mol, activation-energy: J/mol}}
+
+phases:
+{phases}
+species:
+{_GAS_SPECIES_YAML}
+{extra_gas_species}
+{_GRAPHITE_SPECIES_YAML}
+{surface_species}
+reactions:
+{gas_rxns}
+{surface_rxns}
+"""
+    filepath = out_dir / f"mechanism_{catalyst_name}_{spec.formula}.yaml"
+    with open(filepath, 'w', encoding='utf-8') as f:
+        f.write(yaml_content)
+    _write_kinetics_sidecar(
+        filepath,
+        catalyst_name,
+        values,
+        rates,
+        h0,
+        include_surface_sites,
+        include_off_site,
     )
     return filepath
 

@@ -270,7 +270,82 @@ class CoupledPathwayTEARow(TypedDict, total=False):
     dft_calibrated_pemfc_fuel_cost_optimistic_usd_kwh_e: float
 
 
-class MultipathwayChampionScorecard(TypedDict):
+class FeedstockFlexibilityRow(TypedDict):
+    """18-feedstock multi-hydrocarbon, polyolefin, and biomass performance & TEA row."""
+
+    feedstock: str
+    feedstock_name: str
+    category: str
+    n_C: int
+    n_H: int
+    n_O: int
+    h_to_c_ratio: float
+    nu_H2: float
+    nu_C: float
+    nu_CO: float
+    kg_feed_per_kg_h2: float
+    kg_c_per_kg_h2: float
+    dh_rxn_298_kJ_mol_h2: float
+    bep_e_act_offset_eV: float
+    pfr_conversion: float
+    pfr_h2_selectivity: float
+    pfr_solid_c_selectivity: float
+    pfr_h2_yield: float
+    pfr_r_h2_kg_m3_h: float
+    pfr_lcoh_base_usd_kg: float
+    pfr_lcoh_optimistic_usd_kg: float
+    mmbcr_conversion: float
+    mmbcr_h2_selectivity: float
+    mmbcr_solid_c_selectivity: float
+    mmbcr_h2_yield: float
+    mmbcr_r_h2_kg_m3_h: float
+    mmbcr_lcoh_base_usd_kg: float
+    mmbcr_lcoh_optimistic_usd_kg: float
+    post_psa_co_ppm: float
+    post_psa_c2h4_ppm: float
+    pemfc_anode_hor_retention: float
+    coupled_lcoe_base_usd_kwh_e: float
+
+
+class ReactorToPEMFCCouplingRow(TypedDict):
+    """Integrated reactor + PSA purification + PEMFC stack coupling row for one pathway."""
+
+    pathway: str
+    feedstock: str
+    reactor_type: str
+    catalyst_name: str
+    single_pass_conversion: float
+    h2_selectivity: float
+    h2_yield: float
+    psa_h2_recovery: float
+    post_psa_h2_purity: float
+    post_psa_co_ppm: float
+    post_psa_c2h4_ppm: float
+    anode_hor_activity_retention: float
+    cathode_catalyst: str
+    cell_peak_power_W_cm2: float
+    cell_rated_power_W_cm2: float | None
+    stack_cells: int
+    stack_net_power_kW: float
+    stack_system_efficiency: float
+    well_to_hydrogen_lhv_efficiency: float
+    well_to_power_lhv_efficiency: float
+    lcoh_base_usd_kg: float
+    lcoh_optimistic_usd_kg: float
+    lcoe_fuel_usd_kwh_e: float
+    lcoe_stack_capex_usd_kwh_e: float
+    lcoe_total_usd_kwh_e: float
+    lcoe_optimistic_total_usd_kwh_e: float
+
+
+class _MultipathwayScorecardOptional(TypedDict, total=False):
+    """Optional extended tables on MultipathwayChampionScorecard."""
+
+    feedstock_flexibility_matrix: list[FeedstockFlexibilityRow]
+    reactor_to_pemfc_system_coupling: dict[str, ReactorToPEMFCCouplingRow]
+
+
+class MultipathwayChampionScorecard(_MultipathwayScorecardOptional):
     """End-to-end 7-pathway discovery, reactor, DFT, PEMFC, and TEA champion scorecard."""
 
     discovery_champions: list[DiscoveryChampionRow]

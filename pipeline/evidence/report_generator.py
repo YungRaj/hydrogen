@@ -1335,6 +1335,56 @@ def _tea_section(
             )
         lines.append("")
 
+    sys_coupling = mp.get('reactor_to_pemfc_system_coupling')
+    if isinstance(sys_coupling, Mapping) and sys_coupling:
+        lines += [
+            "#### Integrated Reactor-PSA-PEMFC Well-to-Power Coupling & CO/C₂H₄ Impurity Tolerance\n",
+            "| Pathway | Reactor | Post-PSA H₂ Purity | CO Slip (ppm) | C₂H₄ Slip (ppm) | Anode HOR Retention | Stack Net Power (kW) | Well-to-H₂ η (LHV) | Well-to-Power η (LHV) | Total LCOE ($/kWh_e) |",
+            "|---------|---------|--------------------|---------------|-----------------|---------------------|----------------------|--------------------|-----------------------|----------------------|",
+        ]
+        for mode_key, sc_row in sys_coupling.items():
+            if not isinstance(sc_row, Mapping):
+                continue
+            lines.append(
+                f"| `{mode_key}` | {sc_row.get('reactor_type', '?')} | "
+                f"{_report_number(sc_row.get('post_psa_h2_purity'), '.4%')} | "
+                f"{_report_number(sc_row.get('post_psa_co_ppm'), '.3f')} | "
+                f"{_report_number(sc_row.get('post_psa_c2h4_ppm'), '.3f')} | "
+                f"{_report_number(sc_row.get('anode_hor_activity_retention'), '.2%')} | "
+                f"{_report_number(sc_row.get('stack_net_power_kW'), '.2f')} | "
+                f"{_report_number(sc_row.get('well_to_hydrogen_lhv_efficiency'), '.2%')} | "
+                f"{_report_number(sc_row.get('well_to_power_lhv_efficiency'), '.2%')} | "
+                f"${_report_number(sc_row.get('lcoe_total_usd_kwh_e'), '.4f')} |"
+            )
+        lines.append("")
+
+    feed_matrix = mp.get('feedstock_flexibility_matrix')
+    if isinstance(feed_matrix, list) and feed_matrix:
+        lines += [
+            "#### 18-Feedstock Multi-Hydrocarbon, Waste Polyolefin & Biomass Flexibility Matrix\n",
+            "| Feedstock | Name | Category | H/C | kg_feed/kg_H₂ | kg_C/kg_H₂ | ΔH°₂₉₈ (kJ/mol H₂) | PFR X | PFR Base LCOH ($/kg) | MMBCR X | MMBCR Base LCOH ($/kg) | MMBCR Opt. LCOH ($/kg) | Post-PSA CO (ppm) | Coupled LCOE ($/kWh_e) |",
+            "|-----------|------|----------|-----|---------------|------------|--------------------|-------|----------------------|---------|------------------------|------------------------|-------------------|------------------------|",
+        ]
+        for f_row in feed_matrix:
+            if not isinstance(f_row, Mapping):
+                continue
+            lines.append(
+                f"| `{f_row.get('feedstock', '?')}` | {f_row.get('feedstock_name', '?')} | "
+                f"`{f_row.get('category', '?')}` | "
+                f"{_report_number(f_row.get('h_to_c_ratio'), '.2f')} | "
+                f"{_report_number(f_row.get('kg_feed_per_kg_h2'), '.2f')} | "
+                f"{_report_number(f_row.get('kg_c_per_kg_h2'), '.2f')} | "
+                f"{_report_number(f_row.get('dh_rxn_298_kJ_mol_h2'), '.1f')} | "
+                f"{_report_number(f_row.get('pfr_conversion'), '.2%')} | "
+                f"${_report_number(f_row.get('pfr_lcoh_base_usd_kg'), '.3f')} | "
+                f"{_report_number(f_row.get('mmbcr_conversion'), '.2%')} | "
+                f"${_report_number(f_row.get('mmbcr_lcoh_base_usd_kg'), '.3f')} | "
+                f"${_report_number(f_row.get('mmbcr_lcoh_optimistic_usd_kg'), '.3f')} | "
+                f"{_report_number(f_row.get('post_psa_co_ppm'), '.2f')} | "
+                f"${_report_number(f_row.get('coupled_lcoe_base_usd_kwh_e'), '.4f')} |"
+            )
+        lines.append("")
+
     denovo_path = RESULTS_DIR / "evidence" / "de_novo_discovery_validation.json"
     if denovo_path.is_file():
         try:

@@ -189,7 +189,7 @@ def interface_ch4_destruction_mol_m2_s(
         except ct.CanteraError:
             surface.coverages = 'site:1.0'
             surface.advance_coverages(relax_s, 1e-5, 1e-8, 1.0, 200000, 50)
-    if graphite is None and 'C_s' in surface.species_names and 'site' in surface.species_names:
+    if 'C_s' in surface.species_names and 'site' in surface.species_names:
         cov = list(surface.coverages)
         idx_c = surface.species_index('C_s')
         idx_site = surface.species_index('site')

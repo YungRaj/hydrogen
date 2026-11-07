@@ -1784,5 +1784,152 @@ def test_multi_hydrocarbon_feedstocks_default_to_methane(tmp_path: Path) -> None
     assert tea_diesel['carbon_credit_usd_kg_h2'] > tea_ch4['carbon_credit_usd_kg_h2']
 
 
+def test_ntec_electrochemical_multicarbon_mechanisms_and_pemfc_coupling(
+    tmp_path: Path,
+) -> None:
+    """Verify Option 1 (NTEC & Electrochemical coupled operating points), Option 2 (explicit Cantera C2/C3/biogas mechanisms), Option 3 (Reactor-PSA-PEMFC coupling), and Option 4 (report tables)."""
+    import pytest
+    from pipeline.electrochemistry.native_models import (
+        coupled_electrochemical_operating_point,
+        coupled_ntec_operating_point,
+    )
+    from pipeline.evidence.report_generator import _tea_section
+    from pipeline.fuel_cell.stack import couple_reactor_to_pemfc_stack
+    from pipeline.reactors.mechanisms import (
+        write_feedstock_mechanism,
+        write_full_mechanism,
+    )
 
+    # 1. Option 1: Coupled NTEC and Electrochemical native operating point solvers
+    ntec_pt = coupled_ntec_operating_point(
+        {
+            'catalyst_E_act_eV': 0.55,
+            'catalyst_dE_C_eV': 2.80,
+            'T_K': 473.15,
+            'P_Pa': 506625.0,
+            'interface_area_m2': 2.7,
+        }
+    )
+    assert 0.30 < ntec_pt['CH4_conversion'] < 1.0
+    assert ntec_pt['field_rate_enhancement'] > 10.0
+    assert ntec_pt['detachment_regime'] == 'detaching'
 
+    ec_pt = coupled_electrochemical_operating_point(
+        {
+            'catalyst_E_act_eV': 0.55,
+            'catalyst_dE_C_eV': 2.80,
+            'T_K': 823.15,
+            'P_Pa': 506625.0,
+            'electrode_area_m2': 1.8,
+            'applied_potential_V': 0.65,
+        }
+    )
+    assert 0.30 < ec_pt['CH4_conversion'] < 1.0
+    assert ec_pt['specific_energy_kWh_kg_H2'] < 20.0
+    assert ec_pt['electrolyte_phase'] == 'molten'
+
+    # 2. Option 2: Explicit Cantera 3.x multi-carbon (C2H6, C3H8, associated_gas) and biogas mechanisms
+    ct = pytest.importorskip('cantera')
+    ch4_mech = write_feedstock_mechanism(
+        'test_ch4_cat', 'CH4', E_act_CH4=0.75, output_dir=tmp_path
+    )
+    ch4_ref = write_full_mechanism(
+        'test_ch4_cat_ref', E_act_CH4=0.75, output_dir=tmp_path
+    )
+    assert Path(ch4_mech).is_file() and Path(ch4_ref).is_file()
+
+    c3_mech = write_feedstock_mechanism(
+        'test_c3_cat', 'C3H8', E_act_CH4=0.75, output_dir=tmp_path
+    )
+    gas_c3 = ct.Solution(str(c3_mech), 'gas')
+    surf_c3 = ct.Interface(str(c3_mech), 'test_c3_cat_surface', [gas_c3])
+    assert 'C3H8' in gas_c3.species_names and 'C3H6' in gas_c3.species_names
+    assert surf_c3.n_reactions >= 8
+
+    biogas_mech = write_feedstock_mechanism(
+        'test_biogas_cat', 'biogas', E_act_CH4=0.75, output_dir=tmp_path
+    )
+    gas_bg = ct.Solution(str(biogas_mech), 'gas')
+    surf_bg = ct.Interface(str(biogas_mech), 'test_biogas_cat_surface', [gas_bg])
+    for sp in ('CH4', 'CO2', 'CO', 'H2O', 'H2'):
+        assert sp in gas_bg.species_names
+    for ssp in ('O_s', 'OH_s', 'CO_s'):
+        assert ssp in surf_bg.species_names
+
+    # 3. Option 3: Integrated Reactor-PSA-PEMFC coupling and CO/C2H4 impurity tolerance
+    coupled_ch4 = couple_reactor_to_pemfc_stack(
+        {
+            'reactor_type': 'MMBCR',
+            'catalyst_name': '99cbb4a430ec9289b09d',
+            'T_K': 1273.15,
+            'dft_calibrated_single_pass_CH4_conversion': 0.9032,
+            'H2_selectivity': 0.985,
+            'C2_carbon_selectivity': 0.0301,
+            'dft_calibrated_tea_base_h2_usd_kg': 1.249,
+            'dft_calibrated_tea_optimistic_h2_usd_kg': 0.678,
+        },
+        feedstock='CH4',
+    )
+    assert coupled_ch4['post_psa_co_ppm'] == pytest.approx(0.0)
+    assert coupled_ch4['post_psa_c2h4_ppm'] > 0.0
+    assert coupled_ch4['anode_hor_activity_retention'] > 0.90
+    assert coupled_ch4['stack_net_power_kW'] > 100.0
+    assert 0.25 < coupled_ch4['well_to_power_lhv_efficiency'] < 0.70
+    assert 0.03 < coupled_ch4['lcoe_total_usd_kwh_e'] < 0.20
+
+    coupled_biomass = couple_reactor_to_pemfc_stack(
+        {
+            'reactor_type': 'MMBCR',
+            'catalyst_name': '99cbb4a430ec9289b09d',
+            'T_K': 1273.15,
+            'single_pass_feedstock_conversion': 0.95,
+            'H2_selectivity': 0.97,
+            'C2_carbon_selectivity': 0.04,
+        },
+        feedstock='biomass',
+    )
+    assert coupled_biomass['post_psa_co_ppm'] > coupled_ch4['post_psa_co_ppm']
+    assert (
+        coupled_biomass['anode_hor_activity_retention']
+        < coupled_ch4['anode_hor_activity_retention']
+    )
+
+    # 4. Option 4: Report generator renders 18-feedstock flexibility and Reactor-PSA-PEMFC coupling tables
+    tea_md = '\n'.join(
+        _tea_section(
+            {'best_conversion': 0.9032},
+            {
+                'reactor_to_pemfc_system_coupling': {
+                    'mmbcr': {'pathway': 'mmbcr', **coupled_ch4}
+                },
+                'feedstock_flexibility_matrix': [
+                    {
+                        'feedstock': 'CH4',
+                        'feedstock_name': 'Methane (natural gas)',
+                        'category': 'natural_gas',
+                        'h_to_c_ratio': 4.0,
+                        'kg_feed_per_kg_h2': 3.979,
+                        'kg_c_per_kg_h2': 2.979,
+                        'dh_rxn_298_kJ_mol_h2': 37.43,
+                        'pfr_conversion': 0.5625,
+                        'pfr_lcoh_base_usd_kg': 1.246,
+                        'mmbcr_conversion': 0.9032,
+                        'mmbcr_lcoh_base_usd_kg': 1.249,
+                        'mmbcr_lcoh_optimistic_usd_kg': 0.678,
+                        'post_psa_co_ppm': 0.0,
+                        'coupled_lcoe_base_usd_kwh_e': coupled_ch4[
+                            'lcoe_total_usd_kwh_e'
+                        ],
+                    }
+                ],
+            },
+        )
+    )
+    assert (
+        'Integrated Reactor-PSA-PEMFC Well-to-Power Coupling & CO/C₂H₄ Impurity Tolerance'
+        in tea_md
+    )
+    assert (
+        '18-Feedstock Multi-Hydrocarbon, Waste Polyolefin & Biomass Flexibility Matrix'
+        in tea_md
+    )
