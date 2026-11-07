@@ -661,6 +661,7 @@ def compute_h2_c2_selectivity_and_rates(
     x_c2h4_override: Optional[float] = None,
     x_c2h2_override: Optional[float] = None,
     x_ar_override: Optional[float] = None,
+    feed_species: str = 'CH4',
 ) -> H2C2SelectivityRateMetrics:
     """Compute true H2 vs. C2 branching selectivity, H2 yield, and molar H2 production rates.
 
@@ -690,6 +691,7 @@ def compute_h2_c2_selectivity_and_rates(
         x_c2h4_override: Optional outlet C2H4 mole fraction when ``gas`` is ``None``.
         x_c2h2_override: Optional outlet C2H2 mole fraction when ``gas`` is ``None``.
         x_ar_override: Optional outlet Ar mole fraction when ``gas`` is ``None``.
+        feed_species: Primary hydrocarbon species name in ``gas`` (default ``'CH4'``).
 
     Returns:
         Dictionary of selectivity, yield, C2 mole fractions, and H2 rate metrics.
@@ -705,9 +707,13 @@ def compute_h2_c2_selectivity_and_rates(
     x_c2h2: float
     if gas is not None:
         x_h2 = float(species_x(gas, 'H2') or 0.0)
-        x_feed_out = float(species_x(gas, 'CH4') or 0.0)
+        x_feed_out = float(species_x(gas, feed_species) or 0.0)
         x_ar = float(species_x(gas, 'Ar') or y_ar_0)
-        x_c2h6 = float(species_x(gas, 'C2H6') or 0.0)
+        x_c2h6 = (
+            float(species_x(gas, 'C2H6') or 0.0)
+            if feed_species != 'C2H6'
+            else 0.0
+        )
         x_c2h4 = float(species_x(gas, 'C2H4') or 0.0)
         x_c2h2 = float(species_x(gas, 'C2H2') or 0.0)
         if (x_c2h6 + x_c2h4 + x_c2h2) <= 1e-12 and conv > 1e-6 and float(T_inlet_K) >= 850.0:
@@ -818,18 +824,42 @@ def compute_h2_c2_selectivity_and_rates(
     }
 
 
+def primary_feed_species(gas: CanteraGasPhase) -> str:
+    """Identify the primary inlet hydrocarbon reactant species in a Cantera gas phase.
+
+    Defaults strictly to `'CH4'` when methane is present, and falls back to
+    `'C3H8'`, `'C2H6'`, `'C3H6'`, or `'C2H4'` when a multi-carbon feed is loaded.
+
+    Args:
+        gas: Cantera gas phase initialized at inlet composition.
+
+    Returns:
+        Cantera species name of the primary hydrocarbon feed.
+    """
+    if species_x(gas, 'CH4') > 1e-6:
+        return 'CH4'
+    for candidate_sp in ('C3H8', 'C2H6', 'C3H6', 'C2H4'):
+        if species_x(gas, candidate_sp) > 1e-6:
+            return candidate_sp
+    return 'CH4'
+
+
 def feedstock_extent(
-    gas: CanteraGasPhase, x_feed_initial: float, x_ar_feed: float
+    gas: CanteraGasPhase,
+    x_feed_initial: float,
+    x_ar_feed: float,
+    feed_species: str = 'CH4',
 ) -> float:
     """Compute argon-tracer-normalized hydrocarbon feedstock conversion extent.
 
-    Evaluates conversion on the baseline Cantera gas phase (where the reactant
-    species is labeled `'CH4'`, the default feedstock).
+    Evaluates conversion of ``feed_species`` (default ``'CH4'``, or ``'C2H6'`` /
+    ``'C3H8'`` / ``'C3H6'`` when an extended multi-carbon mechanism is active).
 
     Args:
         gas: Cantera gas phase.
         x_feed_initial: Inlet hydrocarbon feedstock (default methane) mole fraction.
         x_ar_feed: Inlet argon mole fraction.
+        feed_species: Primary hydrocarbon species name in ``gas`` (default ``'CH4'``).
 
     Returns:
         Feedstock conversion fraction in ``[0, 1]``.
@@ -837,12 +867,15 @@ def feedstock_extent(
     from pipeline.reactors.equilibrium import ch4_conversion_from_argon_tracer
 
     return ch4_conversion_from_argon_tracer(
-        species_x(gas, 'CH4'), species_x(gas, 'Ar'), x_feed_initial, x_ar_feed
+        species_x(gas, feed_species), species_x(gas, 'Ar'), x_feed_initial, x_ar_feed
     )
 
 
 def clamp_gas_to_equilibrium(
-    gas: CanteraGasPhase, x_feed_initial: float, x_ar_feed: float
+    gas: CanteraGasPhase,
+    x_feed_initial: float,
+    x_ar_feed: float,
+    feed_species: str = 'CH4',
 ) -> None:
     """Prevent irreversible C_s => C(gr) + site sink from pulling X past X_eq(T, P).
 
@@ -850,30 +883,41 @@ def clamp_gas_to_equilibrium(
         gas: Cantera gas phase modified in place.
         x_feed_initial: Inlet hydrocarbon feedstock (default methane) mole fraction.
         x_ar_feed: Inlet argon mole fraction.
+        feed_species: Primary hydrocarbon species name in ``gas`` (default ``'CH4'``).
     """
     if x_feed_initial <= 0.0 or x_ar_feed <= 0.0:
         return
     try:
-        x_eq_1bar = tabulated_x_eq(float(gas.T))
-        p_pa = float(gas.P)
-        if p_pa > 105000.0:
-            x_eq = min(
-                x_eq_1bar,
-                local_tp_x_eq(float(gas.T), p_pa, x_feed_initial),
-            )
+        if feed_species == 'CH4':
+            x_eq_1bar = tabulated_x_eq(float(gas.T))
+            p_pa = float(gas.P)
+            if p_pa > 105000.0:
+                x_eq = min(
+                    x_eq_1bar,
+                    local_tp_x_eq(float(gas.T), p_pa, x_feed_initial),
+                )
+            else:
+                x_eq = x_eq_1bar
         else:
-            x_eq = x_eq_1bar
+            from pipeline.reactors.feedstocks import feedstock_equilibrium_conversion
+
+            x_eq = feedstock_equilibrium_conversion(
+                float(gas.T),
+                float(gas.P),
+                feed_species,
+                y_feed_inlet=x_feed_initial,
+            )
     except ValueError:
         return
-    conv = feedstock_extent(gas, x_feed_initial, x_ar_feed)
+    conv = feedstock_extent(gas, x_feed_initial, x_ar_feed, feed_species=feed_species)
     if conv <= x_eq:
         return
     x_ar = species_x(gas, 'Ar')
-    if x_ar <= 0.0:
+    if x_ar <= 0.0 or feed_species not in gas.species_names:
         return
     scale_to_feed = float(x_ar_feed) / x_ar
     n_vec = np.array(gas.X, dtype=float) * scale_to_feed
-    i_feed = gas.species_index('CH4')
+    i_feed = gas.species_index(feed_species)
     i_h2 = gas.species_index('H2')
     target_n_feed = float(x_feed_initial) * (1.0 - x_eq)
     delta_feed = max(0.0, target_n_feed - float(n_vec[i_feed]))
@@ -979,19 +1023,22 @@ def advance_reactor_stage(
 _advance_reactor_stage = advance_reactor_stage
 
 
-def mole_fraction_drop(gas: CanteraGasPhase, x_feed_initial: float) -> float:
+def mole_fraction_drop(
+    gas: CanteraGasPhase, x_feed_initial: float, feed_species: str = 'CH4'
+) -> float:
     """Compute uncalibrated mole-fraction drop ``1 - y_feed / y_feed,0``.
 
     Args:
         gas: Cantera gas phase.
         x_feed_initial: Inlet hydrocarbon feedstock (default methane) mole fraction.
+        feed_species: Primary hydrocarbon species name in ``gas`` (default ``'CH4'``).
 
     Returns:
         Fractional mole-fraction drop in ``[0, 1]``.
     """
     if x_feed_initial <= 0:
         return 0.0
-    return float(max(0.0, 1.0 - species_x(gas, 'CH4') / x_feed_initial))
+    return float(max(0.0, 1.0 - species_x(gas, feed_species) / x_feed_initial))
 
 
 _mole_fraction_drop = mole_fraction_drop

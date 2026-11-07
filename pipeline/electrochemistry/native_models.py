@@ -350,22 +350,33 @@ def coupled_electrochemical_operating_point(
     e_act_val = float(raw_e) if isinstance(raw_e, (int, float)) else 0.55
     raw_t = cond.get('temperature_K') if cond.get('temperature_K') is not None else cond.get('T_K', temperature_K)
     t_eff = max(float(raw_t) if isinstance(raw_t, (int, float)) else float(temperature_K), 300.0)
-    raw_v = cond.get('applied_potential_V', applied_potential_V)
-    v_cell = float(raw_v) if isinstance(raw_v, (int, float)) else float(applied_potential_V)
-    raw_area = cond.get('electrode_area_m2', electrode_area_m2)
-    area_val = float(raw_area) if isinstance(raw_area, (int, float)) else float(electrode_area_m2)
+    is_aqueous = t_eff < 647.096
+    default_v = 0.85 if is_aqueous and applied_potential_V == 0.65 else applied_potential_V
+    default_area = 1.0 if is_aqueous and electrode_area_m2 == 1.8 else electrode_area_m2
+    default_d = 1.5e-9 if is_aqueous and diffusivity_m2_s == 5.0e-9 else diffusivity_m2_s
+    default_henry = 1.4e-5 if is_aqueous and henry_mol_m3_Pa == 1.35e-6 else henry_mol_m3_Pa
+    default_p = 253312.5 if is_aqueous and pressure_Pa == 101325.0 else pressure_Pa
+    default_sigma = 20.0 if is_aqueous and conductivity_S_m == 150.0 else conductivity_S_m
+    default_feed = 1.24669e-5 if is_aqueous and ch4_feed_mol_s == 6.23346e-6 else ch4_feed_mol_s
+
+    raw_v = cond.get('applied_potential_V', default_v)
+    v_cell = float(raw_v) if isinstance(raw_v, (int, float)) else float(default_v)
+    raw_area = cond.get('electrode_area_m2', default_area)
+    area_val = float(raw_area) if isinstance(raw_area, (int, float)) else float(default_area)
     raw_delta = cond.get('electrolyte_thickness_m', electrolyte_thickness_m)
     delta_val = float(raw_delta) if isinstance(raw_delta, (int, float)) else float(electrolyte_thickness_m)
-    raw_d = cond.get('diffusivity_m2_s', diffusivity_m2_s)
-    d_val = float(raw_d) if isinstance(raw_d, (int, float)) else float(diffusivity_m2_s)
-    raw_henry = cond.get('henry_mol_m3_Pa', henry_mol_m3_Pa)
-    henry_val = float(raw_henry) if isinstance(raw_henry, (int, float)) else float(henry_mol_m3_Pa)
-    raw_p = cond.get('pressure_Pa') if cond.get('pressure_Pa') is not None else cond.get('P_Pa', pressure_Pa)
-    p_val = float(raw_p) if isinstance(raw_p, (int, float)) else float(pressure_Pa)
-    raw_sigma = cond.get('conductivity_S_m', conductivity_S_m)
-    sigma_val = float(raw_sigma) if isinstance(raw_sigma, (int, float)) else float(conductivity_S_m)
-    raw_feed = cond.get('ch4_feed_mol_s', ch4_feed_mol_s)
-    feed_val = float(raw_feed) if isinstance(raw_feed, (int, float)) else float(ch4_feed_mol_s)
+    raw_d = cond.get('diffusivity_m2_s', default_d)
+    d_val = float(raw_d) if isinstance(raw_d, (int, float)) else float(default_d)
+    raw_henry = cond.get('henry_mol_m3_Pa', default_henry)
+    henry_val = float(raw_henry) if isinstance(raw_henry, (int, float)) else float(default_henry)
+    raw_p = cond.get('pressure_Pa') if cond.get('pressure_Pa') is not None else cond.get('P_Pa', default_p)
+    p_val = float(raw_p) if isinstance(raw_p, (int, float)) else float(default_p)
+    raw_sigma = cond.get('conductivity_S_m', default_sigma)
+    sigma_val = float(raw_sigma) if isinstance(raw_sigma, (int, float)) else float(default_sigma)
+    raw_feed = cond.get('ch4_feed_mol_s', default_feed)
+    feed_val = float(raw_feed) if isinstance(raw_feed, (int, float)) else float(default_feed)
+    raw_roughness = cond.get('gde_roughness_factor', 0.35 if is_aqueous else 1.0)
+    roughness_val = float(raw_roughness) if isinstance(raw_roughness, (int, float)) else (0.35 if is_aqueous else 1.0)
 
     k_b_ev = 8.617333262145e-5
     n_electrons = 4
@@ -379,7 +390,7 @@ def coupled_electrochemical_operating_point(
     )
     e_a_eq = 0.17
     eta_a = max(0.0, v_cell - e_a_eq)
-    r_kinet = 6.5e-4 * math.exp(
+    r_kinet = roughness_val * 6.5e-4 * math.exp(
         -max(0.05, e_act_val - 0.35 * eta_a) / (k_b_ev * t_eff)
     )
     i_kinet_a_m2 = n_electrons * FARADAY_C_MOL * r_kinet * c_bulk
@@ -391,7 +402,7 @@ def coupled_electrochemical_operating_point(
     spec_energy = (
         v_cell * 4.0 * FARADAY_C_MOL / (3.6e6 * 0.00403188)
     )
-    phase = 'molten' if t_eff >= 647.096 else 'aqueous'
+    phase = 'molten' if not is_aqueous else 'aqueous'
     return {
         'status': 'complete',
         'reactor_evidence_tier': 'native_screening_model',

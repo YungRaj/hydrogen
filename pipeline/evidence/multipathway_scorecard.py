@@ -1478,18 +1478,46 @@ def build_multipathway_champion_scorecard(
         mmbcr_champ_row.get('dft_calibrated_single_pass_CH4_conversion') or 0.9032
     )
     mmbcr_t_ref: float = float(mmbcr_champ_row.get('T_K') or 1273.15)
+    pfr_cat_id = str(
+        pfr_champ_row.get('champion_catalyst') or 'b6702ffe2074faa4fa50'
+    )
+    pfr_cat_meta = candidate_Lookup.get(pfr_cat_id, {})
+    raw_pfr_e_act = (
+        pfr_cat_meta.get('calibrated_activation_eV')
+        or pfr_cat_meta.get('E_act_eV')
+        or 0.80
+    )
+    pfr_e_act_ref: float = (
+        float(raw_pfr_e_act)
+        if isinstance(raw_pfr_e_act, (int, float))
+        and math.isfinite(float(raw_pfr_e_act))
+        else 0.80
+    )
+    mmbcr_cat_id = str(
+        mmbcr_champ_row.get('champion_catalyst') or '99cbb4a430ec9289b09d'
+    )
+    mmbcr_cat_meta = candidate_Lookup.get(mmbcr_cat_id, {})
+    raw_mmbcr_e_act = (
+        mmbcr_cat_meta.get('calibrated_activation_eV')
+        or mmbcr_cat_meta.get('E_act_eV')
+        or 0.72
+    )
+    mmbcr_e_act_ref: float = (
+        float(raw_mmbcr_e_act)
+        if isinstance(raw_mmbcr_e_act, (int, float))
+        and math.isfinite(float(raw_mmbcr_e_act))
+        else 0.72
+    )
 
     base_pfr_ref: ReactorResult = {
         'status': 'complete',
         'reactor_type': 'PFR',
-        'catalyst_name': str(
-            pfr_champ_row.get('champion_catalyst') or 'b6702ffe2074faa4fa50'
-        ),
+        'catalyst_name': pfr_cat_id,
         'T_K': pfr_t_ref,
         'P_Pa': 101325.0,
         'residence_time_s': 1.25,
         'bed_porosity': 0.40,
-        'catalyst_E_act_eV': 0.80,
+        'catalyst_E_act_eV': pfr_e_act_ref,
         'single_pass_CH4_conversion': pfr_x_ref,
         'CH4_conversion': pfr_x_ref,
         'H2_selectivity': float(pfr_champ_row.get('H2_selectivity') or 0.9963),
@@ -1506,14 +1534,12 @@ def build_multipathway_champion_scorecard(
     base_mmbcr_ref: ReactorResult = {
         'status': 'complete',
         'reactor_type': 'MMBCR',
-        'catalyst_name': str(
-            mmbcr_champ_row.get('champion_catalyst') or '99cbb4a430ec9289b09d'
-        ),
+        'catalyst_name': mmbcr_cat_id,
         'T_K': mmbcr_t_ref,
         'P_Pa': 101325.0,
         'residence_time_s': 2.0,
         'gas_holdup_fraction': 0.24,
-        'catalyst_E_act_eV': 0.72,
+        'catalyst_E_act_eV': mmbcr_e_act_ref,
         'single_pass_CH4_conversion': mmbcr_x_ref,
         'CH4_conversion': mmbcr_x_ref,
         'H2_selectivity': float(mmbcr_champ_row.get('H2_selectivity') or 0.985),
@@ -1569,6 +1595,8 @@ def build_multipathway_champion_scorecard(
             n_cells=stack_cells,
             feedstock=spec.formula,
         )
+        pfr_base_est = pfr_tea['estimates']['base']
+        mmbcr_base_est = mmbcr_tea['estimates']['base']
         feedstock_flexibility_matrix.append(
             {
                 'feedstock': spec.formula,
@@ -1592,8 +1620,18 @@ def build_multipathway_champion_scorecard(
                 'pfr_r_h2_kg_m3_h': round(
                     float(pfr_feed.get('h2_production_rate_kg_m3_h') or 0.0), 3
                 ),
+                'pfr_gross_lcoh_base_usd_kg': round(
+                    float(
+                        pfr_base_est.get('gross_h2_cost_usd_kg')
+                        or (
+                            pfr_base_est['h2_cost_usd_kg']
+                            + pfr_base_est['carbon_credit_usd_kg_h2']
+                        )
+                    ),
+                    3,
+                ),
                 'pfr_lcoh_base_usd_kg': round(
-                    float(pfr_tea['estimates']['base']['h2_cost_usd_kg']), 3
+                    float(pfr_base_est['h2_cost_usd_kg']), 3
                 ),
                 'pfr_lcoh_optimistic_usd_kg': round(
                     float(pfr_tea['estimates']['optimistic']['h2_cost_usd_kg']), 3
@@ -1605,8 +1643,18 @@ def build_multipathway_champion_scorecard(
                 'mmbcr_r_h2_kg_m3_h': round(
                     float(mmbcr_feed.get('h2_production_rate_kg_m3_h') or 0.0), 3
                 ),
+                'mmbcr_gross_lcoh_base_usd_kg': round(
+                    float(
+                        mmbcr_base_est.get('gross_h2_cost_usd_kg')
+                        or (
+                            mmbcr_base_est['h2_cost_usd_kg']
+                            + mmbcr_base_est['carbon_credit_usd_kg_h2']
+                        )
+                    ),
+                    3,
+                ),
                 'mmbcr_lcoh_base_usd_kg': round(
-                    float(mmbcr_tea['estimates']['base']['h2_cost_usd_kg']), 3
+                    float(mmbcr_base_est['h2_cost_usd_kg']), 3
                 ),
                 'mmbcr_lcoh_optimistic_usd_kg': round(
                     float(mmbcr_tea['estimates']['optimistic']['h2_cost_usd_kg']), 3

@@ -140,13 +140,26 @@ def single_pass_x(record: Mapping[str, object]) -> float:
     Returns:
         Validated float output for this operation.
     """
-    value = record.get(
-        'single_pass_feedstock_conversion',
-        record.get(
+    feedstock_key = str(record.get('feedstock') or 'CH4').strip().upper()
+    if feedstock_key in ('', 'CH4'):
+        value = record.get(
             'single_pass_CH4_conversion',
-            record.get('feedstock_conversion', record.get('CH4_conversion')),
-        ),
-    )
+            record.get(
+                'CH4_conversion',
+                record.get(
+                    'single_pass_feedstock_conversion',
+                    record.get('feedstock_conversion'),
+                ),
+            ),
+        )
+    else:
+        value = record.get(
+            'single_pass_feedstock_conversion',
+            record.get(
+                'single_pass_CH4_conversion',
+                record.get('feedstock_conversion', record.get('CH4_conversion')),
+            ),
+        )
     return float(value) if isinstance(value, (int, float)) else 0.0
 
 
@@ -206,6 +219,14 @@ def metric_row(record: Mapping[str, object]) -> SolidsMetricRow:
         'reactor_type': cast(ReactorTypeName | None, rt),
         'T_K': finite_number(record.get('T_K')),
         'single_pass_CH4_conversion': single_pass_x(record),
+        'H2_selectivity': finite_number(record.get('H2_selectivity')),
+        'H2_yield': finite_number(record.get('H2_yield')),
+        'h2_production_rate_mol_m3_s': finite_number(
+            record.get('h2_production_rate_mol_m3_s')
+        ),
+        'h2_production_rate_kg_m3_h': finite_number(
+            record.get('h2_production_rate_kg_m3_h')
+        ),
         'active_sv_1_m': finite_number(record.get('active_sv_1_m')),
         'WHSV_h-1': finite_number(record.get('WHSV_h-1')),
         'ergun_delta_p_Pa': finite_number(record.get('ergun_delta_p_Pa')),

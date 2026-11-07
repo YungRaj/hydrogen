@@ -1933,3 +1933,87 @@ def test_ntec_electrochemical_multicarbon_mechanisms_and_pemfc_coupling(
         '18-Feedstock Multi-Hydrocarbon, Waste Polyolefin & Biomass Flexibility Matrix'
         in tea_md
     )
+
+    # 5. Plumbing & quality fixes verification:
+    # (a) adapt_reactor_result_to_feedstock syncs stale single_pass_feedstock_conversion on CH4 records
+    from pipeline.reactors.feedstocks import adapt_reactor_result_to_feedstock
+
+    stale_ch4 = {
+        'status': 'complete',
+        'CH4_conversion': 0.8705,
+        'single_pass_CH4_conversion': 0.8705,
+        'feedstock_conversion': 0.0085,
+        'single_pass_feedstock_conversion': 0.0085,
+    }
+    synced_ch4 = adapt_reactor_result_to_feedstock(stale_ch4, 'CH4')
+    assert synced_ch4['feedstock_conversion'] == pytest.approx(0.8705)
+    assert synced_ch4['single_pass_feedstock_conversion'] == pytest.approx(0.8705)
+
+    # (b) Direct Cantera multi-carbon simulation in PFR using write_feedstock_mechanism
+    from pipeline.reactors.models import ReactorConfig, simulate_pfr
+
+    pfr_c3_res = simulate_pfr(
+        ReactorConfig(
+            catalyst_name='test_c3_cat',
+            mechanism_file=str(c3_mech),
+            T_inlet_K=1073.15,
+            catalyst_E_act_eV=0.75,
+            feedstock='C3H8',
+        )
+    )
+    assert pfr_c3_res.get('direct_cantera_feedstock') == 'C3H8'
+    assert pfr_c3_res['feedstock'] == 'C3H8'
+    assert 0.01 < float(pfr_c3_res['single_pass_feedstock_conversion']) <= 1.0
+
+    # (c) Gross vs. net LCOH and floored H2 transfer price in coupled LCOE
+    from pipeline.economics.tea import estimate_hydrogen_cost
+
+    pe_tea = estimate_hydrogen_cost(0.95, scenario='base', feedstock='C10H20_PE')
+    assert float(pe_tea.get('gross_h2_cost_usd_kg') or 0.0) > 0.5
+    coupled_pe = couple_reactor_to_pemfc_stack(
+        {
+            'reactor_type': 'MMBCR',
+            'catalyst_name': '99cbb4a430ec9289b09d',
+            'T_K': 1273.15,
+            'single_pass_feedstock_conversion': 0.98,
+            'H2_selectivity': 0.97,
+        },
+        feedstock='C10H20_PE',
+    )
+    assert coupled_pe['lcoe_total_usd_kwh_e'] > 0.0
+
+    # (d) Coupled native operating points wired into simulate_ntec_pathway & simulate_electrochemical_pathway
+    from pipeline.reactors.electrochemical_models import (
+        simulate_electrochemical_pathway,
+        simulate_ntec_pathway,
+    )
+
+    ntec_sim = simulate_ntec_pathway(
+        ReactorConfig(
+            reactor_type='NTEC',
+            pathway_mode='ntec',
+            catalyst_name='test_ntec',
+            T_inlet_K=473.15,
+            P_inlet_Pa=506625.0,
+            catalyst_E_act_eV=0.55,
+            native_ntec_parameters={'catalyst_E_act_eV': 0.55},
+        )
+    )
+    assert ntec_sim['status'] == 'complete'
+    assert 0.30 < float(ntec_sim['CH4_conversion']) < 1.0
+
+    echem_sim = simulate_electrochemical_pathway(
+        ReactorConfig(
+            reactor_type='Electrochemical',
+            pathway_mode='electrochemical',
+            catalyst_name='test_echem',
+            T_inlet_K=823.15,
+            P_inlet_Pa=506625.0,
+            catalyst_E_act_eV=0.55,
+            native_electrochemical_parameters={'catalyst_E_act_eV': 0.55},
+        )
+    )
+    assert echem_sim['status'] == 'complete'
+    assert 0.30 < float(echem_sim['CH4_conversion']) < 1.0
+
+

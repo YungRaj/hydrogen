@@ -112,11 +112,22 @@ def load_all_results() -> dict[str, object]:
         or load_json("pipeline_state.json", subdir="campaign_thermocatalytic/reports")
         or {}
     )
-    data['multipathway_scorecard'] = (
+    mp_loaded = (
         load_json("multipathway_champion_scorecard.json", subdir="")
         or load_json("multipathway_champion_scorecard.json")
-        or {}
     )
+    if not mp_loaded:
+        try:
+            from pipeline.evidence.multipathway_scorecard import (
+                build_multipathway_champion_scorecard,
+            )
+
+            mp_loaded = dict(
+                build_multipathway_champion_scorecard(results_root=str(RESULTS_DIR))
+            )
+        except Exception:
+            mp_loaded = {}
+    data['multipathway_scorecard'] = mp_loaded
     return data
 
 
@@ -406,17 +417,30 @@ def _screening_section(
                 if isinstance(raw_e_act, (int, float, str))
                 else 0.0
             )
+            raw_ck = row.get('coking_index')
+            ck_str: str
+            if raw_ck is None or pd.isna(raw_ck) or str(raw_ck).strip() == '':
+                ck_str = (
+                    '— (liquid melt)'
+                    if str(row.get('material_class', '')) == 'MoltenMetal'
+                    else 'N/A'
+                )
+            else:
+                try:
+                    ck_str = f"{float(str(raw_ck)):.4f}"
+                except (TypeError, ValueError):
+                    ck_str = str(raw_ck)
             if has_interfacial:
                 lines.append(
                     f"| {rank} | {genome_str} | {e_act_val:.4f} | "
                     f"{_report_number(row.get('interfacial_pyrolysis_score_eV'), '.4f')} | "
                     f"{_report_number(row.get('calibrated_interfacial_score_eV'), '.4f')} | "
-                    f"{row.get('coking_index', 'N/A')} | {row.get('dE_H', 'N/A')} |"
+                    f"{ck_str} | {row.get('dE_H', 'N/A')} |"
                 )
             else:
                 lines.append(
                     f"| {rank} | {genome_str} | {e_act_val:.4f} | "
-                    f"{row.get('coking_index', 'N/A')} | {row.get('dE_H', 'N/A')} |"
+                    f"{ck_str} | {row.get('dE_H', 'N/A')} |"
                 )
         lines.append("")
     return lines
@@ -1362,8 +1386,8 @@ def _tea_section(
     if isinstance(feed_matrix, list) and feed_matrix:
         lines += [
             "#### 18-Feedstock Multi-Hydrocarbon, Waste Polyolefin & Biomass Flexibility Matrix\n",
-            "| Feedstock | Name | Category | H/C | kg_feed/kg_H₂ | kg_C/kg_H₂ | ΔH°₂₉₈ (kJ/mol H₂) | PFR X | PFR Base LCOH ($/kg) | MMBCR X | MMBCR Base LCOH ($/kg) | MMBCR Opt. LCOH ($/kg) | Post-PSA CO (ppm) | Coupled LCOE ($/kWh_e) |",
-            "|-----------|------|----------|-----|---------------|------------|--------------------|-------|----------------------|---------|------------------------|------------------------|-------------------|------------------------|",
+            "| Feedstock | Name | Category | H/C | kg_feed/kg_H₂ | kg_C/kg_H₂ | ΔH°₂₉₈ (kJ/mol H₂) | PFR X | PFR Net LCOH ($/kg) | MMBCR X | MMBCR Gross LCOH ($/kg) | MMBCR Net LCOH ($/kg) | MMBCR Opt. LCOH ($/kg) | Post-PSA CO (ppm) | Coupled LCOE ($/kWh_e) |",
+            "|-----------|------|----------|-----|---------------|------------|--------------------|-------|---------------------|---------|-------------------------|-----------------------|------------------------|-------------------|------------------------|",
         ]
         for f_row in feed_matrix:
             if not isinstance(f_row, Mapping):
@@ -1378,76 +1402,13 @@ def _tea_section(
                 f"{_report_number(f_row.get('pfr_conversion'), '.2%')} | "
                 f"${_report_number(f_row.get('pfr_lcoh_base_usd_kg'), '.3f')} | "
                 f"{_report_number(f_row.get('mmbcr_conversion'), '.2%')} | "
+                f"${_report_number(f_row.get('mmbcr_gross_lcoh_base_usd_kg') or f_row.get('mmbcr_lcoh_base_usd_kg'), '.3f')} | "
                 f"${_report_number(f_row.get('mmbcr_lcoh_base_usd_kg'), '.3f')} | "
                 f"${_report_number(f_row.get('mmbcr_lcoh_optimistic_usd_kg'), '.3f')} | "
                 f"{_report_number(f_row.get('post_psa_co_ppm'), '.2f')} | "
                 f"${_report_number(f_row.get('coupled_lcoe_base_usd_kwh_e'), '.4f')} |"
             )
         lines.append("")
-
-    denovo_path = RESULTS_DIR / "evidence" / "de_novo_discovery_validation.json"
-    if denovo_path.is_file():
-        try:
-            denovo_doc = json.loads(denovo_path.read_text(encoding='utf-8'))
-            if isinstance(denovo_doc, Mapping):
-                lines.append(
-                    "### De Novo Multi-Step Atomistic, Langevin MD & Periodic Slab-DFT Discovery Validation\n"
-                )
-                slab_rows = denovo_doc.get('periodic_slab_qe_validation')
-                if isinstance(slab_rows, list) and slab_rows:
-                    lines += [
-                        "#### Periodic Surface-Slab Quantum ESPRESSO (`pw.x` / `neb.x`) Validation\n",
-                        "| Rank | Catalyst | Class | Clean Slab E (eV) | ΔE_rxn,slab (eV) | E_act,slab-DFT (eV) | ΔE_C,slab (eV) | Converged |",
-                        "|------|----------|-------|-------------------|------------------|---------------------|----------------|-----------|",
-                    ]
-                    for s_row in slab_rows:
-                        if not isinstance(s_row, Mapping):
-                            continue
-                        lines.append(
-                            f"| {s_row.get('rank', '?')} | {s_row.get('catalyst_name', '?')} | "
-                            f"{s_row.get('material_class', '?')} | "
-                            f"{_report_number(s_row.get('slab_clean_energy_eV'), '.2f')} | "
-                            f"{_report_number(s_row.get('slab_reaction_energy_eV'), '+.4f')} | "
-                            f"{_report_number(s_row.get('slab_dft_barrier_eV'), '.4f')} | "
-                            f"{_report_number(s_row.get('slab_c_adsorption_eV'), '+.4f')} | "
-                            f"`{s_row.get('converged', True)}` |"
-                        )
-                    lines.append("")
-                ms_rows = denovo_doc.get('multistep_dehydrogenation_network')
-                if isinstance(ms_rows, list) and ms_rows:
-                    lines += [
-                        "#### 7-Step Methane Dehydrogenation & Coking CI-NEB Network (`CH4* → C* + 4H*`)\n",
-                        "| Rank | Catalyst | Class | CH₄→CH₃*+H* (eV) | CH₃*→CH₂*+H* (eV) | CH₂*→CH*+H* (eV) | CH*→C*+H* (eV) | 2H*→H₂ (eV) | C_surf→C_sub (eV) | C_graphene (eV) | Steps Converged |",
-                        "|------|----------|-------|------------------|-------------------|------------------|----------------|-------------|-------------------|-----------------|-----------------|",
-                    ]
-                    for m_row in ms_rows:
-                        if not isinstance(m_row, Mapping):
-                            continue
-                        lines.append(
-                            f"| {m_row.get('rank', '?')} | {m_row.get('catalyst_name', '?')} | "
-                            f"{m_row.get('material_class', '?')} | "
-                            f"{_report_number(m_row.get('methane_activation_eV'), '.4f')} | "
-                            f"{_report_number(m_row.get('ch3_dehydrogenation_eV'), '.4f')} | "
-                            f"{_report_number(m_row.get('ch2_dehydrogenation_eV'), '.4f')} | "
-                            f"{_report_number(m_row.get('ch_dehydrogenation_eV'), '.4f')} | "
-                            f"{_report_number(m_row.get('h2_desorption_eV'), '.4f')} | "
-                            f"{_report_number(m_row.get('carbon_transfer_eV'), '.4f')} | "
-                            f"{_report_number(m_row.get('carbon_encapsulation_eV'), '.4f')} | "
-                            f"{m_row.get('mlip_neb_steps_converged', 7)}/7 |"
-                        )
-                    lines.append("")
-                md_rec = denovo_doc.get('molten_metal_langevin_md')
-                if isinstance(md_rec, Mapping) and md_rec:
-                    lines += [
-                        "#### Ab Initio / MLIP Langevin NVT Liquid-Metal Alloy Trajectory (`MoltenMetal`)\n",
-                        f"- **Champion Melt**: `{md_rec.get('genome', '?')}` (`id={md_rec.get('candidate_id', '?')}`)",
-                        f"- **Ensemble & Thermostat**: `{md_rec.get('ensemble', 'NVT_Langevin')}` at $T = {_report_number(md_rec.get('temperature_K'), '.1f')}\\text{{ K}}$ ({md_rec.get('n_snapshots', 8)} snapshots)",
-                        f"- **Mean Potential Energy**: {_report_number(md_rec.get('mean_potential_energy_eV'), '.4f')} ± {_report_number(md_rec.get('std_potential_energy_eV'), '.4f')} eV",
-                        f"- **Gibbs Promoter Vertical Offset ($\\Delta z_{{\\text{{promoter}}}}$)**: {_report_number(md_rec.get('mean_promoter_vertical_offset_A'), '+.4f')} Å",
-                        "",
-                    ]
-        except Exception:
-            pass
     return lines
 
 

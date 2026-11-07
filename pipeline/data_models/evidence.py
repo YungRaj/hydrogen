@@ -60,6 +60,7 @@ class _TEAScenarioEstimateOptional(TypedDict, total=False):
     feedstock_name: str
     kg_feed_per_kg_h2: float
     kg_c_per_kg_h2: float
+    gross_h2_cost_usd_kg: float
     net_feedstock_utilization: float
     psa_feedstock_recovery: float
 
@@ -292,6 +293,7 @@ class FeedstockFlexibilityRow(TypedDict):
     pfr_solid_c_selectivity: float
     pfr_h2_yield: float
     pfr_r_h2_kg_m3_h: float
+    pfr_gross_lcoh_base_usd_kg: float
     pfr_lcoh_base_usd_kg: float
     pfr_lcoh_optimistic_usd_kg: float
     mmbcr_conversion: float
@@ -299,6 +301,7 @@ class FeedstockFlexibilityRow(TypedDict):
     mmbcr_solid_c_selectivity: float
     mmbcr_h2_yield: float
     mmbcr_r_h2_kg_m3_h: float
+    mmbcr_gross_lcoh_base_usd_kg: float
     mmbcr_lcoh_base_usd_kg: float
     mmbcr_lcoh_optimistic_usd_kg: float
     post_psa_co_ppm: float

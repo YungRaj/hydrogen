@@ -774,34 +774,67 @@ def adapt_reactor_result_to_feedstock(
         or (spec.n_C == 1 and spec.n_H == 4 and spec.n_O == 0)
         or out.get('status') not in (None, 'complete')
     ):
+        has_ch4_conv: bool = (
+            'CH4_conversion' in out or 'single_pass_CH4_conversion' in out
+        )
         default_conv: float = float(
-            out.get('CH4_conversion') or out.get('single_pass_CH4_conversion') or 0.0
+            (
+                out.get('CH4_conversion')
+                if out.get('CH4_conversion') is not None
+                else out.get('single_pass_CH4_conversion')
+            )
+            if has_ch4_conv
+            else (
+                out.get('feedstock_conversion')
+                or out.get('single_pass_feedstock_conversion')
+                or 0.0
+            )
         )
         default_single_pass_conv: float = float(
-            out.get('single_pass_CH4_conversion') or default_conv
+            (
+                out.get('single_pass_CH4_conversion')
+                if out.get('single_pass_CH4_conversion') is not None
+                else default_conv
+            )
+            if has_ch4_conv
+            else (out.get('single_pass_feedstock_conversion') or default_conv)
         )
         default_cycle_conv: float = float(
-            out.get('cycle_averaged_CH4_conversion') or default_conv
+            (
+                out.get('cycle_averaged_CH4_conversion')
+                if out.get('cycle_averaged_CH4_conversion') is not None
+                else default_conv
+            )
+            if has_ch4_conv
+            else (out.get('cycle_averaged_feedstock_conversion') or default_conv)
         )
-        out.setdefault('feedstock_conversion', default_conv)
-        out.setdefault('single_pass_feedstock_conversion', default_single_pass_conv)
-        out.setdefault('cycle_averaged_feedstock_conversion', default_cycle_conv)
-        if 'exit_x_CH4' in out:
-            out.setdefault('exit_x_feedstock', float(out['exit_x_CH4']))
-        if 'ch4_conversion_rate_mol_m3_s' in out:
-            out.setdefault(
-                'feedstock_conversion_rate_mol_m3_s',
-                float(out['ch4_conversion_rate_mol_m3_s']),
+        out['feedstock_conversion'] = default_conv
+        out['single_pass_feedstock_conversion'] = default_single_pass_conv
+        out['cycle_averaged_feedstock_conversion'] = default_cycle_conv
+        out['CH4_conversion'] = default_conv
+        out['single_pass_CH4_conversion'] = default_single_pass_conv
+        if 'exit_x_CH4' in out and out['exit_x_CH4'] is not None:
+            out['exit_x_feedstock'] = float(out['exit_x_CH4'])
+        if (
+            'ch4_conversion_rate_mol_m3_s' in out
+            and out['ch4_conversion_rate_mol_m3_s'] is not None
+        ):
+            out['feedstock_conversion_rate_mol_m3_s'] = float(
+                out['ch4_conversion_rate_mol_m3_s']
             )
-        if 'endothermic_heat_duty_kJ_per_mol_CH4_fed' in out:
-            out.setdefault(
-                'endothermic_heat_duty_kJ_per_mol_feed_fed',
-                float(out['endothermic_heat_duty_kJ_per_mol_CH4_fed']),
+        if (
+            'endothermic_heat_duty_kJ_per_mol_CH4_fed' in out
+            and out['endothermic_heat_duty_kJ_per_mol_CH4_fed'] is not None
+        ):
+            out['endothermic_heat_duty_kJ_per_mol_feed_fed'] = float(
+                out['endothermic_heat_duty_kJ_per_mol_CH4_fed']
             )
-        if 'endothermic_heat_duty_T_kJ_per_mol_CH4_fed' in out:
-            out.setdefault(
-                'endothermic_heat_duty_T_kJ_per_mol_feed_fed',
-                float(out['endothermic_heat_duty_T_kJ_per_mol_CH4_fed']),
+        if (
+            'endothermic_heat_duty_T_kJ_per_mol_CH4_fed' in out
+            and out['endothermic_heat_duty_T_kJ_per_mol_CH4_fed'] is not None
+        ):
+            out['endothermic_heat_duty_T_kJ_per_mol_feed_fed'] = float(
+                out['endothermic_heat_duty_T_kJ_per_mol_CH4_fed']
             )
         out.setdefault('exit_x_CO', 0.0)
         return out
@@ -840,8 +873,13 @@ def adapt_reactor_result_to_feedstock(
         if rtype == 'MMBCR'
         else (max(float(spec.nu_C), 1.0) ** -0.35)
     )
-    da_feed: float = da_ch4_ref * bep_rate_mult * coking_stoich_factor
-    x_feed: float = float(np.clip(x_eq_feed * (1.0 - math.exp(-da_feed)), 0.0, x_eq_feed))
+    if str(out.get('direct_cantera_feedstock') or '').upper() == spec.formula:
+        x_feed = float(np.clip(x_ch4_ref, 0.0, x_eq_feed))
+        frac_direct = min(max(x_feed / max(x_eq_feed, 1e-4), 0.0), 0.995)
+        da_feed = -math.log(max(1.0 - frac_direct, 1e-4))
+    else:
+        da_feed = da_ch4_ref * bep_rate_mult * coking_stoich_factor
+        x_feed = float(np.clip(x_eq_feed * (1.0 - math.exp(-da_feed)), 0.0, x_eq_feed))
 
     # Competitive homogeneous thermal cracking + secondary CH4/C2H4 intermediate slip:
     eps_val: float = float(

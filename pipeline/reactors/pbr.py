@@ -23,6 +23,7 @@ from pipeline.reactors.carbon_accounting import (
     feedstock_extent,
     load_gas_and_surface,
     mole_fraction_drop,
+    primary_feed_species,
     require_ar_tracer,
     reset_surface_carbon,
     species_x,
@@ -193,6 +194,7 @@ def _run_pbr_pass(
     u_sup_inlet: float,
     stage_bed_volume: float,
     stage_length: float,
+    feed_species: str = 'CH4',
 ) -> tuple[
     list[float],
     list[float],
@@ -281,7 +283,9 @@ def _run_pbr_pass(
         advance_reactor_stage(
             gas, surf, stage_gas_vol, stage_eff_area, tau_stage
         )
-        clamp_gas_to_equilibrium(gas, feed_initial, ar_initial)
+        clamp_gas_to_equilibrium(
+            gas, feed_initial, ar_initial, feed_species=feed_species
+        )
 
         # Differential Ergun pressure drop across stage dz
         dp_dz = _stage_ergun_gradient_pa_m(
@@ -293,7 +297,13 @@ def _run_pbr_pass(
         setattr(gas, 'TP', (float(getattr(gas, 'T', t_local)), p_local))
 
         tau_total_pass_s += tau_stage
-        conversion_profile.append(float(feedstock_extent(gas, feed_initial, ar_initial)))
+        conversion_profile.append(
+            float(
+                feedstock_extent(
+                    gas, feed_initial, ar_initial, feed_species=feed_species
+                )
+            )
+        )
         temperature_profile.append(float(getattr(gas, 'T', t_local)))
         pressure_profile.append(p_local)
         bed_voidage_profile.append(eps_local)
@@ -346,11 +356,30 @@ def simulate_pbr(
 
     logger.info(f"Simulating PBR: {config.catalyst_name} at {config.T_inlet_K} K")
     gas, graphite, surf = load_gas_and_surface(config)
-    gas.TPX = config.T_inlet_K, config.P_inlet_Pa, config.inlet_composition
+    effective_inlet: str = config.inlet_composition
+    if (
+        effective_inlet == 'CH4:0.95, Ar:0.05'
+        and surf is not None
+        and config.feedstock != 'CH4'
+    ):
+        if (
+            config.feedstock in ('C2H6', 'C3H8', 'C3H6')
+            and config.feedstock in gas.species_names
+            and 'C3H8' in gas.species_names
+        ):
+            effective_inlet = f'{config.feedstock}:0.95, Ar:0.05'
+        elif (
+            config.feedstock == 'BIOGAS'
+            and 'CO2' in gas.species_names
+            and 'O_s' in surf.species_names
+        ):
+            effective_inlet = 'CH4:0.57, CO2:0.38, Ar:0.05'
+    gas.TPX = config.T_inlet_K, config.P_inlet_Pa, effective_inlet
 
     eps_0 = float(config.bed_porosity)
     d_p_m = max(float(config.catalyst_particle_mm) * 1e-3, 1e-6)
-    feed_initial = float(species_x(gas, 'CH4') or 1.0)
+    feed_species = primary_feed_species(gas)
+    feed_initial = float(species_x(gas, feed_species) or 1.0)
     ar_initial = float(species_x(gas, 'Ar'))
     require_ar_tracer(feed_initial, ar_initial)
 
@@ -383,7 +412,7 @@ def simulate_pbr(
     )
 
     # Initial produce pass, followed by optional discrete non-oxidative regen cycles
-    gas.TPX = config.T_inlet_K, config.P_inlet_Pa, config.inlet_composition
+    gas.TPX = config.T_inlet_K, config.P_inlet_Pa, effective_inlet
     if surf is not None:
         reset_surface_carbon(surf)
     (
@@ -409,6 +438,7 @@ def simulate_pbr(
         u_sup_inlet=u_sup_inlet,
         stage_bed_volume=stage_bed_volume,
         stage_length=stage_length,
+        feed_species=feed_species,
     )
     produce_time_s += tau_total_pass_s
     per_cycle_conversion.append(conversion_profile[-1])
@@ -426,7 +456,7 @@ def simulate_pbr(
                 'Oxidative PBR regen enabled via co2_permitted=True (test only)'
             )
         reset_surface_carbon(surf)
-        gas.TPX = config.T_inlet_K, config.P_inlet_Pa, config.inlet_composition
+        gas.TPX = config.T_inlet_K, config.P_inlet_Pa, effective_inlet
         cycles_completed += 1
         (
             conversion_profile,
@@ -451,6 +481,7 @@ def simulate_pbr(
             u_sup_inlet=u_sup_inlet,
             stage_bed_volume=stage_bed_volume,
             stage_length=stage_length,
+            feed_species=feed_species,
         )
         produce_time_s += tau_total_pass_s
         per_cycle_conversion.append(conversion_profile[-1])
@@ -523,6 +554,7 @@ def simulate_pbr(
         active_sv_1_m=float(inv_fields['active_sv_1_m']),
         site_density_mol_cm2=float(config.site_density_mol_cm2),
         bed_porosity_or_holdup=eps_0,
+        feed_species=feed_species,
     )
 
     single_pass_conv: float = float(
@@ -562,7 +594,9 @@ def simulate_pbr(
             'CH4_conversion': float(final_conv),
             'single_pass_CH4_conversion': single_pass_conv,
             'cycle_averaged_CH4_conversion': cycle_avg_conv,
-            'CH4_mole_fraction_drop': float(mole_fraction_drop(gas, feed_initial)),
+            'CH4_mole_fraction_drop': float(
+                mole_fraction_drop(gas, feed_initial, feed_species=feed_species)
+            ),
             'conversion_basis': 'argon_tracer',
             'thermal_mode': 'isothermal_energy_disabled',
             'surface_area_basis': (
@@ -606,6 +640,10 @@ def simulate_pbr(
             'reactor_evidence_limitations': kinetics_ev_limitations,
         },
     )
+    if effective_inlet != config.inlet_composition:
+        cast(dict[str, object], result)['direct_cantera_feedstock'] = getattr(
+            config, 'feedstock', 'CH4'
+        )
     logger.info(
         f"  PBR result: conversion={final_conv:.2%}, τ={tau_total_pass_s:.1f}s, "
         f"Ω={inlet_pellet_metrics['overall_effectiveness_factor']:.3f}, "

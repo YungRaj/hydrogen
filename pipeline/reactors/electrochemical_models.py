@@ -101,8 +101,30 @@ def simulate_ntec_pathway(config: ElectrochemicalReactorConfig) -> ReactorResult
             'limitations': list(SCREENING_LIMITATIONS),
         }
     if config.native_ntec_parameters:
-        from pipeline.electrochemistry.native_models import ntec_screening_point
-        diagnostic = ntec_screening_point(config.native_ntec_parameters)
+        from pipeline.electrochemistry.native_models import (
+            coupled_ntec_operating_point,
+            ntec_screening_point,
+        )
+
+        ntec_params = config.native_ntec_parameters
+        if (
+            'methane_conversion' not in ntec_params
+            and ('catalyst_E_act_eV' in ntec_params or 'E_act_eV' in ntec_params)
+        ):
+            raw_cfg_e = getattr(config, 'catalyst_E_act_eV', None)
+            cfg_e_val = (
+                float(raw_cfg_e)
+                if isinstance(raw_cfg_e, (int, float))
+                else None
+            )
+            diagnostic = coupled_ntec_operating_point(
+                ntec_params,
+                E_act_eV=cfg_e_val,
+                temperature_K=float(getattr(config, 'T_inlet_K', 473.15)),
+                pressure_Pa=float(getattr(config, 'P_inlet_Pa', 101325.0)),
+            )
+        else:
+            diagnostic = ntec_screening_point(ntec_params)
         native_complete = diagnostic.get('status') == 'complete'
         if not native_complete:
             diagnostic.update(status='validation_required', valid=False)
@@ -214,10 +236,30 @@ def simulate_electrochemical_pathway(
             'limitations': list(SCREENING_LIMITATIONS),
         }
     if config.native_electrochemical_parameters:
-        from pipeline.electrochemistry.native_models import electrochemical_screening_point
-        diagnostic = electrochemical_screening_point(
-            config.native_electrochemical_parameters
+        from pipeline.electrochemistry.native_models import (
+            coupled_electrochemical_operating_point,
+            electrochemical_screening_point,
         )
+
+        echem_params = config.native_electrochemical_parameters
+        if (
+            'methane_conversion' not in echem_params
+            and ('catalyst_E_act_eV' in echem_params or 'E_act_eV' in echem_params)
+        ):
+            raw_cfg_e = getattr(config, 'catalyst_E_act_eV', None)
+            cfg_e_val = (
+                float(raw_cfg_e)
+                if isinstance(raw_cfg_e, (int, float))
+                else None
+            )
+            diagnostic = coupled_electrochemical_operating_point(
+                echem_params,
+                E_act_eV=cfg_e_val,
+                temperature_K=float(getattr(config, 'T_inlet_K', 823.15)),
+                pressure_Pa=float(getattr(config, 'P_inlet_Pa', 101325.0)),
+            )
+        else:
+            diagnostic = electrochemical_screening_point(echem_params)
         native_complete = diagnostic.get('status') == 'complete'
         diagnostic['valid'] = native_complete
         return {

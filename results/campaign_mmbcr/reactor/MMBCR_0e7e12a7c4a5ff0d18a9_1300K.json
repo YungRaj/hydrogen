@@ -235,5 +235,6 @@
   "cycle_averaged_feedstock_conversion": 0.40583313227632645,
   "endothermic_heat_duty_kJ_per_mol_feed_fed": 30.376609950883033,
   "endothermic_heat_duty_T_kJ_per_mol_feed_fed": 36.73257564363028,
-  "exit_x_CO": 0.0
+  "exit_x_CO": 0.0,
+  "single_pass_CH4_conversion": 0.40583313227632645
 }

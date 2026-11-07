@@ -486,9 +486,15 @@ def couple_reactor_to_pemfc_stack(
     wtp_eff: float = wth2_eff * stack_sys_eff
 
     # Amortized PEMFC stack capital cost ($/kWh_e over 40,000 h industrial stack lifetime at 0.85 capacity factor)
+    # H2 transfer price into the PEMFC is floored at $0.01/kg H2 (compression/handling floor)
+    # when co-product solid carbon revenue makes net plant LCOH negative.
     stack_capex_usd_kwh_e: float = float(stack_res['cost_per_kW']) / (40000.0 * 0.85)
-    lcoe_fuel_base: float = lcoh_base / max(LHV_H2_KWH_PER_KG * stack_sys_eff, 1e-6)
-    lcoe_fuel_opt: float = lcoh_opt / max(LHV_H2_KWH_PER_KG * stack_sys_eff, 1e-6)
+    lcoe_fuel_base: float = max(lcoh_base, 0.01) / max(
+        LHV_H2_KWH_PER_KG * stack_sys_eff, 1e-6
+    )
+    lcoe_fuel_opt: float = max(lcoh_opt, 0.01) / max(
+        LHV_H2_KWH_PER_KG * stack_sys_eff, 1e-6
+    )
 
     return {
         'feedstock': spec.formula,

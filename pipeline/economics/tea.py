@@ -175,14 +175,14 @@ def estimate_hydrogen_cost(
         c_mass_ratio = spec.kg_c_per_kg_h2 / ch4_ref_spec.kg_c_per_kg_h2
 
     carbon_credit: float = assumptions.carbon_value_usd_kg_h2 * c_mass_ratio * s_c
-    cost: float = (
+    gross_cost: float = (
         (assumptions.natural_gas_usd_mmbtu * price_mult)
         * mmbtu_feed_per_kg_h2
         / net_feedstock_utilization
         + energy * assumptions.electricity_usd_kwh
         + effective_capex
-        - carbon_credit
     )
+    cost: float = gross_cost - carbon_credit
     assumptions_dict: TEAAssumptionsDict = {
         'natural_gas_usd_mmbtu': assumptions.natural_gas_usd_mmbtu,
         'electricity_usd_kwh': assumptions.electricity_usd_kwh,
@@ -197,6 +197,7 @@ def estimate_hydrogen_cost(
         'feedstock_name': spec.name,
         'kg_feed_per_kg_h2': round(spec.kg_feed_per_kg_h2, 4),
         'kg_c_per_kg_h2': round(spec.kg_c_per_kg_h2, 4),
+        'gross_h2_cost_usd_kg': round(gross_cost, 3),
         'h2_cost_usd_kg': round(cost, 3),
         'conversion': conv_val,
         'recycle_ratio': round(recycle_ratio, 4),

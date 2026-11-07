@@ -23,6 +23,7 @@ from pipeline.reactors.carbon_accounting import (
     load_gas_and_surface,
     mix_bubble_bypass,
     mole_fraction_drop,
+    primary_feed_species,
     require_ar_tracer,
     reset_surface_carbon,
     species_x,
@@ -54,6 +55,7 @@ def _integrate_fluidized_pass(
     removal_rate_1_s: float,
     feed_initial: float = 0.95,
     ar_initial: float = 0.05,
+    feed_species: str = 'CH4',
 ) -> float:
     """Advance emulsion residence with C_s removal *during* integrate (Muradov 2005; Parkinson 2019).
 
@@ -74,7 +76,9 @@ def _integrate_fluidized_pass(
         advance_reactor_stage(
             gas, surf, FLUIDIZED_EMULSION_VOIDAGE, sv_ratio, dt
         )
-        clamp_gas_to_equilibrium(gas, feed_initial, ar_initial)
+        clamp_gas_to_equilibrium(
+            gas, feed_initial, ar_initial, feed_species=feed_species
+        )
         if removal_rate_1_s > 0 and surf is not None:
             carbon_removed += apply_continuous_carbon_removal(
                 surf, removal_rate_1_s, dt
@@ -118,9 +122,28 @@ def simulate_fluidized_bed(
         f"{config.catalyst_name} at {config.T_inlet_K} K"
     )
     gas, graphite, surf = load_gas_and_surface(config)
-    gas.TPX = config.T_inlet_K, config.P_inlet_Pa, config.inlet_composition
+    effective_inlet: str = config.inlet_composition
+    if (
+        effective_inlet == 'CH4:0.95, Ar:0.05'
+        and surf is not None
+        and config.feedstock != 'CH4'
+    ):
+        if (
+            config.feedstock in ('C2H6', 'C3H8', 'C3H6')
+            and config.feedstock in gas.species_names
+            and 'C3H8' in gas.species_names
+        ):
+            effective_inlet = f'{config.feedstock}:0.95, Ar:0.05'
+        elif (
+            config.feedstock == 'BIOGAS'
+            and 'CO2' in gas.species_names
+            and 'O_s' in surf.species_names
+        ):
+            effective_inlet = 'CH4:0.57, CO2:0.38, Ar:0.05'
+    gas.TPX = config.T_inlet_K, config.P_inlet_Pa, effective_inlet
     inlet_x = np.array(gas.X, dtype=float)
-    feed_initial = species_x(gas, 'CH4') or 1.0
+    feed_species = primary_feed_species(gas)
+    feed_initial = species_x(gas, feed_species) or 1.0
     ar_initial = species_x(gas, 'Ar')
     require_ar_tracer(feed_initial, ar_initial)
 
@@ -153,7 +176,14 @@ def simulate_fluidized_bed(
         np.array(surf.coverages, dtype=np.float64) if surf is not None else None
     )
     carbon_removed = _integrate_fluidized_pass(
-        gas, surf, tau_emulsion, sv_ratio, removal_rate, feed_initial, ar_initial
+        gas,
+        surf,
+        tau_emulsion,
+        sv_ratio,
+        removal_rate,
+        feed_initial,
+        ar_initial,
+        feed_species=feed_species,
     )
     last_pass_removed = carbon_removed
 
@@ -162,7 +192,9 @@ def simulate_fluidized_bed(
 
     if not circulating:
         theta = surface_coverage(surf, 'C_s')
-        per_cycle.append(feedstock_extent(gas, feed_initial, ar_initial))
+        per_cycle.append(
+            feedstock_extent(gas, feed_initial, ar_initial, feed_species=feed_species)
+        )
         while (
             config.max_regen_cycles > 0
             and regen_cycles < config.max_regen_cycles
@@ -171,21 +203,34 @@ def simulate_fluidized_bed(
             if config.regen_mechanism == REGEN_OXIDATIVE and not config.co2_permitted:
                 raise RuntimeError('oxidative regen blocked (co2_permitted=False)')
             reset_surface_carbon(surf)
-            gas.TPX = config.T_inlet_K, config.P_inlet_Pa, config.inlet_composition
+            gas.TPX = config.T_inlet_K, config.P_inlet_Pa, effective_inlet
             pass_start_cov = (
                 np.array(surf.coverages, dtype=np.float64)
                 if surf is not None
                 else None
             )
             last_pass_removed = _integrate_fluidized_pass(
-                gas, surf, tau_emulsion, sv_ratio, 0.0, feed_initial, ar_initial
+                gas,
+                surf,
+                tau_emulsion,
+                sv_ratio,
+                0.0,
+                feed_initial,
+                ar_initial,
+                feed_species=feed_species,
             )
             carbon_removed += last_pass_removed
             theta = surface_coverage(surf, 'C_s')
             regen_cycles += 1
-            per_cycle.append(feedstock_extent(gas, feed_initial, ar_initial))
+            per_cycle.append(
+                feedstock_extent(
+                    gas, feed_initial, ar_initial, feed_species=feed_species
+                )
+            )
 
-    emulsion_conv = feedstock_extent(gas, feed_initial, ar_initial)
+    emulsion_conv = feedstock_extent(
+        gas, feed_initial, ar_initial, feed_species=feed_species
+    )
     exit_theta_c = surface_coverage(surf, 'C_s')
 
     # Baker-Helveg-Abild-Pedersen off-site carbon accounting on the emulsion basis
@@ -215,7 +260,9 @@ def simulate_fluidized_bed(
 
     # Bubble bypass: δ of the feed passes unreacted; mix on molar flows (Ar tracer).
     mix_bubble_bypass(gas, inlet_x, delta, ar_initial)
-    final_conv = feedstock_extent(gas, feed_initial, ar_initial)
+    final_conv = feedstock_extent(
+        gas, feed_initial, ar_initial, feed_species=feed_species
+    )
     expected = (1.0 - delta) * emulsion_conv
     if abs(final_conv - expected) > 1e-6 + 1e-6 * abs(expected):
         raise RuntimeError(
@@ -244,6 +291,7 @@ def simulate_fluidized_bed(
         active_sv_1_m=sv_ratio * (1.0 - delta),
         site_density_mol_cm2=float(config.site_density_mol_cm2),
         bed_porosity_or_holdup=FLUIDIZED_EMULSION_VOIDAGE * (1.0 - delta) + delta,
+        feed_species=feed_species,
     )
 
     single_pass_conv: float = float(
@@ -283,7 +331,9 @@ def simulate_fluidized_bed(
         'circulating_outfeed_active': circulating_outfeed_active,
         'carbon_outfeed_policy_summary': carbon_outfeed_policy_summary,
         'bypass_basis': 'ar_tracer_molar_mix',
-        'CH4_mole_fraction_drop': mole_fraction_drop(gas, feed_initial),
+        'CH4_mole_fraction_drop': mole_fraction_drop(
+            gas, feed_initial, feed_species=feed_species
+        ),
         'conversion_basis': 'argon_tracer',
         'thermal_mode': 'isothermal_energy_disabled',
         'exit_x_H2': float(x_h2),
@@ -300,6 +350,8 @@ def simulate_fluidized_bed(
             config, final_conv, tau_emulsion, feed_initial, graphite, surf
         ),
     }
+    if effective_inlet != config.inlet_composition:
+        result['direct_cantera_feedstock'] = getattr(config, 'feedstock', 'CH4')
     logger.info(
         f"  Fluidized result: conversion={final_conv:.2%} "
         f"(emulsion {emulsion_conv:.2%}, delta={delta:.2f}) mode={config.fluidized_mode}"

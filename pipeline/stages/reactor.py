@@ -107,6 +107,7 @@ def simulate_candidate(
     pathway_mode: str = DEFAULT_MODE,
     multiphysics_results_dir: str | None = None,
     services: ReactorStageServices | None = None,
+    feedstock: str = 'CH4',
 ) -> CandidateReactorResult:
     """Build the candidate mechanism and run the selected pathway's reactors.
 
@@ -120,6 +121,7 @@ def simulate_candidate(
         pathway_mode: Configured methane-conversion pathway.
         multiphysics_results_dir: Directory used for multiphysics results dir.
         services: Services used by this operation.
+        feedstock: Hydrocarbon or biomass feedstock identifier (default ``'CH4'``).
 
     Returns:
         Dictionary containing the computed values, status, and supporting metadata.
@@ -133,7 +135,21 @@ def simulate_candidate(
     kinetics = services.build_kinetics(
         row, candidate_id=candidate_id, validation=kinetics_validation
     )
-    mechanism = services.write_mechanism(catalyst_name, kinetics=kinetics)
+    norm_feedstock = str(feedstock or 'CH4').strip().upper()
+    if norm_feedstock != 'CH4':
+        from pipeline.reactors.mechanisms import (
+            CandidateKinetics,
+            write_feedstock_mechanism,
+        )
+
+        if isinstance(kinetics, CandidateKinetics):
+            mechanism: Path | str | None = write_feedstock_mechanism(
+                catalyst_name, kinetics=kinetics, feedstock=norm_feedstock
+            )
+        else:
+            mechanism = services.write_mechanism(catalyst_name, kinetics=kinetics)
+    else:
+        mechanism = services.write_mechanism(catalyst_name, kinetics=kinetics)
     raw_barrier = row.get('E_act')
     if not isinstance(raw_barrier, (int, float)):
         barrier = float(str(raw_barrier))
@@ -152,6 +168,8 @@ def simulate_candidate(
         'max_regen_cycles': 3,
         'regen_mechanism': 'mechanical',
     }
+    if norm_feedstock != 'CH4':
+        carbon_policy['feedstock'] = norm_feedstock
     raw_class = row.get('material_class')
     material_class = str(raw_class) if raw_class is not None else None
     sweep = services.run_sweep(

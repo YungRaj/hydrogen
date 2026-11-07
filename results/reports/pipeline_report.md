@@ -1,6 +1,6 @@
 # Turquoise Hydrogen → Fuel Cell: Pipeline Report
 
-**Generated**: 2026-11-07 19:35:48
+**Generated**: 2026-11-07 20:52:10
 **Pipeline Version**: 2.0.0
 
 > **Evidence status:** screening values are hypotheses. Mock results and unconverged calculations are excluded from validated claims; catalyst performance requires experimental confirmation.
@@ -18,8 +18,8 @@
 | Solids judge CH₄ conversion (Ni(fcc111)/SiO2 Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=ni_np_lit] PFR) | 26.34% |
 | Top candidate solids CH₄ conversion (FeZnNbIrSc-hcp(111) High-Entropy Alloy (Miracle & Senkov 2017 / Yao et al., Science 2018 Multi-Principal-Element Surface) [id=0021a267d0b5a6e984a9]) | 98.50% |
 | MMBCR max CH₄ conversion | 73.83% (not a solids rank) |
-| NTEC max CH₄ conversion (coupled MOOSE+Cantera) | 83.24% |
-| Electrochemical max CH₄ conversion (coupled MOOSE+Cantera) | 79.06% |
+| NTEC max CH₄ conversion (coupled MOOSE+Cantera) | 84.07% |
+| Electrochemical max CH₄ conversion (coupled MOOSE+Cantera) | 84.08% |
 | FC catalysts evaluated | 104 |
 | Best PEMFC power density | 1.348 W/cm² |
 | Best PEMFC efficiency | 35.9% |
@@ -57,16 +57,16 @@
 
 | Rank | Genome | E_act (eV) | Interfacial Score (eV) | Calibrated Score (eV) | Coking Index | dE_H (eV) |
 |------|--------|------------|------------------------|-----------------------|-------------|-----------|
-| 1 | Pt1/Ni(110) Single-Atom Alloy (Kyriakou et al., Science 2012 / Darby et al., Nat. Mater. 2018) [id=b6702ffe2074faa4fa50] | 0.2753 | 0.5169 | 1.1809 | 2.479209050536163 | -0.9519897475838696 |
-| 2 | Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba] | 0.3413 | 0.5255 | 1.1895 | 0.7676210526315789 | -0.4912 |
-| 3 | La,Y-doped Ni(fcc211)/CeZrO2, strain=+0.09% Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=be45ea11e23945dbbda5] | 0.4655 | 0.7784 | 1.4424 | 2.131796821951859 | -0.6455789580941236 |
-| 4 | FeNbRuSiGe-fcc_bcc_dual(211) High-Entropy Alloy (Miracle & Senkov 2017 / Yao et al., Science 2018 Multi-Principal-Element Surface) [id=e40b9a32452d7b1e6f1f] | 0.4742 | 0.8961 | 1.5601 | 2.334771141409924 | -0.9486385360360464 |
-| 5 | (Co,Ni)3AlC2(basal_0001) MAX Phase Nanolaminate (Barsoum, Prog. Solid State Chem. 2000) [id=3def15c30d9a9b799254] | 0.4989 | 0.6573 | 1.3213 | 2.9311808198690343 | -0.5749312415719068 |
-| 6 | Ce-doped MgCo2O4/N-graphene (nanoparticle) Spinel Oxide (Liang et al., Nat. Mater. 2011) [id=c9bf4b755ab0023fffba] | 0.6281 | 1.7489 | 2.4129 | 1.9931449118678044 | -0.29857622185007 |
-| 7 | CrY-N8/Graphene Dual-Atom Catalyst (Wang et al., J. Am. Chem. Soc. 2018 Synergistic Bimetallic Site) [id=25810913ec6523464e81] | 0.7474 | 1.1337 | 1.7977 | 3.669448837637922 | -0.3556362167000806 |
-| 8 | Ga99.9Ti0.1 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=c4ab2249c156880efdbe] | 0.8215 | 1.0165 | 2.1945 | nan | 0.0601983252881605 |
-| 9 | Ta-N4-N-graphene/none Single-Atom Catalyst (Zitolo et al., Nat. Mater. 2015 / Akri et al., Nat. Commun. 2019) [id=f58366bf5dfcdc4578f3] | 0.8274 | 0.9524 | 1.6164 | 5.305162179504616 | 0.8368801762489819 |
-| 10 | Nd-N4_pyridine-N-graphene/none Single-Atom Catalyst (Zitolo et al., Nat. Mater. 2015 / Akri et al., Nat. Commun. 2019) [id=8609ad5ba35faea2ac57] | 0.9407 | 1.6838 | 2.3478 | 5.021425515515548 | -0.7594639325536012 |
+| 1 | Pt1/Ni(110) Single-Atom Alloy (Kyriakou et al., Science 2012 / Darby et al., Nat. Mater. 2018) [id=b6702ffe2074faa4fa50] | 0.2753 | 0.5169 | 1.1809 | 2.4792 | -0.9519897475838696 |
+| 2 | Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba] | 0.3413 | 0.5255 | 1.1895 | 0.7676 | -0.4912 |
+| 3 | La,Y-doped Ni(fcc211)/CeZrO2, strain=+0.09% Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=be45ea11e23945dbbda5] | 0.4655 | 0.7784 | 1.4424 | 2.1318 | -0.6455789580941236 |
+| 4 | FeNbRuSiGe-fcc_bcc_dual(211) High-Entropy Alloy (Miracle & Senkov 2017 / Yao et al., Science 2018 Multi-Principal-Element Surface) [id=e40b9a32452d7b1e6f1f] | 0.4742 | 0.8961 | 1.5601 | 2.3348 | -0.9486385360360464 |
+| 5 | (Co,Ni)3AlC2(basal_0001) MAX Phase Nanolaminate (Barsoum, Prog. Solid State Chem. 2000) [id=3def15c30d9a9b799254] | 0.4989 | 0.6573 | 1.3213 | 2.9312 | -0.5749312415719068 |
+| 6 | Ce-doped MgCo2O4/N-graphene (nanoparticle) Spinel Oxide (Liang et al., Nat. Mater. 2011) [id=c9bf4b755ab0023fffba] | 0.6281 | 1.7489 | 2.4129 | 1.9931 | -0.29857622185007 |
+| 7 | CrY-N8/Graphene Dual-Atom Catalyst (Wang et al., J. Am. Chem. Soc. 2018 Synergistic Bimetallic Site) [id=25810913ec6523464e81] | 0.7474 | 1.1337 | 1.7977 | 3.6694 | -0.3556362167000806 |
+| 8 | Ga99.9Ti0.1 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=c4ab2249c156880efdbe] | 0.8215 | 1.0165 | 2.1945 | — (liquid melt) | 0.0601983252881605 |
+| 9 | Ta-N4-N-graphene/none Single-Atom Catalyst (Zitolo et al., Nat. Mater. 2015 / Akri et al., Nat. Commun. 2019) [id=f58366bf5dfcdc4578f3] | 0.8274 | 0.9524 | 1.6164 | 5.3052 | 0.8368801762489819 |
+| 10 | Nd-N4_pyridine-N-graphene/none Single-Atom Catalyst (Zitolo et al., Nat. Mater. 2015 / Akri et al., Nat. Commun. 2019) [id=8609ad5ba35faea2ac57] | 0.9407 | 1.6838 | 2.3478 | 5.0214 | -0.7594639325536012 |
 
 ## Phase 2: Reactor-Scale Simulation
 
@@ -74,11 +74,20 @@ Solids judged on **Ni(fcc111)/SiO2 Supported Solid Catalyst (Bengaard 2002 / Alv
 
 | Reactor | Catalyst | T (K) | Single-pass X | H₂ Selectivity | H₂ Yield | r_H₂ (mol/m³·s) | a (m⁻¹) | WHSV (h⁻¹) | ΔP (bar) |
 |---------|----------|-------|---------------|----------------|----------|-----------------|---------|------------|----------|
-| PFR | Ni(fcc111)/SiO2 Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=ni_np_lit] | 973.15 | 26.34% | 100.00% | 26.34% | — | 4154 | 900 | 0.33 |
-| PBR | Ni(fcc111)/SiO2 Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=ni_np_lit] | 973.15 | 23.03% | 100.00% | 23.03% | — | 4154 | 1272 | 0.50 |
-| Fluidized | Ni(fcc111)/SiO2 Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=ni_np_lit] | 973.15 | 18.79% | 100.00% | 18.79% | — | 3808 | 400 | 0.33 |
+| PFR | Ni(fcc111)/SiO2 Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=ni_np_lit] | 973.15 | 26.34% | 100.00% | 26.34% | 0.63 | 4154 | 900 | 0.33 |
+| PBR | Ni(fcc111)/SiO2 Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=ni_np_lit] | 973.15 | 23.03% | 100.00% | 23.03% | 0.77 | 4154 | 1272 | 0.50 |
+| Fluidized | Ni(fcc111)/SiO2 Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=ni_np_lit] | 973.15 | 18.79% | 100.00% | 18.79% | 0.20 | 3808 | 400 | 0.33 |
 
 Top candidate solids X = 98.50% on **FeZnNbIrSc-hcp(111) High-Entropy Alloy (Miracle & Senkov 2017 / Yao et al., Science 2018 Multi-Principal-Element Surface) [id=0021a267d0b5a6e984a9]** (PBR @ 1300.0 K)
+
+### Packed-Bed (PBR), Ergun Pilot Residence-Time, & Regenerated-Cycle Diagnostics
+
+- **Completed solids runs**: 360 (PBR: 120)
+- **Mean PBR overall effectiveness ($\Omega$)**: 0.946
+- **Mean PBR Thiele modulus ($\phi$)**: 0.268
+- **Ergun $\Delta P$ compliance**: 360/360
+- **Ergun & Froment pilot residence-time band ($\tau \in [0.1, 10]\text{ s}$)**: 235/240
+- **Mean Muradov regenerated-cycle minus single-pass conversion ($\Delta X$)**: +0.00%
 
 ### Solids runs (single-pass)
 
@@ -109,6 +118,9 @@ Top candidate solids X = 98.50% on **FeZnNbIrSc-hcp(111) High-Entropy Alloy (Mir
 
 | Catalyst | Reactor | T (K) | CH₄ Conversion | H₂ Selectivity | H₂ Yield | r_H₂ (mol/m³·s) | Evidence Tier |
 |----------|---------|-------|----------------|----------------|----------|-----------------|---------------|
+| (Ta,Ti)2AlC1(basal_0001) MAX Phase Nanolaminate (Barsoum, Prog. Solid State Chem. 2000) [id=eb64b3aa6d3913c21f5d] | Electrochemical | 823.15 | 84.08% | 100.00% | 84.08% | 37.84 | uncalibrated_multiphysics_screening |
+| (Ta,Ti)2AlC1(basal_0001) MAX Phase Nanolaminate (Barsoum, Prog. Solid State Chem. 2000) [id=eb64b3aa6d3913c21f5d] | NTEC | 473.15 | 84.07% | 100.00% | 84.07% | 65.82 | uncalibrated_multiphysics_screening |
+| (Ta,Ti)2AlC1(basal_0001) MAX Phase Nanolaminate (Barsoum, Prog. Solid State Chem. 2000) [id=eb64b3aa6d3913c21f5d] | NTEC | 423.15 | 84.04% | 100.00% | 84.04% | 73.58 | uncalibrated_multiphysics_screening |
 | Pt1/Ni(fcc110) Single-Atom Alloy (Kyriakou et al., Science 2012 / Darby et al., Nat. Mater. 2018) [id=b6702ffe2074faa4fa50] | NTEC | 473.15 | 83.24% | 100.00% | 83.24% | 65.18 | uncalibrated_multiphysics_screening |
 | Bi73Ni27 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=99cbb4a430ec9289b09d] | NTEC | 473.15 | 82.93% | 100.00% | 82.93% | 64.94 | uncalibrated_multiphysics_screening |
 | Cu,Fe-doped Ni(fcc111)/MgAl2O4 Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=768cb0559591faec06ba] | NTEC | 473.15 | 82.78% | 100.00% | 82.78% | 64.81 | uncalibrated_multiphysics_screening |
@@ -126,9 +138,6 @@ Top candidate solids X = 98.50% on **FeZnNbIrSc-hcp(111) High-Entropy Alloy (Mir
 | Bi73Ni27 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=f2f562d4c2602522a2e3] | Electrochemical | 823.15 | 74.92% | 100.00% | 74.92% | 33.72 | uncalibrated_multiphysics_screening |
 | Bi73Ni27 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=99cbb4a430ec9289b09d] | MMBCR | 1300.0 | 73.83% | 98.49% | 72.72% | 0.43 | diagnostic_screening_template |
 | Bi73Ni27 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=f2f562d4c2602522a2e3] | MMBCR | 1300.0 | 67.88% | 98.29% | 66.72% | 0.40 | diagnostic_screening_template |
-| Bi73Ni27 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=99cbb4a430ec9289b09d] | MMBCR | 1100.0 | 51.16% | 99.99% | 51.15% | 0.36 | diagnostic_screening_template |
-| Bi73Ni27 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=f2f562d4c2602522a2e3] | MMBCR | 1100.0 | 44.51% | 99.99% | 44.51% | 0.31 | diagnostic_screening_template |
-| Bi89Ga11 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=0e7e12a7c4a5ff0d18a9] | MMBCR | 1300.0 | 40.58% | 97.23% | 39.46% | 0.23 | diagnostic_screening_template |
 
 Excluded 341 non-run reactor files (sweeps, mocks, not_applicable, validation_required, failed) from performance claims.
 
@@ -238,6 +247,7 @@ Excluded 341 non-run reactor files (sweeps, mocks, not_applicable, validation_re
 |---------|----------|---------------------|---------|-------|--------------------|
 | Pt1/Co(100) Single-Atom Alloy (Kyriakou et al., Science 2012 / Darby et al., Nat. Mater. 2018) [id=c77b56fa00cdc515e3b7] | AquivionE87 | 2.3119 | 1.179 | 0.2069 | 46.1% |
 | oxidized,0.01-doped edge_armchair graphene Metal-Free Carbon (Muradov 2005 / Gong et al., Science 2009) [id=87d86cdaf36fda7c6831] | AquivionE87 | 2.0398 | 1.179 | 0.172376 | 40.7% |
+| b5e764d896815bfcfca7 | AquivionE87 | 2.0294 | 1.179 | 0.2583 | 40.5% |
 | W-doped NiCo2O4/N-CNT (nanoparticle) Spinel Oxide (Liang et al., Nat. Mater. 2011) [id=dbc15731f8fdb0f99d43] | AquivionE87 | 1.2628 | 1.179 | 0.1591 | 25.2% |
 | Mn,Cu-doped Au(fcc110)/NiP, strain=+0.06% Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=c5ad001debb359e04c33] | AquivionE87 | 1.7496 | 1.179 | 0.349075 | 34.9% |
 | Ag1/Au(100) Single-Atom Alloy (Kyriakou et al., Science 2012 / Darby et al., Nat. Mater. 2018) [id=730c6d4349990c81e975] | AquivionE87 | 1.7441 | 1.179 | 0.348847 | 34.8% |
@@ -250,7 +260,6 @@ Excluded 341 non-run reactor files (sweeps, mocks, not_applicable, validation_re
 | Pt_wet | Nafion_212 | 1.2283 | 1.179 | 0.35 | 32.7% |
 | N,Ta-doped Au(bcc211)/MoO3, strain=+0.10% Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=7ec3c045b95ab35fc877] | AquivionE87 | 1.4751 | 1.179 | 0.417691 | 29.4% |
 | PtSn-N8/Graphene Dual-Atom Catalyst (Wang et al., J. Am. Chem. Soc. 2018 Synergistic Bimetallic Site) [id=7fba4d6b4f15772edf2d] | AquivionE87 | 1.4187 | 1.179 | 0.420581 | 28.3% |
-| Fe_N_C | Nafion_212 | 1.1028 | 1.179 | 0.38 | 29.3% |
 
 ### Stack Performance
 
@@ -259,10 +268,10 @@ Excluded 341 non-run reactor files (sweeps, mocks, not_applicable, validation_re
 - **Power Density**: 1171 W/kg, 1766 W/L
 - **Cost**: $65/kW
 
-- **Stack Power**: 102.0 kW net (400 cells)
-- **System Efficiency**: 17.5%
-- **Power Density**: 1100 W/kg, 1660 W/L
-- **Cost**: $76/kW
+- **Stack Power**: 226.4 kW net (400 cells)
+- **System Efficiency**: 37.6%
+- **Power Density**: 2442 W/kg, 3685 W/L
+- **Cost**: $34/kW
 
 ## Techno-Economic Summary
 
@@ -310,8 +319,8 @@ Excluded 341 non-run reactor files (sweeps, mocks, not_applicable, validation_re
 | `thermocatalytic_pfr` | PFR | Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba] | 1300.0 | 94.01% | 46.32% | — | 0.399 | $1.273 | $0.249 | `dft_neb_complete` |
 | `thermocatalytic_fluidized` | Fluidized | Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba] | 1300.0 | 41.27% | 11.10% | — | 0.399 | $2.884 | $1.143 | `dft_neb_complete` |
 | `mmbcr` | MMBCR | Bi73Ni27 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=99cbb4a430ec9289b09d] | 1300.0 | 73.83% | 40.37% | — | — | $1.362 | $0.308 | `dft_neb_complete` |
-| `ntec` | NTEC | Pt1/Ni(fcc110) Single-Atom Alloy (Kyriakou et al., Science 2012 / Darby et al., Nat. Mater. 2018) [id=b6702ffe2074faa4fa50] | 473.1 | 83.24% | 48.82% | — | — | $0.743 | $0.010 | `dft_neb_complete` |
-| `electrochemical` | Electrochemical | Pt1/Ni(fcc110) Single-Atom Alloy (Kyriakou et al., Science 2012 / Darby et al., Nat. Mater. 2018) [id=b6702ffe2074faa4fa50] | 823.1 | 79.06% | 55.83% | — | — | $1.745 | $0.593 | `dft_neb_complete` |
+| `ntec` | NTEC | (Ta,Ti)2AlC1(basal_0001) MAX Phase Nanolaminate (Barsoum, Prog. Solid State Chem. 2000) [id=eb64b3aa6d3913c21f5d] | 473.1 | 84.07% | 49.77% | — | — | $0.736 | $0.005 | `dft_neb_complete` |
+| `electrochemical` | Electrochemical | (Ta,Ti)2AlC1(basal_0001) MAX Phase Nanolaminate (Barsoum, Prog. Solid State Chem. 2000) [id=eb64b3aa6d3913c21f5d] | 823.1 | 84.08% | 61.73% | — | — | $1.686 | $0.557 | `dft_neb_complete` |
 
 #### 7-Pathway H₂/C₂ Selectivity, Yield, & Volumetric / Site-Normalized Production Rates
 
@@ -322,8 +331,8 @@ Excluded 341 non-run reactor files (sweeps, mocks, not_applicable, validation_re
 | `thermocatalytic_pfr` | PFR | 99.54% | 99.10% | 0.90% | 46.11% | 1.667 | 0.412 | 0.821 | 5.960 | 7.9079 |
 | `thermocatalytic_fluidized` | Fluidized | 97.53% | 95.18% | 4.82% | 10.83% | 0.319 | 0.044 | 0.086 | 0.622 | 0.9003 |
 | `mmbcr` | MMBCR | 98.49% | 97.13% | 2.87% | 39.76% | 0.432 | 0.120 | 0.236 | 1.713 | 35.7290 |
-| `ntec` | NTEC | 100.00% | 100.00% | 0.00% | 48.82% | 65.178 | 19.113 | 38.226 | 277.410 | 424.7295 |
-| `electrochemical` | Electrochemical | 100.00% | 100.00% | 0.00% | 55.83% | 35.581 | 12.564 | 25.127 | 182.352 | 279.1915 |
+| `ntec` | NTEC | 100.00% | 100.00% | 0.00% | 49.77% | 65.824 | 19.485 | 38.969 | 282.808 | 432.9944 |
+| `electrochemical` | Electrochemical | 100.00% | 100.00% | 0.00% | 61.73% | 37.843 | 13.891 | 27.783 | 201.623 | 308.6959 |
 
 #### Supported-Ni(111)/SiO₂ Filamentous-Carbon Reference Closure
 
@@ -346,8 +355,8 @@ Excluded 341 non-run reactor files (sweeps, mocks, not_applicable, validation_re
 | `thermocatalytic_fluidized` | $2.884 | $1.143 | $0.2055 | $0.0815 |
 | `thermocatalytic` | $1.190 | $0.200 | $0.0848 | $0.0143 |
 | `mmbcr` | $1.362 | $0.308 | $0.0971 | $0.0219 |
-| `ntec` | $0.743 | $0.010 | $0.0530 | $0.0007 |
-| `electrochemical` | $1.745 | $0.593 | $0.1244 | $0.0423 |
+| `ntec` | $0.736 | $0.005 | $0.0525 | $0.0004 |
+| `electrochemical` | $1.686 | $0.557 | $0.1202 | $0.0397 |
 
 #### Integrated Reactor-PSA-PEMFC Well-to-Power Coupling & CO/C₂H₄ Impurity Tolerance
 
@@ -358,72 +367,31 @@ Excluded 341 non-run reactor files (sweeps, mocks, not_applicable, validation_re
 | `thermocatalytic_fluidized` | Fluidized | 99.9965% | 0.000 | 4.932 | 94.25% | 251.53 | 22.27% | 9.31% | $0.2078 |
 | `thermocatalytic` | PBR | 99.9970% | 0.000 | 0.344 | 99.59% | 253.10 | 67.62% | 28.46% | $0.0858 |
 | `mmbcr` | MMBCR | 99.9966% | 0.000 | 3.640 | 95.72% | 251.97 | 58.43% | 24.48% | $0.0985 |
-| `ntec` | NTEC | 99.9970% | 0.000 | 0.000 | 100.00% | 253.21 | 84.29% | 35.49% | $0.0539 |
-| `electrochemical` | Electrochemical | 99.9970% | 0.000 | 0.000 | 100.00% | 253.21 | 54.30% | 22.86% | $0.1253 |
+| `ntec` | NTEC | 99.9970% | 0.000 | 0.000 | 100.00% | 253.21 | 84.77% | 35.69% | $0.0534 |
+| `electrochemical` | Electrochemical | 99.9970% | 0.000 | 0.000 | 100.00% | 253.21 | 56.47% | 23.77% | $0.1211 |
 
 #### 18-Feedstock Multi-Hydrocarbon, Waste Polyolefin & Biomass Flexibility Matrix
 
-| Feedstock | Name | Category | H/C | kg_feed/kg_H₂ | kg_C/kg_H₂ | ΔH°₂₉₈ (kJ/mol H₂) | PFR X | PFR Base LCOH ($/kg) | MMBCR X | MMBCR Base LCOH ($/kg) | MMBCR Opt. LCOH ($/kg) | Post-PSA CO (ppm) | Coupled LCOE ($/kWh_e) |
-|-----------|------|----------|-----|---------------|------------|--------------------|-------|----------------------|---------|------------------------|------------------------|-------------------|------------------------|
-| `CH4` | Methane (Pipeline Natural Gas) | `natural_gas` | 4.00 | 3.98 | 2.98 | 37.4 | 46.32% | $1.273 | 40.37% | $1.362 | $0.308 | 0.00 | $0.0985 |
-| `ASSOC_GAS` | Associated / Flare Gas (Wet C1-C4 Blend) | `natural_gas` | 3.50 | 4.41 | 3.40 | 23.3 | 70.32% | $0.410 | 72.34% | $0.401 | $-0.357 | 0.00 | $0.0296 |
-| `C2H6` | Ethane (Shale NGL) | `light_alkane` | 3.00 | 4.97 | 3.97 | 27.9 | 82.36% | $0.824 | 84.04% | $0.816 | $-0.140 | 0.00 | $0.0595 |
-| `C3H8` | Propane (Wholesale LPG) | `light_alkane` | 2.67 | 5.47 | 4.47 | 26.0 | 92.32% | $1.026 | 95.59% | $1.014 | $-0.032 | 0.00 | $0.0744 |
-| `C4H10` | n-Butane (Refinery C4 Raffinate / LPG) | `light_alkane` | 2.50 | 5.77 | 4.77 | 25.2 | 95.16% | $0.945 | 98.26% | $0.935 | $-0.116 | 0.00 | $0.0690 |
-| `C5H12` | n-Pentane (Natural Gasoline / C5+ Condensate) | `liquid_hydrocarbon` | 2.40 | 5.96 | 4.96 | 24.5 | 96.46% | $0.967 | 99.17% | $0.958 | $-0.118 | 0.00 | $0.0708 |
-| `C6H14` | n-Hexane (Straight-Run Light Naphtha) | `liquid_hydrocarbon` | 2.33 | 6.11 | 5.11 | 23.9 | 96.75% | $1.048 | 99.44% | $1.040 | $-0.072 | 0.00 | $0.0770 |
-| `C6H12` | Cyclohexane (Naphthenic Ring Cut / LOHC) | `cycloalkane_olefin` | 2.00 | 6.96 | 5.96 | 20.6 | 98.30% | $0.984 | 99.74% | $0.979 | $-0.220 | 0.00 | $0.0729 |
-| `C8H18` | n-Octane (Heavy Naphtha / Gasoline Surrogate) | `liquid_hydrocarbon` | 2.25 | 6.30 | 5.30 | 23.2 | 98.22% | $1.130 | 99.81% | $1.125 | $-0.028 | 0.00 | $0.0835 |
-| `C12H26` | n-Dodecane (Kerosene / Middle Distillate Diesel) | `liquid_hydrocarbon` | 2.17 | 6.50 | 5.50 | 22.4 | 98.93% | $1.210 | 99.89% | $1.208 | $0.013 | 0.00 | $0.0899 |
-| `C16H34` | n-Hexadecane / Cetane (Heavy Gas Oil / Slack Wax) | `liquid_hydrocarbon` | 2.12 | 6.61 | 5.61 | 22.0 | 99.23% | $0.944 | 99.90% | $0.942 | $-0.184 | 0.00 | $0.0704 |
-| `C10H20_PE` | Waste Polyolefin Pyrolysis Oil (PE/PP -(CH2)-n) | `waste_plastic` | 2.00 | 6.96 | 5.96 | 16.5 | 98.81% | $-0.041 | 99.88% | $-0.044 | $-0.932 | 0.00 | $-0.0023 |
-| `BIOMETHANE` | Biomethane / RNG (Upgraded Anaerobic Biogas) | `biomass_biogenic` | 4.00 | 3.98 | 2.98 | 37.4 | 46.32% | $1.157 | 40.37% | $1.245 | $0.225 | 0.00 | $0.0901 |
-| `BIOGAS` | Raw Anaerobic Digester / Landfill Biogas (CH4 + CO2) | `biomass_biogenic` | 3.00 | 7.62 | 1.99 | 45.3 | 66.16% | $1.092 | 59.32% | $1.133 | $0.300 | 50.00 | $0.1517 |
-| `C18H34O2_LIPID` | Waste Cooking Oil / Tall Oil Bio-Lipid (C18H34O2) | `biomass_biogenic` | 1.89 | 8.24 | 5.61 | 20.5 | 98.88% | $0.468 | 99.90% | $0.466 | $-0.523 | 22.52 | $0.0450 |
-| `C3H8O3_GLYCEROL` | Crude Biodiesel Glycerol Byproduct (C3H8O3) | `biomass_biogenic` | 2.67 | 9.44 | 1.49 | 34.5 | 99.82% | $0.970 | 99.62% | $0.971 | $0.313 | 50.00 | $0.1310 |
-| `C6H10O2_BIOOIL` | Fast-Pyrolysis Bio-Oil (Hydro-Deoxygenated C6H10O2) | `biomass_biogenic` | 1.67 | 11.32 | 4.77 | 24.4 | 98.04% | $0.462 | 99.44% | $0.459 | $-0.452 | 50.00 | $0.0650 |
-| `C6H10O4_BIOMASS` | Torrefied Lignocellulosic Biomass (Woody/Ag C6H10O4) | `biomass_biogenic` | 1.67 | 14.50 | 2.38 | 23.6 | 98.47% | $0.877 | 98.78% | $0.876 | $0.150 | 50.00 | $0.1193 |
-
-### De Novo Multi-Step Atomistic, Langevin MD & Periodic Slab-DFT Discovery Validation
-
-#### Periodic Surface-Slab Quantum ESPRESSO (`pw.x` / `neb.x`) Validation
-
-| Rank | Catalyst | Class | Clean Slab E (eV) | ΔE_rxn,slab (eV) | E_act,slab-DFT (eV) | ΔE_C,slab (eV) | Converged |
-|------|----------|-------|-------------------|------------------|---------------------|----------------|-----------|
-| 1 | Pt1/Ni(110) Single-Atom Alloy (Kyriakou et al., Science 2012 / Darby et al., Nat. Mater. 2018) [id=b6702ffe2074faa4fa50] | SAA | -35844.58 | +0.4702 | 1.1809 | +1.7792 | `True` |
-| 2 | Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba] | SupportedNanoparticle | -31555.44 | +0.4764 | 1.1895 | +0.0676 | `True` |
-| 3 | La,Y-doped Ni(fcc211)/CeZrO2, strain=+0.09% Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=be45ea11e23945dbbda5] | SolidCatalyst | -37298.41 | +0.6585 | 1.4424 | +1.4318 | `True` |
-| 4 | (Co,Ni)3AlC2(basal_0001) MAX Phase Nanolaminate (Barsoum, Prog. Solid State Chem. 2000) [id=3def15c30d9a9b799254] | MAXPhase | -28490.57 | +0.5713 | 1.3213 | +2.2312 | `True` |
-| 5 | FeNbRuSiGe-fcc_bcc_dual(211) High-Entropy Alloy (Miracle & Senkov 2017 / Yao et al., Science 2018 Multi-Principal-Element Surface) [id=e40b9a32452d7b1e6f1f] | HEA | -28677.02 | +0.7433 | 1.5601 | +1.6348 | `True` |
-| 6 | Ce-doped MgCo2O4/N-graphene (nanoparticle) Spinel Oxide (Liang et al., Nat. Mater. 2011) [id=c9bf4b755ab0023fffba] | Spinel | -28003.63 | +2.2013 | 2.4129 | +1.2931 | `True` |
-| 7 | CrY-N8/Graphene Dual-Atom Catalyst (Wang et al., J. Am. Chem. Soc. 2018 Synergistic Bimetallic Site) [id=25810913ec6523464e81] | DAC | -13955.76 | +1.3348 | 1.7977 | +2.9694 | `True` |
-| 8 | Ga99.9Ti0.1 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=c4ab2249c156880efdbe] | MoltenMetal | -26244.28 | +1.2000 | 2.1945 | -0.2000 | `True` |
-| 9 | Ta-N4-N-graphene/none Single-Atom Catalyst (Zitolo et al., Nat. Mater. 2015 / Akri et al., Nat. Commun. 2019) [id=f58366bf5dfcdc4578f3] | SAC | -10492.25 | +0.7838 | 1.6164 | +4.6052 | `True` |
-| 10 | pyrrolic,0.04-doped none graphene Metal-Free Carbon (Muradov 2005 / Gong et al., Science 2009) [id=5ed9c863d22330991eb6] | MetalFreeCarbon | -2006.57 | +2.6332 | 2.7196 | +5.9712 | `True` |
-| 11 | Ce-doped NiCo2O4/N-graphene (nanoparticle) Spinel Oxide (Liang et al., Nat. Mater. 2011) [id=f7e94c08fb1675631eb9] | Spinel | -28003.70 | +3.0300 | 3.0013 | +1.9695 | `True` |
-
-#### 7-Step Methane Dehydrogenation & Coking CI-NEB Network (`CH4* → C* + 4H*`)
-
-| Rank | Catalyst | Class | CH₄→CH₃*+H* (eV) | CH₃*→CH₂*+H* (eV) | CH₂*→CH*+H* (eV) | CH*→C*+H* (eV) | 2H*→H₂ (eV) | C_surf→C_sub (eV) | C_graphene (eV) | Steps Converged |
-|------|----------|-------|------------------|-------------------|------------------|----------------|-------------|-------------------|-----------------|-----------------|
-| 1 | Pt1/Ni(110) Single-Atom Alloy (Kyriakou et al., Science 2012 / Darby et al., Nat. Mater. 2018) [id=b6702ffe2074faa4fa50] | SAA | 1.1809 | 1.1522 | 1.1922 | 1.1122 | 1.4500 | 1.6135 | 1.6435 | 7/7 |
-| 2 | Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba] | SupportedNanoparticle | 1.1895 | 1.0182 | 1.0582 | 0.9782 | 1.4500 | 1.4081 | 1.4381 | 7/7 |
-| 3 | La,Y-doped Ni(fcc211)/CeZrO2, strain=+0.09% Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=be45ea11e23945dbbda5] | SolidCatalyst | 1.4424 | 1.3848 | 1.4248 | 1.3448 | 1.4500 | 1.5718 | 1.6018 | 7/7 |
-| 4 | (Co,Ni)3AlC2(basal_0001) MAX Phase Nanolaminate (Barsoum, Prog. Solid State Chem. 2000) [id=3def15c30d9a9b799254] | MAXPhase | 1.3213 | 1.3303 | 1.3703 | 1.2903 | 1.4500 | 1.6400 | 1.6700 | 7/7 |
-| 5 | FeNbRuSiGe-fcc_bcc_dual(211) High-Entropy Alloy (Miracle & Senkov 2017 / Yao et al., Science 2018 Multi-Principal-Element Surface) [id=e40b9a32452d7b1e6f1f] | HEA | 1.5601 | 1.5194 | 1.5594 | 1.4794 | 1.4500 | 1.5962 | 1.6262 | 7/7 |
-| 6 | Ce-doped MgCo2O4/N-graphene (nanoparticle) Spinel Oxide (Liang et al., Nat. Mater. 2011) [id=c9bf4b755ab0023fffba] | Spinel | 2.4129 | 2.3437 | 2.3837 | 2.3037 | 1.4500 | 1.5552 | 1.5852 | 7/7 |
-| 7 | CrY-N8/Graphene Dual-Atom Catalyst (Wang et al., J. Am. Chem. Soc. 2018 Synergistic Bimetallic Site) [id=25810913ec6523464e81] | DAC | 1.7977 | 1.8682 | 1.9082 | 1.8282 | 1.4500 | 1.6400 | 1.6700 | 7/7 |
-| 8 | Ga99.9Ti0.1 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=c4ab2249c156880efdbe] | MoltenMetal | 2.1945 | 2.0009 | 2.0409 | 1.9609 | 1.4500 | 1.3760 | 1.4060 | 7/7 |
-| 9 | Ta-N4-N-graphene/none Single-Atom Catalyst (Zitolo et al., Nat. Mater. 2015 / Akri et al., Nat. Commun. 2019) [id=f58366bf5dfcdc4578f3] | SAC | 1.6164 | 1.8232 | 1.8632 | 1.7832 | 1.4500 | 1.6400 | 1.6700 | 7/7 |
-| 10 | pyrrolic,0.04-doped none graphene Metal-Free Carbon (Muradov 2005 / Gong et al., Science 2009) [id=5ed9c863d22330991eb6] | MetalFreeCarbon | 2.7196 | 3.0403 | 3.0803 | 3.0003 | 1.4500 | 1.6400 | 1.6700 | 7/7 |
-| 11 | Ce-doped NiCo2O4/N-graphene (nanoparticle) Spinel Oxide (Liang et al., Nat. Mater. 2011) [id=f7e94c08fb1675631eb9] | Spinel | 3.0013 | 2.9885 | 3.0285 | 2.9485 | 1.4500 | 1.6363 | 1.6663 | 7/7 |
-
-#### Ab Initio / MLIP Langevin NVT Liquid-Metal Alloy Trajectory (`MoltenMetal`)
-
-- **Champion Melt**: `('MoltenMetal', 'Ga', 'Ti', 0.1, 1273.15)` (`id=c4ab2249c156880efdbe`)
-- **Ensemble & Thermostat**: `NVT_Langevin` at $T = 1273.2\text{ K}$ (8 snapshots)
-- **Mean Potential Energy**: -62.2034 ± 0.2095 eV
-- **Gibbs Promoter Vertical Offset ($\Delta z_{\text{promoter}}$)**: -0.2816 Å
+| Feedstock | Name | Category | H/C | kg_feed/kg_H₂ | kg_C/kg_H₂ | ΔH°₂₉₈ (kJ/mol H₂) | PFR X | PFR Net LCOH ($/kg) | MMBCR X | MMBCR Gross LCOH ($/kg) | MMBCR Net LCOH ($/kg) | MMBCR Opt. LCOH ($/kg) | Post-PSA CO (ppm) | Coupled LCOE ($/kWh_e) |
+|-----------|------|----------|-----|---------------|------------|--------------------|-------|---------------------|---------|-------------------------|-----------------------|------------------------|-------------------|------------------------|
+| `CH4` | Methane (Pipeline Natural Gas) | `natural_gas` | 4.00 | 3.98 | 2.98 | 37.4 | 46.32% | $1.273 | 40.37% | $2.139 | $1.362 | $0.308 | 0.00 | $0.0985 |
+| `ASSOC_GAS` | Associated / Flare Gas (Wet C1-C4 Blend) | `natural_gas` | 3.50 | 4.41 | 3.40 | 23.3 | 70.32% | $0.410 | 72.34% | $1.281 | $0.401 | $-0.357 | 0.00 | $0.0296 |
+| `C2H6` | Ethane (Shale NGL) | `light_alkane` | 3.00 | 4.97 | 3.97 | 27.9 | 82.36% | $0.824 | 84.04% | $1.836 | $0.816 | $-0.140 | 0.00 | $0.0595 |
+| `C3H8` | Propane (Wholesale LPG) | `light_alkane` | 2.67 | 5.47 | 4.47 | 26.0 | 92.32% | $1.026 | 95.59% | $2.114 | $1.014 | $-0.032 | 0.00 | $0.0744 |
+| `C4H10` | n-Butane (Refinery C4 Raffinate / LPG) | `light_alkane` | 2.50 | 5.77 | 4.77 | 25.2 | 95.16% | $0.945 | 98.26% | $2.093 | $0.935 | $-0.116 | 0.00 | $0.0690 |
+| `C5H12` | n-Pentane (Natural Gasoline / C5+ Condensate) | `liquid_hydrocarbon` | 2.40 | 5.96 | 4.96 | 24.5 | 96.46% | $0.967 | 99.17% | $2.154 | $0.958 | $-0.118 | 0.00 | $0.0708 |
+| `C6H14` | n-Hexane (Straight-Run Light Naphtha) | `liquid_hydrocarbon` | 2.33 | 6.11 | 5.11 | 23.9 | 96.75% | $1.048 | 99.44% | $2.262 | $1.040 | $-0.072 | 0.00 | $0.0770 |
+| `C6H12` | Cyclohexane (Naphthenic Ring Cut / LOHC) | `cycloalkane_olefin` | 2.00 | 6.96 | 5.96 | 20.6 | 98.30% | $0.984 | 99.74% | $2.404 | $0.979 | $-0.220 | 0.00 | $0.0729 |
+| `C8H18` | n-Octane (Heavy Naphtha / Gasoline Surrogate) | `liquid_hydrocarbon` | 2.25 | 6.30 | 5.30 | 23.2 | 98.22% | $1.130 | 99.81% | $2.383 | $1.125 | $-0.028 | 0.00 | $0.0835 |
+| `C12H26` | n-Dodecane (Kerosene / Middle Distillate Diesel) | `liquid_hydrocarbon` | 2.17 | 6.50 | 5.50 | 22.4 | 98.93% | $1.210 | 99.89% | $2.501 | $1.208 | $0.013 | 0.00 | $0.0899 |
+| `C16H34` | n-Hexadecane / Cetane (Heavy Gas Oil / Slack Wax) | `liquid_hydrocarbon` | 2.12 | 6.61 | 5.61 | 22.0 | 99.23% | $0.944 | 99.90% | $2.253 | $0.942 | $-0.184 | 0.00 | $0.0704 |
+| `C10H20_PE` | Waste Polyolefin Pyrolysis Oil (PE/PP -(CH2)-n) | `waste_plastic` | 2.00 | 6.96 | 5.96 | 16.5 | 98.81% | $-0.041 | 99.88% | $1.363 | $-0.044 | $-0.932 | 0.00 | $0.0017 |
+| `BIOMETHANE` | Biomethane / RNG (Upgraded Anaerobic Biogas) | `biomass_biogenic` | 4.00 | 3.98 | 2.98 | 37.4 | 46.32% | $1.157 | 40.37% | $2.022 | $1.245 | $0.225 | 0.00 | $0.0901 |
+| `BIOGAS` | Raw Anaerobic Digester / Landfill Biogas (CH4 + CO2) | `biomass_biogenic` | 3.00 | 7.62 | 1.99 | 45.3 | 66.16% | $1.092 | 59.32% | $1.653 | $1.133 | $0.300 | 50.00 | $0.1517 |
+| `C18H34O2_LIPID` | Waste Cooking Oil / Tall Oil Bio-Lipid (C18H34O2) | `biomass_biogenic` | 1.89 | 8.24 | 5.61 | 20.5 | 98.88% | $0.468 | 99.90% | $1.776 | $0.466 | $-0.523 | 22.52 | $0.0450 |
+| `C3H8O3_GLYCEROL` | Crude Biodiesel Glycerol Byproduct (C3H8O3) | `biomass_biogenic` | 2.67 | 9.44 | 1.49 | 34.5 | 99.82% | $0.970 | 99.62% | $1.339 | $0.971 | $0.313 | 50.00 | $0.1310 |
+| `C6H10O2_BIOOIL` | Fast-Pyrolysis Bio-Oil (Hydro-Deoxygenated C6H10O2) | `biomass_biogenic` | 1.67 | 11.32 | 4.77 | 24.4 | 98.04% | $0.462 | 99.44% | $1.607 | $0.459 | $-0.452 | 50.00 | $0.0650 |
+| `C6H10O4_BIOMASS` | Torrefied Lignocellulosic Biomass (Woody/Ag C6H10O4) | `biomass_biogenic` | 1.67 | 14.50 | 2.38 | 23.6 | 98.47% | $0.877 | 98.78% | $1.458 | $0.876 | $0.150 | 50.00 | $0.1193 |
 
 ## Pipeline Timing
 
