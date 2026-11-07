@@ -22,5 +22,12 @@
   "neb_path_metric": 3.418,
   "neb_n_images": 5,
   "neb_active_index": 7,
-  "kinetics_status": "dft_neb_complete"
+  "kinetics_status": "dft_neb_complete",
+  "periodic_slab_qe_executed": true,
+  "slab_e_initial_ry": -1025.72963009,
+  "slab_e_ts_ry": -1025.48780276,
+  "slab_e_final_ry": -1025.39234919,
+  "slab_e_act_ev": 3.290228,
+  "slab_delta_e_rxn_ev": 4.58894,
+  "slab_calculation_mode": "pw_scf_3state"
 }

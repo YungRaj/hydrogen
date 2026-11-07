@@ -1,0 +1,52 @@
+&CONTROL
+  calculation = 'scf'
+  prefix = 'campaign_f7e94c08fb1675631eb9_slab_ts'
+  outdir = './tmp'
+  pseudo_dir = '/root/hydrogen/quantum_espresso/sssp/1.3.0-pbe-efficiency'
+  tprnfor = .true.
+  forc_conv_thr = 1.0d-3
+/
+&SYSTEM
+  ibrav = 0
+  nat = 13
+  ntyp = 6
+  ecutwfc = 30.0
+  ecutrho = 240.0
+  occupations = 'smearing'
+  smearing = 'mv'
+  degauss = 0.02
+/
+&ELECTRONS
+  mixing_beta = 0.35
+  conv_thr = 1.0d-4
+  electron_maxstep = 200
+/
+CELL_PARAMETERS {angstrom}
+  5.0065925475  0.0000000000  0.0000000000
+  2.5032962737  4.3358363325  0.0000000000
+  0.0000000000  0.0000000000  14.0439328485
+
+ATOMIC_SPECIES
+  C  12.011  C.pbe-n-kjpaw_psl.1.0.0.UPF
+  Ce  140.116  Ce.paw.z_12.atompaw.wentzcovitch.v1.2.upf
+  Co  58.933  Co_pbe_v1.2.uspp.F.UPF
+  H  1.008  H.pbe-rrkjus_psl.1.0.0.UPF
+  N  14.007  N.pbe-n-radius_5.UPF
+  O  15.999  O.pbe-n-kjpaw_psl.0.1.UPF
+
+ATOMIC_POSITIONS {angstrom}
+  Co  0.0000000000  1.4452787775  6.0000000000  0 0 0
+  Co  2.5032962737  1.4452787775  6.0000000000  0 0 0
+  Co  1.2516481369  3.6131969437  6.0000000000  0 0 0
+  Co  3.7549444106  3.6131969437  6.0000000000  0 0 0
+  N  -0.0026688243  -0.0009846846  8.0425408015  1 1 1
+  O  2.4929629715  -0.0161183404  8.0208537556  1 1 1
+  Co  1.2445355059  2.1697790048  8.0386269340  1 1 1
+  Ce  3.7279272528  2.1468756217  7.9398950594  1 1 1
+  C  3.6388086532  2.1961226706  10.7619004822  1 1 1
+  H  4.0724271011  3.1426247904  11.2506872970  1 1 1
+  H  4.0512336769  1.4614329667  11.4956257770  1 1 1
+  H  3.3221170862  1.3031007306  10.0844830371  1 1 1
+  H  4.4251933018  2.7706002393  9.6783482819  1 1 1
+
+K_POINTS {gamma}

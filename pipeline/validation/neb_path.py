@@ -993,7 +993,7 @@ def build_champion_neb_slab(genome: tuple[object, ...]) -> tuple[Atoms, int]:
         and str(genome[1]) in FCC_EQUIVALENT_LATTICE_BOHR
         else (
             str(genome[2])
-            if mat_class == 'SAA'
+            if mat_class in ('SAA', 'Spinel', 'Perovskite')
             and len(genome) > 2
             and str(genome[2]) in FCC_EQUIVALENT_LATTICE_BOHR
             else motif_elems[0]

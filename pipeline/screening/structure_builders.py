@@ -787,7 +787,10 @@ def _build_molten_metal(genome, structure_seed):
         )
     )
     amp = 0.08 * float(np.sqrt(max(float(temp), 300.0) / 1000.0))
-    high_gamma_promoters = {'Ni', 'Co', 'Fe', 'Cu', 'Pd', 'Pt', 'Mo', 'Ru', 'Rh'}
+    high_gamma_promoters = {
+        'Ti', 'V', 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu',
+        'Zr', 'Nb', 'Mo', 'Ru', 'Rh', 'Pd', 'Ta', 'W', 'Re', 'Pt',
+    }
     for idx in top_idx:
         dx = rng_liq.uniform(-amp, amp)
         dy = rng_liq.uniform(-amp, amp)

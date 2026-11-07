@@ -1,0 +1,28 @@
+{
+  "candidate_id": "5ed9c863d22330991eb6",
+  "catalyst_name": "campaign_5ed9c863d22330991eb6",
+  "evidence_level": "periodic_slab_pw_dft",
+  "genome": "('MetalFreeCarbon', 'pyrrolic', 0.04, 'none', 'graphene', 'B')",
+  "material_class": "MetalFreeCarbon",
+  "periodic_slab_qe_executed": true,
+  "slab_converged": true,
+  "slab_dft_barrier_eV": 3.660485,
+  "slab_final_energy_Ry": -147.35776281,
+  "slab_final_energy_eV": -2004.9045,
+  "slab_initial_energy_Ry": -147.48026582,
+  "slab_initial_energy_eV": -2006.571238,
+  "slab_reaction_energy_eV": 1.666738,
+  "slab_reverse_barrier_eV": 1.993747,
+  "slab_ts_energy_Ry": -147.21122508,
+  "slab_ts_energy_eV": -2002.910753,
+  "stage_converged": {
+    "final": true,
+    "initial": true,
+    "ts": true
+  },
+  "stage_forces_Ry_bohr": {
+    "final": 0.250419,
+    "initial": 0.101195,
+    "ts": 0.256998
+  }
+}

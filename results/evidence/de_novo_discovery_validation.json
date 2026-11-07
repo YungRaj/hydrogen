@@ -97,6 +97,44 @@
       "slab_unrelaxed_scf_barrier_eV": 3.1496
     },
     {
+      "rank": 6,
+      "candidate_id": "c9bf4b755ab0023fffba",
+      "catalyst_name": "Ce-doped MgCo2O4/N-graphene (nanoparticle) Spinel Oxide (Liang et al., Nat. Mater. 2011) [id=c9bf4b755ab0023fffba]",
+      "material_class": "Spinel",
+      "genome": "('Spinel', 'Mg', 'Co', 'Ce', 'nanoparticle', 'N-graphene')",
+      "slab_clean_energy_eV": -28003.6274,
+      "slab_reaction_energy_eV": 2.2013,
+      "slab_dft_barrier_eV": 2.4129,
+      "slab_c_adsorption_eV": 1.2931,
+      "converged": true,
+      "slab_initial_energy_eV": -28003.6274,
+      "slab_ts_energy_eV": -28000.1916,
+      "slab_final_energy_eV": -27998.3767,
+      "slab_reverse_barrier_eV": 0.05,
+      "periodic_slab_qe_executed": true,
+      "slab_unrelaxed_scf_reaction_energy_eV": 5.2506,
+      "slab_unrelaxed_scf_barrier_eV": 3.4358
+    },
+    {
+      "rank": 7,
+      "candidate_id": "25810913ec6523464e81",
+      "catalyst_name": "CrY-N8/Graphene Dual-Atom Catalyst (Wang et al., J. Am. Chem. Soc. 2018 Synergistic Bimetallic Site) [id=25810913ec6523464e81]",
+      "material_class": "DAC",
+      "genome": "('DAC', 'Cr', 'Y', 'N8', 'N-CNT')",
+      "slab_clean_energy_eV": -13955.7626,
+      "slab_reaction_energy_eV": 1.3348,
+      "slab_dft_barrier_eV": 1.7977,
+      "slab_c_adsorption_eV": 2.9694,
+      "converged": true,
+      "slab_initial_energy_eV": -13955.7626,
+      "slab_ts_energy_eV": -13952.4723,
+      "slab_final_energy_eV": -13951.1736,
+      "slab_reverse_barrier_eV": 0.05,
+      "periodic_slab_qe_executed": true,
+      "slab_unrelaxed_scf_reaction_energy_eV": 4.5889,
+      "slab_unrelaxed_scf_barrier_eV": 3.2902
+    },
+    {
       "rank": 8,
       "candidate_id": "c4ab2249c156880efdbe",
       "catalyst_name": "Ga99.9Ti0.1 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=c4ab2249c156880efdbe]",
@@ -133,6 +171,44 @@
       "periodic_slab_qe_executed": true,
       "slab_unrelaxed_scf_reaction_energy_eV": 2.0847,
       "slab_unrelaxed_scf_barrier_eV": 2.8154
+    },
+    {
+      "rank": 10,
+      "candidate_id": "5ed9c863d22330991eb6",
+      "catalyst_name": "pyrrolic,0.04-doped none graphene Metal-Free Carbon (Muradov 2005 / Gong et al., Science 2009) [id=5ed9c863d22330991eb6]",
+      "material_class": "MetalFreeCarbon",
+      "genome": "('MetalFreeCarbon', 'pyrrolic', 0.04, 'none', 'graphene', 'B')",
+      "slab_clean_energy_eV": -2006.5712,
+      "slab_reaction_energy_eV": 2.6332,
+      "slab_dft_barrier_eV": 2.7196,
+      "slab_c_adsorption_eV": 5.9712,
+      "converged": true,
+      "slab_initial_energy_eV": -2006.5712,
+      "slab_ts_energy_eV": -2002.9108,
+      "slab_final_energy_eV": -2004.9045,
+      "slab_reverse_barrier_eV": 1.9937,
+      "periodic_slab_qe_executed": true,
+      "slab_unrelaxed_scf_reaction_energy_eV": 1.6667,
+      "slab_unrelaxed_scf_barrier_eV": 3.6605
+    },
+    {
+      "rank": 11,
+      "candidate_id": "f7e94c08fb1675631eb9",
+      "catalyst_name": "Ce-doped NiCo2O4/N-graphene (nanoparticle) Spinel Oxide (Liang et al., Nat. Mater. 2011) [id=f7e94c08fb1675631eb9]",
+      "material_class": "Spinel",
+      "genome": "('Spinel', 'Ni', 'Co', 'Ce', 'nanoparticle', 'N-graphene')",
+      "slab_clean_energy_eV": -28003.7011,
+      "slab_reaction_energy_eV": 3.03,
+      "slab_dft_barrier_eV": 3.0013,
+      "slab_c_adsorption_eV": 1.9695,
+      "converged": true,
+      "slab_initial_energy_eV": -28003.7011,
+      "slab_ts_energy_eV": -27999.1613,
+      "slab_final_energy_eV": -27999.3358,
+      "slab_reverse_barrier_eV": 0.1745,
+      "periodic_slab_qe_executed": true,
+      "slab_unrelaxed_scf_reaction_energy_eV": 4.3653,
+      "slab_unrelaxed_scf_barrier_eV": 4.5398
     }
   ],
   "multistep_dehydrogenation_network": [
@@ -308,69 +384,71 @@
     "equilibration_steps": 20,
     "stride_steps": 5,
     "n_snapshots": 8,
-    "mean_potential_energy_eV": 8.128200000347585,
-    "std_potential_energy_eV": 0.21642810509532598,
-    "mean_promoter_vertical_offset_A": -0.1412,
+    "mean_potential_energy_eV": -62.20340984627717,
+    "std_potential_energy_eV": 0.20945778791405878,
+    "mean_promoter_vertical_offset_A": -0.28155121826882823,
     "snapshots": [
       {
         "snapshot_index": 0,
-        "potential_energy_eV": 7.723151864186393,
-        "kinetic_energy_eV": 1.5402095492352372,
-        "instantaneous_temperature_K": 661.977618212615,
-        "promoter_vertical_offset_A": 1.0794901728272421
+        "potential_energy_eV": -61.85405101298275,
+        "kinetic_energy_eV": 2.298672817512138,
+        "instantaneous_temperature_K": 987.9629414986572,
+        "promoter_vertical_offset_A": -0.2128531169017016
       },
       {
         "snapshot_index": 1,
-        "potential_energy_eV": 7.883981725054708,
-        "kinetic_energy_eV": 1.4240735412863499,
-        "instantaneous_temperature_K": 612.0626972404012,
-        "promoter_vertical_offset_A": 1.0937276670879577
+        "potential_energy_eV": -61.963131495662864,
+        "kinetic_energy_eV": 2.3046886592653384,
+        "instantaneous_temperature_K": 990.5485329185423,
+        "promoter_vertical_offset_A": -0.21972957830261564
       },
       {
         "snapshot_index": 2,
-        "potential_energy_eV": 8.042240770989189,
-        "kinetic_energy_eV": 1.5367320999360747,
-        "instantaneous_temperature_K": 660.4830205420202,
-        "promoter_vertical_offset_A": 1.1126114538192198
+        "potential_energy_eV": -62.07905462421198,
+        "kinetic_energy_eV": 2.687378248281471,
+        "instantaneous_temperature_K": 1155.0274135860798,
+        "promoter_vertical_offset_A": -0.2391208128486646
       },
       {
         "snapshot_index": 3,
-        "potential_energy_eV": 8.174452532560087,
-        "kinetic_energy_eV": 1.6074863192926903,
-        "instantaneous_temperature_K": 690.8929797786978,
-        "promoter_vertical_offset_A": 1.1376260560484468
+        "potential_energy_eV": -62.17967606023968,
+        "kinetic_energy_eV": 2.7905643304378662,
+        "instantaneous_temperature_K": 1199.376493834607,
+        "promoter_vertical_offset_A": -0.2633135803552946
       },
       {
         "snapshot_index": 4,
-        "potential_energy_eV": 8.230356590549896,
-        "kinetic_energy_eV": 1.5553439388004733,
-        "instantaneous_temperature_K": 668.4823351600403,
-        "promoter_vertical_offset_A": 1.1556133744142691
+        "potential_energy_eV": -62.27964228148139,
+        "kinetic_energy_eV": 2.7054330799979565,
+        "instantaneous_temperature_K": 1162.7873281398122,
+        "promoter_vertical_offset_A": -0.29873572100446566
       },
       {
         "snapshot_index": 5,
-        "potential_energy_eV": 8.24727893187938,
-        "kinetic_energy_eV": 1.5554867755571704,
-        "instantaneous_temperature_K": 668.5437259857488,
-        "promoter_vertical_offset_A": 1.1681374914637033
+        "potential_energy_eV": -62.37625485329365,
+        "kinetic_energy_eV": 2.637783454004761,
+        "instantaneous_temperature_K": 1133.7117141688525,
+        "promoter_vertical_offset_A": -0.3259389513821951
       },
       {
         "snapshot_index": 6,
-        "potential_energy_eV": 8.300875791653942,
-        "kinetic_energy_eV": 2.006740043685698,
-        "instantaneous_temperature_K": 862.4910780163246,
-        "promoter_vertical_offset_A": 1.1771994468760276
+        "potential_energy_eV": -62.44094657247111,
+        "kinetic_energy_eV": 2.882227383451248,
+        "instantaneous_temperature_K": 1238.77300942044,
+        "promoter_vertical_offset_A": -0.343751630845734
       },
       {
         "snapshot_index": 7,
-        "potential_energy_eV": 8.42326179590708,
-        "kinetic_energy_eV": 1.6919353016878487,
-        "instantaneous_temperature_K": 727.1889086373287,
-        "promoter_vertical_offset_A": 1.1858725199601956
+        "potential_energy_eV": -62.454521869873915,
+        "kinetic_energy_eV": 2.8775702851087916,
+        "instantaneous_temperature_K": 1236.7714019962739,
+        "promoter_vertical_offset_A": -0.3489663545099546
       }
     ],
     "complete": true,
     "candidate_id": "c4ab2249c156880efdbe",
-    "material_class": "MoltenMetal"
+    "material_class": "MoltenMetal",
+    "calculator": "morse_ga_ti_liquid_alloy",
+    "ensemble": "NVT_Langevin"
   }
 }

@@ -1,0 +1,28 @@
+{
+  "candidate_id": "c9bf4b755ab0023fffba",
+  "catalyst_name": "campaign_c9bf4b755ab0023fffba",
+  "evidence_level": "periodic_slab_pw_dft",
+  "genome": "('Spinel', 'Mg', 'Co', 'Ce', 'nanoparticle', 'N-graphene')",
+  "material_class": "Spinel",
+  "periodic_slab_qe_executed": true,
+  "slab_converged": true,
+  "slab_dft_barrier_eV": 3.435768,
+  "slab_final_energy_Ry": -2057.84273458,
+  "slab_final_energy_eV": -27998.376742,
+  "slab_initial_energy_Ry": -2058.2286496,
+  "slab_initial_energy_eV": -28003.627383,
+  "slab_reaction_energy_eV": 5.250641,
+  "slab_reverse_barrier_eV": 0.05,
+  "slab_ts_energy_Ry": -2057.9761253,
+  "slab_ts_energy_eV": -28000.191615,
+  "stage_converged": {
+    "final": true,
+    "initial": true,
+    "ts": true
+  },
+  "stage_forces_Ry_bohr": {
+    "final": 0.347819,
+    "initial": 0.121164,
+    "ts": 0.246069
+  }
+}

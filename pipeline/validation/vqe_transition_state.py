@@ -228,18 +228,21 @@ def run_vqe(
         # Coupled pair excitations between occupied (0..half-1) and virtual (half..n_qubits-1) spin-orbitals
         # followed by HF-preserving sandwiched entanglers (CNOT * R(theta) * CNOT = I at theta=0)
         param_idx = 0
-        # 1. HOMO -> LUMO and HOMO-1 -> LUMO+1 pair excitations
+        # 1. HOMO -> LUMO and HOMO-1 -> LUMO+1 coupled pair excitations
         if n_qubits >= 8:
-            # HOMO (2,3) -> LUMO (4,5) double excitation
             ry(thetas[param_idx], q[4])
             param_idx += 1
+            ry(thetas[param_idx], q[6])
+            param_idx += 1
+            cx(q[4], q[6])
+            ry(thetas[param_idx], q[6])
+            param_idx += 1
+            cx(q[4], q[6])
+            # HOMO (2,3) -> LUMO (4,5) double excitation fanout
             cx(q[4], q[2])
             cx(q[4], q[3])
             cx(q[4], q[5])
-
-            # HOMO-1 (0,1) -> LUMO+1 (6,7) double excitation
-            ry(thetas[param_idx], q[6])
-            param_idx += 1
+            # HOMO-1 (0,1) -> LUMO+1 (6,7) double excitation fanout
             cx(q[6], q[0])
             cx(q[6], q[1])
             cx(q[6], q[7])
@@ -296,7 +299,7 @@ def run_vqe(
         try:
             from scipy.optimize import minimize as scipy_minimize
 
-            n_pair = min(2, n_params)
+            n_pair = min(3, n_params)
 
             def _obj_pair(x_pair: np.ndarray) -> float:
                 full_p = [float(x_pair[idx]) for idx in range(n_pair)] + [0.0] * (n_params - n_pair)

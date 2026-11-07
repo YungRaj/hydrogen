@@ -1,0 +1,28 @@
+{
+  "candidate_id": "25810913ec6523464e81",
+  "catalyst_name": "campaign_25810913ec6523464e81",
+  "evidence_level": "periodic_slab_pw_dft",
+  "genome": "('DAC', 'Cr', 'Y', 'N8', 'N-CNT')",
+  "material_class": "DAC",
+  "periodic_slab_qe_executed": true,
+  "slab_converged": true,
+  "slab_dft_barrier_eV": 3.290228,
+  "slab_final_energy_Ry": -1025.39234919,
+  "slab_final_energy_eV": -13951.173634,
+  "slab_initial_energy_Ry": -1025.72963009,
+  "slab_initial_energy_eV": -13955.762574,
+  "slab_reaction_energy_eV": 4.58894,
+  "slab_reverse_barrier_eV": 0.05,
+  "slab_ts_energy_Ry": -1025.48780276,
+  "slab_ts_energy_eV": -13952.472346,
+  "stage_converged": {
+    "final": true,
+    "initial": true,
+    "ts": true
+  },
+  "stage_forces_Ry_bohr": {
+    "final": 0.309024,
+    "initial": 0.200214,
+    "ts": 0.277553
+  }
+}

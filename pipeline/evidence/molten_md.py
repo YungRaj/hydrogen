@@ -103,6 +103,12 @@ def run_liquid_alloy_md(
         e_kin = float(slab.get_kinetic_energy())
         n_free = max(1, len(slab) - len(slab.constraints[0].get_indices()) if slab.constraints else len(slab))
         inst_temp = e_kin / (1.5 * units.kB * float(n_free))
+        top_z_vals = [
+            float(slab.positions[i, 2])
+            for i in top_idx
+            if 0 <= int(i) < len(slab)
+        ]
+        z_surf_cut = float(np.median(top_z_vals)) - 0.5 if top_z_vals else -1e9
         prom_z = [
             float(slab.positions[i, 2])
             for i in top_idx
@@ -111,8 +117,16 @@ def run_liquid_alloy_md(
         host_z = [
             float(slab.positions[i, 2])
             for i in top_idx
-            if 0 <= int(i) < len(slab) and slab[int(i)].symbol == host_sym
+            if 0 <= int(i) < len(slab)
+            and slab[int(i)].symbol == host_sym
+            and float(slab.positions[i, 2]) >= z_surf_cut
         ]
+        if not host_z:
+            host_z = [
+                float(slab.positions[i, 2])
+                for i in top_idx
+                if 0 <= int(i) < len(slab) and slab[int(i)].symbol == host_sym
+            ]
         dz_prom = (
             float(np.mean(prom_z) - np.mean(host_z))
             if (prom_z and host_z)

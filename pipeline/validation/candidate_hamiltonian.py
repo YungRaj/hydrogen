@@ -397,6 +397,8 @@ def generate_catalyst_ts_fcidump(
         half_orb = active_orbitals // 2
         for p_idx in range(half_orb):
             q_idx = active_orbitals - 1 - p_idx
+            h2_dump[p_idx, p_idx, q_idx, q_idx] += delta_omega
+            h2_dump[q_idx, q_idx, p_idx, p_idx] += delta_omega
             h2_dump[p_idx, q_idx, p_idx, q_idx] = h2_full[p_idx, q_idx, p_idx, q_idx]
             h2_dump[q_idx, p_idx, q_idx, p_idx] = h2_full[q_idx, p_idx, q_idx, p_idx]
     else:
