@@ -1,0 +1,28 @@
+{
+  "candidate_id": "3def15c30d9a9b799254",
+  "catalyst_name": "campaign_3def15c30d9a9b799254",
+  "evidence_level": "periodic_slab_pw_dft",
+  "genome": "('MAXPhase', 'Co', 'Al', 'C', 2, 'Ni', 'basal_0001')",
+  "material_class": "MAXPhase",
+  "periodic_slab_qe_executed": true,
+  "slab_converged": true,
+  "slab_dft_barrier_eV": 3.599209,
+  "slab_final_energy_Ry": -2093.86036171,
+  "slab_final_energy_eV": -28488.421524,
+  "slab_initial_energy_Ry": -2094.0180749,
+  "slab_initial_energy_eV": -28490.567321,
+  "slab_reaction_energy_eV": 2.145797,
+  "slab_reverse_barrier_eV": 1.453412,
+  "slab_ts_energy_Ry": -2093.75353789,
+  "slab_ts_energy_eV": -28486.968112,
+  "stage_converged": {
+    "final": true,
+    "initial": true,
+    "ts": true
+  },
+  "stage_forces_Ry_bohr": {
+    "final": 0.175266,
+    "initial": 0.104194,
+    "ts": 0.218641
+  }
+}

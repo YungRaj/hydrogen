@@ -155,3 +155,41 @@ def test_catalyst_embedded_casscf_8qubit_hamiltonian_and_diagnostics(tmp_path):
     assert ham['n_qubits'] == 8
     assert ham['catalyst_specific_hamiltonian'] is True
     assert ham['catalyst_motif'] == meta['catalyst_motif']
+
+
+def test_periodic_slab_qe_inputs_preserve_saa_host_and_selective_dynamics(tmp_path) -> None:
+    """Verify SAA periodic slab uses host lattice with single dopant and emits 0 0 0 / 1 1 1 flags."""
+    from pipeline.validation.dft_validator import (
+        generate_champion_slab_adsorption_inputs,
+        run_periodic_slab_qe_validation,
+    )
+    from pipeline.validation.neb_path import build_champion_neb_slab
+
+    genome = ('SAA', 'Pt', 'Ni', '110', 2000)
+    slab, site_idx = build_champion_neb_slab(genome)
+    symbols = slab.get_chemical_symbols()
+    assert symbols.count('Pt') == 1
+    assert symbols.count('Ni') == len(slab) - 1
+    assert slab[site_idx].symbol == 'Pt'
+
+    meta = generate_champion_slab_adsorption_inputs(
+        catalyst_name='campaign_b6702ffe2074faa4fa50',
+        genome=genome,
+        output_dir=tmp_path,
+        kpoints=(1, 1, 1),
+    )
+    for key in ('initial', 'ts', 'final'):
+        content = (tmp_path / meta[key].split('/')[-1]).read_text(encoding='utf-8')
+        assert ' 0 0 0' in content
+        assert ' 1 1 1' in content
+
+    res = run_periodic_slab_qe_validation(
+        catalyst_name='campaign_b6702ffe2074faa4fa50',
+        genome=genome,
+        output_dir=tmp_path / 'slab_val',
+        run_dft=False,
+    )
+    assert res['candidate_id'] == 'b6702ffe2074faa4fa50'
+    assert res['periodic_slab_qe_executed'] is False
+    assert (tmp_path / 'slab_val' / 'campaign_b6702ffe2074faa4fa50_slab_validation.json').is_file()
+

@@ -1,0 +1,28 @@
+{
+  "candidate_id": "768cb0559591faec06ba",
+  "catalyst_name": "campaign_768cb0559591faec06ba",
+  "evidence_level": "periodic_slab_pw_dft",
+  "genome": "('SupportedNanoparticle', 'Ni', 'MgAl2O4', 'fcc211', 12.0, 25.0, ('Cu', 'Fe'), 2, 1)",
+  "material_class": "SupportedNanoparticle",
+  "periodic_slab_qe_executed": true,
+  "slab_converged": true,
+  "slab_dft_barrier_eV": 3.653636,
+  "slab_final_energy_Ry": -2319.08623484,
+  "slab_final_energy_eV": -31552.775637,
+  "slab_initial_energy_Ry": -2319.28224527,
+  "slab_initial_energy_eV": -31555.442495,
+  "slab_reaction_energy_eV": 2.666858,
+  "slab_reverse_barrier_eV": 0.986778,
+  "slab_ts_energy_Ry": -2319.01370799,
+  "slab_ts_energy_eV": -31551.788859,
+  "stage_converged": {
+    "final": true,
+    "initial": true,
+    "ts": true
+  },
+  "stage_forces_Ry_bohr": {
+    "final": 0.163119,
+    "initial": 0.067416,
+    "ts": 0.209053
+  }
+}

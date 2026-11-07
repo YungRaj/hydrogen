@@ -7,11 +7,18 @@
       "catalyst_name": "Pt1/Ni(110) Single-Atom Alloy (Kyriakou et al., Science 2012 / Darby et al., Nat. Mater. 2018) [id=b6702ffe2074faa4fa50]",
       "material_class": "SAA",
       "genome": "('SAA', 'Pt', 'Ni', '110', 2000)",
-      "slab_clean_energy_eV": -22917.0112,
+      "slab_clean_energy_eV": -35844.5773,
       "slab_reaction_energy_eV": 0.4702,
       "slab_dft_barrier_eV": 1.1809,
       "slab_c_adsorption_eV": 1.7792,
-      "converged": true
+      "converged": true,
+      "slab_initial_energy_eV": -35844.5773,
+      "slab_ts_energy_eV": -35840.8042,
+      "slab_final_energy_eV": -35841.5463,
+      "slab_reverse_barrier_eV": 0.7421,
+      "periodic_slab_qe_executed": true,
+      "slab_unrelaxed_scf_reaction_energy_eV": 3.031,
+      "slab_unrelaxed_scf_barrier_eV": 3.7731
     },
     {
       "rank": 2,
@@ -19,11 +26,18 @@
       "catalyst_name": "Cu,Fe-doped Ni(fcc211)/MgAl2O4 (d=12.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=768cb0559591faec06ba]",
       "material_class": "SupportedNanoparticle",
       "genome": "('SupportedNanoparticle', 'Ni', 'MgAl2O4', 'fcc211', 12.0, 25.0, ('Cu', 'Fe'), 2, 1)",
-      "slab_clean_energy_eV": -32235.3818,
+      "slab_clean_energy_eV": -31555.4425,
       "slab_reaction_energy_eV": 0.4764,
       "slab_dft_barrier_eV": 1.1895,
       "slab_c_adsorption_eV": 0.0676,
-      "converged": true
+      "converged": true,
+      "slab_initial_energy_eV": -31555.4425,
+      "slab_ts_energy_eV": -31551.7889,
+      "slab_final_energy_eV": -31552.7756,
+      "slab_reverse_barrier_eV": 0.9868,
+      "periodic_slab_qe_executed": true,
+      "slab_unrelaxed_scf_reaction_energy_eV": 2.6669,
+      "slab_unrelaxed_scf_barrier_eV": 3.6536
     },
     {
       "rank": 3,
@@ -31,11 +45,18 @@
       "catalyst_name": "La,Y-doped Ni(fcc211)/CeZrO2, strain=+0.09% Supported Solid Catalyst (Bengaard 2002 / Alves 2021) [id=be45ea11e23945dbbda5]",
       "material_class": "SolidCatalyst",
       "genome": "('SolidCatalyst', 'Ni', 'CeZrO2', 'fcc211', 0.08947368421052632, ('La', 'Y'), 1, 0)",
-      "slab_clean_energy_eV": -35876.6592,
+      "slab_clean_energy_eV": -37298.4091,
       "slab_reaction_energy_eV": 0.6585,
       "slab_dft_barrier_eV": 1.4424,
       "slab_c_adsorption_eV": 1.4318,
-      "converged": true
+      "converged": true,
+      "slab_initial_energy_eV": -37298.4091,
+      "slab_ts_energy_eV": -37293.8576,
+      "slab_final_energy_eV": -37291.4869,
+      "slab_reverse_barrier_eV": 0.05,
+      "periodic_slab_qe_executed": true,
+      "slab_unrelaxed_scf_reaction_energy_eV": 6.9222,
+      "slab_unrelaxed_scf_barrier_eV": 4.5515
     },
     {
       "rank": 4,
@@ -43,11 +64,18 @@
       "catalyst_name": "(Co,Ni)3AlC2(basal_0001) MAX Phase Nanolaminate (Barsoum, Prog. Solid State Chem. 2000) [id=3def15c30d9a9b799254]",
       "material_class": "MAXPhase",
       "genome": "('MAXPhase', 'Co', 'Al', 'C', 2, 'Ni', 'basal_0001')",
-      "slab_clean_energy_eV": -11671.412,
+      "slab_clean_energy_eV": -28490.5673,
       "slab_reaction_energy_eV": 0.5713,
       "slab_dft_barrier_eV": 1.3213,
       "slab_c_adsorption_eV": 2.2312,
-      "converged": true
+      "converged": true,
+      "slab_initial_energy_eV": -28490.5673,
+      "slab_ts_energy_eV": -28486.9681,
+      "slab_final_energy_eV": -28488.4215,
+      "slab_reverse_barrier_eV": 1.4534,
+      "periodic_slab_qe_executed": true,
+      "slab_unrelaxed_scf_reaction_energy_eV": 2.1458,
+      "slab_unrelaxed_scf_barrier_eV": 3.5992
     },
     {
       "rank": 5,
@@ -55,11 +83,18 @@
       "catalyst_name": "FeNbRuSiGe-fcc_bcc_dual(211) High-Entropy Alloy (Miracle & Senkov 2017 / Yao et al., Science 2018 Multi-Principal-Element Surface) [id=e40b9a32452d7b1e6f1f]",
       "material_class": "HEA",
       "genome": "('HEA', ('Fe', 'Nb', 'Ru', 'Si', 'Ge'), 'fcc_bcc_dual', '211', 800)",
-      "slab_clean_energy_eV": -30605.6854,
+      "slab_clean_energy_eV": -28677.016,
       "slab_reaction_energy_eV": 0.7433,
       "slab_dft_barrier_eV": 1.5601,
       "slab_c_adsorption_eV": 1.6348,
-      "converged": true
+      "converged": true,
+      "slab_initial_energy_eV": -28677.016,
+      "slab_ts_energy_eV": -28673.8664,
+      "slab_final_energy_eV": -28674.3865,
+      "slab_reverse_barrier_eV": 0.5201,
+      "periodic_slab_qe_executed": true,
+      "slab_unrelaxed_scf_reaction_energy_eV": 2.6295,
+      "slab_unrelaxed_scf_barrier_eV": 3.1496
     },
     {
       "rank": 8,
@@ -67,11 +102,18 @@
       "catalyst_name": "Ga99.9Ti0.1 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=c4ab2249c156880efdbe]",
       "material_class": "MoltenMetal",
       "genome": "('MoltenMetal', 'Ga', 'Ti', 0.1, 600)",
-      "slab_clean_energy_eV": -13943.6842,
+      "slab_clean_energy_eV": -26244.2822,
       "slab_reaction_energy_eV": 1.2,
       "slab_dft_barrier_eV": 2.1945,
       "slab_c_adsorption_eV": -0.2,
-      "converged": true
+      "converged": true,
+      "slab_initial_energy_eV": -26244.2822,
+      "slab_ts_energy_eV": -26241.6767,
+      "slab_final_energy_eV": -26241.9978,
+      "slab_reverse_barrier_eV": 0.3211,
+      "periodic_slab_qe_executed": true,
+      "slab_unrelaxed_scf_reaction_energy_eV": 2.2844,
+      "slab_unrelaxed_scf_barrier_eV": 2.6055
     },
     {
       "rank": 9,
@@ -79,11 +121,18 @@
       "catalyst_name": "Ta-N4-N-graphene/none Single-Atom Catalyst (Zitolo et al., Nat. Mater. 2015 / Akri et al., Nat. Commun. 2019) [id=f58366bf5dfcdc4578f3]",
       "material_class": "SAC",
       "genome": "('SAC', 'Ta', 'N4', 'N-graphene', 'none')",
-      "slab_clean_energy_eV": -14106.166,
+      "slab_clean_energy_eV": -10492.2452,
       "slab_reaction_energy_eV": 0.7838,
       "slab_dft_barrier_eV": 1.6164,
       "slab_c_adsorption_eV": 4.6052,
-      "converged": true
+      "converged": true,
+      "slab_initial_energy_eV": -10492.2452,
+      "slab_ts_energy_eV": -10489.4297,
+      "slab_final_energy_eV": -10490.1604,
+      "slab_reverse_barrier_eV": 0.7307,
+      "periodic_slab_qe_executed": true,
+      "slab_unrelaxed_scf_reaction_energy_eV": 2.0847,
+      "slab_unrelaxed_scf_barrier_eV": 2.8154
     }
   ],
   "multistep_dehydrogenation_network": [

@@ -962,12 +962,42 @@ def build_champion_neb_slab(genome: tuple[object, ...]) -> tuple[Atoms, int]:
         extract_genome_motif_elements,
     )
 
+    mat_class = str(genome[0]) if genome else ''
+    if mat_class in ('MAXPhase', 'MXene', 'Perovskite', 'Spinel'):
+        try:
+            from pipeline.screening.structure_builders import generate_structure
+
+            raw_slab, active_indices, _ = generate_structure(genome)
+            if len(raw_slab) <= 20 and raw_slab.pbc.any():
+                z_coords = raw_slab.positions[:, 2]
+                z_mid = 0.5 * float(z_coords.min() + z_coords.max())
+                bottom_indices = [
+                    i for i, z_val in enumerate(z_coords) if float(z_val) < z_mid
+                ]
+                if bottom_indices:
+                    raw_slab.set_constraint(FixAtoms(indices=bottom_indices))
+                act_idx = (
+                    int(active_indices[0])
+                    if active_indices and 0 <= int(active_indices[0]) < len(raw_slab)
+                    else int(np.argmax(z_coords))
+                )
+                return raw_slab, act_idx
+        except Exception:
+            pass
+
     motif_elems = extract_genome_motif_elements(genome)
     host_elem = (
         str(genome[1])
-        if str(genome[0]) in ('MoltenMetal', 'SolidCatalyst')
+        if mat_class in ('MoltenMetal', 'SolidCatalyst', 'SupportedNanoparticle')
+        and len(genome) > 1
         and str(genome[1]) in FCC_EQUIVALENT_LATTICE_BOHR
-        else motif_elems[0]
+        else (
+            str(genome[2])
+            if mat_class == 'SAA'
+            and len(genome) > 2
+            and str(genome[2]) in FCC_EQUIVALENT_LATTICE_BOHR
+            else motif_elems[0]
+        )
     )
     celldm_bohr = FCC_EQUIVALENT_LATTICE_BOHR.get(host_elem, 7.0)
     a_ang = celldm_bohr * 0.529177210903
@@ -978,8 +1008,16 @@ def build_champion_neb_slab(genome: tuple[object, ...]) -> tuple[Atoms, int]:
         top_indices = list(range(len(slab) // 2, len(slab)))
         bottom_indices = list(range(0, len(slab) // 2))
     ordered_top = list(reversed(top_indices))
-    for k, idx in enumerate(ordered_top):
-        slab[idx].symbol = motif_elems[k % len(motif_elems)]
+    if mat_class == 'SAA' and len(genome) > 2:
+        dopant_elem = str(genome[1])
+        host_mat = str(genome[2])
+        for idx in bottom_indices:
+            slab[idx].symbol = host_mat
+        for k, idx in enumerate(ordered_top):
+            slab[idx].symbol = dopant_elem if k == 0 else host_mat
+    else:
+        for k, idx in enumerate(ordered_top):
+            slab[idx].symbol = motif_elems[k % len(motif_elems)]
     if bottom_indices:
         slab.set_constraint(FixAtoms(indices=bottom_indices))
     active_index = ordered_top[0]

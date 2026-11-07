@@ -1,0 +1,28 @@
+{
+  "candidate_id": "f58366bf5dfcdc4578f3",
+  "catalyst_name": "campaign_f58366bf5dfcdc4578f3",
+  "evidence_level": "periodic_slab_pw_dft",
+  "genome": "('SAC', 'Ta', 'N4', 'N-graphene', 'none')",
+  "material_class": "SAC",
+  "periodic_slab_qe_executed": true,
+  "slab_converged": true,
+  "slab_dft_barrier_eV": 2.815412,
+  "slab_final_energy_Ry": -771.01256977,
+  "slab_final_energy_eV": -10490.160418,
+  "slab_initial_energy_Ry": -771.16579504,
+  "slab_initial_energy_eV": -10492.245154,
+  "slab_reaction_energy_eV": 2.084736,
+  "slab_reverse_barrier_eV": 0.730676,
+  "slab_ts_energy_Ry": -770.95886602,
+  "slab_ts_energy_eV": -10489.429742,
+  "stage_converged": {
+    "final": true,
+    "initial": true,
+    "ts": true
+  },
+  "stage_forces_Ry_bohr": {
+    "final": 0.291651,
+    "initial": 0.152804,
+    "ts": 0.211583
+  }
+}

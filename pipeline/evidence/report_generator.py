@@ -1527,6 +1527,34 @@ def generate_full_report(
         if isinstance(raw_fc, list)
         else []
     )
+    if pipeline_state is None:
+        if screening_arg is not None and 'history' in screening_arg:
+            hist_df = screening_arg['history']
+            p1.setdefault('total_evaluated', len(hist_df))
+            if 'valid' in hist_df.columns:
+                p1.setdefault('valid_count', int(hist_df['valid'].sum()))
+            else:
+                p1.setdefault('valid_count', len(hist_df))
+        if reactor_arg:
+            from typing import cast
+            from pipeline.reactors.eligibility import is_usable_result
+            from pipeline.reactors.scorecard import is_production_reactor_record
+
+            usable_r = [
+                r
+                for r in reactor_arg
+                if is_production_reactor_record(cast(ReactorResult, r))
+                and not r.get('mock', False)
+                and is_usable_result(r)
+            ]
+            if usable_r:
+                p2.setdefault('catalysts_simulated', len(usable_r))
+        if mp is not None:
+            orr_list = mp.get('orr_cathode_champions')
+            if isinstance(orr_list, list) and orr_list:
+                p5.setdefault('n_cathodes_screened', len(orr_list))
+        elif fc_arg:
+            p5.setdefault('n_cathodes_screened', len(fc_arg))
 
     report_lines = (
         _header()

@@ -302,23 +302,35 @@ def generate_catalyst_ts_fcidump(
     mf_ts = scf.RHF(mol_ts)
     if use_1e_guess:
         mf_ts.init_guess = '1e'
+        mf_ts.max_cycle = 15
     mf_ts.run()
     hf_energy_Ha = float(mf_ts.e_tot)
 
     mf_react = scf.RHF(mol_react)
     if use_1e_guess:
         mf_react.init_guess = '1e'
+        mf_react.max_cycle = 15
     mf_react.run()
 
-    mc_ts = mcscf.CASSCF(mf_ts, active_orbitals, active_electrons)
+    mc_ts = (
+        mcscf.CASCI(mf_ts, active_orbitals, active_electrons)
+        if use_1e_guess
+        else mcscf.CASSCF(mf_ts, active_orbitals, active_electrons)
+    )
     mc_ts.natorb = True
-    mc_ts.max_cycle_macro = 25
+    if not use_1e_guess:
+        mc_ts.max_cycle_macro = 25
     mc_ts.run()
     casci_energy_Ha = float(mc_ts.e_tot)
 
-    mc_react = mcscf.CASSCF(mf_react, active_orbitals, active_electrons)
+    mc_react = (
+        mcscf.CASCI(mf_react, active_orbitals, active_electrons)
+        if use_1e_guess
+        else mcscf.CASSCF(mf_react, active_orbitals, active_electrons)
+    )
     mc_react.natorb = True
-    mc_react.max_cycle_macro = 25
+    if not use_1e_guess:
+        mc_react.max_cycle_macro = 25
     mc_react.run()
     cas_react_Ha = float(mc_react.e_tot)
 
@@ -329,7 +341,7 @@ def generate_catalyst_ts_fcidump(
     # 2. Coupled-Cluster CCSD and T1 diagnostic at TS
     try:
         mycc = pyscf_cc.CCSD(mf_ts)
-        mycc.max_cycle = 25
+        mycc.max_cycle = 10 if use_1e_guess else 25
         mycc.run()
         ccsd_energy_Ha = float(mycc.e_tot)
         t1_diag = float(mycc.get_t1_diagnostic())
@@ -345,12 +357,14 @@ def generate_catalyst_ts_fcidump(
         ks_ts = dft.RKS(mol_ts)
         if use_1e_guess:
             ks_ts.init_guess = '1e'
+            ks_ts.max_cycle = 12
         ks_ts.xc = 'pbe,pbe'
         ks_ts.grids.level = 1
         ks_ts.run()
         ks_react = dft.RKS(mol_react)
         if use_1e_guess:
             ks_react.init_guess = '1e'
+            ks_react.max_cycle = 12
         ks_react.xc = 'pbe,pbe'
         ks_react.grids.level = 1
         ks_react.run()

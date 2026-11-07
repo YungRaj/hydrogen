@@ -1,0 +1,28 @@
+{
+  "candidate_id": "be45ea11e23945dbbda5",
+  "catalyst_name": "campaign_be45ea11e23945dbbda5",
+  "evidence_level": "periodic_slab_pw_dft",
+  "genome": "('SolidCatalyst', 'Ni', 'CeZrO2', 'fcc211', 0.08947368421052632, ('La', 'Y'), 1, 0)",
+  "material_class": "SolidCatalyst",
+  "periodic_slab_qe_executed": true,
+  "slab_converged": true,
+  "slab_dft_barrier_eV": 4.551469,
+  "slab_final_energy_Ry": -2740.87373345,
+  "slab_final_energy_eV": -37291.486906,
+  "slab_initial_energy_Ry": -2741.38250637,
+  "slab_initial_energy_eV": -37298.409114,
+  "slab_reaction_energy_eV": 6.922208,
+  "slab_reverse_barrier_eV": 0.05,
+  "slab_ts_energy_Ry": -2741.04797956,
+  "slab_ts_energy_eV": -37293.857645,
+  "stage_converged": {
+    "final": true,
+    "initial": true,
+    "ts": true
+  },
+  "stage_forces_Ry_bohr": {
+    "final": 0.444854,
+    "initial": 0.184285,
+    "ts": 0.281451
+  }
+}

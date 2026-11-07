@@ -1,0 +1,28 @@
+{
+  "candidate_id": "b6702ffe2074faa4fa50",
+  "catalyst_name": "campaign_b6702ffe2074faa4fa50",
+  "evidence_level": "periodic_slab_pw_dft",
+  "genome": "('SAA', 'Pt', 'Ni', '110', 2000)",
+  "material_class": "SAA",
+  "periodic_slab_qe_executed": true,
+  "slab_converged": true,
+  "slab_dft_barrier_eV": 3.773105,
+  "slab_final_energy_Ry": -2634.30506143,
+  "slab_final_energy_eV": -35841.546258,
+  "slab_initial_energy_Ry": -2634.52783651,
+  "slab_initial_energy_eV": -35844.577268,
+  "slab_reaction_energy_eV": 3.03101,
+  "slab_reverse_barrier_eV": 0.742095,
+  "slab_ts_energy_Ry": -2634.25051844,
+  "slab_ts_energy_eV": -35840.804163,
+  "stage_converged": {
+    "final": true,
+    "initial": true,
+    "ts": true
+  },
+  "stage_forces_Ry_bohr": {
+    "final": 0.187534,
+    "initial": 0.028657,
+    "ts": 0.200382
+  }
+}

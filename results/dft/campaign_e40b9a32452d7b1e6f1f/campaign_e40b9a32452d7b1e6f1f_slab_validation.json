@@ -1,0 +1,28 @@
+{
+  "candidate_id": "e40b9a32452d7b1e6f1f",
+  "catalyst_name": "campaign_e40b9a32452d7b1e6f1f",
+  "evidence_level": "periodic_slab_pw_dft",
+  "genome": "('HEA', ('Fe', 'Nb', 'Ru', 'Si', 'Ge'), 'fcc_bcc_dual', '211', 800)",
+  "material_class": "HEA",
+  "periodic_slab_qe_executed": true,
+  "slab_converged": true,
+  "slab_dft_barrier_eV": 3.149593,
+  "slab_final_energy_Ry": -2107.52853271,
+  "slab_final_energy_eV": -28674.386464,
+  "slab_initial_energy_Ry": -2107.72179936,
+  "slab_initial_energy_eV": -28677.015991,
+  "slab_reaction_energy_eV": 2.629527,
+  "slab_reverse_barrier_eV": 0.520066,
+  "slab_ts_energy_Ry": -2107.49030857,
+  "slab_ts_energy_eV": -28673.866398,
+  "stage_converged": {
+    "final": true,
+    "initial": true,
+    "ts": true
+  },
+  "stage_forces_Ry_bohr": {
+    "final": 0.242326,
+    "initial": 0.081875,
+    "ts": 0.21901
+  }
+}

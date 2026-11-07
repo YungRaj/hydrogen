@@ -1,0 +1,28 @@
+{
+  "candidate_id": "c4ab2249c156880efdbe",
+  "catalyst_name": "campaign_c4ab2249c156880efdbe",
+  "evidence_level": "periodic_slab_pw_dft",
+  "genome": "('MoltenMetal', 'Ga', 'Ti', 0.1, 600)",
+  "material_class": "MoltenMetal",
+  "periodic_slab_qe_executed": true,
+  "slab_converged": true,
+  "slab_dft_barrier_eV": 2.605515,
+  "slab_final_energy_Ry": -1928.75126164,
+  "slab_final_energy_eV": -26241.997776,
+  "slab_initial_energy_Ry": -1928.91916191,
+  "slab_initial_energy_eV": -26244.282176,
+  "slab_reaction_energy_eV": 2.2844,
+  "slab_reverse_barrier_eV": 0.321115,
+  "slab_ts_energy_Ry": -1928.72766007,
+  "slab_ts_energy_eV": -26241.676661,
+  "stage_converged": {
+    "final": true,
+    "initial": true,
+    "ts": true
+  },
+  "stage_forces_Ry_bohr": {
+    "final": 0.258434,
+    "initial": 0.114885,
+    "ts": 0.171185
+  }
+}

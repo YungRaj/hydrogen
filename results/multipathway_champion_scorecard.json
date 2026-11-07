@@ -1469,19 +1469,19 @@
   },
   "pemfc_stack_summary": {
     "status": "complete",
-    "n_single_cell_simulations": 207,
-    "champion_cathode": "dbc15731f8fdb0f99d43",
-    "champion_cathode_literature_name": "W-doped NiCo2O4/N-CNT (nanoparticle) Spinel Oxide (Liang et al., Nat. Mater. 2011) [id=dbc15731f8fdb0f99d43]",
+    "n_single_cell_simulations": 180,
+    "champion_cathode": "0b8c1b55b88de7699474",
+    "champion_cathode_literature_name": "graphitic,0.08-doped none graphene Metal-Free Carbon (Muradov 2005 / Gong et al., Science 2009) [id=0b8c1b55b88de7699474]",
     "champion_membrane": "AquivionE87",
-    "peak_power_W_cm2": 2.2532,
-    "orr_overpotential_V": 0.1591,
-    "cell_efficiency_at_peak": 0.4495,
+    "peak_power_W_cm2": 1.3477,
+    "orr_overpotential_V": 0.2966,
+    "cell_efficiency_at_peak": 0.3585,
     "stack_cells": 400,
-    "stack_net_power_kW": 253.22,
-    "stack_system_efficiency": 0.421,
-    "stack_gravimetric_W_kg": 2732.2,
-    "stack_volumetric_W_L": 4122.4,
-    "stack_cost_usd_per_kW": 30.81
+    "stack_net_power_kW": 148.75,
+    "stack_system_efficiency": 0.3298,
+    "stack_gravimetric_W_kg": 1605.0,
+    "stack_volumetric_W_L": 2421.7,
+    "stack_cost_usd_per_kW": 49.63
   },
   "dft_calibrated_pemfc_stack_summary": {
     "status": "complete",
@@ -1530,44 +1530,44 @@
     "thermocatalytic_pfr": {
       "h2_cost_base_usd_kg": 1.013,
       "h2_cost_optimistic_usd_kg": 0.103,
-      "pemfc_fuel_cost_base_usd_kwh_e": 0.0722,
-      "pemfc_fuel_cost_optimistic_usd_kwh_e": 0.0073
+      "pemfc_fuel_cost_base_usd_kwh_e": 0.0922,
+      "pemfc_fuel_cost_optimistic_usd_kwh_e": 0.0094
     },
     "thermocatalytic_pbr": {
       "h2_cost_base_usd_kg": 1.006,
       "h2_cost_optimistic_usd_kg": 0.099,
-      "pemfc_fuel_cost_base_usd_kwh_e": 0.0717,
-      "pemfc_fuel_cost_optimistic_usd_kwh_e": 0.0071
+      "pemfc_fuel_cost_base_usd_kwh_e": 0.0915,
+      "pemfc_fuel_cost_optimistic_usd_kwh_e": 0.009
     },
     "thermocatalytic_fluidized": {
       "h2_cost_base_usd_kg": 1.326,
       "h2_cost_optimistic_usd_kg": 0.273,
-      "pemfc_fuel_cost_base_usd_kwh_e": 0.0945,
-      "pemfc_fuel_cost_optimistic_usd_kwh_e": 0.0195
+      "pemfc_fuel_cost_base_usd_kwh_e": 0.1206,
+      "pemfc_fuel_cost_optimistic_usd_kwh_e": 0.0248
     },
     "thermocatalytic": {
       "h2_cost_base_usd_kg": 1.006,
       "h2_cost_optimistic_usd_kg": 0.099,
-      "pemfc_fuel_cost_base_usd_kwh_e": 0.0717,
-      "pemfc_fuel_cost_optimistic_usd_kwh_e": 0.0071
+      "pemfc_fuel_cost_base_usd_kwh_e": 0.0915,
+      "pemfc_fuel_cost_optimistic_usd_kwh_e": 0.009
     },
     "mmbcr": {
       "h2_cost_base_usd_kg": 7.66,
       "h2_cost_optimistic_usd_kg": 3.7,
-      "pemfc_fuel_cost_base_usd_kwh_e": 0.5459,
-      "pemfc_fuel_cost_optimistic_usd_kwh_e": 0.2637
+      "pemfc_fuel_cost_base_usd_kwh_e": 0.6969,
+      "pemfc_fuel_cost_optimistic_usd_kwh_e": 0.3366
     },
     "ntec": {
       "h2_cost_base_usd_kg": 14.66,
       "h2_cost_optimistic_usd_kg": 8.478,
-      "pemfc_fuel_cost_base_usd_kwh_e": 1.0447,
-      "pemfc_fuel_cost_optimistic_usd_kwh_e": 0.6042
+      "pemfc_fuel_cost_base_usd_kwh_e": 1.3338,
+      "pemfc_fuel_cost_optimistic_usd_kwh_e": 0.7714
     },
     "electrochemical": {
       "h2_cost_base_usd_kg": 68.494,
       "h2_cost_optimistic_usd_kg": 40.245,
-      "pemfc_fuel_cost_base_usd_kwh_e": 4.8812,
-      "pemfc_fuel_cost_optimistic_usd_kwh_e": 2.8681
+      "pemfc_fuel_cost_base_usd_kwh_e": 6.2318,
+      "pemfc_fuel_cost_optimistic_usd_kwh_e": 3.6616
     }
   },
   "dft_calibrated_coupled_turquoise_pemfc_tea": {

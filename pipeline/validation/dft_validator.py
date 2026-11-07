@@ -118,6 +118,7 @@ def _prepare_qe_species_and_atoms(
     ecutwfc: float,
     *,
     trailing_newline: bool = True,
+    fixed_indices: set[int] | None = None,
 ) -> tuple[dict[str, object], str, float, list[str], str, str]:
     """Verify SSSP pseudopotentials and format QE ATOMIC_SPECIES and ATOMIC_POSITIONS blocks."""
     from pipeline.validation.qe_workflows import SSSP_DIR, verify_sssp
@@ -136,13 +137,14 @@ def _prepare_qe_species_and_atoms(
         )
         + suffix
     )
-    atoms_block = (
-        '\n'.join(
-            f"  {elem}  {pos[0]:.10f}  {pos[1]:.10f}  {pos[2]:.10f}"
-            for elem, pos in zip(elements, positions)
-        )
-        + suffix
-    )
+    atoms_lines: list[str] = []
+    for idx, (elem, pos) in enumerate(zip(elements, positions)):
+        coord_str = f"  {elem}  {pos[0]:.10f}  {pos[1]:.10f}  {pos[2]:.10f}"
+        if fixed_indices is not None:
+            flags = "  0 0 0" if idx in fixed_indices else "  1 1 1"
+            coord_str += flags
+        atoms_lines.append(coord_str)
+    atoms_block = '\n'.join(atoms_lines) + suffix
     return (
         sssp,
         str(SSSP_DIR),
@@ -241,6 +243,13 @@ def generate_slab_scf_input(
     ecutwfc: float = 50.0,
     kpoints: tuple[int, int, int] = (4, 4, 1),
     calculation: str = "relax",
+    fixed_indices: set[int] | None = None,
+    *,
+    respect_caller_cutoff: bool = False,
+    spin_polarized: bool = True,
+    gamma_only: bool = False,
+    conv_thr_str: str = "1.0d-6",
+    mixing_beta: float = 0.2,
 ) -> str:
     """Generate QE scf or relax input for a surface slab (ibrav=0).
 
@@ -252,6 +261,12 @@ def generate_slab_scf_input(
         ecutwfc: Ecutwfc used by this operation.
         kpoints: Ordered values supplying kpoints.
         calculation: QE calculation mode ('relax' or 'scf').
+        fixed_indices: Optional 0-based atom indices held fixed (`0 0 0`) in QE.
+        respect_caller_cutoff: If True, use `ecutwfc` and `8 * ecutwfc` directly.
+        spin_polarized: Whether to include `nspin = 2` and starting magnetization.
+        gamma_only: If True, emit `K_POINTS {gamma}` real-space wavefunctions.
+        conv_thr_str: Fortran-formatted SCF convergence threshold string.
+        mixing_beta: Charge-density mixing factor.
 
     Returns:
         Computed `str` result.
@@ -260,6 +275,7 @@ def generate_slab_scf_input(
         raise ValueError("slab calculation must be 'relax' or 'scf'")
     nat = len(positions_ang)
     kshift = tuple(0 if mesh == 1 else 1 for mesh in kpoints)
+    caller_ecut = float(ecutwfc)
     (
         sssp,
         sssp_dir,
@@ -267,9 +283,15 @@ def generate_slab_scf_input(
         unique_elements,
         species_block,
         atoms_block,
-    ) = _prepare_qe_species_and_atoms(elements, positions_ang, ecutwfc)
+    ) = _prepare_qe_species_and_atoms(
+        elements, positions_ang, ecutwfc, fixed_indices=fixed_indices
+    )
     ntyp = len(unique_elements)
-    ecutrho = sssp['ecutrho_Ry']
+    if respect_caller_cutoff:
+        ecutwfc = caller_ecut
+        ecutrho = round(caller_ecut * 8.0, 1)
+    else:
+        ecutrho = sssp['ecutrho_Ry']
 
     # Quantum ESPRESSO rejects spin-polarized calculations unless at least one
     # species has a non-zero starting magnetization.  Use a conservative seed
@@ -279,10 +301,19 @@ def generate_slab_scf_input(
         f"  starting_magnetization({index}) = 0.05"
         for index, _ in enumerate(unique_elements, start=1)
     )
+    spin_section = f"  nspin = 2\n{magnetization_block}\n" if spin_polarized else ""
     cell_block = "".join(
         f"  {row[0]:.10f}  {row[1]:.10f}  {row[2]:.10f}\n" for row in cell_params
     )
     ions_block = "\n&IONS\n  ion_dynamics = 'bfgs'\n/" if calculation == "relax" else ""
+    kpoints_block = (
+        "K_POINTS {gamma}"
+        if gamma_only
+        else (
+            "K_POINTS {automatic}\n"
+            f"  {kpoints[0]} {kpoints[1]} {kpoints[2]}  {kshift[0]} {kshift[1]} {kshift[2]}"
+        )
+    )
 
     return f"""&CONTROL
   calculation = '{calculation}'
@@ -301,12 +332,10 @@ def generate_slab_scf_input(
   occupations = 'smearing'
   smearing = 'mv'
   degauss = 0.02
-  nspin = 2
-{magnetization_block}
-/
+{spin_section}/
 &ELECTRONS
-  mixing_beta = 0.2
-  conv_thr = 1.0d-6
+  mixing_beta = {mixing_beta}
+  conv_thr = {conv_thr_str}
   electron_maxstep = 200
 /{ions_block}
 CELL_PARAMETERS {{angstrom}}
@@ -315,8 +344,7 @@ ATOMIC_SPECIES
 {species_block}
 ATOMIC_POSITIONS {{angstrom}}
 {atoms_block}
-K_POINTS {{automatic}}
-  {kpoints[0]} {kpoints[1]} {kpoints[2]}  {kshift[0]} {kshift[1]} {kshift[2]}
+{kpoints_block}
 """
 
 
@@ -931,7 +959,11 @@ def generate_champion_slab_adsorption_inputs(
         methane_dissociation_images,
     )
 
-    calc_dir = Path(output_dir) if output_dir is not None else (DFT_DIR / catalyst_name)
+    calc_dir = (
+        Path(output_dir).resolve()
+        if output_dir is not None
+        else (DFT_DIR / catalyst_name).resolve()
+    )
     calc_dir.mkdir(parents=True, exist_ok=True)
     slab, active_idx = _build_slab(genome)
     images = methane_dissociation_images(slab, active_index=active_idx, n_images=5)
@@ -947,16 +979,38 @@ def generate_champion_slab_adsorption_inputs(
         cell_ang = [
             [float(x) for x in row] for row in img.cell.array
         ]
+        from collections.abc import Iterable
+        from numbers import Integral
+
+        fixed_idx: set[int] = set()
+        for constraint in getattr(img, 'constraints', ()):
+            getter = getattr(constraint, 'get_indices', None)
+            if callable(getter):
+                raw_indices = getter()
+                if isinstance(raw_indices, Iterable):
+                    fixed_idx.update(
+                        int(i) for i in raw_indices if isinstance(i, Integral)
+                    )
         in_text = generate_slab_scf_input(
             elems,
             pos_ang,
             cell_ang,
             calc_name=f"{catalyst_name}_slab_{stage_key}",
-            ecutwfc=45.0,
+            ecutwfc=30.0,
             kpoints=kpoints,
             calculation=calculation,
+            fixed_indices=fixed_idx if fixed_idx else None,
+            respect_caller_cutoff=True,
+            spin_polarized=False,
+            gamma_only=(kpoints == (1, 1, 1)),
+            conv_thr_str="1.0d-4",
+            mixing_beta=0.35,
         )
         in_path = calc_dir / f"{catalyst_name}_slab_{stage_key}.in"
+        out_path = in_path.with_suffix('.out')
+        if in_path.is_file() and in_path.read_text(encoding='utf-8') != in_text:
+            if out_path.exists():
+                out_path.unlink(missing_ok=True)
         in_path.write_text(in_text, encoding='utf-8')
         paths[stage_key] = str(in_path)
     return paths
@@ -984,10 +1038,15 @@ def run_periodic_slab_qe_validation(
     Returns:
         Dictionary with converged periodic-slab plane-wave DFT energies, reaction energy, and activation barrier.
     """
+    import shutil
     from pipeline.search.discovery import candidate_id
     from pipeline.validation.qe_workflows import QEExecutionConfig, run_pw
 
-    calc_dir = Path(output_dir) if output_dir is not None else (DFT_DIR / catalyst_name)
+    calc_dir = (
+        Path(output_dir).resolve()
+        if output_dir is not None
+        else (DFT_DIR / catalyst_name).resolve()
+    )
     calc_dir.mkdir(parents=True, exist_ok=True)
     in_paths = generate_champion_slab_adsorption_inputs(
         catalyst_name,
@@ -1030,6 +1089,9 @@ def run_periodic_slab_qe_validation(
         stage_forces[stage_key] = f_max
         stage_converged[stage_key] = conv
 
+    if run_dft:
+        shutil.rmtree(calc_dir / "tmp", ignore_errors=True)
+
     e_init = stage_energies_eV.get('initial')
     e_ts = stage_energies_eV.get('ts')
     e_fin = stage_energies_eV.get('final')
@@ -1047,13 +1109,18 @@ def run_periodic_slab_qe_validation(
     if e_ts is not None and e_fin is not None and barrier_ev is not None and rxn_ev is not None:
         rev_barrier_ev = round(max(0.05, float(barrier_ev - rxn_ev)), 6)
 
-    cid = candidate_id(genome)
+    cid = (
+        catalyst_name.removeprefix('campaign_').removeprefix('orr_slate_')
+        if catalyst_name.startswith(('campaign_', 'orr_slate_'))
+        else candidate_id(genome)
+    )
     summary: dict[str, object] = {
         'catalyst_name': catalyst_name,
         'candidate_id': cid,
         'material_class': str(genome[0]),
         'genome': str(genome),
         'evidence_level': 'periodic_slab_pw_dft' if all_conv else 'periodic_slab_incomplete',
+        'periodic_slab_qe_executed': bool(run_dft and all_conv),
         'slab_converged': all_conv,
         'slab_initial_energy_Ry': stage_energies_Ry.get('initial'),
         'slab_initial_energy_eV': e_init,
@@ -1071,6 +1138,28 @@ def run_periodic_slab_qe_validation(
         json.dumps(summary, indent=2, sort_keys=True) + "\n",
         encoding='utf-8',
     )
+    dft_json_path = calc_dir.parent / f"{catalyst_name}_dft.json"
+    if dft_json_path.is_file() and all_conv:
+        try:
+            existing_dft = json.loads(dft_json_path.read_text(encoding='utf-8'))
+            if isinstance(existing_dft, dict):
+                existing_dft.update(
+                    {
+                        'periodic_slab_qe_executed': True,
+                        'slab_e_initial_ry': stage_energies_Ry.get('initial'),
+                        'slab_e_ts_ry': stage_energies_Ry.get('ts'),
+                        'slab_e_final_ry': stage_energies_Ry.get('final'),
+                        'slab_e_act_ev': barrier_ev,
+                        'slab_delta_e_rxn_ev': rxn_ev,
+                        'slab_calculation_mode': 'pw_scf_3state',
+                    }
+                )
+                dft_json_path.write_text(
+                    json.dumps(existing_dft, indent=2) + "\n",
+                    encoding='utf-8',
+                )
+        except Exception:
+            pass
     return summary
 
 
