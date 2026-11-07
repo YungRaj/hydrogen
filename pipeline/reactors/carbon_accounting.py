@@ -10,6 +10,7 @@ import numpy.typing as npt
 from pipeline.data_models.reactors import (
     CanteraGasPhase,
     CanteraSurfacePhase,
+    H2C2SelectivityRateMetrics,
     LoadStatusFields,
 )
 
@@ -374,11 +375,11 @@ def compute_off_site_carbon_metrics(
     gas: CanteraGasPhase,
     surf: Optional[CanteraSurfacePhase],
     *,
-    ch4_initial: float,
+    feed_initial: float,
     ar_initial: float,
     pass_conversion: float,
     n_sites_mol: float,
-    n_ch4_fed_mol: float,
+    n_feed_fed_mol: float,
     n_parcel_in_mol: float,
     pass_time_s: float,
     cov_start: Optional[npt.NDArray[np.float64]],
@@ -393,11 +394,11 @@ def compute_off_site_carbon_metrics(
         config: Reactor configuration for the evaluated bed.
         gas: Cantera gas phase at bed exit.
         surf: Cantera catalytic surface phase or ``None``.
-        ch4_initial: Inlet methane mole fraction.
+        feed_initial: Inlet hydrocarbon feedstock (default methane) mole fraction.
         ar_initial: Inlet argon tracer mole fraction.
-        pass_conversion: Single-pass methane conversion.
+        pass_conversion: Single-pass feedstock conversion.
         n_sites_mol: Total catalytic surface sites in the stage/bed in moles.
-        n_ch4_fed_mol: Methane fed per pass in moles.
+        n_feed_fed_mol: Hydrocarbon feedstock fed per pass in moles.
         n_parcel_in_mol: Total gas moles in the inlet parcel.
         pass_time_s: Single-pass gas residence time in seconds.
         cov_start: Surface coverage vector at the start of the pass.
@@ -408,9 +409,9 @@ def compute_off_site_carbon_metrics(
     Returns:
         Dictionary of per-pass carbon balance and turnover metrics.
     """
-    x_bound = n_sites_mol / n_ch4_fed_mol if n_ch4_fed_mol > 0 else None
+    x_bound = n_sites_mol / n_feed_fed_mol if n_feed_fed_mol > 0 else None
     x_eq = tabulated_x_eq(config.T_inlet_K)
-    x_eq_tp = local_tp_x_eq(config.T_inlet_K, config.P_inlet_Pa, ch4_initial)
+    x_eq_tp = local_tp_x_eq(config.T_inlet_K, config.P_inlet_Pa, feed_initial)
     out: dict[str, object] = {
         'site_inventory_bound_X': x_bound,
         'site_inventory_bound_basis': basis,
@@ -429,7 +430,7 @@ def compute_off_site_carbon_metrics(
         2.0 * (species_x(gas, sp) or 0.0) / max(x_ar, 1e-30) * n_ar
         for sp in ('C2H2', 'C2H4', 'C2H6')
     )
-    n_solid = max(0.0, pass_conversion * n_ch4_fed_mol - n_c2)
+    n_solid = max(0.0, pass_conversion * n_feed_fed_mol - n_c2)
     d_surface_c = (
         _surface_carbon_coverage(surf, cov_end)
         - _surface_carbon_coverage(surf, cov_start)
@@ -598,21 +599,23 @@ _off_site_carbon_metrics = compute_off_site_carbon_metrics
 
 
 def h2_atom_balance_metric(
-    ch4_initial: float,
+    feed_initial: float,
     final_conv: float,
     x_h2: float,
     *,
     x_ar_feed: Optional[float] = None,
     x_ar_out: Optional[float] = None,
 ) -> float:
-    """Expansion-corrected H-atom balance ratio (2 * n_H2_out) / (4 * n_CH4_converted).
+    """Expansion-corrected H-atom balance ratio (2 * n_H2_out) / (4 * n_feed_converted).
 
-    Accounts for the molar gas expansion (1 + y_CH4,0 * X, or exact Ar-tracer
-    scale y_Ar,0 / y_Ar,out when provided) accompanying CH4 -> C(s) + 2 H2.
+    Accounts for the molar gas expansion (1 + y_feed,0 * X, or exact Ar-tracer
+    scale y_Ar,0 / y_Ar,out when provided) accompanying the baseline Cantera
+    CH4 -> C(s) + 2 H2 pass (where CH4 is the default hydrocarbon feedstock;
+    non-methane feedstocks are subsequently mapped by `adapt_reactor_result_to_feedstock`).
 
     Args:
-        ch4_initial: Inlet methane mole fraction.
-        final_conv: Final methane conversion fraction.
+        feed_initial: Inlet hydrocarbon feedstock (default methane) mole fraction.
+        final_conv: Final single-pass conversion fraction.
         x_h2: Outlet H2 mole fraction.
         x_ar_feed: Optional inlet argon mole fraction for exact tracer scaling.
         x_ar_out: Optional outlet argon mole fraction for exact tracer scaling.
@@ -622,6 +625,7 @@ def h2_atom_balance_metric(
     """
     if final_conv <= 0.01:
         return 0.0
+    expansion: float
     if (
         x_ar_feed is not None
         and x_ar_out is not None
@@ -630,10 +634,10 @@ def h2_atom_balance_metric(
     ):
         expansion = float(x_ar_feed) / float(x_ar_out)
     else:
-        expansion = 1.0 + max(0.0, float(ch4_initial)) * max(0.0, float(final_conv))
-    h_in_ch4_converted = 4.0 * float(ch4_initial) * float(final_conv)
-    h_in_h2_out = 2.0 * float(x_h2) * expansion
-    return float(np.clip(h_in_h2_out / max(h_in_ch4_converted, 1e-10), 0.0, 1.0))
+        expansion = 1.0 + max(0.0, float(feed_initial)) * max(0.0, float(final_conv))
+    h_in_feed_converted: float = 4.0 * float(feed_initial) * float(final_conv)
+    h_in_h2_out: float = 2.0 * float(x_h2) * expansion
+    return float(np.clip(h_in_h2_out / max(h_in_feed_converted, 1e-10), 0.0, 1.0))
 
 
 _h2_atom_balance_metric = h2_atom_balance_metric
@@ -642,7 +646,7 @@ _h2_atom_balance_metric = h2_atom_balance_metric
 def compute_h2_c2_selectivity_and_rates(
     gas: Optional[CanteraGasPhase],
     *,
-    ch4_initial: float = 0.95,
+    feed_initial: float = 0.95,
     ar_initial: float = 0.05,
     final_conv: float = 0.0,
     tau_s: float = 1.25,
@@ -652,23 +656,28 @@ def compute_h2_c2_selectivity_and_rates(
     site_density_mol_cm2: float = 2.5e-9,
     bed_porosity_or_holdup: float = 0.4,
     x_h2_override: Optional[float] = None,
-    x_ch4_override: Optional[float] = None,
+    x_feed_override: Optional[float] = None,
     x_c2h6_override: Optional[float] = None,
     x_c2h4_override: Optional[float] = None,
     x_c2h2_override: Optional[float] = None,
     x_ar_override: Optional[float] = None,
-) -> dict[str, object]:
+) -> H2C2SelectivityRateMetrics:
     """Compute true H2 vs. C2 branching selectivity, H2 yield, and molar H2 production rates.
 
     Uses the Ar internal standard (``expansion = y_Ar,0 / y_Ar,out``) when ``gas``
     carries ``C2H6``, ``C2H4``, ``C2H2``, ``H2``, and ``Ar`` mole fractions, and
     computes volumetric and site-normalized H2 production rates (TOF_H2).
+    Note: The base Cantera gas phase represents the hydrocarbon reactant using
+    species ``'CH4'`` (the default feedstock). When a non-methane feedstock is
+    configured on ``ReactorConfig.feedstock``, ``adapt_reactor_result_to_feedstock``
+    updates both the ``feedstock_*`` and ``CH4_*`` fields for the selected
+    hydrocarbon or biomass feedstock.
 
     Args:
         gas: Outlet Cantera gas phase or ``None``.
-        ch4_initial: Inlet methane mole fraction.
+        feed_initial: Inlet hydrocarbon feedstock (default methane) mole fraction.
         ar_initial: Inlet argon mole fraction.
-        final_conv: Single-pass methane conversion fraction in ``[0, 1]``.
+        final_conv: Single-pass hydrocarbon conversion fraction in ``[0, 1]``.
         tau_s: Reactor gas residence time in seconds.
         P_inlet_Pa: Inlet pressure in pascals.
         T_inlet_K: Inlet temperature in kelvin.
@@ -676,7 +685,7 @@ def compute_h2_c2_selectivity_and_rates(
         site_density_mol_cm2: Monolayer site density in mol/cm².
         bed_porosity_or_holdup: Gas void fraction or bubble holdup in ``(0, 1)``.
         x_h2_override: Optional outlet H2 mole fraction when ``gas`` is ``None``.
-        x_ch4_override: Optional outlet CH4 mole fraction when ``gas`` is ``None``.
+        x_feed_override: Optional outlet unreacted feedstock mole fraction when ``gas`` is ``None``.
         x_c2h6_override: Optional outlet C2H6 mole fraction when ``gas`` is ``None``.
         x_c2h4_override: Optional outlet C2H4 mole fraction when ``gas`` is ``None``.
         x_c2h2_override: Optional outlet C2H2 mole fraction when ``gas`` is ``None``.
@@ -685,50 +694,56 @@ def compute_h2_c2_selectivity_and_rates(
     Returns:
         Dictionary of selectivity, yield, C2 mole fractions, and H2 rate metrics.
     """
-    conv = float(np.clip(final_conv, 0.0, 1.0))
-    y_ch4_0 = max(float(ch4_initial), 1e-12)
-    y_ar_0 = max(float(ar_initial), 0.0)
+    conv: float = float(np.clip(final_conv, 0.0, 1.0))
+    y_feed_0: float = max(float(feed_initial), 1e-12)
+    y_ar_0: float = max(float(ar_initial), 0.0)
+    x_h2: float
+    x_feed_out: float
+    x_ar: float
+    x_c2h6: float
+    x_c2h4: float
+    x_c2h2: float
     if gas is not None:
         x_h2 = float(species_x(gas, 'H2') or 0.0)
-        x_ch4 = float(species_x(gas, 'CH4') or 0.0)
+        x_feed_out = float(species_x(gas, 'CH4') or 0.0)
         x_ar = float(species_x(gas, 'Ar') or y_ar_0)
         x_c2h6 = float(species_x(gas, 'C2H6') or 0.0)
         x_c2h4 = float(species_x(gas, 'C2H4') or 0.0)
         x_c2h2 = float(species_x(gas, 'C2H2') or 0.0)
         if (x_c2h6 + x_c2h4 + x_c2h2) <= 1e-12 and conv > 1e-6 and float(T_inlet_K) >= 850.0:
-            eps_void = min(max(float(bed_porosity_or_holdup), 0.01), 0.99)
-            tau_v = max(float(tau_s), 1e-3)
-            k_het_eff_s = -float(np.log(max(1.0 - min(conv, 0.995), 1e-4))) / tau_v
-            k_hom_c2_s = 4.5e13 * float(
+            eps_void: float = min(max(float(bed_porosity_or_holdup), 0.01), 0.99)
+            tau_v: float = max(float(tau_s), 1e-3)
+            k_het_eff_s: float = -float(np.log(max(1.0 - min(conv, 0.995), 1e-4))) / tau_v
+            k_hom_c2_s: float = 4.5e13 * float(
                 np.exp(-356000.0 / (8.314462618 * max(float(T_inlet_K), 300.0)))
             )
-            s_c2_void = float(
+            s_c2_void: float = float(
                 np.clip(
                     0.08 * (eps_void * k_hom_c2_s) / (k_het_eff_s + eps_void * k_hom_c2_s),
                     0.0,
                     0.08,
                 )
             )
-            exp_cur = (
+            exp_cur: float = (
                 y_ar_0 / x_ar
                 if (y_ar_0 > 0.0 and x_ar > 1e-12)
-                else (1.0 + y_ch4_0 * conv)
+                else (1.0 + y_feed_0 * conv)
             )
-            n_c2_tot = 0.5 * y_ch4_0 * conv * s_c2_void
+            n_c2_tot: float = 0.5 * y_feed_0 * conv * s_c2_void
             x_c2h6 = (0.15 * n_c2_tot) / exp_cur
             x_c2h4 = (0.75 * n_c2_tot) / exp_cur
             x_c2h2 = (0.10 * n_c2_tot) / exp_cur
     else:
-        expansion_nom = 1.0 + y_ch4_0 * conv
+        expansion_nom: float = 1.0 + y_feed_0 * conv
         x_h2 = (
             float(x_h2_override)
             if x_h2_override is not None
-            else (2.0 * y_ch4_0 * conv) / expansion_nom
+            else (2.0 * y_feed_0 * conv) / expansion_nom
         )
-        x_ch4 = (
-            float(x_ch4_override)
-            if x_ch4_override is not None
-            else (y_ch4_0 * (1.0 - conv)) / expansion_nom
+        x_feed_out = (
+            float(x_feed_override)
+            if x_feed_override is not None
+            else (y_feed_0 * (1.0 - conv)) / expansion_nom
         )
         x_ar = (
             float(x_ar_override)
@@ -739,44 +754,48 @@ def compute_h2_c2_selectivity_and_rates(
         x_c2h4 = float(x_c2h4_override) if x_c2h4_override is not None else 0.0
         x_c2h2 = float(x_c2h2_override) if x_c2h2_override is not None else 0.0
 
-    expansion = (
+    expansion: float = (
         y_ar_0 / x_ar
         if (y_ar_0 > 0.0 and x_ar > 1e-12)
-        else (1.0 + y_ch4_0 * conv)
+        else (1.0 + y_feed_0 * conv)
     )
-    dn_ch4 = max(y_ch4_0 * conv, 1e-12)
-    n_c_in_c2 = 2.0 * (x_c2h6 + x_c2h4 + x_c2h2) * expansion
-    n_h_in_c2 = (6.0 * x_c2h6 + 4.0 * x_c2h4 + 2.0 * x_c2h2) * expansion
+    dn_feed_converted: float = max(y_feed_0 * conv, 1e-12)
+    n_c_in_c2: float = 2.0 * (x_c2h6 + x_c2h4 + x_c2h2) * expansion
+    n_h_in_c2: float = (6.0 * x_c2h6 + 4.0 * x_c2h4 + 2.0 * x_c2h2) * expansion
 
+    c2_c_sel: float
+    solid_c_sel: float
+    h2_sel: float
+    h2_bal: float
     if conv <= 1e-6:
         c2_c_sel = 0.0
         solid_c_sel = 1.0
         h2_sel = 1.0
         h2_bal = 0.0
     else:
-        c2_c_sel = float(np.clip(n_c_in_c2 / dn_ch4, 0.0, 1.0))
+        c2_c_sel = float(np.clip(n_c_in_c2 / dn_feed_converted, 0.0, 1.0))
         solid_c_sel = float(np.clip(1.0 - c2_c_sel, 0.0, 1.0))
-        h_frac_c2 = float(np.clip(n_h_in_c2 / (4.0 * dn_ch4), 0.0, 1.0))
+        h_frac_c2: float = float(np.clip(n_h_in_c2 / (4.0 * dn_feed_converted), 0.0, 1.0))
         h2_sel = float(np.clip(1.0 - h_frac_c2, 0.0, 1.0))
         h2_bal = h2_atom_balance_metric(
-            y_ch4_0, conv, x_h2, x_ar_feed=y_ar_0, x_ar_out=x_ar
+            y_feed_0, conv, x_h2, x_ar_feed=y_ar_0, x_ar_out=x_ar
         )
 
-    h2_yield = float(conv * h2_sel)
+    h2_yield: float = float(conv * h2_sel)
 
-    # Volumetric and site-normalized conversion & H2 production rates
-    c_total_mol_m3 = float(P_inlet_Pa) / (8.314462618 * max(float(T_inlet_K), 1.0))
-    eps_eff = min(max(float(bed_porosity_or_holdup), 0.01), 0.99)
-    tau_eff = max(float(tau_s), 1e-6)
-    # Molar CH4 conversion rate and H2 production rate per m³ reactor volume [mol/(m³·s)]
-    r_ch4_mol_m3_s = float(eps_eff * c_total_mol_m3 * y_ch4_0 * conv / tau_eff)
-    r_h2_mol_m3_s = float(2.0 * r_ch4_mol_m3_s * h2_sel)
-    r_h2_kg_m3_h = float(r_h2_mol_m3_s * 0.00201588 * 3600.0)
+    # Volumetric and site-normalized feedstock conversion & H2 production rates
+    c_total_mol_m3: float = float(P_inlet_Pa) / (8.314462618 * max(float(T_inlet_K), 1.0))
+    eps_eff: float = min(max(float(bed_porosity_or_holdup), 0.01), 0.99)
+    tau_eff: float = max(float(tau_s), 1e-6)
+    # Molar feedstock conversion rate and H2 production rate per m³ reactor volume [mol/(m³·s)]
+    r_feed_mol_m3_s: float = float(eps_eff * c_total_mol_m3 * y_feed_0 * conv / tau_eff)
+    r_h2_mol_m3_s: float = float(2.0 * r_feed_mol_m3_s * h2_sel)
+    r_h2_kg_m3_h: float = float(r_h2_mol_m3_s * 0.00201588 * 3600.0)
 
     tof_h2_1_s: Optional[float] = None
     if active_sv_1_m is not None and float(active_sv_1_m) > 0.0:
-        gamma_mol_m2 = float(site_density_mol_cm2) * 1e4
-        sites_mol_m3 = gamma_mol_m2 * float(active_sv_1_m)
+        gamma_mol_m2: float = float(site_density_mol_cm2) * 1e4
+        sites_mol_m3: float = gamma_mol_m2 * float(active_sv_1_m)
         if sites_mol_m3 > 0.0:
             tof_h2_1_s = float(r_h2_mol_m3_s / sites_mol_m3)
 
@@ -786,50 +805,53 @@ def compute_h2_c2_selectivity_and_rates(
         'H2_yield': h2_yield,
         'solid_C_selectivity': solid_c_sel,
         'C2_carbon_selectivity': c2_c_sel,
-        'exit_x_CH4': x_ch4,
+        'exit_x_feedstock': x_feed_out,
+        'exit_x_CH4': x_feed_out,
         'exit_x_C2H6': x_c2h6,
         'exit_x_C2H4': x_c2h4,
         'exit_x_C2H2': x_c2h2,
-        'ch4_conversion_rate_mol_m3_s': r_ch4_mol_m3_s,
+        'feedstock_conversion_rate_mol_m3_s': r_feed_mol_m3_s,
+        'ch4_conversion_rate_mol_m3_s': r_feed_mol_m3_s,
         'h2_production_rate_mol_m3_s': r_h2_mol_m3_s,
         'h2_production_rate_kg_m3_h': r_h2_kg_m3_h,
         'h2_turnover_frequency_1_s': tof_h2_1_s,
     }
 
 
+def feedstock_extent(
+    gas: CanteraGasPhase, x_feed_initial: float, x_ar_feed: float
+) -> float:
+    """Compute argon-tracer-normalized hydrocarbon feedstock conversion extent.
 
-def ch4_extent(gas: CanteraGasPhase, x_ch4_feed: float, x_ar_feed: float) -> float:
-    """Compute argon-tracer-normalized methane conversion extent.
+    Evaluates conversion on the baseline Cantera gas phase (where the reactant
+    species is labeled `'CH4'`, the default feedstock).
 
     Args:
         gas: Cantera gas phase.
-        x_ch4_feed: Inlet methane mole fraction.
+        x_feed_initial: Inlet hydrocarbon feedstock (default methane) mole fraction.
         x_ar_feed: Inlet argon mole fraction.
 
     Returns:
-        Methane conversion fraction in ``[0, 1]``.
+        Feedstock conversion fraction in ``[0, 1]``.
     """
     from pipeline.reactors.equilibrium import ch4_conversion_from_argon_tracer
 
     return ch4_conversion_from_argon_tracer(
-        species_x(gas, 'CH4'), species_x(gas, 'Ar'), x_ch4_feed, x_ar_feed
+        species_x(gas, 'CH4'), species_x(gas, 'Ar'), x_feed_initial, x_ar_feed
     )
 
 
-_ch4_extent = ch4_extent
-
-
 def clamp_gas_to_equilibrium(
-    gas: CanteraGasPhase, x_ch4_feed: float, x_ar_feed: float
+    gas: CanteraGasPhase, x_feed_initial: float, x_ar_feed: float
 ) -> None:
     """Prevent irreversible C_s => C(gr) + site sink from pulling X past X_eq(T, P).
 
     Args:
         gas: Cantera gas phase modified in place.
-        x_ch4_feed: Inlet methane mole fraction.
+        x_feed_initial: Inlet hydrocarbon feedstock (default methane) mole fraction.
         x_ar_feed: Inlet argon mole fraction.
     """
-    if x_ch4_feed <= 0.0 or x_ar_feed <= 0.0:
+    if x_feed_initial <= 0.0 or x_ar_feed <= 0.0:
         return
     try:
         x_eq_1bar = tabulated_x_eq(float(gas.T))
@@ -837,13 +859,13 @@ def clamp_gas_to_equilibrium(
         if p_pa > 105000.0:
             x_eq = min(
                 x_eq_1bar,
-                local_tp_x_eq(float(gas.T), p_pa, x_ch4_feed),
+                local_tp_x_eq(float(gas.T), p_pa, x_feed_initial),
             )
         else:
             x_eq = x_eq_1bar
     except ValueError:
         return
-    conv = ch4_extent(gas, x_ch4_feed, x_ar_feed)
+    conv = feedstock_extent(gas, x_feed_initial, x_ar_feed)
     if conv <= x_eq:
         return
     x_ar = species_x(gas, 'Ar')
@@ -851,12 +873,12 @@ def clamp_gas_to_equilibrium(
         return
     scale_to_feed = float(x_ar_feed) / x_ar
     n_vec = np.array(gas.X, dtype=float) * scale_to_feed
-    i_ch4 = gas.species_index('CH4')
+    i_feed = gas.species_index('CH4')
     i_h2 = gas.species_index('H2')
-    target_n_ch4 = float(x_ch4_feed) * (1.0 - x_eq)
-    delta_ch4 = max(0.0, target_n_ch4 - float(n_vec[i_ch4]))
-    n_vec[i_ch4] = target_n_ch4
-    n_vec[i_h2] = max(0.0, float(n_vec[i_h2]) - 2.0 * delta_ch4)
+    target_n_feed = float(x_feed_initial) * (1.0 - x_eq)
+    delta_feed = max(0.0, target_n_feed - float(n_vec[i_feed]))
+    n_vec[i_feed] = target_n_feed
+    n_vec[i_h2] = max(0.0, float(n_vec[i_h2]) - 2.0 * delta_feed)
     total = float(n_vec.sum())
     if total > 0.0:
         gas.TPX = float(gas.T), float(gas.P), n_vec / total
@@ -865,14 +887,14 @@ def clamp_gas_to_equilibrium(
 _clamp_gas_to_equilibrium = clamp_gas_to_equilibrium
 
 
-def require_ar_tracer(x_ch4_feed: float, x_ar_feed: float) -> None:
-    """Validate that positive CH4 and Ar mole fractions are present at the inlet.
+def require_ar_tracer(x_feed_initial: float, x_ar_feed: float) -> None:
+    """Validate that positive hydrocarbon feedstock and Ar mole fractions are present at the inlet.
 
     Args:
-        x_ch4_feed: Inlet methane mole fraction.
+        x_feed_initial: Inlet hydrocarbon feedstock (default methane) mole fraction.
         x_ar_feed: Inlet argon mole fraction.
     """
-    if x_ar_feed <= 0 or x_ch4_feed <= 0:
+    if x_ar_feed <= 0 or x_feed_initial <= 0:
         raise ValueError(
             'solids CH4 conversion uses an Ar mole-fraction tracer; '
             'inlet_composition must include Ar (default CH4:0.95, Ar:0.05)'
@@ -957,57 +979,54 @@ def advance_reactor_stage(
 _advance_reactor_stage = advance_reactor_stage
 
 
-def mole_fraction_drop(gas: CanteraGasPhase, x_ch4_feed: float) -> float:
-    """Compute uncalibrated mole-fraction drop ``1 - y_CH4 / y_CH4,0``.
+def mole_fraction_drop(gas: CanteraGasPhase, x_feed_initial: float) -> float:
+    """Compute uncalibrated mole-fraction drop ``1 - y_feed / y_feed,0``.
 
     Args:
         gas: Cantera gas phase.
-        x_ch4_feed: Inlet methane mole fraction.
+        x_feed_initial: Inlet hydrocarbon feedstock (default methane) mole fraction.
 
     Returns:
         Fractional mole-fraction drop in ``[0, 1]``.
     """
-    if x_ch4_feed <= 0:
+    if x_feed_initial <= 0:
         return 0.0
-    return float(max(0.0, 1.0 - species_x(gas, 'CH4') / x_ch4_feed))
+    return float(max(0.0, 1.0 - species_x(gas, 'CH4') / x_feed_initial))
 
 
 _mole_fraction_drop = mole_fraction_drop
 
 
-def set_gas_from_ch4_conversion(
+def set_gas_from_feedstock_conversion(
     gas: CanteraGasPhase,
     T_K: float,
     P_Pa: float,
-    x_ch4_feed: float,
+    x_feed_initial: float,
     x_ar_feed: float,
     conversion: float,
 ) -> None:
-    """Set gas composition from CH4 → C(s) + 2 H2 conversion where solid C exits by flotation.
+    """Set baseline Cantera gas composition from hydrocarbon → C(s) + 2 H2 conversion where solid C exits by flotation.
 
     Args:
         gas: Cantera gas phase modified in place.
         T_K: Temperature in kelvin.
         P_Pa: Pressure in pascals.
-        x_ch4_feed: Inlet methane mole fraction.
+        x_feed_initial: Inlet hydrocarbon feedstock (default methane) mole fraction.
         x_ar_feed: Inlet argon mole fraction.
-        conversion: Methane conversion fraction in ``[0, 1]``.
+        conversion: Feedstock conversion fraction in ``[0, 1]``.
     """
     x_clamped = float(np.clip(conversion, 0.0, 1.0))
-    n_ch4 = x_ch4_feed * (1.0 - x_clamped)
-    n_h2 = 2.0 * x_ch4_feed * x_clamped
+    n_feed = x_feed_initial * (1.0 - x_clamped)
+    n_h2 = 2.0 * x_feed_initial * x_clamped
     n_ar = x_ar_feed
-    n_tot = n_ch4 + n_h2 + n_ar
+    n_tot = n_feed + n_h2 + n_ar
     if n_tot <= 0:
         return
     gas.TPX = (
         T_K,
         P_Pa,
-        f'CH4:{n_ch4 / n_tot}, H2:{n_h2 / n_tot}, Ar:{n_ar / n_tot}',
+        f'CH4:{n_feed / n_tot}, H2:{n_h2 / n_tot}, Ar:{n_ar / n_tot}',
     )
-
-
-_set_gas_from_ch4_conversion = set_gas_from_ch4_conversion
 
 
 def mix_bubble_bypass(

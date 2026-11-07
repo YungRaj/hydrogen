@@ -11,29 +11,32 @@ import numpy.typing as npt
 from pipeline.data_models.reactors import (
     CanteraGasPhase,
     CanteraSurfacePhase,
+    H2C2SelectivityRateMetrics,
     ReactorResult,
 )
-from pipeline.reactors.reactor_core import (
+from pipeline.reactors.carbon_accounting import (
     PFR_PILOT_TAU_BAND_S,
+    advance_reactor_stage,
+    clamp_gas_to_equilibrium,
+    compute_h2_c2_selectivity_and_rates,
+    feedstock_extent,
+    load_gas_and_surface,
+    mole_fraction_drop,
+    require_ar_tracer,
+    reset_surface_carbon,
+    species_x,
+    surface_coverage,
+)
+from pipeline.reactors.reactor_core import (
     REGEN_OXIDATIVE,
     R_J_MOL_K,
     ReactorConfig,
     active_sv,
-    advance_reactor_stage,
-    ch4_extent,
-    clamp_gas_to_equilibrium,
     common_reactor_result_fields,
-    compute_h2_c2_selectivity_and_rates,
     geometric_sv_pfr,
-    load_gas_and_surface,
     logger,
-    mole_fraction_drop,
     off_site_carbon_metrics,
-    require_ar_tracer,
-    reset_surface_carbon,
     solids_inventory_fields,
-    species_x,
-    surface_coverage,
     validate_carbon_policy,
 )
 
@@ -44,7 +47,7 @@ def _run_pfr_pass(
     *,
     n_stages: int,
     t_inlet_k: float,
-    ch4_initial: float,
+    feed_initial: float,
     ar_initial: float,
     stage_gas_volume: float,
     stage_surface_area: float,
@@ -64,9 +67,9 @@ def _run_pfr_pass(
         advance_reactor_stage(
             gas, surf, stage_gas_volume, stage_surface_area, tau_stage
         )
-        clamp_gas_to_equilibrium(gas, ch4_initial, ar_initial)
+        clamp_gas_to_equilibrium(gas, feed_initial, ar_initial)
         pass_produce_time_s += tau_stage
-        conversion_profile.append(ch4_extent(gas, ch4_initial, ar_initial))
+        conversion_profile.append(feedstock_extent(gas, feed_initial, ar_initial))
         temperature_profile.append(float(gas.T))
         theta_c_tos.append(surface_coverage(surf, 'C_s'))
     return (
@@ -89,7 +92,7 @@ def simulate_pfr(
     Surface area per stage is ``sv·V_bed_stage`` where ``sv = 6(1−ε)/d_p``
     is area per *bed* volume (not ε-scaled), times loading × dispersion.
     The gas parcel volume is ``ε·V_bed_stage``. Stages are isothermal at
-    ``T_inlet``; CH4 conversion is the Ar-tracer extent.
+    ``T_inlet``; feedstock conversion is the Ar-tracer extent.
 
     Args:
         config: Configuration controlling this operation.
@@ -109,9 +112,9 @@ def simulate_pfr(
 
     eps = config.bed_porosity
     sv_ratio = active_sv(geometric_sv_pfr(config), config)  # m² active / m³ bed
-    ch4_initial = species_x(gas, 'CH4') or 1.0
+    feed_initial = species_x(gas, 'CH4') or 1.0
     ar_initial = species_x(gas, 'Ar')
-    require_ar_tracer(ch4_initial, ar_initial)
+    require_ar_tracer(feed_initial, ar_initial)
 
     n_stages = 50
     bed_cross_area = np.pi * (config.bed_diameter_m / 2) ** 2
@@ -143,7 +146,7 @@ def simulate_pfr(
         surf,
         n_stages=n_stages,
         t_inlet_k=config.T_inlet_K,
-        ch4_initial=ch4_initial,
+        feed_initial=feed_initial,
         ar_initial=ar_initial,
         stage_gas_volume=stage_gas_volume,
         stage_surface_area=stage_surface_area,
@@ -179,7 +182,7 @@ def simulate_pfr(
             surf,
             n_stages=n_stages,
             t_inlet_k=config.T_inlet_K,
-            ch4_initial=ch4_initial,
+            feed_initial=feed_initial,
             ar_initial=ar_initial,
             stage_gas_volume=stage_gas_volume,
             stage_surface_area=stage_surface_area,
@@ -196,16 +199,16 @@ def simulate_pfr(
     n_sites_mol = gamma_mol_m2 * stage_surface_area
     c_total = config.P_inlet_Pa / (R_J_MOL_K * config.T_inlet_K)  # mol/m³
     n_parcel_in_mol = c_total * stage_gas_volume
-    n_ch4_fed_mol = ch4_initial * n_parcel_in_mol
+    n_feed_fed_mol = feed_initial * n_parcel_in_mol
     off_site = off_site_carbon_metrics(
         config,
         gas,
         surf,
-        ch4_initial=ch4_initial,
+        feed_initial=feed_initial,
         ar_initial=ar_initial,
         pass_conversion=float(final_conv),
         n_sites_mol=n_sites_mol,
-        n_ch4_fed_mol=n_ch4_fed_mol,
+        n_feed_fed_mol=n_feed_fed_mol,
         n_parcel_in_mol=n_parcel_in_mol,
         pass_time_s=tau_total,
         cov_start=pass_start_cov,
@@ -228,9 +231,9 @@ def simulate_pfr(
         f"plugging_risk={plugging_risk}"
     )
 
-    h2_c2_metrics = compute_h2_c2_selectivity_and_rates(
+    h2_c2_metrics: H2C2SelectivityRateMetrics = compute_h2_c2_selectivity_and_rates(
         gas,
-        ch4_initial=ch4_initial,
+        feed_initial=feed_initial,
         ar_initial=ar_initial,
         final_conv=float(final_conv),
         tau_s=tau_total,
@@ -241,6 +244,12 @@ def simulate_pfr(
         bed_porosity_or_holdup=eps,
     )
 
+    single_pass_conv: float = float(
+        per_cycle_conversion[0] if per_cycle_conversion else final_conv
+    )
+    cycle_avg_conv: float = float(
+        np.mean(per_cycle_conversion) if per_cycle_conversion else final_conv
+    )
     result = {
         'reactor_type': 'PFR',
         'catalyst_name': config.catalyst_name,
@@ -255,14 +264,13 @@ def simulate_pfr(
         'plugging_risk': plugging_risk,
         'carbon_outfeed_policy_summary': carbon_outfeed_policy_summary,
         'produce_time_s': produce_time_s,
+        'feedstock_conversion': float(final_conv),
+        'single_pass_feedstock_conversion': single_pass_conv,
+        'cycle_averaged_feedstock_conversion': cycle_avg_conv,
         'CH4_conversion': float(final_conv),
-        'single_pass_CH4_conversion': float(
-            per_cycle_conversion[0] if per_cycle_conversion else final_conv
-        ),
-        'cycle_averaged_CH4_conversion': float(
-            np.mean(per_cycle_conversion) if per_cycle_conversion else final_conv
-        ),
-        'CH4_mole_fraction_drop': mole_fraction_drop(gas, ch4_initial),
+        'single_pass_CH4_conversion': single_pass_conv,
+        'cycle_averaged_CH4_conversion': cycle_avg_conv,
+        'CH4_mole_fraction_drop': mole_fraction_drop(gas, feed_initial),
         'conversion_basis': 'argon_tracer',
         'thermal_mode': 'isothermal_energy_disabled',
         'surface_area_basis': 'sv_per_bed_volume_times_bed_volume',
@@ -285,7 +293,7 @@ def simulate_pfr(
         **off_site,
         **inv_fields,
         **common_reactor_result_fields(
-            config, final_conv, tau_total, ch4_initial, graphite, surf
+            config, final_conv, tau_total, feed_initial, graphite, surf
         ),
     }
     logger.info(

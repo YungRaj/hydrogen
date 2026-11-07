@@ -32,26 +32,10 @@ from pipeline.data_models.reactors import (
 from pipeline.data_models.transport import ReactorClosure
 from pipeline.reactors.carbon_accounting import (
     CH4_PYROLYSIS_DELTA_H_KJ_MOL,
-    PFR_PILOT_TAU_BAND_S as PFR_PILOT_TAU_BAND_S,
-    SOLID_CARBON_DENSITY_KG_M3 as SOLID_CARBON_DENSITY_KG_M3,
-    advance_reactor_stage,
-    apply_continuous_carbon_removal,
-    ch4_extent,
-    clamp_gas_to_equilibrium,
-    compute_h2_c2_selectivity_and_rates as compute_h2_c2_selectivity_and_rates,
     compute_off_site_carbon_metrics,
-    h2_atom_balance_metric,
-    load_gas_and_surface,
     load_status_fields,
-    local_tp_x_eq,
-    mix_bubble_bypass,
-    mole_fraction_drop,
     pyrolysis_reaction_enthalpy_kJ_mol,
-    require_ar_tracer,
     reset_surface_carbon,
-    set_gas_from_ch4_conversion,
-    species_x,
-    surface_coverage,
     tabulated_x_eq,
 )
 from pipeline.reactors.mechanisms import MONOLAYER_SITE_DENSITY_MOL_CM2
@@ -194,6 +178,7 @@ class ReactorConfig:
     circulating_carbon_removal_rate_1_s: float = 0.5
     co2_permitted: bool = False
     gas_only: bool = False
+    feedstock: str = 'CH4'
 
 
 def _validate_carbon_policy(config: ReactorConfig) -> None:
@@ -245,6 +230,9 @@ def validate_reactor_config(config: ReactorConfig) -> None:
     Args:
         config: Reactor configuration to validate.
     """
+    from pipeline.reactors.feedstocks import resolve_feedstock
+
+    resolve_feedstock(config.feedstock)
     if config.T_inlet_K <= 0 or config.P_inlet_Pa <= 0:
         raise ValueError('reactor temperature and pressure must be positive')
     if config.max_residence_time_s <= 0:
@@ -510,61 +498,64 @@ def active_sv(geometric_sv: float, config: ReactorConfig) -> float:
 
 
 def adiabatic_temperature_drop_k(
-    ch4_initial: float,
+    feed_initial: float,
     conversion: float,
     T_K: Optional[float] = None,
 ) -> float:
-    """Estimate adiabatic temperature drop ΔT_ad [K] for CH4 -> C(s) + 2 H2.
+    """Estimate adiabatic temperature drop ΔT_ad [K] for the baseline CH4 -> C(s) + 2 H2 pass.
 
     Uses Kirchhoff ΔH_rxn(T_K) when ``T_K`` is provided (or standard
     ΔH_rxn = 74.85 kJ/mol CH4 when omitted) and high-temperature molar heat
     capacities Cp_CH4 ≈ 71.5 J/(mol·K) and Cp_Ar ≈ 20.8 J/(mol·K) around 1000 K.
+    When a non-methane feedstock is selected, ``adapt_reactor_result_to_feedstock``
+    updates ``adiabatic_temperature_drop_K`` using the active feedstock's
+    heat capacity and reaction enthalpy.
 
     Args:
-        ch4_initial: Inlet methane mole fraction.
-        conversion: Fractional methane conversion in [0, 1].
+        feed_initial: Inlet hydrocarbon feedstock (default methane) mole fraction.
+        conversion: Fractional feedstock conversion in [0, 1].
         T_K: Optional operating temperature in kelvin for Kirchhoff ΔH_rxn(T).
 
     Returns:
         Adiabatic temperature drop in kelvin (>= 0).
     """
-    y_ch4 = min(max(float(ch4_initial), 0.0), 1.0)
-    y_ar = max(0.0, 1.0 - y_ch4)
-    cp_mix_j_mol_k = max(y_ch4 * 71.5 + y_ar * 20.8, 20.8)
+    y_feed_initial = min(max(float(feed_initial), 0.0), 1.0)
+    y_ar = max(0.0, 1.0 - y_feed_initial)
+    cp_mix_j_mol_k = max(y_feed_initial * 71.5 + y_ar * 20.8, 20.8)
     dh_kj_mol = (
         pyrolysis_reaction_enthalpy_kJ_mol(float(T_K))
         if T_K is not None
         else CH4_PYROLYSIS_DELTA_H_KJ_MOL
     )
     q_j_per_mol_feed = (
-        y_ch4 * min(max(float(conversion), 0.0), 1.0) * dh_kj_mol * 1000.0
+        y_feed_initial * min(max(float(conversion), 0.0), 1.0) * dh_kj_mol * 1000.0
     )
     return float(q_j_per_mol_feed / cp_mix_j_mol_k)
 
 
-def ch4_feed_density_kg_m3(T_K: float, P_Pa: float) -> float:
-    """Ideal-gas density for CH4:0.95 / Ar:0.05.
+def hydrocarbon_feed_density_kg_m3(T_K: float, P_Pa: float) -> float:
+    """Ideal-gas density for the baseline hydrocarbon:0.95 / Ar:0.05 reactor feed mixture.
 
     Args:
-        T_K: Input controlling T K.
-        P_Pa: Input controlling P Pa.
+        T_K: Gas temperature in kelvin.
+        P_Pa: Gas pressure in pascals.
 
     Returns:
-        Validated float output for this operation.
+        Gas mixture density in kg/m³.
     """
     # Mixture molar mass M_mix [kg/mol]: M_CH4 = 0.01604 kg/mol (95%), M_Ar = 0.03995 kg/mol (5%)
     M = 0.01604 * 0.95 + 0.03995 * 0.05
     return P_Pa * M / (8.314462618 * T_K)
 
 
-def ch4_viscosity_pa_s(T_K: float) -> float:
-    """Sutherland estimate for CH4 (μ0=1.03e-5 Pa·s at 273.15 K, S=164 K).
+def hydrocarbon_viscosity_pa_s(T_K: float) -> float:
+    """Sutherland gas viscosity estimate for the baseline hydrocarbon feed (μ0=1.03e-5 Pa·s at 273.15 K, S=164 K).
 
     Args:
-        T_K: Input controlling T K.
+        T_K: Gas temperature in kelvin.
 
     Returns:
-        Validated float output for this operation.
+        Dynamic viscosity in Pa·s.
     """
     # Sutherland's law: μ(T) = μ_0 * (T / T_0)^(3/2) * (T_0 + S) / (T + S)
     T0, mu0, S = 273.15, 1.03e-5, 164.0
@@ -591,8 +582,8 @@ def ergun_delta_p_pa(
     d_p = config.catalyst_particle_mm * 1e-3
     eps = config.bed_porosity
     u = config.gas_velocity_m_s if config.gas_velocity_m_s > 0 else 0.1
-    mu = ch4_viscosity_pa_s(T)
-    rho = ch4_feed_density_kg_m3(T, P)
+    mu = hydrocarbon_viscosity_pa_s(T)
+    rho = hydrocarbon_feed_density_kg_m3(T, P)
     # Ergun (1952) packed-bed pressure gradient: -dP/dz = Blake-Kozeny viscous (150) + Burke-Plummer inertial (1.75)
     viscous = 150.0 * mu * (1.0 - eps) ** 2 / (eps**3 * d_p**2) * u
     inertial = 1.75 * rho * (1.0 - eps) / (eps**3 * d_p) * u**2
@@ -696,22 +687,9 @@ def inventory_roi_grid_cells() -> list[InventoryGridCell]:
 
 
 _validate_reactor_config = validate_reactor_config
-_load_gas_and_surface = load_gas_and_surface
 _load_status_fields = load_status_fields
 validate_carbon_policy = _validate_carbon_policy
-_species_x = species_x
-_coverage = surface_coverage
-_require_ar_tracer = require_ar_tracer
-_advance_reactor_stage = advance_reactor_stage
-_apply_continuous_carbon_removal = apply_continuous_carbon_removal
-_ch4_extent = ch4_extent
-_clamp_gas_to_equilibrium = clamp_gas_to_equilibrium
-_mole_fraction_drop = mole_fraction_drop
 _reset_surface_carbon = reset_surface_carbon
-_h2_atom_balance_metric = h2_atom_balance_metric
-_local_tp_x_eq = local_tp_x_eq
-_mix_bubble_bypass = mix_bubble_bypass
-_set_gas_from_ch4_conversion = set_gas_from_ch4_conversion
 _tabulated_x_eq = tabulated_x_eq
 kinetics_evidence = _kinetics_evidence
 policy_metadata = _policy_metadata
@@ -722,11 +700,11 @@ def off_site_carbon_metrics(
     gas: CanteraGasPhase,
     surf: CanteraSurfacePhase | None,
     *,
-    ch4_initial: float,
+    feed_initial: float,
     ar_initial: float,
     pass_conversion: float,
     n_sites_mol: float,
-    n_ch4_fed_mol: float,
+    n_feed_fed_mol: float,
     n_parcel_in_mol: float,
     pass_time_s: float,
     cov_start: Optional[npt.NDArray[np.float64]],
@@ -739,11 +717,11 @@ def off_site_carbon_metrics(
         config: Reactor configuration for the evaluated bed.
         gas: Cantera gas phase at bed exit.
         surf: Cantera catalytic surface phase or `None`.
-        ch4_initial: Inlet methane mole fraction.
+        feed_initial: Inlet hydrocarbon feedstock (default methane) mole fraction.
         ar_initial: Inlet argon tracer mole fraction.
-        pass_conversion: Single-pass methane conversion.
+        pass_conversion: Single-pass feedstock conversion.
         n_sites_mol: Total catalytic surface sites in the stage/bed in moles.
-        n_ch4_fed_mol: Methane fed per pass in moles.
+        n_feed_fed_mol: Hydrocarbon feedstock fed per pass in moles.
         n_parcel_in_mol: Total gas moles in the inlet parcel.
         pass_time_s: Single-pass gas residence time in seconds.
         cov_start: Surface coverage vector at the start of the pass.
@@ -757,11 +735,11 @@ def off_site_carbon_metrics(
         config,
         gas,
         surf,
-        ch4_initial=ch4_initial,
+        feed_initial=feed_initial,
         ar_initial=ar_initial,
         pass_conversion=pass_conversion,
         n_sites_mol=n_sites_mol,
-        n_ch4_fed_mol=n_ch4_fed_mol,
+        n_feed_fed_mol=n_feed_fed_mol,
         n_parcel_in_mol=n_parcel_in_mol,
         pass_time_s=pass_time_s,
         cov_start=cov_start,
@@ -778,34 +756,45 @@ def common_reactor_result_fields(
     config: ReactorConfig,
     final_conv: float,
     tau_s: float,
-    ch4_initial: float,
+    feed_initial: float,
     graphite: object | None,
     surf: object | None,
 ) -> dict[str, object]:
     """Return thermodynamic heat-duty, WHSV, kinetic, policy, and phase-status fields.
 
+    Note:
+        Emits both feedstock-general heat-duty keys
+        (``endothermic_heat_duty_kJ_per_mol_feed_fed``,
+        ``endothermic_heat_duty_T_kJ_per_mol_feed_fed``) and legacy CH4-default
+        keys (``endothermic_heat_duty_kJ_per_mol_CH4_fed``,
+        ``endothermic_heat_duty_T_kJ_per_mol_CH4_fed``). When a non-methane
+        feedstock is selected, ``adapt_reactor_result_to_feedstock`` updates
+        both sets of keys using the active feedstock's reaction enthalpy.
+
     Args:
         config: Reactor configuration for the evaluated run.
-        final_conv: Final methane conversion fraction in `[0, 1]`.
+        final_conv: Final hydrocarbon conversion fraction in `[0, 1]`.
         tau_s: Gas residence time in seconds.
-        ch4_initial: Inlet methane mole fraction.
+        feed_initial: Inlet hydrocarbon feedstock (default methane) mole fraction.
         graphite: Loaded graphite phase object or `None`.
         surf: Loaded Cantera surface phase or `None`.
 
     Returns:
         Dictionary of shared thermodynamic and provenance fields.
     """
-    conv = float(final_conv)
+    conv: float = float(final_conv)
+    heat_duty_298: float = float(CH4_PYROLYSIS_DELTA_H_KJ_MOL * conv)
+    heat_duty_t: float = float(
+        pyrolysis_reaction_enthalpy_kJ_mol(config.T_inlet_K) * conv
+    )
     return {
         'WHSV_h-1': reciprocal_residence_h(tau_s),
-        'endothermic_heat_duty_kJ_per_mol_CH4_fed': float(
-            CH4_PYROLYSIS_DELTA_H_KJ_MOL * conv
-        ),
-        'endothermic_heat_duty_T_kJ_per_mol_CH4_fed': float(
-            pyrolysis_reaction_enthalpy_kJ_mol(config.T_inlet_K) * conv
-        ),
+        'endothermic_heat_duty_kJ_per_mol_feed_fed': heat_duty_298,
+        'endothermic_heat_duty_T_kJ_per_mol_feed_fed': heat_duty_t,
+        'endothermic_heat_duty_kJ_per_mol_CH4_fed': heat_duty_298,
+        'endothermic_heat_duty_T_kJ_per_mol_CH4_fed': heat_duty_t,
         'adiabatic_temperature_drop_K': adiabatic_temperature_drop_k(
-            ch4_initial, conv
+            feed_initial, conv
         ),
         **kinetics_fields(config),
         **kinetics_evidence(config),
@@ -828,8 +817,8 @@ def wen_yu_umf_m_s(config: ReactorConfig) -> float:
     """
     d_p = max(float(config.catalyst_particle_mm) * 1e-3, 1e-6)
     rho_p = max(float(config.catalyst_density_kg_m3), 100.0)
-    rho_g = ch4_feed_density_kg_m3(config.T_inlet_K, config.P_inlet_Pa)
-    mu_g = ch4_viscosity_pa_s(config.T_inlet_K)
+    rho_g = hydrocarbon_feed_density_kg_m3(config.T_inlet_K, config.P_inlet_Pa)
+    mu_g = hydrocarbon_viscosity_pa_s(config.T_inlet_K)
     archimedes = (
         (d_p ** 3)
         * rho_g

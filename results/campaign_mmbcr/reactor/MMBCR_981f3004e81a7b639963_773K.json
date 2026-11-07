@@ -215,5 +215,25 @@
         "candidate_exclusion_authorized": false
       }
     }
-  }
+  },
+  "exit_x_feedstock": 0.9499593793969221,
+  "feedstock_conversion_rate_mol_m3_s": 1.0945062501078587e-05,
+  "feedstock": "CH4",
+  "feedstock_name": "Methane (Pipeline Natural Gas)",
+  "feedstock_category": "natural_gas",
+  "feedstock_n_C": 1,
+  "feedstock_n_H": 4,
+  "feedstock_n_O": 0,
+  "feedstock_h_to_c_ratio": 4.0,
+  "feedstock_nu_H2": 2.0,
+  "feedstock_nu_C": 1.0,
+  "feedstock_nu_CO": 0.0,
+  "feedstock_kg_per_kg_h2": 3.979096,
+  "feedstock_kg_c_per_kg_h2": 2.979096,
+  "feedstock_conversion": 2.1927909403252066e-05,
+  "single_pass_feedstock_conversion": 2.1927909403252066e-05,
+  "cycle_averaged_feedstock_conversion": 2.1927909403252066e-05,
+  "endothermic_heat_duty_kJ_per_mol_feed_fed": 0.001641304018833417,
+  "endothermic_heat_duty_T_kJ_per_mol_feed_fed": 0.0018931000247914844,
+  "exit_x_CO": 0.0
 }

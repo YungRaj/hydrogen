@@ -12,6 +12,7 @@ from pipeline.data_models.evidence import (
     DFTCalibratedPathwayRow,
     DFTCalibratedReactorMetrics,
     DiscoveryChampionRow,
+    ExtractedSelectivityRateMetrics,
     MultipathwayChampionScorecard,
     PathwayLeaderboardRow,
     PEMFCStackSummaryRow,
@@ -600,19 +601,20 @@ def build_multipathway_champion_scorecard(
         rec: ReactorResult,
         conv_target: float,
         t_val: float,
-    ) -> dict[str, float | None]:
+    ) -> ExtractedSelectivityRateMetrics:
         """Extract or compute H2/C2 selectivity, H2 yield, and conversion/production rates."""
-        raw_x = max(float(single_pass_x(rec)), 1e-12)
-        scale_factor = float(conv_target) / raw_x if raw_x > 1e-9 else 1.0
+        raw_x: float = max(float(single_pass_x(rec)), 1e-12)
+        scale_factor: float = float(conv_target) / raw_x if raw_x > 1e-9 else 1.0
 
         raw_h2_sel = rec.get('H2_selectivity')
-        h2_sel = (
+        h2_sel: float = (
             float(raw_h2_sel)
             if isinstance(raw_h2_sel, (int, float))
             and 0.0 < float(raw_h2_sel) <= 1.0
             else 1.0
         )
         raw_c2_sel = rec.get('C2_carbon_selectivity')
+        c2_sel: float
         if isinstance(raw_c2_sel, (int, float)) and 0.0 <= float(raw_c2_sel) <= 1.0:
             c2_sel = float(raw_c2_sel)
         else:
@@ -622,28 +624,36 @@ def build_multipathway_champion_scorecard(
             else:
                 # 1 - S_H2 = (H in C2)/(4 dCH4) ≈ 0.5 * S_C2 (for C2H4 dominant)
                 c2_sel = min(max(2.0 * (1.0 - h2_sel), 0.0), 1.0)
-        solid_c_sel = max(0.0, 1.0 - c2_sel)
-        h2_yield = float(conv_target) * h2_sel
+        solid_c_sel: float = max(0.0, 1.0 - c2_sel)
+        h2_yield: float = float(conv_target) * h2_sel
 
-        raw_r_ch4 = rec.get('ch4_conversion_rate_mol_m3_s')
+        raw_r_feed = (
+            rec.get('feedstock_conversion_rate_mol_m3_s')
+            if rec.get('feedstock_conversion_rate_mol_m3_s') is not None
+            else rec.get('ch4_conversion_rate_mol_m3_s')
+        )
         raw_r_h2 = rec.get('h2_production_rate_mol_m3_s')
         raw_r_h2_kg = rec.get('h2_production_rate_kg_m3_h')
         raw_tof = rec.get('h2_turnover_frequency_1_s')
 
+        r_feed: float
+        r_h2: float
+        r_h2_kg: float
+        tof_h2: float | None
         if (
-            isinstance(raw_r_ch4, (int, float))
+            isinstance(raw_r_feed, (int, float))
             and isinstance(raw_r_h2, (int, float))
-            and math.isfinite(float(raw_r_ch4))
-            and float(raw_r_ch4) > 0.0
+            and math.isfinite(float(raw_r_feed))
+            and float(raw_r_feed) > 0.0
         ):
-            r_ch4 = float(raw_r_ch4) * scale_factor
+            r_feed = float(raw_r_feed) * scale_factor
             r_h2 = float(raw_r_h2) * scale_factor
             r_h2_kg = (
                 float(raw_r_h2_kg) * scale_factor
                 if isinstance(raw_r_h2_kg, (int, float))
                 else r_h2 * 0.00201588 * 3600.0
             )
-            tof_h2: float | None = (
+            tof_h2 = (
                 round(float(raw_tof) * scale_factor, 6)
                 if isinstance(raw_tof, (int, float)) and math.isfinite(float(raw_tof))
                 else None
@@ -651,6 +661,7 @@ def build_multipathway_champion_scorecard(
         else:
             # Compute from residence time / space velocity and ideal gas law
             raw_tau = rec.get('residence_time_s')
+            tau_s: float
             if isinstance(raw_tau, (int, float)) and float(raw_tau) > 0.0:
                 tau_s = float(raw_tau)
             else:
@@ -665,24 +676,24 @@ def build_multipathway_champion_scorecard(
                     tau_s = float(raw_l) / float(raw_u)
                 else:
                     tau_s = 1.25  # standard 0.25 m / 0.20 m/s space-time
-            t_gas = max(float(t_val), 298.15)
+            t_gas: float = max(float(t_val), 298.15)
             raw_p = rec.get('P_Pa')
-            p_pa = (
+            p_pa: float = (
                 float(raw_p)
                 if isinstance(raw_p, (int, float)) and float(raw_p) > 0.0
                 else 101325.0
             )
-            c_ch4_in = (0.95 * p_pa) / (8.314462618 * t_gas)
-            r_ch4 = (c_ch4_in * float(conv_target)) / max(tau_s, 1e-9)
-            r_h2 = 2.0 * r_ch4 * h2_sel
+            c_feed_in: float = (0.95 * p_pa) / (8.314462618 * t_gas)
+            r_feed = (c_feed_in * float(conv_target)) / max(tau_s, 1e-9)
+            r_h2 = 2.0 * r_feed * h2_sel
             r_h2_kg = r_h2 * 0.00201588 * 3600.0
             raw_sv = rec.get('active_sv_1_m')
-            sv_val = (
+            sv_val: float = (
                 float(raw_sv)
                 if isinstance(raw_sv, (int, float)) and float(raw_sv) > 0.0
                 else (900.0 if str(rec.get('reactor_type', '')) == 'MMBCR' else 3600.0)
             )
-            site_dens = 2.5e-5
+            site_dens: float = 2.5e-5
             tof_h2 = round(r_h2 / max(sv_val * site_dens, 1e-12), 6)
 
         return {
@@ -690,7 +701,8 @@ def build_multipathway_champion_scorecard(
             'H2_yield': round(h2_yield, 4),
             'solid_C_selectivity': round(solid_c_sel, 4),
             'C2_carbon_selectivity': round(c2_sel, 4),
-            'ch4_conversion_rate_mol_m3_s': round(r_ch4, 4),
+            'feedstock_conversion_rate_mol_m3_s': round(r_feed, 4),
+            'ch4_conversion_rate_mol_m3_s': round(r_feed, 4),
             'h2_production_rate_mol_m3_s': round(r_h2, 4),
             'h2_production_rate_kg_m3_h': round(r_h2_kg, 4),
             'h2_turnover_frequency_1_s': tof_h2,
@@ -718,8 +730,10 @@ def build_multipathway_champion_scorecard(
         )
         conv = float(single_pass_x(best_rec))
         t_rec = float(best_rec.get('T_K') or 0.0)
-        uncal_rates = _extract_selectivity_and_rates(best_rec, conv, t_rec)
-        s_c_rec = float(uncal_rates['solid_C_selectivity'] or 1.0)
+        uncal_rates: ExtractedSelectivityRateMetrics = _extract_selectivity_and_rates(
+            best_rec, conv, t_rec
+        )
+        s_c_rec: float = float(uncal_rates['solid_C_selectivity'])
         raw_spec_e = best_rec.get('specific_energy_kWh_kg_H2')
         spec_e = (
             float(raw_spec_e)
@@ -780,6 +794,9 @@ def build_multipathway_champion_scorecard(
             'H2_yield': uncal_rates['H2_yield'],
             'solid_C_selectivity': uncal_rates['solid_C_selectivity'],
             'C2_carbon_selectivity': uncal_rates['C2_carbon_selectivity'],
+            'feedstock_conversion_rate_mol_m3_s': uncal_rates[
+                'feedstock_conversion_rate_mol_m3_s'
+            ],
             'ch4_conversion_rate_mol_m3_s': uncal_rates['ch4_conversion_rate_mol_m3_s'],
             'h2_production_rate_mol_m3_s': uncal_rates['h2_production_rate_mol_m3_s'],
             'h2_production_rate_kg_m3_h': uncal_rates['h2_production_rate_kg_m3_h'],
@@ -821,12 +838,14 @@ def build_multipathway_champion_scorecard(
                 -float(item[0].get('T_K') or 0.0),
             ),
         )
-        cal_conv = float(
+        cal_conv: float = float(
             best_cal_metrics['dft_calibrated_single_pass_CH4_conversion']
         )
-        cal_t_rec = float(best_cal_rec.get('T_K') or 0.0)
-        cal_rates = _extract_selectivity_and_rates(best_cal_rec, cal_conv, cal_t_rec)
-        cal_s_c = float(cal_rates['solid_C_selectivity'] or 1.0)
+        cal_t_rec: float = float(best_cal_rec.get('T_K') or 0.0)
+        cal_rates: ExtractedSelectivityRateMetrics = _extract_selectivity_and_rates(
+            best_cal_rec, cal_conv, cal_t_rec
+        )
+        cal_s_c: float = float(cal_rates['solid_C_selectivity'])
         cal_raw_spec_e = best_cal_rec.get('specific_energy_kWh_kg_H2')
         cal_spec_e = (
             float(cal_raw_spec_e)
@@ -880,6 +899,9 @@ def build_multipathway_champion_scorecard(
             'H2_yield': cal_rates['H2_yield'],
             'solid_C_selectivity': cal_rates['solid_C_selectivity'],
             'C2_carbon_selectivity': cal_rates['C2_carbon_selectivity'],
+            'dft_calibrated_feedstock_conversion_rate_mol_m3_s': cal_rates[
+                'feedstock_conversion_rate_mol_m3_s'
+            ],
             'dft_calibrated_ch4_conversion_rate_mol_m3_s': cal_rates[
                 'ch4_conversion_rate_mol_m3_s'
             ],

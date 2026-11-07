@@ -7,22 +7,24 @@ from typing import cast
 
 import numpy as np
 
-from pipeline.data_models.reactors import ReactorResult
+from pipeline.data_models.reactors import H2C2SelectivityRateMetrics, ReactorResult
+from pipeline.reactors.carbon_accounting import (
+    compute_h2_c2_selectivity_and_rates,
+    load_gas_and_surface,
+    local_tp_x_eq,
+    set_gas_from_feedstock_conversion,
+    species_x,
+    tabulated_x_eq,
+)
 from pipeline.reactors.reactor_core import (
     G_M_S2,
     R_J_MOL_K,
     ReactorConfig,
     common_reactor_result_fields,
-    compute_h2_c2_selectivity_and_rates,
-    load_gas_and_surface,
-    local_tp_x_eq,
     logger,
     mmbcr_flotation_eta,
     mmbcr_hydrodynamics,
     mmbcr_interfacial_k_m_s,
-    set_gas_from_ch4_conversion,
-    species_x,
-    tabulated_x_eq,
     validate_carbon_policy,
 )
 
@@ -39,7 +41,7 @@ def simulate_mmbcr(
     ``X ← X_eq − (X_eq − X)·exp(−Da_stage)`` with
     ``Da = k_if(E_act, T)·(6/d_b)·τ·η``. τ = H / u_b (Mendelson). Column
     height is the design lever; gas holdup is derived. Carbon floats out of
-    the bubble and is reconstructed from the CH4/H2/Ar balance.
+    the bubble and is reconstructed from the hydrocarbon/H2/Ar balance.
 
     Args:
         config: Configuration controlling this operation.
@@ -57,10 +59,10 @@ def simulate_mmbcr(
     logger.info(f"Simulating MMBCR: {config.catalyst_name} at {config.T_inlet_K} K")
     gas, graphite, surf = load_gas_and_surface(config)
     gas.TPX = config.T_inlet_K, config.P_inlet_Pa, config.inlet_composition
-    x_ch4_feed = species_x(gas, 'CH4') or 0.95
+    x_feed_initial = species_x(gas, 'CH4') or 0.95
     x_ar_feed = species_x(gas, 'Ar')
     if x_ar_feed <= 0:
-        x_ar_feed = max(0.0, 1.0 - x_ch4_feed)
+        x_ar_feed = max(0.0, 1.0 - x_feed_initial)
 
     tau_total = hydro['residence_time_s']
     tau_stage = tau_total / config.n_cstr_stages
@@ -109,12 +111,12 @@ def simulate_mmbcr(
         )
         x_eq_local = min(
             x_eq,
-            local_tp_x_eq(config.T_inlet_K, p_stage, x_ch4_feed),
+            local_tp_x_eq(config.T_inlet_K, p_stage, x_feed_initial),
         )
-        # Account for gas molar expansion (1 + y_CH4,0 * X) from CH4 -> 2 H2 and
+        # Account for gas molar expansion (1 + y_feed,0 * X) from CH4 -> 2 H2 and
         # hydrostatic decompression (P_bottom / P(z), guarded by a 10 kPa = 0.1 bar
         # floor), which accelerates bubbles and reduces local stage residence time.
-        expansion_factor = (1.0 + x_ch4_feed * max(0.0, conv)) * (
+        expansion_factor = (1.0 + x_feed_initial * max(0.0, conv)) * (
             inlet_bottom_p_pa / max(p_stage, 10000.0)
         )
         da_stage_local = da_stage / max(expansion_factor, 1.0)
@@ -122,9 +124,9 @@ def simulate_mmbcr(
         if conv < x_eq_local:
             conv = x_eq_local - (x_eq_local - conv) * float(np.exp(-da_stage_local))
         conv = float(min(conv, x_eq))
-        carbon_removed_coverage += max(0.0, conv - conversion_profile[-1]) * x_ch4_feed
-        set_gas_from_ch4_conversion(
-            gas, config.T_inlet_K, p_stage, x_ch4_feed, x_ar_feed, conv
+        carbon_removed_coverage += max(0.0, conv - conversion_profile[-1]) * x_feed_initial
+        set_gas_from_feedstock_conversion(
+            gas, config.T_inlet_K, p_stage, x_feed_initial, x_ar_feed, conv
         )
         conversion_profile.append(float(conv))
         temperature_profile.append(config.T_inlet_K)
@@ -132,19 +134,20 @@ def simulate_mmbcr(
             species_profiles[sp].append(species_x(gas, sp))
 
     # Top of column is at P_inlet_Pa
-    set_gas_from_ch4_conversion(
-        gas, config.T_inlet_K, config.P_inlet_Pa, x_ch4_feed, x_ar_feed, conv
+    set_gas_from_feedstock_conversion(
+        gas, config.T_inlet_K, config.P_inlet_Pa, x_feed_initial, x_ar_feed, conv
     )
     final_conv = conversion_profile[-1]
 
     # Competitive homogeneous bubble-interior C2 pyrolysis (2 CH4 -> C2H6 + H2 -> C2H4 -> C2H2,
     # Ea = 356 kJ/mol, A_1st = 4.5e13 1/s, Dean J. Phys. Chem. 1990 / Palmer et al. ACS Catal. 2020)
     # vs. heterogeneous melt-bubble interfacial dehydrogenation (k_if * sv_ratio):
-    k_hom_1_s = float(
+    k_hom_1_s: float = float(
         4.5e13
         * np.exp(-356000.0 / (R_J_MOL_K * max(float(config.T_inlet_K), 300.0)))
     )
-    k_het_1_s = float(k_if * sv_ratio * eta_float)
+    k_het_1_s: float = float(k_if * sv_ratio * eta_float)
+    f_c2_branch: float
     if final_conv > 1e-6 and (k_hom_1_s + k_het_1_s) > 0.0:
         # C2 carbon branching fraction f_C2 bounded by thermodynamic C2 ceiling (~8% at 1300 K)
         f_c2_branch = float(
@@ -154,19 +157,19 @@ def simulate_mmbcr(
         f_c2_branch = 0.0
 
     # Partition C2 carbon among C2H4 (60%), C2H6 (25%), and C2H2 (15%) at bubble exit
-    dn_ch4 = x_ch4_feed * final_conv
-    n_c2_total = 0.5 * dn_ch4 * f_c2_branch
-    n_c2h6 = 0.25 * n_c2_total
-    n_c2h4 = 0.60 * n_c2_total
-    n_c2h2 = 0.15 * n_c2_total
-    n_ch4_out = x_ch4_feed * (1.0 - final_conv)
-    n_h2_out = max(
+    dn_feed_converted: float = x_feed_initial * final_conv
+    n_c2_total: float = 0.5 * dn_feed_converted * f_c2_branch
+    n_c2h6: float = 0.25 * n_c2_total
+    n_c2h4: float = 0.60 * n_c2_total
+    n_c2h2: float = 0.15 * n_c2_total
+    n_feed_out: float = x_feed_initial * (1.0 - final_conv)
+    n_h2_out: float = max(
         0.0,
-        2.0 * dn_ch4 - (3.0 * n_c2h6 + 2.0 * n_c2h4 + 1.0 * n_c2h2),
+        2.0 * dn_feed_converted - (3.0 * n_c2h6 + 2.0 * n_c2h4 + 1.0 * n_c2h2),
     )
-    n_ar_out = x_ar_feed
-    n_tot_out = max(
-        n_ch4_out + n_h2_out + n_ar_out + n_c2h6 + n_c2h4 + n_c2h2, 1e-12
+    n_ar_out: float = x_ar_feed
+    n_tot_out: float = max(
+        n_feed_out + n_h2_out + n_ar_out + n_c2h6 + n_c2h4 + n_c2h2, 1e-12
     )
     if all(
         sp in gas.species_names for sp in ('CH4', 'H2', 'Ar', 'C2H6', 'C2H4', 'C2H2')
@@ -174,15 +177,15 @@ def simulate_mmbcr(
         gas.TPX = (
             config.T_inlet_K,
             config.P_inlet_Pa,
-            f"CH4:{n_ch4_out / n_tot_out}, H2:{n_h2_out / n_tot_out}, "
+            f"CH4:{n_feed_out / n_tot_out}, H2:{n_h2_out / n_tot_out}, "
             f"C2H6:{n_c2h6 / n_tot_out}, C2H4:{n_c2h4 / n_tot_out}, "
             f"C2H2:{n_c2h2 / n_tot_out}, Ar:{n_ar_out / n_tot_out}",
         )
-    x_h2 = species_x(gas, 'H2')
+    x_h2: float = species_x(gas, 'H2')
 
-    h2_c2_metrics = compute_h2_c2_selectivity_and_rates(
+    h2_c2_metrics: H2C2SelectivityRateMetrics = compute_h2_c2_selectivity_and_rates(
         gas,
-        ch4_initial=x_ch4_feed,
+        feed_initial=x_feed_initial,
         ar_initial=x_ar_feed,
         final_conv=float(final_conv),
         tau_s=tau_total,
@@ -204,6 +207,7 @@ def simulate_mmbcr(
         'gas_velocity_m_s': config.gas_velocity_m_s,
         'bubble_diameter_mm': config.bubble_diameter_mm,
         **hydro,
+        'feedstock_conversion': float(final_conv),
         'CH4_conversion': float(final_conv),
         **h2_c2_metrics,
         'solid_C_selectivity_note': (
@@ -216,7 +220,7 @@ def simulate_mmbcr(
         'carbon_removed_coverage_proxy': float(carbon_removed_coverage),
         'X_eq_table': float(x_eq),
         'X_eq_local_tp': float(
-            local_tp_x_eq(config.T_inlet_K, config.P_inlet_Pa, x_ch4_feed)
+            local_tp_x_eq(config.T_inlet_K, config.P_inlet_Pa, x_feed_initial)
         ),
         'mmbcr_k_if_m_s': float(k_if),
         'mmbcr_flotation_eta': float(eta_float),
@@ -228,7 +232,7 @@ def simulate_mmbcr(
         'temperature_profile': temperature_profile,
         'theta_C_profile': [0.0] * len(conversion_profile),
         **common_reactor_result_fields(
-            config, final_conv, tau_total, x_ch4_feed, graphite, surf
+            config, final_conv, tau_total, x_feed_initial, graphite, surf
         ),
     }
     logger.info(

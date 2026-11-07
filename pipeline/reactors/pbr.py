@@ -10,43 +10,46 @@ import numpy.typing as npt
 from pipeline.data_models.reactors import (
     CanteraGasPhase,
     CanteraSurfacePhase,
+    H2C2SelectivityRateMetrics,
     PBRPelletEffectivenessMetrics,
     ReactorResult,
 )
+from pipeline.reactors.carbon_accounting import (
+    PFR_PILOT_TAU_BAND_S,
+    SOLID_CARBON_DENSITY_KG_M3,
+    advance_reactor_stage,
+    clamp_gas_to_equilibrium,
+    compute_h2_c2_selectivity_and_rates,
+    feedstock_extent,
+    load_gas_and_surface,
+    mole_fraction_drop,
+    require_ar_tracer,
+    reset_surface_carbon,
+    species_x,
+    surface_coverage,
+)
 from pipeline.reactors.reactor_core import (
     ERGUN_DP_LIMIT_PA,
-    PFR_PILOT_TAU_BAND_S,
     REGEN_OXIDATIVE,
     R_J_MOL_K,
-    SOLID_CARBON_DENSITY_KG_M3,
     ReactorConfig,
     active_area_multiplier,
     active_sv,
-    advance_reactor_stage,
-    ch4_extent,
-    ch4_feed_density_kg_m3,
-    ch4_viscosity_pa_s,
-    clamp_gas_to_equilibrium,
     common_reactor_result_fields,
-    compute_h2_c2_selectivity_and_rates,
     geometric_sv_pfr,
+    hydrocarbon_feed_density_kg_m3,
+    hydrocarbon_viscosity_pa_s,
     kinetics_evidence,
-    load_gas_and_surface,
     logger,
-    mole_fraction_drop,
     off_site_carbon_metrics,
-    require_ar_tracer,
-    reset_surface_carbon,
     solids_inventory_fields,
-    species_x,
-    surface_coverage,
     validate_carbon_policy,
 )
 
 MIN_PACKED_BED_POROSITY: float = 0.10  # Jammed-bed voidage floor under severe carbon coking
 MIN_STAGE_PRESSURE_PA: float = 10000.0  # 0.1 bar numerical floor against total bed plugging
-CH4_MOLAR_MASS_KG_MOL: float = 0.016043  # Methane molar mass [kg/mol]
-DEFAULT_STICKING_COEFF: float = 0.01  # Baseline dissociative sticking probability s0 for CH4 on transition metals
+CH4_MOLAR_MASS_KG_MOL: float = 0.016043  # Reference methane molar mass [kg/mol] for baseline Cantera transport pass
+DEFAULT_STICKING_COEFF: float = 0.01  # Baseline dissociative sticking probability s0 for hydrocarbon on transition metals
 
 
 def pbr_pellet_effectiveness(
@@ -136,8 +139,8 @@ def pbr_pellet_effectiveness(
 
     # External film mass transfer via Wakao-Funazkri (1979) packed-bed correlation:
     # Sh = k_c * d_p / D_mol = 2.0 + 1.1 * Re_p^0.6 * Sc^(1/3), overall effectiveness Ω = η_int / (1 + Da_ext).
-    rho_g = ch4_feed_density_kg_m3(T_K, P_Pa)
-    mu_g = ch4_viscosity_pa_s(T_K)
+    rho_g = hydrocarbon_feed_density_kg_m3(T_K, P_Pa)
+    mu_g = hydrocarbon_viscosity_pa_s(T_K)
     re_p = max(rho_g * max(u_sup_m_s, 1e-6) * d_p / max(mu_g, 1e-9), 1e-6)
     sc = max(mu_g / max(rho_g * d_mol, 1e-12), 1e-6)
     sherwood = float(2.0 + 1.1 * (re_p ** 0.6) * (sc ** (1.0 / 3.0)))
@@ -169,8 +172,8 @@ def _stage_ergun_gradient_pa_m(
 ) -> float:
     """Differential Ergun pressure gradient -dP/dz [Pa/m] at local bed state."""
     eps = min(max(float(eps_bed), MIN_PACKED_BED_POROSITY), 0.99)
-    mu = ch4_viscosity_pa_s(T_K)
-    rho = ch4_feed_density_kg_m3(T_K, P_Pa)
+    mu = hydrocarbon_viscosity_pa_s(T_K)
+    rho = hydrocarbon_feed_density_kg_m3(T_K, P_Pa)
     u = max(float(u_sup_m_s), 1e-6)
     viscous = 150.0 * mu * ((1.0 - eps) ** 2) / ((eps ** 3) * (d_p_m ** 2)) * u
     inertial = 1.75 * rho * (1.0 - eps) / ((eps ** 3) * d_p_m) * (u ** 2)
@@ -185,7 +188,7 @@ def _run_pbr_pass(
     n_stages: int,
     eps_0: float,
     d_p_m: float,
-    ch4_initial: float,
+    feed_initial: float,
     ar_initial: float,
     u_sup_inlet: float,
     stage_bed_volume: float,
@@ -241,7 +244,7 @@ def _run_pbr_pass(
         c_dep_vol_frac = (
             c_inlet_mol_m3
             * eps_0
-            * ch4_initial
+            * feed_initial
             * max(x_prev, 0.0)
             * carbon_molar_vol_m3_mol
         )
@@ -252,7 +255,7 @@ def _run_pbr_pass(
         eps_local = max(MIN_PACKED_BED_POROSITY, eps_0 - c_holdup_vol_frac)
 
         # Gas velocity expansion from CH4 -> C(s) + 2 H2 and decompression
-        molar_expansion = 1.0 + ch4_initial * max(x_prev, 0.0)
+        molar_expansion = 1.0 + feed_initial * max(x_prev, 0.0)
         u_local = (
             u_sup_inlet
             * (config.P_inlet_Pa / max(p_local, MIN_STAGE_PRESSURE_PA))
@@ -278,7 +281,7 @@ def _run_pbr_pass(
         advance_reactor_stage(
             gas, surf, stage_gas_vol, stage_eff_area, tau_stage
         )
-        clamp_gas_to_equilibrium(gas, ch4_initial, ar_initial)
+        clamp_gas_to_equilibrium(gas, feed_initial, ar_initial)
 
         # Differential Ergun pressure drop across stage dz
         dp_dz = _stage_ergun_gradient_pa_m(
@@ -290,7 +293,7 @@ def _run_pbr_pass(
         setattr(gas, 'TP', (float(getattr(gas, 'T', t_local)), p_local))
 
         tau_total_pass_s += tau_stage
-        conversion_profile.append(float(ch4_extent(gas, ch4_initial, ar_initial)))
+        conversion_profile.append(float(feedstock_extent(gas, feed_initial, ar_initial)))
         temperature_profile.append(float(getattr(gas, 'T', t_local)))
         pressure_profile.append(p_local)
         bed_voidage_profile.append(eps_local)
@@ -322,7 +325,7 @@ def simulate_pbr(
       1. Formulating the bed on a differential catalyst-weight basis
          ``dW = (1 - ε_0)·ρ_cat·A_cross·dz`` with explicit WHSV [kg_feed/(kg_cat·h)].
       2. Coupling the differential Ergun equation ``-dP/dz`` stage-by-stage
-         with gas-phase molar expansion ``(1 + y_CH4,0·X)``, decompression,
+         with gas-phase molar expansion ``(1 + y_feed,0·X)``, decompression,
          and dynamic bed voidage ``ε(z)`` as solid carbon accumulates.
       3. Resolving intraparticle pore diffusion (Bosanquet molecular + Knudsen
          diffusivity, spherical-pellet Thiele modulus ``φ``, internal
@@ -347,9 +350,9 @@ def simulate_pbr(
 
     eps_0 = float(config.bed_porosity)
     d_p_m = max(float(config.catalyst_particle_mm) * 1e-3, 1e-6)
-    ch4_initial = float(species_x(gas, 'CH4') or 1.0)
+    feed_initial = float(species_x(gas, 'CH4') or 1.0)
     ar_initial = float(species_x(gas, 'Ar'))
-    require_ar_tracer(ch4_initial, ar_initial)
+    require_ar_tracer(feed_initial, ar_initial)
 
     n_stages = 50
     bed_cross_area = float(np.pi * (config.bed_diameter_m / 2.0) ** 2)
@@ -362,7 +365,7 @@ def simulate_pbr(
     stage_catalyst_weight_kg = total_catalyst_weight_kg / n_stages
 
     u_sup_inlet = float(config.gas_velocity_m_s if config.gas_velocity_m_s > 0 else 0.1)
-    rho_inlet = ch4_feed_density_kg_m3(config.T_inlet_K, config.P_inlet_Pa)
+    rho_inlet = hydrocarbon_feed_density_kg_m3(config.T_inlet_K, config.P_inlet_Pa)
     mass_flow_kg_s = rho_inlet * u_sup_inlet * bed_cross_area
     whsv_mass_h_inv = (
         (mass_flow_kg_s * 3600.0) / total_catalyst_weight_kg
@@ -401,7 +404,7 @@ def simulate_pbr(
         n_stages=n_stages,
         eps_0=eps_0,
         d_p_m=d_p_m,
-        ch4_initial=ch4_initial,
+        feed_initial=feed_initial,
         ar_initial=ar_initial,
         u_sup_inlet=u_sup_inlet,
         stage_bed_volume=stage_bed_volume,
@@ -443,7 +446,7 @@ def simulate_pbr(
             n_stages=n_stages,
             eps_0=eps_0,
             d_p_m=d_p_m,
-            ch4_initial=ch4_initial,
+            feed_initial=feed_initial,
             ar_initial=ar_initial,
             u_sup_inlet=u_sup_inlet,
             stage_bed_volume=stage_bed_volume,
@@ -463,16 +466,16 @@ def simulate_pbr(
     n_sites_mol = gamma_mol_m2 * stage_surface_area_0
     c_total = config.P_inlet_Pa / (R_J_MOL_K * config.T_inlet_K)
     n_parcel_in_mol = c_total * stage_gas_volume_0
-    n_ch4_fed_mol = ch4_initial * n_parcel_in_mol
+    n_feed_fed_mol = feed_initial * n_parcel_in_mol
     off_site = off_site_carbon_metrics(
         config,
         gas,
         surf,
-        ch4_initial=ch4_initial,
+        feed_initial=feed_initial,
         ar_initial=ar_initial,
         pass_conversion=float(final_conv),
         n_sites_mol=n_sites_mol,
-        n_ch4_fed_mol=n_ch4_fed_mol,
+        n_feed_fed_mol=n_feed_fed_mol,
         n_parcel_in_mol=n_parcel_in_mol,
         pass_time_s=tau_total_pass_s,
         cov_start=pass_start_cov,
@@ -509,9 +512,9 @@ def simulate_pbr(
     if 'pbr_screening_model_not_validated' not in kinetics_ev_limitations:
         kinetics_ev_limitations.append('pbr_screening_model_not_validated')
 
-    h2_c2_metrics = compute_h2_c2_selectivity_and_rates(
+    h2_c2_metrics: H2C2SelectivityRateMetrics = compute_h2_c2_selectivity_and_rates(
         gas,
-        ch4_initial=ch4_initial,
+        feed_initial=feed_initial,
         ar_initial=ar_initial,
         final_conv=float(final_conv),
         tau_s=tau_total_pass_s,
@@ -522,6 +525,12 @@ def simulate_pbr(
         bed_porosity_or_holdup=eps_0,
     )
 
+    single_pass_conv: float = float(
+        per_cycle_conversion[0] if per_cycle_conversion else final_conv
+    )
+    cycle_avg_conv: float = float(
+        np.mean(per_cycle_conversion) if per_cycle_conversion else final_conv
+    )
     result = cast(
         ReactorResult,
         {
@@ -547,14 +556,13 @@ def simulate_pbr(
             'plugging_risk': plugging_risk,
             'carbon_outfeed_policy_summary': carbon_outfeed_policy_summary,
             'produce_time_s': float(produce_time_s),
+            'feedstock_conversion': float(final_conv),
+            'single_pass_feedstock_conversion': single_pass_conv,
+            'cycle_averaged_feedstock_conversion': cycle_avg_conv,
             'CH4_conversion': float(final_conv),
-            'single_pass_CH4_conversion': float(
-                per_cycle_conversion[0] if per_cycle_conversion else final_conv
-            ),
-            'cycle_averaged_CH4_conversion': float(
-                np.mean(per_cycle_conversion) if per_cycle_conversion else final_conv
-            ),
-            'CH4_mole_fraction_drop': float(mole_fraction_drop(gas, ch4_initial)),
+            'single_pass_CH4_conversion': single_pass_conv,
+            'cycle_averaged_CH4_conversion': cycle_avg_conv,
+            'CH4_mole_fraction_drop': float(mole_fraction_drop(gas, feed_initial)),
             'conversion_basis': 'argon_tracer',
             'thermal_mode': 'isothermal_energy_disabled',
             'surface_area_basis': (
@@ -593,7 +601,7 @@ def simulate_pbr(
             **off_site,
             **inv_fields,
             **common_reactor_result_fields(
-                config, final_conv, tau_total_pass_s, ch4_initial, graphite, surf
+                config, final_conv, tau_total_pass_s, feed_initial, graphite, surf
             ),
             'reactor_evidence_limitations': kinetics_ev_limitations,
         },

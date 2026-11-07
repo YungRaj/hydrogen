@@ -94,7 +94,7 @@ def is_production_reactor_record(record: Mapping[str, object]) -> bool:
         in {'PFR', 'PBR', 'Fluidized', 'MMBCR', 'NTEC', 'Electrochemical'}
         and bool(record.get('catalyst_name'))
         and record.get('status', 'complete') == 'complete'
-        and 'CH4_conversion' in record
+        and ('feedstock_conversion' in record or 'CH4_conversion' in record)
         and 'records' not in record
     )
 
@@ -132,7 +132,7 @@ def is_scoreable_solids(record: Mapping[str, object]) -> bool:
 
 
 def single_pass_x(record: Mapping[str, object]) -> float:
-    """Read the canonical single-pass methane conversion from a record.
+    """Read the canonical single-pass hydrocarbon feedstock (default methane) conversion from a record.
 
     Args:
         record: Input controlling record.
@@ -140,7 +140,13 @@ def single_pass_x(record: Mapping[str, object]) -> float:
     Returns:
         Validated float output for this operation.
     """
-    value = record.get('single_pass_CH4_conversion', record.get('CH4_conversion'))
+    value = record.get(
+        'single_pass_feedstock_conversion',
+        record.get(
+            'single_pass_CH4_conversion',
+            record.get('feedstock_conversion', record.get('CH4_conversion')),
+        ),
+    )
     return float(value) if isinstance(value, (int, float)) else 0.0
 
 

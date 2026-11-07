@@ -55,6 +55,11 @@ def is_usable_result(record: Mapping[str, object]) -> bool:
     if bool(record.get('exceeds_equilibrium')):
         return False
     if (
+        'feedstock_conversion' in record
+        and finite_number(record.get('feedstock_conversion')) is None
+    ):
+        return False
+    if (
         'CH4_conversion' in record
         and finite_number(record.get('CH4_conversion')) is None
     ):
@@ -73,9 +78,9 @@ def is_rankable_result(record: Mapping[str, object]) -> bool:
     Returns:
         Validated bool output for this operation.
     """
-    return (
-        is_usable_result(record)
-        and finite_number(record.get('CH4_conversion')) is not None
+    return is_usable_result(record) and (
+        finite_number(record.get('feedstock_conversion')) is not None
+        or finite_number(record.get('CH4_conversion')) is not None
     )
 
 

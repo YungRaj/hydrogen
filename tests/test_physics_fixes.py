@@ -58,8 +58,8 @@ def test_reactor_core_x_eq_and_overshoot_flag_use_interpolation():
     def flag(conversion, temperature):
         return _off_site_carbon_metrics(
             ReactorConfig(T_inlet_K=temperature), None, None,
-            ch4_initial=0.95, ar_initial=0.05, pass_conversion=conversion,
-            n_sites_mol=1.0, n_ch4_fed_mol=1.0, n_parcel_in_mol=1.0,
+            feed_initial=0.95, ar_initial=0.05, pass_conversion=conversion,
+            n_sites_mol=1.0, n_feed_fed_mol=1.0, n_parcel_in_mol=1.0,
             pass_time_s=1.0, cov_start=None)['exceeds_equilibrium']
 
     # 0.70 is below X_eq(923.15 K) ≈ 0.721; nearest-point lookup (0.684)
@@ -1539,9 +1539,13 @@ def test_literature_report_scorecard_and_champion_neb_calibration(tmp_path):
     assert '7-Pathway H₂/C₂ Selectivity, Yield, & Volumetric / Site-Normalized Production Rates' in tea_md
 
 
-def test_h2_c2_selectivity_and_volumetric_production_rates(tmp_path):
+def test_h2_c2_selectivity_and_volumetric_production_rates(tmp_path: Path) -> None:
     """Verify expansion-corrected H-atom balance, H2/C2 branching selectivity, H2 yield, and volumetric/site-normalized rates."""
     import pytest
+    from pipeline.data_models.reactors import (
+        H2C2SelectivityRateMetrics,
+        ReactorResult,
+    )
     from pipeline.reactors.carbon_accounting import (
         compute_h2_c2_selectivity_and_rates,
         h2_atom_balance_metric,
@@ -1550,10 +1554,10 @@ def test_h2_c2_selectivity_and_volumetric_production_rates(tmp_path):
     from pipeline.reactors.models import ReactorConfig, simulate_mmbcr
 
     # 1. Expansion-corrected H2 atom balance fixes the 1 -> 2 mol dilution artifact
-    x_conv = 0.7383
-    n_tot_out = 1.0 + 0.95 * x_conv
-    x_h2_out = (2.0 * 0.95 * x_conv) / n_tot_out
-    x_ar_out = 0.05 / n_tot_out
+    x_conv: float = 0.7383
+    n_tot_out: float = 1.0 + 0.95 * x_conv
+    x_h2_out: float = (2.0 * 0.95 * x_conv) / n_tot_out
+    x_ar_out: float = 0.05 / n_tot_out
     # Without Ar tracer argument (using exact stoichiometry expansion 1 + 0.95*X)
     assert h2_atom_balance_metric(0.95, x_conv, x_h2_out) == pytest.approx(1.0, abs=1e-5)
     # With Ar tracer argument
@@ -1562,9 +1566,9 @@ def test_h2_c2_selectivity_and_volumetric_production_rates(tmp_path):
     ) == pytest.approx(1.0, abs=1e-5)
 
     # 2. Direct selectivity & volumetric/site-normalized rate calculation with C2H4 byproduct
-    metrics = compute_h2_c2_selectivity_and_rates(
+    metrics: H2C2SelectivityRateMetrics = compute_h2_c2_selectivity_and_rates(
         None,
-        ch4_initial=0.95,
+        feed_initial=0.95,
         ar_initial=0.05,
         final_conv=0.50,
         tau_s=1.25,
@@ -1574,31 +1578,32 @@ def test_h2_c2_selectivity_and_volumetric_production_rates(tmp_path):
         site_density_mol_cm2=2.5e-9,
         bed_porosity_or_holdup=0.4,
         x_h2_override=0.625,
-        x_ch4_override=0.320,
+        x_feed_override=0.320,
         x_c2h4_override=0.005,
         x_ar_override=0.034,
     )
-    assert 0.90 < float(metrics['H2_selectivity']) < 1.0
-    assert float(metrics['C2_carbon_selectivity']) > 0.0
-    assert float(metrics['solid_C_selectivity']) + float(
-        metrics['C2_carbon_selectivity']
-    ) == pytest.approx(1.0, abs=1e-5)
-    assert float(metrics['H2_yield']) == pytest.approx(
-        0.50 * float(metrics['H2_selectivity']), abs=1e-4
+    assert 0.90 < metrics['H2_selectivity'] < 1.0
+    assert metrics['C2_carbon_selectivity'] > 0.0
+    assert metrics['solid_C_selectivity'] + metrics['C2_carbon_selectivity'] == pytest.approx(
+        1.0, abs=1e-5
     )
-    assert float(metrics['ch4_conversion_rate_mol_m3_s']) > 0.0
-    assert float(metrics['h2_production_rate_mol_m3_s']) == pytest.approx(
-        2.0
-        * float(metrics['ch4_conversion_rate_mol_m3_s'])
-        * float(metrics['H2_selectivity']),
+    assert metrics['H2_yield'] == pytest.approx(
+        0.50 * metrics['H2_selectivity'], abs=1e-4
+    )
+    assert metrics['ch4_conversion_rate_mol_m3_s'] > 0.0
+    assert metrics['h2_production_rate_mol_m3_s'] == pytest.approx(
+        2.0 * metrics['ch4_conversion_rate_mol_m3_s'] * metrics['H2_selectivity'],
         rel=1e-3,
     )
-    assert float(metrics['h2_production_rate_kg_m3_h']) > 0.0
-    assert float(metrics['h2_turnover_frequency_1_s']) > 0.0
+    assert metrics['h2_production_rate_kg_m3_h'] > 0.0
+    tof_val: float | None = metrics['h2_turnover_frequency_1_s']
+    assert tof_val is not None and tof_val > 0.0
 
     # 3. MMBCR simulation includes competitive bubble-interior C2 pyrolysis and full rate telemetry
-    mech_path = write_full_mechanism('bi73ni27_test', E_act_CH4=0.45, output_dir=tmp_path)
-    cfg = ReactorConfig(
+    mech_path: str = write_full_mechanism(
+        'bi73ni27_test', E_act_CH4=0.45, output_dir=tmp_path
+    )
+    cfg: ReactorConfig = ReactorConfig(
         T_inlet_K=1250.0,
         P_inlet_Pa=101325.0,
         reactor_type='MMBCR',
@@ -1608,14 +1613,16 @@ def test_h2_c2_selectivity_and_volumetric_production_rates(tmp_path):
         pathway_mode='mmbcr',
         catalyst_E_act_eV=0.45,
     )
-    mmbcr_res = simulate_mmbcr(cfg)
+    mmbcr_res: ReactorResult = simulate_mmbcr(cfg)
     assert mmbcr_res['CH4_conversion'] > 0.20
     assert 0.85 <= mmbcr_res['H2_selectivity'] <= 1.0
     assert mmbcr_res['H2_atom_balance'] == pytest.approx(
         mmbcr_res['H2_selectivity'], abs=1e-4
     )
     assert mmbcr_res['C2_carbon_selectivity'] > 0.0
-    assert mmbcr_res['solid_C_selectivity'] + mmbcr_res['C2_carbon_selectivity'] == pytest.approx(
+    solid_c_sel_mmbcr: float | None = mmbcr_res['solid_C_selectivity']
+    assert solid_c_sel_mmbcr is not None
+    assert solid_c_sel_mmbcr + mmbcr_res['C2_carbon_selectivity'] == pytest.approx(
         1.0, abs=1e-4
     )
     assert mmbcr_res['H2_yield'] == pytest.approx(
@@ -1625,8 +1632,157 @@ def test_h2_c2_selectivity_and_volumetric_production_rates(tmp_path):
     assert mmbcr_res['ch4_conversion_rate_mol_m3_s'] > 0.0
     assert mmbcr_res['h2_production_rate_mol_m3_s'] > 0.0
     assert mmbcr_res['h2_production_rate_kg_m3_h'] > 0.0
-    assert mmbcr_res['h2_turnover_frequency_1_s'] > 0.0
+    tof_mmbcr: float | None = mmbcr_res['h2_turnover_frequency_1_s']
+    assert tof_mmbcr is not None and tof_mmbcr > 0.0
     assert mmbcr_res['c2_tracked'] is True
+
+
+def test_multi_hydrocarbon_feedstocks_default_to_methane(tmp_path: Path) -> None:
+    """Verify multi-hydrocarbon cracking (18 feedstocks including biomass & waste plastic) with CH4 as strict default."""
+    import pytest
+    from pipeline.data_models.evidence import TEAScenarioEstimate
+    from pipeline.data_models.reactors import FeedstockName, ReactorResult
+    from pipeline.economics.tea import estimate_hydrogen_cost
+    from pipeline.reactors.feedstocks import (
+        DEFAULT_FEEDSTOCK,
+        adapt_reactor_result_to_feedstock,
+        feedstock_equilibrium_conversion,
+        resolve_feedstock,
+    )
+    from pipeline.reactors.mechanisms import write_full_mechanism
+    from pipeline.reactors.models import (
+        ReactorConfig,
+        simulate_mmbcr,
+        simulate_multi_feedstock_comparison,
+    )
+
+    # 1. Default feedstock is strictly CH4, and all 18 hydrocarbon / waste / biomass feedstocks resolve
+    assert DEFAULT_FEEDSTOCK == 'CH4'
+    assert resolve_feedstock().formula == 'CH4'
+    assert resolve_feedstock('methane').formula == 'CH4'
+    assert resolve_feedstock('flare_gas').formula == 'ASSOC_GAS'
+    assert resolve_feedstock('propane').formula == 'C3H8'
+    assert resolve_feedstock('pentane').formula == 'C5H12'
+    assert resolve_feedstock('hexane').formula == 'C6H14'
+    assert resolve_feedstock('cyclohexane').formula == 'C6H12'
+    assert resolve_feedstock('octane').formula == 'C8H18'
+    assert resolve_feedstock('diesel').formula == 'C12H26'
+    assert resolve_feedstock('cetane').formula == 'C16H34'
+    assert resolve_feedstock('waste_plastic').formula == 'C10H20_PE'
+    assert resolve_feedstock('biomethane').formula == 'BIOMETHANE'
+    assert resolve_feedstock('biogas').formula == 'BIOGAS'
+    assert resolve_feedstock('waste_cooking_oil').formula == 'C18H34O2_LIPID'
+    assert resolve_feedstock('glycerol').formula == 'C3H8O3_GLYCEROL'
+    assert resolve_feedstock('bio_oil').formula == 'C6H10O2_BIOOIL'
+    assert resolve_feedstock('biomass').formula == 'C6H10O4_BIOMASS'
+    assert resolve_feedstock('diesel').nu_H2 == pytest.approx(13.0)
+    assert resolve_feedstock('diesel').nu_C == pytest.approx(12.0)
+    assert resolve_feedstock('biomass').nu_H2 == pytest.approx(5.0)
+    assert resolve_feedstock('biomass').nu_C == pytest.approx(2.0)
+    assert resolve_feedstock('biomass').nu_CO == pytest.approx(4.0)
+
+    with pytest.raises(ValueError, match='Unsupported hydrocarbon feedstock'):
+        resolve_feedstock('unobtainium')
+
+    # 2. Equilibrium conversion at 850 K increases from CH4 -> C2H6 -> C3H8 -> C6H14 -> C12H26
+    x_eq_ch4: float = feedstock_equilibrium_conversion(850.0, 101325.0, 'CH4')
+    x_eq_c2: float = feedstock_equilibrium_conversion(850.0, 101325.0, 'C2H6')
+    x_eq_c3: float = feedstock_equilibrium_conversion(850.0, 101325.0, 'C3H8')
+    x_eq_c6: float = feedstock_equilibrium_conversion(850.0, 101325.0, 'C6H14')
+    x_eq_c12: float = feedstock_equilibrium_conversion(850.0, 101325.0, 'diesel')
+    assert x_eq_ch4 < x_eq_c2 <= x_eq_c3 <= x_eq_c6 <= x_eq_c12
+
+    # 3. Default ReactorConfig uses CH4 and multi-feedstock comparison adapts across all 18 feedstocks
+    mech_path: str = write_full_mechanism(
+        'bi73ni27_feed_test', E_act_CH4=0.65, output_dir=tmp_path
+    )
+    cfg_default: ReactorConfig = ReactorConfig(
+        T_inlet_K=1050.0,
+        P_inlet_Pa=101325.0,
+        reactor_type='MMBCR',
+        catalyst_name='bi73ni27_feed_test',
+        mechanism_file=str(mech_path),
+        material_class='MoltenMetal',
+        pathway_mode='mmbcr',
+        catalyst_E_act_eV=0.65,
+    )
+    assert cfg_default.feedstock == 'CH4'
+    res_ch4: ReactorResult = simulate_mmbcr(cfg_default)
+    assert res_ch4['feedstock'] == 'CH4'
+    assert res_ch4['feedstock_conversion'] == pytest.approx(res_ch4['CH4_conversion'], abs=1e-6)
+    assert res_ch4['single_pass_feedstock_conversion'] == pytest.approx(
+        res_ch4['CH4_conversion'], abs=1e-6
+    )
+    assert res_ch4['exit_x_feedstock'] == pytest.approx(res_ch4['exit_x_CH4'], abs=1e-6)
+    assert res_ch4['feedstock_conversion_rate_mol_m3_s'] == pytest.approx(
+        res_ch4['ch4_conversion_rate_mol_m3_s'], abs=1e-6
+    )
+    assert res_ch4['endothermic_heat_duty_kJ_per_mol_feed_fed'] == pytest.approx(
+        res_ch4['endothermic_heat_duty_kJ_per_mol_CH4_fed'], abs=1e-6
+    )
+
+    comp: dict[FeedstockName, ReactorResult] = simulate_multi_feedstock_comparison(
+        cfg_default
+    )
+    assert len(comp) == 18
+    assert comp['CH4']['CH4_conversion'] == pytest.approx(res_ch4['CH4_conversion'], abs=1e-6)
+    assert comp['BIOMETHANE']['feedstock_conversion'] == pytest.approx(
+        res_ch4['CH4_conversion'], abs=1e-6
+    )
+    assert comp['C3H8']['feedstock_conversion'] > comp['CH4']['feedstock_conversion']
+    assert comp['C3H8']['single_pass_feedstock_conversion'] == pytest.approx(
+        comp['C3H8']['feedstock_conversion'], abs=1e-6
+    )
+    assert comp['C3H8']['exit_x_feedstock'] == pytest.approx(
+        comp['C3H8']['exit_x_CH4'], abs=1e-6
+    )
+    assert comp['C6H14']['feedstock_conversion'] > comp['C3H8']['feedstock_conversion']
+    assert comp['C12H26']['h2_production_rate_mol_m3_s'] > comp['CH4']['h2_production_rate_mol_m3_s']
+    assert comp['C6H10O4_BIOMASS']['exit_x_CO'] > 0.0
+    assert comp['CH4']['exit_x_CO'] == pytest.approx(0.0)
+    from dataclasses import replace
+
+    direct_adapted: ReactorResult = adapt_reactor_result_to_feedstock(res_ch4, 'C6H14')
+    assert direct_adapted['feedstock_conversion'] == pytest.approx(
+        comp['C6H14']['feedstock_conversion'], abs=1e-6
+    )
+    direct_sim_c6: ReactorResult = simulate_mmbcr(replace(cfg_default, feedstock='C6H14'))
+    assert direct_sim_c6['feedstock'] == 'C6H14'
+    assert direct_sim_c6['feedstock_conversion'] == pytest.approx(
+        comp['C6H14']['feedstock_conversion'], abs=1e-6
+    )
+
+    # 4. TEA defaults strictly to CH4 and scales carbon co-product credit & cheap waste/biomass feedstocks
+    tea_default: TEAScenarioEstimate = estimate_hydrogen_cost(
+        0.55, 'base', temperature_K=1100.0
+    )
+    tea_ch4: TEAScenarioEstimate = estimate_hydrogen_cost(
+        0.55, 'base', temperature_K=1100.0, feedstock='CH4'
+    )
+    tea_flare: TEAScenarioEstimate = estimate_hydrogen_cost(
+        0.55, 'base', temperature_K=1100.0, feedstock='flare_gas'
+    )
+    tea_plastic: TEAScenarioEstimate = estimate_hydrogen_cost(
+        0.85, 'base', temperature_K=1100.0, feedstock='waste_plastic'
+    )
+    tea_biomass: TEAScenarioEstimate = estimate_hydrogen_cost(
+        0.85, 'base', temperature_K=1100.0, feedstock='biomass'
+    )
+    tea_propane: TEAScenarioEstimate = estimate_hydrogen_cost(
+        0.55, 'base', temperature_K=1100.0, feedstock='C3H8', psa_feedstock_recovery=0.95
+    )
+    tea_diesel: TEAScenarioEstimate = estimate_hydrogen_cost(
+        0.55, 'base', temperature_K=1100.0, feedstock='diesel'
+    )
+    assert tea_default['h2_cost_usd_kg'] == tea_ch4['h2_cost_usd_kg']
+    assert tea_default.get('net_feedstock_utilization') == tea_default['net_ch4_utilization']
+    assert tea_propane.get('psa_feedstock_recovery') == pytest.approx(0.95)
+    assert tea_flare['h2_cost_usd_kg'] < tea_ch4['h2_cost_usd_kg']
+    assert tea_plastic['h2_cost_usd_kg'] < tea_diesel['h2_cost_usd_kg']
+    assert tea_biomass['h2_cost_usd_kg'] < tea_diesel['h2_cost_usd_kg']
+    assert tea_diesel['kg_c_per_kg_h2'] > tea_propane['kg_c_per_kg_h2'] > tea_ch4['kg_c_per_kg_h2']
+    assert tea_diesel['carbon_credit_usd_kg_h2'] > tea_ch4['carbon_credit_usd_kg_h2']
+
 
 
 

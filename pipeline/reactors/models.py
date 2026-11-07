@@ -33,7 +33,7 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
-from typing import Dict, List, Mapping, Optional
+from typing import Callable, Dict, List, Mapping, Optional
 
 import numpy as np
 
@@ -56,7 +56,11 @@ from pipeline.reactors.modes import (
     reactor_types_for_mode,
     validate_mode_reactors,
 )
-from pipeline.data_models.reactors import CarbonPolicyConfig, ReactorResult
+from pipeline.data_models.reactors import (
+    CarbonPolicyConfig,
+    FeedstockName,
+    ReactorResult,
+)
 
 from pipeline.reactors.reactor_core import (
     ANALYTICAL_CLOSURE_BASIS,
@@ -118,6 +122,7 @@ __all__ = [
     'run_reactor_sweep',
     'simulate_fluidized_bed',
     'simulate_mmbcr',
+    'simulate_multi_feedstock_comparison',
     'simulate_pbr',
     'simulate_pfr',
     'simulate_reactor',
@@ -139,15 +144,17 @@ def simulate_mmbcr(config: ReactorConfig) -> ReactorResult:
     Returns:
         MMBCR screening result with evidence metadata.
     """
+    from pipeline.reactors.feedstocks import adapt_reactor_result_to_feedstock
     from pipeline.reactors.mmbcr import simulate_mmbcr as implementation
 
-    return implementation(
+    base_ch4_result: ReactorResult = implementation(
         config, cantera_available=HAS_CANTERA, mock_result=_mock_reactor_result
     )
+    return adapt_reactor_result_to_feedstock(base_ch4_result, config.feedstock)
 
 
 def simulate_pfr(config: ReactorConfig) -> ReactorResult:
-    """Run the thermocatalytic plug-flow implementation.
+    """Run the thermocatalytic plug-flow implementation and adapt to `config.feedstock` (default `'CH4'`).
 
     Args:
         config: Validated reactor configuration.
@@ -155,15 +162,17 @@ def simulate_pfr(config: ReactorConfig) -> ReactorResult:
     Returns:
         Thermocatalytic PFR screening result with evidence metadata.
     """
+    from pipeline.reactors.feedstocks import adapt_reactor_result_to_feedstock
     from pipeline.reactors.pfr import simulate_pfr as implementation
 
-    return implementation(
+    base_ch4_result: ReactorResult = implementation(
         config, cantera_available=HAS_CANTERA, mock_result=_mock_reactor_result
     )
+    return adapt_reactor_result_to_feedstock(base_ch4_result, config.feedstock)
 
 
 def simulate_pbr(config: ReactorConfig) -> ReactorResult:
-    """Run the thermocatalytic packed-bed reactor (PBR) implementation.
+    """Run the thermocatalytic packed-bed reactor (PBR) implementation and adapt to `config.feedstock` (default `'CH4'`).
 
     Args:
         config: Validated reactor configuration.
@@ -171,15 +180,17 @@ def simulate_pbr(config: ReactorConfig) -> ReactorResult:
     Returns:
         Thermocatalytic PBR screening result with evidence metadata.
     """
+    from pipeline.reactors.feedstocks import adapt_reactor_result_to_feedstock
     from pipeline.reactors.pbr import simulate_pbr as implementation
 
-    return implementation(
+    base_ch4_result: ReactorResult = implementation(
         config, cantera_available=HAS_CANTERA, mock_result=_mock_reactor_result
     )
+    return adapt_reactor_result_to_feedstock(base_ch4_result, config.feedstock)
 
 
 def simulate_fluidized_bed(config: ReactorConfig) -> ReactorResult:
-    """Run the thermocatalytic fluidized-bed implementation.
+    """Run the thermocatalytic fluidized-bed implementation and adapt to `config.feedstock` (default `'CH4'`).
 
     Args:
         config: Validated reactor configuration.
@@ -187,11 +198,13 @@ def simulate_fluidized_bed(config: ReactorConfig) -> ReactorResult:
     Returns:
         Fluidized-bed screening result with evidence metadata.
     """
+    from pipeline.reactors.feedstocks import adapt_reactor_result_to_feedstock
     from pipeline.reactors.fluidized_bed import simulate_fluidized_bed as implementation
 
-    return implementation(
+    base_ch4_result: ReactorResult = implementation(
         config, cantera_available=HAS_CANTERA, mock_result=_mock_reactor_result
     )
+    return adapt_reactor_result_to_feedstock(base_ch4_result, config.feedstock)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -246,6 +259,8 @@ def _mock_reactor_result(config: ReactorConfig, reactor_type: str) -> ReactorRes
         'residence_time_s': tau,
         **extra,
         'WHSV_h-1': reciprocal_residence_h(tau),
+        'feedstock_conversion': conversion,
+        'single_pass_feedstock_conversion': conversion,
         'CH4_conversion': conversion,
         'single_pass_CH4_conversion': conversion,
         'conversion_basis': (
@@ -467,6 +482,10 @@ def simulate_reactor(config: ReactorConfig, coupling_services=None) -> ReactorRe
         _validate_carbon_policy(config)
         result = simulators[config.reactor_type](config)
         result.setdefault('status', 'complete')
+        if config.reactor_type in {'NTEC', 'Electrochemical'}:
+            from pipeline.reactors.feedstocks import adapt_reactor_result_to_feedstock
+
+            result = adapt_reactor_result_to_feedstock(result, config.feedstock)
         result.update(
             {
                 **_result_context(config, spec),
@@ -486,6 +505,56 @@ def simulate_reactor(config: ReactorConfig, coupling_services=None) -> ReactorRe
     return result
 
 
+def simulate_multi_feedstock_comparison(
+    config: ReactorConfig,
+    feedstocks: Optional[List[FeedstockName | str]] = None,
+) -> dict[FeedstockName, ReactorResult]:
+    """Compare one reactor/catalyst configuration across multiple hydrocarbon or biomass feedstocks.
+
+    Runs the baseline `CH4` simulation once (`base_ch4_result`) and adapts the
+    resulting operating point across the requested feedstocks (`CH4` default,
+    light/heavy alkanes, waste polyolefin, and biomass/biogenic feedstocks).
+
+    Args:
+        config: Base `ReactorConfig` (defaults to `feedstock='CH4'`).
+        feedstocks: Optional list of feedstock formulas or aliases; defaults to all 18
+            registered feedstocks in `HYDROCARBON_FEEDSTOCKS`.
+
+    Returns:
+        Mapping from canonical `FeedstockName` formula to its `ReactorResult`.
+    """
+    from dataclasses import replace
+    from pipeline.reactors.feedstocks import (
+        DEFAULT_FEEDSTOCK,
+        HYDROCARBON_FEEDSTOCKS,
+        adapt_reactor_result_to_feedstock,
+        resolve_feedstock,
+    )
+
+    target_list: list[FeedstockName] = (
+        list(HYDROCARBON_FEEDSTOCKS.keys())
+        if feedstocks is None
+        else [resolve_feedstock(f).formula for f in feedstocks]
+    )
+    base_ch4_cfg: ReactorConfig = replace(config, feedstock=DEFAULT_FEEDSTOCK)
+    simulators: dict[str, Callable[[ReactorConfig], ReactorResult]] = {
+        'MMBCR': simulate_mmbcr,
+        'PFR': simulate_pfr,
+        'PBR': simulate_pbr,
+        'Fluidized': simulate_fluidized_bed,
+        'NTEC': simulate_ntec_pathway,
+        'Electrochemical': simulate_electrochemical_pathway,
+    }
+    if base_ch4_cfg.reactor_type not in simulators:
+        raise ValueError(f'unsupported reactor type: {base_ch4_cfg.reactor_type}')
+    base_ch4_result: ReactorResult = simulators[base_ch4_cfg.reactor_type](base_ch4_cfg)
+    base_ch4_result.setdefault('status', 'complete')
+    return {
+        formula: adapt_reactor_result_to_feedstock(base_ch4_result, formula)
+        for formula in target_list
+    }
+
+
 def run_reactor_sweep(
     catalyst_name: str,
     mechanism_file: str,
@@ -499,6 +568,7 @@ def run_reactor_sweep(
     coupling_services: object = None,
     catalyst_dE_H_eV: float = 0.0,
     reactor_config_kwargs: Optional[CarbonPolicyConfig | Mapping[str, object]] = None,
+    feedstock: FeedstockName | str = 'CH4',
 ) -> list[ReactorResult]:
     """Sweep operating conditions across the reactors owned by a pathway.
 
@@ -519,6 +589,7 @@ def run_reactor_sweep(
         catalyst_dE_H_eV: Screening H adsorption energy, carried into results.
         reactor_config_kwargs: Extra ``ReactorConfig`` fields (carbon policy,
             solids inventory, melt properties) applied to every condition.
+        feedstock: Hydrocarbon feedstock formula or alias (strict default ``'CH4'``).
 
     Returns:
         One result record per requested reactor and temperature. Individual
@@ -533,6 +604,7 @@ def run_reactor_sweep(
         reactor_types = list(reactor_types_for_mode(pathway_mode))
     validate_mode_reactors(pathway_mode, reactor_types)
     extra = dict(reactor_config_kwargs or {})
+    extra.setdefault('feedstock', feedstock)
 
     results = []
     for rt in reactor_types:
@@ -597,3 +669,4 @@ if __name__ == '__main__':
     )
     result = simulate_reactor(config)
     print(json.dumps(result, indent=2))
+

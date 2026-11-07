@@ -6,6 +6,7 @@ from typing import Literal, TypedDict
 
 from pipeline.data_models.core import JsonValue
 from pipeline.data_models.reactors import (
+    FeedstockName,
     PBRErgunDiagnosticsSummary,
     SupportedNiFilamentClosureSummary,
 )
@@ -54,8 +55,24 @@ class TEAAssumptionsDict(TypedDict):
     source_id: str
 
 
-class TEAScenarioEstimate(TypedDict):
-    """Single-scenario levelized hydrogen cost estimate with PSA CH4 recycle."""
+class _TEAScenarioEstimateOptional(TypedDict, total=False):
+    feedstock: FeedstockName
+    feedstock_name: str
+    kg_feed_per_kg_h2: float
+    kg_c_per_kg_h2: float
+    net_feedstock_utilization: float
+    psa_feedstock_recovery: float
+
+
+class TEAScenarioEstimate(_TEAScenarioEstimateOptional):
+    """Single-scenario levelized hydrogen cost estimate with PSA hydrocarbon recycle.
+
+    Note:
+        ``net_feedstock_utilization`` and ``psa_feedstock_recovery`` carry the
+        feedstock-general utilization and PSA recovery fraction; legacy keys
+        ``net_ch4_utilization`` and ``psa_ch4_recovery`` are populated with the
+        same values for backward compatibility with CH4-default callers.
+    """
 
     scenario: str
     h2_cost_usd_kg: float
@@ -123,6 +140,7 @@ class PathwayLeaderboardRow(TypedDict, total=False):
     H2_yield: float | None
     solid_C_selectivity: float | None
     C2_carbon_selectivity: float | None
+    feedstock_conversion_rate_mol_m3_s: float | None
     ch4_conversion_rate_mol_m3_s: float | None
     h2_production_rate_mol_m3_s: float | None
     h2_production_rate_kg_m3_h: float | None
@@ -148,6 +166,20 @@ class DFTCalibratedReactorMetrics(TypedDict):
     kinetics_status: str
 
 
+class ExtractedSelectivityRateMetrics(TypedDict):
+    """Selectivity, H2 yield, and volumetric/TOF rate metrics extracted for scorecard rows."""
+
+    H2_selectivity: float
+    H2_yield: float
+    solid_C_selectivity: float
+    C2_carbon_selectivity: float
+    feedstock_conversion_rate_mol_m3_s: float
+    ch4_conversion_rate_mol_m3_s: float
+    h2_production_rate_mol_m3_s: float
+    h2_production_rate_kg_m3_h: float
+    h2_turnover_frequency_1_s: float | None
+
+
 class DFTCalibratedPathwayRow(TypedDict, total=False):
     """QE-DFT/NEB-calibrated champion reactor and TEA summary for one pathway mode."""
 
@@ -169,6 +201,7 @@ class DFTCalibratedPathwayRow(TypedDict, total=False):
     H2_yield: float | None
     solid_C_selectivity: float | None
     C2_carbon_selectivity: float | None
+    dft_calibrated_feedstock_conversion_rate_mol_m3_s: float | None
     dft_calibrated_ch4_conversion_rate_mol_m3_s: float | None
     dft_calibrated_h2_production_rate_mol_m3_s: float | None
     dft_calibrated_h2_production_rate_kg_m3_h: float | None

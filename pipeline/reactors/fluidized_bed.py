@@ -11,7 +11,22 @@ import numpy.typing as npt
 from pipeline.data_models.reactors import (
     CanteraGasPhase,
     CanteraSurfacePhase,
+    H2C2SelectivityRateMetrics,
     ReactorResult,
+)
+from pipeline.reactors.carbon_accounting import (
+    advance_reactor_stage,
+    apply_continuous_carbon_removal,
+    clamp_gas_to_equilibrium,
+    compute_h2_c2_selectivity_and_rates,
+    feedstock_extent,
+    load_gas_and_surface,
+    mix_bubble_bypass,
+    mole_fraction_drop,
+    require_ar_tracer,
+    reset_surface_carbon,
+    species_x,
+    surface_coverage,
 )
 from pipeline.reactors.reactor_core import (
     FLUIDIZED_CIRCULATING,
@@ -21,24 +36,12 @@ from pipeline.reactors.reactor_core import (
     R_J_MOL_K,
     ReactorConfig,
     active_sv,
-    advance_reactor_stage,
-    apply_continuous_carbon_removal,
-    ch4_extent,
-    clamp_gas_to_equilibrium,
     common_reactor_result_fields,
-    compute_h2_c2_selectivity_and_rates,
     geometric_sv_fluidized,
     kunii_levenspiel_bubble_exchange,
-    load_gas_and_surface,
     logger,
-    mix_bubble_bypass,
-    mole_fraction_drop,
     off_site_carbon_metrics,
-    require_ar_tracer,
-    reset_surface_carbon,
     solids_inventory_fields,
-    species_x,
-    surface_coverage,
     validate_carbon_policy,
 )
 
@@ -49,7 +52,7 @@ def _integrate_fluidized_pass(
     tau: float,
     sv_ratio: float,
     removal_rate_1_s: float,
-    ch4_initial: float = 0.95,
+    feed_initial: float = 0.95,
     ar_initial: float = 0.05,
 ) -> float:
     """Advance emulsion residence with C_s removal *during* integrate (Muradov 2005; Parkinson 2019).
@@ -71,7 +74,7 @@ def _integrate_fluidized_pass(
         advance_reactor_stage(
             gas, surf, FLUIDIZED_EMULSION_VOIDAGE, sv_ratio, dt
         )
-        clamp_gas_to_equilibrium(gas, ch4_initial, ar_initial)
+        clamp_gas_to_equilibrium(gas, feed_initial, ar_initial)
         if removal_rate_1_s > 0 and surf is not None:
             carbon_removed += apply_continuous_carbon_removal(
                 surf, removal_rate_1_s, dt
@@ -95,7 +98,7 @@ def simulate_fluidized_bed(
     The emulsion phase reacts at the minimum-fluidization residence time with
     in-step C_s removal (circulating) or batch regen. A bubble fraction δ of
     the feed bypasses unreacted and is mixed with the emulsion outlet on molar
-    flows via the Ar tracer, so ``CH4_conversion = (1−δ)·X_emulsion``.
+    flows via the Ar tracer, so ``feedstock_conversion = (1−δ)·X_emulsion``.
     Interphase mass transfer is not resolved; this is a screening approximation.
 
     Args:
@@ -117,9 +120,9 @@ def simulate_fluidized_bed(
     gas, graphite, surf = load_gas_and_surface(config)
     gas.TPX = config.T_inlet_K, config.P_inlet_Pa, config.inlet_composition
     inlet_x = np.array(gas.X, dtype=float)
-    ch4_initial = species_x(gas, 'CH4') or 1.0
+    feed_initial = species_x(gas, 'CH4') or 1.0
     ar_initial = species_x(gas, 'Ar')
-    require_ar_tracer(ch4_initial, ar_initial)
+    require_ar_tracer(feed_initial, ar_initial)
 
     u0 = max(config.gas_velocity_m_s, 0.05)  # Superficial gas velocity floor (0.05 m/s)
     umf = config.u_mf_m_s
@@ -150,7 +153,7 @@ def simulate_fluidized_bed(
         np.array(surf.coverages, dtype=np.float64) if surf is not None else None
     )
     carbon_removed = _integrate_fluidized_pass(
-        gas, surf, tau_emulsion, sv_ratio, removal_rate, ch4_initial, ar_initial
+        gas, surf, tau_emulsion, sv_ratio, removal_rate, feed_initial, ar_initial
     )
     last_pass_removed = carbon_removed
 
@@ -159,7 +162,7 @@ def simulate_fluidized_bed(
 
     if not circulating:
         theta = surface_coverage(surf, 'C_s')
-        per_cycle.append(ch4_extent(gas, ch4_initial, ar_initial))
+        per_cycle.append(feedstock_extent(gas, feed_initial, ar_initial))
         while (
             config.max_regen_cycles > 0
             and regen_cycles < config.max_regen_cycles
@@ -175,14 +178,14 @@ def simulate_fluidized_bed(
                 else None
             )
             last_pass_removed = _integrate_fluidized_pass(
-                gas, surf, tau_emulsion, sv_ratio, 0.0, ch4_initial, ar_initial
+                gas, surf, tau_emulsion, sv_ratio, 0.0, feed_initial, ar_initial
             )
             carbon_removed += last_pass_removed
             theta = surface_coverage(surf, 'C_s')
             regen_cycles += 1
-            per_cycle.append(ch4_extent(gas, ch4_initial, ar_initial))
+            per_cycle.append(feedstock_extent(gas, feed_initial, ar_initial))
 
-    emulsion_conv = ch4_extent(gas, ch4_initial, ar_initial)
+    emulsion_conv = feedstock_extent(gas, feed_initial, ar_initial)
     exit_theta_c = surface_coverage(surf, 'C_s')
 
     # Baker-Helveg-Abild-Pedersen off-site carbon accounting on the emulsion basis
@@ -193,16 +196,16 @@ def simulate_fluidized_bed(
     n_sites_mol = gamma_mol_m2 * sv_ratio
     c_total = config.P_inlet_Pa / (R_J_MOL_K * config.T_inlet_K)
     n_parcel_in_mol = c_total * FLUIDIZED_EMULSION_VOIDAGE
-    n_ch4_fed_mol = ch4_initial * n_parcel_in_mol
+    n_feed_fed_mol = feed_initial * n_parcel_in_mol
     off_site = off_site_carbon_metrics(
         config,
         gas,
         surf,
-        ch4_initial=ch4_initial,
+        feed_initial=feed_initial,
         ar_initial=ar_initial,
         pass_conversion=float(emulsion_conv),
         n_sites_mol=n_sites_mol,
-        n_ch4_fed_mol=n_ch4_fed_mol,
+        n_feed_fed_mol=n_feed_fed_mol,
         n_parcel_in_mol=n_parcel_in_mol,
         pass_time_s=tau_emulsion,
         cov_start=pass_start_cov,
@@ -212,7 +215,7 @@ def simulate_fluidized_bed(
 
     # Bubble bypass: δ of the feed passes unreacted; mix on molar flows (Ar tracer).
     mix_bubble_bypass(gas, inlet_x, delta, ar_initial)
-    final_conv = ch4_extent(gas, ch4_initial, ar_initial)
+    final_conv = feedstock_extent(gas, feed_initial, ar_initial)
     expected = (1.0 - delta) * emulsion_conv
     if abs(final_conv - expected) > 1e-6 + 1e-6 * abs(expected):
         raise RuntimeError(
@@ -230,9 +233,9 @@ def simulate_fluidized_bed(
         f"exit_theta_C={float(exit_theta_c or 0.0):.3f}"
     )
 
-    h2_c2_metrics = compute_h2_c2_selectivity_and_rates(
+    h2_c2_metrics: H2C2SelectivityRateMetrics = compute_h2_c2_selectivity_and_rates(
         gas,
-        ch4_initial=ch4_initial,
+        feed_initial=feed_initial,
         ar_initial=ar_initial,
         final_conv=float(final_conv),
         tau_s=tau_emulsion,
@@ -243,6 +246,12 @@ def simulate_fluidized_bed(
         bed_porosity_or_holdup=FLUIDIZED_EMULSION_VOIDAGE * (1.0 - delta) + delta,
     )
 
+    single_pass_conv: float = float(
+        (1.0 - delta) * per_cycle[0] if per_cycle else final_conv
+    )
+    cycle_avg_conv: float = float(
+        (1.0 - delta) * np.mean(per_cycle) if per_cycle else final_conv
+    )
     result = {
         'reactor_type': 'Fluidized',
         'catalyst_name': config.catalyst_name,
@@ -262,20 +271,19 @@ def simulate_fluidized_bed(
         'emulsion_voidage': FLUIDIZED_EMULSION_VOIDAGE,
         'surface_area_basis': 'sv_per_emulsion_volume_times_emulsion_volume',
         'emulsion_CH4_conversion': float(emulsion_conv),
+        'feedstock_conversion': float(final_conv),
+        'single_pass_feedstock_conversion': single_pass_conv,
+        'cycle_averaged_feedstock_conversion': cycle_avg_conv,
         'CH4_conversion': float(final_conv),
         'kunii_levenspiel_coupled_CH4_conversion': float(
             (1.0 - kl_metrics['effective_bypass_fraction']) * emulsion_conv
         ),
-        'single_pass_CH4_conversion': float(
-            (1.0 - delta) * per_cycle[0] if per_cycle else final_conv
-        ),
-        'cycle_averaged_CH4_conversion': float(
-            (1.0 - delta) * np.mean(per_cycle) if per_cycle else final_conv
-        ),
+        'single_pass_CH4_conversion': single_pass_conv,
+        'cycle_averaged_CH4_conversion': cycle_avg_conv,
         'circulating_outfeed_active': circulating_outfeed_active,
         'carbon_outfeed_policy_summary': carbon_outfeed_policy_summary,
         'bypass_basis': 'ar_tracer_molar_mix',
-        'CH4_mole_fraction_drop': mole_fraction_drop(gas, ch4_initial),
+        'CH4_mole_fraction_drop': mole_fraction_drop(gas, feed_initial),
         'conversion_basis': 'argon_tracer',
         'thermal_mode': 'isothermal_energy_disabled',
         'exit_x_H2': float(x_h2),
@@ -289,7 +297,7 @@ def simulate_fluidized_bed(
         **off_site,
         **solids_inventory_fields(config, geometric_sv_fluidized(config)),
         **common_reactor_result_fields(
-            config, final_conv, tau_emulsion, ch4_initial, graphite, surf
+            config, final_conv, tau_emulsion, feed_initial, graphite, surf
         ),
     }
     logger.info(

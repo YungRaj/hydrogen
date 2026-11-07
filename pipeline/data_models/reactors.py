@@ -16,6 +16,64 @@ ReactorStatus = Literal[
     'complete', 'partial', 'failed', 'validation_required', 'not_applicable'
 ]
 
+FeedstockName = Literal[
+    'CH4',
+    'ASSOC_GAS',
+    'C2H6',
+    'C3H8',
+    'C4H10',
+    'C5H12',
+    'C6H14',
+    'C6H12',
+    'C8H18',
+    'C12H26',
+    'C16H34',
+    'C10H20_PE',
+    'BIOMETHANE',
+    'BIOGAS',
+    'C18H34O2_LIPID',
+    'C3H8O3_GLYCEROL',
+    'C6H10O2_BIOOIL',
+    'C6H10O4_BIOMASS',
+]
+
+FeedstockCategory = Literal[
+    'natural_gas',
+    'light_alkane',
+    'liquid_hydrocarbon',
+    'cycloalkane_olefin',
+    'waste_plastic',
+    'biomass_biogenic',
+]
+
+
+class H2C2SelectivityRateMetrics(TypedDict):
+    """Explicit selectivity, yield, C2 mole-fraction, and H2 rate metrics.
+
+    Note:
+        Both feedstock-general keys (``exit_x_feedstock``,
+        ``feedstock_conversion_rate_mol_m3_s``) and legacy CH4-default keys
+        (``exit_x_CH4``, ``ch4_conversion_rate_mol_m3_s``) are populated so
+        callers can inspect either the general feedstock name or the historical
+        methane-default schema key.
+    """
+
+    H2_selectivity: float
+    H2_atom_balance: float
+    H2_yield: float
+    solid_C_selectivity: float
+    C2_carbon_selectivity: float
+    exit_x_feedstock: float
+    exit_x_CH4: float
+    exit_x_C2H6: float
+    exit_x_C2H4: float
+    exit_x_C2H2: float
+    feedstock_conversion_rate_mol_m3_s: float
+    ch4_conversion_rate_mol_m3_s: float
+    h2_production_rate_mol_m3_s: float
+    h2_production_rate_kg_m3_h: float
+    h2_turnover_frequency_1_s: float | None
+
 
 class CanteraGasPhase(Protocol):
     """Typed protocol for a Cantera gas-phase thermo/kinetics object."""
@@ -133,6 +191,14 @@ class ReactorResult(TypedDict, total=False):
 
     Mode-specific solvers may add fields, but shared consumers use only this
     documented set. Unit-bearing names prevent ambiguous numerical handoffs.
+    When ``feedstock`` is a non-methane hydrocarbon or biomass feedstock,
+    feedstock-general fields (``feedstock_conversion``,
+    ``single_pass_feedstock_conversion``, ``cycle_averaged_feedstock_conversion``,
+    ``exit_x_feedstock``, ``feedstock_conversion_rate_mol_m3_s``,
+    ``endothermic_heat_duty_kJ_per_mol_feed_fed``,
+    ``endothermic_heat_duty_T_kJ_per_mol_feed_fed``) carry the active feedstock
+    values, and legacy ``CH4_*`` keys are synchronized to those values for
+    backward compatibility with CH4-default consumers.
     """
 
     status: ReactorStatus
@@ -167,22 +233,57 @@ class ReactorResult(TypedDict, total=False):
     exit_bed_porosity: float
     thiele_modulus_profile: list[float]
     effectiveness_factor_profile: list[float]
+    # Active feedstock conversion (synchronized with CH4_* keys for backward compatibility)
+    feedstock_conversion: float
+    single_pass_feedstock_conversion: float
+    cycle_averaged_feedstock_conversion: float
     CH4_conversion: float
     single_pass_CH4_conversion: float
+    cycle_averaged_CH4_conversion: float
+    X_eq_local_tp: float
+    X_eq_table: float
+    gas_holdup_fraction: float
+    bed_porosity: float
+    active_sv_1_m: float
+    interfacial_sv_ratio_1_m: float
+    site_density_mol_cm2: float
+    catalyst_E_act_eV: float
+    catalyst_dE_H_eV: float
     H2_selectivity: float
     H2_atom_balance: float
     H2_yield: float
     solid_C_selectivity: float | None
     C2_carbon_selectivity: float
+    exit_x_feedstock: float
     exit_x_CH4: float
     exit_x_H2: float
     exit_x_C2H6: float | None
     exit_x_C2H4: float | None
     exit_x_C2H2: float | None
+    feedstock_conversion_rate_mol_m3_s: float
     ch4_conversion_rate_mol_m3_s: float
     h2_production_rate_mol_m3_s: float
     h2_production_rate_kg_m3_h: float
     h2_turnover_frequency_1_s: float | None
+    feedstock: FeedstockName
+    feedstock_name: str
+    feedstock_category: FeedstockCategory
+    feedstock_n_C: int
+    feedstock_n_H: int
+    feedstock_n_O: int
+    feedstock_h_to_c_ratio: float
+    feedstock_nu_H2: float
+    feedstock_nu_C: float
+    feedstock_nu_CO: float
+    feedstock_kg_per_kg_h2: float
+    feedstock_kg_c_per_kg_h2: float
+    exit_x_CO: float
+    catalyst_E_act_CH4_reference_eV: float
+    endothermic_heat_duty_kJ_per_mol_feed_fed: float
+    endothermic_heat_duty_T_kJ_per_mol_feed_fed: float
+    endothermic_heat_duty_kJ_per_mol_CH4_fed: float
+    endothermic_heat_duty_T_kJ_per_mol_CH4_fed: float
+    c2_tracked: bool
     residence_time_s: float
     specific_energy_kWh_kg_H2: float
     faradaic_efficiency_H2: float
@@ -192,11 +293,13 @@ class ReactorResult(TypedDict, total=False):
     conversion_basis: str
     thermal_mode: str
     reactor_evidence_tier: str
+    reactor_evidence_limitations: list[str]
     converged: bool
     mock: bool
     can_exclude_candidate: bool
     limitations: list[str]
     multiphysics_evidence: ArtifactValidationResult | None
+    reactor_closure_evidence: AnalyticalClosureEvidence | None
 
 
 class ReactorSweepSummary(TypedDict):
@@ -258,6 +361,7 @@ class CarbonPolicyConfig(TypedDict, total=False):
     co2_permitted: bool
     fluidized_mode: Literal['batch_regen', 'circulating']
     max_regen_cycles: int
+    feedstock: str
     regen_mechanism: Literal['mechanical', 'consumable', 'oxidative']
 
 
