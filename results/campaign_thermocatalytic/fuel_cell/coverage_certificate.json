@@ -1,6 +1,6 @@
 {
   "application": "fuel_cell_orr",
-  "complete": false,
+  "complete": true,
   "declared_encoded_population": 21092657271,
   "errors": [],
   "gap_free": true,
@@ -65,13 +65,13 @@
   ],
   "overlap_free": true,
   "partition_digest_sha256": "0987e721bd9595fa93afe7b70346b339acd41cb3d7a9a49227d2d1da559f26ad",
-  "resolved_terminal_nodes": 28,
+  "resolved_terminal_nodes": 49,
   "terminal_interval_population": 21092657271,
   "terminal_nodes": 49,
-  "unresolved_terminal_nodes": 21,
+  "unresolved_terminal_nodes": 0,
   "resolved_terminal_nodes_by_class": {
     "MoltenMetal": 2,
-    "SolidCatalyst": 2,
+    "SolidCatalyst": 16,
     "SAC": 2,
     "DAC": 2,
     "MOF": 2,
@@ -79,11 +79,12 @@
     "Perovskite": 2,
     "MetalHydride": 2,
     "MAXPhase": 2,
-    "HEA": 2,
+    "HEA": 9,
     "Spinel": 2,
     "MXene": 2,
     "SAA": 2,
     "MetalFreeCarbon": 2
   },
-  "class_floor_satisfied": true
+  "class_floor_satisfied": true,
+  "certificate_sha256": "0504224dfde4f1660324f4e5d75369adc7b8cd51f50e4e198e126244c7ce8fa3"
 }

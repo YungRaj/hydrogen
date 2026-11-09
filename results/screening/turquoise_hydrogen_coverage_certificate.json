@@ -1,6 +1,6 @@
 {
   "application": "turquoise_hydrogen",
-  "complete": false,
+  "complete": true,
   "declared_encoded_population": 21092657271,
   "errors": [],
   "gap_free": true,
@@ -65,13 +65,13 @@
   ],
   "overlap_free": true,
   "partition_digest_sha256": "5003fd231615625a8f9ab5d5e4789f65e8d97182b77c67b43f865d6ce20a4d28",
-  "resolved_terminal_nodes": 28,
+  "resolved_terminal_nodes": 49,
   "terminal_interval_population": 21092657271,
   "terminal_nodes": 49,
-  "unresolved_terminal_nodes": 21,
+  "unresolved_terminal_nodes": 0,
   "resolved_terminal_nodes_by_class": {
     "MoltenMetal": 2,
-    "SolidCatalyst": 2,
+    "SolidCatalyst": 16,
     "SAC": 2,
     "DAC": 2,
     "MOF": 2,
@@ -79,11 +79,12 @@
     "Perovskite": 2,
     "MetalHydride": 2,
     "MAXPhase": 2,
-    "HEA": 2,
+    "HEA": 9,
     "Spinel": 2,
     "MXene": 2,
     "SAA": 2,
     "MetalFreeCarbon": 2
   },
-  "class_floor_satisfied": true
+  "class_floor_satisfied": true,
+  "certificate_sha256": "83076b7b71c3f42f8aa8b94d398b853870c0ca0027fbe9f2dd902dc0f25b5b47"
 }

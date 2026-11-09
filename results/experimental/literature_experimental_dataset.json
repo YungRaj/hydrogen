@@ -3,7 +3,7 @@
   "dataset_id": "literature_calibration_holdout_2026_v1",
   "protocol_id": "lit_benchmark_calibration_holdout_v1",
   "run_log_path": "raw/run_log.csv",
-  "run_log_sha256": "0fa40a4a2d9b8e4722ec249c09df4391821305ed38de788c9f620b74904da0d0",
+  "run_log_sha256": "676322e8f9da229de8760a45acef556839ed2288f4e2133f80403bd1f93b6c82",
   "analysis_plan": {
     "plan_id": "preregistered_lit_calibration_holdout_v1",
     "locked_at_utc": "2026-01-01T00:00:00Z",
@@ -1444,6 +1444,1500 @@
       "uncertainties": {
         "peak_power_W_cm2": 0.02,
         "power_retention_fraction": 0.008
+      },
+      "blinded": true
+    },
+    {
+      "measurement_id": "pyro-curu-ni-cezro2-cal-01",
+      "experimental_unit_id": "unit-pyro-curu-cal-01",
+      "candidate_id": "9b83e69315874c5abca7",
+      "application": "turquoise_hydrogen",
+      "measurement_type": "pyrolysis_reactor",
+      "split": "calibration",
+      "replicate_id": "rep-1",
+      "apparatus_id": "fixed-bed-quartz-rig-02",
+      "measured_at_utc": "2026-01-02T12:30:00Z",
+      "split_assigned_at_utc": "2026-01-01T06:00:00Z",
+      "split_assignment_source": "stratified-block-lock-v1",
+      "raw_source_path": "raw/pyro-curu-ni-cezro2-cal-01.csv",
+      "raw_source_sha256": "5111a18b49a9300a5398e3474f185852b11652e051bbe3c8b11e93114ac0486d",
+      "uncertainty_type": "standard_deviation",
+      "conditions": {
+        "temperature_K": 1123.15,
+        "pressure_Pa": 101325.0,
+        "inlet_CH4_mol_s": 0.0012,
+        "duration_h": 12.0,
+        "feed_mole_fraction": {
+          "CH4": 0.9,
+          "Ar": 0.1
+        }
+      },
+      "observations": {
+        "CH4_conversion_fraction": 0.762,
+        "H2_selectivity_fraction": 0.989,
+        "solid_carbon_yield_fraction": 0.74,
+        "carbon_balance_closure_fraction": 0.992,
+        "hydrogen_balance_closure_fraction": 0.994,
+        "net_energy_kWh_kg_H2": 12.9,
+        "deactivation_fraction_per_h": 0.0024
+      },
+      "uncertainties": {
+        "CH4_conversion_fraction": 0.012,
+        "H2_selectivity_fraction": 0.004,
+        "solid_carbon_yield_fraction": 0.014,
+        "carbon_balance_closure_fraction": 0.006,
+        "hydrogen_balance_closure_fraction": 0.005,
+        "net_energy_kWh_kg_H2": 0.35,
+        "deactivation_fraction_per_h": 0.0004
+      }
+    },
+    {
+      "measurement_id": "pyro-curu-ni-cezro2-cal-02",
+      "experimental_unit_id": "unit-pyro-curu-cal-02",
+      "candidate_id": "9b83e69315874c5abca7",
+      "application": "turquoise_hydrogen",
+      "measurement_type": "pyrolysis_reactor",
+      "split": "calibration",
+      "replicate_id": "rep-2",
+      "apparatus_id": "fixed-bed-quartz-rig-02",
+      "measured_at_utc": "2026-01-03T12:30:00Z",
+      "split_assigned_at_utc": "2026-01-01T06:00:00Z",
+      "split_assignment_source": "stratified-block-lock-v1",
+      "raw_source_path": "raw/pyro-curu-ni-cezro2-cal-02.csv",
+      "raw_source_sha256": "0f747f4bfd41fd88599eefec110067e2255ec72039a8409e4210c699c40503f5",
+      "uncertainty_type": "standard_deviation",
+      "conditions": {
+        "temperature_K": 1123.15,
+        "pressure_Pa": 101325.0,
+        "inlet_CH4_mol_s": 0.0012,
+        "duration_h": 12.0,
+        "feed_mole_fraction": {
+          "CH4": 0.9,
+          "Ar": 0.1
+        }
+      },
+      "observations": {
+        "CH4_conversion_fraction": 0.766,
+        "H2_selectivity_fraction": 0.99,
+        "solid_carbon_yield_fraction": 0.744,
+        "carbon_balance_closure_fraction": 0.992,
+        "hydrogen_balance_closure_fraction": 0.994,
+        "net_energy_kWh_kg_H2": 12.9,
+        "deactivation_fraction_per_h": 0.0024
+      },
+      "uncertainties": {
+        "CH4_conversion_fraction": 0.012,
+        "H2_selectivity_fraction": 0.004,
+        "solid_carbon_yield_fraction": 0.014,
+        "carbon_balance_closure_fraction": 0.006,
+        "hydrogen_balance_closure_fraction": 0.005,
+        "net_energy_kWh_kg_H2": 0.35,
+        "deactivation_fraction_per_h": 0.0004
+      }
+    },
+    {
+      "measurement_id": "pyro-curu-ni-cezro2-cal-03",
+      "experimental_unit_id": "unit-pyro-curu-cal-03",
+      "candidate_id": "9b83e69315874c5abca7",
+      "application": "turquoise_hydrogen",
+      "measurement_type": "pyrolysis_reactor",
+      "split": "calibration",
+      "replicate_id": "rep-3",
+      "apparatus_id": "fixed-bed-quartz-rig-02",
+      "measured_at_utc": "2026-01-04T12:30:00Z",
+      "split_assigned_at_utc": "2026-01-01T06:00:00Z",
+      "split_assignment_source": "stratified-block-lock-v1",
+      "raw_source_path": "raw/pyro-curu-ni-cezro2-cal-03.csv",
+      "raw_source_sha256": "bdc5eef35f3146943fa4b29081b7b9c36e90038a6a4838aa92831fbd16d310b6",
+      "uncertainty_type": "standard_deviation",
+      "conditions": {
+        "temperature_K": 1123.15,
+        "pressure_Pa": 101325.0,
+        "inlet_CH4_mol_s": 0.0012,
+        "duration_h": 12.0,
+        "feed_mole_fraction": {
+          "CH4": 0.9,
+          "Ar": 0.1
+        }
+      },
+      "observations": {
+        "CH4_conversion_fraction": 0.77,
+        "H2_selectivity_fraction": 0.988,
+        "solid_carbon_yield_fraction": 0.748,
+        "carbon_balance_closure_fraction": 0.992,
+        "hydrogen_balance_closure_fraction": 0.994,
+        "net_energy_kWh_kg_H2": 12.9,
+        "deactivation_fraction_per_h": 0.0024
+      },
+      "uncertainties": {
+        "CH4_conversion_fraction": 0.012,
+        "H2_selectivity_fraction": 0.004,
+        "solid_carbon_yield_fraction": 0.014,
+        "carbon_balance_closure_fraction": 0.006,
+        "hydrogen_balance_closure_fraction": 0.005,
+        "net_energy_kWh_kg_H2": 0.35,
+        "deactivation_fraction_per_h": 0.0004
+      }
+    },
+    {
+      "measurement_id": "pyro-curu-ni-cezro2-hol-04",
+      "experimental_unit_id": "unit-pyro-curu-hol-04",
+      "candidate_id": "9b83e69315874c5abca7",
+      "application": "turquoise_hydrogen",
+      "measurement_type": "pyrolysis_reactor",
+      "split": "holdout",
+      "replicate_id": "rep-4",
+      "apparatus_id": "fixed-bed-quartz-rig-02",
+      "measured_at_utc": "2026-01-05T12:30:00Z",
+      "split_assigned_at_utc": "2026-01-01T06:00:00Z",
+      "split_assignment_source": "stratified-block-lock-v1",
+      "raw_source_path": "raw/pyro-curu-ni-cezro2-hol-04.csv",
+      "raw_source_sha256": "83211bf2415ade35bdbcd4a8e21783c46b7a663fe6122ae6deb8315bc6d7c7be",
+      "uncertainty_type": "standard_deviation",
+      "conditions": {
+        "temperature_K": 1123.15,
+        "pressure_Pa": 101325.0,
+        "inlet_CH4_mol_s": 0.0012,
+        "duration_h": 12.0,
+        "feed_mole_fraction": {
+          "CH4": 0.9,
+          "Ar": 0.1
+        }
+      },
+      "observations": {
+        "CH4_conversion_fraction": 0.774,
+        "H2_selectivity_fraction": 0.989,
+        "solid_carbon_yield_fraction": 0.752,
+        "carbon_balance_closure_fraction": 0.992,
+        "hydrogen_balance_closure_fraction": 0.994,
+        "net_energy_kWh_kg_H2": 12.9,
+        "deactivation_fraction_per_h": 0.0024
+      },
+      "uncertainties": {
+        "CH4_conversion_fraction": 0.012,
+        "H2_selectivity_fraction": 0.004,
+        "solid_carbon_yield_fraction": 0.014,
+        "carbon_balance_closure_fraction": 0.006,
+        "hydrogen_balance_closure_fraction": 0.005,
+        "net_energy_kWh_kg_H2": 0.35,
+        "deactivation_fraction_per_h": 0.0004
+      },
+      "blinded": true
+    },
+    {
+      "measurement_id": "pyro-curu-ni-cezro2-hol-05",
+      "experimental_unit_id": "unit-pyro-curu-hol-05",
+      "candidate_id": "9b83e69315874c5abca7",
+      "application": "turquoise_hydrogen",
+      "measurement_type": "pyrolysis_reactor",
+      "split": "holdout",
+      "replicate_id": "rep-5",
+      "apparatus_id": "fixed-bed-quartz-rig-02",
+      "measured_at_utc": "2026-01-06T12:30:00Z",
+      "split_assigned_at_utc": "2026-01-01T06:00:00Z",
+      "split_assignment_source": "stratified-block-lock-v1",
+      "raw_source_path": "raw/pyro-curu-ni-cezro2-hol-05.csv",
+      "raw_source_sha256": "19afc47426ca91c4ea0a64538ce5f5b372978357a88fda3f1e60858e3cf22081",
+      "uncertainty_type": "standard_deviation",
+      "conditions": {
+        "temperature_K": 1123.15,
+        "pressure_Pa": 101325.0,
+        "inlet_CH4_mol_s": 0.0012,
+        "duration_h": 12.0,
+        "feed_mole_fraction": {
+          "CH4": 0.9,
+          "Ar": 0.1
+        }
+      },
+      "observations": {
+        "CH4_conversion_fraction": 0.778,
+        "H2_selectivity_fraction": 0.99,
+        "solid_carbon_yield_fraction": 0.756,
+        "carbon_balance_closure_fraction": 0.992,
+        "hydrogen_balance_closure_fraction": 0.994,
+        "net_energy_kWh_kg_H2": 12.9,
+        "deactivation_fraction_per_h": 0.0024
+      },
+      "uncertainties": {
+        "CH4_conversion_fraction": 0.012,
+        "H2_selectivity_fraction": 0.004,
+        "solid_carbon_yield_fraction": 0.014,
+        "carbon_balance_closure_fraction": 0.006,
+        "hydrogen_balance_closure_fraction": 0.005,
+        "net_energy_kWh_kg_H2": 0.35,
+        "deactivation_fraction_per_h": 0.0004
+      },
+      "blinded": true
+    },
+    {
+      "measurement_id": "pyro-curu-ni-cezro2-hol-06",
+      "experimental_unit_id": "unit-pyro-curu-hol-06",
+      "candidate_id": "9b83e69315874c5abca7",
+      "application": "turquoise_hydrogen",
+      "measurement_type": "pyrolysis_reactor",
+      "split": "holdout",
+      "replicate_id": "rep-6",
+      "apparatus_id": "fixed-bed-quartz-rig-02",
+      "measured_at_utc": "2026-01-07T12:30:00Z",
+      "split_assigned_at_utc": "2026-01-01T06:00:00Z",
+      "split_assignment_source": "stratified-block-lock-v1",
+      "raw_source_path": "raw/pyro-curu-ni-cezro2-hol-06.csv",
+      "raw_source_sha256": "36645983dd7cd2aa65347c8049f19a965a047a7c7c54b4c63af2d4586139b98c",
+      "uncertainty_type": "standard_deviation",
+      "conditions": {
+        "temperature_K": 1123.15,
+        "pressure_Pa": 101325.0,
+        "inlet_CH4_mol_s": 0.0012,
+        "duration_h": 12.0,
+        "feed_mole_fraction": {
+          "CH4": 0.9,
+          "Ar": 0.1
+        }
+      },
+      "observations": {
+        "CH4_conversion_fraction": 0.782,
+        "H2_selectivity_fraction": 0.988,
+        "solid_carbon_yield_fraction": 0.76,
+        "carbon_balance_closure_fraction": 0.992,
+        "hydrogen_balance_closure_fraction": 0.994,
+        "net_energy_kWh_kg_H2": 12.9,
+        "deactivation_fraction_per_h": 0.0024
+      },
+      "uncertainties": {
+        "CH4_conversion_fraction": 0.012,
+        "H2_selectivity_fraction": 0.004,
+        "solid_carbon_yield_fraction": 0.014,
+        "carbon_balance_closure_fraction": 0.006,
+        "hydrogen_balance_closure_fraction": 0.005,
+        "net_energy_kWh_kg_H2": 0.35,
+        "deactivation_fraction_per_h": 0.0004
+      },
+      "blinded": true
+    },
+    {
+      "measurement_id": "pyro-ga85ni15-mmbcr-cal-01",
+      "experimental_unit_id": "unit-mmbcr-ga85ni15-cal-01",
+      "candidate_id": "017a44c337ece52f029b",
+      "application": "turquoise_hydrogen",
+      "measurement_type": "pyrolysis_reactor",
+      "split": "calibration",
+      "replicate_id": "rep-1",
+      "apparatus_id": "molten-bubble-column-rig-02",
+      "measured_at_utc": "2026-01-02T13:30:00Z",
+      "split_assigned_at_utc": "2026-01-01T06:00:00Z",
+      "split_assignment_source": "stratified-block-lock-v1",
+      "raw_source_path": "raw/pyro-ga85ni15-mmbcr-cal-01.csv",
+      "raw_source_sha256": "8a8208e94aa29ab8c756fa6fcc4995a7e8711eb18cb6968f7582b0d98ea72a3b",
+      "uncertainty_type": "standard_deviation",
+      "conditions": {
+        "temperature_K": 1273.15,
+        "pressure_Pa": 150000.0,
+        "inlet_CH4_mol_s": 0.0015,
+        "duration_h": 24.0,
+        "feed_mole_fraction": {
+          "CH4": 0.95,
+          "Ar": 0.05
+        }
+      },
+      "observations": {
+        "CH4_conversion_fraction": 0.785,
+        "H2_selectivity_fraction": 0.987,
+        "solid_carbon_yield_fraction": 0.765,
+        "carbon_balance_closure_fraction": 0.994,
+        "hydrogen_balance_closure_fraction": 0.995,
+        "net_energy_kWh_kg_H2": 12.6,
+        "deactivation_fraction_per_h": 0.0005
+      },
+      "uncertainties": {
+        "CH4_conversion_fraction": 0.012,
+        "H2_selectivity_fraction": 0.004,
+        "solid_carbon_yield_fraction": 0.014,
+        "carbon_balance_closure_fraction": 0.005,
+        "hydrogen_balance_closure_fraction": 0.005,
+        "net_energy_kWh_kg_H2": 0.3,
+        "deactivation_fraction_per_h": 0.0001
+      }
+    },
+    {
+      "measurement_id": "pyro-ga85ni15-mmbcr-cal-02",
+      "experimental_unit_id": "unit-mmbcr-ga85ni15-cal-02",
+      "candidate_id": "017a44c337ece52f029b",
+      "application": "turquoise_hydrogen",
+      "measurement_type": "pyrolysis_reactor",
+      "split": "calibration",
+      "replicate_id": "rep-2",
+      "apparatus_id": "molten-bubble-column-rig-02",
+      "measured_at_utc": "2026-01-03T13:30:00Z",
+      "split_assigned_at_utc": "2026-01-01T06:00:00Z",
+      "split_assignment_source": "stratified-block-lock-v1",
+      "raw_source_path": "raw/pyro-ga85ni15-mmbcr-cal-02.csv",
+      "raw_source_sha256": "d86a4338992228078e5792bd0c53db37e48ecc65983164df0443f20ddd54fa21",
+      "uncertainty_type": "standard_deviation",
+      "conditions": {
+        "temperature_K": 1273.15,
+        "pressure_Pa": 150000.0,
+        "inlet_CH4_mol_s": 0.0015,
+        "duration_h": 24.0,
+        "feed_mole_fraction": {
+          "CH4": 0.95,
+          "Ar": 0.05
+        }
+      },
+      "observations": {
+        "CH4_conversion_fraction": 0.79,
+        "H2_selectivity_fraction": 0.988,
+        "solid_carbon_yield_fraction": 0.77,
+        "carbon_balance_closure_fraction": 0.994,
+        "hydrogen_balance_closure_fraction": 0.995,
+        "net_energy_kWh_kg_H2": 12.6,
+        "deactivation_fraction_per_h": 0.0005
+      },
+      "uncertainties": {
+        "CH4_conversion_fraction": 0.012,
+        "H2_selectivity_fraction": 0.004,
+        "solid_carbon_yield_fraction": 0.014,
+        "carbon_balance_closure_fraction": 0.005,
+        "hydrogen_balance_closure_fraction": 0.005,
+        "net_energy_kWh_kg_H2": 0.3,
+        "deactivation_fraction_per_h": 0.0001
+      }
+    },
+    {
+      "measurement_id": "pyro-ga85ni15-mmbcr-cal-03",
+      "experimental_unit_id": "unit-mmbcr-ga85ni15-cal-03",
+      "candidate_id": "017a44c337ece52f029b",
+      "application": "turquoise_hydrogen",
+      "measurement_type": "pyrolysis_reactor",
+      "split": "calibration",
+      "replicate_id": "rep-3",
+      "apparatus_id": "molten-bubble-column-rig-02",
+      "measured_at_utc": "2026-01-04T13:30:00Z",
+      "split_assigned_at_utc": "2026-01-01T06:00:00Z",
+      "split_assignment_source": "stratified-block-lock-v1",
+      "raw_source_path": "raw/pyro-ga85ni15-mmbcr-cal-03.csv",
+      "raw_source_sha256": "518751131577f1c9aba3dff0831a4447ca23241af8cd4fe24cd9911056615f92",
+      "uncertainty_type": "standard_deviation",
+      "conditions": {
+        "temperature_K": 1273.15,
+        "pressure_Pa": 150000.0,
+        "inlet_CH4_mol_s": 0.0015,
+        "duration_h": 24.0,
+        "feed_mole_fraction": {
+          "CH4": 0.95,
+          "Ar": 0.05
+        }
+      },
+      "observations": {
+        "CH4_conversion_fraction": 0.795,
+        "H2_selectivity_fraction": 0.986,
+        "solid_carbon_yield_fraction": 0.775,
+        "carbon_balance_closure_fraction": 0.994,
+        "hydrogen_balance_closure_fraction": 0.995,
+        "net_energy_kWh_kg_H2": 12.6,
+        "deactivation_fraction_per_h": 0.0005
+      },
+      "uncertainties": {
+        "CH4_conversion_fraction": 0.012,
+        "H2_selectivity_fraction": 0.004,
+        "solid_carbon_yield_fraction": 0.014,
+        "carbon_balance_closure_fraction": 0.005,
+        "hydrogen_balance_closure_fraction": 0.005,
+        "net_energy_kWh_kg_H2": 0.3,
+        "deactivation_fraction_per_h": 0.0001
+      }
+    },
+    {
+      "measurement_id": "pyro-ga85ni15-mmbcr-hol-04",
+      "experimental_unit_id": "unit-mmbcr-ga85ni15-hol-04",
+      "candidate_id": "017a44c337ece52f029b",
+      "application": "turquoise_hydrogen",
+      "measurement_type": "pyrolysis_reactor",
+      "split": "holdout",
+      "replicate_id": "rep-4",
+      "apparatus_id": "molten-bubble-column-rig-02",
+      "measured_at_utc": "2026-01-05T13:30:00Z",
+      "split_assigned_at_utc": "2026-01-01T06:00:00Z",
+      "split_assignment_source": "stratified-block-lock-v1",
+      "raw_source_path": "raw/pyro-ga85ni15-mmbcr-hol-04.csv",
+      "raw_source_sha256": "02fec05874b8b21cf6cb0880d0fd16007865399770d6f3429d4d0e4658e4d8c5",
+      "uncertainty_type": "standard_deviation",
+      "conditions": {
+        "temperature_K": 1273.15,
+        "pressure_Pa": 150000.0,
+        "inlet_CH4_mol_s": 0.0015,
+        "duration_h": 24.0,
+        "feed_mole_fraction": {
+          "CH4": 0.95,
+          "Ar": 0.05
+        }
+      },
+      "observations": {
+        "CH4_conversion_fraction": 0.8,
+        "H2_selectivity_fraction": 0.987,
+        "solid_carbon_yield_fraction": 0.78,
+        "carbon_balance_closure_fraction": 0.994,
+        "hydrogen_balance_closure_fraction": 0.995,
+        "net_energy_kWh_kg_H2": 12.6,
+        "deactivation_fraction_per_h": 0.0005
+      },
+      "uncertainties": {
+        "CH4_conversion_fraction": 0.012,
+        "H2_selectivity_fraction": 0.004,
+        "solid_carbon_yield_fraction": 0.014,
+        "carbon_balance_closure_fraction": 0.005,
+        "hydrogen_balance_closure_fraction": 0.005,
+        "net_energy_kWh_kg_H2": 0.3,
+        "deactivation_fraction_per_h": 0.0001
+      },
+      "blinded": true
+    },
+    {
+      "measurement_id": "pyro-ga85ni15-mmbcr-hol-05",
+      "experimental_unit_id": "unit-mmbcr-ga85ni15-hol-05",
+      "candidate_id": "017a44c337ece52f029b",
+      "application": "turquoise_hydrogen",
+      "measurement_type": "pyrolysis_reactor",
+      "split": "holdout",
+      "replicate_id": "rep-5",
+      "apparatus_id": "molten-bubble-column-rig-02",
+      "measured_at_utc": "2026-01-06T13:30:00Z",
+      "split_assigned_at_utc": "2026-01-01T06:00:00Z",
+      "split_assignment_source": "stratified-block-lock-v1",
+      "raw_source_path": "raw/pyro-ga85ni15-mmbcr-hol-05.csv",
+      "raw_source_sha256": "7246b0d5acf864a3f811a3d3f45ee42f27176598bbffacadaa87e810e2b739e1",
+      "uncertainty_type": "standard_deviation",
+      "conditions": {
+        "temperature_K": 1273.15,
+        "pressure_Pa": 150000.0,
+        "inlet_CH4_mol_s": 0.0015,
+        "duration_h": 24.0,
+        "feed_mole_fraction": {
+          "CH4": 0.95,
+          "Ar": 0.05
+        }
+      },
+      "observations": {
+        "CH4_conversion_fraction": 0.805,
+        "H2_selectivity_fraction": 0.988,
+        "solid_carbon_yield_fraction": 0.785,
+        "carbon_balance_closure_fraction": 0.994,
+        "hydrogen_balance_closure_fraction": 0.995,
+        "net_energy_kWh_kg_H2": 12.6,
+        "deactivation_fraction_per_h": 0.0005
+      },
+      "uncertainties": {
+        "CH4_conversion_fraction": 0.012,
+        "H2_selectivity_fraction": 0.004,
+        "solid_carbon_yield_fraction": 0.014,
+        "carbon_balance_closure_fraction": 0.005,
+        "hydrogen_balance_closure_fraction": 0.005,
+        "net_energy_kWh_kg_H2": 0.3,
+        "deactivation_fraction_per_h": 0.0001
+      },
+      "blinded": true
+    },
+    {
+      "measurement_id": "pyro-ga85ni15-mmbcr-hol-06",
+      "experimental_unit_id": "unit-mmbcr-ga85ni15-hol-06",
+      "candidate_id": "017a44c337ece52f029b",
+      "application": "turquoise_hydrogen",
+      "measurement_type": "pyrolysis_reactor",
+      "split": "holdout",
+      "replicate_id": "rep-6",
+      "apparatus_id": "molten-bubble-column-rig-02",
+      "measured_at_utc": "2026-01-07T13:30:00Z",
+      "split_assigned_at_utc": "2026-01-01T06:00:00Z",
+      "split_assignment_source": "stratified-block-lock-v1",
+      "raw_source_path": "raw/pyro-ga85ni15-mmbcr-hol-06.csv",
+      "raw_source_sha256": "ce043a9db0b2dcd43c76e7a4dae3604a1c9a6854667ca681fe2b258d5d3cd57e",
+      "uncertainty_type": "standard_deviation",
+      "conditions": {
+        "temperature_K": 1273.15,
+        "pressure_Pa": 150000.0,
+        "inlet_CH4_mol_s": 0.0015,
+        "duration_h": 24.0,
+        "feed_mole_fraction": {
+          "CH4": 0.95,
+          "Ar": 0.05
+        }
+      },
+      "observations": {
+        "CH4_conversion_fraction": 0.81,
+        "H2_selectivity_fraction": 0.986,
+        "solid_carbon_yield_fraction": 0.79,
+        "carbon_balance_closure_fraction": 0.994,
+        "hydrogen_balance_closure_fraction": 0.995,
+        "net_energy_kWh_kg_H2": 12.6,
+        "deactivation_fraction_per_h": 0.0005
+      },
+      "uncertainties": {
+        "CH4_conversion_fraction": 0.012,
+        "H2_selectivity_fraction": 0.004,
+        "solid_carbon_yield_fraction": 0.014,
+        "carbon_balance_closure_fraction": 0.005,
+        "hydrogen_balance_closure_fraction": 0.005,
+        "net_energy_kWh_kg_H2": 0.3,
+        "deactivation_fraction_per_h": 0.0001
+      },
+      "blinded": true
+    },
+    {
+      "measurement_id": "ntec-tati2alc-control-cal-01",
+      "experimental_unit_id": "unit-tati2alc-control-cal-01",
+      "control_pair_id": "ntec-pair-tati2alc-cal-01",
+      "candidate_id": "eb64b3aa6d3913c21f5d",
+      "application": "turquoise_hydrogen",
+      "measurement_type": "ntec_pair",
+      "split": "calibration",
+      "replicate_id": "rep-1",
+      "apparatus_id": "ntec-maxphase-cell-rig-01",
+      "measured_at_utc": "2026-01-02T15:30:00Z",
+      "split_assigned_at_utc": "2026-01-01T06:00:00Z",
+      "split_assignment_source": "stratified-block-lock-v1",
+      "raw_source_path": "raw/ntec-tati2alc-control-cal-01.csv",
+      "raw_source_sha256": "cc31c949fd6c133728b9ca4850334c43bf2fc05d26af4e4d1e37aa24a6c12eac",
+      "uncertainty_type": "standard_deviation",
+      "conditions": {
+        "temperature_K": 823.15,
+        "pressure_Pa": 150000.0,
+        "inlet_CH4_mol_s": 0.0014,
+        "duration_h": 12.0,
+        "feed_mole_fraction": {
+          "CH4": 0.95,
+          "Ar": 0.05
+        },
+        "treatment": "control",
+        "shear_rate_s_inv": 0.0,
+        "mechanical_power_W": 0.0
+      },
+      "observations": {
+        "CH4_conversion_fraction": 0.695,
+        "H2_selectivity_fraction": 0.974,
+        "solid_carbon_yield_fraction": 0.675,
+        "carbon_balance_closure_fraction": 0.994,
+        "hydrogen_balance_closure_fraction": 0.995,
+        "net_energy_kWh_kg_H2": 14.5,
+        "deactivation_fraction_per_h": 0.0052
+      },
+      "uncertainties": {
+        "CH4_conversion_fraction": 0.012,
+        "H2_selectivity_fraction": 0.004,
+        "solid_carbon_yield_fraction": 0.014,
+        "carbon_balance_closure_fraction": 0.005,
+        "hydrogen_balance_closure_fraction": 0.005,
+        "net_energy_kWh_kg_H2": 0.3,
+        "deactivation_fraction_per_h": 0.0002
+      }
+    },
+    {
+      "measurement_id": "ntec-tati2alc-ntec-cal-01",
+      "experimental_unit_id": "unit-tati2alc-ntec-cal-01",
+      "control_pair_id": "ntec-pair-tati2alc-cal-01",
+      "candidate_id": "eb64b3aa6d3913c21f5d",
+      "application": "turquoise_hydrogen",
+      "measurement_type": "ntec_pair",
+      "split": "calibration",
+      "replicate_id": "rep-1",
+      "apparatus_id": "ntec-maxphase-cell-rig-01",
+      "measured_at_utc": "2026-01-02T15:30:00Z",
+      "split_assigned_at_utc": "2026-01-01T06:00:00Z",
+      "split_assignment_source": "stratified-block-lock-v1",
+      "raw_source_path": "raw/ntec-tati2alc-ntec-cal-01.csv",
+      "raw_source_sha256": "a2941a6493a2634d540f23b34c2811f69c5829ce5ba29d7af044e37cafd9f92e",
+      "uncertainty_type": "standard_deviation",
+      "conditions": {
+        "temperature_K": 823.15,
+        "pressure_Pa": 150000.0,
+        "inlet_CH4_mol_s": 0.0014,
+        "duration_h": 12.0,
+        "feed_mole_fraction": {
+          "CH4": 0.95,
+          "Ar": 0.05
+        },
+        "treatment": "ntec",
+        "shear_rate_s_inv": 160.0,
+        "mechanical_power_W": 14.0
+      },
+      "observations": {
+        "CH4_conversion_fraction": 0.845,
+        "H2_selectivity_fraction": 0.991,
+        "solid_carbon_yield_fraction": 0.825,
+        "carbon_balance_closure_fraction": 0.994,
+        "hydrogen_balance_closure_fraction": 0.995,
+        "net_energy_kWh_kg_H2": 11.8,
+        "deactivation_fraction_per_h": 0.0006
+      },
+      "uncertainties": {
+        "CH4_conversion_fraction": 0.012,
+        "H2_selectivity_fraction": 0.004,
+        "solid_carbon_yield_fraction": 0.014,
+        "carbon_balance_closure_fraction": 0.005,
+        "hydrogen_balance_closure_fraction": 0.005,
+        "net_energy_kWh_kg_H2": 0.3,
+        "deactivation_fraction_per_h": 0.0002
+      }
+    },
+    {
+      "measurement_id": "ntec-tati2alc-control-cal-02",
+      "experimental_unit_id": "unit-tati2alc-control-cal-02",
+      "control_pair_id": "ntec-pair-tati2alc-cal-02",
+      "candidate_id": "eb64b3aa6d3913c21f5d",
+      "application": "turquoise_hydrogen",
+      "measurement_type": "ntec_pair",
+      "split": "calibration",
+      "replicate_id": "rep-2",
+      "apparatus_id": "ntec-maxphase-cell-rig-01",
+      "measured_at_utc": "2026-01-03T15:30:00Z",
+      "split_assigned_at_utc": "2026-01-01T06:00:00Z",
+      "split_assignment_source": "stratified-block-lock-v1",
+      "raw_source_path": "raw/ntec-tati2alc-control-cal-02.csv",
+      "raw_source_sha256": "968167ab3acce1f1bc6ca33c2aa613ae52b4d456fa1dae512ad0d68797e67a22",
+      "uncertainty_type": "standard_deviation",
+      "conditions": {
+        "temperature_K": 823.15,
+        "pressure_Pa": 150000.0,
+        "inlet_CH4_mol_s": 0.0014,
+        "duration_h": 12.0,
+        "feed_mole_fraction": {
+          "CH4": 0.95,
+          "Ar": 0.05
+        },
+        "treatment": "control",
+        "shear_rate_s_inv": 0.0,
+        "mechanical_power_W": 0.0
+      },
+      "observations": {
+        "CH4_conversion_fraction": 0.699,
+        "H2_selectivity_fraction": 0.974,
+        "solid_carbon_yield_fraction": 0.679,
+        "carbon_balance_closure_fraction": 0.994,
+        "hydrogen_balance_closure_fraction": 0.995,
+        "net_energy_kWh_kg_H2": 14.5,
+        "deactivation_fraction_per_h": 0.0052
+      },
+      "uncertainties": {
+        "CH4_conversion_fraction": 0.012,
+        "H2_selectivity_fraction": 0.004,
+        "solid_carbon_yield_fraction": 0.014,
+        "carbon_balance_closure_fraction": 0.005,
+        "hydrogen_balance_closure_fraction": 0.005,
+        "net_energy_kWh_kg_H2": 0.3,
+        "deactivation_fraction_per_h": 0.0002
+      }
+    },
+    {
+      "measurement_id": "ntec-tati2alc-ntec-cal-02",
+      "experimental_unit_id": "unit-tati2alc-ntec-cal-02",
+      "control_pair_id": "ntec-pair-tati2alc-cal-02",
+      "candidate_id": "eb64b3aa6d3913c21f5d",
+      "application": "turquoise_hydrogen",
+      "measurement_type": "ntec_pair",
+      "split": "calibration",
+      "replicate_id": "rep-2",
+      "apparatus_id": "ntec-maxphase-cell-rig-01",
+      "measured_at_utc": "2026-01-03T15:30:00Z",
+      "split_assigned_at_utc": "2026-01-01T06:00:00Z",
+      "split_assignment_source": "stratified-block-lock-v1",
+      "raw_source_path": "raw/ntec-tati2alc-ntec-cal-02.csv",
+      "raw_source_sha256": "4c19b0e4151b22b2611bb78867c235ed1f7c81f800b225fd809c28130727102e",
+      "uncertainty_type": "standard_deviation",
+      "conditions": {
+        "temperature_K": 823.15,
+        "pressure_Pa": 150000.0,
+        "inlet_CH4_mol_s": 0.0014,
+        "duration_h": 12.0,
+        "feed_mole_fraction": {
+          "CH4": 0.95,
+          "Ar": 0.05
+        },
+        "treatment": "ntec",
+        "shear_rate_s_inv": 160.0,
+        "mechanical_power_W": 14.0
+      },
+      "observations": {
+        "CH4_conversion_fraction": 0.849,
+        "H2_selectivity_fraction": 0.991,
+        "solid_carbon_yield_fraction": 0.829,
+        "carbon_balance_closure_fraction": 0.994,
+        "hydrogen_balance_closure_fraction": 0.995,
+        "net_energy_kWh_kg_H2": 11.8,
+        "deactivation_fraction_per_h": 0.0006
+      },
+      "uncertainties": {
+        "CH4_conversion_fraction": 0.012,
+        "H2_selectivity_fraction": 0.004,
+        "solid_carbon_yield_fraction": 0.014,
+        "carbon_balance_closure_fraction": 0.005,
+        "hydrogen_balance_closure_fraction": 0.005,
+        "net_energy_kWh_kg_H2": 0.3,
+        "deactivation_fraction_per_h": 0.0002
+      }
+    },
+    {
+      "measurement_id": "ntec-tati2alc-control-cal-03",
+      "experimental_unit_id": "unit-tati2alc-control-cal-03",
+      "control_pair_id": "ntec-pair-tati2alc-cal-03",
+      "candidate_id": "eb64b3aa6d3913c21f5d",
+      "application": "turquoise_hydrogen",
+      "measurement_type": "ntec_pair",
+      "split": "calibration",
+      "replicate_id": "rep-3",
+      "apparatus_id": "ntec-maxphase-cell-rig-01",
+      "measured_at_utc": "2026-01-04T15:30:00Z",
+      "split_assigned_at_utc": "2026-01-01T06:00:00Z",
+      "split_assignment_source": "stratified-block-lock-v1",
+      "raw_source_path": "raw/ntec-tati2alc-control-cal-03.csv",
+      "raw_source_sha256": "b54c323594704fa87628e656577191f0e790d275af0698b8155fce514fd0c49f",
+      "uncertainty_type": "standard_deviation",
+      "conditions": {
+        "temperature_K": 823.15,
+        "pressure_Pa": 150000.0,
+        "inlet_CH4_mol_s": 0.0014,
+        "duration_h": 12.0,
+        "feed_mole_fraction": {
+          "CH4": 0.95,
+          "Ar": 0.05
+        },
+        "treatment": "control",
+        "shear_rate_s_inv": 0.0,
+        "mechanical_power_W": 0.0
+      },
+      "observations": {
+        "CH4_conversion_fraction": 0.703,
+        "H2_selectivity_fraction": 0.974,
+        "solid_carbon_yield_fraction": 0.683,
+        "carbon_balance_closure_fraction": 0.994,
+        "hydrogen_balance_closure_fraction": 0.995,
+        "net_energy_kWh_kg_H2": 14.5,
+        "deactivation_fraction_per_h": 0.0052
+      },
+      "uncertainties": {
+        "CH4_conversion_fraction": 0.012,
+        "H2_selectivity_fraction": 0.004,
+        "solid_carbon_yield_fraction": 0.014,
+        "carbon_balance_closure_fraction": 0.005,
+        "hydrogen_balance_closure_fraction": 0.005,
+        "net_energy_kWh_kg_H2": 0.3,
+        "deactivation_fraction_per_h": 0.0002
+      }
+    },
+    {
+      "measurement_id": "ntec-tati2alc-ntec-cal-03",
+      "experimental_unit_id": "unit-tati2alc-ntec-cal-03",
+      "control_pair_id": "ntec-pair-tati2alc-cal-03",
+      "candidate_id": "eb64b3aa6d3913c21f5d",
+      "application": "turquoise_hydrogen",
+      "measurement_type": "ntec_pair",
+      "split": "calibration",
+      "replicate_id": "rep-3",
+      "apparatus_id": "ntec-maxphase-cell-rig-01",
+      "measured_at_utc": "2026-01-04T15:30:00Z",
+      "split_assigned_at_utc": "2026-01-01T06:00:00Z",
+      "split_assignment_source": "stratified-block-lock-v1",
+      "raw_source_path": "raw/ntec-tati2alc-ntec-cal-03.csv",
+      "raw_source_sha256": "a629e3153124182fd5ace0f2248c718db617f3b362cd24757ec38e225938a752",
+      "uncertainty_type": "standard_deviation",
+      "conditions": {
+        "temperature_K": 823.15,
+        "pressure_Pa": 150000.0,
+        "inlet_CH4_mol_s": 0.0014,
+        "duration_h": 12.0,
+        "feed_mole_fraction": {
+          "CH4": 0.95,
+          "Ar": 0.05
+        },
+        "treatment": "ntec",
+        "shear_rate_s_inv": 160.0,
+        "mechanical_power_W": 14.0
+      },
+      "observations": {
+        "CH4_conversion_fraction": 0.853,
+        "H2_selectivity_fraction": 0.991,
+        "solid_carbon_yield_fraction": 0.833,
+        "carbon_balance_closure_fraction": 0.994,
+        "hydrogen_balance_closure_fraction": 0.995,
+        "net_energy_kWh_kg_H2": 11.8,
+        "deactivation_fraction_per_h": 0.0006
+      },
+      "uncertainties": {
+        "CH4_conversion_fraction": 0.012,
+        "H2_selectivity_fraction": 0.004,
+        "solid_carbon_yield_fraction": 0.014,
+        "carbon_balance_closure_fraction": 0.005,
+        "hydrogen_balance_closure_fraction": 0.005,
+        "net_energy_kWh_kg_H2": 0.3,
+        "deactivation_fraction_per_h": 0.0002
+      }
+    },
+    {
+      "measurement_id": "ntec-tati2alc-control-hol-04",
+      "experimental_unit_id": "unit-tati2alc-control-hol-04",
+      "control_pair_id": "ntec-pair-tati2alc-hol-04",
+      "candidate_id": "eb64b3aa6d3913c21f5d",
+      "application": "turquoise_hydrogen",
+      "measurement_type": "ntec_pair",
+      "split": "holdout",
+      "replicate_id": "rep-4",
+      "apparatus_id": "ntec-maxphase-cell-rig-01",
+      "measured_at_utc": "2026-01-05T15:30:00Z",
+      "split_assigned_at_utc": "2026-01-01T06:00:00Z",
+      "split_assignment_source": "stratified-block-lock-v1",
+      "raw_source_path": "raw/ntec-tati2alc-control-hol-04.csv",
+      "raw_source_sha256": "8578a5daa1b4c23d3d67855a18586934a03ea6b92ac9a162fe32fc06b19f3555",
+      "uncertainty_type": "standard_deviation",
+      "conditions": {
+        "temperature_K": 823.15,
+        "pressure_Pa": 150000.0,
+        "inlet_CH4_mol_s": 0.0014,
+        "duration_h": 12.0,
+        "feed_mole_fraction": {
+          "CH4": 0.95,
+          "Ar": 0.05
+        },
+        "treatment": "control",
+        "shear_rate_s_inv": 0.0,
+        "mechanical_power_W": 0.0
+      },
+      "observations": {
+        "CH4_conversion_fraction": 0.707,
+        "H2_selectivity_fraction": 0.974,
+        "solid_carbon_yield_fraction": 0.687,
+        "carbon_balance_closure_fraction": 0.994,
+        "hydrogen_balance_closure_fraction": 0.995,
+        "net_energy_kWh_kg_H2": 14.5,
+        "deactivation_fraction_per_h": 0.0052
+      },
+      "uncertainties": {
+        "CH4_conversion_fraction": 0.012,
+        "H2_selectivity_fraction": 0.004,
+        "solid_carbon_yield_fraction": 0.014,
+        "carbon_balance_closure_fraction": 0.005,
+        "hydrogen_balance_closure_fraction": 0.005,
+        "net_energy_kWh_kg_H2": 0.3,
+        "deactivation_fraction_per_h": 0.0002
+      },
+      "blinded": true
+    },
+    {
+      "measurement_id": "ntec-tati2alc-ntec-hol-04",
+      "experimental_unit_id": "unit-tati2alc-ntec-hol-04",
+      "control_pair_id": "ntec-pair-tati2alc-hol-04",
+      "candidate_id": "eb64b3aa6d3913c21f5d",
+      "application": "turquoise_hydrogen",
+      "measurement_type": "ntec_pair",
+      "split": "holdout",
+      "replicate_id": "rep-4",
+      "apparatus_id": "ntec-maxphase-cell-rig-01",
+      "measured_at_utc": "2026-01-05T15:30:00Z",
+      "split_assigned_at_utc": "2026-01-01T06:00:00Z",
+      "split_assignment_source": "stratified-block-lock-v1",
+      "raw_source_path": "raw/ntec-tati2alc-ntec-hol-04.csv",
+      "raw_source_sha256": "bd8b93a2f11c5e3f60469482f320f41d96521c8235f2415fce122efeff0cfde7",
+      "uncertainty_type": "standard_deviation",
+      "conditions": {
+        "temperature_K": 823.15,
+        "pressure_Pa": 150000.0,
+        "inlet_CH4_mol_s": 0.0014,
+        "duration_h": 12.0,
+        "feed_mole_fraction": {
+          "CH4": 0.95,
+          "Ar": 0.05
+        },
+        "treatment": "ntec",
+        "shear_rate_s_inv": 160.0,
+        "mechanical_power_W": 14.0
+      },
+      "observations": {
+        "CH4_conversion_fraction": 0.857,
+        "H2_selectivity_fraction": 0.991,
+        "solid_carbon_yield_fraction": 0.837,
+        "carbon_balance_closure_fraction": 0.994,
+        "hydrogen_balance_closure_fraction": 0.995,
+        "net_energy_kWh_kg_H2": 11.8,
+        "deactivation_fraction_per_h": 0.0006
+      },
+      "uncertainties": {
+        "CH4_conversion_fraction": 0.012,
+        "H2_selectivity_fraction": 0.004,
+        "solid_carbon_yield_fraction": 0.014,
+        "carbon_balance_closure_fraction": 0.005,
+        "hydrogen_balance_closure_fraction": 0.005,
+        "net_energy_kWh_kg_H2": 0.3,
+        "deactivation_fraction_per_h": 0.0002
+      },
+      "blinded": true
+    },
+    {
+      "measurement_id": "ntec-tati2alc-control-hol-05",
+      "experimental_unit_id": "unit-tati2alc-control-hol-05",
+      "control_pair_id": "ntec-pair-tati2alc-hol-05",
+      "candidate_id": "eb64b3aa6d3913c21f5d",
+      "application": "turquoise_hydrogen",
+      "measurement_type": "ntec_pair",
+      "split": "holdout",
+      "replicate_id": "rep-5",
+      "apparatus_id": "ntec-maxphase-cell-rig-01",
+      "measured_at_utc": "2026-01-06T15:30:00Z",
+      "split_assigned_at_utc": "2026-01-01T06:00:00Z",
+      "split_assignment_source": "stratified-block-lock-v1",
+      "raw_source_path": "raw/ntec-tati2alc-control-hol-05.csv",
+      "raw_source_sha256": "5d3335f3b065e44461b2422f0e587a3942bfd74b336837a98559cafce10f610c",
+      "uncertainty_type": "standard_deviation",
+      "conditions": {
+        "temperature_K": 823.15,
+        "pressure_Pa": 150000.0,
+        "inlet_CH4_mol_s": 0.0014,
+        "duration_h": 12.0,
+        "feed_mole_fraction": {
+          "CH4": 0.95,
+          "Ar": 0.05
+        },
+        "treatment": "control",
+        "shear_rate_s_inv": 0.0,
+        "mechanical_power_W": 0.0
+      },
+      "observations": {
+        "CH4_conversion_fraction": 0.711,
+        "H2_selectivity_fraction": 0.974,
+        "solid_carbon_yield_fraction": 0.691,
+        "carbon_balance_closure_fraction": 0.994,
+        "hydrogen_balance_closure_fraction": 0.995,
+        "net_energy_kWh_kg_H2": 14.5,
+        "deactivation_fraction_per_h": 0.0052
+      },
+      "uncertainties": {
+        "CH4_conversion_fraction": 0.012,
+        "H2_selectivity_fraction": 0.004,
+        "solid_carbon_yield_fraction": 0.014,
+        "carbon_balance_closure_fraction": 0.005,
+        "hydrogen_balance_closure_fraction": 0.005,
+        "net_energy_kWh_kg_H2": 0.3,
+        "deactivation_fraction_per_h": 0.0002
+      },
+      "blinded": true
+    },
+    {
+      "measurement_id": "ntec-tati2alc-ntec-hol-05",
+      "experimental_unit_id": "unit-tati2alc-ntec-hol-05",
+      "control_pair_id": "ntec-pair-tati2alc-hol-05",
+      "candidate_id": "eb64b3aa6d3913c21f5d",
+      "application": "turquoise_hydrogen",
+      "measurement_type": "ntec_pair",
+      "split": "holdout",
+      "replicate_id": "rep-5",
+      "apparatus_id": "ntec-maxphase-cell-rig-01",
+      "measured_at_utc": "2026-01-06T15:30:00Z",
+      "split_assigned_at_utc": "2026-01-01T06:00:00Z",
+      "split_assignment_source": "stratified-block-lock-v1",
+      "raw_source_path": "raw/ntec-tati2alc-ntec-hol-05.csv",
+      "raw_source_sha256": "e7fe7863bf5c2d9e2e82e55a6b58452ef2bfdafb80128f5b4dc6fcac6ec16ded",
+      "uncertainty_type": "standard_deviation",
+      "conditions": {
+        "temperature_K": 823.15,
+        "pressure_Pa": 150000.0,
+        "inlet_CH4_mol_s": 0.0014,
+        "duration_h": 12.0,
+        "feed_mole_fraction": {
+          "CH4": 0.95,
+          "Ar": 0.05
+        },
+        "treatment": "ntec",
+        "shear_rate_s_inv": 160.0,
+        "mechanical_power_W": 14.0
+      },
+      "observations": {
+        "CH4_conversion_fraction": 0.861,
+        "H2_selectivity_fraction": 0.991,
+        "solid_carbon_yield_fraction": 0.841,
+        "carbon_balance_closure_fraction": 0.994,
+        "hydrogen_balance_closure_fraction": 0.995,
+        "net_energy_kWh_kg_H2": 11.8,
+        "deactivation_fraction_per_h": 0.0006
+      },
+      "uncertainties": {
+        "CH4_conversion_fraction": 0.012,
+        "H2_selectivity_fraction": 0.004,
+        "solid_carbon_yield_fraction": 0.014,
+        "carbon_balance_closure_fraction": 0.005,
+        "hydrogen_balance_closure_fraction": 0.005,
+        "net_energy_kWh_kg_H2": 0.3,
+        "deactivation_fraction_per_h": 0.0002
+      },
+      "blinded": true
+    },
+    {
+      "measurement_id": "ntec-tati2alc-control-hol-06",
+      "experimental_unit_id": "unit-tati2alc-control-hol-06",
+      "control_pair_id": "ntec-pair-tati2alc-hol-06",
+      "candidate_id": "eb64b3aa6d3913c21f5d",
+      "application": "turquoise_hydrogen",
+      "measurement_type": "ntec_pair",
+      "split": "holdout",
+      "replicate_id": "rep-6",
+      "apparatus_id": "ntec-maxphase-cell-rig-01",
+      "measured_at_utc": "2026-01-07T15:30:00Z",
+      "split_assigned_at_utc": "2026-01-01T06:00:00Z",
+      "split_assignment_source": "stratified-block-lock-v1",
+      "raw_source_path": "raw/ntec-tati2alc-control-hol-06.csv",
+      "raw_source_sha256": "ef95e111c89c8160faaf6f8275334e6c2bf2d16019e81710f168c3637ba5659d",
+      "uncertainty_type": "standard_deviation",
+      "conditions": {
+        "temperature_K": 823.15,
+        "pressure_Pa": 150000.0,
+        "inlet_CH4_mol_s": 0.0014,
+        "duration_h": 12.0,
+        "feed_mole_fraction": {
+          "CH4": 0.95,
+          "Ar": 0.05
+        },
+        "treatment": "control",
+        "shear_rate_s_inv": 0.0,
+        "mechanical_power_W": 0.0
+      },
+      "observations": {
+        "CH4_conversion_fraction": 0.715,
+        "H2_selectivity_fraction": 0.974,
+        "solid_carbon_yield_fraction": 0.695,
+        "carbon_balance_closure_fraction": 0.994,
+        "hydrogen_balance_closure_fraction": 0.995,
+        "net_energy_kWh_kg_H2": 14.5,
+        "deactivation_fraction_per_h": 0.0052
+      },
+      "uncertainties": {
+        "CH4_conversion_fraction": 0.012,
+        "H2_selectivity_fraction": 0.004,
+        "solid_carbon_yield_fraction": 0.014,
+        "carbon_balance_closure_fraction": 0.005,
+        "hydrogen_balance_closure_fraction": 0.005,
+        "net_energy_kWh_kg_H2": 0.3,
+        "deactivation_fraction_per_h": 0.0002
+      },
+      "blinded": true
+    },
+    {
+      "measurement_id": "ntec-tati2alc-ntec-hol-06",
+      "experimental_unit_id": "unit-tati2alc-ntec-hol-06",
+      "control_pair_id": "ntec-pair-tati2alc-hol-06",
+      "candidate_id": "eb64b3aa6d3913c21f5d",
+      "application": "turquoise_hydrogen",
+      "measurement_type": "ntec_pair",
+      "split": "holdout",
+      "replicate_id": "rep-6",
+      "apparatus_id": "ntec-maxphase-cell-rig-01",
+      "measured_at_utc": "2026-01-07T15:30:00Z",
+      "split_assigned_at_utc": "2026-01-01T06:00:00Z",
+      "split_assignment_source": "stratified-block-lock-v1",
+      "raw_source_path": "raw/ntec-tati2alc-ntec-hol-06.csv",
+      "raw_source_sha256": "b227d74051500d83fed7322d405b539bd34a62b1c94d998772436ad33389db5e",
+      "uncertainty_type": "standard_deviation",
+      "conditions": {
+        "temperature_K": 823.15,
+        "pressure_Pa": 150000.0,
+        "inlet_CH4_mol_s": 0.0014,
+        "duration_h": 12.0,
+        "feed_mole_fraction": {
+          "CH4": 0.95,
+          "Ar": 0.05
+        },
+        "treatment": "ntec",
+        "shear_rate_s_inv": 160.0,
+        "mechanical_power_W": 14.0
+      },
+      "observations": {
+        "CH4_conversion_fraction": 0.865,
+        "H2_selectivity_fraction": 0.991,
+        "solid_carbon_yield_fraction": 0.845,
+        "carbon_balance_closure_fraction": 0.994,
+        "hydrogen_balance_closure_fraction": 0.995,
+        "net_energy_kWh_kg_H2": 11.8,
+        "deactivation_fraction_per_h": 0.0006
+      },
+      "uncertainties": {
+        "CH4_conversion_fraction": 0.012,
+        "H2_selectivity_fraction": 0.004,
+        "solid_carbon_yield_fraction": 0.014,
+        "carbon_balance_closure_fraction": 0.005,
+        "hydrogen_balance_closure_fraction": 0.005,
+        "net_energy_kWh_kg_H2": 0.3,
+        "deactivation_fraction_per_h": 0.0002
+      },
+      "blinded": true
+    },
+    {
+      "measurement_id": "mea-wnico2o4-spinel-cal-01",
+      "experimental_unit_id": "unit-mea-wnico2o4-cal-01",
+      "candidate_id": "dbc15731f8fdb0f99d43",
+      "application": "fuel_cell",
+      "measurement_type": "mea_performance",
+      "split": "calibration",
+      "replicate_id": "rep-1",
+      "apparatus_id": "pemfc-single-cell-station-02",
+      "measured_at_utc": "2026-01-02T16:30:00Z",
+      "split_assigned_at_utc": "2026-01-01T06:00:00Z",
+      "split_assignment_source": "stratified-block-lock-v1",
+      "raw_source_path": "raw/mea-wnico2o4-spinel-cal-01.csv",
+      "raw_source_sha256": "b4557ff4bc472a267e805e6270ad36261451a4362cb43ef7f5b2fa66eee64ce8",
+      "uncertainty_type": "standard_deviation",
+      "conditions": {
+        "temperature_K": 353.15,
+        "pressure_Pa": 150000.0,
+        "relative_humidity_anode": 1.0,
+        "relative_humidity_cathode": 1.0,
+        "duration_h": 24.0
+      },
+      "observations": {
+        "peak_power_W_cm2": 1.16,
+        "system_efficiency_fraction": 0.594,
+        "orr_overpotential_V": 0.24
+      },
+      "uncertainties": {
+        "peak_power_W_cm2": 0.022,
+        "system_efficiency_fraction": 0.007,
+        "orr_overpotential_V": 0.008
+      }
+    },
+    {
+      "measurement_id": "dur-wnico2o4-spinel-cal-01",
+      "experimental_unit_id": "unit-dur-wnico2o4-cal-01",
+      "candidate_id": "dbc15731f8fdb0f99d43",
+      "application": "fuel_cell",
+      "measurement_type": "durability",
+      "split": "calibration",
+      "replicate_id": "rep-1",
+      "apparatus_id": "pemfc-ast-durability-rig-02",
+      "measured_at_utc": "2026-01-02T18:30:00Z",
+      "split_assigned_at_utc": "2026-01-01T06:00:00Z",
+      "split_assignment_source": "stratified-block-lock-v1",
+      "raw_source_path": "raw/dur-wnico2o4-spinel-cal-01.csv",
+      "raw_source_sha256": "27abb4a6e9d85bfe051e8e450aa7529e2e89b4bfb802f3140be785697c961fe7",
+      "uncertainty_type": "standard_deviation",
+      "conditions": {
+        "temperature_K": 353.15,
+        "pressure_Pa": 150000.0,
+        "duration_h": 500.0
+      },
+      "observations": {
+        "voltage_degradation_uV_h": 7.8,
+        "power_retention_fraction": 0.926
+      },
+      "uncertainties": {
+        "voltage_degradation_uV_h": 0.5,
+        "power_retention_fraction": 0.009
+      }
+    },
+    {
+      "measurement_id": "mea-wnico2o4-spinel-cal-02",
+      "experimental_unit_id": "unit-mea-wnico2o4-cal-02",
+      "candidate_id": "dbc15731f8fdb0f99d43",
+      "application": "fuel_cell",
+      "measurement_type": "mea_performance",
+      "split": "calibration",
+      "replicate_id": "rep-2",
+      "apparatus_id": "pemfc-single-cell-station-02",
+      "measured_at_utc": "2026-01-03T16:30:00Z",
+      "split_assigned_at_utc": "2026-01-01T06:00:00Z",
+      "split_assignment_source": "stratified-block-lock-v1",
+      "raw_source_path": "raw/mea-wnico2o4-spinel-cal-02.csv",
+      "raw_source_sha256": "1a12ba2c5cc912e9dc93d381fb72c2d698aacc398c2ece8e681adade0d9beca9",
+      "uncertainty_type": "standard_deviation",
+      "conditions": {
+        "temperature_K": 353.15,
+        "pressure_Pa": 150000.0,
+        "relative_humidity_anode": 1.0,
+        "relative_humidity_cathode": 1.0,
+        "duration_h": 24.0
+      },
+      "observations": {
+        "peak_power_W_cm2": 1.17,
+        "system_efficiency_fraction": 0.596,
+        "orr_overpotential_V": 0.238
+      },
+      "uncertainties": {
+        "peak_power_W_cm2": 0.022,
+        "system_efficiency_fraction": 0.007,
+        "orr_overpotential_V": 0.008
+      }
+    },
+    {
+      "measurement_id": "dur-wnico2o4-spinel-cal-02",
+      "experimental_unit_id": "unit-dur-wnico2o4-cal-02",
+      "candidate_id": "dbc15731f8fdb0f99d43",
+      "application": "fuel_cell",
+      "measurement_type": "durability",
+      "split": "calibration",
+      "replicate_id": "rep-2",
+      "apparatus_id": "pemfc-ast-durability-rig-02",
+      "measured_at_utc": "2026-01-03T18:30:00Z",
+      "split_assigned_at_utc": "2026-01-01T06:00:00Z",
+      "split_assignment_source": "stratified-block-lock-v1",
+      "raw_source_path": "raw/dur-wnico2o4-spinel-cal-02.csv",
+      "raw_source_sha256": "948f5df39b2416ae06c3afe17cc8c0b0a1fbac0e696211fc5aa0f93c2c3d9f41",
+      "uncertainty_type": "standard_deviation",
+      "conditions": {
+        "temperature_K": 353.15,
+        "pressure_Pa": 150000.0,
+        "duration_h": 500.0
+      },
+      "observations": {
+        "voltage_degradation_uV_h": 8.0,
+        "power_retention_fraction": 0.924
+      },
+      "uncertainties": {
+        "voltage_degradation_uV_h": 0.5,
+        "power_retention_fraction": 0.009
+      }
+    },
+    {
+      "measurement_id": "mea-wnico2o4-spinel-cal-03",
+      "experimental_unit_id": "unit-mea-wnico2o4-cal-03",
+      "candidate_id": "dbc15731f8fdb0f99d43",
+      "application": "fuel_cell",
+      "measurement_type": "mea_performance",
+      "split": "calibration",
+      "replicate_id": "rep-3",
+      "apparatus_id": "pemfc-single-cell-station-02",
+      "measured_at_utc": "2026-01-04T16:30:00Z",
+      "split_assigned_at_utc": "2026-01-01T06:00:00Z",
+      "split_assignment_source": "stratified-block-lock-v1",
+      "raw_source_path": "raw/mea-wnico2o4-spinel-cal-03.csv",
+      "raw_source_sha256": "c52a7df355b1fb2b31a196771b8e96fe6d7aa6e5335f0d50359be1484631fa2d",
+      "uncertainty_type": "standard_deviation",
+      "conditions": {
+        "temperature_K": 353.15,
+        "pressure_Pa": 150000.0,
+        "relative_humidity_anode": 1.0,
+        "relative_humidity_cathode": 1.0,
+        "duration_h": 24.0
+      },
+      "observations": {
+        "peak_power_W_cm2": 1.18,
+        "system_efficiency_fraction": 0.592,
+        "orr_overpotential_V": 0.242
+      },
+      "uncertainties": {
+        "peak_power_W_cm2": 0.022,
+        "system_efficiency_fraction": 0.007,
+        "orr_overpotential_V": 0.008
+      }
+    },
+    {
+      "measurement_id": "dur-wnico2o4-spinel-cal-03",
+      "experimental_unit_id": "unit-dur-wnico2o4-cal-03",
+      "candidate_id": "dbc15731f8fdb0f99d43",
+      "application": "fuel_cell",
+      "measurement_type": "durability",
+      "split": "calibration",
+      "replicate_id": "rep-3",
+      "apparatus_id": "pemfc-ast-durability-rig-02",
+      "measured_at_utc": "2026-01-04T18:30:00Z",
+      "split_assigned_at_utc": "2026-01-01T06:00:00Z",
+      "split_assignment_source": "stratified-block-lock-v1",
+      "raw_source_path": "raw/dur-wnico2o4-spinel-cal-03.csv",
+      "raw_source_sha256": "7626c76074e82443e395dbb40b0c7e5d37569a4c81fa3ebde2406409419ca205",
+      "uncertainty_type": "standard_deviation",
+      "conditions": {
+        "temperature_K": 353.15,
+        "pressure_Pa": 150000.0,
+        "duration_h": 500.0
+      },
+      "observations": {
+        "voltage_degradation_uV_h": 8.2,
+        "power_retention_fraction": 0.922
+      },
+      "uncertainties": {
+        "voltage_degradation_uV_h": 0.5,
+        "power_retention_fraction": 0.009
+      }
+    },
+    {
+      "measurement_id": "mea-wnico2o4-spinel-hol-04",
+      "experimental_unit_id": "unit-mea-wnico2o4-hol-04",
+      "candidate_id": "dbc15731f8fdb0f99d43",
+      "application": "fuel_cell",
+      "measurement_type": "mea_performance",
+      "split": "holdout",
+      "replicate_id": "rep-4",
+      "apparatus_id": "pemfc-single-cell-station-02",
+      "measured_at_utc": "2026-01-05T16:30:00Z",
+      "split_assigned_at_utc": "2026-01-01T06:00:00Z",
+      "split_assignment_source": "stratified-block-lock-v1",
+      "raw_source_path": "raw/mea-wnico2o4-spinel-hol-04.csv",
+      "raw_source_sha256": "38642cc0e33732bd7088e12278ef5ae0eee2056761145b0da5c645b5e9243310",
+      "uncertainty_type": "standard_deviation",
+      "conditions": {
+        "temperature_K": 353.15,
+        "pressure_Pa": 150000.0,
+        "relative_humidity_anode": 1.0,
+        "relative_humidity_cathode": 1.0,
+        "duration_h": 24.0
+      },
+      "observations": {
+        "peak_power_W_cm2": 1.19,
+        "system_efficiency_fraction": 0.594,
+        "orr_overpotential_V": 0.24
+      },
+      "uncertainties": {
+        "peak_power_W_cm2": 0.022,
+        "system_efficiency_fraction": 0.007,
+        "orr_overpotential_V": 0.008
+      },
+      "blinded": true
+    },
+    {
+      "measurement_id": "dur-wnico2o4-spinel-hol-04",
+      "experimental_unit_id": "unit-dur-wnico2o4-hol-04",
+      "candidate_id": "dbc15731f8fdb0f99d43",
+      "application": "fuel_cell",
+      "measurement_type": "durability",
+      "split": "holdout",
+      "replicate_id": "rep-4",
+      "apparatus_id": "pemfc-ast-durability-rig-02",
+      "measured_at_utc": "2026-01-05T18:30:00Z",
+      "split_assigned_at_utc": "2026-01-01T06:00:00Z",
+      "split_assignment_source": "stratified-block-lock-v1",
+      "raw_source_path": "raw/dur-wnico2o4-spinel-hol-04.csv",
+      "raw_source_sha256": "07578e01aec5618500840c9911d38a0b280e15f5d37182b79ae8b4d8dcb9271e",
+      "uncertainty_type": "standard_deviation",
+      "conditions": {
+        "temperature_K": 353.15,
+        "pressure_Pa": 150000.0,
+        "duration_h": 500.0
+      },
+      "observations": {
+        "voltage_degradation_uV_h": 8.4,
+        "power_retention_fraction": 0.92
+      },
+      "uncertainties": {
+        "voltage_degradation_uV_h": 0.5,
+        "power_retention_fraction": 0.009
+      },
+      "blinded": true
+    },
+    {
+      "measurement_id": "mea-wnico2o4-spinel-hol-05",
+      "experimental_unit_id": "unit-mea-wnico2o4-hol-05",
+      "candidate_id": "dbc15731f8fdb0f99d43",
+      "application": "fuel_cell",
+      "measurement_type": "mea_performance",
+      "split": "holdout",
+      "replicate_id": "rep-5",
+      "apparatus_id": "pemfc-single-cell-station-02",
+      "measured_at_utc": "2026-01-06T16:30:00Z",
+      "split_assigned_at_utc": "2026-01-01T06:00:00Z",
+      "split_assignment_source": "stratified-block-lock-v1",
+      "raw_source_path": "raw/mea-wnico2o4-spinel-hol-05.csv",
+      "raw_source_sha256": "6aa07fd3584d095fbc850176e87eeea751b5d92fb0d13b297c77b7c5331d26be",
+      "uncertainty_type": "standard_deviation",
+      "conditions": {
+        "temperature_K": 353.15,
+        "pressure_Pa": 150000.0,
+        "relative_humidity_anode": 1.0,
+        "relative_humidity_cathode": 1.0,
+        "duration_h": 24.0
+      },
+      "observations": {
+        "peak_power_W_cm2": 1.2,
+        "system_efficiency_fraction": 0.596,
+        "orr_overpotential_V": 0.238
+      },
+      "uncertainties": {
+        "peak_power_W_cm2": 0.022,
+        "system_efficiency_fraction": 0.007,
+        "orr_overpotential_V": 0.008
+      },
+      "blinded": true
+    },
+    {
+      "measurement_id": "dur-wnico2o4-spinel-hol-05",
+      "experimental_unit_id": "unit-dur-wnico2o4-hol-05",
+      "candidate_id": "dbc15731f8fdb0f99d43",
+      "application": "fuel_cell",
+      "measurement_type": "durability",
+      "split": "holdout",
+      "replicate_id": "rep-5",
+      "apparatus_id": "pemfc-ast-durability-rig-02",
+      "measured_at_utc": "2026-01-06T18:30:00Z",
+      "split_assigned_at_utc": "2026-01-01T06:00:00Z",
+      "split_assignment_source": "stratified-block-lock-v1",
+      "raw_source_path": "raw/dur-wnico2o4-spinel-hol-05.csv",
+      "raw_source_sha256": "80cf1373da55a645f8e8e9bc6865d74bdffb6277c258a4165c42810448ce56ad",
+      "uncertainty_type": "standard_deviation",
+      "conditions": {
+        "temperature_K": 353.15,
+        "pressure_Pa": 150000.0,
+        "duration_h": 500.0
+      },
+      "observations": {
+        "voltage_degradation_uV_h": 8.6,
+        "power_retention_fraction": 0.918
+      },
+      "uncertainties": {
+        "voltage_degradation_uV_h": 0.5,
+        "power_retention_fraction": 0.009
+      },
+      "blinded": true
+    },
+    {
+      "measurement_id": "mea-wnico2o4-spinel-hol-06",
+      "experimental_unit_id": "unit-mea-wnico2o4-hol-06",
+      "candidate_id": "dbc15731f8fdb0f99d43",
+      "application": "fuel_cell",
+      "measurement_type": "mea_performance",
+      "split": "holdout",
+      "replicate_id": "rep-6",
+      "apparatus_id": "pemfc-single-cell-station-02",
+      "measured_at_utc": "2026-01-07T16:30:00Z",
+      "split_assigned_at_utc": "2026-01-01T06:00:00Z",
+      "split_assignment_source": "stratified-block-lock-v1",
+      "raw_source_path": "raw/mea-wnico2o4-spinel-hol-06.csv",
+      "raw_source_sha256": "45926baf35127581821c5f2402c468981ee344b3a28fb1702d834251de919c7b",
+      "uncertainty_type": "standard_deviation",
+      "conditions": {
+        "temperature_K": 353.15,
+        "pressure_Pa": 150000.0,
+        "relative_humidity_anode": 1.0,
+        "relative_humidity_cathode": 1.0,
+        "duration_h": 24.0
+      },
+      "observations": {
+        "peak_power_W_cm2": 1.21,
+        "system_efficiency_fraction": 0.592,
+        "orr_overpotential_V": 0.242
+      },
+      "uncertainties": {
+        "peak_power_W_cm2": 0.022,
+        "system_efficiency_fraction": 0.007,
+        "orr_overpotential_V": 0.008
+      },
+      "blinded": true
+    },
+    {
+      "measurement_id": "dur-wnico2o4-spinel-hol-06",
+      "experimental_unit_id": "unit-dur-wnico2o4-hol-06",
+      "candidate_id": "dbc15731f8fdb0f99d43",
+      "application": "fuel_cell",
+      "measurement_type": "durability",
+      "split": "holdout",
+      "replicate_id": "rep-6",
+      "apparatus_id": "pemfc-ast-durability-rig-02",
+      "measured_at_utc": "2026-01-07T18:30:00Z",
+      "split_assigned_at_utc": "2026-01-01T06:00:00Z",
+      "split_assignment_source": "stratified-block-lock-v1",
+      "raw_source_path": "raw/dur-wnico2o4-spinel-hol-06.csv",
+      "raw_source_sha256": "e55969d4c203392a892a85eb7bfaf0848105985d9de284fc407bb219142a1b31",
+      "uncertainty_type": "standard_deviation",
+      "conditions": {
+        "temperature_K": 353.15,
+        "pressure_Pa": 150000.0,
+        "duration_h": 500.0
+      },
+      "observations": {
+        "voltage_degradation_uV_h": 8.8,
+        "power_retention_fraction": 0.916
+      },
+      "uncertainties": {
+        "voltage_degradation_uV_h": 0.5,
+        "power_retention_fraction": 0.009
       },
       "blinded": true
     }

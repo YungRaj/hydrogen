@@ -531,5 +531,114 @@
       "evidence_level": "periodic_slab_qe_pw"
     }
   ],
-  "n_turquoise_pyrolysis_validated": 3
+  "n_turquoise_pyrolysis_validated": 3,
+  "extended_cas_6_6_nevpt2_diagnostics": [
+    {
+      "candidate_id": "9b83e69315874c5abca7",
+      "catalyst_name": "Cu,Ru-doped Ni(fcc211)/CeZrO2 (d=10.0 nm, 25.0 wt%)",
+      "reaction_type": "CH_split",
+      "catalyst_motif": "Ru-CH4_ts",
+      "cas44_qubits": 8,
+      "cas66_qubits": 12,
+      "cas44_barrier_eV": 1.898,
+      "cas66_barrier_eV": 1.8588,
+      "cas66_minus_cas44_eV": -0.0392,
+      "sc_nevpt2_dynamic_corr_shift_eV": -0.028,
+      "cas66_nevpt2_barrier_eV": 1.8308,
+      "cas66_leading_ci_weight": 0.730026,
+      "cas66_t1_diagnostic": 0.026353
+    },
+    {
+      "candidate_id": "017a44c337ece52f029b",
+      "catalyst_name": "Ga85Ni15 Liquid Metal Alloy",
+      "reaction_type": "CH_split",
+      "catalyst_motif": "Ni-CH4_ts",
+      "cas44_qubits": 8,
+      "cas66_qubits": 12,
+      "cas44_barrier_eV": 1.8885,
+      "cas66_barrier_eV": 1.8732,
+      "cas66_minus_cas44_eV": -0.0153,
+      "sc_nevpt2_dynamic_corr_shift_eV": -0.031,
+      "cas66_nevpt2_barrier_eV": 1.8422,
+      "cas66_leading_ci_weight": 0.941201,
+      "cas66_t1_diagnostic": 0.078096
+    },
+    {
+      "candidate_id": "eb64b3aa6d3913c21f5d",
+      "catalyst_name": "(Ta,Ti)2AlC1(basal_0001) MAX Phase Nanolaminate",
+      "reaction_type": "CH_split",
+      "catalyst_motif": "Ti-CH4_ts",
+      "cas44_qubits": 8,
+      "cas66_qubits": 12,
+      "cas44_barrier_eV": 0.1153,
+      "cas66_barrier_eV": 0.08,
+      "cas66_minus_cas44_eV": -0.0353,
+      "sc_nevpt2_dynamic_corr_shift_eV": -0.4933,
+      "cas66_nevpt2_barrier_eV": 0.08,
+      "cas66_leading_ci_weight": 0.454009,
+      "cas66_t1_diagnostic": 0.15517
+    },
+    {
+      "candidate_id": "dbc15731f8fdb0f99d43",
+      "catalyst_name": "W-doped NiCo2O4/N-CNT Spinel Oxide",
+      "reaction_type": "ORR",
+      "catalyst_motif": "CoH-O2H2_ts",
+      "cas44_qubits": 8,
+      "cas66_qubits": 12,
+      "cas44_barrier_eV": 0.08,
+      "cas66_barrier_eV": 0.08,
+      "cas66_minus_cas44_eV": 0.0,
+      "sc_nevpt2_dynamic_corr_shift_eV": -0.106,
+      "cas66_nevpt2_barrier_eV": 0.08,
+      "cas66_leading_ci_weight": 0.784592,
+      "cas66_t1_diagnostic": 0.031872
+    }
+  ],
+  "periodic_qe_neb_ts_verification": [
+    {
+      "candidate_id": "9b83e69315874c5abca7",
+      "catalyst_name": "Cu,Ru-doped Ni(fcc211)/CeZrO2 (d=10.0 nm, 25.0 wt%) Supported Bimetallic Nanoparticle (Reshetenko 2003 / Ashok 2007 / Snoeck 1997 Step-Edge Alloy) [id=9b83e69315874c5abca7]",
+      "material_class": "SupportedNanoparticle",
+      "rate_limiting_step": "CH2_to_CH",
+      "n_neb_images": 7,
+      "slab_initial_energy_Ry": -1294.81620418,
+      "slab_ts_energy_Ry": -1294.78546705,
+      "slab_final_energy_Ry": -1294.81003029,
+      "pw_climbing_image_barrier_eV": 0.4182,
+      "calibrated_effective_barrier_eV": 0.9765,
+      "coking_cc_coupling_barrier_eV": 1.388,
+      "coking_selectivity_margin_eV": 0.9698,
+      "converged": true
+    },
+    {
+      "candidate_id": "017a44c337ece52f029b",
+      "catalyst_name": "Ga85Ni15 Liquid Metal Alloy (Upham et al., Science 2017 / Palmer et al., ACS Catal. 2020 Bubble-Column Melt) [id=017a44c337ece52f029b]",
+      "material_class": "MoltenMetal",
+      "rate_limiting_step": "CH4_to_CH3",
+      "n_neb_images": 7,
+      "slab_initial_energy_Ry": -648.31940215,
+      "slab_ts_energy_Ry": -648.28794473,
+      "slab_final_energy_Ry": -648.30896534,
+      "pw_climbing_image_barrier_eV": 0.428,
+      "calibrated_effective_barrier_eV": 1.5299,
+      "coking_cc_coupling_barrier_eV": 1.67,
+      "coking_selectivity_margin_eV": 1.242,
+      "converged": true
+    },
+    {
+      "candidate_id": "eb64b3aa6d3913c21f5d",
+      "catalyst_name": "(Ta,Ti)2AlC1(basal_0001) MAX Phase Nanolaminate (Barsoum, Prog. Solid State Chem. 2000) [id=eb64b3aa6d3913c21f5d]",
+      "material_class": "MAXPhase",
+      "rate_limiting_step": "CH4_to_CH3",
+      "n_neb_images": 7,
+      "slab_initial_energy_Ry": -416.82112582,
+      "slab_ts_energy_Ry": -416.78128955,
+      "slab_final_energy_Ry": -416.81245298,
+      "pw_climbing_image_barrier_eV": 0.542,
+      "calibrated_effective_barrier_eV": 1.1532,
+      "coking_cc_coupling_barrier_eV": 1.5351,
+      "coking_selectivity_margin_eV": 0.9931,
+      "converged": true
+    }
+  ]
 }

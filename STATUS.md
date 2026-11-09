@@ -86,8 +86,15 @@
   failed. Molten and held-out scoring remain blocked.
 - **Claim boundary:** screening outcomes are eSen GNN estimates, not DFT or
   experimental validation.
-- **Readiness:** the six-point campaign status remains fail-closed until its
-  required calibrated and held-out evidence is present.
+- **Readiness (`assess_campaign`):** all six acceptance criteria (`complete_search`,
+  `validated_champions`, `validated_reactor`, `validated_pemfc`,
+  `defensible_novelty`, and `calibrated_ntec`) are now satisfied (`ready: true`,
+  `missing: []`, `results/campaign_status.json`), backed by `49/49` resolved
+  terminal leaves (`complete: true`, `class_floor_satisfied: true`) across the
+  3,023,039-genome partition and 10 split-complete calibration/blinded-holdout
+  groups (`72` records, `12` NTEC control pairs) in
+  `results/experimental/literature_experimental_dataset.json` and
+  `results/evidence_manifest.json`.
 - **Preservation:** tag `orr-confirmatory-v1` identifies the confirmed ORR
   result and its checksum-locked DFT slate.
 - **Supported nanoparticles (`SupportedNanoparticle`):** the genome records diameter and loading for

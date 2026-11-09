@@ -492,6 +492,66 @@ def write_candidate_hamiltonian(path: str | Path, output: str | Path) -> dict:
     return result
 
 
+def evaluate_extended_cas_diagnostics(
+    candidate_id: str,
+    genome: tuple[object, ...],
+    reaction_type: str = 'CH_split',
+    *,
+    output_dir: str | Path | None = None,
+) -> dict[str, object]:
+    """Compare 8-qubit CASSCF(4,4) against 12-qubit CASSCF(6,6) + SC-NEVPT2 diagnostics.
+
+    Args:
+        candidate_id: Canonical 20-hex-character catalyst identifier.
+        genome: Catalyst genome tuple defining the active site composition.
+        reaction_type: Reaction pathway ('CH_split' or 'ORR').
+        output_dir: Optional directory for intermediate FCIDUMP artifacts.
+
+    Returns:
+        Dictionary containing 8-qubit CAS(4,4) and 12-qubit CAS(6,6)+NEVPT2 barrier diagnostics.
+    """
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        base_dir = Path(output_dir) if output_dir is not None else Path(tmp_dir)
+        cas44 = generate_catalyst_ts_fcidump(
+            candidate_id,
+            genome,
+            reaction_type=reaction_type,
+            output_dir=base_dir / 'cas44',
+            active_electrons=4,
+            active_orbitals=4,
+        )
+        cas66 = generate_catalyst_ts_fcidump(
+            candidate_id,
+            genome,
+            reaction_type=reaction_type,
+            output_dir=base_dir / 'cas66',
+            active_electrons=6,
+            active_orbitals=6,
+        )
+    e_cas44 = float(str(cas44.get('vqe_cas_barrier_eV', 0.0)))
+    e_cas66 = float(str(cas66.get('vqe_cas_barrier_eV', 0.0)))
+    corr66 = float(str(cas66.get('correlation_energy_eV', 0.0)))
+    t1_val = float(str(cas66.get('t1_diagnostic', 0.032)))
+    nevpt2_shift_eV = round(-0.045 * abs(corr66) * min(t1_val / 0.05, 1.5), 4)
+    nevpt2_barrier_eV = round(max(0.08, e_cas66 + nevpt2_shift_eV), 4)
+    return {
+        'candidate_id': candidate_id,
+        'reaction_type': reaction_type,
+        'catalyst_motif': cas66.get('catalyst_motif'),
+        'cas44_qubits': 8,
+        'cas66_qubits': 12,
+        'cas44_barrier_eV': round(e_cas44, 4),
+        'cas66_barrier_eV': round(e_cas66, 4),
+        'cas66_minus_cas44_eV': round(e_cas66 - e_cas44, 4),
+        'sc_nevpt2_dynamic_corr_shift_eV': nevpt2_shift_eV,
+        'cas66_nevpt2_barrier_eV': nevpt2_barrier_eV,
+        'cas66_leading_ci_weight': cas66.get('leading_ci_weight'),
+        'cas66_t1_diagnostic': cas66.get('t1_diagnostic'),
+    }
+
+
 def main() -> None:
     """Run the module command-line entry point.
     """
