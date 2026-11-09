@@ -105,28 +105,55 @@ def build_multipathway_champion_scorecard(
     ]
 
     # Load active-learning QE DFT calibration artifact if available
-    al_cal_path = root / 'dft' / 'active_learning_calibration.json'
     al_turq_class_bias: dict[str, float] = {}
-    if al_cal_path.is_file():
+    for al_cal_path in (
+        root / 'dft' / 'active_learning_calibration.json',
+        root / 'evidence' / 'active_learning_dft_calibration.json',
+    ):
+        if al_cal_path.is_file():
+            try:
+                al_doc = json.loads(al_cal_path.read_text(encoding='utf-8'))
+                turq_app = (
+                    al_doc.get('applications', {}).get('turquoise_hydrogen', {})
+                    if isinstance(al_doc, dict)
+                    else {}
+                )
+                raw_cb = (
+                    turq_app.get('class_bias_delta_eV')
+                    or turq_app.get('class_bias_eV')
+                    or (al_doc.get('class_bias_delta_eV') if isinstance(al_doc, dict) else {})
+                    or {}
+                )
+                if isinstance(raw_cb, dict) and raw_cb:
+                    al_turq_class_bias = {
+                        str(k): float(v)
+                        for k, v in raw_cb.items()
+                        if isinstance(v, (int, float)) and math.isfinite(float(v))
+                    }
+                    break
+            except Exception:
+                pass
+
+    slab_dft_barriers: dict[str, float] = {}
+    dn_val_path = root / 'evidence' / 'de_novo_discovery_validation.json'
+    if dn_val_path.is_file():
         try:
-            al_doc = json.loads(al_cal_path.read_text(encoding='utf-8'))
-            turq_app = (
-                al_doc.get('applications', {}).get('turquoise_hydrogen', {})
-                if isinstance(al_doc, dict)
-                else {}
-            )
-            raw_cb = (
-                turq_app.get('class_bias_delta_eV')
-                or turq_app.get('class_bias_eV')
-                or (al_doc.get('class_bias_delta_eV') if isinstance(al_doc, dict) else {})
-                or {}
-            )
-            if isinstance(raw_cb, dict):
-                al_turq_class_bias = {
-                    str(k): float(v)
-                    for k, v in raw_cb.items()
-                    if isinstance(v, (int, float)) and math.isfinite(float(v))
-                }
+            dn_val_doc = json.loads(dn_val_path.read_text(encoding='utf-8'))
+            for s_row in (
+                dn_val_doc.get('periodic_slab_qe_validation', [])
+                if isinstance(dn_val_doc, dict)
+                else []
+            ):
+                if isinstance(s_row, dict) and bool(s_row.get('converged')):
+                    s_cid = normalize_candidate_id(s_row.get('candidate_id') or '')
+                    s_bar = s_row.get('slab_dft_barrier_eV')
+                    if (
+                        s_cid
+                        and isinstance(s_bar, (int, float))
+                        and math.isfinite(float(s_bar))
+                        and float(s_bar) > 0.0
+                    ):
+                        slab_dft_barriers[s_cid] = float(s_bar)
         except Exception:
             pass
 
@@ -545,13 +572,15 @@ def build_multipathway_champion_scorecard(
 
     # 2. Phase 2 6-Pathway Reactor & TEA Leaderboard (Raw + DFT-Calibrated)
     reactor_records: list[ReactorResult] = []
+    seen_reactor_names: set[str] = set()
     for cdir in campaign_dirs:
         rdir = cdir / 'reactor'
         if not rdir.is_dir():
             continue
         for jpath in sorted(rdir.glob('*.json')):
-            if jpath.name == 'phase2_solids_scorecard.json':
+            if jpath.name == 'phase2_solids_scorecard.json' or jpath.name in seen_reactor_names:
                 continue
+            seen_reactor_names.add(jpath.name)
             try:
                 rec = json.loads(jpath.read_text(encoding='utf-8'))
             except Exception:
@@ -633,6 +662,9 @@ def build_multipathway_champion_scorecard(
                             return True, float(b_val)
                 except Exception:
                     pass
+        norm_cid = normalize_candidate_id(cat_name)
+        if norm_cid in slab_dft_barriers:
+            return True, slab_dft_barriers[norm_cid]
         return False, None
 
     def _compute_dft_calibrated_reactor_metrics(

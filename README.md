@@ -168,17 +168,23 @@ uncertainty, **153** for validity, and a policy-matched random mean of **120.25*
 (one-sided p = **0.000020**). The immutable result is
 `results/prospective_search/confirmatory_analysis.json`. This establishes
 computational enrichment under the eSen screening protocol; it does not
-establish DFT accuracy or experimental catalyst performance. The next evidence
-step is the checksum-locked 50-candidate slate at
-`results/dft/orr_confirmatory_slate.json`.
+establish DFT accuracy or experimental catalyst performance. The checksum-locked
+50-candidate slate at `results/dft/orr_confirmatory_slate.json` has been
+evaluated with Quantum ESPRESSO (`48/50` converged, `2.53x` DOE hit enrichment in
+`results/dft/orr_confirmatory_dft_summary.json`), and Round-2 active-learning
+DFT calibration (`results/evidence/round2_dft_calibrated_prospective.json`)
+achieved **239** acid-stable GC ORR hits (`2.90x` vs. random, p = **0.00498**)
+and **44** calibrated interfacial pyrolysis hits (`2.26x` vs. random,
+p = **0.00498**).
 
 Post-confirmatory quality analysis is descriptive and does not revise that
 verdict. It reports a 16.0% invalid rate and a 32.27% capped fraction among
 valid ORR rows. Pyrolysis descriptor work is gated by the external benchmark
 contract in
 [`docs/evidence/pyrolysis_descriptor_benchmark_plan.md`](docs/evidence/pyrolysis_descriptor_benchmark_plan.md);
-no replacement descriptor may steer a campaign before that benchmark is
-curated, locked, and passed.
+the zero-parameter interfacial carbon displacement (`AUC 0.9931`) and coupled
+`interfacial_pyrolysis_score_eV` (`AUC 0.9722`) cleared all preregistered
+benchmark gates (`results/evidence/pyrolysis_interfacial_benchmark.json`).
 
 ## Current Reactor-Mode Readiness
 

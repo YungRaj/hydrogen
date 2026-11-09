@@ -21,11 +21,20 @@ def assess_campaign(
     """
     root = Path(results_dir)
     coverage = []
-    for path in (
-        root / 'screening/turquoise_hydrogen_coverage_certificate.json',
-        root / 'fuel_cell/coverage_certificate.json',
+    for rel_primary, rel_fallback in (
+        (
+            'screening/turquoise_hydrogen_coverage_certificate.json',
+            'campaign_thermocatalytic/screening/turquoise_hydrogen_coverage_certificate.json',
+        ),
+        (
+            'fuel_cell/coverage_certificate.json',
+            'campaign_thermocatalytic/fuel_cell/coverage_certificate.json',
+        ),
     ):
-        value = json.loads(path.read_text()) if path.exists() else {}
+        cert_file = root / rel_primary
+        if not cert_file.exists():
+            cert_file = root / rel_fallback
+        value = json.loads(cert_file.read_text()) if cert_file.exists() else {}
         coverage.append(
             bool(value.get('complete'))
             and value.get('declared_encoded_population') == TOTAL_SIZE

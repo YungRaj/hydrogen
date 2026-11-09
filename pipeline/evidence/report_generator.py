@@ -90,14 +90,31 @@ def load_all_results() -> dict[str, object]:
                 pass
         data['screening'] = screening_map
 
-    reactor_records = list(_load_json_dir(REACTOR_DIR))
-    for c_name in (
-        "campaign_thermocatalytic",
-        "campaign_mmbcr",
-        "campaign_ntec",
-        "campaign_electrochemical",
-    ):
-        reactor_records.extend(_load_json_dir(RESULTS_DIR / c_name / "reactor"))
+    reactor_records: list[dict[str, object]] = []
+    seen_reactor_files: set[str] = set()
+    reactor_dirs = [REACTOR_DIR] + [
+        RESULTS_DIR / c_name / "reactor"
+        for c_name in (
+            "campaign_thermocatalytic",
+            "campaign_mmbcr",
+            "campaign_ntec",
+            "campaign_electrochemical",
+        )
+    ]
+    for r_dir in reactor_dirs:
+        if not r_dir.is_dir():
+            continue
+        for f in sorted(r_dir.glob("*.json")):
+            if f.name in seen_reactor_files:
+                continue
+            seen_reactor_files.add(f.name)
+            try:
+                with open(f, 'r') as fh:
+                    loaded = json.load(fh)
+                if isinstance(loaded, dict):
+                    reactor_records.append(dict(loaded))
+            except Exception:
+                pass
     data['reactor'] = reactor_records
     data['dft'] = _load_json_dir(DFT_DIR)
     data['vqe'] = _load_json_dir(VQE_DIR)
