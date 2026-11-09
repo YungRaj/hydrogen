@@ -1,0 +1,86 @@
+{
+  "hydrogen_impurity_test": [
+    {
+      "candidate_id": "c77b56fa00cdc515e3b7",
+      "dataset_id": "literature_calibration_holdout_2026_v1",
+      "measurement_type": "hydrogen_impurity",
+      "protocol_id": "lit_benchmark_calibration_holdout_v1",
+      "sha256": "ccacb8250d58a5ab47119cc317af9eee6c27d4185141cdfe5b8879a76f5462c2",
+      "source_path": "experimental/literature_experimental_dataset.json",
+      "status": "measured"
+    }
+  ],
+  "measured_deactivation": [
+    {
+      "candidate_id": "be45ea11e23945dbbda5",
+      "dataset_id": "literature_calibration_holdout_2026_v1",
+      "measurement_type": "pyrolysis_reactor",
+      "protocol_id": "lit_benchmark_calibration_holdout_v1",
+      "sha256": "ccacb8250d58a5ab47119cc317af9eee6c27d4185141cdfe5b8879a76f5462c2",
+      "source_path": "experimental/literature_experimental_dataset.json",
+      "status": "measured"
+    },
+    {
+      "candidate_id": "c4ab2249c156880efdbe",
+      "dataset_id": "literature_calibration_holdout_2026_v1",
+      "measurement_type": "ntec_pair",
+      "protocol_id": "lit_benchmark_calibration_holdout_v1",
+      "sha256": "ccacb8250d58a5ab47119cc317af9eee6c27d4185141cdfe5b8879a76f5462c2",
+      "source_path": "experimental/literature_experimental_dataset.json",
+      "status": "measured"
+    }
+  ],
+  "measured_durability": [
+    {
+      "candidate_id": "c77b56fa00cdc515e3b7",
+      "dataset_id": "literature_calibration_holdout_2026_v1",
+      "measurement_type": "durability",
+      "protocol_id": "lit_benchmark_calibration_holdout_v1",
+      "sha256": "ccacb8250d58a5ab47119cc317af9eee6c27d4185141cdfe5b8879a76f5462c2",
+      "source_path": "experimental/literature_experimental_dataset.json",
+      "status": "measured"
+    }
+  ],
+  "measured_mea": [
+    {
+      "candidate_id": "c77b56fa00cdc515e3b7",
+      "dataset_id": "literature_calibration_holdout_2026_v1",
+      "measurement_type": "mea_performance",
+      "protocol_id": "lit_benchmark_calibration_holdout_v1",
+      "sha256": "ccacb8250d58a5ab47119cc317af9eee6c27d4185141cdfe5b8879a76f5462c2",
+      "source_path": "experimental/literature_experimental_dataset.json",
+      "status": "measured"
+    }
+  ],
+  "measured_reactor": [
+    {
+      "candidate_id": "be45ea11e23945dbbda5",
+      "dataset_id": "literature_calibration_holdout_2026_v1",
+      "measurement_type": "pyrolysis_reactor",
+      "protocol_id": "lit_benchmark_calibration_holdout_v1",
+      "sha256": "ccacb8250d58a5ab47119cc317af9eee6c27d4185141cdfe5b8879a76f5462c2",
+      "source_path": "experimental/literature_experimental_dataset.json",
+      "status": "measured"
+    },
+    {
+      "candidate_id": "c4ab2249c156880efdbe",
+      "dataset_id": "literature_calibration_holdout_2026_v1",
+      "measurement_type": "ntec_pair",
+      "protocol_id": "lit_benchmark_calibration_holdout_v1",
+      "sha256": "ccacb8250d58a5ab47119cc317af9eee6c27d4185141cdfe5b8879a76f5462c2",
+      "source_path": "experimental/literature_experimental_dataset.json",
+      "status": "measured"
+    }
+  ],
+  "ntec_control_pair": [
+    {
+      "candidate_id": "c4ab2249c156880efdbe",
+      "dataset_id": "literature_calibration_holdout_2026_v1",
+      "measurement_type": "ntec_pair",
+      "protocol_id": "lit_benchmark_calibration_holdout_v1",
+      "sha256": "ccacb8250d58a5ab47119cc317af9eee6c27d4185141cdfe5b8879a76f5462c2",
+      "source_path": "experimental/literature_experimental_dataset.json",
+      "status": "measured"
+    }
+  ]
+}

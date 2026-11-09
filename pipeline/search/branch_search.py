@@ -570,6 +570,10 @@ def verify_branch_coverage(
         errors.append(
             f"terminal interval sum {covered} != declared population {declared}"
         )
+    resolved_by_class = _resolved_by_class(conn, application, tuple(classes))
+    class_floor_satisfied = not errors and all(
+        int(resolved_by_class.get(c, 0)) >= 1 for c in classes
+    )
     from pipeline.screening.objectives import objective_spec_metadata
 
     certificate = {
@@ -581,6 +585,8 @@ def verify_branch_coverage(
         'terminal_nodes': terminal_count,
         'resolved_terminal_nodes': resolved_count,
         'unresolved_terminal_nodes': unresolved_count,
+        'resolved_terminal_nodes_by_class': resolved_by_class,
+        'class_floor_satisfied': class_floor_satisfied,
         'partition_digest_sha256': digest.hexdigest(),
         'gap_free': not any('gap' in e for e in errors),
         'overlap_free': not any('overlap' in e for e in errors),

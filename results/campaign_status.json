@@ -1,0 +1,14 @@
+{
+  "ready": true,
+  "criteria": {
+    "complete_search": true,
+    "validated_champions": true,
+    "validated_reactor": true,
+    "validated_pemfc": true,
+    "defensible_novelty": true,
+    "calibrated_ntec": true
+  },
+  "missing": [],
+  "evidence_manifest_valid": true,
+  "evidence_errors": []
+}

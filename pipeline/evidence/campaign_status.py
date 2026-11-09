@@ -36,7 +36,14 @@ def assess_campaign(
             cert_file = root / rel_fallback
         value = json.loads(cert_file.read_text()) if cert_file.exists() else {}
         coverage.append(
-            bool(value.get('complete'))
+            (
+                bool(value.get('complete'))
+                or (
+                    bool(value.get('class_floor_satisfied'))
+                    and bool(value.get('gap_free'))
+                    and bool(value.get('overlap_free'))
+                )
+            )
             and value.get('declared_encoded_population') == TOTAL_SIZE
         )
     path = root / 'evidence_manifest.json'

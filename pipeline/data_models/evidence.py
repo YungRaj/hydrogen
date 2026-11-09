@@ -462,6 +462,33 @@ class Round2CampaignReport(TypedDict):
     report_sha256: str
 
 
+class DeltaMLApplicationDiagnostics(TypedDict):
+    """Leave-one-out cross-validated Delta-ML barrier/overpotential calibration diagnostics."""
+
+    n_samples: int
+    feature_names: list[str]
+    ridge_alpha: float
+    raw_mae_eV: float
+    raw_rmse_eV: float
+    class_offset_loo_mae_eV: float
+    loo_mae_eV: float
+    loo_rmse_eV: float
+    loo_r2: float
+    spearman_rho: float
+    ridge_weights: dict[str, float]
+
+
+class DeltaMLCalibrationReport(TypedDict):
+    """Persisted multi-application Delta-ML calibration evaluation artifact."""
+
+    schema_version: int
+    calibration_sha256: str
+    turquoise_hydrogen: DeltaMLApplicationDiagnostics
+    fuel_cell_orr: DeltaMLApplicationDiagnostics
+    report_sha256: str
+
+
+
 class _ORRSlateCandidateRowBase(TypedDict):
     """Base fields for a candidate in the 50-catalyst ORR confirmatory slate."""
 

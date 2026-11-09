@@ -1,0 +1,51 @@
+{
+  "analysis_plan_sha256": "32cc3d3e270aece274c8a03a4c36fd8b643c1dd9dbafc30aa00e055fc90a2681",
+  "dataset_id": "literature_calibration_holdout_2026_v1",
+  "dataset_sha256": "ccacb8250d58a5ab47119cc317af9eee6c27d4185141cdfe5b8879a76f5462c2",
+  "failed_or_excluded_attempts": 1,
+  "groups": [
+    {
+      "candidate_id": "be45ea11e23945dbbda5",
+      "independent_calibration_units": 3,
+      "independent_holdout_units": 3,
+      "measurement_type": "pyrolysis_reactor",
+      "split_complete": true
+    },
+    {
+      "candidate_id": "c4ab2249c156880efdbe",
+      "independent_calibration_units": 6,
+      "independent_holdout_units": 6,
+      "measurement_type": "ntec_pair",
+      "split_complete": true
+    },
+    {
+      "candidate_id": "c77b56fa00cdc515e3b7",
+      "independent_calibration_units": 3,
+      "independent_holdout_units": 3,
+      "measurement_type": "durability",
+      "split_complete": true
+    },
+    {
+      "candidate_id": "c77b56fa00cdc515e3b7",
+      "independent_calibration_units": 3,
+      "independent_holdout_units": 3,
+      "measurement_type": "hydrogen_impurity",
+      "split_complete": true
+    },
+    {
+      "candidate_id": "c77b56fa00cdc515e3b7",
+      "independent_calibration_units": 3,
+      "independent_holdout_units": 3,
+      "measurement_type": "mea_performance",
+      "split_complete": true
+    }
+  ],
+  "minimum_calibration_units": 3,
+  "minimum_holdout_units": 3,
+  "ntec_pair_count": 6,
+  "protocol_id": "lit_benchmark_calibration_holdout_v1",
+  "record_count": 36,
+  "run_log_sha256": "0fa40a4a2d9b8e4722ec249c09df4391821305ed38de788c9f620b74904da0d0",
+  "split_complete_groups": 5,
+  "valid": true
+}

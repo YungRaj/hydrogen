@@ -1,0 +1,89 @@
+{
+  "application": "fuel_cell_orr",
+  "complete": false,
+  "declared_encoded_population": 21092657271,
+  "errors": [],
+  "gap_free": true,
+  "generated_at": "2026-10-17T03:51:42Z",
+  "material_classes": [
+    "MoltenMetal",
+    "SolidCatalyst",
+    "SAC",
+    "DAC",
+    "MOF",
+    "COF",
+    "Perovskite",
+    "MetalHydride",
+    "MAXPhase",
+    "HEA",
+    "Spinel",
+    "MXene",
+    "SAA",
+    "MetalFreeCarbon"
+  ],
+  "objective_specs": [
+    {
+      "active": true,
+      "column_index": 0,
+      "direction": "minimize",
+      "model_predicted": true,
+      "name": "orr_overpotential_V",
+      "source": "orr_overpotential_V",
+      "unit": "V",
+      "validated": true
+    },
+    {
+      "active": true,
+      "column_index": 1,
+      "direction": "minimize",
+      "model_predicted": false,
+      "name": "fenton_degradation_risk",
+      "source": "-fenton_stability",
+      "unit": "risk_index",
+      "validated": true
+    },
+    {
+      "active": true,
+      "column_index": 2,
+      "direction": "minimize",
+      "model_predicted": false,
+      "name": "abundance_cost_penalty",
+      "source": "-abundance_cost_penalty",
+      "unit": "dimensionless",
+      "validated": true
+    },
+    {
+      "active": true,
+      "column_index": 3,
+      "direction": "minimize",
+      "model_predicted": true,
+      "name": "oxide_overbinding_penalty_eV",
+      "source": "binding_strength",
+      "unit": "eV",
+      "validated": true
+    }
+  ],
+  "overlap_free": true,
+  "partition_digest_sha256": "0987e721bd9595fa93afe7b70346b339acd41cb3d7a9a49227d2d1da559f26ad",
+  "resolved_terminal_nodes": 28,
+  "terminal_interval_population": 21092657271,
+  "terminal_nodes": 49,
+  "unresolved_terminal_nodes": 21,
+  "resolved_terminal_nodes_by_class": {
+    "MoltenMetal": 2,
+    "SolidCatalyst": 2,
+    "SAC": 2,
+    "DAC": 2,
+    "MOF": 2,
+    "COF": 2,
+    "Perovskite": 2,
+    "MetalHydride": 2,
+    "MAXPhase": 2,
+    "HEA": 2,
+    "Spinel": 2,
+    "MXene": 2,
+    "SAA": 2,
+    "MetalFreeCarbon": 2
+  },
+  "class_floor_satisfied": true
+}

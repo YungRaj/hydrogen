@@ -18,6 +18,8 @@ from pipeline.data_models.evidence import (
     ActiveLearningCalibrationArtifact,
     ApplicationCalibrationSummary,
     CalibrationObservation,
+    DeltaMLApplicationDiagnostics,
+    DeltaMLCalibrationReport,
     Round2ApplicationReport,
     Round2BatchReport,
     Round2CampaignReport,
@@ -1080,5 +1082,249 @@ def evaluate_round2_dft_calibrated_campaign(
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
     return report
+
+
+def _rankdata(values: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
+    """Compute average-tie ranks for 1D array."""
+    order = np.argsort(values, kind='mergesort')
+    ranks = np.empty(len(values), dtype=np.float64)
+    i = 0
+    n = len(values)
+    while i < n:
+        j = i
+        while j + 1 < n and values[order[j + 1]] == values[order[i]]:
+            j += 1
+        avg_rank = 0.5 * (i + j) + 1.0
+        for k in range(i, j + 1):
+            ranks[order[k]] = avg_rank
+        i = j + 1
+    return ranks
+
+
+def _spearman_corr(
+    x: npt.NDArray[np.float64], y: npt.NDArray[np.float64]
+) -> float:
+    """Compute Spearman rank correlation coefficient."""
+    if len(x) < 2:
+        return 0.0
+    rx = _rankdata(x) - float(np.mean(_rankdata(x)))
+    ry = _rankdata(y) - float(np.mean(_rankdata(y)))
+    denom = float(np.sqrt(np.sum(rx * rx) * np.sum(ry * ry)))
+    if denom <= 1e-12:
+        return 0.0
+    return float(np.sum(rx * ry) / denom)
+
+
+def _fit_ridge_weights(
+    x_mat: npt.NDArray[np.float64],
+    y_vec: npt.NDArray[np.float64],
+    ridge_alpha: float,
+) -> npt.NDArray[np.float64]:
+    """Fit L2-regularized linear model (intercept unpenalized at index 0)."""
+    n_features = x_mat.shape[1]
+    reg = np.eye(n_features, dtype=np.float64) * float(ridge_alpha)
+    reg[0, 0] = 1e-8
+    a_mat = x_mat.T @ x_mat + reg
+    b_vec = x_mat.T @ y_vec
+    return np.linalg.solve(a_mat, b_vec)
+
+
+def _evaluate_application_delta_ml(
+    rows: Sequence[Mapping[str, object]],
+    application: str,
+    ridge_alpha: float,
+) -> DeltaMLApplicationDiagnostics:
+    """Evaluate leave-one-out feature-based Delta-ML calibration for one application."""
+    n = len(rows)
+    pred = np.array(
+        [float(cast( float | int | str, r['predicted_eV'])) for r in rows],
+        dtype=np.float64,
+    )
+    obs = np.array(
+        [float(cast(float | int | str, r['observed_eV'])) for r in rows],
+        dtype=np.float64,
+    )
+    classes = [str(r['material_class']) for r in rows]
+
+    if application == 'turquoise_hydrogen':
+        feature_names = [
+            'intercept',
+            'predicted_eV',
+            'interfacial_carbon_displacement_A',
+            'structural_prior_eV',
+            'is_spinel_or_carbon',
+        ]
+        feat_rows: list[list[float]] = []
+        for r in rows:
+            prov = cast(Mapping[str, object], r.get('provenance', {}))
+            p_ev = float(cast(float | int | str, r['predicted_eV']))
+            c_disp = float(
+                cast(
+                    float | int | str,
+                    prov.get('interfacial_carbon_displacement_A', 0.25),
+                )
+            )
+            genome_raw = r.get('genome', '')
+            try:
+                genome_tup = (
+                    cast(tuple[object, ...], ast.literal_eval(str(genome_raw)))
+                    if isinstance(genome_raw, str)
+                    else tuple(cast(Sequence[object], genome_raw))
+                )
+                s_prior = pyrolysis_genome_structural_prior_eV(genome_tup)
+            except Exception:
+                s_prior = 0.0
+            m_cls = str(r['material_class'])
+            is_high_coke = (
+                1.0 if m_cls in {'Spinel', 'MetalFreeCarbon', 'MoltenMetal'} else 0.0
+            )
+            feat_rows.append([1.0, p_ev, c_disp, s_prior, is_high_coke])
+        x_mat = np.array(feat_rows, dtype=np.float64)
+    else:
+        oxide_classes = {'Perovskite', 'Spinel'}
+        feature_names = [
+            'intercept',
+            'predicted_eV',
+            'dissolution_potential_V',
+            'pourbaix_acid_stable',
+            'is_censored_cap',
+            'is_oxide_perovskite_spinel',
+        ]
+        feat_rows = []
+        for r in rows:
+            prov = cast(Mapping[str, object], r.get('provenance', {}))
+            p_ev = float(cast(float | int | str, r['predicted_eV']))
+            u_diss = float(
+                cast(
+                    float | int | str,
+                    prov.get('dissolution_potential_V', 0.80),
+                )
+            )
+            acid_ok = 1.0 if bool(prov.get('pourbaix_acid_stable', False)) else 0.0
+            cens_cap = 1.0 if p_ev >= 2.99 else 0.0
+            m_cls = str(r['material_class'])
+            feat_rows.append(
+                [
+                    1.0,
+                    p_ev,
+                    u_diss,
+                    acid_ok,
+                    cens_cap,
+                    1.0 if m_cls in oxide_classes else 0.0,
+                ]
+            )
+        x_mat = np.array(feat_rows, dtype=np.float64)
+
+    loo_preds = np.empty(n, dtype=np.float64)
+    class_offset_preds = np.empty(n, dtype=np.float64)
+    residuals = obs - pred
+
+    for i in range(n):
+        mask = np.ones(n, dtype=bool)
+        mask[i] = False
+        w_loo = _fit_ridge_weights(x_mat[mask], residuals[mask], ridge_alpha)
+        loo_preds[i] = float(pred[i] + x_mat[i] @ w_loo)
+
+        same_cls = [
+            residuals[j]
+            for j in range(n)
+            if j != i and classes[j] == classes[i]
+        ]
+        global_mean_res = float(np.mean(residuals[mask]))
+        if same_cls:
+            cls_offset = (sum(same_cls) + 2.0 * global_mean_res) / (
+                len(same_cls) + 2.0
+            )
+        else:
+            cls_offset = global_mean_res
+        class_offset_preds[i] = pred[i] + cls_offset
+
+    full_w = _fit_ridge_weights(x_mat, residuals, ridge_alpha)
+    raw_err = np.abs(obs - pred)
+    class_err = np.abs(obs - class_offset_preds)
+    loo_err = np.abs(obs - loo_preds)
+
+    ss_res = float(np.sum((obs - loo_preds) ** 2))
+    ss_tot = float(np.sum((obs - float(np.mean(obs))) ** 2))
+    loo_r2 = 1.0 - ss_res / max(ss_tot, 1e-12)
+
+    return {
+        'n_samples': n,
+        'feature_names': feature_names,
+        'ridge_alpha': float(ridge_alpha),
+        'raw_mae_eV': round(float(np.mean(raw_err)), 6),
+        'raw_rmse_eV': round(float(np.sqrt(np.mean((obs - pred) ** 2))), 6),
+        'class_offset_loo_mae_eV': round(float(np.mean(class_err)), 6),
+        'loo_mae_eV': round(float(np.mean(loo_err)), 6),
+        'loo_rmse_eV': round(
+            float(np.sqrt(np.mean((obs - loo_preds) ** 2))), 6
+        ),
+        'loo_r2': round(float(loo_r2), 6),
+        'spearman_rho': round(_spearman_corr(obs, loo_preds), 6),
+        'ridge_weights': {
+            name: round(float(val), 6)
+            for name, val in zip(feature_names, full_w)
+        },
+    }
+
+
+def evaluate_delta_ml_barrier_calibration(
+    calibration_path: str | Path = Path(
+        'results/dft/active_learning_calibration.json'
+    ),
+    output_path: str | Path = Path(
+        'results/evidence/delta_ml_calibration_diagnostics.json'
+    ),
+    ridge_alpha: float = 1.0,
+) -> DeltaMLCalibrationReport:
+    """Evaluate out-of-fold feature-based Delta-ML calibration across QE validation rows.
+
+    Args:
+        calibration_path: Path to the active-learning QE DFT calibration JSON artifact.
+        output_path: Destination path for the Delta-ML calibration diagnostics JSON report.
+        ridge_alpha: L2 regularization strength for leave-one-out Ridge residual regression.
+
+    Returns:
+        Dictionary containing leave-one-out Delta-ML calibration metrics per application.
+    """
+    cal_doc = json.loads(Path(calibration_path).read_text(encoding='utf-8'))
+    observations = list(cal_doc.get('observations', []))
+    turq_rows = [
+        r
+        for r in observations
+        if r.get('application') == 'turquoise_hydrogen'
+    ]
+    orr_rows = [
+        r for r in observations if r.get('application') == 'fuel_cell_orr'
+    ]
+
+    turq_diag = _evaluate_application_delta_ml(
+        turq_rows, 'turquoise_hydrogen', ridge_alpha=ridge_alpha
+    )
+    orr_diag = _evaluate_application_delta_ml(
+        orr_rows, 'fuel_cell_orr', ridge_alpha=ridge_alpha
+    )
+
+    body: dict[str, object] = {
+        'schema_version': 1,
+        'calibration_sha256': str(cal_doc.get('calibration_sha256', '')),
+        'turquoise_hydrogen': turq_diag,
+        'fuel_cell_orr': orr_diag,
+    }
+    report_sha = hashlib.sha256(
+        json.dumps(body, sort_keys=True, separators=(',', ':')).encode()
+    ).hexdigest()
+    report: DeltaMLCalibrationReport = {
+        'schema_version': 1,
+        'calibration_sha256': str(cal_doc.get('calibration_sha256', '')),
+        'turquoise_hydrogen': turq_diag,
+        'fuel_cell_orr': orr_diag,
+        'report_sha256': report_sha,
+    }
+    target = Path(output_path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
+    return report
+
 
 

@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "calibration_sha256": "e536fa873d67686d90f0e87212692f99920fea93fc999b8e17ce207585ced075",
+  "turquoise_hydrogen": {
+    "n_samples": 11,
+    "feature_names": [
+      "intercept",
+      "predicted_eV",
+      "interfacial_carbon_displacement_A",
+      "structural_prior_eV",
+      "is_spinel_or_carbon"
+    ],
+    "ridge_alpha": 1.0,
+    "raw_mae_eV": 1.171936,
+    "raw_rmse_eV": 1.22444,
+    "class_offset_loo_mae_eV": 0.304273,
+    "loo_mae_eV": 0.118637,
+    "loo_rmse_eV": 0.145776,
+    "loo_r2": 0.941377,
+    "spearman_rho": 0.972727,
+    "ridge_weights": {
+      "intercept": 0.838703,
+      "predicted_eV": 0.08783,
+      "interfacial_carbon_displacement_A": 0.308385,
+      "structural_prior_eV": -0.050493,
+      "is_spinel_or_carbon": 0.343954
+    }
+  },
+  "fuel_cell_orr": {
+    "n_samples": 48,
+    "feature_names": [
+      "intercept",
+      "predicted_eV",
+      "dissolution_potential_V",
+      "pourbaix_acid_stable",
+      "is_censored_cap",
+      "is_oxide_perovskite_spinel"
+    ],
+    "ridge_alpha": 1.0,
+    "raw_mae_eV": 0.252492,
+    "raw_rmse_eV": 0.589054,
+    "class_offset_loo_mae_eV": 0.283246,
+    "loo_mae_eV": 0.238703,
+    "loo_rmse_eV": 0.453502,
+    "loo_r2": 0.861406,
+    "spearman_rho": 0.551563,
+    "ridge_weights": {
+      "intercept": -0.033797,
+      "predicted_eV": 0.255089,
+      "dissolution_potential_V": -0.078432,
+      "pourbaix_acid_stable": 0.078986,
+      "is_censored_cap": 0.871353,
+      "is_oxide_perovskite_spinel": 0.179344
+    }
+  },
+  "report_sha256": "5522cc8eb57b11f9bcf450a2612d3c718f8c95cb546dec4cd7551b0e2676ff24"
+}

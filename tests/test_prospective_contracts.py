@@ -810,6 +810,36 @@ class ProspectiveContracts(unittest.TestCase):
                 campaign.ROOT, campaign.POLICY_LOCK = original_root, original_lock
                 campaign._outcome = original_outcome
 
+    def test_delta_ml_barrier_calibration_and_campaign_readiness(self) -> None:
+        from pipeline.evidence.campaign_status import assess_campaign
+        from pipeline.evidence.round2_calibration import (
+            evaluate_delta_ml_barrier_calibration,
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            out_path = Path(directory) / 'delta_ml_diagnostics.json'
+            report = evaluate_delta_ml_barrier_calibration(output_path=out_path)
+            self.assertTrue(out_path.is_file())
+            self.assertEqual(report['schema_version'], 1)
+            turq = report['turquoise_hydrogen']
+            orr = report['fuel_cell_orr']
+            self.assertEqual(turq['n_samples'], 11)
+            self.assertEqual(orr['n_samples'], 48)
+            self.assertLess(turq['loo_mae_eV'], turq['raw_mae_eV'])
+            self.assertLess(turq['loo_mae_eV'], turq['class_offset_loo_mae_eV'])
+            self.assertGreater(turq['loo_r2'], 0.85)
+            self.assertLess(orr['loo_mae_eV'], orr['raw_mae_eV'])
+            self.assertLess(orr['loo_mae_eV'], orr['class_offset_loo_mae_eV'])
+            self.assertGreater(orr['loo_r2'], 0.80)
+
+        status_ntec = assess_campaign(
+            str(REPO_ROOT / 'results'), pyrolysis_mode='ntec'
+        )
+        self.assertTrue(status_ntec['evidence_manifest_valid'])
+        self.assertEqual(status_ntec['missing'], [])
+        self.assertTrue(status_ntec['ready'])
+
 
 if __name__ == '__main__':
     unittest.main()
+

@@ -833,6 +833,8 @@ def persist_experimental_slate(
 
 from pipeline.evidence.round2_calibration import (  # noqa: E402
     build_active_learning_calibration_artifact as build_active_learning_calibration_artifact,
+    evaluate_delta_ml_barrier_calibration as evaluate_delta_ml_barrier_calibration,
     evaluate_round2_dft_calibrated_campaign as evaluate_round2_dft_calibrated_campaign,
     pyrolysis_genome_structural_prior_eV as pyrolysis_genome_structural_prior_eV,
 )
+

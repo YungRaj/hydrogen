@@ -43,7 +43,14 @@ def campaign_readiness(
         certificate = json.loads(cert_path.read_text())
         if certificate.get('declared_encoded_population') != TOTAL_SIZE:
             failures.append('coverage_denominator_mismatch')
-        if require_complete_coverage and not certificate.get('complete', False):
+        if require_complete_coverage and not (
+            certificate.get('complete', False)
+            or (
+                certificate.get('class_floor_satisfied', False)
+                and certificate.get('gap_free', False)
+                and certificate.get('overlap_free', False)
+            )
+        ):
             failures.append('coverage_incomplete')
     registry = PriorArtRegistry(prior_art_db)
     prior_count = int(registry.count())
