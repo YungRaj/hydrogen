@@ -400,15 +400,6 @@ Excluded 341 non-run reactor files (sweeps, mocks, not_applicable, validation_re
 | `turquoise_hydrogen` | 11 | 1.1719 | 0.3043 | **0.1186** | 0.1458 | 0.9414 | 0.9727 |
 | `fuel_cell_orr` | 48 | 0.2525 | 0.2832 | **0.2387** | 0.4535 | 0.8614 | 0.5516 |
 
-#### Extended 12-Qubit `CASSCF(6,6) + SC-NEVPT2` Active-Space Convergence (*De Novo* Champions)
-
-| Candidate ID | *De Novo* Champion | Reaction | Motif | 8q `CAS(4,4)` (eV) | 12q `CAS(6,6)` (eV) | `SC-NEVPT2` Shift (eV) | `CAS(6,6)+NEVPT2` (eV) | Leading |c₀|² | CCSD T₁ |
-|--------------|--------------------|----------|-------|--------------------|---------------------|------------------------|------------------------|--------------:|--------:|
-| `9b83e69315874c5abca7` | Cu,Ru-doped Ni(fcc211)/CeZrO2 (d=10.0 nm, 25.0 wt%) | `CH_split` | `Ru-CH4_ts` | 1.8980 | 1.8588 | -0.0282 | **1.8306** | 0.7300 | 0.0263 |
-| `017a44c337ece52f029b` | Ga85Ni15 Liquid Metal Alloy | `CH_split` | `Ni-CH4_ts` | 1.8885 | 1.8732 | -0.0311 | **1.8421** | 0.9412 | 0.0781 |
-| `eb64b3aa6d3913c21f5d` | (Ta,Ti)2AlC1(basal_0001) MAX Phase Nanolaminate | `CH_split` | `Ti-CH4_ts` | 0.1153 | 0.0800 | -0.4933 | **0.0800** | 0.4540 | 0.1552 |
-| `dbc15731f8fdb0f99d43` | W-doped NiCo2O4/N-CNT Spinel Oxide | `ORR` | `CoH-O2H2_ts` | 0.0800 | 0.0800 | -0.1062 | **0.0800** | 0.7846 | 0.0319 |
-
 #### Six-Point Campaign Readiness & Evidence Manifest Verification
 
 - **Overall Campaign Readiness (`ready`)**: `True` (`evidence_manifest_valid = True`, `missing = []`)

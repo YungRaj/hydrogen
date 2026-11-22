@@ -1513,6 +1513,66 @@ def _timing_section(ps: Mapping[str, object]) -> list[str]:
     return lines
 
 
+def _calibration_and_readiness_section() -> list[str]:
+    """Render LOO delta-ML calibration diagnostics and campaign readiness tables."""
+    lines: list[str] = []
+    cal_path = RESULTS_DIR / "evidence" / "delta_ml_calibration_diagnostics.json"
+    if cal_path.is_file():
+        try:
+            cal_doc = json.loads(cal_path.read_text(encoding='utf-8'))
+        except Exception:
+            cal_doc = {}
+        if isinstance(cal_doc, Mapping):
+            rows_to_render: list[tuple[str, Mapping[str, object]]] = []
+            for app_key in ('turquoise_hydrogen', 'fuel_cell_orr'):
+                sub = cal_doc.get(app_key)
+                if isinstance(sub, Mapping):
+                    rows_to_render.append((app_key, sub))
+            if rows_to_render:
+                total_n = 0
+                for _, s in rows_to_render:
+                    n_val = s.get('n_samples')
+                    if isinstance(n_val, (int, float)):
+                        total_n += int(n_val)
+                lines += [
+                    f"#### Out-of-Fold Leave-One-Out Ridge Δ-ML Barrier & Overpotential Calibration (`n = {total_n}` QE Runs)\n",
+                    "| Application | QE Samples | Raw MAE (eV) | Class-Offset LOO MAE (eV) | Δ-ML LOO MAE (eV) | Δ-ML LOO RMSE (eV) | LOO R² | Spearman ρ |",
+                    "|-------------|------------|--------------|---------------------------|-------------------|--------------------|--------|------------|",
+                ]
+                for app_key, sub in rows_to_render:
+                    lines.append(
+                        f"| `{app_key}` | {sub.get('n_samples', 0)} | "
+                        f"{_report_number(sub.get('raw_mae_eV'), '.4f')} | "
+                        f"{_report_number(sub.get('class_offset_loo_mae_eV'), '.4f')} | "
+                        f"**{_report_number(sub.get('loo_mae_eV'), '.4f')}** | "
+                        f"{_report_number(sub.get('loo_rmse_eV'), '.4f')} | "
+                        f"{_report_number(sub.get('loo_r2'), '.4f')} | "
+                        f"{_report_number(sub.get('spearman_rho'), '.4f')} |"
+                    )
+                lines.append("")
+
+    status_path = RESULTS_DIR / "campaign_status.json"
+    if status_path.is_file():
+        try:
+            status_doc = json.loads(status_path.read_text(encoding='utf-8'))
+        except Exception:
+            status_doc = {}
+        if isinstance(status_doc, Mapping) and isinstance(status_doc.get('criteria'), Mapping):
+            criteria = cast(Mapping[str, object], status_doc['criteria'])
+            lines += [
+                "#### Six-Point Campaign Readiness & Evidence Manifest Verification\n",
+                f"- **Overall Campaign Readiness (`ready`)**: `{bool(status_doc.get('ready'))}` "
+                f"(`evidence_manifest_valid = {bool(status_doc.get('evidence_manifest_valid'))}`, "
+                f"`missing = {status_doc.get('missing', [])}`)\n",
+                "| Acceptance Criterion | Status |",
+                "|----------------------|--------|",
+            ]
+            for crit_key, crit_val in criteria.items():
+                lines.append(f"| `{crit_key}` | `{bool(crit_val)}` |")
+            lines.append("")
+    return lines
+
+
 def generate_full_report(
     pipeline_state: dict[str, object] | None = None,
 ) -> Path:
@@ -1716,6 +1776,7 @@ def generate_full_report(
         + _vqe_section(vqe_arg)
         + _fuel_cell_section(fc_arg, dft_arg)
         + _tea_section(p2, mp)
+        + _calibration_and_readiness_section()
         + _timing_section(ps)
     )
     report_path = REPORTS_DIR / "pipeline_report.md"
