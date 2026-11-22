@@ -164,7 +164,7 @@ def pbr_pellet_effectiveness(
     sherwood = float(2.0 + 1.1 * (re_p ** 0.6) * (sc ** (1.0 / 3.0)))
     k_c_m_s = max(sherwood * d_mol / d_p, 1e-9)
 
-    da_external = float((eta_internal * k_surf_m_s) / k_c_m_s)
+    da_external = float((eta_internal * k_vol_1_s * l_char) / k_c_m_s)
     omega_overall = min(max(eta_internal / (1.0 + da_external), 1e-6), 1.0)
 
     return {

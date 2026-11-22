@@ -1764,7 +1764,16 @@ def generate_full_report(
             orr_list = mp.get('orr_cathode_champions')
             if isinstance(orr_list, list) and orr_list:
                 p5.setdefault('n_cathodes_screened', len(orr_list))
-        elif fc_arg:
+            else:
+                fc_sum_mp = mp.get('dft_calibrated_pemfc_stack_summary') or mp.get('pemfc_stack_summary')
+                if isinstance(fc_sum_mp, Mapping) and isinstance(
+                    fc_sum_mp.get('n_qe_converged_acid_stable_cathodes'), (int, float)
+                ):
+                    p5.setdefault(
+                        'n_cathodes_screened',
+                        int(fc_sum_mp['n_qe_converged_acid_stable_cathodes']),
+                    )
+        if 'n_cathodes_screened' not in p5 and fc_arg:
             p5.setdefault('n_cathodes_screened', len(fc_arg))
 
     report_lines = (
