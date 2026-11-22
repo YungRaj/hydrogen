@@ -301,12 +301,14 @@ def _evaluate_candidate_replica(
             result['coking_index'] = coking_index
 
         # 8. Stability metric
-        if mat_class in ('SolidCatalyst', 'MoltenMetal'):
-            e_seg = _compute_segregation_energy(structure, active_idx, calc, e_clean)
-            result['segregation_energy'] = e_seg
-        else:
+        if mat_class in ('SAC', 'DAC', 'MOF', 'COF'):
             e_bind = _compute_binding_energy(structure, calc, e_clean, genome)
             result['segregation_energy'] = e_bind
+        elif mat_class == 'MetalFreeCarbon':
+            result['segregation_energy'] = 0.0
+        else:
+            e_seg = _compute_segregation_energy(structure, active_idx, calc, e_clean)
+            result['segregation_energy'] = e_seg
 
         # 9. Rate constant at reference temperature (TST prefactor k_B*T/h ~ 1e13 s^-1)
         T_ref = (
@@ -501,7 +503,10 @@ def _compute_segregation_energy(slab, active_idx, calc, e_clean):
 
 
 def _compute_binding_energy(structure, calc, e_clean, genome):
-    """Compute metal-cavity binding energy for SAC/MOF."""
+    """Compute metal-cavity binding energy for SAC/DAC/MOF/COF."""
+    metal = genome[1] if len(genome) > 1 else 'None'
+    if not metal or metal == 'None':
+        return 0.0
     try:
         cavity_struct = structure.copy()
         del cavity_struct[0]
