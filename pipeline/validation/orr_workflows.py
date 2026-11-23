@@ -94,25 +94,35 @@ def enumerate_surface_sites(atoms: Atoms, top_tolerance_A: float = 0.75) -> list
         for j in top[a + 1 :]:
             distance = atoms.get_distance(i, j, mic=True)
             if distance < 3.5:
+                vec_ij = atoms.get_distance(i, j, mic=True, vector=True)
                 sites.append(
                     {
                         'kind': 'bridge',
                         'atom_indices': [i, j],
-                        'position': (
-                            (atoms.positions[i] + atoms.positions[j]) / 2
-                        ).tolist(),
+                        'position': (atoms.positions[i] + 0.5 * vec_ij).tolist(),
                     }
                 )
     if len(top) >= 3:
-        for a in range(len(top) - 2):
-            tri = top[a : a + 3]
-            sites.append(
-                {
-                    'kind': 'hollow',
-                    'atom_indices': tri,
-                    'position': atoms.positions[tri].mean(axis=0).tolist(),
-                }
-            )
+        for a, i in enumerate(top):
+            for b, j in enumerate(top[a + 1 :], start=a + 1):
+                if atoms.get_distance(i, j, mic=True) >= 3.5:
+                    continue
+                vec_ij = atoms.get_distance(i, j, mic=True, vector=True)
+                for k in top[b + 1 :]:
+                    if (
+                        atoms.get_distance(i, k, mic=True) < 3.5
+                        and atoms.get_distance(j, k, mic=True) < 3.5
+                    ):
+                        vec_ik = atoms.get_distance(i, k, mic=True, vector=True)
+                        sites.append(
+                            {
+                                'kind': 'hollow',
+                                'atom_indices': [i, j, k],
+                                'position': (
+                                    atoms.positions[i] + (vec_ij + vec_ik) / 3.0
+                                ).tolist(),
+                            }
+                        )
     return sites
 
 

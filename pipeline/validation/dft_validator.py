@@ -298,9 +298,10 @@ def generate_slab_scf_input(
     # species has a non-zero starting magnetization.  Use a conservative seed
     # for every species; this initializes the spin channel without asserting a
     # particular converged magnetic state.
+    magnetic_3d = {'Fe', 'Co', 'Ni', 'Mn', 'Cr', 'V'}
     magnetization_block = "\n".join(
-        f"  starting_magnetization({index}) = 0.05"
-        for index, _ in enumerate(unique_elements, start=1)
+        f"  starting_magnetization({index}) = {0.5 if elem in magnetic_3d else 0.05}"
+        for index, elem in enumerate(unique_elements, start=1)
     )
     spin_section = f"  nspin = 2\n{magnetization_block}\n" if spin_polarized else ""
     cell_block = "".join(
