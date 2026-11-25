@@ -28,7 +28,7 @@ from pipeline.utils import (
 
 
 # Standard thermodynamics for CH4(g) -> C(gr) + 2 H2(g) at 298.15 K:
-# ΔH°_298 = +74.85 kJ/mol, ΔS°_298 = +80.6 J/(mol·K); ΔG°(T) = ΔH° - T*ΔS° crosses zero near 818 K.
+# ΔH°_298 = +74.85 kJ/mol, ΔS°_298 = +80.6 J/(mol·K); ΔG°(T) = ΔH° - T*ΔS° crosses zero near 929 K.
 CH4_PYROLYSIS_DELTA_H_J_MOL: float = 74850.0
 CH4_PYROLYSIS_DELTA_S_J_MOL_K: float = 80.6
 
@@ -400,8 +400,11 @@ def coupled_electrochemical_operating_point(
     ntu_ec = (i_anode_a_m2 * area_val) / max(n_electrons * FARADAY_C_MOL * feed_val, 1e-15)
     conversion = min(max(1.0 - math.exp(-ntu_ec), 0.0), 0.98)
     j_a_cm2 = i_anode_a_m2 / 1.0e4
+    ohmic_drop_v = i_anode_a_m2 * delta_val / max(sigma_val, 1e-6)
+    cathode_eta_v = -0.00825
+    v_total = v_cell + ohmic_drop_v + abs(cathode_eta_v)
     spec_energy = (
-        v_cell * 4.0 * FARADAY_C_MOL / (3.6e6 * MOLAR_MASS_2H2_KG_MOL)
+        v_total * 4.0 * FARADAY_C_MOL / (3.6e6 * MOLAR_MASS_2H2_KG_MOL)
     )
     phase = 'molten' if not is_aqueous else 'aqueous'
     return {
@@ -414,12 +417,12 @@ def coupled_electrochemical_operating_point(
         'faradaic_efficiency_H2': 1.0,
         'anode_overpotential_V': eta_a,
         'anode_surface_ch4_mol_m3': c_surface,
-        'cathode_overpotential_V': -0.00825,
+        'cathode_overpotential_V': cathode_eta_v,
         'current_density_A_cm2': j_a_cm2,
-        'cell_voltage_V': v_cell,
-        'electrical_power_density_W_cm2': v_cell * j_a_cm2,
+        'cell_voltage_V': v_total,
+        'electrical_power_density_W_cm2': v_total * j_a_cm2,
         'specific_energy_kWh_kg_H2': spec_energy,
-        'ohmic_drop_V': i_anode_a_m2 * delta_val / max(sigma_val, 1e-6),
+        'ohmic_drop_V': ohmic_drop_v,
     }
 
 
