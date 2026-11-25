@@ -130,7 +130,7 @@ def model_stack(config: StackConfig) -> StackResult:
     total_heat_kW = total_heat_W / 1000.0
 
     # Radiator sizing (simplified)
-    delta_T = config.T_cell_K - config.T_ambient_K
+    delta_T = max(config.T_cell_K - config.T_ambient_K, 1.0)
     radiator_area_m2 = total_heat_W / (50.0 * delta_T)  # U ≈ 50 W/(m²·K) forced-air heat transfer coeff
 
     # ── Balance of Plant Power ──────────────────────────────────────────────
@@ -347,13 +347,15 @@ def couple_reactor_to_pemfc_stack(
     h2_yield: float = x_pass * h2_sel
 
     # Effluent molar ratios relative to H2 before PSA:
+    total_moles_out: float = max(
+        1.0 + (spec.nu_H2 + spec.nu_CO - 1.0) * 0.95 * x_pass, 1e-6
+    )
     raw_x_h2 = reactor_result.get('exit_x_H2')
     x_h2_out: float = (
         float(raw_x_h2)
         if isinstance(raw_x_h2, (int, float)) and float(raw_x_h2) > 1e-6
         else max(
-            (spec.nu_H2 * 0.95 * x_pass * h2_sel)
-            / max(1.0 + (spec.nu_H2 + spec.nu_CO - 1.0) * 0.95 * x_pass, 1e-6),
+            (spec.nu_H2 * 0.95 * x_pass * h2_sel) / total_moles_out,
             1e-4,
         )
     )
@@ -361,16 +363,13 @@ def couple_reactor_to_pemfc_stack(
     x_co_out: float = (
         float(raw_x_co)
         if isinstance(raw_x_co, (int, float)) and float(raw_x_co) >= 0.0
-        else (
-            (spec.nu_CO * 0.95 * x_pass)
-            / max(1.0 + (spec.nu_H2 + spec.nu_CO - 1.0) * 0.95 * x_pass, 1e-6)
-        )
+        else (spec.nu_CO * 0.95 * x_pass) / total_moles_out
     )
     raw_x_c2h4 = reactor_result.get('exit_x_C2H4')
     x_c2h4_out: float = (
         float(raw_x_c2h4)
         if isinstance(raw_x_c2h4, (int, float)) and float(raw_x_c2h4) >= 0.0
-        else (0.65 * 0.5 * float(spec.nu_C) * 0.95 * x_pass * c2_sel)
+        else (0.65 * 0.5 * float(spec.nu_C) * 0.95 * x_pass * c2_sel) / total_moles_out
     )
 
     co_to_h2_raw: float = x_co_out / max(x_h2_out, 1e-6)
